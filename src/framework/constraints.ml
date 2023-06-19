@@ -1753,16 +1753,17 @@ struct
               iter_call new_path_visited_calls to_call
             ) callers;
         with Invalid_argument _ -> () (* path ended: no cycle*)
-        
         end
     in
-      let gmap_opt = G.base2 (ctx.global (v)) in
-      let gmap = Option.get (gmap_opt) in
-      (*let c = Option.get(G.CMap.PMap.keys gmap) in *)(*Todo: the context should be the domain of the map*)
-      G.CMap.iter(fun key value ->
-        let call = (v', key) in
-         iter_call LS.empty call
-      ) gmap (* try all fundec + context pairs that are in the map *)
+      try 
+        let gmap_opt = G.base2 (ctx.global (v)) in
+        let gmap = Option.get (gmap_opt) in
+        (*let c = Option.get(G.CMap.PMap.keys gmap) in *)(*Todo: the context should be the domain of the map*)
+        G.CMap.iter(fun key value ->
+          let call = (v', key) in
+          iter_call LS.empty call
+        ) gmap (* try all fundec + context pairs that are in the map *)
+      with Invalid_argument _ -> ()
 
   let checkTerminating ctx v v' = 
     (*Check if the loops terminated*)
@@ -1770,9 +1771,11 @@ struct
         then (cycleDetection ctx v v')
         else(let msgs = 
           [
-            (Pretty.dprintf "The program might not terminate! (Loops)\n", Some (M.Location.CilLocation locUnknown));
+            (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
           ] in
-        M.msg_group Warning "Possibly non terminating loops" msgs)
+        M.msg_group Warning "Possibly non terminating loops" msgs);
+        printf "true"
+
 
   (*TODO: We may need to add new queries here*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =

@@ -6,6 +6,15 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
+let loop_heads =
+  let module FileCfg =
+  struct
+    let file = !Cilfacade.current_file
+    module Cfg = (val !MyCFG.current_cfg)
+  end in
+  let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
+  WitnessInvariant.loop_heads (* TODO: Use this *)
+
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 
@@ -21,12 +30,6 @@ let is_loop_counter_var (x : varinfo) =
 let is_loop_exit_indicator (x : varinfo) =
   x = !loop_exit
 
-(** Checks whether at the current location (=loc) of the analysis an
- * upjumping goto was already reached. Returns true if no upjumping goto was
- * reached until now *)
-let currrently_no_upjumping_gotos (loc : location) =
-  List.for_all (function l -> l >= loc) upjumping_gotos.contents
-
 let no_upjumping_gotos () =
   List.length upjumping_gotos.contents = 0
 
@@ -39,14 +42,18 @@ let check_bounded ctx varinfo =
   | `Lifted v -> not (is_top_of (ikind v) v)
   | `Bot -> raise (PreProcessing "Loop variable is Bot")
 
-module FunContextV : Analyses.SpecSysVar =
+module UnitV =
 struct
-  include Printable.Prod (CilType.Fundec) (CilType.Fundec) (* TODO *)
-  include Analyses.StdV
+  include Printable.Unit
+  include StdV
 end
 
+(** We want to record termination information of loops and use the loop
+ * statements for that. We use this lifting because we need to have a
+ * lattice. *)
 module Statements = Lattice.Flat (CilType.Stmt) (Printable.DefaultNames) (* TODO: Use Basetype.CilStmt instead? *)
 
+(** The termination analysis considering loops and gotos *)
 module Spec : Analyses.MCPSpec =
 struct
 
@@ -55,29 +62,32 @@ struct
 
   let name () = "termination"
 
-  module D = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
+  module D = Lattice.Unit
   module C = D
-  module V = FunContextV
-  (* TODO *)
+  module V = UnitV
+  module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
   let startstate _ = D.bot ()
-  let exitstate = startstate (* TODO *)
-
-  let finalize () = () (* TODO *)
+  let exitstate = startstate
 
   let assign ctx (lval : lval) (rval : exp) =
     (* Detect assignment to loop counter variable *)
     match lval, rval with
+    (*
       (Var x, NoOffset), _ when is_loop_counter_var x ->
       (* Assume that the following loop does not terminate *)
       let loop_statement = VarToStmt.find x !loop_counters in
+      let () = ctx.sideg () (G.add (`Lifted loop_statement) false ctx.local) in
+      let () = print_endline ("Added FALSE for " ^ x.vname) in
       D.add (`Lifted loop_statement) false ctx.local
-    | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
+       *)
+      (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
       (* Loop exit: Check whether loop counter variable is bounded *)
       (* TODO: Move *)
       let is_bounded = check_bounded ctx x in
       let loop_statement = VarToStmt.find x !loop_counters in
-      D.add (`Lifted loop_statement) is_bounded ctx.local
+      let () = ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ())) in
+      ctx.local
     | _ -> ctx.local
 
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
@@ -85,21 +95,16 @@ struct
     ctx.local
 
   (** Provides information to Goblint *)
-  (* TODO: Consider gotos *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let open Queries in
     match q with
     | Queries.MustTermLoop loop_statement ->
-      if no_upjumping_gotos () 
-        then ((match D.find_opt (`Lifted loop_statement) ctx.local with
+      (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
          Some b -> b
-       | None -> Result.top q))
-      else(Result.top q)
+       | None -> false)
     | Queries.MustTermProg ->
-      if no_upjumping_gotos () 
-        then (D.for_all (fun _ term_info -> term_info) ctx.local) 
-        else (Result.top q)
-    | _ -> Result.top q
+      G.for_all (fun _ term_info -> term_info) (ctx.global ())
+      && no_upjumping_gotos ()
+    | _ -> Queries.Result.top q
 
 end
 
