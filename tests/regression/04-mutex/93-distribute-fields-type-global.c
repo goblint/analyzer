@@ -8,13 +8,13 @@ struct S {
 
 struct S s;
 
+extern struct S* getS();
+
 void *t_fun(void *arg) {
   printf("%d",getS()->field); // RACE!
 
   return NULL;
 }
-
-extern struct S* getS();
 
 int main(void) {
   pthread_t id;
