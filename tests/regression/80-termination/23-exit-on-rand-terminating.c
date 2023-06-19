@@ -13,6 +13,5 @@ int main()
         {
             short_run = 1;
         }
-        printf("%i   %i\n", i, short_run);
     }
 }
