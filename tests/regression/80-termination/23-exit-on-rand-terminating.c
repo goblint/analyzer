@@ -1,16 +1,18 @@
 // PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdlib.h>
+#include <stdio.h>
 
 int main()
 {
-    int shortrun, i = 0;
+    int short_run, i = 0;
 
-    while (i < 90 || shortrun == 1)
+    while (i < 90 && short_run != 1)
     {
         i++;
         if (rand())
         {
-            shortrun = 1;
+            short_run = 1;
         }
+        printf("%i   %i\n", i, short_run);
     }
 }
