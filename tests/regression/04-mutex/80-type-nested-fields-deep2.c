@@ -2,6 +2,14 @@
 #include <pthread.h>
 #include <stdio.h>
 
+// (int)   (S)     (T)     (U)
+//    \   /   \   /   \   / 
+//      f       s       t
+//        \   /   \   /  
+//         >f<      s
+//            \   /
+//             >f<
+
 struct S {
   int field;
 };
