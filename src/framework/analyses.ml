@@ -42,6 +42,7 @@ struct
   let var_id = Node.show_id
 end
 
+
 module VarF (LD: Printable.S) =
 struct
   type t = Node.t * LD.t [@@deriving eq, ord, hash]
@@ -118,6 +119,7 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
+
 (* Tuple of fundec and S.C*)
 module T (Base1: Printable.S) (Base2: Printable.S) = 
 struct 
@@ -151,8 +153,9 @@ struct
   
   let pretty () x = text (show x)
 
-  let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)    
+  let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)
 end
+
 
 module GVarGSet (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
 struct

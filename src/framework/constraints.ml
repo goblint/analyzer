@@ -1711,6 +1711,7 @@ struct
   struct 
     include GVarF(S.V)
   end
+  
   module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
 
   let name () = "RecursionTerm (" ^ S.name () ^ ")"
@@ -1722,15 +1723,15 @@ struct
     }
 
   let cycleDetection ctx v v' = 
-    let module LH = Hashtbl.Make (T (CilType.Fundec) (S.C)) in
-    let module LS = Set.Make (T (CilType.Fundec) (S.C)) in
+    let module LH = Hashtbl.Make (T (CilType.Fundec) (S.C)) in 
+    let module LS = Set.Make (T (CilType.Fundec) (S.C)) in 
     (* find all cycles/SCCs *)
-    let global_visited_calls = LH.create 100 in
+    let global_visited_calls = LH.create 100 in 
     (* DFS *)
     let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
       if LS.mem call path_visited_calls then (
-        (*Cycle found*) 
+        (*Cycle found*)
         let msgs = 
           [
             (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)\n" CilType.Fundec.pretty fundec_e, Some (M.Location.CilLocation locUnknown));
@@ -1739,11 +1740,11 @@ struct
       else if not (LH.mem global_visited_calls call) then begin
         try
           LH.replace global_visited_calls call ();
-          let new_path_visited_calls = LS.add call path_visited_calls in
-          let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
-          let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in
+          let new_path_visited_calls = LS.add call path_visited_calls in 
+          let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in 
+          let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in 
           let gmap = Option.get (gmap_opt) in (*might be empty*)
-          let callers: G.CSet.t = G.CMap.find (context_e) gmap in
+          let callers: G.CSet.t = G.CMap.find (context_e) gmap in 
           G.CSet.iter (fun to_call ->
               iter_call new_path_visited_calls to_call
             ) callers;
@@ -1751,19 +1752,19 @@ struct
         end
     in
       try 
-        let gmap_opt = G.base2 (ctx.global (v)) in
-        let gmap = Option.get (gmap_opt) in
+        let gmap_opt = G.base2 (ctx.global (v)) in 
+        let gmap = Option.get (gmap_opt) in 
         G.CMap.iter(fun key value ->
-          let call = (v', key) in
-          iter_call LS.empty call
-        ) gmap (* try all fundec + context pairs that are in the map *)
+            let call = (v', key) in 
+            iter_call LS.empty call
+          ) gmap (* try all fundec + context pairs that are in the map *)
       with Invalid_argument _ -> ()
 
   let checkTerminating ctx v v' = 
     (*Check if the loops terminated*)
       if ctx.ask Queries.MustTermProg
         then (cycleDetection ctx v v')
-        else(let msgs = 
+        else (let msgs = 
           [
             (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
           ] in
@@ -1808,10 +1809,10 @@ struct
       let c_r: S.C.t = ctx.context () in (*Caller context*)
       let nodeF = ctx.node in
       let fd_r : fundec = Node.find_fundec nodeF in (*Caller fundec*)
-      let c_e: S.C.t = Option.get (fc) in (*Callee context*) 
+      let c_e: S.C.t = Option.get fc in (*Callee context*)
       let fd_e : fundec = f in (*Callee fundec*)
       let tup: (fundec * S.C.t) = (fd_r, c_r) in 
-      let t = G.CSet.singleton (tup) in
+      let t = G.CSet.singleton (tup) in 
       side_context ctx.sideg fd_e (c_e) t;
       S.combine_env (conv ctx) r fe f args fc es f_ask
     else 
@@ -1825,6 +1826,7 @@ struct
   let asm ctx = S.asm (conv ctx)
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
+
 
 module CompareGlobSys (SpecSys: SpecSys) =
 struct
