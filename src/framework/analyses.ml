@@ -139,15 +139,12 @@ struct
     </map></value>\n" Base1.printXml a Base2.printXml b
 
   let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
-    if equal (a1, b1) (a2, b2) then 0 else(
-    let res = ref 0 in
-    let comp_a = Base1.compare a1 a2 in
-    let comp_b = Base2.compare b1 b2 in
-    if (comp_a > 0) then res := !(res) + 1 
-    else if (comp_a < 0) then res := !(res) - 1;
-    if (comp_b > 0) then res := !(res) + 3 
-    else if (comp_b < 0) then res := !(res) - 3;
-    !res) 
+    if equal (a1, b1) (a2, b2) then 0 
+    else(
+      let val_a a = if (a > 0) then 1 else -1 in
+      let val_b b = if (b > 0) then 3 else -3 in
+      val_a (Base1.compare a1 a2) + val_b (Base2.compare b1 b2)
+    ) 
   
   let pretty () x = text (show x)
   let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)
@@ -170,7 +167,7 @@ struct
   end
 
   (* Make the given module Goupable*)
-  module C_Printable (C: Printable.S)= 
+  module C_Printable (C: Printable.S) = 
     struct
       include C
       include Printable.Std (* To make it Groupable *)

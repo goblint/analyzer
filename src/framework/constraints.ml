@@ -1700,9 +1700,11 @@ module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
         and module C = S.C
 =
-(*global invariant
+(*global invariants:
+     - V -> G
      - fundec -> Map (S.C) (Set (fundec * S.C)) 
-    So:   g   -> {c' -> f, c} 
+    Therefore:
+         g    -> {c' -> {(f, c)}}
     in case f, c --> g, c'  *)
 
 struct
@@ -1732,7 +1734,7 @@ struct
     let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
       if LS.mem call path_visited_calls then (
-        
+
         (*Cycle found*)
         let msgs = 
           [
@@ -1760,7 +1762,7 @@ struct
             let call = (v', key) in 
             iter_call LS.empty call
           ) gmap (* try all fundec + context pairs that are in the map *)
-      with Invalid_argument _ -> ()
+      with Invalid_argument _ -> () (* path ended: no cycle*)
 
   let checkTerminating ctx v v' = 
     (*Check if the loops terminated*)
