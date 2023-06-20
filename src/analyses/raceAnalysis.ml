@@ -106,10 +106,11 @@ struct
     side_vars ctx memo
 
   let outer_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
-    match offset with
-    | `NoOffset -> None
-    | `Field (f, offset') -> Some (`Type f.ftype, offset')
-    | `Index ((), offset') -> None (* TODO *)
+    match root, offset with
+    | `Var v, _ -> Some (`Type v.vtype, offset) (* TODO: Alloc variables void type *)
+    | _, `NoOffset -> None
+    | _, `Field (f, offset') -> Some (`Type f.ftype, offset')
+    | _, `Index ((), offset') -> None (* TODO *)
 
   let rec distribute_outer ctx ((root, offset) : Access.Memo.t) : Access.AS.t =
     let trie = G.access (ctx.global (V.access root)) in
