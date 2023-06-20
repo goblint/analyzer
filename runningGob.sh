@@ -8,7 +8,7 @@ options_apron="--set ana.activated[+] apron --enable ana.int.interval --set ana.
 options_signs="--set "ana.activated[+]" signs --enable warn.debug" 
 options_term="--set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra" 
 
-cfile_loops="tests/regression/00-sanity/36-strict-loop-dead.c"      
+cfile_loops="tests/regression/55-loop-unrolling/01-simple-cases.c"      
 cfile_signs="tests/regression/99-tutorials/01-first.c"
 cfile_goto="tests/incremental/02-cfg-comparison/01-added-return-stmt.c"
 

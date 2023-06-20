@@ -37,7 +37,7 @@ int main(void)
     example9();
     example10();
     return 0;
-}*/
+}
 
 // Simple example
 void example1(void)
@@ -216,3 +216,4 @@ void example10(void)
 	}
 	return 0;
 }
+*/
