@@ -36,7 +36,7 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          let  check_stmt = mkStmtOneInstr @@ Set ((var !le), (Lval (var v)), loc, eloc) in
          (match b.bstmts with
             | cont :: cond :: ss ->
-            b.bstmts <- cont :: inc_stmt :: check_stmt :: cond :: ss; (*cont :: cond :: inc_stmt :: ss = it is also possible, but for loops with cond at the end, inc is also at the end*)
+               b.bstmts <- cont :: inc_stmt :: check_stmt :: cond :: ss; (*cont :: cond :: inc_stmt :: ss = it is also possible, but for loops with cond at the end, inc is also at the end*)
             | _ -> ());
          lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
          let nb = mkBlock [init_stmt; mkStmt s.skind] in
