@@ -2080,7 +2080,7 @@
         },
         "nonTerminating": {
           "title": "warn.nonTerminating",
-          "description": "nonTerminating warning",
+          "description": "Non Termination warning",
           "type": "boolean",
           "default": true
         },
