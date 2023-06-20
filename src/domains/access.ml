@@ -357,9 +357,9 @@ let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),lo
   else
     true
 
-let group_may_race ~ancestor_accs accs =
+let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
   (* BFS to traverse one component with may_race edges *)
-  let rec bfs' ~ancestor_accs ~accs ~todo ~visited =
+  let rec bfs' ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs ~todo ~visited =
     let may_race_accs ~accs ~todo =
       AS.fold (fun acc todo' ->
           AS.fold (fun acc' todo' ->
@@ -372,16 +372,21 @@ let group_may_race ~ancestor_accs accs =
     in
     let accs' = AS.diff accs todo in
     let ancestor_accs' = AS.diff ancestor_accs todo in
+    let ancestor_outer_accs' = AS.diff ancestor_outer_accs todo in
+    let outer_accs' = AS.diff outer_accs todo in
     let todo_accs = may_race_accs ~accs:accs' ~todo in
-    let todo_ancestor_accs = may_race_accs ~accs:ancestor_accs' ~todo:(AS.diff todo ancestor_accs') in
-    let todo' = AS.union todo_accs todo_ancestor_accs in
+    let accs_todo = AS.inter todo accs in
+    let todo_ancestor_accs = may_race_accs ~accs:ancestor_accs' ~todo:accs_todo in
+    let todo_ancestor_outer_accs = may_race_accs ~accs:ancestor_outer_accs' ~todo:accs_todo in
+    let todo_outer_accs = may_race_accs ~accs:outer_accs' ~todo:accs_todo in
+    let todo' = AS.union (AS.union todo_accs todo_ancestor_accs) (AS.union todo_ancestor_outer_accs todo_outer_accs) in
     let visited' = AS.union visited todo in
     if AS.is_empty todo' then
       (accs', visited')
     else
-      (bfs' [@tailcall]) ~ancestor_accs:ancestor_accs' ~accs:accs' ~todo:todo' ~visited:visited'
+      (bfs' [@tailcall]) ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs' ~outer_accs:outer_accs' ~accs:accs' ~todo:todo' ~visited:visited'
   in
-  let bfs accs acc = bfs' ~ancestor_accs ~accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
+  let bfs accs acc = bfs' ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
   (* repeat BFS to find all components *)
   let rec components comps accs =
     if AS.is_empty accs then
@@ -457,7 +462,7 @@ let print_accesses memo grouped_accs =
         M.msg_group Success ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
     )
 
-let warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo accs =
-  let grouped_accs = group_may_race ~ancestor_accs accs in (* do expensive component finding only once *)
+let warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs ~ancestor_outer_accs ~outer_accs memo accs =
+  let grouped_accs = group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs in (* do expensive component finding only once *)
   incr_summary ~safe ~vulnerable ~unsafe memo grouped_accs;
   print_accesses memo grouped_accs

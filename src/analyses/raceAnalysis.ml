@@ -131,25 +131,25 @@ struct
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
-          let rec distribute_inner offset (accs, children) ancestor_accs =
+          let rec distribute_inner offset (accs, children) ~ancestor_accs ~ancestor_outer_accs =
             let outer_accs =
               match outer_memo (g', offset) with
               | Some outer_memo -> distribute_outer ctx outer_memo
               | None -> Access.AS.empty ()
             in
             M.trace "access" "outer accs = %a" Access.AS.pretty outer_accs;
-            let ancestor_accs' = Access.AS.union ancestor_accs outer_accs in
             if not (Access.AS.is_empty accs) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs:ancestor_accs' memo) accs 
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs ~ancestor_outer_accs ~outer_accs memo) accs 
             );
-            let ancestor_accs'' = Access.AS.union ancestor_accs' accs in
+            let ancestor_outer_accs' = Access.AS.union ancestor_outer_accs outer_accs in
+            let ancestor_accs' = Access.AS.union ancestor_accs accs in
             OffsetTrie.ChildMap.iter (fun child_key child_trie ->
-                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ancestor_accs''
+                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs'
               ) children;
           in
-          distribute_inner `NoOffset trie (Access.AS.empty ())
+          distribute_inner `NoOffset trie ~ancestor_accs:(Access.AS.empty ()) ~ancestor_outer_accs:(Access.AS.empty ())
         | `Right _ -> (* vars *)
           ()
       end
