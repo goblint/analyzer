@@ -1766,13 +1766,13 @@ struct
 
   let checkTerminating ctx v v' = 
     (*Check if the loops terminated*)
-      if ctx.ask Queries.MustTermProg
-        then (cycleDetection ctx v v')
-        else (let msgs = 
-          [
-            (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
-          ] in
-          M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
+    if ctx.ask Queries.MustTermProg
+      then (cycleDetection ctx v v')
+      else (let msgs = 
+        [
+          (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
+        ] in
+        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with

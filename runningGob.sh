@@ -21,6 +21,6 @@ cfile_goto="tests/incremental/02-cfg-comparison/01-added-return-stmt.c"
 ./goblint $cfile_loops $options_term --html 
 
 # set up server to see visualizatino
-python3 -m http.server --directory result 8081
+python3 -m http.server --directory result 8080
 #./goblint --enable dbg.debug tests/regression/55-loop-unrolling/01-simple-cases.c --enable ana.int.interval --set "ana.activated[+]" signs --enable justcil > output.txt
 
