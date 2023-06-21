@@ -130,10 +130,13 @@ struct
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
         | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-          let (v, _) = Queries.LS.choose a in
-          if ctx.ask (Queries.IsHeapVar v) then
-            D.add v state
-          else state
+          begin try
+              let (v, _) = Queries.LS.choose a in
+              if ctx.ask (Queries.IsHeapVar v) then
+                D.add v state
+              else state
+            with Not_found -> state
+          end
         | _ -> state
       end
     | _ -> state
