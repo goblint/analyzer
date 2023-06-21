@@ -6,7 +6,7 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
-let loop_heads =
+let loop_heads () =
   let module FileCfg =
   struct
     let file = !Cilfacade.current_file
@@ -31,7 +31,7 @@ let is_loop_exit_indicator (x : varinfo) =
   x = !loop_exit
 
 let no_upjumping_gotos () =
-  List.length upjumping_gotos.contents = 0
+  upjumping_gotos.contents = []
 
 (** Checks whether a variable can be bounded *)
 let check_bounded ctx varinfo =

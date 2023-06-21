@@ -191,15 +191,15 @@ struct
   let spec = function
     | `Bot -> G.bot ()
     | `Lifted1 x -> x
-    | _ -> failwith "GVarGG.spec"
-  let contexts = function
-    | `Bot -> CMap.bot ()
+    | _ -> failwith "GVarGSet.spec"
+    let contexts = function
+    | `Bot -> CSet.bot ()
     | `Lifted2 x -> x
-    | _ -> failwith "GVarGG.contexts"
-  let create_spec spec = `Lifted1 spec
-  let create_contexts contexts = `Lifted2 contexts
+    | _ -> failwith "GVarGSet.contexts"
+    let create_spec spec = `Lifted1 spec
+    let create_contexts contexts = `Lifted2 contexts
 
-  let printXml f = function
+    let printXml f = function
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CMap.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
