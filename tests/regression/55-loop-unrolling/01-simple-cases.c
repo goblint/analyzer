@@ -3,6 +3,27 @@
 
 int global;
 
+int f(int x);
+int g(int x);
+
+int f(int x)
+{
+if (x <= 0) return 0;
+else return g(x) + g(x + 1);
+}
+
+int g(int x)
+{
+if (x <= 0) return 0;
+else return f(x - 1) + f(x - 2);
+}
+
+int main() {
+int x = __VERIFIER_nondet_int();
+g(x);
+}
+
+/*
 int main(void)
 {
     example1();
@@ -30,7 +51,8 @@ void example1(void)
     }
 
     __goblint_check(a[0] == 0); // UNKNOWN
-    __goblint_check(a[3] == 3); // UNKNOWN
+    lab:__goblint_check(a[3] == 3); // UNKNOWN
+    goto lab;
 }
 
 // Do-while loop simple example
@@ -194,3 +216,4 @@ void example10(void)
 	}
 	return 0;
 }
+*/

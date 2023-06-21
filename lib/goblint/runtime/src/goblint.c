@@ -28,3 +28,7 @@ void __goblint_split_begin(int exp) {
 void __goblint_split_end(int exp) {
 
 }
+
+void __goblint_bounded() {
+    
+}
