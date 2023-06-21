@@ -159,18 +159,18 @@ struct
     | `Bot -> G.bot ()
     | `Lifted1 x -> x
     | _ -> failwith "GVarG.spec"
-  let contexts = function
+    let contexts = function
     | `Bot -> CSet.bot ()
     | `Lifted2 x -> x
     | _ -> failwith "GVarG.contexts"
-  let create_spec spec = `Lifted1 spec
-  let create_contexts contexts = `Lifted2 contexts
+    let create_spec spec = `Lifted1 spec
+    let create_contexts contexts = `Lifted2 contexts
 
-  let printXml f = function
+    let printXml f = function
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
-*)
+  *)
 end
 
 exception Deadcode

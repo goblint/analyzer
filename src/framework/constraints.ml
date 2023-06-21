@@ -563,7 +563,7 @@ struct
   let side_context sideg f c =
     if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
-      
+
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
@@ -1127,7 +1127,7 @@ struct
           | `Lifted2 d -> LH.replace l' x d
           (* | `Bot -> () *)
           (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
-            This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
+             This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
           | `Bot -> LH.replace l' x (S.D.bot ())
           | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has top value"
           | `Lifted1 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has global value"
@@ -1764,10 +1764,10 @@ struct
     in
     PP.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in
-    let k2 = Set.of_enum @@ PP.keys h2 in
-    let o1 = Set.cardinal @@ Set.diff k1 k2 in
-    let o2 = Set.cardinal @@ Set.diff k2 k1 in
-    Printf.printf "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d\n" !eq !le o1 !gr o2 !uk *)
+       let k2 = Set.of_enum @@ PP.keys h2 in
+       let o1 = Set.cardinal @@ Set.diff k1 k2 in
+       let o2 = Set.cardinal @@ Set.diff k2 k1 in
+       Printf.printf "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d\n" !eq !le o1 !gr o2 !uk *)
     Printf.printf "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =
