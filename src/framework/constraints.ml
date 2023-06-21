@@ -1764,24 +1764,23 @@ struct
           ) gmap (* try all fundec + context pairs that are in the map *)
       with Invalid_argument _ -> () (* path ended: no cycle*)
 
-  let checkTerminating ctx v v' = 
-    (*Check if the loops terminated*)
-    if ctx.ask Queries.MustTermProg
-    then (cycleDetection ctx v v')
-    else (let msgs = 
-      [
-        (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
-      ] in
-      M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
-
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal v ->
+      let ret = ctx.ask Queries.MustTermProg in 
+      (* check result of loop analysis *)
+      if not ret then
+       (let msgs = 
+        [
+          (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
+        ] in
+        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs
+      );
       let v: V.t = Obj.obj v in
       begin match v with
         | `Left v' ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right v' -> checkTerminating ctx v v'       
+           S.query (conv ctx) (WarnGlobal (Obj.repr v'))
+        | `Right v' -> if ret then (cycleDetection ctx v v') (* Only analyze if the recursion terminates if the loops terminated *)       
         end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in
