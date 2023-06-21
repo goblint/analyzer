@@ -186,9 +186,15 @@ class Tests
         if cond then
           @correct += 1
           # full p.path is too long and p.name does not allow click to open in terminal
-          if todo.include? idx then puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!" end
+          if todo.include? idx
+            if idx < 0
+              puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan} for #{type.yellow} is now passing!"
+            else
+              puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!"
+            end
+          end
         else
-          if todo.include? idx then
+          if todo.include? idx
             @ignored += 1
           else
             if idx < 0 # When non line specific keywords were used don't print a line
@@ -202,7 +208,9 @@ class Tests
         end
       }
       case type
-      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn", "non_local_term"
+      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
+        check.call warnings[idx] == type
+      when "non_local_term"
         check.call warnings[idx] == type
       when "nowarn", "local_term"
         check.call warnings[idx].nil?
@@ -316,6 +324,15 @@ class Project
       end
     end
     case lines[0]
+    when /TODO|SKIP/
+      case lines[0]
+      when /NON_LOCAL_TERM/
+        tests[-2] = "non_local_term" # Not sure if -2 is allowed or undefined in Ruby but it seems to work correctly
+        todo << -2
+      when /LOCAL_TERM/
+        tests[-2] = "local_term"
+        todo << -2
+      end
     when /NON_LOCAL_TERM/
       # covers "TERM" as keyword but a combined use of NON_LOCAL_TERM (loop termination) and TERM would be pointless
       tests[-2] = "non_local_term"
