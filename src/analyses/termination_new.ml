@@ -75,17 +75,9 @@ struct
   let assign ctx (lval : lval) (rval : exp) =
     (* Detect assignment to loop counter variable *)
     match lval, rval with
-    (*
-      (Var x, NoOffset), _ when is_loop_counter_var x ->
-      (* Assume that the following loop does not terminate *)
-      let loop_statement = VarToStmt.find x !loop_counters in
-      let () = ctx.sideg () (G.add (`Lifted loop_statement) false ctx.local) in
-      let () = print_endline ("Added FALSE for " ^ x.vname) in
-      D.add (`Lifted loop_statement) false ctx.local
-       *)
       (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
       (* Loop exit: Check whether loop counter variable is bounded *)
-      (* TODO: Move *)
+      (* TODO: Move to special *)
       let is_bounded = check_bounded ctx x in
       let loop_statement = VarToStmt.find x !loop_counters in
       let () = ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ())) in
