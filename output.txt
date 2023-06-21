@@ -131,7 +131,7 @@ typedef long __intptr_t;
 typedef unsigned int __socklen_t;
 #line 215 "/usr/include/x86_64-linux-gnu/bits/types.h"
 typedef int __sig_atomic_t;
-#line 209 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
+#line 209 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
 typedef unsigned long size_t;
 #line 10 "/usr/include/x86_64-linux-gnu/bits/types/time_t.h"
 typedef __time_t time_t;
@@ -201,12 +201,12 @@ struct __anonstruct___value32_817613185 {
    unsigned int __high ;
 };
 #line 25 "/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h"
-union __anonunion___atomic_wide_counter_1044835921 {
+union __anonunion___atomic_wide_counter_316368393 {
    unsigned long long __value64 ;
    struct __anonstruct___value32_817613185 __value32 ;
 };
 #line 25 "/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h"
-typedef union __anonunion___atomic_wide_counter_1044835921 __atomic_wide_counter;
+typedef union __anonunion___atomic_wide_counter_316368393 __atomic_wide_counter;
 #line 51 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
 struct __pthread_internal_list {
    struct __pthread_internal_list *__prev ;
@@ -261,11 +261,11 @@ typedef unsigned int __tss_t;
 #line 106 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
 typedef unsigned long __thrd_t;
 #line 108 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
-struct __anonstruct___once_flag_1044835922 {
+struct __anonstruct___once_flag_826868709 {
    int __data ;
 };
 #line 108 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
-typedef struct __anonstruct___once_flag_1044835922 __once_flag;
+typedef struct __anonstruct___once_flag_826868709 __once_flag;
 #line 27 "/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h"
 typedef unsigned long pthread_t;
 #line 32 "/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h"
@@ -441,16 +441,16 @@ struct __pthread_cleanup_frame {
    int __do_it ;
    int __cancel_type ;
 };
-#line 143 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
+#line 143 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
 typedef long ptrdiff_t;
-#line 321 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
+#line 321 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
 typedef int wchar_t;
-#line 415 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
+#line 415 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
 struct __anonstruct_max_align_t_896270833 {
    long long __max_align_ll  __attribute__((__aligned__(__alignof__(long long )))) ;
    long double __max_align_ld  __attribute__((__aligned__(__alignof__(long double )))) ;
 };
-#line 415 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
+#line 415 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
 typedef struct __anonstruct_max_align_t_896270833 max_align_t;
 /* compiler builtin: 
    void __builtin_va_copy(__builtin_va_list  , __builtin_va_list  ) ;  */
@@ -1115,496 +1115,494 @@ void example1(void)
     }
 #line 27
     term27_5-file_01-simple-cases ++;
+#line 27
+    term_exit- = term27_5-file_01-simple-cases;
 #line 28
     a[i] = i;
-#line 29
-    i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 27
-  term_exit- = term27_5-file_01-simple-cases;
   }
-#line 32
+#line 31
   __goblint_check(a[0] == 0);
-#line 33
+#line 32
   __goblint_check(a[3] == 3);
-#line 34
+#line 33
   return;
 }
 }
-#line 37 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 36 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example2(void) 
 { 
   int a[5] ;
   int i ;
-  int term42_5-file_01-simple-cases ;
+  int term41_5-file_01-simple-cases ;
 
   {
-#line 40
+#line 39
   i = 0;
   {
-#line 42
-  term42_5-file_01-simple-cases = 0;
+#line 41
+  term41_5-file_01-simple-cases = 0;
   {
-#line 42
+#line 41
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 43
+#line 42
     a[i] = i;
-#line 44
+#line 43
     i ++;
-#line 42
-    term42_5-file_01-simple-cases ++;
-#line 42
+#line 41
+    term41_5-file_01-simple-cases ++;
+#line 41
+    term_exit- = term41_5-file_01-simple-cases;
+#line 41
     if (! (i <= 5)) {
-#line 42
+#line 41
       goto while_break;
     }
   }
   while_break: /* CIL Label */ ;
   }
-#line 42
-  term_exit- = term42_5-file_01-simple-cases;
   }
-#line 47
+#line 46
   __goblint_check(a[0] == 0);
-#line 48
+#line 47
   __goblint_check(a[3] == 3);
-#line 49
+#line 48
   return;
 }
 }
-#line 52 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 51 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example3(void) 
 { 
   int a[10] ;
   int i ;
-  int term57_5-file_01-simple-cases ;
+  int term56_5-file_01-simple-cases ;
 
   {
-#line 55
+#line 54
   i = 0;
   {
-#line 57
-  term57_5-file_01-simple-cases = 0;
+#line 56
+  term56_5-file_01-simple-cases = 0;
   {
-#line 57
+#line 56
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 57
+#line 56
     if (! (i < 5)) {
-#line 57
+#line 56
       goto while_break;
     }
+#line 56
+    term56_5-file_01-simple-cases ++;
+#line 56
+    term_exit- = term56_5-file_01-simple-cases;
 #line 57
-    term57_5-file_01-simple-cases ++;
-#line 58
     a[i] = i;
-#line 59
+#line 58
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 57
-  term_exit- = term57_5-file_01-simple-cases;
   }
-#line 62
+#line 61
   __goblint_check(a[0] == 0);
-#line 63
+#line 62
   __goblint_check(a[3] == 0);
-#line 64
+#line 63
   __goblint_check(a[7] == 0);
-#line 65
+#line 64
   return;
 }
 }
-#line 68 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 67 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example4(void) 
 { 
   int a[10] ;
   int i ;
   int first_iteration ;
-  int term74_5-file_01-simple-cases ;
+  int term73_5-file_01-simple-cases ;
 
   {
-#line 71
+#line 70
   i = 0;
-#line 72
+#line 71
   first_iteration = 1;
   {
-#line 74
-  term74_5-file_01-simple-cases = 0;
+#line 73
+  term73_5-file_01-simple-cases = 0;
   {
-#line 74
+#line 73
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 74
+#line 73
     if (! (i < 10)) {
-#line 74
+#line 73
       goto while_break;
     }
+#line 73
+    term73_5-file_01-simple-cases ++;
+#line 73
+    term_exit- = term73_5-file_01-simple-cases;
 #line 74
-    term74_5-file_01-simple-cases ++;
-#line 75
     if (first_iteration == 1) {
-#line 75
+#line 74
       __goblint_check(i == 0);
     } else
-#line 76
+#line 75
     if (i > 5) {
-#line 76
+#line 75
       __goblint_check(i == 6);
     }
-#line 77
+#line 76
     first_iteration = 0;
-#line 78
+#line 77
     a[i] = 0;
-#line 79
+#line 78
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 74
-  term_exit- = term74_5-file_01-simple-cases;
   }
-#line 82
+#line 81
   __goblint_check(a[0] == 0);
-#line 83
+#line 82
   __goblint_check(first_iteration == 0);
-#line 84
+#line 83
   return;
 }
 }
-#line 89 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 88 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example5(void) 
 { 
   int a[4] ;
   int i ;
   int top ;
-  int term95_5-file_01-simple-cases ;
+  int term94_5-file_01-simple-cases ;
 
   {
-#line 92
+#line 91
   i = 0;
-#line 93
+#line 92
   top = 0;
   {
-#line 95
-  term95_5-file_01-simple-cases = 0;
+#line 94
+  term94_5-file_01-simple-cases = 0;
   {
-#line 95
+#line 94
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 95
+#line 94
     if (! (i < 4)) {
-#line 95
+#line 94
       goto while_break;
     }
+#line 94
+    term94_5-file_01-simple-cases ++;
+#line 94
+    term_exit- = term94_5-file_01-simple-cases;
 #line 95
-    term95_5-file_01-simple-cases ++;
-#line 96
     a[i] = 0;
-#line 97
+#line 96
     top += i;
-#line 98
+#line 97
     if (i == 2) {
-#line 99
+#line 98
       __goblint_check(top == 3);
     } else {
-#line 102
+#line 101
       __goblint_check(top == 3);
     }
-#line 104
+#line 103
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 95
-  term_exit- = term95_5-file_01-simple-cases;
   }
-#line 107
+#line 106
   __goblint_check(a[0] == 0);
-#line 108
+#line 107
   __goblint_check(a[3] == 0);
-#line 109
+#line 108
   __goblint_check(top == 6);
-#line 110
+#line 109
   return;
 }
 }
-#line 113 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 112 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example6(void) 
 { 
   int a[5] ;
   int i ;
   int top ;
-  int term119_5-file_01-simple-cases ;
+  int term118_5-file_01-simple-cases ;
 
   {
-#line 116
+#line 115
   i = 0;
-#line 117
+#line 116
   top = 0;
   {
-#line 119
-  term119_5-file_01-simple-cases = 0;
+#line 118
+  term118_5-file_01-simple-cases = 0;
   {
-#line 119
+#line 118
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 119
+#line 118
     if (! (i < 3)) {
-#line 119
+#line 118
       goto while_break;
     }
+#line 118
+    term118_5-file_01-simple-cases ++;
+#line 118
+    term_exit- = term118_5-file_01-simple-cases;
 #line 119
-    term119_5-file_01-simple-cases ++;
-#line 120
     a[i] = 0;
-#line 121
+#line 120
     __goblint_check(a[0] == 0);
-#line 122
+#line 121
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 119
-  term_exit- = term119_5-file_01-simple-cases;
   }
-#line 125
+#line 124
   __goblint_check(a[0] == 0);
-#line 126
+#line 125
   __goblint_check(a[3] == 0);
-#line 127
+#line 126
   __goblint_check(top == 6);
-#line 128
+#line 127
   return;
 }
 }
-#line 131 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 130 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 int update(int i ) 
 { 
 
 
   {
-#line 132
+#line 131
   if (i > 5) {
-#line 133
+#line 132
     return (0);
   } else {
-#line 136
+#line 135
     return (1);
   }
 }
 }
-#line 139 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 138 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example7(void) 
 { 
   int a[10] ;
   int i ;
   int tmp ;
-  int term143_2-file_01-simple-cases ;
+  int term142_2-file_01-simple-cases ;
 
   {
-#line 142
+#line 141
   i = 0;
   {
-#line 143
-  term143_2-file_01-simple-cases = 0;
+#line 142
+  term142_2-file_01-simple-cases = 0;
   {
-#line 143
+#line 142
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 143
+#line 142
     tmp = update(i);
-#line 143
-    term143_2-file_01-simple-cases ++;
-#line 143
+#line 142
+    term142_2-file_01-simple-cases ++;
+#line 142
+    term_exit- = term142_2-file_01-simple-cases;
+#line 142
     if (! tmp) {
-#line 143
+#line 142
       goto while_break;
     }
-#line 144
+#line 143
     a[i] = i;
-#line 145
+#line 144
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 143
-  term_exit- = term143_2-file_01-simple-cases;
   }
-#line 147
+#line 146
   __goblint_check(a[0] == 0);
-#line 148
+#line 147
   __goblint_check(a[6] == 0);
-#line 149
+#line 148
   return;
 }
 }
-#line 152 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 151 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example8(void) 
 { 
   int a[5] ;
   int b[5] ;
   int i ;
   int j ;
-  int term160_9-file_01-simple-cases ;
-  int term157_2-file_01-simple-cases ;
+  int term159_9-file_01-simple-cases ;
+  int term156_2-file_01-simple-cases ;
 
   {
-#line 155
+#line 154
   b[0] = 0;
-#line 155
+#line 154
   b[1] = 0;
-#line 155
+#line 154
   b[2] = 0;
-#line 155
+#line 154
   b[3] = 0;
-#line 155
+#line 154
   b[4] = 0;
-#line 156
+#line 155
   i = 0;
   {
-#line 157
-  term157_2-file_01-simple-cases = 0;
+#line 156
+  term156_2-file_01-simple-cases = 0;
   {
-#line 157
+#line 156
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 157
+#line 156
     if (! (i < 5)) {
-#line 157
+#line 156
       goto while_break;
     }
+#line 156
+    term156_2-file_01-simple-cases ++;
+#line 156
+    term_exit- = term156_2-file_01-simple-cases;
 #line 157
-    term157_2-file_01-simple-cases ++;
-#line 158
     a[i] = i;
-#line 159
+#line 158
     j = 0;
     {
-#line 160
-    term160_9-file_01-simple-cases = 0;
+#line 159
+    term159_9-file_01-simple-cases = 0;
     {
-#line 160
+#line 159
     while (1) {
       while_continue___0: /* CIL Label */ ;
-#line 160
+#line 159
       if (! (j < 5)) {
-#line 160
+#line 159
         goto while_break___0;
       }
+#line 159
+      term159_9-file_01-simple-cases ++;
+#line 159
+      term_exit- = term159_9-file_01-simple-cases;
 #line 160
-      term160_9-file_01-simple-cases ++;
-#line 161
       b[j] += a[i];
-#line 162
+#line 161
       j ++;
     }
     while_break___0: /* CIL Label */ ;
     }
-#line 160
-    term_exit- = term160_9-file_01-simple-cases;
     }
-#line 164
+#line 163
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 157
-  term_exit- = term157_2-file_01-simple-cases;
   }
-#line 166
+#line 165
   return;
 }
 }
-#line 170 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 169 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example9(void) 
 { 
   int a[5] ;
   int i ;
-  int term174_2-file_01-simple-cases ;
+  int term173_2-file_01-simple-cases ;
 
   {
-#line 173
+#line 172
   i = 0;
   {
-#line 174
-  term174_2-file_01-simple-cases = 0;
+#line 173
+  term173_2-file_01-simple-cases = 0;
   {
-#line 174
+#line 173
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 174
+#line 173
     if (! 1) {
-#line 174
+#line 173
       goto while_break;
     }
+#line 173
+    term173_2-file_01-simple-cases ++;
+#line 173
+    term_exit- = term173_2-file_01-simple-cases;
 #line 174
-    term174_2-file_01-simple-cases ++;
-#line 175
     a[i] = i;
-#line 176
+#line 175
     i ++;
-#line 177
+#line 176
     if (i == 5) {
-#line 177
+#line 176
       goto while_break;
     }
   }
   while_break: /* CIL Label */ ;
   }
-#line 174
-  term_exit- = term174_2-file_01-simple-cases;
   }
-#line 179
+#line 178
   return;
 }
 }
-#line 183 "tests/regression/55-loop-unrolling/01-simple-cases.c"
+#line 182 "tests/regression/55-loop-unrolling/01-simple-cases.c"
 void example10(void) 
 { 
   int a[5] ;
   int i ;
-  int term187_2-file_01-simple-cases ;
+  int term186_2-file_01-simple-cases ;
 
   {
-#line 186
+#line 185
   i = 0;
   {
-#line 187
-  term187_2-file_01-simple-cases = 0;
+#line 186
+  term186_2-file_01-simple-cases = 0;
   {
-#line 187
+#line 186
   while (1) {
     while_continue: /* CIL Label */ ;
-#line 187
+#line 186
     if (! (i < 5)) {
-#line 187
+#line 186
       goto while_break;
     }
+#line 186
+    term186_2-file_01-simple-cases ++;
+#line 186
+    term_exit- = term186_2-file_01-simple-cases;
 #line 187
-    term187_2-file_01-simple-cases ++;
-#line 188
     if (i == 3) {
-#line 189
+#line 188
       i ++;
-#line 190
+#line 189
       goto while_continue;
     }
-#line 192
+#line 191
     a[i] = i;
-#line 193
+#line 192
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 187
-  term_exit- = term187_2-file_01-simple-cases;
   }
-#line 195
+#line 194
   return;
 }
 }
@@ -1683,42 +1681,40 @@ extern void ( __attribute__((__leaf__)) tzset)(void)  __attribute__((__nothrow__
 extern int daylight ;
 #line 233
 extern long timezone ;
-#line 246
+#line 249
 extern time_t ( __attribute__((__leaf__)) timegm)(struct tm *__tp )  __attribute__((__nothrow__)) ;
-#line 263
+#line 251
 extern time_t ( __attribute__((__leaf__)) timelocal)(struct tm *__tp )  __attribute__((__nothrow__)) ;
-#line 271
+#line 262
 extern int ( __attribute__((__leaf__)) dysize)(int __year )  __attribute__((__nothrow__,
 __const__)) ;
-#line 281
+#line 272
 extern int nanosleep(struct timespec  const  *__requested_time , struct timespec *__remaining ) ;
-#line 285
+#line 276
 extern int ( __attribute__((__leaf__)) clock_getres)(clockid_t __clock_id , struct timespec *__res )  __attribute__((__nothrow__)) ;
-#line 288
-extern int ( __attribute__((__nonnull__(2), __leaf__)) clock_gettime)(clockid_t __clock_id ,
-                                                                      struct timespec *__tp )  __attribute__((__nothrow__)) ;
-#line 292
-extern int ( __attribute__((__nonnull__(2), __leaf__)) clock_settime)(clockid_t __clock_id ,
-                                                                      struct timespec  const  *__tp )  __attribute__((__nothrow__)) ;
-#line 323
+#line 279
+extern int ( __attribute__((__leaf__)) clock_gettime)(clockid_t __clock_id , struct timespec *__tp )  __attribute__((__nothrow__)) ;
+#line 282
+extern int ( __attribute__((__leaf__)) clock_settime)(clockid_t __clock_id , struct timespec  const  *__tp )  __attribute__((__nothrow__)) ;
+#line 311
 extern int clock_nanosleep(clockid_t __clock_id , int __flags , struct timespec  const  *__req ,
                            struct timespec *__rem ) ;
-#line 338
+#line 326
 extern int ( __attribute__((__leaf__)) clock_getcpuclockid)(pid_t __pid , clockid_t *__clock_id )  __attribute__((__nothrow__)) ;
-#line 343
+#line 331
 extern int ( __attribute__((__leaf__)) timer_create)(clockid_t __clock_id , struct sigevent * __restrict  __evp ,
                                                      timer_t * __restrict  __timerid )  __attribute__((__nothrow__)) ;
-#line 348
+#line 336
 extern int ( __attribute__((__leaf__)) timer_delete)(timer_t __timerid )  __attribute__((__nothrow__)) ;
-#line 352
+#line 340
 extern int ( __attribute__((__leaf__)) timer_settime)(timer_t __timerid , int __flags ,
                                                       struct itimerspec  const  * __restrict  __value ,
                                                       struct itimerspec * __restrict  __ovalue )  __attribute__((__nothrow__)) ;
-#line 357
+#line 345
 extern int ( __attribute__((__leaf__)) timer_gettime)(timer_t __timerid , struct itimerspec *__value )  __attribute__((__nothrow__)) ;
-#line 376
+#line 364
 extern int ( __attribute__((__leaf__)) timer_getoverrun)(timer_t __timerid )  __attribute__((__nothrow__)) ;
-#line 383
+#line 371
 extern int ( __attribute__((__nonnull__(1), __leaf__)) timespec_get)(struct timespec *__ts ,
                                                                      int __base )  __attribute__((__nothrow__)) ;
 #line 202 "/usr/include/pthread.h"
@@ -1829,8 +1825,9 @@ extern void __pthread_unregister_cancel(__pthread_unwind_buf_t *__buf ) ;
 #line 750
 extern void __pthread_unwind_next(__pthread_unwind_buf_t *__buf )  __attribute__((__weak__,
 __noreturn__)) ;
-#line 773
-extern int __sigsetjmp(struct __jmp_buf_tag *__env , int __savemask )  __attribute__((__nothrow__)) ;
+#line 766
+extern int __sigsetjmp_cancel(struct __cancel_jmp_buf_tag *__env , int __savemask )  __asm__("__sigsetjmp") __attribute__((__returns_twice__,
+__nothrow__)) ;
 #line 781
 extern int ( __attribute__((__nonnull__(1), __leaf__)) pthread_mutex_init)(pthread_mutex_t *__mutex ,
                                                                            pthread_mutexattr_t const   *__mutexattr )  __attribute__((__nothrow__)) ;
@@ -1995,7 +1992,8 @@ extern int ( __attribute__((__leaf__)) pthread_key_delete)(pthread_key_t __key )
 extern void *( __attribute__((__leaf__)) pthread_getspecific)(pthread_key_t __key )  __attribute__((__nothrow__)) ;
 #line 1308
 extern int ( __attribute__((__leaf__)) pthread_setspecific)(pthread_key_t __key ,
-                                                            void const   *__pointer )  __attribute__((__nothrow__)) ;
+                                                            void const   *__pointer )  __attribute__((__nothrow__,
+__access__(__none__,2))) ;
 #line 1315
 extern int ( __attribute__((__nonnull__(2), __leaf__)) pthread_getcpuclockid)(pthread_t __thread_id ,
                                                                               __clockid_t *__clock_id )  __attribute__((__nothrow__)) ;
@@ -2057,6 +2055,8 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
     }
 #line 9
     term9_3-file_stdlib ++;
+#line 9
+    term_exit- = term9_3-file_stdlib;
 #line 10
     j = (size_t )0;
     {
@@ -2073,6 +2073,8 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
       }
 #line 10
       term10_5-file_stdlib ++;
+#line 10
+      term_exit- = term10_5-file_stdlib;
 #line 11
       (*comp)((void const   *)(ptr + i * size), (void const   *)(ptr + j * size));
 #line 10
@@ -2080,16 +2082,12 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
     }
     while_break___0: /* CIL Label */ ;
     }
-#line 10
-    term_exit- = term10_5-file_stdlib;
     }
 #line 9
     i ++;
   }
   while_break: /* CIL Label */ ;
   }
-#line 9
-  term_exit- = term9_3-file_stdlib;
   }
 #line 16
   i___0 = (size_t )0;
@@ -2107,6 +2105,8 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
     }
 #line 16
     term16_3-file_stdlib ++;
+#line 16
+    term_exit- = term16_3-file_stdlib;
 #line 17
     j___0 = (size_t )0;
     {
@@ -2123,6 +2123,8 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
       }
 #line 17
       term17_5-file_stdlib ++;
+#line 17
+      term_exit- = term17_5-file_stdlib;
 #line 19
       if (r) {
 #line 21
@@ -2141,6 +2143,8 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
           }
 #line 21
           term21_9-file_stdlib ++;
+#line 21
+          term_exit- = term21_9-file_stdlib;
 #line 22
           a = (char *)((ptr + i___0 * size) + k);
 #line 23
@@ -2156,8 +2160,6 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
         }
         while_break___3: /* CIL Label */ ;
         }
-#line 21
-        term_exit- = term21_9-file_stdlib;
         }
       }
 #line 17
@@ -2165,16 +2167,12 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
     }
     while_break___2: /* CIL Label */ ;
     }
-#line 17
-    term_exit- = term17_5-file_stdlib;
     }
 #line 16
     i___0 ++;
   }
   while_break___1: /* CIL Label */ ;
   }
-#line 16
-  term_exit- = term16_3-file_stdlib;
   }
 #line 33
   return;
@@ -2212,6 +2210,8 @@ void *bsearch(void const   *key , void const   *ptr , size_t count , size_t size
     }
 #line 40
     term40_3-file_stdlib ++;
+#line 40
+    term_exit- = term40_3-file_stdlib;
 #line 41
     a = ptr + i * size;
 #line 42
@@ -2226,8 +2226,6 @@ void *bsearch(void const   *key , void const   *ptr , size_t count , size_t size
   }
   while_break: /* CIL Label */ ;
   }
-#line 40
-  term_exit- = term40_3-file_stdlib;
   }
 #line 47
   return ((void *)0);
