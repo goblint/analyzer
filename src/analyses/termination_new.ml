@@ -6,6 +6,7 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
+(*
 let loop_heads () =
   let module FileCfg =
   struct
@@ -13,7 +14,8 @@ let loop_heads () =
     module Cfg = (val !MyCFG.current_cfg)
   end in
   let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
-  WitnessInvariant.loop_heads (* TODO: Use this *)
+  WitnessInvariant.loop_heads (* TODO: Unused *)
+*)
 
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
