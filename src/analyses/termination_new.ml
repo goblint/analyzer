@@ -96,6 +96,11 @@ struct
     (* TODO: Implement check for our special loop exit indicator function *)
     ctx.local
 
+  (** Checks whether a new thread was spawned some time. We want to discard
+   * any knowledge about termination then (see query function) *)
+  let must_be_single_threaded_since_start ctx =
+    ctx.ask (Queries.MustBeSingleThreaded {since_start = true})
+
   (** Provides information to Goblint *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -103,9 +108,11 @@ struct
       (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
          Some b -> b
        | None -> false)
+      && must_be_single_threaded_since_start ctx
     | Queries.MustTermProg ->
       G.for_all (fun _ term_info -> term_info) (ctx.global ())
       && no_upjumping_gotos ()
+      && must_be_single_threaded_since_start ctx
     | _ -> Queries.Result.top q
 
 end
