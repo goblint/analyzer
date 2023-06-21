@@ -32,6 +32,7 @@ struct
   module N = Lattice.Flat (VNI) (struct let bot_name = "unknown node" let top_name = "unknown node" end)
   module TD = Thread.D
 
+  (** Uniqueness Counter * TID * (All thread creates of current thread * All thread creates of the current function and its callees) *)
   module D = Lattice.Prod3 (N) (ThreadLifted) (Lattice.Prod(TD)(TD))
   module C = D
   module P = IdentityP (D)
