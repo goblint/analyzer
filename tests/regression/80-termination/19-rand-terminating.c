@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// LOCAL_TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -11,7 +11,7 @@ int main()
     if (rand())
     {
         // Loop inside the if part
-        for (int i = 1; i <= 5; i++) // TERM
+        for (int i = 1; i <= 5; i++)
         {
             printf("Loop inside if part: %d\n", i);
         }
@@ -20,7 +20,7 @@ int main()
     {
         // Loop inside the else part
         int j = 1;
-        while (j <= 5) // TERM
+        while (j <= 5)
         {
             printf("Loop inside else part: %d\n", j);
             j++;

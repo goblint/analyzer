@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// LOCAL_TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -6,17 +6,17 @@ int main()
     int i, j, k;
 
     // Outer loop
-    for (i = 1; i <= 5; i++) // TERM
+    for (i = 1; i <= 5; i++)
     {
         // Inner loop 1
-        for (j = 1; j <= i; j++) // TERM
+        for (j = 1; j <= i; j++)
         {
             printf("%d ", j);
         }
         printf("\n");
 
         // Inner loop 2
-        for (k = i; k >= 1; k--) // TERM
+        for (k = i; k >= 1; k--)
         {
             printf("%d ", k);
         }
@@ -24,9 +24,9 @@ int main()
     }
 
     // Additional loop
-    for (i = 5; i >= 1; i--) // TERM
+    for (i = 5; i >= 1; i--)
     {
-        for (j = i; j >= 1; j--) // TERM
+        for (j = i; j >= 1; j--)
         {
             printf("%d ", j);
         }
@@ -34,7 +34,7 @@ int main()
     }
 
     // Loop with conditions
-    for (i = 1; i <= 10; i++) // TERM
+    for (i = 1; i <= 10; i++)
     {
         if (i % 2 == 0)
         {
@@ -47,7 +47,7 @@ int main()
     }
 
     // Loop with nested conditions
-    for (i = 1; i <= 10; i++) // TERM
+    for (i = 1; i <= 10; i++)
     {
         printf("Number: %d - ", i);
         if (i < 5)
@@ -65,7 +65,7 @@ int main()
     }
 
     // Loop with a break statement
-    for (i = 1; i <= 10; i++) // TERM
+    for (i = 1; i <= 10; i++)
     {
         printf("%d ", i);
         if (i == 5)
@@ -76,7 +76,7 @@ int main()
     printf("\n");
 
     // Loop with a continue statement
-    for (i = 1; i <= 10; i++) // TERM
+    for (i = 1; i <= 10; i++)
     {
         if (i % 2 == 0)
         {
@@ -87,7 +87,7 @@ int main()
     printf("\n");
 
     // Loop with complex conditions
-    for (i = 1; i <= 10; i++) // TERM
+    for (i = 1; i <= 10; i++)
     {
         if (i > 5 && i % 2 == 0)
         {
@@ -98,7 +98,7 @@ int main()
 
     // Loop with multiple variables
     int a, b, c;
-    for (a = 1, b = 2, c = 3; a <= 10; a++, b += 2, c += 3) // TERM
+    for (a = 1, b = 2, c = 3; a <= 10; a++, b += 2, c += 3)
     {
         printf("%d %d %d\n", a, b, c);
     }

@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// LOCAL_TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -7,14 +7,14 @@ int main()
     int i;
 
     // for loop
-    for (i = 1; i <= 10; i++) // TERM
+    for (i = 1; i <= 10; i++)
     {
         printf("For loop iteration: %d\n", i);
     }
 
     // while loop
     int j = 1;
-    while (j <= 10) // TERM
+    while (j <= 10)
     {
         printf("While loop iteration: %d\n", j);
         j++;
@@ -22,7 +22,7 @@ int main()
 
     // do-while loop
     int k = 1;
-    do // TERM
+    do
     {
         printf("Do-While loop iteration: %d\n", k);
         k++;
@@ -32,10 +32,10 @@ int main()
     int a, b;
 
     // Nested for and while loop
-    for (a = 1; a <= 5; a++) // TERM
+    for (a = 1; a <= 5; a++)
     {
         int c = 1;
-        while (c <= a) // TERM
+        while (c <= a)
         {
             printf("Nested For-While loop: %d\n", c);
             c++;
@@ -44,10 +44,10 @@ int main()
 
     // Nested while and do-while loop
     int x = 1;
-    while (x <= 5) // TERM
+    while (x <= 5)
     {
         int y = 1;
-        do // TERM
+        do
         {
             printf("Nested While-Do-While loop: %d\n", y);
             y++;
@@ -57,9 +57,9 @@ int main()
 
     // Nested do-while and for loop
     int p = 1;
-    do // TERM
+    do
     {
-        for (int q = 1; q <= p; q++) // TERM
+        for (int q = 1; q <= p; q++)
         {
             printf("Nested Do-While-For loop: %d\n", q);
         }
@@ -71,11 +71,11 @@ int main()
 
     // Nested while loop with a break statement
     int n = 1;
-    while (n <= 5) // TERM
+    while (n <= 5)
     {
         printf("Outer While loop iteration: %d\n", n);
         m = 1;
-        while (1) // TERM
+        while (1)
         {
             printf("Inner While loop iteration: %d\n", m);
             m++;
@@ -88,7 +88,7 @@ int main()
     }
 
     // Loop with a continue statement
-    for (int r = 1; r <= 10; r++) // TERM
+    for (int r = 1; r <= 10; r++)
     {
         if (r % 3 == 0)
         {
@@ -99,7 +99,7 @@ int main()
 
     // Loop with multiple conditions
     int s = 1;
-    while (s <= 10 && s % 2 == 0) // TERM
+    while (s <= 10 && s % 2 == 0)
     {
         printf("Loop with Multiple Conditions: %d\n", s);
         s++;
@@ -107,13 +107,13 @@ int main()
 
     // Loop with multiple variables
     int t, u;
-    for (t = 1, u = 10; t <= 5 && u >= 5; t++, u--) // TERM
+    for (t = 1, u = 10; t <= 5 && u >= 5; t++, u--)
     {
         printf("Loop with Multiple Variables: %d %d\n", t, u);
     }
 
     // Loop with nested conditions
-    for (int v = 1; v <= 10; v++) // TERM
+    for (int v = 1; v <= 10; v++)
     {
         printf("Loop with Nested Conditions: %d - ", v);
         if (v < 5)
@@ -137,7 +137,7 @@ start:
     {
         printf("Loop with Label and Goto: %d\n", w);
         w++;
-        goto start; // TERM
+        goto start;
     }
 
     return 0;

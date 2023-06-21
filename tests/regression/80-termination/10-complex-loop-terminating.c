@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// LOCAL_TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -8,10 +8,10 @@ int main()
     int k = 5;
 
     // Outer while loop
-    while (i <= 5) // TERM
+    while (i <= 5)
     {
         // Inner while loop 1
-        while (j <= i) // TERM
+        while (j <= i)
         {
             printf("%d ", j);
             j++;
@@ -20,7 +20,7 @@ int main()
         j = 1;
 
         // Inner while loop 2
-        while (k >= 1) // TERM
+        while (k >= 1)
         {
             printf("%d ", k);
             k--;
@@ -33,10 +33,10 @@ int main()
 
     // Additional while loop
     i = 5;
-    while (i >= 1) // TERM
+    while (i >= 1)
     {
         j = i;
-        while (j >= 1) // TERM
+        while (j >= 1)
         {
             printf("%d ", j);
             j--;
@@ -47,7 +47,7 @@ int main()
 
     // Loop with conditions
     i = 1;
-    while (i <= 10) // TERM
+    while (i <= 10)
     {
         if (i % 2 == 0)
         {
@@ -62,7 +62,7 @@ int main()
 
     // Loop with nested conditions
     i = 1;
-    while (i <= 10) // TERM
+    while (i <= 10)
     {
         printf("Number: %d - ", i);
         if (i < 5)
@@ -82,7 +82,7 @@ int main()
 
     // Loop with a break statement
     i = 1;
-    while (i <= 10) // TERM
+    while (i <= 10)
     {
         printf("%d ", i);
         if (i == 5)
@@ -95,7 +95,7 @@ int main()
 
     // Loop with a continue statement
     i = 1;
-    while (i <= 10) // TERM
+    while (i <= 10)
     {
         if (i % 2 == 0)
         {
@@ -109,7 +109,7 @@ int main()
 
     // Loop with complex conditions
     i = 1;
-    while (i <= 10) // TERM
+    while (i <= 10)
     {
         if (i > 5 && i % 2 == 0)
         {
@@ -123,7 +123,7 @@ int main()
     int a = 1;
     int b = 2;
     int c = 3;
-    while (a <= 10) // TERM
+    while (a <= 10)
     {
         printf("%d %d %d\n", a, b, c);
         a++;
