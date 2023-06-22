@@ -40,7 +40,7 @@ struct
     match ctx.ask (Queries.MayPointTo lval_to_query) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
       begin try
-          let v, o = Queries.LS.choose a in
+          let (v, _) = Queries.LS.choose a in
           if ctx.ask (Queries.IsHeapVar v) && D.mem v state then
             M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
         with Not_found -> ()
