@@ -379,6 +379,7 @@ let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),lo
     true
 
 let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
+  if M.tracing then M.tracei "access" "group_may_race\n\tancestors_accs: %a\n\touter_accs: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs;
   (* BFS to traverse one component with may_race edges *)
   let rec bfs' ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs ~todo ~visited =
     let may_race_accs ~accs ~todo =
@@ -422,16 +423,15 @@ let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
       components comps' ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs' ~outer_accs:outer_accs' ~accs:accs'
     )
   in
-  (* ignore (Pretty.printf "ancestors0: %a outer0: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs); *)
   let (comps, ancestor_accs, outer_accs) = components [] ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs in
-  (* ignore (Pretty.printf "ancestors: %a outer: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs); *)
+  if M.tracing then M.trace "access" "components\n\tancestors_accs: %a\n\touter_accs: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs;
   let rec components_cross comps ~ancestor_accs ~outer_accs =
     if AS.is_empty ancestor_accs then
       comps
     else (
       let ancestor_acc = AS.choose ancestor_accs in
       let (_, ancestor_accs', _, outer_accs', comp) = bfs ~ancestor_accs ~ancestor_outer_accs:(AS.empty ()) ~outer_accs ~accs:(AS.empty ()) ancestor_acc in
-      (* ignore (Pretty.printf "ancestor: %a comp: %a\n" A.pretty ancestor_acc AS.pretty comp); *)
+      if M.tracing then M.trace "access" "components_cross\n\tancestors_accs: %a\n\touter_accs: %a\n" AS.pretty ancestor_accs' AS.pretty outer_accs';
       let comps' =
         if AS.cardinal comp > 1 then
           comp :: comps
@@ -441,7 +441,9 @@ let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
       components_cross comps' ~ancestor_accs:ancestor_accs' ~outer_accs:outer_accs'
     )
   in
-  components_cross comps ~ancestor_accs ~outer_accs
+  let components_cross = components_cross comps ~ancestor_accs ~outer_accs in
+  if M.tracing then M.traceu "access" "group_may_race\n";
+  components_cross
 
 let race_conf accs =
   assert (not (AS.is_empty accs)); (* group_may_race should only construct non-empty components *)

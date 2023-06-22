@@ -152,7 +152,6 @@ struct
               | Some outer_memo -> distribute_outer ctx outer_memo
               | None -> Access.AS.empty ()
             in
-            M.trace "access" "outer accs = %a" Access.AS.pretty outer_accs;
             if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty ancestor_accs) && not (Access.AS.is_empty outer_accs)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
