@@ -68,10 +68,9 @@ struct
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
-        | `Left g' -> (* accesses *)
+        | `Left memo -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let accs = G.access (ctx.global g) in
-          let memo = g' in
           let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
           Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
         | `Right _ -> (* vars *)

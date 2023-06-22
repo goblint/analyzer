@@ -434,7 +434,7 @@ let race_conf accs =
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe _ grouped_accs =
+let incr_summary safe vulnerable unsafe grouped_accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
   let safety =
     grouped_accs
@@ -483,5 +483,5 @@ let print_accesses memo grouped_accs =
 
 let warn_global safe vulnerable unsafe memo accs =
   let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
-  incr_summary safe vulnerable unsafe memo grouped_accs;
+  incr_summary safe vulnerable unsafe grouped_accs;
   print_accesses memo grouped_accs
