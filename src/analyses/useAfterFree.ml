@@ -39,12 +39,16 @@ struct
     in
     match ctx.ask (Queries.MayPointTo lval_to_query) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      begin try
-          let (v, _) = Queries.LS.choose a in
-          if ctx.ask (Queries.IsHeapVar v) && D.mem v state then
-            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
-        with Not_found -> ()
-      end
+      let warn_for_heap_var var =
+        if D.mem var state then
+          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
+      in
+      let pointed_to_heap_vars =
+        Queries.LS.elements a
+        |> List.map fst
+        |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
+      in
+      List.iter warn_for_heap_var pointed_to_heap_vars (* Warn for all heap vars that the lval possibly points to *)
     | _ -> ()
 
   and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (exp:exp) =
@@ -125,13 +129,12 @@ struct
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
         | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-          begin try
-              let (v, _) = Queries.LS.choose a in
-              if ctx.ask (Queries.IsHeapVar v) then
-                D.add v state
-              else state
-            with Not_found -> state
-          end
+          let pointed_to_heap_vars =
+            Queries.LS.elements a
+            |> List.map fst
+            |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
+          in
+          D.join state (D.of_list pointed_to_heap_vars) (* Add all heap vars, which ptr points to, to the state *)
         | _ -> state
       end
     | _ -> state
