@@ -29,7 +29,7 @@ struct
       match offset with
       | NoOffset -> ()
       | Field (f, o) -> offset_might_contain_freed o
-      | Index (e, o) -> warn_exp_might_contain_freed transfer_fn_name e ctx; offset_might_contain_freed o
+      | Index (e, o) -> warn_exp_might_contain_freed transfer_fn_name ctx e; offset_might_contain_freed o
     in
     let (lval_host, o) = lval in offset_might_contain_freed o; (* Check the lval's offset *)
     let lval_to_query =
@@ -47,7 +47,7 @@ struct
       end
     | _ -> ()
 
-  and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (exp:exp) ctx =
+  and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (exp:exp) =
     match exp with
     (* Base recursion cases *)
     | Const _
@@ -61,14 +61,14 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, e) -> warn_exp_might_contain_freed ~is_double_free transfer_fn_name e ctx
+    | CastE (_, e) -> warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e
     | BinOp (_, e1, e2, _) ->
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name e1 ctx;
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name e2 ctx
+      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e1;
+      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e2
     | Question (e1, e2, e3, _) ->
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name e1 ctx;
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name e2 ctx;
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name e3 ctx
+      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e1;
+      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e2;
+      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e3
     (* Lval cases (need [warn_lval_might_contain_freed] for them) *)
     | Lval lval
     | StartOf lval
@@ -79,24 +79,24 @@ struct
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
     warn_lval_might_contain_freed "assign" ctx lval;
-    warn_exp_might_contain_freed "assign" rval ctx;
+    warn_exp_might_contain_freed "assign" ctx rval;
     ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    warn_exp_might_contain_freed "branch" exp ctx;
+    warn_exp_might_contain_freed "branch" ctx exp;
     ctx.local
 
   let body ctx (f:fundec) : D.t =
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    Option.iter (fun x -> warn_exp_might_contain_freed "return" x ctx) exp;
+    Option.iter (fun x -> warn_exp_might_contain_freed "return" ctx x) exp;
     ctx.local
 
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
     Option.iter (fun x -> warn_lval_might_contain_freed "enter" ctx x) lval;
-    List.iter (fun arg -> warn_exp_might_contain_freed "enter" arg ctx) args;
+    List.iter (fun arg -> warn_exp_might_contain_freed "enter" ctx arg) args;
     if D.is_empty caller_state then
       [caller_state, caller_state]
     else (
@@ -124,7 +124,7 @@ struct
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = ctx.local in
     Option.iter (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) ctx x) lval;
-    List.iter (fun arg -> warn_exp_might_contain_freed ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) arg ctx) arglist;
+    List.iter (fun arg -> warn_exp_might_contain_freed ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) ctx arg) arglist;
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Free ptr ->
