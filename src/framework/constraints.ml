@@ -1716,7 +1716,7 @@ struct
 
   module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
 
-  let name () = "RecursionTerm (" ^ S.name () ^ ")"
+  let name () = "termination"
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx = 
     { ctx with
@@ -1734,7 +1734,7 @@ struct
     let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
       if LS.mem call path_visited_calls then (
-
+        AnalysisState.svcomp_must_terminate := false;
         (*Cycle found*)
         let msgs = 
           [
@@ -1770,7 +1770,8 @@ struct
       let ret = ctx.ask Queries.MustTermProg in 
       (* check result of loop analysis *)
       if not ret then
-       (let msgs = 
+        (AnalysisState.svcomp_must_terminate := false;
+        let msgs = 
         [
           (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
         ] in

@@ -442,6 +442,23 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
+    | NoTermination -> (* TODO: implement this properly*)
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      let module TaskResult =
+      struct
+        module Arg = TrivialArg
+        let result = Result.Unknown
+        let invariant _ = Invariant.none
+        let is_violation _ = false
+        let is_sink _ = false
+      end
+      in
+      (module TaskResult:WitnessTaskResult)
     | NoOverflow ->
       let module TrivialArg =
       struct

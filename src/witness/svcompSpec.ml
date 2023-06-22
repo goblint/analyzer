@@ -6,6 +6,7 @@ type t =
   | UnreachCall of string
   | NoDataRace
   | NoOverflow
+  | NoTermination
 
 let of_string s =
   let s = String.strip s in
@@ -16,6 +17,8 @@ let of_string s =
       NoDataRace
     else if global_not = "overflow" then
       NoOverflow
+    else if global_not = "termination" then (*TODO: does this even work?*)
+      NoTermination
     else
       let call_regex = Str.regexp "call(\\(.*\\)())" in
       if Str.string_match call_regex global_not 0 then
@@ -42,5 +45,6 @@ let to_string spec =
     | UnreachCall f -> "call(" ^ f ^ "())"
     | NoDataRace -> "data-race"
     | NoOverflow -> "overflow"
+    | NoTermination -> "termination"
   in
   "CHECK( init(main()), LTL(G ! " ^ global_not ^ ") )"
