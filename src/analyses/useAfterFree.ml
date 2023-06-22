@@ -95,7 +95,6 @@ struct
 
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
-    Option.iter (fun x -> warn_lval_might_contain_freed "enter" ctx x) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" ctx arg) args;
     if D.is_empty caller_state then
       [caller_state, caller_state]
@@ -114,6 +113,7 @@ struct
     D.join caller_state callee_local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
+    Option.iter (fun x -> warn_lval_might_contain_freed "enter" ctx x) lval;
     ctx.local
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
