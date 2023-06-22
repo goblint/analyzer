@@ -21,7 +21,7 @@ struct
 
   (* HELPER FUNCTIONS *)
 
-  let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (lval:lval) ctx =
+  let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (lval:lval) =
     let state = ctx.local in
     let undefined_behavior = if is_double_free then Undefined DoubleFree else Undefined UseAfterFree in
     let cwe_number = if is_double_free then 415 else 416 in
@@ -72,13 +72,13 @@ struct
     (* Lval cases (need [warn_lval_might_contain_freed] for them) *)
     | Lval lval
     | StartOf lval
-    | AddrOf lval -> warn_lval_might_contain_freed ~is_double_free transfer_fn_name lval ctx
+    | AddrOf lval -> warn_lval_might_contain_freed ~is_double_free transfer_fn_name ctx lval
 
 
   (* TRANSFER FUNCTIONS *)
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    warn_lval_might_contain_freed "assign" lval ctx;
+    warn_lval_might_contain_freed "assign" ctx lval;
     warn_exp_might_contain_freed "assign" rval ctx;
     ctx.local
 
@@ -95,7 +95,7 @@ struct
 
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
-    Option.iter (fun x -> warn_lval_might_contain_freed "enter" x ctx) lval;
+    Option.iter (fun x -> warn_lval_might_contain_freed "enter" ctx x) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" arg ctx) args;
     if D.is_empty caller_state then
       [caller_state, caller_state]
@@ -123,7 +123,7 @@ struct
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = ctx.local in
-    Option.iter (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) x ctx) lval;
+    Option.iter (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) ctx x) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) arg ctx) arglist;
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
