@@ -30,8 +30,7 @@ void example1(void)
     }
 
     __goblint_check(a[0] == 0); // UNKNOWN
-    lab:__goblint_check(a[3] == 3); // UNKNOWN
-    goto lab;
+    __goblint_check(a[3] == 3); // UNKNOWN
 }
 
 // Do-while loop simple example
