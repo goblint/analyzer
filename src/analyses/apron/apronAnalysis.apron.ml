@@ -1,8 +1,9 @@
-(** Analysis using Apron for integer variables. *)
+(** {{!RelationAnalysis} Relational integer value analysis} using {!Apron} domains ([apron]). *)
 
 open Analyses
 
 include RelationAnalysis
+
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
