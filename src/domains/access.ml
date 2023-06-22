@@ -211,9 +211,30 @@ let add_one side memo: unit =
   if not ignorable then
     side memo
 
+(** Distribute type-based access to variables and containing fields. *)
+let rec add_distribute_outer side side0 (t: typ) (o: Offset.Unit.t) =
+  let memo = (`Type t, o) in
+  if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
+  add_one side memo;
+
+  (* distribute to variables of the type *)
+  let ts = typeSig t in
+  let vars = TSH.find_all typeVar ts in
+  List.iter (fun v ->
+      add_one side0 (`Var v, o) (* same offset, but on variable *)
+    ) vars;
+
+  (* recursively distribute to fields containing the type *)
+  let fields = TSH.find_all typeIncl ts in
+  List.iter (fun f ->
+      (* prepend field and distribute to outer struct *)
+      add_distribute_outer side0 side0 (TComp (f.fcomp, [])) (`Field (f, o))
+    ) fields;
+
+  if M.tracing then M.traceu "access" "add_distribute_outer\n"
 
 (** Add access to known variable with offsets or unknown variable from expression. *)
-let add side e voffs =
+let add side side0 e voffs =
   begin match voffs with
     | Some (v, o) -> (* known variable *)
       if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
@@ -228,7 +249,7 @@ let add side e voffs =
       in
       match o with
       | `NoOffset when not !collect_direct_arithmetic && isArithmeticType t -> ()
-      | _ -> add_one side (`Type t, o) (* add_distribute_outer side t o (* distribute to variables and outer offsets *)*)
+      | _ -> add_distribute_outer side side0 t o (* distribute to variables and outer offsets *)
   end;
   if M.tracing then M.traceu "access" "add\n"
 
@@ -379,26 +400,43 @@ let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
     let todo_ancestor_accs = may_race_accs ~accs:ancestor_accs' ~todo:accs_todo in
     let todo_ancestor_outer_accs = may_race_accs ~accs:ancestor_outer_accs' ~todo:accs_todo in
     let todo_outer_accs = may_race_accs ~accs:outer_accs' ~todo:accs_todo in
-    let todo' = AS.union (AS.union todo_accs todo_ancestor_accs) (AS.union todo_ancestor_outer_accs todo_outer_accs) in
+    let todo_ancestor_accs_cross = may_race_accs ~accs:ancestor_accs' ~todo:(AS.inter todo outer_accs) in
+    let todo_outer_accs_cross = may_race_accs ~accs:outer_accs' ~todo:(AS.inter todo ancestor_accs) in
+    let todos = [todo_accs; todo_ancestor_accs; todo_ancestor_outer_accs; todo_outer_accs; todo_ancestor_accs_cross; todo_outer_accs_cross] in
+    let todo' = List.reduce AS.union todos in
     let visited' = AS.union visited todo in
     if AS.is_empty todo' then
-      (accs', visited')
+      (accs', ancestor_accs', ancestor_outer_accs', outer_accs', visited')
     else
       (bfs' [@tailcall]) ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs' ~outer_accs:outer_accs' ~accs:accs' ~todo:todo' ~visited:visited'
   in
-  let bfs accs acc = bfs' ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
+  let bfs ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs acc = bfs' ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
   (* repeat BFS to find all components *)
-  let rec components comps accs =
+  let rec components comps ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs =
     if AS.is_empty accs then
-      comps
+      (comps, ancestor_accs, outer_accs)
     else (
       let acc = AS.choose accs in
-      let (accs', comp) = bfs accs acc in
+      let (accs', ancestor_accs', ancestor_outer_accs', outer_accs', comp) = bfs ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs acc in
       let comps' = comp :: comps in
-      components comps' accs'
+      components comps' ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs' ~outer_accs:outer_accs' ~accs:accs'
     )
   in
-  components [] accs
+  (* ignore (Pretty.printf "ancestors0: %a outer0: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs); *)
+  let (comps, ancestor_accs, outer_accs) = components [] ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs in
+  (* ignore (Pretty.printf "ancestors: %a outer: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs); *)
+  let rec components_cross comps ~ancestor_accs ~outer_accs =
+    if AS.is_empty ancestor_accs then
+      comps
+    else (
+      let ancestor_acc = AS.choose ancestor_accs in
+      let (_, ancestor_accs', _, outer_accs', comp) = bfs ~ancestor_accs ~ancestor_outer_accs:(AS.empty ()) ~outer_accs ~accs:(AS.empty ()) ancestor_acc in
+      (* ignore (Pretty.printf "ancestor: %a comp: %a\n" A.pretty ancestor_acc AS.pretty comp); *)
+      let comps' = comp :: comps in
+      components_cross comps' ~ancestor_accs:ancestor_accs' ~outer_accs:outer_accs'
+    )
+  in
+  components_cross comps ~ancestor_accs ~outer_accs
 
 let race_conf accs =
   assert (not (AS.is_empty accs)); (* group_may_race should only construct non-empty components *)

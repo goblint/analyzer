@@ -17,10 +17,10 @@
     live: 7
     dead: 0
     total lines: 7
+  [Success][Race] Memory location (struct T).s (safe):
+    write with [mhp:{tid=[main]; created={[main, t_fun@90-distribute-fields-type-1.c:38:3-38:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:40:3-40:17)
   [Warning][Race] Memory location (struct T).s.field (race with conf. 100):
     write with [mhp:{tid=[main, t_fun@90-distribute-fields-type-1.c:38:3-38:40#top]}, thread:[main, t_fun@90-distribute-fields-type-1.c:38:3-38:40#top]] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:32:3-32:20)
-    write with [mhp:{tid=[main]; created={[main, t_fun@90-distribute-fields-type-1.c:38:3-38:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:40:3-40:17)
-  [Success][Race] Memory location (struct T).s (safe):
     write with [mhp:{tid=[main]; created={[main, t_fun@90-distribute-fields-type-1.c:38:3-38:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:40:3-40:17)
   [Success][Race] Memory location (struct S).field (safe):
     write with [mhp:{tid=[main, t_fun@90-distribute-fields-type-1.c:38:3-38:40#top]}, thread:[main, t_fun@90-distribute-fields-type-1.c:38:3-38:40#top]] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:32:3-32:20)

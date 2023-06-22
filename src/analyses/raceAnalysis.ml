@@ -52,7 +52,7 @@ struct
 
   module OffsetTrie =
   struct
-    include TrieDomain.Make (OneOffset) (Access.AS)
+    include TrieDomain.Make (OneOffset) (Lattice.LiftBot (Access.AS))
 
     let rec find (offset : Offset.Unit.t) ((accs, children) : t) : value =
       match offset with
@@ -63,8 +63,8 @@ struct
     let rec singleton (offset : Offset.Unit.t) (value : value) : t =
       match offset with
       | `NoOffset -> (value, ChildMap.empty ())
-      | `Field (f, offset') -> (Access.AS.empty (), ChildMap.singleton (Field f) (singleton offset' value))
-      | `Index ((), offset') -> (Access.AS.empty (), ChildMap.singleton Index (singleton offset' value))
+      | `Field (f, offset') -> (`Bot, ChildMap.singleton (Field f) (singleton offset' value))
+      | `Index ((), offset') -> (`Bot, ChildMap.singleton Index (singleton offset' value))
   end
 
   module G =
@@ -102,7 +102,13 @@ struct
 
   let side_access ctx (conf, w, loc, e, a) ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton (conf, w, loc, e, a)))));
+    side_vars ctx memo
+
+  let side_access0 ctx ((memoroot, offset) as memo) =
+    (* ignore (Pretty.printf "memo: %a\n" Access.Memo.pretty memo); *)
+    if !AnalysisState.should_warn then
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.empty ()))));
     side_vars ctx memo
 
   let outer_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
@@ -114,7 +120,11 @@ struct
 
   let rec distribute_outer ctx ((root, offset) : Access.Memo.t) : Access.AS.t =
     let trie = G.access (ctx.global (V.access root)) in
-    let accs = OffsetTrie.find offset trie in
+    let accs =
+      match OffsetTrie.find offset trie with
+      | `Lifted accs -> accs
+      | `Bot -> Access.AS.empty ()
+    in
     let outer_accs =
       match outer_memo (root, offset) with
       | Some outer_memo -> distribute_outer ctx outer_memo
@@ -132,13 +142,18 @@ struct
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
           let rec distribute_inner offset (accs, children) ~ancestor_accs ~ancestor_outer_accs =
+            let accs =
+              match accs with
+              | `Lifted accs -> accs
+              | `Bot -> Access.AS.empty ()
+            in
             let outer_accs =
               match outer_memo (g', offset) with
               | Some outer_memo -> distribute_outer ctx outer_memo
               | None -> Access.AS.empty ()
             in
             M.trace "access" "outer accs = %a" Access.AS.pretty outer_accs;
-            if not (Access.AS.is_empty accs) then (
+            if not (Access.AS.is_empty accs && Access.AS.is_empty ancestor_accs && Access.AS.is_empty outer_accs) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
               Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs ~ancestor_outer_accs ~outer_accs memo) accs 
@@ -172,7 +187,7 @@ struct
       let loc = Option.get !Node.current_node in
       let add_access conf voffs =
         let a = part_access (Option.map fst voffs) in
-        Access.add (side_access octx (conf, kind, loc, e, a)) e voffs;
+        Access.add (side_access octx (conf, kind, loc, e, a)) (side_access0 octx) e voffs;
       in
       let add_access_struct conf ci =
         let a = part_access None in
