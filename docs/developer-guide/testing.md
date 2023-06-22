@@ -12,7 +12,7 @@ Regression tests can be run with various granularity:
 * Run a group of tests with: `./scripts/update_suite.rb group sanity`.
 
     Unfortunately this also runs skipped tests.
-    This is bug is used as a feature in the tests with Apron, as not all CI jobs have the Apron library installed.
+    This is a bug that is used as a feature in the tests with Apron, as not all CI jobs have the Apron library installed.
 
 * Run a single test with: `./scripts/update_suite.rb assert`.
 * Run a single test with full output: `./regtest.sh 00 01`.
