@@ -1,7 +1,5 @@
 (** Analysis using Apron for integer variables. *)
 open Analyses
-open TerminationPreprocessing
-open Cilfacade
 include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
