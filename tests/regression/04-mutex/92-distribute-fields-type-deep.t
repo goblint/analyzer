@@ -21,15 +21,11 @@
     write with [mhp:{tid=[main, t_fun@92-distribute-fields-type-deep.c:43:3-43:40#top]}, thread:[main, t_fun@92-distribute-fields-type-deep.c:43:3-43:40#top]] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:37:3-37:20)
   [Success][Race] Memory location (struct U).t (safe):
     write with [mhp:{tid=[main]; created={[main, t_fun@92-distribute-fields-type-deep.c:43:3-43:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:45:3-45:17)
-  [Success][Race] Memory location (struct U).t.s (safe):
-    write with [mhp:{tid=[main]; created={[main, t_fun@92-distribute-fields-type-deep.c:43:3-43:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:45:3-45:17)
   [Warning][Race] Memory location (struct U).t.s.field (race with conf. 100):
     write with [mhp:{tid=[main, t_fun@92-distribute-fields-type-deep.c:43:3-43:40#top]}, thread:[main, t_fun@92-distribute-fields-type-deep.c:43:3-43:40#top]] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:37:3-37:20)
     write with [mhp:{tid=[main]; created={[main, t_fun@92-distribute-fields-type-deep.c:43:3-43:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:45:3-45:17)
   [Info][Race] Memory locations race summary:
-    safe: 4
+    safe: 2
     vulnerable: 0
     unsafe: 1
-    total memory locations: 5
-
-TODO: fix memory location numbers
+    total memory locations: 3

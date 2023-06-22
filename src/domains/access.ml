@@ -432,7 +432,12 @@ let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
       let ancestor_acc = AS.choose ancestor_accs in
       let (_, ancestor_accs', _, outer_accs', comp) = bfs ~ancestor_accs ~ancestor_outer_accs:(AS.empty ()) ~outer_accs ~accs:(AS.empty ()) ancestor_acc in
       (* ignore (Pretty.printf "ancestor: %a comp: %a\n" A.pretty ancestor_acc AS.pretty comp); *)
-      let comps' = comp :: comps in
+      let comps' =
+        if AS.cardinal comp > 1 then
+          comp :: comps
+        else
+          comps (* ignore self-race ancestor_acc component, self-race checked at ancestor's level *)
+      in
       components_cross comps' ~ancestor_accs:ancestor_accs' ~outer_accs:outer_accs'
     )
   in
