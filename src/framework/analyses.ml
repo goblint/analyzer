@@ -42,7 +42,6 @@ struct
   let var_id = Node.show_id
 end
 
-
 module VarF (LD: Printable.S) =
 struct
   type t = Node.t * LD.t [@@deriving eq, ord, hash]
@@ -119,58 +118,103 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
+(* Tuple of fundec and S.C*)
+module T (Base1: Printable.S) (Base2: Printable.S) = 
+struct 
+  include Printable.Std
+  type t = (Base1.t * Base2.t)
 
-module GMapG (G: Lattice.S) (C: Printable.S) =
+  let fundec (a,_) = a
+  let context (_,b) = b
+  let equal (a1, b1) (a2, b2) = if (Base1.equal a1 a2 && Base2.equal b1 b2) then true else false
+  let show (a,b) = (Base1.show a) ^ (Base2.show b) 
+  let name () = "Tuple"
+  let to_yojson x = `String (show x)
+  let relift (a,b) = (a,b) (*Todo: is this correct?*)
+  let printXml f (a,b) = 
+    BatPrintf.fprintf f "<value>\n
+    Tuple:\n\n<map>
+    <key>caller_fundec</key>\n%a\n\n
+    <key>caller_context</key>\n<value>%a</value>\n\n
+    </map></value>\n" Base1.printXml a Base2.printXml b
+
+  let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
+    if equal (a1, b1) (a2, b2) then 0 
+    else(
+      let val_a a = if (a > 0) then 1 else -1 in
+      let val_b b = if (b > 0) then 3 else -3 in
+      val_a (Base1.compare a1 a2) + val_b (Base2.compare b1 b2)
+    ) 
+  
+  let pretty () x = text (show x)
+  let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)
+end
+
+module GVarGSet (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
 struct
-  module CVal =
-  struct
-    include Printable.Std (* To make it Groupable *)
-    include SetDomain.Make (
-      struct
-        include C
-        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
-      end
-      )
-    let name () = "contextsMap"
-  end
-
-  module RangeVal =
+  module CSet =
   struct
     include SetDomain.Make (
       struct
-        include C (*TODO: sollte hier iwi ein tupel sein*)
-        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
-      end
-      )
-    let name () = "contextsMap"
+        include (Base) (* Set of Tuples*)
+        end
+        )
+    let name () = "contexts"
+    let printXml f a = 
+      BatPrintf.fprintf f "<value>\n<set>";
+      iter (Base.printXml f) a;
+      BatPrintf.fprintf f "</set>\n</value>\n"
   end
 
-  module CMap =
+  (* Make the given module Goupable*)
+  module C_Printable (C: Printable.S) = 
+    struct
+      include C
+      include Printable.Std (* To make it Groupable *)
+      let printXml f c = BatPrintf.fprintf f
+      "<value>\n
+      callee_context\n<value>%a</value>\n\n
+      </value>" printXml c
+    end
+
+  module CMap = 
   struct
-    include MapDomain.MapBot (CVal) (RangeVal)
-    let name () = "contextsMap"
+    include MapDomain.MapBot (C_Printable (C)) (CSet)
+    let printXml f c = BatPrintf.fprintf f "<value><map>
+    <key>ContextTupleMap</key>\n
+    <value>%a</value>\n\n
+    </map></value>" printXml c
   end
+
   include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
 
-  let is_bot () = false
-  let is_top () = false
-
-  (*let spec = function
+  let spec = function
     | `Bot -> G.bot ()
     | `Lifted1 x -> x
-    | _ -> failwith "GVarG.spec"
+    | _ -> failwith "GVarGSet.spec"
     let contexts = function
     | `Bot -> CSet.bot ()
     | `Lifted2 x -> x
-    | _ -> failwith "GVarG.contexts"
+    | _ -> failwith "GVarGSet.contexts"
     let create_spec spec = `Lifted1 spec
     let create_contexts contexts = `Lifted2 contexts
 
     let printXml f = function
     | `Lifted1 x -> G.printXml f x
-    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
-    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
-  *)
+    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CMap.printXml x
+    | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
+
+  let s = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "RecursionTerm.s"
+
+  let create_s s = `Lifted1 s
+
+  let base2 instance =
+    match instance with
+    | `Lifted2 n -> Some n
+    | _ -> None
 end
 
 exception Deadcode

@@ -1,6 +1,7 @@
 #!/bin/bash
 make
-#make install
+make install
+clear
 
 # set options and file for apron execution
 options_apron="--set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable warn.debug" #note: preprocessing first needs to be added to apron
@@ -16,10 +17,10 @@ cfile_goto="tests/incremental/02-cfg-comparison/01-added-return-stmt.c"
 #./goblint $cfile_loops $options_apron --html 
 
 # run analysis, write cil output to file and enable visualization via html
-./goblint $cfile_loops $options_term --enable justcil > output.txt
+#./goblint -v $cfile_loops $options_term --enable justcil > output.txt
 ./goblint $cfile_loops $options_term --html 
 
 # set up server to see visualizatino
-python3 -m http.server --directory result 8081
+python3 -m http.server --directory result 8080
 #./goblint --enable dbg.debug tests/regression/55-loop-unrolling/01-simple-cases.c --enable ana.int.interval --set "ana.activated[+]" signs --enable justcil > output.txt
 
