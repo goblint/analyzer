@@ -1734,7 +1734,7 @@ struct
     let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
       if LS.mem call path_visited_calls then (
-        AnalysisState.svcomp_must_terminate := false;
+        AnalysisState.svcomp_may_not_terminate := true;
         (*Cycle found*)
         let msgs = 
           [
@@ -1770,7 +1770,7 @@ struct
       let ret = ctx.ask Queries.MustTermProg in 
       (* check result of loop analysis *)
       if not ret then
-        (AnalysisState.svcomp_must_terminate := false;
+        (AnalysisState.svcomp_may_not_terminate := true;
         let msgs = 
         [
           (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));

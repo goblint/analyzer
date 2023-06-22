@@ -8,7 +8,7 @@ let should_warn = ref false
 let svcomp_may_overflow = ref false
 
 (** TODO:**)
-let svcomp_must_terminate = ref true
+let svcomp_may_not_terminate = ref false
 
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false

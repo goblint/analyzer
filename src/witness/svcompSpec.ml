@@ -17,7 +17,7 @@ let of_string s =
       NoDataRace
     else if global_not = "overflow" then
       NoOverflow
-    else if global_not = "termination" then (*TODO: does this even work?*)
+    else if global_not = "termination" then
       NoTermination
     else
       let call_regex = Str.regexp "call(\\(.*\\)())" in
