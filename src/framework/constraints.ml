@@ -1767,9 +1767,8 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal v ->
-      let ret = ctx.ask Queries.MustTermProg in 
       (* check result of loop analysis *)
-      if not ret then
+      if not (ctx.ask Queries.MustTermProg) then
         (AnalysisState.svcomp_may_not_terminate := true;
         let msgs = 
         [
@@ -1781,7 +1780,7 @@ struct
       begin match v with
         | `Left v' ->
            S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right v' -> if ret then (cycleDetection ctx v v') (* Only analyze if the recursion terminates if the loops terminated *)       
+        | `Right v' -> cycleDetection ctx v v' (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
         end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in

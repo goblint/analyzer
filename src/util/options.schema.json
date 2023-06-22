@@ -566,7 +566,7 @@
               "title": "ana.sv-comp.enabled",
               "description": "SV-COMP mode",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "functions": {
               "title": "ana.sv-comp.functions",
@@ -581,7 +581,7 @@
           "title": "ana.specification",
           "description": "SV-COMP specification (path or string)",
           "type": "string",
-          "default": "/home/isidor/goblint/goblint-analyzer/tests/sv-comp/no-termination.prp"
+          "default": ""
         },
         "wp": {
           "title": "ana.wp",

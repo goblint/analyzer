@@ -147,29 +147,30 @@ class Tests
         @vars = $1
         @evals = $2
       end
+      if l =~ /\[NonTerminating\]/ then warnings[-2] = "non_local_term" end # Get NonTerminating warning
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
-      thiswarn =  case obj
-                    when /\(conf\. \d+\)/            then "race"
-                    when /Deadlock/                  then "deadlock"
-                    when /lock (before|after):/      then "deadlock"
-                    when /Assertion .* will fail/    then "fail"
-                    when /Assertion .* will succeed/ then "success"
-                    when /Assertion .* is unknown/   then "unknown"
-                    when /invariant confirmed/       then "success"
-                    when /invariant unconfirmed/     then "unknown"
-                    when /invariant refuted/         then "fail"
-                    when /^\[Warning\]/              then "warn"
-                    when /^\[Error\]/                then "warn"
-                    when /^\[Info\]/                 then "warn"
-                    when /^\[Success\]/              then "success"
-                    when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
-                    when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
-                    when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
-                    else "other"
-                  end
+      ranking = ["other", "warn", "local_term", "non_local_term", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
+      thiswarn = case obj
+                 when /\(conf\. \d+\)/            then "race"
+                 when /Deadlock/                  then "deadlock"
+                 when /lock (before|after):/      then "deadlock"
+                 when /Assertion .* will fail/    then "fail"
+                 when /Assertion .* will succeed/ then "success"
+                 when /Assertion .* is unknown/   then "unknown"
+                 when /invariant confirmed/       then "success"
+                 when /invariant unconfirmed/     then "unknown"
+                 when /invariant refuted/         then "fail"
+                 when /^\[Warning\]/              then "warn"
+                 when /^\[Error\]/                then "warn"
+                 when /^\[Info\]/                 then "warn"
+                 when /^\[Success\]/              then "success"
+                 when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
+                 when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                 when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                 else "other"
+                 end
       oldwarn = warnings[i]
       if oldwarn.nil? then
         warnings[i] = thiswarn
@@ -185,19 +186,33 @@ class Tests
         if cond then
           @correct += 1
           # full p.path is too long and p.name does not allow click to open in terminal
-          if todo.include? idx then puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!" end
+          if todo.include? idx
+            if idx < 0
+              puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan} for #{type.yellow} is now passing!"
+            else
+              puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!"
+            end
+          end
         else
-          if todo.include? idx then @ignored += 1 else
-            puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
-            puts tests_line[idx].rstrip.gray
-            ferr = idx if ferr.nil? or idx < ferr
+          if todo.include? idx
+            @ignored += 1
+          else
+            if idx < 0 # When non line specific keywords were used don't print a line
+              puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}"
+            else
+              puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
+              puts tests_line[idx].rstrip.gray
+              ferr = idx if ferr.nil? or idx < ferr
+            end
           end
         end
       }
       case type
       when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
         check.call warnings[idx] == type
-      when "nowarn"
+      when "non_local_term"
+        check.call warnings[idx] == type
+      when "nowarn", "local_term"
         check.call warnings[idx].nil?
       when "assert", "success"
         check.call warnings[idx] == "success"
@@ -309,6 +324,21 @@ class Project
       end
     end
     case lines[0]
+    when /TODO|SKIP/
+      case lines[0]
+      when /NON_LOCAL_TERM/
+        tests[-2] = "non_local_term" # Not sure if -2 is allowed or undefined in Ruby but it seems to work correctly
+        todo << -2
+      when /LOCAL_TERM/
+        tests[-2] = "local_term"
+        todo << -2
+      end
+    when /NON_LOCAL_TERM/
+      # covers "TERM" as keyword but a combined use of NON_LOCAL_TERM (loop termination) and TERM would be pointless
+      tests[-2] = "non_local_term"
+    when /LOCAL_TERM/
+      # covers "TERM" as keyword but a combined use of NON_LOCAL_TERM (loop termination) and TERM would be pointless
+      tests[-2] = "local_term"
     when /NON?TERM/
       tests[-1] = "noterm"
     when /TERM/
