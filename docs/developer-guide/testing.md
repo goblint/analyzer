@@ -11,7 +11,8 @@ Regression tests can be run with various granularity:
 * Run all tests with: `./scripts/update_suite.rb`.
 * Run a group of tests with: `./scripts/update_suite.rb group sanity`.
 
-    Unfortunately this also runs skipped tests...
+    Unfortunately this also runs skipped tests.
+    This is bug is used as a feature in the tests with Apron, as not all CI jobs have the Apron library installed.
 
 * Run a single test with: `./scripts/update_suite.rb assert`.
 * Run a single test with full output: `./regtest.sh 00 01`.
@@ -24,8 +25,42 @@ gobopt='--set ana.base.privatization write+lock' ./scripts/update_suite.rb
 ```
 
 ### Writing
-* Add parameters to a regression test in the first line: `// PARAM: --set warn.debug true`
-* Annotate lines inside the regression test with comments: `arr[9] = 10; // WARN`
+Regression tests use single-line comments (with `//`) as annotations.
+
+#### First line
+A comment on the first line can contain the following:
+
+| Annotation | Comment |
+| ---------- | ------- |
+| `PARAM: ` <br> (NB! space) | The following command line parameters are added to Goblint for this test. |
+| `SKIP` | The test is skipped (except when run with `./scripts/update_suite.rb group`). |
+| `NOMARSHAL` | Marshaling and unmarshaling of results is not tested on this program. |
+
+#### End of line
+Comments at the end of other lines indicate the behavior on that line:
+
+| Annotation | Expected Goblint result | Concrete semantics | Checks |
+| ---------- | ----- | ------------- | --- |
+| `SUCCESS` <br> or nothing | Assertion succeeds | Assertion always succeeds | Precision |
+| `FAIL` | Assertion fails | Assertion always fails | Precision |
+| `UNKNOWN!` | Assertion is unknown | Assertion may both <br> succeed or fail | Soundness |
+| `UNKNOWN` | Assertion is unknown | — | Intended imprecision |
+| `TODO` <br> or `SKIP` | Assertion is unknown <br> or succeeds | Assertion always succeeds | Precision improvement |
+| `NORACE` | No race warning | No data race | Precision |
+| `RACE!` | Race warning | Data race is possible | Soundness |
+| `RACE` | Race warning | — | Intended imprecision |
+| `NODEADLOCK` | No deadlock warning | No deadlock | Precision |
+| `DEADLOCK` | Deadlock warning | Deadlock is possible | Soundness |
+| `NOWARN` | No warning | — | Precision |
+| `WARN` | Some warning | — | Soundness |
+
+#### Other
+Other useful constructs are the following:
+
+| Code with annotation | Comment |
+| -------------------- | ------- |
+| `__goblint_check(1); // reachable` | Checks that the line is reachable according <br> to Goblint results (soundness). |
+| `__goblint_check(0); // NOWARN (unreachable)` | Checks that the line is unreachable (precision). |
 
 ## Cram Tests
 [Cram-style tests](https://dune.readthedocs.io/en/stable/tests.html#cram-tests) are also used to verify that existing functionality hasn't been broken.
