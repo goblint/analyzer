@@ -104,13 +104,8 @@ struct
       if Queries.LS.is_top reachable_from_args || D.is_top caller_state then
         [caller_state, caller_state]
       else
-        let reachable_vars =
-          Queries.LS.elements reachable_from_args
-          |> List.map fst
-          |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
-          |> D.of_list
-        in
-        let callee_state = D.inter caller_state reachable_vars in
+        let reachable_vars = List.map fst (Queries.LS.elements reachable_from_args) in
+        let callee_state = D.filter (fun var -> List.mem var reachable_vars) caller_state in
         [caller_state, callee_state]
     )
 
