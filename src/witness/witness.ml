@@ -23,7 +23,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module IsInteresting =
   struct
     (* type node = N.t
-    type edge = TaskResult.Arg.Edge.t *)
+       type edge = TaskResult.Arg.Edge.t *)
     let minwitness = get_bool "witness.minimize"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
@@ -59,11 +59,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module GML = XmlGraphMlWriter in
   let module GML =
     (val match get_string "witness.id" with
-      | "node" ->
-        (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
-      | "enumerate" ->
-        (module EnumerateNodeGraphMlWriter (N) (GML))
-      | _ -> failwith "witness.id: illegal value"
+       | "node" ->
+         (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
+       | "enumerate" ->
+         (module EnumerateNodeGraphMlWriter (N) (GML))
+       | _ -> failwith "witness.id: illegal value"
     )
   in
   let module GML = DeDupGraphMlWriter (N) (GML) in
@@ -107,16 +107,16 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_key g "edge" "goblintLine" "string" None;
   (* TODO: remove *)
   (* GML.write_key g "edge" "enterFunction2" "string" None;
-  GML.write_key g "edge" "returnFromFunction2" "string" None; *)
+     GML.write_key g "edge" "returnFromFunction2" "string" None; *)
 
   GML.start_graph g;
 
   GML.write_metadata g "witness-type" (
-      match TaskResult.result with
-      | Result.True -> "correctness_witness"
-      | Result.False _ -> "violation_witness"
-      | Result.Unknown -> "unknown_witness"
-    );
+    match TaskResult.result with
+    | Result.True -> "correctness_witness"
+    | Result.False _ -> "violation_witness"
+    | Result.Unknown -> "unknown_witness"
+  );
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
@@ -141,7 +141,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             | Statement _, `Lifted i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", CilType.Exp.show i);
-              ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
+               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
             | _ ->
               (* ignore entry and return invariants, variables of wrong scopes *)
               (* TODO: don't? fix scopes? *)
@@ -150,10 +150,10 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             []
         end;
         (* begin match cfgnode with
-          | Statement s ->
+           | Statement s ->
             [("sourcecode", GobPretty.sprint Basetype.CilStmt.pretty s)] (* TODO: sourcecode not official? especially on node? *)
-          | _ -> []
-        end; *)
+           | _ -> []
+           end; *)
         (* violation actually only allowed in violation witness *)
         (* maybe should appear on from_node of entry edge instead *)
         begin if TaskResult.is_violation node then
@@ -170,7 +170,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
            | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
            | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
            | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
-          )] *)
+           )] *)
         (* [("goblintNode", N.to_string node)] *)
       ])
   in
@@ -213,9 +213,9 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
           (* | MyARG.CFGEdge (Entry f) ->
-            [("enterFunction2", f.svar.vname)]
-          | MyARG.CFGEdge (Ret (_, f)) ->
-            [("returnFromFunction2", f.svar.vname)] *)
+             [("enterFunction2", f.svar.vname)]
+             | MyARG.CFGEdge (Ret (_, f)) ->
+             [("returnFromFunction2", f.svar.vname)] *)
           | _ -> []
         end;
         [("goblintEdge", Arg.Edge.to_string edge)]
@@ -394,12 +394,12 @@ struct
               struct
                 let path = observer_path
               end
-            )
+              )
             in
             MCP.register_analysis (module Spec);
             (* TODO: don't modify JSON but have ref vars for these instead *)
             (* GobConfig.set_list "ana.activated" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.activated");
-            GobConfig.set_list "ana.path_sens" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.path_sens"); *)
+               GobConfig.set_list "ana.path_sens" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.path_sens"); *)
             (* TODO: don't append to end; currently done to get observer order to be nice *)
             GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String (Spec.name ())]);
             GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [`String (Spec.name ())]);

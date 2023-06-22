@@ -1698,19 +1698,19 @@ end
 (** Add cycle detection in the function call graph to a analysis *)
 module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
-        and module C = S.C
+          and module C = S.C
 =
 (*global invariants:
-     - V -> G
-     - fundec -> Map (S.C) (Set (fundec * S.C)) 
+  - V -> G
+  - fundec -> Map (S.C) (Set (fundec * S.C))
     Therefore:
          g    -> {c' -> {(f, c)}}
     in case f, c --> g, c'  *)
 
 struct
   include S
-  module V = 
-  struct 
+  module V =
+  struct
     include GVarF(S.V)
   end
 
@@ -1718,17 +1718,17 @@ struct
 
   let name () = "termination"
 
-  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx = 
+  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
     { ctx with
       global = (fun v -> G.s (ctx.global (V.spec v)));
       sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_s g));
     }
 
-  let cycleDetection ctx v v' = 
-    let module LH = Hashtbl.Make (T (CilType.Fundec) (S.C)) in 
-    let module LS = Set.Make (T (CilType.Fundec) (S.C)) in 
+  let cycleDetection ctx v v' =
+    let module LH = Hashtbl.Make (T (CilType.Fundec) (S.C)) in
+    let module LS = Set.Make (T (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
-    let global_visited_calls = LH.create 100 in 
+    let global_visited_calls = LH.create 100 in
 
     (* DFS *)
     let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
@@ -1736,7 +1736,7 @@ struct
       if LS.mem call path_visited_calls then (
         AnalysisState.svcomp_may_not_terminate := true;
         (*Cycle found*)
-        let msgs = 
+        let msgs =
           [
             (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)\n" CilType.Fundec.pretty fundec_e, Some (M.Location.CilLocation fundec_e.svar.vdecl));
           ] in
@@ -1744,25 +1744,25 @@ struct
       else if not (LH.mem global_visited_calls call) then begin
         try
           LH.replace global_visited_calls call ();
-          let new_path_visited_calls = LS.add call path_visited_calls in 
-          let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in 
-          let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in 
+          let new_path_visited_calls = LS.add call path_visited_calls in
+          let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
+          let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in
           let gmap = Option.get (gmap_opt) in (*might be empty*)
-          let callers: G.CSet.t = G.CMap.find (context_e) gmap in 
+          let callers: G.CSet.t = G.CMap.find (context_e) gmap in
           G.CSet.iter (fun to_call ->
               iter_call new_path_visited_calls to_call
             ) callers;
         with Invalid_argument _ -> () (* path ended: no cycle*)
-        end
+      end
     in
-      try 
-        let gmap_opt = G.base2 (ctx.global (v)) in 
-        let gmap = Option.get (gmap_opt) in 
-        G.CMap.iter(fun key value ->
-            let call = (v', key) in 
-            iter_call LS.empty call
-          ) gmap (* try all fundec + context pairs that are in the map *)
-      with Invalid_argument _ -> () (* path ended: no cycle*)
+    try
+      let gmap_opt = G.base2 (ctx.global (v)) in
+      let gmap = Option.get (gmap_opt) in
+      G.CMap.iter(fun key value ->
+          let call = (v', key) in
+          iter_call LS.empty call
+        ) gmap (* try all fundec + context pairs that are in the map *)
+    with Invalid_argument _ -> () (* path ended: no cycle*)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -1770,18 +1770,18 @@ struct
       (* check result of loop analysis *)
       if not (ctx.ask Queries.MustTermProg) then
         (AnalysisState.svcomp_may_not_terminate := true;
-        let msgs = 
-        [
-          (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
-        ] in
-        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs
-      );
+         let msgs =
+           [
+             (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
+           ] in
+         M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs
+        );
       let v: V.t = Obj.obj v in
       begin match v with
         | `Left v' ->
-           S.query (conv ctx) (WarnGlobal (Obj.repr v'))
+          S.query (conv ctx) (WarnGlobal (Obj.repr v'))
         | `Right v' -> cycleDetection ctx v v' (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
-        end
+      end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in
       begin match v with
@@ -1795,30 +1795,30 @@ struct
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
   let vdecl ctx = S.vdecl (conv ctx)
-  
+
   (* c = context
      t = set of tuples (fundec * context)
   *)
   let side_context sideg f c t =
     if !AnalysisState.postsolving then
       sideg (V.contexts f) (G.create_contexts (G.CMap.singleton (c) (t)))
-  
-  let enter ctx  = S.enter (conv ctx) 
+
+  let enter ctx  = S.enter (conv ctx)
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
-  let combine_env ctx r fe f args fc es f_ask = 
+  let combine_env ctx r fe f args fc es f_ask =
     if !AnalysisState.postsolving then
       let c_r: S.C.t = ctx.context () in (*Caller context*)
       let nodeF = ctx.node in
       let fd_r : fundec = Node.find_fundec nodeF in (*Caller fundec*)
       let c_e: S.C.t = Option.get fc in (*Callee context*)
       let fd_e : fundec = f in (*Callee fundec*)
-      let tup: (fundec * S.C.t) = (fd_r, c_r) in 
-      let t = G.CSet.singleton (tup) in 
+      let tup: (fundec * S.C.t) = (fd_r, c_r) in
+      let t = G.CSet.singleton (tup) in
       side_context ctx.sideg fd_e (c_e) t;
       S.combine_env (conv ctx) r fe f args fc es f_ask
-    else 
+    else
       S.combine_env (conv ctx) r fe f args fc es f_ask
   let combine_assign ctx = S.combine_assign (conv ctx)
   let special ctx = S.special (conv ctx)
