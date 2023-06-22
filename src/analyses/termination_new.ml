@@ -6,6 +6,7 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
+(*
 let loop_heads () =
   let module FileCfg =
   struct
@@ -13,7 +14,8 @@ let loop_heads () =
     module Cfg = (val !MyCFG.current_cfg)
   end in
   let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
-  WitnessInvariant.loop_heads (* TODO: Use this *)
+  WitnessInvariant.loop_heads (* TODO: Unused *)
+*)
 
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
@@ -73,17 +75,9 @@ struct
   let assign ctx (lval : lval) (rval : exp) =
     (* Detect assignment to loop counter variable *)
     match lval, rval with
-    (*
-      (Var x, NoOffset), _ when is_loop_counter_var x ->
-      (* Assume that the following loop does not terminate *)
-      let loop_statement = VarToStmt.find x !loop_counters in
-      let () = ctx.sideg () (G.add (`Lifted loop_statement) false ctx.local) in
-      let () = print_endline ("Added FALSE for " ^ x.vname) in
-      D.add (`Lifted loop_statement) false ctx.local
-       *)
       (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
       (* Loop exit: Check whether loop counter variable is bounded *)
-      (* TODO: Move *)
+      (* TODO: Move to special *)
       let is_bounded = check_bounded ctx x in
       let loop_statement = VarToStmt.find x !loop_counters in
       let () = ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ())) in
@@ -94,6 +88,11 @@ struct
     (* TODO: Implement check for our special loop exit indicator function *)
     ctx.local
 
+  (** Checks whether a new thread was spawned some time. We want to discard
+   * any knowledge about termination then (see query function) *)
+  let must_be_single_threaded_since_start ctx =
+    ctx.ask (Queries.MustBeSingleThreaded {since_start = true})
+
   (** Provides information to Goblint *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -101,9 +100,11 @@ struct
       (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
          Some b -> b
        | None -> false)
+      && must_be_single_threaded_since_start ctx
     | Queries.MustTermProg ->
       G.for_all (fun _ term_info -> term_info) (ctx.global ())
       && no_upjumping_gotos ()
+      && must_be_single_threaded_since_start ctx
     | _ -> Queries.Result.top q
 
 end
