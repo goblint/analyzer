@@ -286,8 +286,8 @@ class Project
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
       todo << i if obj =~ /TODO|SKIP/
       tests_line[i] = obj
-      if obj =~ /RACE/ then
-        tests[i] = if obj =~ /NORACE/ then "norace" else "race" end
+      if obj =~ /(?<=\/|\b)RACE/ # do not match RACE with a preceding car unequal '/'' or ' '. Prevents interpreting _SC_TRACE from cil as race
+        tests[i] = if obj =~ /(?<=\/|\b)NORACE/ then "norace" else "race" end
       elsif obj =~ /DEADLOCK/ then
         tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
       elsif obj =~ /WARN/ then
