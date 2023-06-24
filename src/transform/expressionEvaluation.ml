@@ -1,3 +1,6 @@
+(** Transformation for evaluating expressions on the analysis results ([expeval]).
+    {e Hack for Gobview}. *)
+
 open Batteries
 open GoblintCil
 open Syntacticsearch
@@ -32,7 +35,7 @@ struct
   let (~!) value_option =
     match value_option with
     | Some value -> value
-    | None -> raise Exit
+    | None -> raise Stdlib.Exit
 
   let is_debug () =
     GobConfig.get_bool "dbg.verbose"

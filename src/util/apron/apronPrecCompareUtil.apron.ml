@@ -1,3 +1,5 @@
+(** {!ApronDomain} precision comparison. *)
+
 open PrecCompareUtil
 open ApronDomain
 

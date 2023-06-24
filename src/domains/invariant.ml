@@ -1,3 +1,5 @@
+(** Invariants for witnesses. *)
+
 open GoblintCil
 
 (** Symbolic (and fully syntactic) expression "lattice". *)
@@ -41,10 +43,10 @@ let ( || ) = join
 
 type context = {
   path: int option;
-  lvals: CilLval.Set.t;
+  lvals: Lval.Set.t;
 }
 
 let default_context = {
   path = None;
-  lvals = CilLval.Set.top ();
+  lvals = Lval.Set.top ();
 }

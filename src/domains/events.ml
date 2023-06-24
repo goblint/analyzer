@@ -1,4 +1,7 @@
-open Prelude.Ana
+(** Events. *)
+
+open GoblintCil
+open Pretty
 
 type t =
   | Lock of LockDomain.Lockset.Lock.t

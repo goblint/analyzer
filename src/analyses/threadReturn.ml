@@ -1,6 +1,6 @@
-(** Thread returning analysis. *)
+(** Thread returning analysis which abstracts a thread's call stack by a boolean, indicating whether it is at the topmost call stack frame or not ([threadreturn]). *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 let is_current (ask: Queries.ask): bool =
@@ -18,7 +18,7 @@ struct
   (* transfer functions *)
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    if !Goblintutil.global_initialization then
+    if !AnalysisState.global_initialization then
       (* We are inside enter_with inside a startfun, and thus the current function retruning is the main function *)
       [ctx.local, true]
     else

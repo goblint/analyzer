@@ -1,6 +1,8 @@
-(** Interfaces/implementations that generalize the apronDomain and affineEqualityDomain. *)
+(** Signatures for relational value domains.
 
-open Prelude
+    See {!ApronDomain} and {!AffineEqualityDomain}. *)
+
+open Batteries
 open GoblintCil
 
 (** Abstracts the extended apron Var. *)
@@ -178,7 +180,7 @@ struct
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (RD.name ())) RD.printXml r.rel (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (RD.name ())) RD.printXml r.rel (XmlUtil.escape (PrivD.name ())) PrivD.printXml r.priv
 
   let name () = RD.name () ^ " * " ^ PrivD.name ()
 

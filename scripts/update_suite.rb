@@ -139,10 +139,8 @@ class Tests
   end
 
   def collect_warnings
-    warnings[-1] = "term"
     lines = IO.readlines(warnfile, :encoding => "UTF-8")
     lines.each do |l|
-      if l =~ /Function 'main' does not return/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
         @vars = $1
         @evals = $2
@@ -150,7 +148,7 @@ class Tests
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
+      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
       thiswarn =  case obj
                     when /\(conf\. \d+\)/            then "race"
                     when /Deadlock/                  then "deadlock"
@@ -195,7 +193,7 @@ class Tests
         end
       }
       case type
-      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
+      when "deadlock", "race", "fail", "unknown", "warn"
         check.call warnings[idx] == type
       when "nowarn"
         check.call warnings[idx].nil?
@@ -307,12 +305,6 @@ class Project
           tests[i] = "assert"
         end
       end
-    end
-    case lines[0]
-    when /NON?TERM/
-      tests[-1] = "noterm"
-    when /TERM/
-      tests[-1] = "term"
     end
     Tests.new(self, tests, tests_line, todo)
   end
@@ -496,8 +488,8 @@ class ProjectWitness < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable dbg.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable dbg.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable warn.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable warn.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     starttime = Time.now
@@ -543,7 +535,7 @@ regs.sort.each do |d|
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params << " #{$1}" else params << "" end
     # always enable debugging so that the warnings would work
-    params << " --set dbg.debug true"
+    params << " --set warn.debug true"
     p = if incremental then
           patch = f[0..-3] + ".patch"
           patch_path = File.expand_path(patch, grouppath)

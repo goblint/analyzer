@@ -1,4 +1,4 @@
-open Prelude.Ana
+open GoblintCil
 open GobConfig
 module Q = Queries
 

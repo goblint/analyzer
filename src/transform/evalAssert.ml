@@ -1,4 +1,5 @@
-open Prelude
+(** Transformation for instrumenting the program with computed invariants as assertions ([assert]). *)
+
 open GoblintCil
 open Formatcil
 
@@ -53,12 +54,12 @@ module EvalAssert = struct
       in
 
       let make_assert ~node loc lval =
-        if q.must_be_dead node then
+        if q.must_be_dead node then (* Has currently no affect. Maybe the results are not avaiable yet?! *)
           []
         else
           let lvals = match lval with
-            | None -> CilLval.Set.top ()
-            | Some lval -> CilLval.(Set.singleton lval)
+            | None -> Lval.Set.top ()
+            | Some lval -> Lval.(Set.singleton lval)
           in
           let context = {Invariant.default_context with lvals} in
           match (q.ask ~node loc).f (Queries.Invariant context) with

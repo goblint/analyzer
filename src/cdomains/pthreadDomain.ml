@@ -1,4 +1,6 @@
-open Prelude
+(** Domains for extraction of Pthread programs. *)
+
+open Batteries
 
 (** Thread ID *)
 module Tid = IntDomain.Flattened

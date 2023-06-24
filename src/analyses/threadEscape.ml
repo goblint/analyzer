@@ -1,6 +1,6 @@
-(** Variables that escape threads using the last argument from pthread_create. *)
+(** Escape analysis for thread-local variables ([escape]). *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module M = Messages
@@ -22,16 +22,9 @@ struct
   module V = VarinfoV
   module G = EscapeDomain.EscapedVars
 
-  let rec cut_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (_,o) -> `NoOffset
-    | `Field (f,o) -> `Field (f, cut_offset o)
-
   let reachable (ask: Queries.ask) e: D.t =
     match ask.f (Queries.ReachableFrom e) with
     | a when not (Queries.LS.is_top a) ->
-      (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
       Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -42,7 +35,6 @@ struct
   let mpt (ask: Queries.ask) e: D.t =
     match ask.f (Queries.MayPointTo e) with
     | a when not (Queries.LS.is_top a) ->
-      (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
       Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -65,7 +57,7 @@ struct
       let escaped = reachable ask rval in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
       if M.tracing then M.tracel "escape" "assign vs: %a | %a\n" D.pretty vs D.pretty escaped;
-      if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
+      if not (D.is_empty escaped) && ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
       D.iter (fun v ->
           ctx.sideg v escaped;

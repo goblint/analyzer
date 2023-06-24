@@ -1,4 +1,7 @@
-open Prelude.Ana
+(** Taint analysis of variables that were modified between [setjmp] and [longjmp] and not yet overwritten. ([poisonVariables]). *)
+
+open Batteries
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -14,7 +17,7 @@ struct
 
   let check_lval tainted ((v, offset): Queries.LS.elt) =
     if not v.vglob && VS.mem v tainted then
-      M.warn ~category:(Behavior (Undefined Other)) "Reading poisonous variable %a" d_varinfo v
+      M.warn ~category:(Behavior (Undefined Other)) "Reading poisonous variable %a" CilType.Varinfo.pretty v
 
   let rem_lval tainted ((v, offset): Queries.LS.elt) = match offset with
     | `NoOffset -> VS.remove v tainted

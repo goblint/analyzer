@@ -1,6 +1,9 @@
-(** Assigning static regions to dynamic memory. *)
+(** Analysis of disjoint heap regions for dynamically allocated memory ([region]).
 
-open Prelude.Ana
+    @see <https://doi.org/10.1007/978-3-642-03237-0_13> Seidl, H., Vojdani, V. Region Analysis for Race Detection. *)
+
+open Batteries
+open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
@@ -20,12 +23,11 @@ struct
     include StdV
   end
 
-  let regions exp part st : Lval.CilLval.t list =
+  let regions exp part st : Mval.Exp.t list =
     match st with
     | `Lifted reg ->
       let ev = Reg.eval_exp exp in
-      let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
-      List.map to_exp (Reg.related_globals ev (part,reg))
+      Reg.related_globals ev (part,reg)
     | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
@@ -56,7 +58,7 @@ struct
         ls
     | _ -> Queries.Result.top q
 
-  module Lvals = SetDomain.Make (Lval.CilLval)
+  module Lvals = SetDomain.Make (Mval.Exp)
   module A =
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
@@ -79,12 +81,9 @@ struct
       Some (Lvals.empty ())
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
-      let rec unknown_index = function
-        | `NoOffset -> `NoOffset
-        | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
-      in
-      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
+      (* forget specific indices *)
+      (* TODO: If indices are topped, could they not be collected in the first place? *)
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -171,14 +170,7 @@ struct
         | _ -> ctx.local
       end
     | _ ->
-      let t, _, _, _ = splitFunctionTypeVI  f in
-      match unrollType t with
-      | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
-          | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
+      ctx.local
 
   let startstate v =
     `Lifted (RegMap.bot ())

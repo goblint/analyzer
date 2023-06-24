@@ -19,6 +19,7 @@ For the initial setup:
 To build GobView (also for development):
 
 1. Run `dune build gobview` in the analyzer directory to build the web UI
-2. Run Goblint with these flags: `--enable gobview --set save_run DIR` (`DIR` is the name of the result directory that Goblint will create and populate, if not specified it is `run`)
-3. `cd` into `DIR` and run `python3 -m http.server`
+2. The executable for the http-server can then be found in the directory `./_build/default/gobview/goblint-http-server`. It takes the analyzer directory and additional Goblint configurations such as the files to be analyzed as parameters. Run it e.g. with the following command:\
+`./_build/default/gobview/goblint-http-server/goblint_http.exe -with-goblint ../analyzer/goblint -goblint --set files[+] "../analyzer/tests/regression/00-sanity/01-assert.c"`
+
 4. Visit <http://localhost:8000>

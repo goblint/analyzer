@@ -1,6 +1,6 @@
-(** An analysis to detect if an invocation is in the scope of a variably modified variable. *)
+(** Analysis of variable-length arrays (VLAs) in scope ([vla]). *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =

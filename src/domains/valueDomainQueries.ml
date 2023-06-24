@@ -1,7 +1,9 @@
+(** Queries within {!ValueDomain}. *)
+
 open GoblintCil
 open BoolDomain
 
-module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+module LS = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
 
 module ID =
 struct

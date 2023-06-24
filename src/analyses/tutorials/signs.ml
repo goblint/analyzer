@@ -1,6 +1,8 @@
-(** An analysis specification for didactic purposes. *)
+(** Simple intraprocedural integer signs analysis template ([signs]).
 
-open Prelude.Ana
+    @see <https://goblint.readthedocs.io/en/latest/developer-guide/firstanalysis/> *)
+
+open GoblintCil
 open Analyses
 
 module Signs =

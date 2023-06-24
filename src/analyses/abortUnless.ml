@@ -1,6 +1,8 @@
-(** An analysis checking whether a function only returns if its only argument has a non-zero value. *)
+(** Analysis of [assume_abort_if_not]-style functions ([abortUnless]).
 
-open Prelude.Ana
+    Such a function only returns if its only argument has a non-zero value. *)
+
+open GoblintCil
 open Analyses
 
 module Spec =

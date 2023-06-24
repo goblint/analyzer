@@ -1,6 +1,6 @@
-(** Thread creation and uniqueness analyses. *)
+(** Created threads and their uniqueness analysis ([thread]). *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module T  = ThreadIdDomain.Thread
@@ -19,11 +19,9 @@ struct
     include T
     include StdV
   end
-
-  let should_join = D.equal
+  module P = IdentityP (D)
 
   (* transfer functions *)
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     begin match tid with
@@ -67,10 +65,12 @@ struct
         | `Lifted tid -> not (is_not_unique ctx tid)
         | _ -> false
       end
-    | Queries.MustBeSingleThreaded -> begin
+    | Queries.MustBeSingleThreaded {since_start = false} -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
-        | `Lifted tid when T.is_main tid -> D.is_empty ctx.local
+        | `Lifted tid when T.is_main tid ->
+          (* This analysis cannot tell if we are back in single-threaded mode or never left it. *)
+          D.is_empty ctx.local
         | _ -> false
       end
     | _ -> Queries.Result.top q
