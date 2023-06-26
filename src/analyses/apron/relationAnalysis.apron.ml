@@ -295,8 +295,7 @@ struct
     (* TODO: parallel version of assign_from_globals_wrapper? *)
     let new_rel =
       if thread then
-        (* TODO: Why does test 63/16 not reach fixpoint without copy here? *)
-        RD.copy new_rel
+        new_rel
       else
         let ask = Analyses.ask_of_ctx ctx in
         List.fold_left (fun new_rel (var, e) ->
@@ -306,6 +305,9 @@ struct
           ) new_rel arg_assigns
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
+
+    (* Copy to ensure that ctx.local.rel is not changed *)
+    let new_rel = RD.copy new_rel in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
