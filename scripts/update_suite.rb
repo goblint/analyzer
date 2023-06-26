@@ -282,24 +282,30 @@ class Project
         i = $1.to_i - 1
       end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
-      todo << i if obj =~ /TODO|SKIP/
+      todo << i if obj =~ /(\b|\/)(TODO|SKIP)/
       tests_line[i] = obj
-      if obj =~ /(?<=\/|\b)RACE/ # do not match RACE with a preceding car unequal '/'' or ' '. Prevents interpreting _SC_TRACE from cil as race
-        tests[i] = if obj =~ /(?<=\/|\b)NORACE/ then "norace" else "race" end
-      elsif obj =~ /DEADLOCK/ then
-        tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
-      elsif obj =~ /WARN/ then
-        tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
-      elsif obj =~ /SUCCESS/ then
+      if obj =~ /(\b|\/)RACE/ then
+        tests[i] = "race"
+      elsif obj =~ /(\b|\/)NORACE/ then
+        tests[i] = "norace"
+      elsif obj =~ /(\b|\/)DEADLOCK/ then
+        tests[i] = "deadlock"
+      elsif obj =~ /(\b|\/)NODEADLOCK/ then
+        tests[i] = "nodeadlock"
+      elsif obj =~ /(\b|\/)WARN/ then
+        tests[i] = "warn"
+      elsif obj =~ /NOWARN/ then
+        tests[i] = "nowarn"
+      elsif obj =~ /(\b|\/)SUCCESS/ then
         tests[i] = "success"
-      elsif obj =~ /FAIL/ then
+      elsif obj =~ /(\b|\/)FAIL/ then
         tests[i] = "fail"
-      elsif obj =~ /UNKNOWN/ then
+      elsif obj =~ /(\b|\/)UNKNOWN/ then
         tests[i] = "unknown"
-      elsif obj =~ /(assert|__goblint_check).*\(/ then
-        if obj =~ /FAIL/ then
+      elsif obj =~ /(\b|\/)(assert|__goblint_check).*\(/ then
+        if obj =~ /(\b|\/)FAIL/ then
           tests[i] = "fail"
-        elsif obj =~ /UNKNOWN/ then
+        elsif obj =~ /(\b|\/)UNKNOWN/ then
           tests[i] = "unknown"
         else
           tests[i] = "assert"
