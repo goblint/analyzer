@@ -80,9 +80,9 @@ struct
           | `Top -> true
           | `Bot -> false
         in
-        let equal_current_not_unique current = function
+        let equal_current current = function
           | `Lifted tid ->
-            ThreadId.Thread.equal current tid && not (ThreadId.Thread.is_unique current)
+            ThreadId.Thread.equal current tid
           | `Top -> true
           | `Bot -> false
         in
@@ -91,12 +91,15 @@ struct
           let possibly_started = ThreadIdSet.exists (possibly_started current) threads in
           if possibly_started then
             true
-          else if ThreadIdSet.exists (equal_current_not_unique current) threads then
-            (* Another instance of the non-unqiue current thread may have escaped the variable *)
-            true
           else
-            (* Check whether current unique thread has escaped the variable *)
-            D.mem v ctx.local
+            let current_is_unique = ThreadId.Thread.is_unique current in
+            let any_equal_current threads = ThreadIdSet.exists (equal_current current) threads in
+            if not current_is_unique && any_equal_current threads then
+              (* Another instance of the non-unqiue current thread may have escaped the variable *)
+              true
+            else
+              (* Check whether current unique thread has escaped the variable *)
+              D.mem v ctx.local
         | `Top ->
           true
         | `Bot ->
