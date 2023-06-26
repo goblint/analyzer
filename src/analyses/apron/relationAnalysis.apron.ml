@@ -290,7 +290,9 @@ struct
     in
     let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let arg_vars = List.map fst arg_assigns in
-    let new_rel = RD.add_vars st.rel arg_vars in
+    (* Copy to ensure that ctx.local.rel is not changed by remove_filter_with*)
+    let new_rel = RD.copy st.rel in
+    let new_rel = RD.add_vars new_rel arg_vars in
     (* RD.assign_exp_parallel_with new_rel arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
     let new_rel =
@@ -305,9 +307,6 @@ struct
           ) new_rel arg_assigns
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
-
-    (* Copy to ensure that ctx.local.rel is not changed *)
-    let new_rel = RD.copy new_rel in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
