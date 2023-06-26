@@ -139,19 +139,17 @@ class Tests
   end
 
   def collect_warnings
-    warnings[-1] = "term"
     lines = IO.readlines(warnfile, :encoding => "UTF-8")
     lines.each do |l|
-      if l =~ /Function 'main' does not return/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
         @vars = $1
         @evals = $2
       end
-      if l =~ /\[NonTerminating\]/ then warnings[-2] = "non_local_term" end # Get NonTerminating warning
+      if l =~ /\[NonTerminating\]/ then warnings[-1] = "non_local_term" end # Get NonTerminating warning
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "local_term", "non_local_term", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
+      ranking = ["other", "warn", "local_term", "non_local_term", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
       thiswarn = case obj
                  when /\(conf\. \d+\)/            then "race"
                  when /Deadlock/                  then "deadlock"
@@ -208,7 +206,7 @@ class Tests
         end
       }
       case type
-      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
+      when "deadlock", "race", "fail", "unknown", "warn"
         check.call warnings[idx] == type
       when "non_local_term"
         check.call warnings[idx] == type
@@ -327,22 +325,18 @@ class Project
     when /TODO|SKIP/
       case lines[0]
       when /NON_LOCAL_TERM/
-        tests[-2] = "non_local_term" # Not sure if -2 is allowed or undefined in Ruby but it seems to work correctly
-        todo << -2
+        tests[-1] = "non_local_term"
+        todo << -1
       when /LOCAL_TERM/
-        tests[-2] = "local_term"
-        todo << -2
+        tests[-1] = "local_term"
+        todo << -1
       end
     when /NON_LOCAL_TERM/
       # covers "TERM" as keyword but a combined use of NON_LOCAL_TERM (loop termination) and TERM would be pointless
-      tests[-2] = "non_local_term"
+      tests[-1] = "non_local_term"
     when /LOCAL_TERM/
       # covers "TERM" as keyword but a combined use of NON_LOCAL_TERM (loop termination) and TERM would be pointless
-      tests[-2] = "local_term"
-    when /NON?TERM/
-      tests[-1] = "noterm"
-    when /TERM/
-      tests[-1] = "term"
+      tests[-1] = "local_term"
     end
     Tests.new(self, tests, tests_line, todo)
   end
