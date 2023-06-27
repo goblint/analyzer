@@ -203,6 +203,8 @@ class Tests
         check.call warnings[idx] != "race"
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
+      when "nofail"
+        check.call(warnings[idx] == "success" || warnings[idx] == "unknown")      
       end
     end
   end
@@ -284,7 +286,9 @@ class Project
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
       todo << i if obj =~ /(\b|\/)(TODO|SKIP)/
       tests_line[i] = obj
-      if obj =~ /(\b|\/)RACE/ then
+      if obj =~ /(\b|\/)NOFAIL/ then
+        tests[i] = "nofail" 
+      elsif obj =~ /(\b|\/)RACE/ then
         tests[i] = "race"
       elsif obj =~ /(\b|\/)NORACE/ then
         tests[i] = "norace"

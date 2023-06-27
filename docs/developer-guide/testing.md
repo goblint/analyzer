@@ -53,6 +53,7 @@ Comments at the end of other lines indicate the behavior on that line:
 | `DEADLOCK` | Deadlock warning | Deadlock is possible | Soundness |
 | `NOWARN` | No warning | — | Precision |
 | `WARN` | Some warning | — | Soundness |
+| `NOFAIL` | Unknown or Success | — | Incremental analysis |
 
 #### Other
 Other useful constructs are the following:
