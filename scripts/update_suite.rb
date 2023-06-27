@@ -353,6 +353,7 @@ class Project
         lastline = (File.readlines testset.warnfile).last()
         filename = File.basename(@path)
         puts lastline.strip().sub filename, relpath(@path).to_s unless lastline.nil?
+        puts "Content of the warnfile: \n #{File.read(testset.warnfile)}"
         puts stats[0..9].itemize
       elsif status == 3 then
         warn = File.readlines testset.warnfile
