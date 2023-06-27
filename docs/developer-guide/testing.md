@@ -137,6 +137,9 @@ git diff --no-prefix relative/path/to/test.c relative/path/to/test.json > relati
 
 The comparison input and the metadata in the patch headers are not necessary and can be removed.
 
+### Generate incremental tests
+The Mutation Generator in the bench repository (`bench/incremental-test-generation/`) enables you to generate and run incremental tests based on one single c file as input. You find more details in the readme file in the repository (`bench/incremental-test-generation/README.md`).
+
 ## Unit tests
 
 ### Running
