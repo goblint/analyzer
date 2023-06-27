@@ -1,28 +1,23 @@
 // PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// MANUAL must have race on (int), not safe on (int) and (int2)
 #include<pthread.h>
 
-struct s {
-  int datum;
-  pthread_mutex_t mutex;
-};
+typedef int int2;
 
-extern struct s *get_s();
+extern int *get_s();
 
 void *t_fun(void *arg) {
-  struct s *s = get_s();
-  s->datum = 5; // RACE!
+  int2 *s = get_s();
+  *s = 5; // RACE!
   return NULL;
 }
 
 int main () {
   int *d;
-  struct s *s;
   pthread_t id;
   pthread_mutex_t *m;
 
-  s = get_s();
-  m = &s->mutex;
-  d = &s->datum;
+  d = get_s();
 
   pthread_create(&id,NULL,t_fun,NULL);
   *d = 8; // RACE!
