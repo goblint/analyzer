@@ -1,5 +1,7 @@
 (* Analysis that tracks which variables hold the results of calls to math library functions.
-  For each equivalence a set of lvals is tracked, that contains all lvals on which the arguments of the corresponding call depend, so an equivalence can be removed if one of the lvals is written.*)
+  For each equivalence a set of expressions is tracked, that contains the arguments of the corresponding call as well as the Lval it is assigned to, so an equivalence can be removed if one of these expressions may be changed.*)
+
+module VarEq = VarEq.Spec
 
 open GoblintCil
 open Analyses
@@ -10,9 +12,9 @@ struct
 
   let name () = "tmpSpecial"
   module ML = LibraryDesc.MathLifted
-  module LS = SetDomain.ToppedSet(Lval.CilLval) (struct let topname = "All" end)
-  module MlLsProd = Lattice.Prod (ML) (LS)
-  module D = MapDomain.MapBot (Lval.CilLval) (MlLsProd)
+  module Deps = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
+  module MLDeps = Lattice.Prod (ML) (Deps)
+  module D = MapDomain.MapBot (Lval.CilLval) (MLDeps)
   module C = Lattice.Unit
 
   let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
@@ -20,40 +22,17 @@ struct
     | NoOffset -> `NoOffset
     | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))
     | Index (i_exp, i_offs) -> `Index (i_exp, (resolve i_offs))
-
-  let ls_of_lv ctx (lval:lval) : LS.t =
-    match lval with
-    | (Var v, offs) -> LS.of_list [(v, resolve offs)]
-    | (Mem e, _) -> (ctx.ask (Queries.MayPointTo e))
-
-  let rec ls_of_exp ctx (exp:exp) : LS.t =
-  match exp with
-  | Const _ -> LS.empty ()
-  | Lval lv -> ls_of_lv ctx lv
-  | SizeOf _ -> LS.empty ()
-  | Real e -> ls_of_exp ctx e
-  | Imag e -> ls_of_exp ctx e
-  | SizeOfE e -> ls_of_exp ctx e
-  | SizeOfStr _ -> LS.empty ()
-  | AlignOf _ -> LS.empty ()
-  | AlignOfE e -> ls_of_exp ctx e
-  | UnOp (_,e,_) -> ls_of_exp ctx e
-  | BinOp (_,e1,e2,_) -> LS.union (ls_of_exp ctx e1) (ls_of_exp ctx e2)
-  | Question (q,e1,e2,_) -> LS.union (ls_of_exp ctx q) (LS.union (ls_of_exp ctx e1) (ls_of_exp ctx e2))
-  | CastE (_,e) -> ls_of_exp ctx e
-  | AddrOf _ -> ctx.ask (Queries.MayPointTo exp)
-  | AddrOfLabel _ -> LS.empty ()
-  | StartOf _ -> ctx.ask (Queries.MayPointTo exp)
-
+  
+  let invalidate ask exp_w st =
+    D.filter (fun _ (ml, deps) -> (Deps.for_all (fun arg -> not (VarEq.may_change ask exp_w arg)) deps)) st
 
   let context _ _ = ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    (* get the set of all lvals written by the assign. Then remove all entrys from the map where the dependencies overlap with the set of written lvals *)
-    let lvalsWritten = ls_of_lv ctx lval in
-    if M.tracing then M.trace "tmpSpecial" "lvalsWritten %a\n" LS.pretty lvalsWritten;
-    D.filter (fun _ (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) ctx.local
+    if M.tracing then M.tracel "tmpSpecial" "assignment of %a\n" d_lval lval;
+    (* Invalidate all entrys from the map that are possibly written by the assignment *)
+    invalidate (Analyses.ask_of_ctx ctx) (mkAddrOf lval) ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -74,6 +53,7 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let d = ctx.local in
+    let ask = Analyses.ask_of_ctx ctx in
 
     (* Just dbg prints *)
     (if M.tracing then
@@ -83,55 +63,31 @@ struct
 
   
     let desc = LibraryFunctions.find f in
+  
     (* remove entrys, dependent on lvals that were possibly written by the special function *)
-    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
-    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
-    let deep_addrs =
-      if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
-        foldGlobals !Cilfacade.current_file (fun acc global ->
-            match global with
-            | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-              mkAddrOf (Var vi, NoOffset) :: acc
-            (* TODO: what about GVarDecl? (see "base.ml -> special_unknown_invalidate")*)
-            | _ -> acc
-          ) deep_addrs
-      )
-      else
-        deep_addrs
-    in
-    let d = List.fold_left (fun accD addr ->
-      let lvalsWritten = ctx.ask (Queries.MayPointTo addr) in
-      D.filter (fun _ (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d shallow_addrs
-    in
-    let d = List.fold_left (fun accD addr ->
-      let lvalsWritten = ctx.ask (Queries.ReachableFrom addr) in
-      D.filter (fun _ (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d deep_addrs
-    in
+    let write_args = LibraryDesc.Accesses.find_kind desc.accs Write arglist in
+    (* TODO similar to symbLocks->Spec->special: why doesn't invalidate involve any reachable for deep write? *)
+    let d = List.fold_left (fun d e -> invalidate ask e d) d write_args in
 
     (* same for lval assignment of the call*)
     let d =
     match lval with
-    | Some lv -> (
-      (* get the set of all lvals written by the assign. Then remove all entrys from the map where the dependencies overlap with the set of written lvals *)
-      let lvalsWritten = ls_of_lv ctx lv in
-      D.filter (fun _ (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) d
-      )
+    | Some lv -> invalidate ask (mkAddrOf lv) ctx.local
     | None -> d
     in
 
     (* add new math fun desc*)
     let d =
     match lval, desc.special arglist with
-      | Some (Var v, offs), (Math { fun_args; }) ->
-        let argsDep = List.fold_left LS.union (LS.empty ()) (List.map (ls_of_exp ctx) arglist) in
-        let lvalsWritten = ls_of_lv ctx (Var v, offs) in
-        (* only add descriptor, if the set of lvals contained in the args is known and none is written by the assignment *)
+      | Some ((Var v, offs) as lv), (Math { fun_args; }) ->
+        (* only add descriptor, if none of the args is written by the assignment, invalidating the equivalence *)
         (* actually it would be necessary to check here, if one of the arguments is written by the call. However this is not the case for any of the math functions and no other functions are covered so far *)
-        if LS.is_top argsDep || not (LS.is_empty (LS.meet argsDep lvalsWritten)) then
+        if List.exists (fun arg -> VarEq.may_change ask (mkAddrOf lv) arg) arglist then
           d
-        else
-          D.add (v, resolve offs) ((ML.lift fun_args, LS.union argsDep lvalsWritten)) d
+        else 
+          D.add (v, resolve offs) ((ML.lift fun_args, Deps.of_list ((Lval lv)::arglist))) d
       | _ -> d
+        
     in
 
     if M.tracing then M.tracel "tmpSpecial" "Result: %a\n\n" D.pretty d;
