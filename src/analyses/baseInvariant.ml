@@ -703,11 +703,11 @@ struct
             | TInt (ik, _) ->
               begin match x with
                 | ((Var v), offs) -> 
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs))); 
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Lval.CilLval.of_ciloffs offs))); 
                   let tv_opt = ID.to_bool c in
                   begin match tv_opt with
                   | Some tv ->
-                    begin match ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs)) with
+                    begin match ctx.ask (Queries.TmpSpecial (v, Lval.CilLval.of_ciloffs offs)) with
                     | `Lifted (Isfinite xFloat) when tv -> inv_exp (`Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
                     | `Lifted (Isnan xFloat) when tv -> inv_exp (`Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
                     (* should be correct according to C99 standard*)
@@ -739,8 +739,8 @@ struct
             | TFloat (fk, _) ->
               begin match x with
                 | ((Var v), offs) -> 
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs))); 
-                  begin match ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs)) with
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Lval.CilLval.of_ciloffs offs))); 
+                  begin match ctx.ask (Queries.TmpSpecial (v, Lval.CilLval.of_ciloffs offs)) with
                   | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (`Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
                   | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (`Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
                   | `Lifted (Fabs (ret_fk, xFloat)) -> 

@@ -145,39 +145,10 @@ let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old) (classify_name): 
 }
 
 module MathPrintable = struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = math [@@deriving eq, ord, hash]
 
   let name () = "MathPrintable"
-
-  let relift ml = ml 
-
-  let show = function
-    | Nan _ -> "nan"
-    | Inf _ -> "inf"
-    | Isfinite _ -> "isFinite"
-    | Isinf _ -> "isInf"
-    | Isnan _ -> "isNan"
-    | Isnormal _ -> "isNormal"
-    | Signbit _ -> "signbit"
-    | Isgreater _ -> "isGreater"
-    | Isgreaterequal _ -> "isGreaterEqual"
-    | Isless _ -> "isLess"
-    | Islessequal _ -> "isLessEqual"
-    | Islessgreater _ -> "isLessGreater"
-    | Isunordered _ -> "isUnordered"
-    | Ceil _ -> "ceil"
-    | Floor _ -> "floor"
-    | Fabs _ -> "fabs"
-    | Fmax _ -> "fmax"
-    | Fmin _ -> "fmin"
-    | Acos _ -> "acos"
-    | Asin _ -> "asin"
-    | Atan _ -> "atan"
-    | Atan2 _ -> "atan2"
-    | Cos _ -> "cos"
-    | Sin _ -> "sin"
-    | Tan _ -> "tan"
 
   let pretty () = function
     | Nan (fk, exp) -> Pretty.dprintf "(%a )nan(%a)" d_fkind fk d_exp exp
@@ -206,8 +177,12 @@ module MathPrintable = struct
     | Sin (fk, exp) -> Pretty.dprintf "(%a )sin(%a)" d_fkind fk d_exp exp
     | Tan (fk, exp) -> Pretty.dprintf "(%a )tan(%a)" d_fkind fk d_exp exp
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
-  let to_yojson _ = failwith "ToDo Implement in future"
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
 end
 
 module MathLifted = Lattice.Flat (MathPrintable) (struct

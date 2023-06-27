@@ -46,8 +46,7 @@ void main() {
     __goblint_check(f >= -5.);
     __goblint_check(f <= 5.);
   }
-  if(__builtin_fabs(f) == -6.) {
-    // DEAD
+  if(__builtin_fabs(f) == -6.) { //WARN (dead branch)
     g = 0.;
   }
 

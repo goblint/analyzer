@@ -17,12 +17,6 @@ struct
   module D = MapDomain.MapBot (Lval.CilLval) (MLDeps)
   module C = Lattice.Unit
 
-  let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
-    match offs with
-    | NoOffset -> `NoOffset
-    | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))
-    | Index (i_exp, i_offs) -> `Index (i_exp, (resolve i_offs))
-  
   let invalidate ask exp_w st =
     D.filter (fun _ (ml, deps) -> (Deps.for_all (fun arg -> not (VarEq.may_change ask exp_w arg)) deps)) st
 
@@ -85,7 +79,7 @@ struct
         if List.exists (fun arg -> VarEq.may_change ask (mkAddrOf lv) arg) arglist then
           d
         else 
-          D.add (v, resolve offs) ((ML.lift fun_args, Deps.of_list ((Lval lv)::arglist))) d
+          D.add (v, Lval.CilLval.of_ciloffs offs) ((ML.lift fun_args, Deps.of_list ((Lval lv)::arglist))) d
       | _ -> d
         
     in
