@@ -60,7 +60,11 @@ struct
 
       val global_variables =
         file.globals
-        |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None)
+        |> List.filter_map (function
+            | Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v)
+            | Cil.GFun (f, l) -> Some (f.svar.vname, Cil.Fv f.svar)
+            | Cil.GVarDecl (v, l) -> Some (v.vname, Cil.Fv v)
+            | _ -> None)
       val statements =
         file.globals
         |> List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None)
@@ -77,7 +81,7 @@ struct
         (* Compute the available local variables *)
         let local_variables =
           match Hashtbl.find_option statements location with
-          | Some (function_definition, _) -> function_definition.slocals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
+          | Some (fd, _) -> fd.slocals @ fd.sformals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
           | None -> []
         in
         (* Parse expression *)
