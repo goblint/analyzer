@@ -119,19 +119,19 @@ struct
 end
 
 (* Tuple of fundec and S.C*)
-module T (Base1: Printable.S) (Base2: Printable.S) = 
-struct 
+module T (Base1: Printable.S) (Base2: Printable.S) =
+struct
   include Printable.Std
   type t = (Base1.t * Base2.t)
 
   let fundec (a,_) = a
   let context (_,b) = b
   let equal (a1, b1) (a2, b2) = if (Base1.equal a1 a2 && Base2.equal b1 b2) then true else false
-  let show (a,b) = (Base1.show a) ^ (Base2.show b) 
+  let show (a,b) = (Base1.show a) ^ (Base2.show b)
   let name () = "Tuple"
   let to_yojson x = `String (show x)
   let relift (a,b) = (a,b) (*Todo: is this correct?*)
-  let printXml f (a,b) = 
+  let printXml f (a,b) =
     BatPrintf.fprintf f "<value>\n
     Tuple:\n\n<map>
     <key>caller_fundec</key>\n%a\n\n
@@ -139,13 +139,13 @@ struct
     </map></value>\n" Base1.printXml a Base2.printXml b
 
   let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
-    if equal (a1, b1) (a2, b2) then 0 
+    if equal (a1, b1) (a2, b2) then 0
     else(
       let val_a a = if (a > 0) then 1 else -1 in
       let val_b b = if (b > 0) then 3 else -3 in
       val_a (Base1.compare a1 a2) + val_b (Base2.compare b1 b2)
-    ) 
-  
+    )
+
   let pretty () x = text (show x)
   let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)
 end
@@ -156,24 +156,24 @@ struct
   struct
     include SetDomain.Make (Base) (* Set of Tuples*)
     let name () = "contexts"
-    let printXml f a = 
+    let printXml f a =
       BatPrintf.fprintf f "<value>\n<set>";
       iter (Base.printXml f) a;
       BatPrintf.fprintf f "</set>\n</value>\n"
   end
 
   (* Make the given module Goupable*)
-  module C_Printable (C: Printable.S) = 
-    struct
-      include C
-      include Printable.Std (* To make it Groupable *)
-      let printXml f c = BatPrintf.fprintf f
-      "<value>\n
+  module C_Printable (C: Printable.S) =
+  struct
+    include C
+    include Printable.Std (* To make it Groupable *)
+    let printXml f c = BatPrintf.fprintf f
+        "<value>\n
       callee_context\n<value>%a</value>\n\n
       </value>" printXml c
-    end
+  end
 
-  module CMap = 
+  module CMap =
   struct
     include MapDomain.MapBot (C_Printable (C)) (CSet)
     let printXml f c = BatPrintf.fprintf f "<value><map>
@@ -188,14 +188,14 @@ struct
     | `Bot -> G.bot ()
     | `Lifted1 x -> x
     | _ -> failwith "GVarGSet.spec"
-    let contexts = function
+  let contexts = function
     | `Bot -> CSet.bot ()
     | `Lifted2 x -> x
     | _ -> failwith "GVarGSet.contexts"
-    let create_spec spec = `Lifted1 spec
-    let create_contexts contexts = `Lifted2 contexts
+  let create_spec spec = `Lifted1 spec
+  let create_contexts contexts = `Lifted2 contexts
 
-    let printXml f = function
+  let printXml f = function
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CMap.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
