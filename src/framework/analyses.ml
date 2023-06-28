@@ -154,11 +154,7 @@ module GVarGSet (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
 struct
   module CSet =
   struct
-    include SetDomain.Make (
-      struct
-        include (Base) (* Set of Tuples*)
-        end
-        )
+    include SetDomain.Make (Base) (* Set of Tuples*)
     let name () = "contexts"
     let printXml f a = 
       BatPrintf.fprintf f "<value>\n<set>";
