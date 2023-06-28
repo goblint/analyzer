@@ -45,7 +45,7 @@ type 'a basecomponents_t = {
   deps: PartDeps.t;
   weak: WeakUpdates.t;
   priv: 'a;
-} [@@deriving eq, ord, hash]
+} [@@deriving eq, ord, hash, lattice]
 
 
 module BaseComponents (PrivD: Lattice.S):
@@ -54,7 +54,7 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash, lattice]
 
   include Printable.Std
   open Pretty
@@ -97,14 +97,6 @@ struct
     let tr = QCheck.quad (CPA.arbitrary ()) (PartDeps.arbitrary ()) (WeakUpdates.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); weak = WeakUpdates.bot (); priv = PrivD.bot ()}
-  let is_bot {cpa; deps; weak; priv} = CPA.is_bot cpa && PartDeps.is_bot deps && WeakUpdates.is_bot weak && PrivD.is_bot priv
-  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.bot ()}
-  let is_top {cpa; deps; weak; priv} = CPA.is_top cpa && PartDeps.is_top deps && WeakUpdates.is_top weak && PrivD.is_top priv
-
-  let leq {cpa=x1; deps=x2; weak=x3; priv=x4 } {cpa=y1; deps=y2; weak=y3; priv=y4} =
-    CPA.leq x1 y1 && PartDeps.leq x2 y2 && WeakUpdates.leq x3 y3 && PrivD.leq x4 y4
-
   let pretty_diff () (({cpa=x1; deps=x2; weak=x3; priv=x4}:t),({cpa=y1; deps=y2; weak=y3; priv=y4}:t)): Pretty.doc =
     if not (CPA.leq x1 y1) then
       CPA.pretty_diff () (x1,y1)
@@ -117,10 +109,6 @@ struct
 
   let op_scheme op1 op2 op3 op4 {cpa=x1; deps=x2; weak=x3; priv=x4} {cpa=y1; deps=y2; weak=y3; priv=y4}: t =
     {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; priv = op4 x4 y4 }
-  let join = op_scheme CPA.join PartDeps.join WeakUpdates.join PrivD.join
-  let meet = op_scheme CPA.meet PartDeps.meet WeakUpdates.meet PrivD.meet
-  let widen = op_scheme CPA.widen PartDeps.widen WeakUpdates.widen PrivD.widen
-  let narrow = op_scheme CPA.narrow PartDeps.narrow WeakUpdates.narrow PrivD.narrow
 
   let relift {cpa; deps; weak; priv} =
     {cpa = CPA.relift cpa; deps = PartDeps.relift deps; weak = WeakUpdates.relift weak; priv = PrivD.relift priv}
