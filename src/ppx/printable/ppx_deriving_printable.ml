@@ -5,6 +5,7 @@ struct
   let name = "relift"
 end
 
+(* TODO: Map1 should also do variants *)
 module ReliftDeriver = Deriver.Make (Product.Map1.Make (ReliftArg))
 let relift_deriving = ReliftDeriver.register ()
 
