@@ -3313,7 +3313,7 @@ module IntDomTupleImpl = struct
   module I5 = IntervalSetFunctor (BI)
 
   type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option
-  [@@deriving to_yojson, eq, ord]
+  [@@deriving eq, ord, hash]
 
   let name () = "intdomtuple"
 
@@ -3623,7 +3623,6 @@ module IntDomTupleImpl = struct
   (* others *)
   let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.to_yojson x }
-  let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.hash }
 
   (* `map/opt_map` are used by `project` *)
   let opt_map b f =
