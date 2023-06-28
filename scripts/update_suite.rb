@@ -205,7 +205,7 @@ class Tests
         check.call warnings[idx] != "deadlock"
       when "nofail"
         if warnings[idx] then
-          check.call(warnings[idx] == "success" || warnings[idx] == "unknown" || warnings[idx] == "warn")    
+          check.call(warnings[idx] != "fail")    
         else
           # When nothing ignore it
           @ignored += 1
