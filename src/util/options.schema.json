@@ -522,20 +522,6 @@
           },
           "additionalProperties": false
         },
-        "mutex": {
-          "title": "ana.mutex",
-          "type": "object",
-          "properties": {
-            "disjoint_types": {
-              "title": "ana.mutex.disjoint_types",
-              "description":
-                "Do not propagate basic type writes to all struct fields",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
-        },
         "autotune": {
           "title": "ana.autotune",
           "type": "object",
@@ -1002,6 +988,12 @@
               "description": "Consider memory free as racing write.",
               "type": "boolean",
               "default": true
+            },
+            "direct-arithmetic": {
+              "title": "ana.race.direct-arithmetic",
+              "description": "Collect and distribute direct (i.e. not in a field) accesses to arithmetic types.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -2131,6 +2123,12 @@
           "description": "Races with confidence at least threshold are warnings, lower are infos.",
           "type": "integer",
           "default": 0
+        },
+        "deterministic": {
+          "title": "warn.deterministic",
+          "description": "Output messages in deterministic order. Useful for cram testing.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
