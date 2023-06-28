@@ -151,7 +151,7 @@ end
 type ('a, 'b) relcomponents_t = {
   rel: 'a;
   priv: 'b;
-} [@@deriving eq, ord, hash, to_yojson]
+} [@@deriving eq, ord, hash, to_yojson, lattice]
 
 module RelComponents (D3: S3) (PrivD: Lattice.S):
 sig
@@ -160,7 +160,7 @@ sig
 end =
 struct
   module RD = D3
-  type t = (RD.t, PrivD.t) relcomponents_t [@@deriving eq, ord, hash, to_yojson]
+  type t = (RD.t, PrivD.t) relcomponents_t [@@deriving eq, ord, hash, to_yojson, lattice]
 
   include Printable.Std
   open Pretty
@@ -191,26 +191,11 @@ struct
     let tr = QCheck.pair (RD.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = {rel = RD.bot (); priv = PrivD.bot ()}
-  let is_bot {rel; priv} = RD.is_bot rel && PrivD.is_bot priv
-  let top () = {rel = RD.top (); priv = PrivD.bot ()}
-  let is_top {rel; priv} = RD.is_top rel && PrivD.is_top priv
-
-  let leq {rel=x1; priv=x3 } {rel=y1; priv=y3} =
-    RD.leq x1 y1 && PrivD.leq x3 y3
-
   let pretty_diff () (({rel=x1; priv=x3}:t),({rel=y1; priv=y3}:t)): Pretty.doc =
     if not (RD.leq x1 y1) then
       RD.pretty_diff () (x1,y1)
     else
       PrivD.pretty_diff () (x3,y3)
-
-  let op_scheme op1 op3 {rel=x1; priv=x3} {rel=y1; priv=y3}: t =
-    {rel = op1 x1 y1; priv = op3 x3 y3 }
-  let join = op_scheme RD.join PrivD.join
-  let meet = op_scheme RD.meet PrivD.meet
-  let widen = op_scheme RD.widen PrivD.widen
-  let narrow = op_scheme RD.narrow PrivD.narrow
 end
 
 
