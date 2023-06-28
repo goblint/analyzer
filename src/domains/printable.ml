@@ -356,7 +356,7 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving eq, ord, hash]
+  type t = Base1.t * Base2.t [@@deriving eq, ord, hash, relift]
 
   include Std
 
@@ -387,8 +387,6 @@ struct
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
 
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
-
-  let relift (x,y) = (Base1.relift x, Base2.relift y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -396,7 +394,7 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash, relift]
   include Std
 
   let show (x,y,z) =
@@ -426,7 +424,6 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
-  let relift (x,y,z) = (Base1.relift x, Base2.relift y, Base3.relift z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
 

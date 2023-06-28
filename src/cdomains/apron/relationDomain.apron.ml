@@ -151,7 +151,7 @@ end
 type ('a, 'b) relcomponents_t = {
   rel: 'a;
   priv: 'b;
-} [@@deriving eq, ord, hash, to_yojson, lattice]
+} [@@deriving eq, ord, hash, to_yojson, relift, lattice]
 
 module RelComponents (D3: S3) (PrivD: Lattice.S):
 sig
@@ -160,12 +160,10 @@ sig
 end =
 struct
   module RD = D3
-  type t = (RD.t, PrivD.t) relcomponents_t [@@deriving eq, ord, hash, to_yojson, lattice]
+  type t = (RD.t, PrivD.t) relcomponents_t [@@deriving eq, ord, hash, to_yojson, relift, lattice]
 
   include Printable.Std
   open Pretty
-
-  let relift {rel; priv} = {rel = RD.relift rel; priv = PrivD.relift priv}
 
   let show r =
     let first  = RD.show r.rel in

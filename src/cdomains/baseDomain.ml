@@ -45,7 +45,7 @@ type 'a basecomponents_t = {
   deps: PartDeps.t;
   weak: WeakUpdates.t;
   priv: 'a;
-} [@@deriving eq, ord, hash, lattice]
+} [@@deriving eq, ord, hash, relift, lattice]
 
 
 module BaseComponents (PrivD: Lattice.S):
@@ -54,7 +54,7 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash, lattice]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash, relift, lattice]
 
   include Printable.Std
   open Pretty
@@ -109,9 +109,6 @@ struct
 
   let op_scheme op1 op2 op3 op4 {cpa=x1; deps=x2; weak=x3; priv=x4} {cpa=y1; deps=y2; weak=y3; priv=y4}: t =
     {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; priv = op4 x4 y4 }
-
-  let relift {cpa; deps; weak; priv} =
-    {cpa = CPA.relift cpa; deps = PartDeps.relift deps; weak = WeakUpdates.relift weak; priv = PrivD.relift priv}
 end
 
 module type ExpEvaluator =

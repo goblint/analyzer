@@ -25,7 +25,7 @@ end
 module D = struct
   include Printable.StdLeaf
 
-  type t = { tid : Tid.t; pred : Pred.t; ctx : Ctx.t } [@@deriving eq, ord, hash, to_yojson, lattice]
+  type t = { tid : Tid.t; pred : Pred.t; ctx : Ctx.t } [@@deriving eq, ord, hash, relift, to_yojson, lattice]
 
   (** printing *)
   let show x =
