@@ -50,12 +50,14 @@ depends: [
   "cpu" {= "2.0.0"}
   "csexp" {= "1.5.1"}
   "ctypes" {= "0.20.1"}
-  "dune" {= "3.6.1"}
+  "dune" {= "3.8.0"}
   "dune-build-info" {= "3.6.1"}
   "dune-configurator" {= "3.6.1"}
   "dune-private-libs" {= "3.6.1"}
   "dune-site" {= "3.6.1"}
   "dyn" {= "3.6.1"}
+  "either" {= "1.0.0"}
+  "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
   "goblint-cil" {= "2.0.1"}
@@ -67,11 +69,11 @@ depends: [
   "mlgmpidl" {= "1.2.14"}
   "num" {= "1.4"}
   "ocaml" {= "4.14.0"}
-  "ocaml-variants" {= "4.14.0+options"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
   "ocaml-option-flambda" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
+  "ocaml-variants" {= "4.14.0+options"}
   "ocamlbuild" {= "0.14.2"}
   "ocamlfind" {= "1.9.5"}
   "odoc" {= "2.2.0" & with-doc}
@@ -83,7 +85,8 @@ depends: [
   "ppx_deriving" {= "5.2.1"}
   "ppx_deriving_hash" {= "0.1.1"}
   "ppx_deriving_yojson" {= "3.7.0"}
-  "ppxlib" {= "0.28.0"}
+  "ppx_easy_deriving" {= "~dev"}
+  "ppxlib" {= "0.30.0"}
   "qcheck-core" {= "0.20"}
   "qcheck-ounit" {= "0.20" & with-test}
   "re" {= "1.10.4" & with-doc}
@@ -128,15 +131,20 @@ conflicts: [
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
-    "goblint-cil.2.0.1"
-    "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e"
-  ]
-  [
     "apron.v0.9.13"
     "git+https://github.com/antoinemine/apron.git#1a8e91062c0d7d1e80333d19d5a432332bbbaec8"
+  ]
+  [
+    "goblint-cil.2.0.1"
+    "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e"
   ]
   [
     "ppx_deriving.5.2.1"
     "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
   ]
+  [
+  "ppx_easy_deriving.~dev"
+  "git+ssh://git@github.com/sim642/ppx_easy_deriving.git#master"
 ]
+]
+
