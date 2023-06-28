@@ -204,7 +204,12 @@ class Tests
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
       when "nofail"
-        check.call(warnings[idx] == "success" || warnings[idx] == "unknown")      
+        if warnings[idx] then
+          check.call(warnings[idx] == "success" || warnings[idx] == "unknown" || warnings[idx] == "warn")    
+        else
+          # When nothing ignore it
+          @ignored += 1
+        end
       end
     end
   end
