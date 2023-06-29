@@ -1709,10 +1709,7 @@ module RecursionTermLifter (S: Spec)
 
 struct
   include S
-  module V =
-  struct
-    include GVarF(S.V)
-  end
+  module V = GVarF(S.V)
 
   module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
 
