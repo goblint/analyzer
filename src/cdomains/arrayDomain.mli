@@ -79,6 +79,9 @@ sig
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> ret
   (* overwrites get of module S *)
 
+  val to_null_byte_domain: string -> t
+  (* Converts a string to its abstract value in the NullByte domain *)
+
   val to_string_length: t -> idx
   (** Returns length of string represented by input abstract value *)
 
@@ -91,10 +94,11 @@ sig
     * concatenation of the input abstract values [s1] and [s2], taking at most [n] bytes of
     * [s2] if present *)
 
-  val substring_extraction: t -> t -> t option
-  (** [substring_extraction haystack needle] returns None if the string represented by the
-    * abstract value [needle] surely isn't a substring of [haystack], Some [to_string haystack]
-    * if [needle] is empty the empty string, else Some top *)
+  val substring_extraction: t -> t -> bool * bool
+  (** [substring_extraction haystack needle] returns [is_null_ptr, is_offset_0], i.e. 
+    * [true, false] if the string represented by the abstract value [needle] surely isn't a 
+    * substring of [haystack], [false, true] if [needle] is the empty string, 
+    * else [false, false] *)
 
   val string_comparison: t -> t -> int option -> idx
   (** [string_comparison s1 s2 n] returns a negative / positive idx element if the string 
@@ -151,7 +155,7 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type va
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** Like partitioned but additionally manages the length of the array. *)
 
-module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): SMinusDomainAndRet with type value = Val.t and type idx = Idx.t
+module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): Str with type value = Val.t and type idx = Idx.t
 (** This functor creates an array representation by the indexes of all null bytes
   * the array must and may contain. This is useful to analyze strings, i.e. null-
   * terminated char arrays, and particularly to determine if operations on strings 
@@ -163,4 +167,6 @@ module FlagHelperAttributeConfiguredArrayDomain (Val: LatticeWithSmartOps) (Idx:
 (** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
 
 module AttributeConfiguredArrayDomain (Val: LatticeWithNull) (Idx: IntDomain.Z): StrWithDomain with type value = Val.t and type idx = Idx.t
-(** Like FlagHelperAttributeConfiguredArrayDomain but additionally runs NullByte in parallel. *)
+(** Like FlagHelperAttributeConfiguredArrayDomain but additionally runs NullByte 
+  * in parallel if flag "ana.base.arrays.nullbytes" is set. 
+*)

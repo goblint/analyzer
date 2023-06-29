@@ -2126,12 +2126,13 @@ struct
             (* if s string literal, compute strlen in string literals domain *)
             if AD.type_of address = charPtrType then
               Int(AD.to_string_length address)
-              (* else compute strlen in array domain; TODO: is there any more elegant way than this? The following didn't work :( *)
-              (* let eval_dst = eval_rv (Analyses.ask_of_ctx ctx) gs st s1 in
-                 let eval_src = eval_rv (Analyses.ask_of_ctx ctx) gs st s2 in
-                 match eval_dst, eval_src with
-                 | Array array_dst, Array array_src -> ... *)
+              (* else compute strlen in array domain *)
             else
+              (* (* TODO: why isn't the following working? *)
+                 begin match get (Analyses.ask_of_ctx ctx) gs st address None with
+                 | Array array_s -> Int(CArrays.to_string_length array_s)
+                 | _ -> VD.top_value (unrollType dest_typ)
+                 end) in *)
               begin match lval with
                 | (Var v, _) -> 
                   begin match CPA.find_opt v st.cpa with
@@ -2145,22 +2146,17 @@ struct
       end
     | Strstr { haystack; needle }, _ ->
       begin match lv with
-        | Some _ ->
+        | Some lv_val ->
           (* when haystack, needle and dest type coincide, check if needle is a substring of haystack:
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
-          let dest_a, dest_typ, value, var = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a)))
+          let dest_a, dest_typ, value, _ = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a)))
               (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
-                 | Some ar -> Array(ar)
-                 | None -> Address(AD.null_ptr)) in
-          begin match var with
-            | Some v -> 
-              begin match value with
-                | Address _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-                | _ -> {st with cpa = CPA.add v value st.cpa}
-              end
-            | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-          end
+                 | true, false -> Address(AD.null_ptr)
+                 | false, true -> Address(eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
+                 (* TODO: below, instead of ~off:NoOffset, how to have a top offset = don't know exactly at which index pointing? *)
+                 | _ -> Address(AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset)) (AD.null_ptr))) in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> st
       end
     | Strcmp { s1; s2; n }, _ ->

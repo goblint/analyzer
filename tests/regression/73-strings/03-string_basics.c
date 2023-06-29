@@ -1,4 +1,4 @@
-// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval
+// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval --enable ana.base.arrays.nullbytes
 
 #include <goblint.h>
 #include <string.h>
@@ -55,7 +55,7 @@ int main() {
     char* cmp = strstr(s1, "bab");
     __goblint_check(cmp != NULL); // UNKNOWN
 
-    i = strcmp(cmp, "babcd"); // WARN: no check if cmp != NULL (even if it obviously is != NULL)
+    i = strcmp(cmp, "babcd"); // NOWARN: cmp != NULL
     __goblint_check(i == 0); // UNKNOWN
 
     i = strncmp(s4, s3, 4);

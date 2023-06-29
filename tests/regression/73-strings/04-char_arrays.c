@@ -1,4 +1,4 @@
-// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval
+// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval --enable ana.base.arrays.nullbytes
 
 #include <goblint.h>
 #include <string.h>
@@ -161,10 +161,9 @@ void example8() {
     char s2[] = "test"; // must and may null at 4
 
     char cmp[50];
-    strcpy(cmp, strstr(s1, empty)); // WARN
-    size_t len = strlen(cmp); // WARN
-    __goblint_check(len == 11); // UNKNOWN because can't directly assign result of strstr to cmp,
-    // TODO: might make handling of this useless in NullByte domain?
+    strcpy(cmp, strstr(s1, empty)); // NOWARN: strstr(s1, empty) != NULL
+    size_t len = strlen(cmp);
+    __goblint_check(len == 11); // TODO: shouldn't this be known?
 
     char* cmp_ptr = strstr(s2, s1);
     __goblint_check(cmp_ptr == NULL);
