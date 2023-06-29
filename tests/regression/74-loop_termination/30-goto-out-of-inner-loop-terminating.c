@@ -1,4 +1,4 @@
-// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// TODO TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main() {
@@ -9,7 +9,7 @@ int main() {
     for (int i = 1; i <= rows; i++) {
         // Inner loop for columns
         for (int j = 1; j <= columns; j++) {
-            if (j == 3) {
+            if (j == 3) { // Apron is not able to detect this
                 goto outer_loop;  // Jump to the label "outer_loop"
             }
             printf("(%d, %d) ", i, j);

@@ -1,4 +1,4 @@
-// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// TODO TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -11,7 +11,7 @@ loop:
 
     if (num <= 10)
     {
-        goto loop;
+        goto loop; // We are not able to detect up-jumping gotos as terminating, we just warn about them might being nonterminating.
     }
 
     return 0;
