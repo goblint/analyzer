@@ -303,7 +303,7 @@ class Project
         tests[i] = "nodeadlock"
       elsif obj =~ /(\b|\/)WARN/ then
         tests[i] = "warn"
-      elsif obj =~ /NOWARN/ then
+      elsif obj =~ /(\b|\/)NOWARN/ then
         tests[i] = "nowarn"
       elsif obj =~ /(\b|\/)SUCCESS/ then
         tests[i] = "success"
@@ -358,7 +358,7 @@ class Project
         lastline = (File.readlines testset.warnfile).last()
         filename = File.basename(@path)
         puts lastline.strip().sub filename, relpath(@path).to_s unless lastline.nil?
-        puts "Content of the warnfile: \n #{File.read(testset.warnfile)}"
+        puts "Content of the warn-file: \n #{File.read(testset.warnfile)}"
         puts stats[0..9].itemize
       elsif status == 3 then
         warn = File.readlines testset.warnfile
@@ -550,7 +550,6 @@ regs.sort.each do |d|
     end
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params << " #{$1}" else params << "" end
-    # always enable debugging so that the warnings would work
     params << " --set warn.debug true"
     p = if incremental then
           patch = f[0..-3] + ".patch"

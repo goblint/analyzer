@@ -35,7 +35,7 @@ module EvalAssert = struct
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
 
-  class visitor (q: Transform.queries) = object(self)
+  class visitor (ask: ?node:Node.t -> Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
     val full = GobConfig.get_bool "witness.invariant.full"
     (* TODO: handle witness.invariant.loop-head *)
@@ -54,25 +54,22 @@ module EvalAssert = struct
       in
 
       let make_assert ~node loc lval =
-        if q.must_be_dead node then (* Has currently no affect. Maybe the results are not avaiable yet?! *)
-          []
-        else
-          let lvals = match lval with
-            | None -> Lval.Set.top ()
-            | Some lval -> Lval.(Set.singleton lval)
-          in
-          let context = {Invariant.default_context with lvals} in
-          match (q.ask ~node loc).f (Queries.Invariant context) with
-          | `Lifted e ->
-            let es = WitnessUtil.InvariantExp.process_exp e in
-            let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv (ass ())); ("exp", Fe e)]) es in
-            if surroundByAtomic && not (goblintCheck ()) then
-              let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in
-              let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv atomicEnd)]) in
-              abegin :: (asserts @ [aend])
-            else
-              asserts
-          | _ -> []
+        let lvals = match lval with
+          | None -> Lval.Set.top ()
+          | Some lval -> Lval.(Set.singleton lval)
+        in
+        let context = {Invariant.default_context with lvals} in
+        match (q.ask ~node loc).f (Queries.Invariant context) with
+        | `Lifted e ->
+          let es = WitnessUtil.InvariantExp.process_exp e in
+          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv (ass ())); ("exp", Fe e)]) es in
+          if surroundByAtomic && not (goblintCheck ()) then
+            let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in
+            let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv atomicEnd)]) in
+            abegin :: (asserts @ [aend])
+          else
+            asserts
+        | _ -> []
       in
 
       let instrument_instructions il s =
@@ -147,7 +144,7 @@ module EvalAssert = struct
   end
 
   let transform (q : Transform.queries) file =
-    visitCilFile (new visitor q) file;
+    visitCilFile (new visitor q.ask) file;
 
     (* Add function declarations before function definitions.
        This way, asserts may reference functions defined later. *)
