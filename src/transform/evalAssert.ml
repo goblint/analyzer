@@ -59,7 +59,7 @@ module EvalAssert = struct
           | Some lval -> Lval.(Set.singleton lval)
         in
         let context = {Invariant.default_context with lvals} in
-        match (q.ask ~node loc).f (Queries.Invariant context) with
+        match (ask ~node loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in
           let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv (ass ())); ("exp", Fe e)]) es in
