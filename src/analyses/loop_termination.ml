@@ -80,7 +80,7 @@ struct
       (* TODO: Move to special *)
       let is_bounded = check_bounded ctx x in
       let loop_statement = VarToStmt.find x !loop_counters in
-      let () = ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ())) in
+      ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
       ()
     | _ -> ()
 
