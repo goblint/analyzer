@@ -767,6 +767,8 @@ struct
         Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
+
+    Messages.finalize ();
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
 end
 

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// PARAM: --disable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 
 struct s {
@@ -25,7 +25,7 @@ int main () {
   d = &s->datum;
 
   pthread_create(&id,NULL,t_fun,NULL);
-  *d = 8; // RACE!
+  s->datum = 5; // RACE!
 
   return 0;
 }

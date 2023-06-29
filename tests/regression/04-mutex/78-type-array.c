@@ -4,22 +4,20 @@
 
 struct S {
   int field;
+  int arr[2];
 };
 
-struct S s;
+extern struct S* getS();
 
 void *t_fun(void *arg) {
-  printf("%d",s.field); // RACE!
-
+  // should not distribute access to (struct S).field
+  getS()->arr[1] = 1; // NORACE
   return NULL;
 }
-
-extern struct S* getS();
 
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  getS()->field = 10; // RACE!
+  getS()->field = 2; // NORACE
   return 0;
 }
-

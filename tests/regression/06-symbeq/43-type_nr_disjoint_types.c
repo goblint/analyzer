@@ -1,4 +1,4 @@
-// PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// PARAM: --disable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 
 struct s {
@@ -10,7 +10,7 @@ extern struct s *get_s();
 
 void *t_fun(void *arg) {
   struct s *s = get_s();
-  s->datum = 5; // RACE!
+  s->datum = 5; // NORACE (disjoint types)
   return NULL;
 }
 
@@ -25,7 +25,7 @@ int main () {
   d = &s->datum;
 
   pthread_create(&id,NULL,t_fun,NULL);
-  *d = 8; // RACE!
+  *d = 8; // NORACE (disjoint types)
 
   return 0;
 }
