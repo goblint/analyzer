@@ -69,7 +69,7 @@ struct
   module V = UnitV
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
-  let startstate _ = D.bot ()
+  let startstate _ = ()
   let exitstate = startstate
 
   let assign ctx (lval : lval) (rval : exp) =
@@ -81,12 +81,12 @@ struct
       let is_bounded = check_bounded ctx x in
       let loop_statement = VarToStmt.find x !loop_counters in
       let () = ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ())) in
-      ctx.local
-    | _ -> ctx.local
+      ()
+    | _ -> ()
 
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
     (* TODO: Implement check for our special loop exit indicator function *)
-    ctx.local
+    ()
 
   (** Checks whether a new thread was spawned some time. We want to discard
    * any knowledge about termination then (see query function) *)
