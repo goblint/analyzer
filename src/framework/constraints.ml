@@ -1695,7 +1695,7 @@ struct
 end
 
 
-(** Add cycle detection in the function call graph to a analysis *)
+(** Add cycle detection in the context-sensitive dynamic function call graph to an analysis *)
 module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
           and module C = S.C
@@ -1709,10 +1709,7 @@ module RecursionTermLifter (S: Spec)
 
 struct
   include S
-  module V =
-  struct
-    include GVarF(S.V)
-  end
+  module V = GVarF(S.V)
 
   module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
 

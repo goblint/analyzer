@@ -1,7 +1,7 @@
 open GoblintCil
 include Printf
 
-module VarToStmt = Map.Make(CilType.Varinfo);; (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
+module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
    let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
