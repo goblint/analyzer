@@ -1,7 +1,7 @@
-// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// TODO TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-int main() {
+int main() { // Currently not able to detect this as terminating
     goto mark2;
 
 mark1:

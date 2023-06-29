@@ -1,4 +1,4 @@
-// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// TODO TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main() {
@@ -13,7 +13,7 @@ int main() {
         printf("Result: %d\n", result);
 
         // Condition to terminate the loop
-        if (result >= 10) {
+        if (result >= 10) { // Apron is not able to detect this
             goto end;
         }
     }
