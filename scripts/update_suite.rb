@@ -145,11 +145,11 @@ class Tests
         @vars = $1
         @evals = $2
       end
-      if l =~ /\[NonTerminating\]/ then warnings[-1] = "non_local_term" end # Get NonTerminating warning
+      if l =~ /\[NonTerminating\]/ then warnings[-1] = "nonterm" end # Get NonTerminating warning
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "local_term", "non_local_term", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
+      ranking = ["other", "warn", "term", "nonterm", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
       thiswarn = case obj
                  when /\(conf\. \d+\)/            then "race"
                  when /Deadlock/                  then "deadlock"
@@ -208,9 +208,9 @@ class Tests
       case type
       when "deadlock", "race", "fail", "unknown", "warn"
         check.call warnings[idx] == type
-      when "non_local_term"
+      when "nonterm"
         check.call warnings[idx] == type
-      when "nowarn", "local_term"
+      when "nowarn", "term"
         check.call warnings[idx].nil?
       when "assert", "success"
         check.call warnings[idx] == "success"
@@ -324,19 +324,17 @@ class Project
     case lines[0]
     when /TODO|SKIP/
       case lines[0]
-      when /NON_LOCAL_TERM/
-        tests[-1] = "non_local_term"
+      when /NONTERM/
+        tests[-1] = "nonterm"
         todo << -1
-      when /LOCAL_TERM/
-        tests[-1] = "local_term"
+      when /TERM/
+        tests[-1] = "term"
         todo << -1
       end
-    when /NON_LOCAL_TERM/
-      # covers "TERM" as keyword but a combined use of NON_LOCAL_TERM (loop termination) and TERM would be pointless
-      tests[-1] = "non_local_term"
-    when /LOCAL_TERM/
-      # covers "TERM" as keyword but a combined use of NON_LOCAL_TERM (loop termination) and TERM would be pointless
-      tests[-1] = "local_term"
+    when /NONTERM/
+      tests[-1] = "nonterm"
+    when /TERM/
+      tests[-1] = "term"
     end
     Tests.new(self, tests, tests_line, todo)
   end
