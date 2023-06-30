@@ -133,8 +133,8 @@ struct
   (* Make the given module Goupable*)
   module C_Printable (C: Printable.S) =
   struct
-    include C
     include Printable.Std (* To make it Groupable *)
+    include C
     let printXml f c = BatPrintf.fprintf f
         "<value>\n
       callee_context\n<value>%a</value>\n\n
