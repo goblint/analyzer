@@ -1711,24 +1711,24 @@ struct
   include S
   module V = GVarF(S.V)
 
-  module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
+  module G = GVarGSet (S.G) (S.C) (Printable.Prod (CilType.Fundec) (S.C))
 
   let name () = "termination"
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
     { ctx with
-      global = (fun v -> G.s (ctx.global (V.spec v)));
-      sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_s g));
+      global = (fun v -> G.spec (ctx.global (V.spec v)));
+      sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_spec g));
     }
 
   let cycleDetection ctx v v' =
-    let module LH = Hashtbl.Make (T (CilType.Fundec) (S.C)) in
-    let module LS = Set.Make (T (CilType.Fundec) (S.C)) in
+    let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
+    let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
     let global_visited_calls = LH.create 100 in
 
     (* DFS *)
-    let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
+    let rec iter_call (path_visited_calls: LS.t) (call:Printable.Prod (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
       if LS.mem call path_visited_calls then (
         AnalysisState.svcomp_may_not_terminate := true;

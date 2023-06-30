@@ -118,38 +118,6 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
-(* Tuple of fundec and S.C*)
-module T (Base1: Printable.S) (Base2: Printable.S) =
-struct
-  include Printable.Std
-  type t = (Base1.t * Base2.t)
-
-  let fundec (a,_) = a
-  let context (_,b) = b
-  let equal (a1, b1) (a2, b2) = if (Base1.equal a1 a2 && Base2.equal b1 b2) then true else false
-  let show (a,b) = (Base1.show a) ^ (Base2.show b)
-  let name () = "Tuple"
-  let to_yojson x = `String (show x)
-  let relift (a,b) = (a,b) (*Todo: is this correct?*)
-  let printXml f (a,b) =
-    BatPrintf.fprintf f "<value>\n
-    Tuple:\n\n<map>
-    <key>caller_fundec</key>\n%a\n\n
-    <key>caller_context</key>\n<value>%a</value>\n\n
-    </map></value>\n" Base1.printXml a Base2.printXml b
-
-  let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
-    if equal (a1, b1) (a2, b2) then 0
-    else(
-      let val_a a = if (a > 0) then 1 else -1 in
-      let val_b b = if (b > 0) then 3 else -3 in
-      val_a (Base1.compare a1 a2) + val_b (Base2.compare b1 b2)
-    )
-
-  let pretty () x = text (show x)
-  let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)
-end
-
 module GVarGSet (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
 struct
   module CSet =
@@ -199,13 +167,6 @@ struct
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CMap.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
-
-  let s = function
-    | `Bot -> G.bot ()
-    | `Lifted1 x -> x
-    | _ -> failwith "RecursionTerm.s"
-
-  let create_s s = `Lifted1 s
 
   let base2 instance =
     match instance with
