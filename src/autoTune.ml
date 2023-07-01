@@ -216,7 +216,7 @@ let focusOnSpecification () =
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     enableAnalyses notNeccessaryThreadAnalyses;
-  | NoTermination -> ()
+  | Termination -> ()
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
