@@ -31,5 +31,8 @@ int main(int argc, char const *argv[]) {
 
     char *p2 = p; //WARN
 
+    my_free2(p); //WARN
+    my_free2(p2); //WARN
+
     return 0;
 }
