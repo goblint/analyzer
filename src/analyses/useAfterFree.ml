@@ -21,10 +21,15 @@ struct
 
   (* HELPER FUNCTIONS *)
 
+  let warn_for_multi_threaded ctx behavior cwe_number =
+    if not (ctx.ask (Queries.MustBeSingleThreaded)) then
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Program isn't running in single-threaded mode. Use-After-Free might occur due to multi-threading"
+
   let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (lval:lval) =
     let state = ctx.local in
     let undefined_behavior = if is_double_free then Undefined DoubleFree else Undefined UseAfterFree in
     let cwe_number = if is_double_free then 415 else 416 in
+    warn_for_multi_threaded ctx undefined_behavior cwe_number; (* Simple solution to warn when multi-threaded *)
     let rec offset_might_contain_freed offset =
       match offset with
       | NoOffset -> ()
