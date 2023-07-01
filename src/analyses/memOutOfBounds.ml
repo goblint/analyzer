@@ -5,7 +5,7 @@ module Spec =
 struct
   include Analyses.IdentitySpec
 
-  module D = Lattice.Unit(*ValueDomain.AddrSetDomain*)
+  module D = Lattice.Unit
   module C = Lattice.Unit
 
   (* TODO: Do this later *)
@@ -186,8 +186,8 @@ struct
     List.iter (fun arg -> check_exp_for_oob_access ctx arg) args;
     ctx.local
 
-  let startstate v = (*D.empty*) ()
-  let exitstate v = (*D.empty*) ()
+  let startstate v = ()
+  let exitstate v = ()
 end
 
 let _ =
