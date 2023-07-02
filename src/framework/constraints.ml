@@ -1700,12 +1700,16 @@ module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
           and module C = S.C
 =
-(*global invariants:
+(* two global invariants:
   - V -> G
+    Needed to store the previously built global invariants
   - fundec -> Map (S.C) (Set (fundec * S.C))
-    Therefore:
-         g    -> {c' -> {(f, c)}}
-    in case f, c --> g, c'  *)
+    The second global invariant maps from the callee fundec to a map, containing the callee context and the caller fundec and context. 
+    This structure therefore stores the context-sensitive call graph. 
+    For example: 
+      let the function f in context c call function g in context c'. 
+      In the global invariant structure it would be stored like this: g -> {c' -> {(f, c)}}
+*)
 
 struct
   include S
