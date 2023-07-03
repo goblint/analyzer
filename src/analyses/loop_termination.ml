@@ -91,7 +91,7 @@ struct
   (** Checks whether a new thread was spawned some time. We want to discard
    * any knowledge about termination then (see query function) *)
   let must_be_single_threaded_since_start ctx =
-    ctx.ask (Queries.MustBeSingleThreaded {since_start = true})
+    not (ctx.ask Queries.IsEverMultiThreaded)
 
   (** Provides information to Goblint *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =

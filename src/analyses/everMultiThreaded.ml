@@ -32,10 +32,11 @@ struct
   let query ctx (type a) (q: a Queries.t) : a Queries.result =
     match q with
     | Queries.IsEverMultiThreaded ->
-      (*
-        ctx.global ()
-         *)
-      Queries.Result.top q (* TODO *)
+      (match ctx.global () with
+       (* I don't know why this wrapping in a match construct is necessary.
+        * Without it, the compiler throws an error. *)
+         true -> true
+       | false -> false)
     | _ ->
       Queries.Result.top q
 

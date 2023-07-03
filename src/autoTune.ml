@@ -180,7 +180,7 @@ let enableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[+]") anas
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
-(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
+(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> isEverMultiThreaded *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
