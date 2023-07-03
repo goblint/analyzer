@@ -29,6 +29,6 @@ void __goblint_split_end(int exp) {
 
 }
 
-void __goblint_bounded() {
+void __goblint_bounded(int exp) {
     
 }
