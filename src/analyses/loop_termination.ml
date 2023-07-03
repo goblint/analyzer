@@ -1,4 +1,4 @@
-(** Work in progress *)
+(** Termination analysis for loops and [goto] statements ([termination]). *)
 
 open Analyses
 open GoblintCil
