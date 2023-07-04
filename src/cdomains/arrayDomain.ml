@@ -1897,7 +1897,7 @@ struct
       N.length t_n
     else
       F.length t_f
-  let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) (t_f, t_n) v f = (F.move_if_affected ask t_f v f, N.move_if_affected ask t_n v f)
+  let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) (t_f, t_n) v f = (F.move_if_affected ~replace_with_const ask t_f v f, N.move_if_affected ~replace_with_const ask t_n v f)
   let get_vars_in_e (t_f, _) = F.get_vars_in_e t_f
   let map f (t_f, t_n) = 
     if get_bool "ana.base.arrays.nullbytes" then
