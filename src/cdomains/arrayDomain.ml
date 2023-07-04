@@ -1873,9 +1873,9 @@ struct
   let domain_of_t (t_f, _) = F.domain_of_t t_f
 
   let get ?(checkBounds=true) (ask: VDQ.t) (t_f, t_n) i = 
-    let f_get = F.get ask t_f i in
+    let f_get = F.get ~checkBounds ask t_f i in
     if get_bool "ana.base.arrays.nullbytes" then
-      let n_get = N.get ask t_n i in
+      let n_get = N.get ~checkBounds ask t_n i in
       match Val.is_int_ikind f_get, n_get with
       | Some ik, Null -> Val.meet f_get (Val.zero_of_ikind ik)
       | Some ik, NotNull -> Val.meet f_get (Val.not_zero_of_ikind ik)
@@ -1889,9 +1889,9 @@ struct
       (F.set ask t_f i v, N.top ())
   let make ?(varAttr=[]) ?(typAttr=[]) i v = 
     if get_bool "ana.base.arrays.nullbytes" then
-      (F.make i v, N.make i v)
+      (F.make ~varAttr ~typAttr i v, N.make i v)
     else
-      (F.make i v, N.top ())
+      (F.make ~varAttr ~typAttr i v, N.top ())
   let length (t_f, t_n) = 
     if get_bool "ana.base.arrays.nullbytes" then
       N.length t_n
@@ -1964,6 +1964,6 @@ struct
       (F.update_length newl t_f, N.update_length newl t_n)
     else
       (F.update_length newl t_f, N.top ())
-  let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (F.project ask t_f, N.project ask t_n)
+  let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (F.project ~varAttr ~typAttr ask t_f, N.project ~varAttr ~typAttr ask t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = F.invariant ~value_invariant ~offset ~lval t_f
 end
