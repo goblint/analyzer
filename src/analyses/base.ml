@@ -2030,46 +2030,66 @@ struct
       (* do nothing if all characters are needed *)
       | _ -> None
     in
+    let address_from_value (v:value) = match v with
+      | Address a ->
+        let rec lo:'a Offset_intf.t -> 'a Offset_intf.t = function
+          | `Index (i, `NoOffset) -> `NoOffset
+          | `NoOffset -> `NoOffset
+          | `Field (f, o) -> `Field (f, lo o)
+          | `Index (i, o) -> `Index (i, lo o) in
+        let rmLastOffset = function
+          | Addr.Addr (v, o) -> Addr.Addr (v, lo o)
+          | other -> other in
+        AD.map rmLastOffset a
+      | _ -> raise (Failure "String function: not an address") 
+    in
     let string_manipulation s1 s2 lv all op_addr op_array =
-      let s1_a, s1_typ = addr_type_of_exp s1 in 
-      let s2_a, s2_typ = addr_type_of_exp s2 in
+      let s1_v = eval_rv (Analyses.ask_of_ctx ctx) gs st s1 in
+      let s1_a = address_from_value s1_v in
+      let s1_typ = AD.type_of s1_a in
+      let s2_v = eval_rv (Analyses.ask_of_ctx ctx) gs st s2 in
+      let s2_a = address_from_value s2_v in
+      let s2_typ = AD.type_of s2_a in
       (* compute value in string literals domain if s1 and s2 are both string literals *)
-      if AD.type_of s1_a = charPtrType && AD.type_of s2_a = charPtrType then
+      if s1_typ = charPtrType && s2_typ = charPtrType then
         begin match lv, op_addr with
           | Some lv_val, Some f ->
           (* when whished types coincide, compute result of operation op_addr, otherwise use top *)
           let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
           let lv_typ = Cilfacade.typeOfLval lv_val in
           if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
-            lv_a, lv_typ, (f s1_a s2_a), None
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (f s1_a s2_a)
           else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
-            lv_a, lv_typ, (f s1_a s2_a), None
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (f s1_a s2_a)
           else
-            lv_a, lv_typ, (VD.top_value (unrollType lv_typ)), None
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (VD.top_value (unrollType lv_typ))
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
-            s1_a, s1_typ, VD.top_value (unrollType s1_typ), None
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st s1_a s1_typ (VD.top_value (unrollType s1_typ))
         end
       (* else compute value in array domain *)
       else 
         let lv_a, lv_typ = match lv with
           | Some lv_val -> eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
           | None -> s1_a, s1_typ in
-        let s1_lval = mkMem ~addr:(Cil.stripCasts s1) ~off:NoOffset in
-        let s2_lval = mkMem ~addr:(Cil.stripCasts s2) ~off:NoOffset in
-        match s1_lval, s2_lval with
-        | (Var v_s1, _), (Var v_s2, _) ->
-          begin match CPA.find_opt v_s1 st.cpa, CPA.find_opt v_s2 st.cpa with
-            | Some (Array array_s1), Some (Array array_s2) -> lv_a, lv_typ, op_array array_s1 array_s2, Some v_s1
-            | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ), None
-          end
-        | (Var v_s1, _), _ -> 
-          begin match CPA.find_opt v_s1 st.cpa with
-            | Some (Array array_s1) -> lv_a, lv_typ, Array(CArrays.content_to_top array_s1), Some v_s1
-            | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ), Some v_s1
-          end
-        | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ), None
+        begin match get (Analyses.ask_of_ctx ctx) gs st s1_a None, get (Analyses.ask_of_ctx ctx) gs st s2_a None with
+          | Array array_s1, Array array_s2 -> set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
+          | Array array_s1, _ when s2_typ = charPtrType -> 
+            let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
+            let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
+          | _, Array array_s2 when s1_typ = charPtrType ->
+            (* if s1 is string literal, str(n)cpy and str(n)cat are undefined *)
+            if op_addr = None then
+              let _ = AD.string_writing_defined s1_a in
+              set ~ctx (Analyses.ask_of_ctx ctx) gs st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            else
+              let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
+              let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
+              set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
+          | _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+        end
     in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
@@ -2103,42 +2123,23 @@ struct
           VD.top_value (unrollType dest_typ)
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strcpy { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ, value, var = string_manipulation dst src None false None (fun ar1 ar2 -> Array(CArrays.string_copy ar1 ar2 (eval_n n))) in
-      begin match var with
-        | Some v -> {st with cpa = CPA.add v value st.cpa}
-        | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-      end
-    | Strcat { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ, value, var = string_manipulation dst src None false None (fun ar1 ar2 -> Array(CArrays.string_concat ar1 ar2 (eval_n n))) in 
-      begin match var with
-        | Some v -> {st with cpa = CPA.add v value st.cpa}
-        | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-      end
+    | Strcpy { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_copy ar1 ar2 (eval_n n)))
+    | Strcat { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_concat ar1 ar2 (eval_n n)))
     | Strlen s, _ ->
       begin match lv with
         | Some lv_val ->
           let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
           let dest_typ = Cilfacade.typeOfLval lv_val in
-          let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
-          let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-          let (value:value) = 
+          let v = eval_rv (Analyses.ask_of_ctx ctx) gs st s in
+          let a = address_from_value v in
+          let value:value = 
             (* if s string literal, compute strlen in string literals domain *)
-            if AD.type_of address = charPtrType then
-              Int(AD.to_string_length address)
+            if AD.type_of a = charPtrType then
+              Int (AD.to_string_length a)
               (* else compute strlen in array domain *)
             else
-              (* (* TODO: why isn't the following working? *)
-                 begin match get (Analyses.ask_of_ctx ctx) gs st address None with
-                 | Array array_s -> Int(CArrays.to_string_length array_s)
-                 | _ -> VD.top_value (unrollType dest_typ)
-                 end) in *)
-              begin match lval with
-                | (Var v, _) -> 
-                  begin match CPA.find_opt v st.cpa with
-                    | Some (Array array_s) -> Int(CArrays.to_string_length array_s)
-                    | _ -> VD.top_value (unrollType dest_typ)
-                  end
+              begin match get (Analyses.ask_of_ctx ctx) gs st a None with
+                | Array array_s -> Int (CArrays.to_string_length array_s)
                 | _ -> VD.top_value (unrollType dest_typ)
               end in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
@@ -2147,25 +2148,25 @@ struct
     | Strstr { haystack; needle }, _ ->
       begin match lv with
         | Some lv_val ->
-          (* when haystack, needle and dest type coincide, check if needle is a substring of haystack:
-             if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
-             else use top *)
-          let dest_a, dest_typ, value, _ = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a)))
+          (* check if needle is a substring of haystack in string literals domain if haystack and needle are string literals,
+             else check in null bytes domain if both haystack and needle are / can be transformed to an array domain representation;
+             if needle is substring, assign the substring of haystack starting at the first occurrence of needle to dest,
+             if it surely isn't, assign a null_ptr *)
+          string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address (AD.substring_extraction h_a n_a)))
               (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
-                 | true, false -> Address(AD.null_ptr)
-                 | false, true -> Address(eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
-                 (* TODO: below, instead of ~off:NoOffset, how to have a top offset = don't know exactly at which index pointing? *)
-                 | _ -> Address(AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset)) (AD.null_ptr))) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+                | true, false -> Address (AD.null_ptr)
+                | false, true -> Address (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
+                | _ -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st 
+                                           (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
     | Strcmp { s1; s2; n }, _ ->
       begin match lv with
         | Some _ ->
-          (* when s1 and s2 type coincide, compare both both strings completely or their first n characters, otherwise use top *)
-          let dest_a, dest_typ, value, _ = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> Int(AD.string_comparison s1_a s2_a (eval_n n))))
-            (fun s1_ar s2_ar -> Int(CArrays.string_comparison s1_ar s2_ar (eval_n n))) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          (* when s1 and s2 are string literals, compare both completely or their first n characters in the string literals domain;
+             else compare them in the null bytes array domain if they are / can be transformed to an array domain representation *)
+          string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> Int (AD.string_comparison s1_a s2_a (eval_n n))))
+            (fun s1_ar s2_ar -> Int (CArrays.string_comparison s1_ar s2_ar (eval_n n)))
         | None -> st
       end
     | Abort, _ -> raise Deadcode

@@ -102,7 +102,7 @@ int main() {
         // do nothing => no warning
     #else  
         char s4[] = "hello";
-        strcpy(s4, s2); // NOWARN
+        strcpy(s4, s2); // NOWARN -> null byte array domain not enabled
         strncpy(s4, s3, 2); // NOWARN
 
         char s5[13] = "hello";

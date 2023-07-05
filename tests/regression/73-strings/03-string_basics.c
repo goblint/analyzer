@@ -39,9 +39,9 @@ int main() {
     __goblint_check(i == 0); // UNKNOWN
 
     strcpy(s1, "hi ");
-    strncpy(s1, s3, 3);
-    len = strlen(s1); // TODO: produces a false warning -- any possibility to fix?
-    __goblint_check(len == 3); // UNKNOWN
+    strncpy(s1, s3, 3); // WARN
+    len = strlen(s1);
+    __goblint_check(len == 3);
 
     char tmp[] = "hi ";
     len = strlen(tmp);
@@ -64,10 +64,10 @@ int main() {
     i = strncmp(s4, s3, 5);
     __goblint_check(i > 0); // UNKNOWN
 
-    strncpy(s1, "", 20);
+    strncpy(s1, "", 20); // WARN
     strcpy(tmp, "\0hi");
     i = strcmp(s1, tmp);
-    __goblint_check(i == 0); // UNKNOWN
+    __goblint_check(i == 0);
 
     char tmp2[] = "";
     strcpy(s1, tmp2);
@@ -75,11 +75,11 @@ int main() {
     __goblint_check(i == 0);
 
     i = strcmp(s1, tmp);
-    __goblint_check(i == 0); // UNKNOWN
+    __goblint_check(i == 0);
 
     concat_1(s1, 30);
     len = strlen(s1);
-    __goblint_check(len == 30); // UNKNOWN
+    __goblint_check(len == 30);
 
     cmp = strstr(s1, "0");
     __goblint_check(cmp == NULL); // UNKNOWN
