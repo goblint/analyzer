@@ -34,7 +34,10 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          let  check_stmt = mkStmtOneInstr @@ Set ((var !le), (Lval (var v)), loc, eloc) in
+         let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          (match b.bstmts with
+            | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
+               b.bstmts <- inc_stmt :: check_stmt :: s :: inc_stmt2 :: ss;
             | ss ->
                b.bstmts <- inc_stmt :: check_stmt :: ss;
          );
