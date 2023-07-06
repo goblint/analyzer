@@ -14,9 +14,8 @@ int main() {
             }
             printf("(%d, %d) ", i, j);
         }
-        printf("Not Skipped?\n");
         outer_loop:;  // Label for the outer loop
-        printf("Skipped!\n");
+        printf("\n");
     }
 
     return 0;

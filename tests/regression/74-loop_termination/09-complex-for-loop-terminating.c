@@ -1,4 +1,5 @@
 // SKIP TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// Goblint does not finish this test
 #include <stdio.h>
 
 int main()
