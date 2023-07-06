@@ -36,7 +36,7 @@ let check_bounded ctx varinfo =
 module UnitV =
 struct
   include Printable.Unit
-  include StdV
+  let is_write_only _ = true
 end
 
 (** We want to record termination information of loops and use the loop
@@ -62,20 +62,33 @@ struct
   let exitstate = startstate
 
   let assign ctx (lval : lval) (rval : exp) =
-    (* Detect assignment to loop counter variable *)
-    match lval, rval with
-      (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
-      (* Loop exit: Check whether loop counter variable is bounded *)
-      (* TODO: Move to special *)
-      let is_bounded = check_bounded ctx x in
-      let loop_statement = VarToStmt.find x !loop_counters in
-      ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
-      ()
-    | _ -> ()
+    if !AnalysisState.postsolving then
+      (* Detect assignment to loop counter variable *)
+      match lval, rval with
+        (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
+        (* Loop exit: Check whether loop counter variable is bounded *)
+        (* TODO: Move to special *)
+        let is_bounded = check_bounded ctx x in
+        let loop_statement = VarToStmt.find x !loop_counters in
+        ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+        ()
+      | _ -> ()
+    else ()
 
+    (*
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
-    (* TODO: Implement check for our special loop exit indicator function *)
-    ()
+      (* TODO: Implement check for our special loop exit indicator function *)
+    if !AnalysisState.postsolving then
+      match f.vname, arglist with
+        "__goblint_bounded", [Lval (Var x, NoOffset)] ->
+        let () = print_endline "schpecial" in
+        let is_bounded = check_bounded ctx x in
+        let loop_statement = VarToStmt.find x !loop_counters in
+        ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+        ()
+      | _ -> ()
+    else ()
+    *)
 
   (** Checks whether a new thread was spawned some time. We want to discard
    * any knowledge about termination then (see query function) *)
