@@ -15,6 +15,28 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
+(* TODO *)
+module PrintableVar =
+struct
+  include Var
+
+  let name () = "var"
+
+  let show x = to_string x
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+  
+  let relift x = x
+
+  let tag _ = failwith "no tag"
+
+  let arbitrary () = failwith "no arbitrary"
+end
+
 module Lincons1 =
 struct
   include Lincons1
