@@ -62,16 +62,17 @@ struct
   let exitstate = startstate
 
   let assign ctx (lval : lval) (rval : exp) =
-    (* Detect assignment to loop counter variable *)
-    match lval, rval with
-      (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
-      (* Loop exit: Check whether loop counter variable is bounded *)
-      (* TODO: Move to special *)
-      let is_bounded = check_bounded ctx x in
-      let loop_statement = VarToStmt.find x !loop_counters in
-      ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
-      ()
-    | _ -> ()
+    if !AnalysisState.postsolving then
+      (* Detect assignment to loop counter variable *)
+      match lval, rval with
+        (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
+        (* Loop exit: Check whether loop counter variable is bounded *)
+        (* TODO: Move to special *)
+        let is_bounded = check_bounded ctx x in
+        let loop_statement = VarToStmt.find x !loop_counters in
+        ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+        ()
+      | _ -> ()
 
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
     (* TODO: Implement check for our special loop exit indicator function *)
