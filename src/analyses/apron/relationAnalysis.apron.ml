@@ -280,12 +280,9 @@ struct
     | None -> true
     | Some v -> any_local_reachable
 
-  let enter ctx r f args =
+  let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    if M.tracing then M.tracel "combine" "relation enter f: %a\n" CilType.Varinfo.pretty f.svar;
-    if M.tracing then M.tracel "combine" "relation enter formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
-    if M.tracing then M.tracel "combine" "relation enter local: %a\n" D.pretty ctx.local;
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
@@ -296,12 +293,16 @@ struct
     let new_rel = RD.add_vars st.rel arg_vars in
     (* RD.assign_exp_parallel_with new_rel arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
-    let ask = Analyses.ask_of_ctx ctx in
-    let new_rel = List.fold_left (fun new_rel (var, e) ->
-        assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
-            RD.assign_exp rel' var e' (no_overflow ask e)
-          )
-      ) new_rel arg_assigns
+    let new_rel =
+      if thread then
+        new_rel
+      else
+        let ask = Analyses.ask_of_ctx ctx in
+        List.fold_left (fun new_rel (var, e) ->
+            assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
+                RD.assign_exp rel' var e' (no_overflow ask e)
+              )
+          ) new_rel arg_assigns
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
@@ -311,7 +312,11 @@ struct
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
-    [st, {st with rel = new_rel}]
+    new_rel
+
+  let enter ctx r f args =
+    let calle_rel = make_callee_rel ~thread:false ctx f args in
+    [ctx.local, {ctx.local with rel = calle_rel}]
 
   let body ctx f =
     let st = ctx.local in
@@ -627,12 +632,7 @@ struct
       if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
-      let arg_vars =
-        fd.sformals
-        |> List.filter RD.Tracked.varinfo_tracked
-        |> List.map RV.arg
-      in
-      let new_rel = RD.add_vars st'.rel arg_vars in
+      let new_rel = make_callee_rel ~thread:true ctx fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
       (* Unknown functions *)
