@@ -1695,43 +1695,44 @@ struct
 end
 
 
-(** Add cycle detection in the function call graph to a analysis *)
+(** Add cycle detection in the context-sensitive dynamic function call graph to an analysis *)
 module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
           and module C = S.C
 =
-(*global invariants:
+(* two global invariants:
   - V -> G
+    Needed to store the previously built global invariants
   - fundec -> Map (S.C) (Set (fundec * S.C))
-    Therefore:
-         g    -> {c' -> {(f, c)}}
-    in case f, c --> g, c'  *)
+    The second global invariant maps from the callee fundec to a map, containing the callee context and the caller fundec and context. 
+    This structure therefore stores the context-sensitive call graph. 
+    For example: 
+      let the function f in context c call function g in context c'. 
+      In the global invariant structure it would be stored like this: g -> {c' -> {(f, c)}}
+*)
 
 struct
   include S
-  module V =
-  struct
-    include GVarF(S.V)
-  end
+  module V = GVarF(S.V)
 
-  module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
+  module G = GVarGSet (S.G) (S.C) (Printable.Prod (CilType.Fundec) (S.C))
 
   let name () = "termination"
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
     { ctx with
-      global = (fun v -> G.s (ctx.global (V.spec v)));
-      sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_s g));
+      global = (fun v -> G.spec (ctx.global (V.spec v)));
+      sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_spec g));
     }
 
   let cycleDetection ctx v v' =
-    let module LH = Hashtbl.Make (T (CilType.Fundec) (S.C)) in
-    let module LS = Set.Make (T (CilType.Fundec) (S.C)) in
+    let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
+    let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
     let global_visited_calls = LH.create 100 in
 
     (* DFS *)
-    let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
+    let rec iter_call (path_visited_calls: LS.t) (call:Printable.Prod (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
       if LS.mem call path_visited_calls then (
         AnalysisState.svcomp_may_not_terminate := true;

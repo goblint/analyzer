@@ -1,21 +1,10 @@
-(** Work in progress *)
+(** Termination analysis for loops and [goto] statements ([termination]). *)
 
 open Analyses
 open GoblintCil
 open TerminationPreprocessing
 
 exception PreProcessing of string
-
-(*
-let loop_heads () =
-  let module FileCfg =
-  struct
-    let file = !Cilfacade.current_file
-    module Cfg = (val !MyCFG.current_cfg)
-  end in
-  let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
-  WitnessInvariant.loop_heads (* TODO: Unused *)
-*)
 
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
@@ -69,7 +58,7 @@ struct
   module V = UnitV
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
-  let startstate _ = D.bot ()
+  let startstate _ = ()
   let exitstate = startstate
 
   let assign ctx (lval : lval) (rval : exp) =
@@ -80,17 +69,20 @@ struct
       (* TODO: Move to special *)
       let is_bounded = check_bounded ctx x in
       let loop_statement = VarToStmt.find x !loop_counters in
-      let () = ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ())) in
-      ctx.local
-    | _ -> ctx.local
+      ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+      ()
+    | _ -> ()
 
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
     (* TODO: Implement check for our special loop exit indicator function *)
-    ctx.local
+    ()
 
   (** Checks whether a new thread was spawned some time. We want to discard
    * any knowledge about termination then (see query function) *)
   let must_be_single_threaded_since_start ctx =
+    (*
+    not (ctx.ask Queries.IsEverMultiThreaded)
+    *)
     ctx.ask (Queries.MustBeSingleThreaded {since_start = true})
 
   (** Provides information to Goblint *)

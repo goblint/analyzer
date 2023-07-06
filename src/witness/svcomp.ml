@@ -52,7 +52,7 @@ struct
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
-        | NoTermination -> "no-termination"
+        | Termination -> "termination"
       in
       "false(" ^ result_spec ^ ")"
     | Unknown -> "unknown"

@@ -15,7 +15,7 @@ module type S2S = functor (X : Spec) -> Spec
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "ana.sv-comp.enabled" || get_bool "exp.arg" in
-  let arg_termination = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
+  let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -37,7 +37,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
                        Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
                     |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
                     |> lift true (module LongjmpLifter)
-                    |> lift arg_termination (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
+                    |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
                   ) in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);

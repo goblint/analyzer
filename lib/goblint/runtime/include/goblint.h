@@ -6,3 +6,5 @@ void __goblint_assume_join(/* pthread_t thread */); // undeclared argument to av
 
 void __goblint_split_begin(int exp);
 void __goblint_split_end(int exp);
+
+void __goblint_bounded(int exp);
