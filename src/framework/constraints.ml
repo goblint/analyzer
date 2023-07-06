@@ -1717,7 +1717,7 @@ struct
 
   module G = GVarGSet (S.G) (S.C) (Printable.Prod (CilType.Fundec) (S.C))
 
-  let name () = "termination"
+  let name () = "RecursionTermLifter (" ^ S.name () ^ ")"
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
     { ctx with
