@@ -110,8 +110,8 @@ void double_free_010()
 
 	while(flag)
 	{
-		// There might be a spurious warning here (due to the loop)
-		free(ptr); //NOWARN (Double Free (CWE-415))
+		// We're currently too unprecise to properly detect this below (due to the loop)
+		free(ptr); // (Double Free (CWE-415))
 		flag--;
 	}
 }
@@ -124,8 +124,8 @@ void double_free_011()
 	while(a<b)
 	{
 		if(flag ==1)
-		// There might be a spurious warning here (due to the loop)
-		free(ptr);  //NOWARN (Double Free (CWE-415))
+		// We're currently too unprecise to properly detect this below (due to the loop)
+		free(ptr);  // (Double Free (CWE-415))
 		a++;
 	}
 }
@@ -137,8 +137,8 @@ void double_free_012()
 
 	for(a=0;a<1;a++)
 	{
-		// There might be a spurious warning here (due to the loop)
-		free(ptr); //NOWARN (Double Free (CWE-415))
+		// We're currently too unprecise to properly detect this below (due to the loop)
+		free(ptr); // (Double Free (CWE-415))
 	}
 }
 
