@@ -22,7 +22,7 @@ struct
   (* HELPER FUNCTIONS *)
 
   let warn_for_multi_threaded ctx behavior cwe_number =
-    if not (ctx.ask (Queries.MustBeSingleThreaded)) then
+    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Program isn't running in single-threaded mode. Use-After-Free might occur due to multi-threading"
 
   let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (lval:lval) =
