@@ -46,6 +46,7 @@ type special =
   | Malloc of Cil.exp
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
+  | Free of Cil.exp
   | Assert of { exp: Cil.exp; check: bool; refine: bool; }
   | Lock of { lock: Cil.exp; try_: bool; write: bool; return_on_success: bool; }
   | Unlock of Cil.exp
