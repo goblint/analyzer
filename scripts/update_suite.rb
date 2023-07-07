@@ -552,6 +552,7 @@ regs.sort.each do |d|
     end
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params << " #{$1}" else params << "" end
+    # always enable debugging so that the warnings would work
     params << " --set warn.debug true"
     p = if incremental then
           patch = f[0..-3] + ".patch"
