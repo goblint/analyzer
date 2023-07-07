@@ -1,4 +1,5 @@
 (** Library function descriptor (specification). *)
+
 module Cil = GoblintCil
 
 (** Pointer argument access specification. *)
@@ -54,13 +55,19 @@ type special =
   | ThreadExit of { ret_val: Cil.exp; }
   | Signal of Cil.exp
   | Broadcast of Cil.exp
+  | MutexAttrSetType of { attr:Cil.exp; typ: Cil.exp; }
+  | MutexInit of { mutex:Cil.exp; attr: Cil.exp; }
   | Wait of { cond: Cil.exp; mutex: Cil.exp; }
   | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; (** Unused *) }
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Memcpy of { dest: Cil.exp; src: Cil.exp }
-  | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
+  | Strcpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
+  | Strcat of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
+  | Strlen of Cil.exp
+  | Strstr of { haystack: Cil.exp; needle: Cil.exp; }
+  | Strcmp of { s1: Cil.exp; s2: Cil.exp; n: Cil.exp option; }
   | Abort
   | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Setjmp of { env: Cil.exp; }

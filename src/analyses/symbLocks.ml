@@ -1,6 +1,6 @@
-(** Symbolic lock-sets for use in per-element patterns.
+(** Symbolic lockset analysis for per-element (field or index) locking patterns ([symb_locks]).
 
-    See Section 5 and 6 in https://dl.acm.org/doi/10.1145/2970276.2970337 for more details. *)
+    @see <https://doi.org/10.1145/2970276.2970337> Static race detection for device drivers: the Goblint approach. Section 5 and 6. *)
 
 module LF = LibraryFunctions
 module LP = SymbLocksDomain.LockingPattern
@@ -155,7 +155,7 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ILock.from_var_offset (v, o) in
+        let lock = ILock.of_mval (v, o) in
         A.add (`Right lock) xs
       | _ ->
         Messages.info ~category:Unsound "Internal error: found a strange lockstep pattern.";
@@ -184,7 +184,7 @@ struct
         (match ctx.ask (Queries.Regions e) with
          | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
-                try Queries.ES.add (Lval.CilLval.to_exp x) xs
+                try Queries.ES.add (Mval.Exp.to_cil_exp x) xs
                 with Lattice.BotValue -> xs
            in begin
              try Queries.LS.fold add_exp ls (Queries.ES.singleton e)

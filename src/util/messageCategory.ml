@@ -13,6 +13,7 @@ type undefined_behavior =
   | UseAfterFree
   | DoubleFree
   | Uninitialized
+  | DoubleLocking
   | Other
 [@@deriving eq, ord, hash]
 
@@ -65,6 +66,7 @@ struct
     let use_after_free: category = create @@ UseAfterFree
     let double_free: category = create @@ DoubleFree
     let uninitialized: category = create @@ Uninitialized
+    let double_locking: category = create @@ DoubleLocking
     let other: category = create @@ Other
 
     module ArrayOutOfBounds =
@@ -101,6 +103,7 @@ struct
         | "use_after_free" -> use_after_free
         | "double_free" -> double_free
         | "uninitialized" -> uninitialized
+        | "double_locking" -> double_locking
         | "other" -> other
         | _ -> Unknown
 
@@ -111,6 +114,7 @@ struct
       | UseAfterFree -> ["UseAfterFree"]
       | DoubleFree -> ["DoubleFree"]
       | Uninitialized -> ["Uninitialized"]
+      | DoubleLocking -> ["DoubleLocking"]
       | Other -> ["Other"]
   end
 
@@ -213,14 +217,15 @@ let path_show e =
 let show x = String.concat " > " (path_show x)
 
 let behaviorName = function
-  | Machine -> "Machine"
-  | Implementation -> "Implementation"
-  | Undefined u -> match u with
-    | NullPointerDereference -> "NullPointerDereference"
-    | UseAfterFree -> "UseAfterFree"
-    | DoubleFree -> "DoubleFree"
-    | Uninitialized -> "Uninitialized"
-    | Other -> "Other"
+  |Machine -> "Machine";
+  |Implementation -> "Implementation"
+  |Undefined u -> match u with
+    |NullPointerDereference -> "NullPointerDereference"
+    |UseAfterFree -> "UseAfterFree"
+    |DoubleFree -> "DoubleFree"
+    |Uninitialized -> "Uninitialized"
+    |DoubleLocking -> "DoubleLocking"
+    |Other -> "Other"
     | ArrayOutOfBounds aob -> match aob with
       | PastEnd -> "PastEnd"
       | BeforeStart -> "BeforeStart"

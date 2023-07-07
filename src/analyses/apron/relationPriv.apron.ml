@@ -1,4 +1,6 @@
-(** Has been modified to work with any domain that uses the functions provided relationDomain. *)
+(** Relational thread-modular value analyses for {!RelationAnalysis}, i.e. {!ApronAnalysis} and {!AffineEqualityAnalysis}.
+
+    @see <https://doi.org/10.1007/978-3-031-30044-8_2> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces. *)
 
 open Batteries
 open GoblintCil
@@ -19,10 +21,11 @@ module type S =
     module D: Lattice.S
     module G: Lattice.S
     module V: Printable.S
+    module P: DisjointDomain.Representative with type elt := D.t (** Path-representative. *)
+
     type relation_components_t := RelationDomain.RelComponents (RD) (D).t
     val name: unit -> string
     val startstate: unit -> D.t
-    val should_join: relation_components_t -> relation_components_t -> bool
 
     val read_global: Q.ask -> (V.t -> G.t) -> relation_components_t -> varinfo -> varinfo -> RD.t
 
@@ -58,12 +61,12 @@ struct
   module G = Lattice.Unit
   module V = EmptyV
   module AV = RD.V
+  module P = UnitP
 
   type relation_components_t = RelComponents (RD) (D).t
 
   let name () = "top"
   let startstate () = ()
-  let should_join _ _ = true
 
   let read_global ask getg (st: relation_components_t) g x =
     let rel = st.rel in
@@ -95,7 +98,7 @@ struct
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -146,10 +149,12 @@ struct
   open Protection
 
   (** Locally must-written protected globals that have been continuously protected since writing. *)
-  module P =
-  struct
-    include MustVars
-    let name () = "P"
+  open struct
+    module P =
+    struct
+      include MustVars
+      let name () = "P"
+    end
   end
 
   (** Locally may-written protected globals that have been continuously protected since writing. *)
@@ -163,6 +168,16 @@ struct
   module D = Lattice.Prod (P) (W)
   module G = RD
   module V = Printable.UnitConf (struct let name = "global" end)
+  module PS =
+  struct
+    include Printable.Option (P) (struct let name = "None" end)
+
+    let of_elt (p, _) =
+      if Param.path_sensitive then
+        Some p
+      else
+        None
+  end
 
   type relation_components_t = RelationComponents (RD) (D).t
 
@@ -210,15 +225,6 @@ struct
       )
 
   let startstate () = (P.empty (), W.empty ())
-
-  let should_join (st1: relation_components_t) (st2: relation_components_t) =
-    if Param.path_sensitive then (
-      let (p1, _) = st1.priv in
-      let (p2, _) = st2.priv in
-      P.equal p1 p2
-    )
-    else
-      true
 
   let read_global ask getg (st: relation_components_t) g x =
     let rel = st.rel in
@@ -342,7 +348,7 @@ struct
           st
       end
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if (ask.f (Q.MustBeSingleThreaded { since_start= true })) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -408,6 +414,8 @@ struct
   let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
 
   let finalize () = ()
+
+  module P = PS
 end
 
 module CommonPerMutex = functor(RD: RelationDomain.RD) ->
@@ -452,6 +460,7 @@ struct
 
   module D = Lattice.Unit
   module G = RD
+  module P = UnitP
 
   type relation_components_t = RelationDomain.RelComponents (RD) (D).t
 
@@ -460,8 +469,6 @@ struct
   let name () = "PerMutexMeetPriv"
 
   let startstate () = ()
-
-  let should_join _ _ = true
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
@@ -548,7 +555,7 @@ struct
           st
       end
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
         st
       else
         let rel = st.rel in
@@ -857,6 +864,7 @@ struct
     end)(LRD)
 
   module AV = RD.V
+  module P = UnitP
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.relation.priv.must-joined" then  ",join"  else "") ^ ")"
 
@@ -871,8 +879,6 @@ struct
       ) v (LRD.bot ())
 
   type relation_components_t =  RelationDomain.RelComponents (RD) (D).t
-
-  let should_join _ _ = true
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
@@ -1031,7 +1037,7 @@ struct
     match reason with
     | `Return -> st (* TODO: implement? *)
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
         st
       else
         let rel = st.rel in

@@ -18,11 +18,11 @@ type ('k, 'r) args_desc =
   | (::): ('k, _, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc (** Cons one argument descriptor. Argument must occur. *)
 
 
-(** Create library function descriptor from arguments descriptor and continuation function, which takes as many arguments as are captured using {!__} and returns the corresponding {!LibraryDesc.special}. *)
+(** Create library function descriptor from arguments descriptor and continuation function, which takes as many arguments as are captured using {!__} and returns the corresponding {!LibraryDesc.type-special}. *)
 val special: ?attrs:LibraryDesc.attr list -> ('k, LibraryDesc.special) args_desc -> 'k -> LibraryDesc.t
 
-(** Create library function descriptor from arguments descriptor, which must {!drop} all arguments, and continuation function, which takes as an {!unit} argument and returns the corresponding {!LibraryDesc.special}.
-    Unlike {!special}, this allows the {!LibraryDesc.special} of an argumentless function to depend on options, such that they aren't evaluated at initialization time in {!LibraryFunctions}.  *)
+(** Create library function descriptor from arguments descriptor, which must {!drop} all arguments, and continuation function, which takes as an {!unit} argument and returns the corresponding {!LibraryDesc.type-special}.
+    Unlike {!special}, this allows the {!LibraryDesc.type-special} of an argumentless function to depend on options, such that they aren't evaluated at initialization time in {!LibraryFunctions}.  *)
 val special': ?attrs:LibraryDesc.attr list -> (LibraryDesc.special, LibraryDesc.special) args_desc -> (unit -> LibraryDesc.special) -> LibraryDesc.t
 
 (** Create unknown library function descriptor from arguments descriptor, which must {!drop} all arguments. *)

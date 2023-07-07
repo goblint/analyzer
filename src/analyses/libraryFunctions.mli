@@ -1,4 +1,5 @@
-(** This allows us to query information about library functions. *)
+(** Hard-coded database of library function specifications. *)
+
 open GoblintCil
 
 val add_lib_funs : string list -> unit

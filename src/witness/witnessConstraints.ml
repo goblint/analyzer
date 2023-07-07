@@ -1,4 +1,4 @@
-(** An analysis specification for witnesses. *)
+(** Analysis specification transformation for ARG construction. *)
 
 open Batteries
 open Analyses
@@ -40,19 +40,20 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (R: Lattice.S) =
+  module SpecDMap (V: Lattice.S) =
   struct
-    module C =
+    module R =
     struct
+      include Spec.P
       type elt = Spec.D.t
-      let cong = Spec.should_join
     end
-    module J = MapDomain.Joined (Spec.D) (R)
-    include DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
+    module J = MapDomain.Joined (Spec.D) (V)
+    include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
   end
 
   module Dom =
   struct
+    module V = R
     include SpecDMap (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
@@ -60,7 +61,7 @@ struct
     let printXml f x =
       let print_one x r =
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
-        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x V.printXml r
       in
       iter print_one x
 
@@ -94,14 +95,13 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module P = UnitP
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
   type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
-
-  let should_join x y = true
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
@@ -221,10 +221,16 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
+      if M.tracing then M.tracei "witness" "IterPrevVars\n";
       Dom.iter (fun x r ->
+          if M.tracing then M.tracei "witness" "x = %a\n" Spec.D.pretty x;
           R.iter (function ((n, c, j), e) ->
+              if M.tracing then M.tracec "witness" "n = %a\n" Node.pretty_plain n;
+              if M.tracing then M.tracec "witness" "c = %a\n" Spec.C.pretty c;
+              if M.tracing then M.tracec "witness" "j = %a\n" Spec.D.pretty j;
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-            ) r
+            ) r;
+          if M.tracing then M.traceu "witness" "\n"
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
@@ -233,6 +239,7 @@ struct
            | Function _ -> () (* returns post-sync in FromSpec *)
            | _ -> assert (Sync.is_bot (snd ctx.local));
          end; *)
+      if M.tracing then M.traceu "witness" "\n";
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->

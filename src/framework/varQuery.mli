@@ -1,3 +1,5 @@
+(** Queries for constraint variables related to semantic elements. *)
+
 open GoblintCil
 
 type t =
