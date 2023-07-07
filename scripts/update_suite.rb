@@ -547,6 +547,8 @@ regs.sort.each do |d|
     if incremental then
       config_path = File.expand_path(f[0..-3] + ".json", grouppath)
       params = if cfg then "--conf #{config_path} --set incremental.compare cfg" else "--conf #{config_path}" end
+    else
+      params = ""
     end
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params << " #{$1}" else params << "" end
