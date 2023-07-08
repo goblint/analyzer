@@ -137,6 +137,7 @@ struct
 
   let rec check_lval_for_oob_access ctx (lval:lval) =
     let undefined_behavior = Undefined MemoryOutOfBoundsAccess in
+    let cwe_number = 823 in
     match lval_contains_a_ptr lval with
     | false -> () (* Nothing to do here *)
     | true ->
@@ -149,10 +150,10 @@ struct
             begin match cilint_to_int_wrapper i with
               | Some i ->
                 if  i < oi then
-                  M.warn ~category:(Behavior undefined_behavior) "Offset bigger than var type's size for lval %a. A memory out-of-bounds access must occur" CilType.Lval.pretty lval
-              | _ -> M.warn ~category:(Behavior undefined_behavior) "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
+                  M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Offset bigger than var type's size for lval %a. A memory out-of-bounds access must occur" CilType.Lval.pretty lval
+              | _ -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
             end
-          | _ -> M.warn ~category:(Behavior undefined_behavior) "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
+          | _ -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
         end
       | Mem e, Some oi ->
         check_exp_for_oob_access ctx e;
@@ -197,6 +198,7 @@ struct
 
   and check_binop_exp ctx (binop:binop) (e1:exp) (e2:exp) =
     let undefined_behavior = Undefined MemoryOutOfBoundsAccess in
+    let cwe_number = 823 in
     match binop with
     | PlusPI
     | IndexPI
@@ -206,9 +208,9 @@ struct
       begin match ptr_size, offset_size with
         | Some pi, Some oi ->
           if pi < oi then
-            M.warn ~category:(Behavior undefined_behavior) "Pointer size in expression %a %a %a is smaller than offset for pointer arithmetic. Memory out-of-bounds access must occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | None, _ -> M.warn ~category:(Behavior undefined_behavior) "Pointer (%a) size in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | _, None -> M.warn ~category:(Behavior undefined_behavior) "Operand value for pointer arithmetic in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
+            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Pointer size in expression %a %a %a is smaller than offset for pointer arithmetic. Memory out-of-bounds access must occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
+        | None, _ -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Pointer (%a) size in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp e1 CilType.Binop.pretty binop d_exp e2
+        | _, None -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
       end
     | _ -> ()
 
