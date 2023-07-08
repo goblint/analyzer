@@ -140,7 +140,7 @@ struct
     | true ->
       let (host, offset) = lval in
       match host, get_offset_size offset with
-      | _, None -> M.warn "Offset size for lval %a not known. May have a memory out-of-bounds access" CilType.Lval.pretty lval
+      | _, None -> M.warn "Offset size for lval %a not known. A memory out-of-bounds access may occur" CilType.Lval.pretty lval
       | Var v, Some oi ->
         begin match sizeOf v.vtype with
           | Const (CInt (i, _, _)) ->
@@ -203,9 +203,9 @@ struct
       begin match ptr_size, offset_size with
         | Some pi, Some oi ->
           if pi < oi then
-            M.warn "Pointer size in expression %a %a %a is smaller than offset for pointer arithmetic" d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | None, _ -> M.warn "Pointer (%a) size in expression %a %a %a not known" d_exp e1 d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | _, None -> M.warn "Operand value for pointer arithmetic in expression %a %a %a not known" d_exp e1 CilType.Binop.pretty binop d_exp e2
+            M.warn "Pointer size in expression %a %a %a is smaller than offset for pointer arithmetic. Memory out-of-bounds access must occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
+        | None, _ -> M.warn "Pointer (%a) size in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp e1 CilType.Binop.pretty binop d_exp e2
+        | _, None -> M.warn "Operand value for pointer arithmetic in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
       end
     | _ -> ()
 
