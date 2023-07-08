@@ -2,6 +2,8 @@ open GoblintCil
 open Analyses
 open MessageCategory
 
+module GU = Goblintutil
+
 module Spec =
 struct
   include Analyses.IdentitySpec
@@ -143,17 +145,24 @@ struct
     | true ->
       let (host, offset) = lval in
       match host, get_offset_size offset with
-      | _, None -> M.warn ~category:(Behavior undefined_behavior) "Offset size for lval %a not known. A memory out-of-bounds access may occur" CilType.Lval.pretty lval
+      | _, None ->
+        GU.may_invalid_deref := true;
+        M.warn ~category:(Behavior undefined_behavior) "Offset size for lval %a not known. A memory out-of-bounds access may occur" CilType.Lval.pretty lval
       | Var v, Some oi ->
         begin match sizeOf v.vtype with
           | Const (CInt (i, _, _)) ->
             begin match cilint_to_int_wrapper i with
               | Some i ->
                 if  i < oi then
+                  GU.may_invalid_deref := true;
                   M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Offset bigger than var type's size for lval %a. A memory out-of-bounds access must occur" CilType.Lval.pretty lval
-              | _ -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
+              | _ ->
+                GU.may_invalid_deref := true;
+                M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
             end
-          | _ -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
+          | _ ->
+            GU.may_invalid_deref := true;
+            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
         end
       | Mem e, Some oi ->
         check_exp_for_oob_access ctx e;
@@ -208,9 +217,14 @@ struct
       begin match ptr_size, offset_size with
         | Some pi, Some oi ->
           if pi < oi then
+            GU.may_invalid_deref := true;
             M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Pointer size in expression %a %a %a is smaller than offset for pointer arithmetic. Memory out-of-bounds access must occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | None, _ -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Pointer (%a) size in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | _, None -> M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
+        | None, _ ->
+          GU.may_invalid_deref := true;
+          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Pointer (%a) size in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp e1 CilType.Binop.pretty binop d_exp e2
+        | _, None ->
+          GU.may_invalid_deref := true;
+          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
       end
     | _ -> ()
 

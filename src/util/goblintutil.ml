@@ -14,6 +14,9 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
+(** Whether an invalid pointer dereference happened *)
+let may_invalid_deref = ref false
+
 (** The file where everything is output *)
 let out = ref stdout
 
