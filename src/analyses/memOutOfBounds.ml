@@ -218,10 +218,6 @@ struct
   (* TRANSFER FUNCTIONS *)
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let (host,_) = lval in
-    match host with
-    | Mem e -> ignore (Pretty.printf "Lval host is Mem e and e is %a\n" d_plainexp e);
-    | _ -> ();
     check_lval_for_oob_access ctx lval;
     check_exp_for_oob_access ctx rval;
     ctx.local
