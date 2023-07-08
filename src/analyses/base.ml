@@ -1997,6 +1997,20 @@ struct
     let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs in
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
+  let check_free_of_non_heap_mem ctx special_fn ptr =
+    match ctx.ask (Queries.MayPointTo ptr) with
+    | a when not (Queries.LS.is_top a) ->
+      let warn_if_not_heap_var special_fn var =
+        if not (ctx.ask (Queries.IsHeapVar var)) then
+          M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
+      in
+      let pointed_to_vars =
+        Queries.LS.elements a
+        |> List.map fst
+      in
+      List.iter (warn_if_not_heap_var special_fn) pointed_to_vars
+    | _ -> ()
+
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
       | Some lv ->
@@ -2277,6 +2291,8 @@ struct
         | _ -> st
       end
     | Realloc { ptr = p; size }, _ ->
+      (* Realloc shouldn't be passed non-dynamically allocated memory *)
+      check_free_of_non_heap_mem ctx f p;
       begin match lv with
         | Some lv ->
           let ask = Analyses.ask_of_ctx ctx in
@@ -2308,6 +2324,10 @@ struct
         | None ->
           st
       end
+    | Free ptr, _ ->
+      (* Free shouldn't be passed non-dynamically allocated memory *)
+      check_free_of_non_heap_mem ctx f ptr;
+      st
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
       let ask = Analyses.ask_of_ctx ctx in
