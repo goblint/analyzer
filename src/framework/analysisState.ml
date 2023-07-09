@@ -7,7 +7,7 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
-(** TODO:**)
+(** Whether the termination analysis detectes the program as non-terminating**)
 let svcomp_may_not_terminate = ref false
 
 (** A hack to see if we are currently doing global inits *)

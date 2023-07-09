@@ -1773,10 +1773,6 @@ struct
       | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CallGraphMap.printXml x
       | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
 
-    let base2 instance =
-      match instance with
-      | `Lifted2 n -> Some n
-      | _ -> None
   end
 
   let name () = "RecursionTermLifter (" ^ S.name () ^ ")"
@@ -1797,35 +1793,29 @@ struct
     let rec iter_call (path_visited_calls: LS.t) (call:Printable.Prod (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
       if LS.mem call path_visited_calls then (
-        AnalysisState.svcomp_may_not_terminate := true;
+        AnalysisState.svcomp_may_not_terminate := true; (*set the indicator for a non-terminating program for the sv comp*)
         (*Cycle found*)
         let msgs =
           [
             (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)\n" CilType.Fundec.pretty fundec_e, Some (M.Location.CilLocation fundec_e.svar.vdecl));
           ] in
-        M.msg_group Warning ~category:NonTerminating "Recursion cycle" msgs)
+        M.msg_group Warning ~category:NonTerminating "Recursion cycle" msgs) (* output a warning for non-termination*)
       else if not (LH.mem global_visited_calls call) then begin
-        try
-          LH.replace global_visited_calls call ();
-          let new_path_visited_calls = LS.add call path_visited_calls in
-          let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
-          let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in
-          let gmap = Option.get (gmap_opt) in (*might be empty*)
-          let callers: CallGraphSet.t = CallGraphMap.find (context_e) gmap in
-          CallGraphSet.iter (fun to_call ->
-              iter_call new_path_visited_calls to_call
-            ) callers;
-        with Invalid_argument _ -> () (* path ended: no cycle*)
+        LH.replace global_visited_calls call ();
+        let new_path_visited_calls = LS.add call path_visited_calls in
+        let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
+        let gmap = G.callGraph (ctx.global (fundec_e_typeV)) in
+        let callers: CallGraphSet.t = CallGraphMap.find (context_e) gmap in
+        CallGraphSet.iter (fun to_call ->
+            iter_call new_path_visited_calls to_call
+          ) callers;
       end
     in
-    try
-      let gmap_opt = G.base2 (ctx.global (v)) in
-      let gmap = Option.get (gmap_opt) in
-      CallGraphMap.iter(fun key value ->
-          let call = (v', key) in
-          iter_call LS.empty call
-        ) gmap (* try all fundec + context pairs that are in the map *)
-    with Invalid_argument _ -> () (* path ended: no cycle*)
+    let gmap = G.callGraph (ctx.global (v)) in
+    CallGraphMap.iter(fun key value ->
+        let call = (v', key) in
+        iter_call LS.empty call
+      ) gmap (* try all fundec + context pairs that are in the map *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
