@@ -106,7 +106,7 @@ struct
          Some b -> b
        | None -> false)
       && must_be_single_threaded_since_start ctx
-    | Queries.MustTermProg ->
+    | Queries.MustTermAllLoops ->
       G.for_all (fun _ term_info -> term_info) (ctx.global ())
       && no_upjumping_gotos ()
       && must_be_single_threaded_since_start ctx

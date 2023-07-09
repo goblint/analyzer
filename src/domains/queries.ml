@@ -118,7 +118,7 @@ type _ t =
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | MustTermLoop: stmt -> MustBool.t t
-  | MustTermProg: MustBool.t t
+  | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
 
 type 'a result = 'a
@@ -185,7 +185,7 @@ struct
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | MustTermLoop _ -> (module MustBool)
-    | MustTermProg -> (module MustBool)
+    | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
 
   (** Get bottom result for query. *)
@@ -251,7 +251,7 @@ struct
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | MustTermLoop _ -> MustBool.top ()
-    | MustTermProg -> MustBool.top ()
+    | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
 end
 
@@ -314,7 +314,7 @@ struct
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
     | Any (MustTermLoop _) -> 53
-    | Any MustTermProg -> 54
+    | Any MustTermAllLoops -> 54
     | Any IsEverMultiThreaded -> 55
 
   let rec compare a b =
@@ -459,7 +459,7 @@ struct
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
     | Any (MustTermLoop s) -> Pretty.dprintf "MustTermLoop %a" CilType.Stmt.pretty s
-    | Any MustTermProg -> Pretty.dprintf "MustTermProg"
+    | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
 end
 
