@@ -674,7 +674,7 @@ struct
                st''
              (* Mixed Float and Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
              | Int _, Float _ | Float _, Int _ -> failwith "ill-typed program";
-             (* | Address a, Address b -> ... *)
+               (* | Address a, Address b -> ... *)
              | a1, a2 -> fallback (GobPretty.sprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
             (* use closures to avoid unused casts *)
           in (match c_typed with
