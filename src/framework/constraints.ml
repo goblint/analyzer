@@ -1713,9 +1713,71 @@ module RecursionTermLifter (S: Spec)
 
 struct
   include S
+
+  (* contains all the callee fundecs*)
   module V = GVarF(S.V)
 
-  module G = GVarGSet (S.G) (S.C) (Printable.Prod (CilType.Fundec) (S.C))
+  (* Tuple containing the fundec and context of the caller *)
+  module CallGraphTuple = 
+  struct 
+    include Printable.Prod (CilType.Fundec) (S.C) 
+  end
+
+  (* Set containing multiple caller tuples *)
+  module CallGraphSet =
+  struct
+    include SetDomain.Make (CallGraphTuple)
+    let name () = "callerInfo"
+    let printXml f a =
+      BatPrintf.fprintf f "<value>\n<set>";
+      iter (CallGraphTuple.printXml f) a;
+      BatPrintf.fprintf f "</set>\n</value>\n"
+  end
+
+  (* Mapping from the callee context to the set of all caller tuples*)
+  module CallGraphMap =
+  struct
+  include MapDomain.MapBot (
+    struct
+      include Printable.Std (* To make it Groupable *)
+      include S.C
+      let printXml f c = BatPrintf.fprintf f
+        "<value>\n
+        callee_context\n<value>%a</value>\n\n
+        </value>" printXml c
+    end    
+  ) (CallGraphSet)
+    let printXml f c = BatPrintf.fprintf f "<value><map>
+    <key>ContextTupleMap</key>\n
+    <value>%a</value>\n\n
+    </map></value>" printXml c
+  end
+
+  module G = 
+  struct 
+    include Lattice.Lift2 (G) (CallGraphMap) (Printable.DefaultNames)
+
+    let spec = function
+      | `Bot -> G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "RecursionTermLifter.spec"
+    let callGraph = function
+      | `Bot -> CallGraphMap.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "RecursionTermLifter.callGraph"
+    let create_spec spec = `Lifted1 spec
+    let create_callGraph callGraph = `Lifted2 callGraph
+
+    let printXml f = function
+      | `Lifted1 x -> G.printXml f x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CallGraphMap.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
+
+    let base2 instance =
+      match instance with
+      | `Lifted2 n -> Some n
+      | _ -> None
+  end
 
   let name () = "RecursionTermLifter (" ^ S.name () ^ ")"
 
@@ -1749,8 +1811,8 @@ struct
           let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
           let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in
           let gmap = Option.get (gmap_opt) in (*might be empty*)
-          let callers: G.CSet.t = G.CMap.find (context_e) gmap in
-          G.CSet.iter (fun to_call ->
+          let callers: CallGraphSet.t = CallGraphMap.find (context_e) gmap in
+          CallGraphSet.iter (fun to_call ->
               iter_call new_path_visited_calls to_call
             ) callers;
         with Invalid_argument _ -> () (* path ended: no cycle*)
@@ -1759,7 +1821,7 @@ struct
     try
       let gmap_opt = G.base2 (ctx.global (v)) in
       let gmap = Option.get (gmap_opt) in
-      G.CMap.iter(fun key value ->
+      CallGraphMap.iter(fun key value ->
           let call = (v', key) in
           iter_call LS.empty call
         ) gmap (* try all fundec + context pairs that are in the map *)
@@ -1802,7 +1864,7 @@ struct
   *)
   let side_context sideg f c t =
     if !AnalysisState.postsolving then
-      sideg (V.contexts f) (G.create_contexts (G.CMap.singleton (c) (t)))
+      sideg (V.contexts f) (G.create_callGraph (CallGraphMap.singleton (c) (t)))
 
   let enter ctx  = S.enter (conv ctx)
   let paths_as_set ctx = S.paths_as_set (conv ctx)
@@ -1816,7 +1878,7 @@ struct
       let c_e: S.C.t = Option.get fc in (*Callee context*)
       let fd_e : fundec = f in (*Callee fundec*)
       let tup: (fundec * S.C.t) = (fd_r, c_r) in
-      let t = G.CSet.singleton (tup) in
+      let t = CallGraphSet.singleton (tup) in
       side_context ctx.sideg fd_e (c_e) t;
       S.combine_env (conv ctx) r fe f args fc es f_ask
     else
