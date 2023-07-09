@@ -1701,13 +1701,13 @@ module RecursionTermLifter (S: Spec)
           and module C = S.C
 =
 (* two global invariants:
-  - V -> G
-    Needed to store the previously built global invariants
-  - fundec -> Map (S.C) (Set (fundec * S.C))
-    The second global invariant maps from the callee fundec to a map, containing the callee context and the caller fundec and context. 
-    This structure therefore stores the context-sensitive call graph. 
-    For example: 
-      let the function f in context c call function g in context c'. 
+   - V -> G
+     Needed to store the previously built global invariants
+   - fundec -> Map (S.C) (Set (fundec * S.C))
+     The second global invariant maps from the callee fundec to a map, containing the callee context and the caller fundec and context.
+     This structure therefore stores the context-sensitive call graph.
+     For example:
+      let the function f in context c call function g in context c'.
       In the global invariant structure it would be stored like this: g -> {c' -> {(f, c)}}
 *)
 
@@ -1769,7 +1769,7 @@ struct
     match q with
     | WarnGlobal v ->
       (* check result of loop analysis *)
-      if not (ctx.ask Queries.MustTermProg) then
+      if not (ctx.ask Queries.MustTermAllLoops) then
         (AnalysisState.svcomp_may_not_terminate := true;
          let msgs =
            [
