@@ -130,20 +130,18 @@ struct
       BatPrintf.fprintf f "</set>\n</value>\n"
   end
 
-  (* Make the given module Goupable*)
-  module C_Printable (C: Printable.S) =
-  struct
-    include Printable.Std (* To make it Groupable *)
-    include C
-    let printXml f c = BatPrintf.fprintf f
-        "<value>\n
-      callee_context\n<value>%a</value>\n\n
-      </value>" printXml c
-  end
-
   module CMap =
   struct
-    include MapDomain.MapBot (C_Printable (C)) (CSet)
+  include MapDomain.MapBot (
+    struct
+      include Printable.Std (* To make it Groupable *)
+      include C
+      let printXml f c = BatPrintf.fprintf f
+        "<value>\n
+        callee_context\n<value>%a</value>\n\n
+        </value>" printXml c
+    end    
+  ) (CSet)
     let printXml f c = BatPrintf.fprintf f "<value><map>
     <key>ContextTupleMap</key>\n
     <value>%a</value>\n\n
