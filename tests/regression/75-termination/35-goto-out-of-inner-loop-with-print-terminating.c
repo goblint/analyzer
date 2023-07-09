@@ -20,3 +20,15 @@ int main() {
 
     return 0;
 }
+
+/* 
+NOTE: In case we do NOT assume no-overflow:
+Test 30: terminates (test case "30-goto-out-of-inner-loop-terminating.c")
+Test 35: does not terminate (test case "35-goto-out-of-inner-loop-with-print-terminating.c") 
+
+The only difference between Test 30 and Test 35 is line 17. Test 30 has an additional statement, and Test 35 continues already with the label.
+This difference in Test 35 leads to an overflow in line 11, and hence to the non-termination. 
+This overflow is created by a WPoint Issue. By enabling the no-overflow option this issue can be fixed and, both test cases are correctly detected as terminating.
+
+(The overflow also happens without the termination analysis enabled.)
+*/

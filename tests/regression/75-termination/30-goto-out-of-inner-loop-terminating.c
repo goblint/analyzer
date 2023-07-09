@@ -21,3 +21,11 @@ int main() {
 
     return 0;
 }
+
+/* 
+NOTE: In case we do NOT assume no-overflow:
+Test 30: terminates (test case "30-goto-out-of-inner-loop-terminating.c")
+Test 35: does not terminate (test case "35-goto-out-of-inner-loop-with-print-terminating.c") 
+
+The reason is explained in "35-goto-out-of-inner-loop-with-print-terminating.c" 
+*/

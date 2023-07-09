@@ -118,62 +118,6 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
-module GVarGSet (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
-struct
-  module CSet =
-  struct
-    include SetDomain.Make (Base) (* Set of Tuples*)
-    let name () = "contexts"
-    let printXml f a =
-      BatPrintf.fprintf f "<value>\n<set>";
-      iter (Base.printXml f) a;
-      BatPrintf.fprintf f "</set>\n</value>\n"
-  end
-
-  (* Make the given module Goupable*)
-  module C_Printable (C: Printable.S) =
-  struct
-    include Printable.Std (* To make it Groupable *)
-    include C
-    let printXml f c = BatPrintf.fprintf f
-        "<value>\n
-      callee_context\n<value>%a</value>\n\n
-      </value>" printXml c
-  end
-
-  module CMap =
-  struct
-    include MapDomain.MapBot (C_Printable (C)) (CSet)
-    let printXml f c = BatPrintf.fprintf f "<value><map>
-    <key>ContextTupleMap</key>\n
-    <value>%a</value>\n\n
-    </map></value>" printXml c
-  end
-
-  include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
-
-  let spec = function
-    | `Bot -> G.bot ()
-    | `Lifted1 x -> x
-    | _ -> failwith "GVarGSet.spec"
-  let contexts = function
-    | `Bot -> CSet.bot ()
-    | `Lifted2 x -> x
-    | _ -> failwith "GVarGSet.contexts"
-  let create_spec spec = `Lifted1 spec
-  let create_contexts contexts = `Lifted2 contexts
-
-  let printXml f = function
-    | `Lifted1 x -> G.printXml f x
-    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CMap.printXml x
-    | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
-
-  let base2 instance =
-    match instance with
-    | `Lifted2 n -> Some n
-    | _ -> None
-end
-
 exception Deadcode
 
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
