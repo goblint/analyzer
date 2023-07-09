@@ -1,4 +1,4 @@
-// SKIP NONTERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// NONTERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable ana.context.widen
 #include <stdio.h>
 
 void recursiveFunction(int n) {

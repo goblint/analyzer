@@ -1,4 +1,4 @@
-// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set "ana.activated[+]" apron --enable ana.int.interval --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none
 #include <stdio.h>
 
 int main() {
@@ -14,9 +14,8 @@ int main() {
             }
             printf("(%d, %d) ", i, j);
         }
-        printf("Not Skipped?\n");
         outer_loop:;  // Label for the outer loop
-        printf("Skipped!\n");
+        printf("\n");
     }
 
     return 0;

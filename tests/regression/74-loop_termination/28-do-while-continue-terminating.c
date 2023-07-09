@@ -1,4 +1,4 @@
-// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// TODO TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -12,7 +12,7 @@ int main()
         if (i % 2 == 0) {
 
         printf("Skipping %i is even\n", i);
-            continue;
+            continue; // This is handled as an goto to line 8 and there an up-jumping goto
         }
     } while (i <= 5);
 
