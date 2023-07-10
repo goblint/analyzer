@@ -1822,13 +1822,7 @@ struct
     | WarnGlobal v ->
       (* check result of loop analysis *)
       if not (ctx.ask Queries.MustTermAllLoops) then
-        (AnalysisState.svcomp_may_not_terminate := true;
-         let msgs =
-           [
-             (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
-           ] in
-         M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs
-        );
+        AnalysisState.svcomp_may_not_terminate := true;
       let v: V.t = Obj.obj v in
       begin match v with
         | `Left v' ->
