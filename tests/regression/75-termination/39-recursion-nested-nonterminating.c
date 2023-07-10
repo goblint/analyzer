@@ -1,26 +1,26 @@
-// NONTERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 void innerRecursiveFunction() {
-    printf("Nested recursive call\n");
+  printf("Nested recursive call\n");
 
-    // Recursive call to the innerRecursiveFunction
-    innerRecursiveFunction();
+  // Recursive call to the innerRecursiveFunction
+  innerRecursiveFunction();
 }
 
 void outerRecursiveFunction() {
-    printf("Outer recursive call\n");
+  printf("Outer recursive call\n");
 
-    // Recursive call to the outerRecursiveFunction
-    outerRecursiveFunction();
+  // Recursive call to the outerRecursiveFunction
+  outerRecursiveFunction();
 
-    // Call to the innerRecursiveFunction
-    innerRecursiveFunction();
+  // Call to the innerRecursiveFunction
+  innerRecursiveFunction();
 }
 
 int main() {
-    // Call the outerRecursiveFunction
-    outerRecursiveFunction();
+  // Call the outerRecursiveFunction
+  outerRecursiveFunction();
 
-    return 0;
+  return 0;
 }
