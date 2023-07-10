@@ -1001,7 +1001,7 @@ struct
   module MaySet = SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All indexes" end)
 
   let compute_set len =
-    List.init (Z.to_int len) (fun i -> i)
+    List.init (Z.to_int len) (Fun.id)
     |> List.map Z.of_int
     |> MustSet.of_list
 

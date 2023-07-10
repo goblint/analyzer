@@ -11,7 +11,7 @@ char* hello_world() {
 void id(char* s) {
     char* ptr = NULL; // future usage of cmp should warn: workaround for macOS test
     #ifdef __APPLE__
-        #define ID int i = strcmp(ptr, "trigger warning")
+        #define ID int i = *ptr
     #else
         #define ID strcpy(s, s)
     #endif
@@ -71,28 +71,28 @@ int main() {
     cmp = NULL; // future usage of cmp should warn: workaround for macOS test
 
     #ifdef __APPLE__
-        #define STRCPY i = strcmp(cmp, "trigger warning")
+        #define STRCPY i = *cmp
     #else
         #define STRCPY strcpy(s1, "hi");
     #endif
     STRCPY; // WARN
 
     #ifdef __APPLE__
-        #define STRNCPY i = strcmp(cmp, "trigger warning")
+        #define STRNCPY i = *cmp
     #else
         # define STRNCPY strncpy(s1, "hi", 1)
     #endif
     STRNCPY; // WARN
 
     #ifdef __APPLE__
-        #define STRCAT i = strcmp(cmp, "trigger warning")
+        #define STRCAT i = *cmp
     #else
         #define STRCAT strcat(s1, "hi")
     #endif
     STRCAT; // WARN
 
     #ifdef __APPLE__
-        #define STRNCAT i = strcmp(cmp, "trigger warning")
+        #define STRNCAT i = *cmp
     #else
         #define STRNCAT strncat(s1, "hi", 1)
     #endif
