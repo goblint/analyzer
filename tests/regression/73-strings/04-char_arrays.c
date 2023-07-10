@@ -165,12 +165,12 @@ void example8() {
 
     char cmp[50];
     #ifdef __APPLE__
-        // do nothing => no warning
+        size_t len = 11;
     #else
         strcpy(cmp, strstr(s1, empty)); // NOWARN: strstr(s1, empty) != NULL
         size_t len = strlen(cmp);
-        __goblint_check(len == 11);
     #endif
+    __goblint_check(len == 11);
     
     char* cmp_ptr = strstr(s2, s1);
     __goblint_check(cmp_ptr == NULL);
