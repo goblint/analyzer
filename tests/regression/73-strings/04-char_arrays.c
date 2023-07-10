@@ -150,7 +150,10 @@ void example7() {
     len = strlen(s2); // WARN
     __goblint_check(len >= 12); // UNKNOWN: loop transformed to interval
 
-    s2[4] = s2[5] = s2[6] = s2[7] = 'a';
+    s2[4] = 'a';
+    s2[5] = 'a';
+    s2[6] = 'a';
+    s2[7] = 'a';
     len = strlen(s2); // WARN: no must nulls and may nulls
     __goblint_check(len >= 12);
 }

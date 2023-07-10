@@ -12,7 +12,7 @@ val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
 val can_recover_from_top: domain -> bool
 (** Some domains such as Trivial cannot recover from their value ever being top. {!ValueDomain} handles intialization differently for these *)
 
-module type SMinusDomainAndRet =
+module type S0 =
 sig
   include Lattice.S
   type idx
@@ -60,7 +60,7 @@ end
 (** Abstract domains representing arrays. *)
 module type S =
 sig
-  include SMinusDomainAndRet
+  include S0
 
   val domain_of_t: t -> domain
   (* Returns the domain used for the array*)
@@ -72,7 +72,7 @@ end
 (** Abstract domains representing strings a.k.a. null-terminated char arrays. *)
 module type Str =
 sig
-  include SMinusDomainAndRet
+  include S0
 
   type ret = Null | NotNull | Top
 
@@ -126,9 +126,10 @@ end
 module type LatticeWithNull =
 sig
   include LatticeWithSmartOps
-      
+
   val null: unit -> t
   val is_null: t -> bool
+  val is_not_null: t -> bool
 
   val is_int_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t

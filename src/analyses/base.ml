@@ -2082,6 +2082,7 @@ struct
           | _, Array array_s2 when s1_typ = charPtrType ->
             (* if s1 is string literal, str(n)cpy and str(n)cat are undefined *)
             if op_addr = None then
+              (* triggers warning, function only evaluated for side-effects *)
               let _ = AD.string_writing_defined s1_a in
               set ~ctx (Analyses.ask_of_ctx ctx) gs st s1_a s1_typ (VD.top_value (unrollType s1_typ))
             else

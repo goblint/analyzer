@@ -39,7 +39,7 @@ let get_domain ~varAttr ~typAttr =
 
 let can_recover_from_top x = x <> TrivialDomain
 
-module type SMinusDomainAndRet =
+module type S0 =
 sig
   include Lattice.S
   type idx
@@ -65,7 +65,7 @@ end
 
 module type S =
 sig
-  include SMinusDomainAndRet
+  include S0
 
   val domain_of_t: t -> domain
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
@@ -73,7 +73,7 @@ end
 
 module type Str =
 sig
-  include SMinusDomainAndRet
+  include S0
 
   type ret = Null | NotNull | Top
 
@@ -90,7 +90,7 @@ end
 module type StrWithDomain =
 sig
   include Str
-  
+
   val domain_of_t: t -> domain
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 end
@@ -106,9 +106,10 @@ end
 module type LatticeWithNull =
 sig
   include LatticeWithSmartOps
-      
+
   val null: unit -> t
   val is_null: t -> bool
+  val is_not_null: t -> bool
 
   val is_int_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t
@@ -994,12 +995,61 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
+module HelperFunctionsIndexMustMaySets =
+struct
+  module MustSet = SetDomain.Reverse (SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All indexes" end))
+  module MaySet = SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All indexes" end)
+
+  let compute_set len =
+    List.init (Z.to_int len) (fun i -> i)
+    |> List.map Z.of_int
+    |> MustSet.of_list
+
+  let must_nulls_remove i must_nulls_set min_size =
+    if MustSet.is_bot must_nulls_set then
+      MustSet.remove i (compute_set min_size)
+    else
+      MustSet.remove i must_nulls_set
+
+  let must_nulls_filter cond must_nulls_set min_size =
+    if MustSet.is_bot must_nulls_set then
+      MustSet.filter cond (compute_set min_size)
+    else
+      MustSet.filter cond must_nulls_set
+
+  let must_nulls_min_elt must_nulls_set =
+    if MustSet.is_bot must_nulls_set then
+      Z.zero
+    else
+      MustSet.min_elt must_nulls_set
+
+  let may_nulls_remove i may_nulls_set max_size =
+    if MaySet.is_top may_nulls_set then
+      MaySet.remove i (compute_set max_size)
+    else
+      MaySet.remove i may_nulls_set
+
+  let may_nulls_filter cond may_nulls_set max_size =
+    if MaySet.is_top may_nulls_set then
+      MaySet.filter cond (compute_set max_size)
+    else
+      MaySet.filter cond may_nulls_set
+
+  let may_nulls_min_elt may_nulls_set =
+    if MaySet.is_top may_nulls_set then
+      Z.zero
+    else
+      MaySet.min_elt may_nulls_set
+end
+
 module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): Str with type value = Val.t and type idx = Idx.t =
 struct
   module MustNulls = SetDomain.Reverse (SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All Null" end))
   module MayNulls = SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All Null" end)
   (* (Must Null Set, May Null Set, Array Size) *)
   include Lattice.Prod3 (MustNulls) (MayNulls) (Idx)
+
+  include HelperFunctionsIndexMustMaySets
 
   let name () = "arrays containing null bytes"
   type idx = Idx.t
@@ -1013,13 +1063,18 @@ struct
     | None -> None
 
   let get ?(checkBounds=true) (ask: VDQ.t) (must_nulls_set, may_nulls_set, size) (e, i) =
-    let rec all_indexes_must_null i max =
-      if Z.gt i max then
-        true
-      else if MustNulls.mem i must_nulls_set then
-        all_indexes_must_null (Z.succ i) max
+    let all_indexes_must_null i max =
+      let rec check_all_indexes i =
+        if Z.gt i max then
+          true
+        else if MustNulls.mem i must_nulls_set then
+          check_all_indexes (Z.succ i)
+        else
+          false in
+      if Z.lt (Z.of_int (MustNulls.cardinal must_nulls_set)) (Z.sub max i) then
+        false
       else
-        false in
+        check_all_indexes i in
     let min interval = match Idx.minimal interval with
       | Some min_num when Z.geq min_num Z.zero -> min_num
       | _ -> Z.zero in (* assume worst case minimal natural number *)
@@ -1028,8 +1083,6 @@ struct
     let max_i = idx_maximal i in
     let min_size = min size in
 
-    (* warn if index is (potentially) out of bounds *)
-    if checkBounds then (array_oob_check (module Idx) ((must_nulls_set, may_nulls_set), size) (e, i));
     match max_i, idx_maximal size with
     (* if there is no maximum value in index interval *)
     | None, _ ->
@@ -1061,58 +1114,6 @@ struct
     (* if maximum number in interval is invalid, i.e. negative, return Top of value *)
     | _ -> Top
 
-  (* helper functions *)
-  let must_nulls_remove i must_nulls_set min_size =
-    let rec compute_set acc i =
-      if Z.geq i min_size then 
-        acc
-      else
-        compute_set (MustNulls.add i acc) (Z.succ i) in
-    if MustNulls.is_bot must_nulls_set then
-      MustNulls.remove i (compute_set (MustNulls.empty ()) Z.zero)
-    else
-      MustNulls.remove i must_nulls_set
-  let must_nulls_filter cond must_nulls_set min_size = 
-    let rec compute_set acc i =
-      if Z.geq i min_size then 
-        acc
-      else
-        compute_set (MustNulls.add i acc) (Z.succ i) in
-    if MustNulls.is_bot must_nulls_set then
-      MustNulls.filter cond (compute_set (MustNulls.empty ()) Z.zero)
-    else
-      MustNulls.filter cond must_nulls_set
-  let must_nulls_min_elt must_nulls_set =
-    if MustNulls.is_bot must_nulls_set then
-      Z.zero
-    else
-      MustNulls.min_elt must_nulls_set
-  let may_nulls_remove i may_nulls_set max_size =
-    let rec compute_set acc i =
-      if Z.geq i max_size then
-        acc
-      else
-        compute_set (MayNulls.add i acc) (Z.succ i) in
-    if MayNulls.is_top may_nulls_set then
-      MayNulls.remove i (compute_set (MayNulls.empty ()) Z.zero)
-    else
-      MayNulls.remove i may_nulls_set
-  let may_nulls_filter cond may_nulls_set max_size =
-    let rec compute_set acc i =
-      if Z.geq i max_size then
-        acc
-      else
-        compute_set (MayNulls.add i acc) (Z.succ i) in
-    if MayNulls.is_top may_nulls_set then
-      MayNulls.filter cond (compute_set (MayNulls.empty ()) Z.zero)
-    else
-      MayNulls.filter cond may_nulls_set
-  let may_nulls_min_elt may_nulls_set =
-    if MayNulls.is_top may_nulls_set then
-      Z.zero
-    else
-      MayNulls.min_elt may_nulls_set
-
   let set (ask: VDQ.t) (must_nulls_set, may_nulls_set, size) (e, i) v =
     let rec add_indexes i max may_nulls_set =
       if Z.gt i max then
@@ -1131,32 +1132,34 @@ struct
       match idx_maximal size with
       (* if size has no upper limit *)
       | None -> 
-        (* ..., i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
-        if Z.lt i min_size && Val.is_null v then
-          (MustNulls.add i must_nulls_set, MayNulls.add i may_nulls_set, size)
-        (* ..., i < minimal size and value <> null, remove i from must_nulls_set and may_nulls_set *)
-        else if Z.lt i min_size then
+        (* ... and value <> null, remove i from must_nulls_set and also from may_nulls_set if not top *)
+        if Val.is_not_null v && not (MayNulls.is_top may_nulls_set) then
           (must_nulls_remove i must_nulls_set min_size, MayNulls.remove i may_nulls_set, size)
-        (* ..., i >= minimal size and value = null, add i only to may_nulls_set *)
+        else if Val.is_not_null v then
+          (must_nulls_remove i must_nulls_set min_size, may_nulls_set, size)
+          (* ..., i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
+        else if Z.lt i min_size && Val.is_null v then
+          (MustNulls.add i must_nulls_set, MayNulls.add i may_nulls_set, size)
+          (* ..., i >= minimal size and value = null, add i only to may_nulls_set *)
         else if Val.is_null v then
           (must_nulls_set, MayNulls.add i may_nulls_set, size)
-        (* ..., i >= minimal size and value <> null, remove i only from must_nulls_set *)
+          (* ... and value unknown, remove i from must_nulls_set and add it to may_nulls_set *)
         else
-          (must_nulls_remove i must_nulls_set min_size, may_nulls_set, size)
+          (must_nulls_remove i must_nulls_set min_size, MayNulls.add i may_nulls_set, size)
       | Some max_size ->
-        (* if i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
-        if Z.lt i min_size && Val.is_null v then
-          (MustNulls.add i must_nulls_set, MayNulls.add i may_nulls_set, size)
-        (* if i < minimal size and value <> null, remove i from must_nulls_set and may_nulls_set *)
-        else if Z.lt i min_size then
+        (* if value <> null, remove i from must_nulls_set and may_nulls_set *)
+        if Val.is_not_null v then
           (must_nulls_remove i must_nulls_set min_size, may_nulls_remove i may_nulls_set max_size, size)
-        (* if minimal size <= i < maximal size and value = null, add i only to may_nulls_set *)
+          (* if i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
+        else if Z.lt i min_size && Val.is_null v then
+          (MustNulls.add i must_nulls_set, MayNulls.add i may_nulls_set, size)
+          (* if minimal size <= i < maximal size and value = null, add i only to may_nulls_set *)
         else if Z.lt i max_size && Val.is_null v then
           (must_nulls_set, MayNulls.add i may_nulls_set, size)
-        (* if minimal size <= i < maximal size and value <> null, remove i only from must_nulls_set *)
+          (* if i < maximal size and value unknown, remove i from must_nulls_set and add it to may_nulls_set *)
         else if Z.lt i max_size then
-          (must_nulls_remove i must_nulls_set min_size, may_nulls_set, size)
-        (* if i >= maximal size, return tuple unmodified *)
+          (must_nulls_remove i must_nulls_set min_size, MayNulls.add i may_nulls_set, size)
+          (* if i >= maximal size, return tuple unmodified *)
         else
           (must_nulls_set, may_nulls_set, size) in
 
@@ -1164,7 +1167,7 @@ struct
       (* if value = null, return must_nulls_set unmodified as not clear which index is set to null *)
       if Val.is_null v then
         must_nulls_set
-      (* if value <> null, only keep indexes must_i < minimal index and must_i > maximal index *)
+        (* if value <> null or unknown, only keep indexes must_i < minimal index and must_i > maximal index *)
       else if Z.equal min_i Z.zero && Z.geq max_i min_size then
         MustNulls.top ()
       else
@@ -1172,9 +1175,9 @@ struct
 
     let set_interval_may min_i max_i =
       (* if value <> null, return may_nulls_set unmodified as not clear which index is set to value *)
-      if not (Val.is_null v) then
+      if Val.is_not_null v then
         may_nulls_set
-      (* if value = null *)
+        (* if value = null or unknown *)
       else
         match idx_maximal size with
         (* ... and size has no upper limit, add all indexes of interval to may_nulls_set *)
@@ -1193,16 +1196,27 @@ struct
     match max_i with
     (* if no maximum number in index interval *)
     | None ->
-      (* ..., value = null*)
-      if Val.is_null v && idx_maximal size = None then
-        match idx_maximal size with
-        (* ... and there is no maximal size, modify may_nulls_set to top *)
-        | None -> (must_nulls_set, MayNulls.top (), size)
-        (* ..., add all i from minimal index to maximal size to may_nulls_set *)
-        | Some max_size -> (must_nulls_set, add_indexes min_i (Z.pred max_size) may_nulls_set, size)
-      (* ... and value <> null, only keep indexes < minimal index in must_nulls_set *)
-      else
-        (must_nulls_filter (Z.gt min_i) must_nulls_set min_size, may_nulls_set, size)
+      (* ..., value = null *)
+      (if Val.is_null v && idx_maximal size = None then
+         match idx_maximal size with
+         (* ... and there is no maximal size, modify may_nulls_set to top *)
+         | None -> (must_nulls_set, MayNulls.top (), size)
+         (* ... and there is a maximal size, add all i from minimal index to maximal size to may_nulls_set *)
+         | Some max_size -> (must_nulls_set, add_indexes min_i (Z.pred max_size) may_nulls_set, size)
+         (* ... and value <> null, only keep indexes < minimal index in must_nulls_set *)
+       else if Val.is_not_null v then
+         (must_nulls_filter (Z.gt min_i) must_nulls_set min_size, may_nulls_set, size)
+         (*..., value unknown *)
+       else
+         match Idx.minimal size, idx_maximal size with
+         (* ... and size unknown, modify both sets to top *)
+         | None, None -> (MustNulls.top (), MayNulls.top (), size)
+         (* ... and only minimal size known, remove all indexes < minimal size from must_nulls_set and modify may_nulls_set to top *)
+         | Some min_size, None -> (must_nulls_filter (Z.gt min_size) must_nulls_set min_size, MayNulls.top (), size)
+         (* ... and only maximal size known, modify must_nulls_set to top and add all i from minimal index to maximal size to may_nulls_set *)
+         | None, Some max_size -> (MustNulls.top (), add_indexes min_i (Z.pred max_size) may_nulls_set, size)
+         (* ... and size is known, remove all indexes < minimal size from must_nulls_set and add all i from minimal index to maximal size to may_nulls_set *)
+         | Some min_size, Some max_size -> (must_nulls_filter (Z.gt min_size) must_nulls_set min_size, add_indexes min_i (Z.pred max_size) may_nulls_set, size))
     | Some max_i when Z.geq max_i Z.zero ->
       if Z.equal min_i max_i then
         set_exact min_i
@@ -1216,7 +1230,7 @@ struct
       | Some min_i, Some max_i ->
         if Z.lt min_i Z.zero && Z.lt max_i Z.zero then
           (M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Tries to create an array of negative size";
-          Z.zero, Some Z.zero)
+           Z.zero, Some Z.zero)
         else if Z.lt min_i Z.zero then
           (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May try to create an array of negative size";
            Z.zero, Some max_i)
@@ -1225,26 +1239,26 @@ struct
       | None, Some max_i ->
         if Z.lt max_i Z.zero then
           (M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Tries to create an array of negative size";
-          Z.zero, Some Z.zero)
+           Z.zero, Some Z.zero)
         else
           Z.zero, Some max_i
       | Some min_i, None ->
         if Z.lt min_i Z.zero then
           (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May try to create an array of negative size";
-          Z.zero, None)
+           Z.zero, None)
         else
           min_i, None
       | None, None -> Z.zero, None in
-    match max_i, Val.is_null v, Val.is_bot v with
+    match max_i, Val.is_null v, Val.is_not_null v with
     (* if value = null, return (bot = all indexes up to minimal size - 1, top = all indexes up to maximal size - 1, size) *)
     | Some max_i, true, _ -> (MustNulls.bot (), MayNulls.top (), Idx.of_interval ILong (min_i, max_i))
     | None, true, _ -> (MustNulls.bot (), MayNulls.top (), Idx.starting ILong min_i)
-    (* if value = bot, return (top = no indexes, top = all indexes up to maximal size - 1, size) *)
-    | Some max_i, false, true -> (MustNulls.top (), MayNulls.top (), Idx.of_interval ILong (min_i, max_i))
-    | None, false, true -> (MustNulls.top (), MayNulls.top (), Idx.starting ILong min_i)
     (* if value <> null, return (top = no indexes, bot = no indexes, size) *)
-    | Some max_i, false, false -> (MustNulls.top (), MayNulls.bot (), Idx.of_interval ILong (min_i, max_i))
-    | None, false, false -> (MustNulls.top (), MayNulls.bot (), Idx.starting ILong min_i)
+    | Some max_i, false, true -> (MustNulls.top (), MayNulls.bot (), Idx.of_interval ILong (min_i, max_i))
+    | None, false, true -> (MustNulls.top (), MayNulls.bot (), Idx.starting ILong min_i)
+    (* if value unknown, return (top = no indexes, top = all indexes up to maximal size - 1, size) *)
+    | Some max_i, false, false -> (MustNulls.top (), MayNulls.top (), Idx.of_interval ILong (min_i, max_i))
+    | None, false, false -> (MustNulls.top (), MayNulls.top (), Idx.starting ILong min_i)
 
   let length (_, _, size) = Some size
 
@@ -1257,14 +1271,14 @@ struct
      * assume top for may_nulls_set as checking effect of f for every possible value is unfeasbile *)
     if Val.is_null (f (Val.null ())) then
       (must_nulls_set, MayNulls.top (), size)
-    (* else also return top for must_nulls_set *)
+      (* else also return top for must_nulls_set *)
     else
       (MustNulls.top (), MayNulls.top (), size)
 
   let fold_left f acc _ = f acc (Val.top ())
 
   let content_to_top (_, _, size) = (MustNulls.top (), MayNulls.top (), size)
-  
+
   let smart_join _ _ = join
   let smart_widen _ _ = widen
   let smart_leq _ _ = leq
@@ -1288,17 +1302,17 @@ struct
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => warn about certain buffer overflow and return tuple unchanged *)
     if MustNulls.is_empty must_nulls_set && MayNulls.is_empty may_nulls_set then
       (M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array access past end: buffer overflow";
-      (must_nulls_set, may_nulls_set, size))
-    (* if only must_nulls_set empty, no certainty about array containing null byte => warn about potential buffer overflow and return tuple unchanged *)
+       (must_nulls_set, may_nulls_set, size))
+      (* if only must_nulls_set empty, no certainty about array containing null byte => warn about potential buffer overflow and return tuple unchanged *)
     else if MustNulls.is_empty must_nulls_set then
       (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end: potential buffer overflow";
-      (must_nulls_set, may_nulls_set, size))
+       (must_nulls_set, may_nulls_set, size))
     else
       let min_must_null = must_nulls_min_elt must_nulls_set in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
       if Z.equal min_must_null (may_nulls_min_elt may_nulls_set) then
         (MustNulls.singleton min_must_null, MayNulls.singleton min_must_null, Idx.of_int ILong (Z.succ min_must_null))
-      (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
+        (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
       else
         match idx_maximal size with
         | Some max_size -> (MustNulls.empty (), may_nulls_filter (Z.geq min_must_null) may_nulls_set max_size, Idx.of_int ILong (Z.succ min_must_null))
@@ -1346,68 +1360,68 @@ struct
       (MustNulls.top (), MayNulls.top (), Idx.top_of ILong)
     else
       ((match Idx.minimal size, idx_maximal size with
-      | Some min_size, Some max_size ->
-        if Z.gt (Z.of_int n) max_size then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size is smaller than n bytes; can cause a buffer overflow"
-        else if Z.gt (Z.of_int n) min_size then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
-      | Some min_size, None ->
-        if Z.gt (Z.of_int n) min_size then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
-      | None, Some max_size ->
-        if Z.gt (Z.of_int n) max_size then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size is smaller than n bytes; can cause a buffer overflow"
-      | None, None -> ());
-      
-      (* if definitely no null byte in array, i.e. must_nulls_set = may_nulls_set = empty set *)
-      if MustNulls.is_empty must_nulls_set && MayNulls.is_empty may_nulls_set then
-        (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end 
-          "Resulting string might not be null-terminated because src doesn't contain a null byte";
-         match idx_maximal size with
-        (* ... there *may* be null bytes from maximal size to n - 1 if maximal size < n (i.e. past end) *)
-        | Some max_size when Z.geq max_size Z.zero -> (must_nulls_set, add_indexes max_size (Z.of_int n) may_nulls_set, Idx.of_int ILong (Z.of_int n))
-        | _ -> (must_nulls_set, may_nulls_set, Idx.of_int ILong (Z.of_int n)))
-      (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1; 
-       * warn as in any case, resulting array not guaranteed to contain null byte *)
-      else if MustNulls.is_empty must_nulls_set then
-        let min_may_null = may_nulls_min_elt may_nulls_set in
-        warn_no_null Z.zero false min_may_null;
-        (must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
-      else
-        let min_must_null = must_nulls_min_elt must_nulls_set in
-        let min_may_null = may_nulls_min_elt may_nulls_set in
-        (* warn if resulting array may not contain null byte *)
-        warn_no_null min_must_null true min_may_null;
-        (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
-        if Z.equal min_must_null min_may_null then
-          (update_must_indexes min_must_null must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
-        else
-          (MustNulls.top (), update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n)))
+          | Some min_size, Some max_size ->
+            if Z.gt (Z.of_int n) max_size then
+              M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size is smaller than n bytes; can cause a buffer overflow"
+            else if Z.gt (Z.of_int n) min_size then
+              M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
+          | Some min_size, None ->
+            if Z.gt (Z.of_int n) min_size then
+              M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
+          | None, Some max_size ->
+            if Z.gt (Z.of_int n) max_size then
+              M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array size is smaller than n bytes; can cause a buffer overflow"
+          | None, None -> ());
+
+       (* if definitely no null byte in array, i.e. must_nulls_set = may_nulls_set = empty set *)
+       if MustNulls.is_empty must_nulls_set && MayNulls.is_empty may_nulls_set then
+         (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end 
+            "Resulting string might not be null-terminated because src doesn't contain a null byte";
+          match idx_maximal size with
+          (* ... there *may* be null bytes from maximal size to n - 1 if maximal size < n (i.e. past end) *)
+          | Some max_size when Z.geq max_size Z.zero -> (must_nulls_set, add_indexes max_size (Z.of_int n) may_nulls_set, Idx.of_int ILong (Z.of_int n))
+          | _ -> (must_nulls_set, may_nulls_set, Idx.of_int ILong (Z.of_int n)))
+         (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1; 
+          * warn as in any case, resulting array not guaranteed to contain null byte *)
+       else if MustNulls.is_empty must_nulls_set then
+         let min_may_null = may_nulls_min_elt may_nulls_set in
+         warn_no_null Z.zero false min_may_null;
+         (must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
+       else
+         let min_must_null = must_nulls_min_elt must_nulls_set in
+         let min_may_null = may_nulls_min_elt may_nulls_set in
+         (* warn if resulting array may not contain null byte *)
+         warn_no_null min_must_null true min_may_null;
+         (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
+         if Z.equal min_must_null min_may_null then
+           (update_must_indexes min_must_null must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
+         else
+           (MustNulls.top (), update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n)))
 
   let to_string_length (must_nulls_set, may_nulls_set, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
     if MustNulls.is_empty must_nulls_set && MayNulls.is_empty may_nulls_set then
       (M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array doesn't contain a null byte: buffer overflow";
-      match Idx.minimal size with
-      | Some min_size -> Idx.starting !Cil.kindOfSizeOf min_size
-      | None -> Idx.starting !Cil.kindOfSizeOf Z.zero)
-    (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
+       match Idx.minimal size with
+       | Some min_size -> Idx.starting !Cil.kindOfSizeOf min_size
+       | None -> Idx.starting !Cil.kindOfSizeOf Z.zero)
+      (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
     else if MustNulls.is_empty must_nulls_set then
       (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array might not contain a null byte: potential buffer overflow";
        Idx.starting !Cil.kindOfSizeOf (may_nulls_min_elt may_nulls_set))
-    (* else return interval [minimal may null, minimal must null] *)
+      (* else return interval [minimal may null, minimal must null] *)
     else
       Idx.of_interval !Cil.kindOfSizeOf (may_nulls_min_elt may_nulls_set, must_nulls_min_elt must_nulls_set)
-      
+
   let string_copy (must_nulls_set1, may_nulls_set1, size1) (must_nulls_set2, may_nulls_set2, size2) n =
     (* filter out indexes before strlen(src) from dest sets and after strlen(src) from src sets and build union, keep size of dest *)
     let update_sets must_nulls_set2' may_nulls_set2' size2' len2 =
       match Idx.minimal size1, idx_maximal size1, Idx.minimal len2, idx_maximal len2 with
       | Some min_size1, Some max_size1, Some min_len2, Some max_len2 ->
         (if Z.lt max_size1 min_len2 then 
-          M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src is greater than the allocated size for dest" 
-        else if Z.lt min_size1 max_len2 then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
+           M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src is greater than the allocated size for dest" 
+         else if Z.lt min_size1 max_len2 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
         let must_nulls_set_result = 
           let min_size2 = match Idx.minimal size2' with
             | Some min_size2 -> min_size2
@@ -1427,7 +1441,7 @@ struct
         (must_nulls_set_result, may_nulls_set_result, size1)
       | Some min_size1, None, Some min_len2, Some max_len2 ->
         (if Z.lt min_size1 max_len2 then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
         let must_nulls_set_result = 
           let min_size2 = match Idx.minimal size2' with
             | Some min_size2 -> min_size2
@@ -1441,9 +1455,9 @@ struct
         (must_nulls_set_result, may_nulls_set_result, size1)
       | Some min_size1, Some max_size1, Some min_len2, None ->
         (if Z.lt max_size1 min_len2 then 
-          M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src is greater than the allocated size for dest" 
-        else if Z.lt min_size1 min_len2 then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
+           M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src is greater than the allocated size for dest" 
+         else if Z.lt min_size1 min_len2 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result = 
           let min_size2 = match Idx.minimal size2' with
@@ -1459,7 +1473,7 @@ struct
         (must_nulls_set_result, may_nulls_set_result, size1)
       | Some min_size1, None, Some min_len2, None ->
         (if Z.lt min_size1 min_len2 then
-          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The length of string src may be greater than the allocated size for dest");
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result = 
           let min_size2 = match Idx.minimal size2' with
@@ -1516,14 +1530,14 @@ struct
     let update_sets min_size1 max_size1 max_size1_exists minlen1 maxlen1 maxlen1_exists minlen2 maxlen2 maxlen2_exists must_nulls_set2' may_nulls_set2' = 
       (* track any potential buffer overflow and issue warning if needed *)
       (if max_size1_exists && Z.lt max_size1 (Z.add minlen1 minlen2) then
-        M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end
-          "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
-      else if (maxlen1_exists && maxlen2_exists && Z.lt min_size1 (Z.add maxlen1 maxlen2)) 
-        || (maxlen1_exists && Z.lt min_size1 (Z.add maxlen1 minlen2))
-        || (maxlen2_exists && Z.lt min_size1 (Z.add minlen1 maxlen2)) 
-        || Z.lt min_size1 (Z.add minlen1 minlen2) then
-        M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end 
-          "The length of the conctenation of the strings in src and dest may be greater than the allocated size for dest");
+         M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end
+           "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
+       else if (maxlen1_exists && maxlen2_exists && Z.lt min_size1 (Z.add maxlen1 maxlen2)) 
+            || (maxlen1_exists && Z.lt min_size1 (Z.add maxlen1 minlen2))
+            || (maxlen2_exists && Z.lt min_size1 (Z.add minlen1 maxlen2)) 
+            || Z.lt min_size1 (Z.add minlen1 minlen2) then
+         M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end 
+           "The length of the conctenation of the strings in src and dest may be greater than the allocated size for dest");
       (* if any must_nulls_set empty, result must_nulls_set also empty; 
        * for all i1, i2 in may_nulls_set1, may_nulls_set2: add i1 + i2 if it is <= strlen(dest) + strlen(src) to new may_nulls_set
        * and keep indexes > minimal strlen(dest) + strlen(src) of may_nulls_set *)
@@ -1548,7 +1562,7 @@ struct
           else
             MayNulls.top () in
         (MustNulls.top (), may_nulls_set_result, size1)
-      (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
+        (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
       else if Z.equal (must_nulls_min_elt must_nulls_set1) (may_nulls_min_elt may_nulls_set1) && Z.equal (must_nulls_min_elt must_nulls_set2') (may_nulls_min_elt may_nulls_set2') then
         let min_i1 = must_nulls_min_elt must_nulls_set1 in
         let min_i2 = must_nulls_min_elt must_nulls_set2' in
@@ -1565,7 +1579,7 @@ struct
           else
             MayNulls.top () in
         (must_nulls_set_result, may_nulls_set_result, size1)
-      (* else only add all may nulls together <= strlen(dest) + strlen(src) *)
+        (* else only add all may nulls together <= strlen(dest) + strlen(src) *)
       else
         let min_i2 = must_nulls_min_elt must_nulls_set2' in
         let may_nulls_set2'_until_min_i2 = 
@@ -1659,40 +1673,40 @@ struct
           false, false
       | _ -> false, false
 
- let string_comparison (must_nulls_set1, may_nulls_set1, size1) (must_nulls_set2, may_nulls_set2, size2) n =
+  let string_comparison (must_nulls_set1, may_nulls_set1, size1) (must_nulls_set2, may_nulls_set2, size2) n =
     let compare n n_exists =
       (* if s1 = s2 = empty string, i.e. certain null byte at index 0, or n = 0, return 0 *)
-        if (MustNulls.mem Z.zero must_nulls_set1 && (MustNulls.mem Z.zero must_nulls_set2))
-          || (n_exists && Z.equal Z.zero n) then
-          Idx.of_int IInt Z.zero
+      if (MustNulls.mem Z.zero must_nulls_set1 && (MustNulls.mem Z.zero must_nulls_set2))
+      || (n_exists && Z.equal Z.zero n) then
+        Idx.of_int IInt Z.zero
         (* if only s1 = empty string, return negative integer *)
-        else if MustNulls.mem Z.zero must_nulls_set1 && not (MayNulls.mem Z.zero may_nulls_set2) then
-          Idx.ending IInt Z.minus_one
+      else if MustNulls.mem Z.zero must_nulls_set1 && not (MayNulls.mem Z.zero may_nulls_set2) then
+        Idx.ending IInt Z.minus_one
         (* if only s2 = empty string, return positive integer *)
-        else if MustNulls.mem Z.zero must_nulls_set2 then
-          Idx.starting IInt Z.one
-        else 
-          (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
-          (try if Z.equal (must_nulls_min_elt must_nulls_set1) (may_nulls_min_elt may_nulls_set1) && (not n_exists || Z.lt (must_nulls_min_elt must_nulls_set1) n)
-                  && Z.equal (must_nulls_min_elt must_nulls_set2) (may_nulls_min_elt may_nulls_set2) && (not n_exists || Z.lt (must_nulls_min_elt must_nulls_set2) n)
-                  && not (Z.equal (must_nulls_min_elt must_nulls_set1) (must_nulls_min_elt must_nulls_set2)) then
-               Idx.of_excl_list IInt [Z.zero]
-          else
-            Idx.top_of IInt
-          with Not_found -> Idx.top_of IInt) in
+      else if MustNulls.mem Z.zero must_nulls_set2 then
+        Idx.starting IInt Z.one
+      else 
+        (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
+        (try if Z.equal (must_nulls_min_elt must_nulls_set1) (may_nulls_min_elt may_nulls_set1) && (not n_exists || Z.lt (must_nulls_min_elt must_nulls_set1) n)
+                && Z.equal (must_nulls_min_elt must_nulls_set2) (may_nulls_min_elt may_nulls_set2) && (not n_exists || Z.lt (must_nulls_min_elt must_nulls_set2) n)
+                && not (Z.equal (must_nulls_min_elt must_nulls_set1) (must_nulls_min_elt must_nulls_set2)) then
+             Idx.of_excl_list IInt [Z.zero]
+           else
+             Idx.top_of IInt
+         with Not_found -> Idx.top_of IInt) in
 
     match n with
     (* strcmp *)
     | None ->
       (* track any potential buffer overflow and issue warning if needed *)
       (if MustNulls.is_empty must_nulls_set1 && MayNulls.is_empty may_nulls_set1 then
-        M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 1 doesn't contain a null byte: buffer overflow"
-      else if MustNulls.is_empty must_nulls_set1 then
-        M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 1 might not contain a null byte: potential buffer overflow");
+         M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 1 doesn't contain a null byte: buffer overflow"
+       else if MustNulls.is_empty must_nulls_set1 then
+         M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 1 might not contain a null byte: potential buffer overflow");
       (if MustNulls.is_empty must_nulls_set2 && MayNulls.is_empty may_nulls_set2 then
-        M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 2 doesn't contain a null byte: buffer overflow"
-      else if MustNulls.is_empty must_nulls_set2 then
-        M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 2 might not contain a null byte: potential buffer overflow");
+         M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 2 doesn't contain a null byte: buffer overflow"
+       else if MustNulls.is_empty must_nulls_set2 then
+         M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Array of string 2 might not contain a null byte: potential buffer overflow");
       (* compute abstract value for result of strcmp *)
       compare Z.zero false
     (* strncmp *)
@@ -1703,27 +1717,27 @@ struct
       let min_size2 = match Idx.minimal size2 with
         | Some min_size2 -> min_size2
         | None -> Z.zero in
-        (* issue a warning if n is (potentially) smaller than array sizes *)
+      (* issue a warning if n is (potentially) smaller than array sizes *)
       (match idx_maximal size1 with
-        | Some max_size1 ->
-          if Z.gt (Z.of_int n) max_size1 then
-            M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 1 is smaller than n bytes"
-          else if Z.gt (Z.of_int n) min_size1 then
-            M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 1 might be smaller than n bytes"
-        | None ->
-          if Z.gt (Z.of_int n) min_size1 then
-            M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 1 might be smaller than n bytes");
+       | Some max_size1 ->
+         if Z.gt (Z.of_int n) max_size1 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 1 is smaller than n bytes"
+         else if Z.gt (Z.of_int n) min_size1 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 1 might be smaller than n bytes"
+       | None ->
+         if Z.gt (Z.of_int n) min_size1 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 1 might be smaller than n bytes");
       (match idx_maximal size2 with
-        | Some max_size2 ->
-          if Z.gt (Z.of_int n) max_size2 then
-            M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 2 is smaller than n bytes"
-          else if Z.gt (Z.of_int n) min_size2 then
-            M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 2 might be smaller than n bytes"
-        | None ->
-          if Z.gt (Z.of_int n) min_size2 then
-            M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 2 might be smaller than n bytes");
-        (* compute abstract value for result of strncmp *)
-        compare (Z.of_int n) true
+       | Some max_size2 ->
+         if Z.gt (Z.of_int n) max_size2 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 2 is smaller than n bytes"
+         else if Z.gt (Z.of_int n) min_size2 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 2 might be smaller than n bytes"
+       | None ->
+         if Z.gt (Z.of_int n) min_size2 then
+           M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "The size of the array of string 2 might be smaller than n bytes");
+      (* compute abstract value for result of strncmp *)
+      compare (Z.of_int n) true
     | _ -> Idx.top_of IInt
 
   let update_length new_size (must_nulls_set, may_nulls_set, size) = (must_nulls_set, may_nulls_set, new_size)
@@ -1863,7 +1877,7 @@ struct
   module N = NullByte (Val) (Idx)
 
   include Lattice.Prod (F) (N)
-  
+
   let name () = "AttributeConfiguredArrayDomain"
   type idx = Idx.t
   type value = Val.t

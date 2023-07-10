@@ -40,6 +40,7 @@ sig
 
   val null: unit -> t
   val is_null: t -> bool
+  val is_not_null: t -> bool
 
   val is_int_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t
@@ -278,6 +279,27 @@ struct
         | None -> false
       end
     | _ -> false
+  let is_not_null = function
+    | Int n ->
+      begin match ID.minimal n, ID.maximal n with
+        | Some min, Some max ->
+          if Z.gt min Z.zero || Z.lt max Z.zero then
+            true
+          else
+            false
+        | Some min, None -> 
+          if Z.gt min Z.zero then
+            true
+          else
+            false
+        | None, Some max -> 
+          if Z.lt max Z.zero then
+            true
+          else
+            false
+        | _ -> false
+      end
+    | _ -> true
 
   let is_int_ikind = function
     | Int n -> Some (ID.ikind n)
