@@ -61,6 +61,17 @@ struct
   let startstate _ = ()
   let exitstate = startstate
 
+  let finalize () = 
+    if not (no_upjumping_gotos ()) then (
+      List.iter 
+        (fun x -> 
+          let msgs =
+          [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
+        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
+        (!upjumping_gotos) 
+        );
+    ()
+
   let assign ctx (lval : lval) (rval : exp) =
     if !AnalysisState.postsolving then
       (* Detect assignment to loop counter variable *)
@@ -115,21 +126,6 @@ struct
       G.for_all (fun _ term_info -> term_info) (ctx.global ())
       && no_upjumping_gotos ()
       && must_be_single_threaded_since_start ctx
-    | WarnGlobal v -> 
-      (* warning for detected possible non-termination *)
-      (*upjumping gotos *)
-      if not (no_upjumping_gotos ()) then (
-        List.iter 
-          (fun x -> 
-            let msgs =
-              [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
-            M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
-          (!upjumping_gotos) 
-        );
-      (* multithreaded *)
-      if not (must_be_single_threaded_since_start ctx) then (
-          M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
-        );
     | _ -> Queries.Result.top q
 
 end

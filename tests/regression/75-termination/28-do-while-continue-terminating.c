@@ -45,8 +45,8 @@ statement. Hence, it is not analyzed for the upjumping gotos, which does not
 lead to the problem as with the "do while".
 
 
------ SHORTENED CIL output for Test 28 (DO WHILE): -----
-int main(void)
+------------------- SHORTENED CIL output for Test 28 (DO WHILE):
+------------------- int main(void)
 {{{{
   #line 8
   while (1) {
@@ -71,8 +71,8 @@ int main(void)
 }}
 
 
------ SHORTENED CIL output for Test 28 (WHILE): -----
-Test 28: replacing DO WHILE with WHILE: int main(void)
+------------------- SHORTENED CIL output for Test 28 (WHILE):
+------------------- Test 28: replacing DO WHILE with WHILE: int main(void)
 {{{{
   #line 8
   while (1) {
