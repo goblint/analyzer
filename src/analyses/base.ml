@@ -1336,7 +1336,8 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
-    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak || hasAttribute "thread" v.vattr
+    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak ||
+                        (hasAttribute "thread" v.vattr && v.vaddrof) (* thread-local variables if they have their address taken, as one could then compare several such variables *)
     | Q.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr (V.priv x)) in
       Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
