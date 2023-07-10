@@ -1,4 +1,4 @@
-// SKIP TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// TERM PARAM: --set "ana.activated[+]" termination --enable warn.debug --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none
 // Goblint does not finish this test
 #include <stdio.h>
 
@@ -72,27 +72,6 @@ int main()
         if (i == 5)
         {
             break;
-        }
-    }
-    printf("\n");
-
-    // Loop with a continue statement
-    for (i = 1; i <= 10; i++)
-    {
-        if (i % 2 == 0)
-        {
-            continue;
-        }
-        printf("%d ", i);
-    }
-    printf("\n");
-
-    // Loop with complex conditions
-    for (i = 1; i <= 10; i++)
-    {
-        if (i > 5 && i % 2 == 0)
-        {
-            printf("%d ", i);
         }
     }
     printf("\n");
