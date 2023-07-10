@@ -1,14 +1,17 @@
 // NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-int main() {
+int main()
+{
   int i = 1;
 
-  do {
+  do
+  {
     printf("Inside the do-while loop\n");
     i++;
 
-    if (i % 2) {
+    if (i % 2)
+    {
       printf("Continue as %i is odd\n", i);
       continue;
     }

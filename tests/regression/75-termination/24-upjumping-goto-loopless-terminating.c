@@ -1,7 +1,8 @@
 // TODO TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-int main() { // Currently not able to detect up-jumping loop free gotos
+int main()
+{ // Currently not able to detect up-jumping loop free gotos
   goto mark2;
 
 mark1:

@@ -1,15 +1,18 @@
 // TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none
 #include <stdio.h>
 
-int main() {
+int main()
+{
   int i = 1;
   int j = 1;
   int k = 5;
 
   // Outer while loop
-  while (i <= 5) {
+  while (i <= 5)
+  {
     // Inner while loop 1
-    while (j <= i) {
+    while (j <= i)
+    {
       printf("%d ", j);
       j++;
     }
@@ -17,7 +20,8 @@ int main() {
     j = 1;
 
     // Inner while loop 2
-    while (k >= 1) {
+    while (k >= 1)
+    {
       printf("%d ", k);
       k--;
     }
@@ -29,9 +33,11 @@ int main() {
 
   // Additional while loop
   i = 5;
-  while (i >= 1) {
+  while (i >= 1)
+  {
     j = i;
-    while (j >= 1) {
+    while (j >= 1)
+    {
       printf("%d ", j);
       j--;
     }
@@ -41,10 +47,14 @@ int main() {
 
   // Loop with conditions
   i = 1;
-  while (i <= 10) {
-    if (i % 2 == 0) {
+  while (i <= 10)
+  {
+    if (i % 2 == 0)
+    {
       printf("%d is even\n", i);
-    } else {
+    }
+    else
+    {
       printf("%d is odd\n", i);
     }
     i++;
@@ -52,13 +62,19 @@ int main() {
 
   // Loop with nested conditions
   i = 1;
-  while (i <= 10) {
+  while (i <= 10)
+  {
     printf("Number: %d - ", i);
-    if (i < 5) {
+    if (i < 5)
+    {
       printf("Less than 5\n");
-    } else if (i > 5) {
+    }
+    else if (i > 5)
+    {
       printf("Greater than 5\n");
-    } else {
+    }
+    else
+    {
       printf("Equal to 5\n");
     }
     i++;
@@ -66,9 +82,11 @@ int main() {
 
   // Loop with a break statement
   i = 1;
-  while (i <= 10) {
+  while (i <= 10)
+  {
     printf("%d ", i);
-    if (i == 5) {
+    if (i == 5)
+    {
       break;
     }
     i++;
@@ -77,8 +95,10 @@ int main() {
 
   // Loop with a continue statement
   i = 1;
-  while (i <= 10) {
-    if (i % 2 == 0) {
+  while (i <= 10)
+  {
+    if (i % 2 == 0)
+    {
       i++;
       continue;
     }
@@ -91,7 +111,8 @@ int main() {
   int a = 1;
   int b = 2;
   int c = 3;
-  while (a <= 10) {
+  while (a <= 10)
+  {
     printf("%d %d %d\n", a, b, c);
     a++;
     b += 2;

@@ -2,14 +2,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main() {
+int main()
+{
   int short_run, i = 0;
 
   while (i < 90 &&
          short_run != 1) // Currently not able to detect this as terminating
   {
     i++;
-    if (rand()) {
+    if (rand())
+    {
       short_run = 1;
     }
   }
