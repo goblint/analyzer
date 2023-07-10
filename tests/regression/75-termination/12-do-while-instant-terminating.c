@@ -1,10 +1,12 @@
 // TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-int main() {
+int main()
+{
   int i = 0;
 
-  do {
+  do
+  {
     printf("Inside the do-while loop\n");
   } while (i > 0);
 

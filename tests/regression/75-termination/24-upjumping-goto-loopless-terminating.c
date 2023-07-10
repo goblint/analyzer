@@ -2,7 +2,8 @@
 // The program terminates but the analysis is currently only meant to detect up-jumping gotos as potentially NonTerminating, therefore we expect an NonTerm
 #include <stdio.h>
 
-int main() { // Currently not able to detect up-jumping loop free gotos
+int main()
+{ // Currently not able to detect up-jumping loop free gotos
   goto mark2;
 
 mark1:

@@ -1,57 +1,75 @@
 // TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none
 #include <stdio.h>
 
-int main() {
+int main()
+{
   int i, j, k;
 
   // Outer loop
-  for (i = 1; i <= 5; i++) {
+  for (i = 1; i <= 5; i++)
+  {
     // Inner loop 1
-    for (j = 1; j <= i; j++) {
+    for (j = 1; j <= i; j++)
+    {
       printf("%d ", j);
     }
     printf("\n");
 
     // Inner loop 2
-    for (k = i; k >= 1; k--) {
+    for (k = i; k >= 1; k--)
+    {
       printf("%d ", k);
     }
     printf("\n");
   }
 
   // Additional loop
-  for (i = 5; i >= 1; i--) {
-    for (j = i; j >= 1; j--) {
+  for (i = 5; i >= 1; i--)
+  {
+    for (j = i; j >= 1; j--)
+    {
       printf("%d ", j);
     }
     printf("\n");
   }
 
   // Loop with conditions
-  for (i = 1; i <= 10; i++) {
-    if (i % 2 == 0) {
+  for (i = 1; i <= 10; i++)
+  {
+    if (i % 2 == 0)
+    {
       printf("%d is even\n", i);
-    } else {
+    }
+    else
+    {
       printf("%d is odd\n", i);
     }
   }
 
   // Loop with nested conditions
-  for (i = 1; i <= 10; i++) {
+  for (i = 1; i <= 10; i++)
+  {
     printf("Number: %d - ", i);
-    if (i < 5) {
+    if (i < 5)
+    {
       printf("Less than 5\n");
-    } else if (i > 5) {
+    }
+    else if (i > 5)
+    {
       printf("Greater than 5\n");
-    } else {
+    }
+    else
+    {
       printf("Equal to 5\n");
     }
   }
 
   // Loop with a break statement
-  for (i = 1; i <= 10; i++) {
+  for (i = 1; i <= 10; i++)
+  {
     printf("%d ", i);
-    if (i == 5) {
+    if (i == 5)
+    {
       break;
     }
   }
@@ -59,7 +77,8 @@ int main() {
 
   // Loop with multiple variables
   int a, b, c;
-  for (a = 1, b = 2, c = 3; a <= 10; a++, b += 2, c += 3) {
+  for (a = 1, b = 2, c = 3; a <= 10; a++, b += 2, c += 3)
+  {
     printf("%d %d %d\n", a, b, c);
   }
 

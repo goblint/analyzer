@@ -1,8 +1,10 @@
 // TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-void innerRecursiveFunction(int n) {
-  if (n == 0) {
+void innerRecursiveFunction(int n)
+{
+  if (n == 0)
+  {
     printf("Terminating inner recursion\n");
     return;
   }
@@ -13,8 +15,10 @@ void innerRecursiveFunction(int n) {
   innerRecursiveFunction(n - 1);
 }
 
-void outerRecursiveFunction(int n) {
-  if (n == 0) {
+void outerRecursiveFunction(int n)
+{
+  if (n == 0)
+  {
     printf("Terminating outer recursion\n");
     return;
   }
@@ -28,7 +32,8 @@ void outerRecursiveFunction(int n) {
   innerRecursiveFunction(n);
 }
 
-int main() {
+int main()
+{
   // Call the outerRecursiveFunction with an initial value
   outerRecursiveFunction(3);
 

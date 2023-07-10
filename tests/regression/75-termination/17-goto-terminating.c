@@ -2,14 +2,16 @@
 // The program terminates but the analysis is currently only meant to detect up-jumping gotos as potentially NonTerminating, therefore we expect an NonTerm
 #include <stdio.h>
 
-int main() {
+int main()
+{
   int num = 1;
 
 loop:
   printf("Current number: %d\n", num);
   num++;
 
-  if (num <= 10) {
+  if (num <= 10)
+  {
     goto loop; // We are not able to detect up-jumping gotos as terminating, we
                // just warn about them might being nonterminating.
   }

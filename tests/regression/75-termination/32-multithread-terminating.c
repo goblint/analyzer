@@ -5,14 +5,16 @@
 #include <unistd.h>
 
 // Thread function
-void *printPID(void *arg) {
+void *printPID(void *arg)
+{
   pid_t pid = getpid();
   pthread_t tid = pthread_self();
   printf("Thread ID: %lu, Process ID: %d\n", (unsigned long)tid, pid);
   return NULL;
 }
 
-int main() {
+int main()
+{
   // Create three threads
   pthread_t thread1, thread2, thread3;
   pthread_create(&thread1, NULL, printPID, NULL);
