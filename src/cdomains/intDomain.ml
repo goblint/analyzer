@@ -1975,18 +1975,22 @@ struct
   let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
-      let r' = size ik in
-      `Excluded (
+      let r' = size ik in 
         if R.leq r r' then (* upcast -> no change *)
-          s, r
-        else (* downcast: may overflow *)
+          `Excluded (s, r)
+        else if ik = IBool then (* downcast to bool *)
+          if S.mem BI.zero s then
+            `Definite (BI.one)
+          else
+            `Excluded (S.empty(), r')
+        else 
+          (* downcast: may overflow *)
           (* let s' = S.map (BigInt.cast_to ik) s in *)
           (* We want to filter out all i in s' where (t)x with x in r could be i. *)
           (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
           (* S.diff s' s, r' *)
           (* The above is needed for test 21/03, but not sound! See example https://github.com/goblint/analyzer/pull/95#discussion_r483023140 *)
-          S.empty (), r'
-      )
+          `Excluded (S.empty (), r')
     | `Definite x -> `Definite (BigInt.cast_to ik x)
     | `Bot -> `Bot
 
