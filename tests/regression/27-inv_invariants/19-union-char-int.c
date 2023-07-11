@@ -19,6 +19,15 @@ int main(){
 	// Should not be dead after if
 	__goblint_check(1);
 
+	a.x = 257;
+	b.c = 1;
+
+	if(a.x == b.x){
+		i++;
+	}
+	// Should not be dead after if
+	__goblint_check(1);
+
 	if(a.c == b.c){
 		i++;
 	}
