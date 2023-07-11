@@ -28,6 +28,7 @@ let is_ignorable_type (t: typ): bool =
 let is_ignorable = function
   | None -> false
   | Some (v,os) when hasAttribute "thread" v.vattr && not (v.vaddrof) -> true (* Thread-Local Storage *)
+  | Some (v,os) when BaseUtil.is_volatile v && not (get_bool "ana.race.volatile")  -> true (* volatile & races on volatiles should not be reported *)
   | Some (v,os) ->
     try isFunctionType v.vtype || is_ignorable_type v.vtype
     with Not_found -> false
