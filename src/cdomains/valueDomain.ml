@@ -40,6 +40,7 @@ sig
 
   val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
+  val try_meet: t -> t -> t (* May fail for unions *)
 end
 
 module type Blob =
@@ -49,6 +50,7 @@ sig
   type origin
   include Lattice.S with type t = value * size * origin
 
+  val try_meet: t -> t -> t
   val value: t -> value
   val invalidate_value: VDQ.t -> typ -> t -> t
 end
@@ -68,6 +70,8 @@ struct
   type size = Size.t
   type origin = ZeroInit.t
 
+  let try_meet (v, s, z) (v', s', z') =
+    Value.try_meet v v', Size.meet s s', ZeroInit.meet z z'
   let value (a, b, c) = a
   let relift (a, b, c) = Value.relift a, b, c
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
@@ -647,6 +651,35 @@ struct
     | (Union x, Union y) -> Union (Unions.meet x y)
     | (Array x, Array y) -> Array (CArrays.meet x y)
     | (Blob x, Blob y) -> Blob (Blobs.meet x y)
+    | (Thread x, Thread y) -> Thread (Threads.meet x y)
+    | (Int x, Thread y)
+    | (Thread y, Int x) ->
+      Int x (* TODO: ignores thread! *)
+    | (Address x, Thread y)
+    | (Thread y, Address x) ->
+      Address x (* TODO: ignores thread! *)
+    | (Mutex, Mutex) -> Mutex
+    | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.meet x y)
+    | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.meet x y)
+    | _ ->
+      warn_type "meet" x y;
+      Bot
+
+  let rec try_meet x y =
+    match (x,y) with
+    | (Bot, _) -> Bot
+    | (_, Bot) -> Bot
+    | (Top, x) -> x
+    | (x, Top) -> x
+    | (Int x, Int y) -> Int (ID.meet x y)
+    | (Float x, Float y) -> Float (FD.meet x y)
+    | (Int _, Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
+    | (Address x, Int y) -> Address (AD.meet x (AD.of_int y))
+    | (Address x, Address y) -> Address (AD.meet x y)
+    | (Struct x, Struct y) -> Struct (Structs.try_meet x y)
+    | (Union x, Union y) -> Union (Unions.try_meet x y)
+    | (Array x, Array y) -> Array (CArrays.try_meet x y)
+    | (Blob x, Blob y) -> Blob (Blobs.try_meet x y)
     | (Thread x, Thread y) -> Thread (Threads.meet x y)
     | (Int x, Thread y)
     | (Thread y, Int x) ->

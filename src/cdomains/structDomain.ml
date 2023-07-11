@@ -10,6 +10,7 @@ exception Unsupported of string
 module type Arg =
 sig
   include Lattice.S
+  val try_meet: t -> t -> t
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
   val top_value: ?varAttr:attributes -> typ -> t
@@ -20,6 +21,7 @@ sig
   include Lattice.S
   type value
   type field
+  val try_meet: t -> t -> t
   val create: (field -> value) -> compinfo -> t
   val get: t -> field -> value
   val replace: t -> field -> value -> t
@@ -35,11 +37,17 @@ end
 module Simple (Val: Arg) =
 struct
   include Printable.Std
-  module M = MapDomain.MapTop_LiftBot (Basetype.CilField) (Val)
+  module M = struct
+    include MapDomain.MapTop_LiftBot (Basetype.CilField) (Val)
+    let try_meet m1 m2 = if m1 == m2 then m1 else long_map2 Val.try_meet m1 m2
+  end
+
   let name () = "simple structs"
   type t = M.t [@@deriving to_yojson]
   type field = fieldinfo
   type value = M.value
+
+  let try_meet x y = M.try_meet x y
 
   (** Short summary for structs *)
   let show mapping =
@@ -183,6 +191,9 @@ struct
     |> HS.of_list
 
   let meet x y = meet_narrow_common x y SS.meet
+
+  let try_meet = meet
+
   let hash = HS.hash
 
   let narrow x y =
@@ -377,6 +388,8 @@ struct
     end
 
   let meet x y = meet_narrow_common x y SS.meet
+
+  let try_meet = meet
 
   let hash (s, _) = HS.hash s
 

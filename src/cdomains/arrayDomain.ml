@@ -46,7 +46,7 @@ sig
   type value
 
   val domain_of_t: t -> domain
-
+  val try_meet: t -> t -> t
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
@@ -66,19 +66,21 @@ end
 
 module type LatticeWithSmartOps =
 sig
-  include Lattice.S
+  include Lattice.LatticeWithTryMeet
   val smart_join: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
   val smart_widen: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> bool
 end
 
 
-module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
+module Trivial (Val: Lattice.LatticeWithTryMeet) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
   include Val
   let name () = "trivial arrays"
   type idx = Idx.t
   type value = Val.t
+
+  let try_meet x = Val.try_meet x
 
   let domain_of_t _ = TrivialDomain
 
@@ -128,11 +130,16 @@ let factor () =
   | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
   | x -> x
 
-module Unroll (Val: Lattice.S) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module Unroll (Val: Lattice.LatticeWithTryMeet) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
-  module Base = Lattice.ProdList (Val) (Factor)
+  module Base = struct
+    include Lattice.ProdList (Val) (Factor)
+    let try_meet = List.map2 Val.try_meet
+  end
   include Lattice.ProdSimple(Base) (Val)
+
+  let try_meet (u1, r1) (u2, r2) = Base.try_meet u1 u2, Val.try_meet r1 r2
 
   let name () = "unrolled arrays"
   type idx = Idx.t
@@ -745,6 +752,21 @@ struct
         (* TODO: do smart things if the relationship between e1e and e2e is known *)
         x
 
+  (** Copied and adapted from meet *)
+  let try_meet x y = normalize @@ match x,y with
+    | Joint x, Joint y -> Joint (Val.try_meet x y)
+    | Joint x, Partitioned (e, (xl, xm, xr))
+    | Partitioned (e, (xl, xm, xr)), Joint x ->
+      Partitioned (e, (Val.try_meet x xl, Val.try_meet x xm, Val.try_meet x xr))
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if Basetype.CilExp.equal e1 e2 then
+        Partitioned (e1, (Val.try_meet xl1 xl2, Val.try_meet xm1 xm2, Val.try_meet xr1 xr2))
+      else
+        (* partitioned according to two different expressions -> meet can not be element-wise *)
+        (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+        (* TODO: do smart things if the relationship between e1e and e2e is known *)
+        x
+
   let narrow x y = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.narrow x y)
     | Joint x, Partitioned (e, (xl, xm, xr))
@@ -799,7 +821,7 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
   else ()
 
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module TrivialWithLength (Val: Lattice.LatticeWithTryMeet) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Trivial (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
@@ -807,6 +829,9 @@ struct
   type value = Val.t
 
   let domain_of_t _ = TrivialDomain
+
+  let try_meet (x, lx) (y, ly) =
+    Base.try_meet x y, Idx.meet lx ly
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
@@ -851,6 +876,8 @@ struct
   type value = Val.t
 
   let domain_of_t _ = PartitionedDomain
+
+  let try_meet (x, l) (y, l') = Base.try_meet x y, Idx.meet l l'
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
@@ -897,12 +924,14 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module UnrollWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module UnrollWithLength (Val: Lattice.LatticeWithTryMeet) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Unroll (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
+
+  let try_meet (x, l) (y, l') = Base.try_meet x y, Idx.meet l l'
 
   let domain_of_t _ = UnrolledDomain
 
@@ -974,6 +1003,8 @@ struct
   let unop' opp opt opu = unop opp (I.unop opt opu)
   let binop_to_t' opp opt opu = binop_to_t opp (I.binop_to_t opt opu)
   let unop_to_t' opp opt opu = unop_to_t opp (I.unop_to_t opt opu)
+
+  let try_meet = binop_to_t' (P.try_meet) (T.try_meet) (U.try_meet)
 
   (* Simply call appropriate function for component that is not None *)
   let get ?(checkBounds=true) a x (e,i) = unop' (fun x ->
