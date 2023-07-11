@@ -299,6 +299,7 @@ struct
             false
         | _ -> false
       end
+    | Address a when AD.may_be_null a -> false
     | _ -> true
 
   let is_int_ikind = function
