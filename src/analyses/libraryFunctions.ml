@@ -70,6 +70,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("rand", special [] Rand);
   ]
 
 (** C POSIX library functions.
@@ -872,7 +873,6 @@ let invalidate_actions = [
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
     "srand", readsAll; (*safe*)
-    "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
     "setrlimit", readsAll; (*safe*)
