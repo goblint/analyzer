@@ -210,6 +210,13 @@ class Tests
           # When nothing ignore it
           @ignored += 1
         end
+      when "notinprecise"
+        if warnings[idx] then
+          check.call(warnings[idx] != "unknown")    
+        else
+          # When nothing ignore it
+          @ignored += 1
+        end
       end
     end
   end
@@ -293,6 +300,8 @@ class Project
       tests_line[i] = obj
       if obj =~ /(\b|\/)NOFAIL/ then
         tests[i] = "nofail" 
+      elsif obj =~ /(\b|\/)NOTINPRECISE/ then
+        tests[i] = "notinprecise"
       elsif obj =~ /(\b|\/)RACE/ then
         tests[i] = "race"
       elsif obj =~ /(\b|\/)NORACE/ then
