@@ -29,6 +29,7 @@ depends: [
   "ppx_deriving"
   "ppx_deriving_hash"
   "ppx_deriving_yojson" {>= "3.7.0"}
+  "ppx_easy_deriving"
   "ounit2" {with-test}
   "qcheck-ounit" {with-test}
   "odoc" {with-doc}
@@ -76,6 +77,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
   [ "goblint-cil.2.0.1" "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e" ]
+  [ "ppx_easy_deriving.~dev" "git+https://github.com/sim642/ppx_easy_deriving.git#3d599fdfb231e4a1f9bad0e914068210901533a4" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
   # TODO: add back after release, only pinned for CI stability

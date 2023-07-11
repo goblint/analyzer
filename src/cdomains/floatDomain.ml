@@ -939,7 +939,7 @@ module FloatDomTupleImpl = struct
   module F1 = FloatIntervalImplLifted
   open Batteries
 
-  type t = F1.t option [@@deriving to_yojson, eq, ord]
+  type t = F1.t option [@@deriving eq, ord, hash]
 
   let name () = "floatdomtuple"
 
@@ -985,10 +985,6 @@ module FloatDomTupleImpl = struct
   let show x =
     Option.map_default identity ""
       (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) x -> F.name () ^ ":" ^ F.show x); } x)
-
-  let hash x =
-    Option.map_default identity 0
-      (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.hash); } x)
 
   let of_const fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_const fkind); }
