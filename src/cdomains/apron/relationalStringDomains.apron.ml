@@ -3,8 +3,6 @@ open Pretty
 open Apron
 open Analyses
 
-module M = Messages
-
 module Var = SharedFunctions.PrintableVar
 module V = RelationDomain.V (Var)
 
@@ -13,11 +11,11 @@ sig
   include RelationDomain.RD
   type idx
 
-  val string_copy: Queries.ask -> t -> var -> var -> int option -> t
-  val string_concat: Queries.ask -> t -> var -> var -> int option -> t
-  val to_string_length: Queries.ask -> t  -> var -> idx
-  val substring_extraction: Queries.ask -> t -> var -> var -> bool * bool
-  val string_comparison: Queries.ask -> t -> var -> var -> int option -> idx
+  val string_copy: Queries.ask -> t -> varinfo -> varinfo -> int option -> t
+  val string_concat: Queries.ask -> t -> varinfo -> varinfo -> int option -> t
+  val to_string_length: Queries.ask -> t  -> varinfo -> idx
+  val substring_extraction: Queries.ask -> t -> varinfo -> varinfo -> bool * bool
+  val string_comparison: Queries.ask -> t -> varinfo -> varinfo -> int option -> idx
 end
 
 module RelationalSubstring (Idx: IntDomain.Z): StringRelationDomain with type idx = Idx.t =
@@ -105,7 +103,18 @@ struct
   let invariant t = []
 
   (* string functions *)
-  let string_copy ctx t dest src n = failwith "TODO"
+  let string_copy ctx t dest src n = 
+    let dest' = V.local dest in (* TODO: global instead? *)
+    let t_without_dest = forget_vars t [dest'] in
+
+    let size_dest = Idx.top () in (* TODO: ctx.ask *)
+    let len_src = Idx.top () in (* TODO: ctx.ask *)
+    match Idx.minimal size_dest, Idx.maximal len_src with
+    | Some min_size_dest, Some max_len_src when Z.gt min_size_dest max_len_src -> 
+      let src' = V.local src in (* TODO: global instead? *)
+      {r_set = (S.fold (fun (x, y) acc -> if Var.equal x src then S.add (dest, y) acc else if Var.equal y src then S.add (x, dest) acc else acc) t_without_dest.r_set t_without_dest.r_set); env = t_without_dest.env}
+        failwith "TODO"
+    | _ -> t_without_dest (* TODO: no need to update ctx right? at least not here? *)
 
   let string_concat ctx t dest src n = failwith "TODO"
 
