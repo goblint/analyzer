@@ -81,11 +81,34 @@ let reset () =
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset.Unit.t ] [@@deriving eq, ord, hash]
 (** Old access type inferred from an expression. *)
 
+module MemoRoot =
+struct
+  include Printable.StdLeaf
+  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] [@@deriving eq, ord, hash]
+  (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
+
+  let name () = "memoroot"
+
+  let pretty () vt =
+    (* Imitate old printing for now *)
+    match vt with
+    | `Var v -> Pretty.dprintf "%a@@%a" CilType.Varinfo.pretty v CilType.Location.pretty v.vdecl
+    | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)" c.cname
+    | `Type t -> Pretty.dprintf "(%a)" CilType.Typ.pretty t
+
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
 (** Memory location of an access. *)
 module Memo =
 struct
   include Printable.StdLeaf
-  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] * Offset.Unit.t [@@deriving eq, ord, hash]
+  type t = MemoRoot.t * Offset.Unit.t [@@deriving eq, ord, hash]
   (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
 
   let name () = "memo"
@@ -189,48 +212,17 @@ let add_one side memo: unit =
   if not ignorable then
     side memo
 
-(** Find all nested offsets in type. *)
-let rec nested_offsets ty: Offset.Unit.t list =
-  (* TODO: is_ignorable_type outside of TComp if ty itself is ignorable? *)
-  match unrollType ty with
-  | TComp (ci,_)   ->
-    let one_field fld =
-      if is_ignorable_type fld.ftype then
-        []
-      else
-        List.map (fun x -> `Field (fld,x)) (nested_offsets fld.ftype)
-    in
-    List.concat_map one_field ci.cfields
-  | TArray (t,_,_) ->
-    List.map (fun x -> `Index ((), x)) (nested_offsets t)
-  | _ -> [`NoOffset]
-
-(** Distribute access to contained fields. *)
-let add_distribute_inner side memo: unit =
-  if M.tracing then M.tracei "access" "add_distribute_inner %a\n" Memo.pretty memo;
-  begin match Memo.type_of memo with
-    | t ->
-      let oss = nested_offsets t in
-      List.iter (fun os ->
-          add_one side (Memo.add_offset memo os) (* distribute to all nested offsets *)
-        ) oss
-    | exception Offset.Type_of_error _ -> (* `Var has alloc variable with void type *)
-      if M.tracing then M.trace "access" "Offset.Type_of_error\n";
-      add_one side memo
-  end;
-  if M.tracing then M.traceu "access" "add_distribute_inner\n"
-
 (** Distribute type-based access to variables and containing fields. *)
 let rec add_distribute_outer side (t: typ) (o: Offset.Unit.t) =
   let memo = (`Type t, o) in
   if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
-  add_distribute_inner side memo; (* distribute to inner offsets of type *)
+  add_one side memo;
 
-  (* distribute to inner offsets of variables of the type *)
+  (* distribute to variables of the type *)
   let ts = typeSig t in
   let vars = TSH.find_all typeVar ts in
   List.iter (fun v ->
-      add_distribute_inner side (`Var v, o) (* same offset, but on variable *)
+      add_one side (`Var v, o) (* same offset, but on variable *)
     ) vars;
 
   (* recursively distribute to fields containing the type *)
@@ -248,7 +240,7 @@ let add side e voffs =
     | Some (v, o) -> (* known variable *)
       if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
       let memo = (`Var v, Offset.Unit.of_cil o) in
-      add_distribute_inner side memo (* distribute to inner offsets *)
+      add_one side memo
     | None -> (* unknown variable *)
       if M.tracing then M.traceli "access" "add type %a\n" CilType.Exp.pretty e;
       let ty = get_val_type e in (* extract old acc_typ from expression *)
@@ -387,26 +379,31 @@ let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),lo
   else
     true
 
-let group_may_race accs =
+let group_may_race ~ancestor_accs accs =
   (* BFS to traverse one component with may_race edges *)
-  let rec bfs' accs visited todo =
-    let accs' = AS.diff accs todo in
-    let todo' = AS.fold (fun acc todo' ->
-        AS.fold (fun acc' todo' ->
-            if may_race acc acc' then
-              AS.add acc' todo'
-            else
-              todo'
-          ) accs' todo'
-      ) todo (AS.empty ())
+  let rec bfs' ~ancestor_accs ~accs ~todo ~visited =
+    let may_race_accs ~accs ~todo =
+      AS.fold (fun acc todo' ->
+          AS.fold (fun acc' todo' ->
+              if may_race acc acc' then
+                AS.add acc' todo'
+              else
+                todo'
+            ) accs todo'
+        ) todo (AS.empty ())
     in
+    let accs' = AS.diff accs todo in
+    let ancestor_accs' = AS.diff ancestor_accs todo in
+    let todo_accs = may_race_accs ~accs:accs' ~todo in
+    let todo_ancestor_accs = may_race_accs ~accs:ancestor_accs' ~todo:(AS.diff todo ancestor_accs') in
+    let todo' = AS.union todo_accs todo_ancestor_accs in
     let visited' = AS.union visited todo in
     if AS.is_empty todo' then
       (accs', visited')
     else
-      (bfs' [@tailcall]) accs' visited' todo'
+      (bfs' [@tailcall]) ~ancestor_accs:ancestor_accs' ~accs:accs' ~todo:todo' ~visited:visited'
   in
-  let bfs accs acc = bfs' accs (AS.empty ()) (AS.singleton acc) in
+  let bfs accs acc = bfs' ~ancestor_accs ~accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
   (* repeat BFS to find all components *)
   let rec components comps accs =
     if AS.is_empty accs then
@@ -435,7 +432,7 @@ let race_conf accs =
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe grouped_accs =
+let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
   let safety =
     grouped_accs
@@ -482,7 +479,7 @@ let print_accesses memo grouped_accs =
         M.msg_group Success ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
     )
 
-let warn_global safe vulnerable unsafe memo accs =
-  let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
-  incr_summary safe vulnerable unsafe grouped_accs;
+let warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo accs =
+  let grouped_accs = group_may_race ~ancestor_accs accs in (* do expensive component finding only once *)
+  incr_summary ~safe ~vulnerable ~unsafe grouped_accs;
   print_accesses memo grouped_accs
