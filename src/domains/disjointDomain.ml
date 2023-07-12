@@ -615,7 +615,7 @@ struct
     include Printable.Std (* for Groupable *)
     include E
   end
-  include MapDomain.Print (GroupableE) (V) (
+  include MapDomain.PrintGroupable (GroupableE) (V) (
     struct
       type nonrec t = t
       type nonrec key = key
@@ -878,7 +878,7 @@ struct
     include Printable.Std (* for Groupable *)
     include E
   end
-  include MapDomain.Print (GroupableE) (R) (
+  include MapDomain.PrintGroupable (GroupableE) (R) (
     struct
       type nonrec t = t
       type nonrec key = key

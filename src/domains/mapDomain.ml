@@ -75,9 +75,35 @@ sig
 end
 
 (** Reusable output definitions for maps. *)
-module Print (D: Groupable) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
+module Print (D: Printable.S) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
 struct
   let show x = "mapping" (* TODO: WTF? *)
+
+  let pretty () mapping =
+    let f dok (key, st) =
+      dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
+    in
+    let pretty_group map () = List.fold_left f nil (M.bindings map) in
+    let content () = pretty_group mapping () in
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+
+  let printXml f xs =
+    let print_one k v =
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (D.show k)) R.printXml v
+    in
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    M.iter print_one xs;
+    BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let to_yojson xs =
+    let f (k, v) = (D.show k, R.to_yojson v) in
+    `Assoc (xs |> M.bindings |> List.map f)
+end
+
+(** Reusable output definitions for maps. *)
+module PrintGroupable (D: Groupable) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
+struct
+  include Print (D) (R) (M)
 
   let pretty () mapping =
     let module MM = Map.Make (D) in
@@ -103,18 +129,6 @@ struct
       | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
-
-  let printXml f xs =
-    let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (D.show k)) R.printXml v
-    in
-    BatPrintf.fprintf f "<value>\n<map>\n";
-    M.iter print_one xs;
-    BatPrintf.fprintf f "</map>\n</value>\n"
-
-  let to_yojson xs =
-    let f (k, v) = (D.show k, R.to_yojson v) in
-    `Assoc (xs |> M.bindings |> List.map f)
 end
 
 module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
@@ -169,7 +183,7 @@ struct
     in
     M.merge f
 
-  include Print (Domain) (Range) (
+  include PrintGroupable (Domain) (Range) (
     struct
       type nonrec t = t
       type nonrec key = key
