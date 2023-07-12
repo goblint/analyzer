@@ -131,7 +131,7 @@ struct
     dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 end
 
-module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
+module PMap (Domain: Printable.S) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct
@@ -183,7 +183,7 @@ struct
     in
     M.merge f
 
-  include PrintGroupable (Domain) (Range) (
+  include Print (Domain) (Range) (
     struct
       type nonrec t = t
       type nonrec key = key
@@ -377,7 +377,7 @@ struct
   let relift x = M.relift x
 end
 
-module MapBot (Domain: Groupable) (Range: Lattice.S) : S with
+module MapBot (Domain: Printable.S) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
@@ -426,7 +426,7 @@ struct
   let narrow = map2 Range.narrow
 end
 
-module MapTop (Domain: Groupable) (Range: Lattice.S) : S with
+module MapTop (Domain: Printable.S) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
@@ -597,7 +597,7 @@ struct
     | `Lifted x -> `Lifted (M.mapi f x)
 end
 
-module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S) : S with
+module MapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
@@ -725,7 +725,7 @@ struct
     | `Lifted x -> `Lifted (M.mapi f x)
 end
 
-module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
+module MapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S): S with
   type key = Domain.t and
   type value = Range.t =
 struct

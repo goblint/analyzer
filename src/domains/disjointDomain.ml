@@ -610,12 +610,7 @@ struct
         | _, _ -> None
       ) m1 m2
 
-  module GroupableE =
-  struct
-    include Printable.Std (* for Groupable *)
-    include E
-  end
-  include MapDomain.PrintGroupable (GroupableE) (V) (
+  include MapDomain.Print (E) (V) (
     struct
       type nonrec t = t
       type nonrec key = key
@@ -873,12 +868,7 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
-  module GroupableE =
-  struct
-    include Printable.Std (* for Groupable *)
-    include E
-  end
-  include MapDomain.PrintGroupable (GroupableE) (R) (
+  include MapDomain.Print (E) (R) (
     struct
       type nonrec t = t
       type nonrec key = key

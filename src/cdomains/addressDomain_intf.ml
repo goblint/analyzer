@@ -9,7 +9,6 @@ sig
       | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
       | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
     include Printable.S with type t := t (** @closed *)
-    include MapDomain.Groupable with type t := t (** @closed *)
 
     val of_string: string -> t
     (** Convert string to {!StrPtr}. *)

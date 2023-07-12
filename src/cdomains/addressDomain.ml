@@ -76,6 +76,7 @@ module AddressPrintable (Mval: Mval.Printable) =
 struct
   include AddressBase (Mval)
 
+  let trace_enabled = true (* TODO: remove *)
   type group = Basetype.Variables.group
   let show_group = Basetype.Variables.show_group
   let to_group = function
