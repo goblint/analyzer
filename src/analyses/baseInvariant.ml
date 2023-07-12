@@ -63,7 +63,7 @@ struct
     (*   Address (AD.join o n) *)
     (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) o -> Address n *)
     (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) n -> Address o *)
-    | _ -> VD.try_meet oldv newv
+    | _ -> VD.meet oldv newv
 
   let refine_lv_fallback ctx a gs st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
@@ -83,11 +83,7 @@ struct
       in
       let state_with_excluded = set a gs st addr t_lval value ~ctx in
       let value =  get a gs state_with_excluded addr None in
-      let new_val =
-        try
-          apply_invariant oldval value
-        with PreValueDomain.NotMeetable -> oldval
-      in
+      let new_val = apply_invariant oldval value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
       if is_some_bot new_val then (
@@ -107,11 +103,7 @@ struct
       let oldv = map_oldval oldv var.vtype in
       let offs = convert_offset a gs st o in
       let newv = VD.update_offset (Queries.to_value_domain_ask a) oldv offs c' (Some exp) x (var.vtype) in
-      let v =
-        try
-          VD.try_meet oldv newv
-        with PreValueDomain.NotMeetable -> oldv
-      in
+      let v = VD.meet oldv newv in
       if is_some_bot v then contra st
       else (
         if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" CilType.Varinfo.pretty var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
@@ -124,12 +116,7 @@ struct
       (* For accesses via pointers, not yet *)
       let oldv = eval_rv_lval_refine a gs st exp x in
       let oldv = map_oldval oldv (Cilfacade.typeOfLval x) in
-      let v =
-        try
-          VD.try_meet oldv c'
-        with
-          PreValueDomain.NotMeetable -> oldv
-      in
+      let v = VD.meet oldv c' in
       if is_some_bot v then contra st
       else (
         if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';

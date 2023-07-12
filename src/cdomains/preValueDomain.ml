@@ -10,5 +10,3 @@ struct
   module Offs = Offs
   module Mval = Mval
 end
-
-exception NotMeetable

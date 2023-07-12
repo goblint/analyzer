@@ -25,9 +25,6 @@ sig
   val domain_of_t: t -> domain
   (* Returns the domain used for the array*)
 
-  val try_meet: t -> t -> t
-  (** Meet operation that may fail for unions *)
-
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
 
@@ -68,18 +65,17 @@ end
 module type LatticeWithSmartOps =
 sig
   include Lattice.S
-  val try_meet: t -> t -> t
   val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t ->  t
   val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> bool
 end
 
-module Trivial (Val: Lattice.LatticeWithTryMeet) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
+module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is taken as a parameter to satisfy the type system, it is not
   * used in the implementation. *)
 
-module TrivialWithLength (Val: Lattice.LatticeWithTryMeet) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
+module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 

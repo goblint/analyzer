@@ -5,7 +5,6 @@ open GoblintCil
 module type Arg =
 sig
   include Lattice.S
-  val try_meet: t -> t -> t
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
   val top_value: ?varAttr:attributes -> typ -> t
@@ -20,7 +19,6 @@ sig
   type value
   (** The abstract domain of values stored in the struct. *)
 
-  val try_meet: t -> t -> t
   val create: (field -> value) -> compinfo -> t
   val get: t -> field -> value
   val replace: t -> field -> value -> t

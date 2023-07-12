@@ -64,7 +64,6 @@ end
 
 module type LatticeFlagHelperArg = sig
   include Lattice.PO
-  val try_meet: t -> t -> t
   val is_top: t -> bool
   val is_bot: t -> bool
 end
@@ -76,7 +75,6 @@ struct
   let leq = binop L.leq R.leq
   let join = binop_to_t L.join R.join
   let meet = binop_to_t L.meet R.meet
-  let try_meet = binop_to_t L.try_meet R.try_meet
   let widen = binop_to_t L.widen R.widen
   let narrow = binop_to_t L.narrow R.narrow
   let is_top = unop L.is_top R.is_top
