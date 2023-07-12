@@ -6,13 +6,14 @@ module BI = IntOps.BigIntOps
 
 module CPA =
 struct
+  module M0 = MapDomain.MapBot (Basetype.Variables) (VD)
   module M =
   struct
-    include MapDomain.LiftTop (VD) (MapDomain.HashCached (MapDomain.MapBot (Basetype.Variables) (VD)))
-    let name () = "value domain"
+    include M0
+    include MapDomain.PrintGroupable (Basetype.Variables) (VD) (M0)
   end
-
-  include M
+  include MapDomain.LiftTop (VD) (MapDomain.HashCached (M))
+  let name () = "value domain"
 end
 
 (* Keeps track of which arrays are potentially partitioned according to an expression containing a specific variable *)
