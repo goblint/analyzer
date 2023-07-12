@@ -60,7 +60,7 @@ sig
   include Printable.S
   type group (* use [@@deriving show { with_path = false }] *)
   val show_group: group -> string
-  val to_group: t -> group option
+  val to_group: t -> group
   val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
@@ -123,10 +123,8 @@ struct
     in
     let group_name a () = text (D.show_group a) in
     let pretty_group map () = MM.fold f map nil in
-    let pretty_groups rest (group, map) =
-      match group with
-      | None ->  rest ++ pretty_group map ()
-      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
+    let pretty_groups rest (g, map) =
+      rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 end

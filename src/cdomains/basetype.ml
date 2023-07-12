@@ -14,8 +14,7 @@ struct
     else x.vname
   let pretty () x = Pretty.text (show x)
   type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
-  let (%) = Batteries.(%)
-  let to_group = Option.some % function
+  let to_group = function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
     | x when Cilfacade.is_varinfo_formal x -> Parameter
