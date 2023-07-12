@@ -6,7 +6,7 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
-(** Stores the result of the query if the program is single threaded or not 
+(** Stores the result of the query if the program is single threaded or not
     since finalize does not has ctx as an argument*)
 let single_thread : bool ref = ref false
 
@@ -65,21 +65,21 @@ struct
   let startstate _ = ()
   let exitstate = startstate
 
-  let finalize () = 
+  let finalize () =
     (* warning for detected possible non-termination *)
     (*upjumping gotos *)
     if not (no_upjumping_gotos ()) then (
-      List.iter 
-        (fun x -> 
-          let msgs =
-            [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
-          M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
-        (!upjumping_gotos) 
-      );
+      List.iter
+        (fun x ->
+           let msgs =
+             [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
+           M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
+        (!upjumping_gotos)
+    );
     (* multithreaded *)
     if not (!single_thread) then (
-        M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
-      )
+      M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
+    )
 
 
   let assign ctx (lval : lval) (rval : exp) =
@@ -119,10 +119,7 @@ struct
   (** Checks whether a new thread was spawned some time. We want to discard
    * any knowledge about termination then (see query function) *)
   let must_be_single_threaded_since_start ctx =
-    (*
-    not (ctx.ask Queries.IsEverMultiThreaded)
-    *)
-    let single_threaded = ctx.ask (Queries.MustBeSingleThreaded {since_start = true}) in 
+    let single_threaded = not (ctx.ask Queries.IsEverMultiThreaded) in
     single_thread := single_threaded;
     single_threaded
 
@@ -130,14 +127,15 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustTermLoop loop_statement ->
-      must_be_single_threaded_since_start ctx 
+      must_be_single_threaded_since_start ctx
       && (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
-         Some b -> b
-       | None -> false)
+            Some b -> b
+          | None -> false)
     | Queries.MustTermAllLoops ->
-      must_be_single_threaded_since_start ctx (* must be the first to be evaluated! 
-         This has the side effect that the single_Thread variable is set
-         In case of another order and due to lazy evaluation the correct value of single_Thread can otherwise not be guaranteed! *)
+      (* Must be the first to be evaluated! This has the side effect that
+       * single_thread is set. In case of another order and due to lazy
+       * evaluation the correct value of single_thread can not be guaranteed! *)
+      must_be_single_threaded_since_start ctx
       && no_upjumping_gotos ()
       && G.for_all (fun _ term_info -> term_info) (ctx.global ())
     | _ -> Queries.Result.top q
