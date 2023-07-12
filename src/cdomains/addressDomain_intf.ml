@@ -31,7 +31,6 @@ sig
   module AddressPrintable (Mval: Mval.Printable):
   sig
     include module type of AddressBase (Mval)
-    include MapDomain.Groupable with type t := t and type group = Basetype.Variables.group (** @closed *)
 
     val is_definite: t -> bool
     (** Whether address is a [NULL] pointer or an mvalue that has only definite integer indexing (and fields). *)
