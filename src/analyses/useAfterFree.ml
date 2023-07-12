@@ -1,4 +1,4 @@
-(** An analysis for the detection of use-after-free vulnerabilities. *)
+(** An analysis for the detection of use-after-free vulnerabilities ([useAfterFree]). *)
 
 open GoblintCil
 open Analyses
