@@ -61,7 +61,6 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 
 module CilExp =
 struct
-  include Printable.Std (* for Groupable *)
   include CilType.Exp
 
   let name () = "expressions"
@@ -158,8 +157,4 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
-module CilField =
-struct
-  include Printable.Std (* for default MapDomain.Groupable *)
-  include CilType.Fieldinfo
-end
+module CilField = CilType.Fieldinfo

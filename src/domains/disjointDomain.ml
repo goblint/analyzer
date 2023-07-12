@@ -36,11 +36,6 @@ end
 struct
   type elt = E.t
 
-  module R =
-  struct
-    include Printable.Std (* for Groupable *)
-    include R
-  end
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
@@ -475,11 +470,6 @@ struct
   type key = E.t
   type value = B.value
 
-  module R =
-  struct
-    include Printable.Std (* for Groupable *)
-    include R
-  end
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
