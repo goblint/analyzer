@@ -116,7 +116,7 @@ struct
             if not (Access.AS.is_empty accs) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs 
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs
             )
           in
           distribute_inner `NoOffset trie (Access.AS.empty ())
