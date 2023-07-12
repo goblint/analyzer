@@ -15,13 +15,6 @@ struct
   include M
 end
 
-
-module Glob =
-struct
-  module Var = Basetype.Variables
-  module Val = VD
-end
-
 (* Keeps track of which arrays are potentially partitioned according to an expression containing a specific variable *)
 (* Map from variables to sets of arrays: var -> {array} *)
 module PartDeps =
