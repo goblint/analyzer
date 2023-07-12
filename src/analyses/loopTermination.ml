@@ -37,12 +37,6 @@ let check_bounded ctx varinfo =
   | `Lifted v -> not (is_top_of (ikind v) v)
   | `Bot -> raise (PreProcessing "Loop variable is Bot")
 
-module UnitV =
-struct
-  include Printable.Unit
-  let is_write_only _ = true
-end
-
 (** We want to record termination information of loops and use the loop
  * statements for that. We use this lifting because we need to have a
  * lattice. *)
@@ -59,7 +53,11 @@ struct
 
   module D = Lattice.Unit
   module C = D
-  module V = UnitV
+  module V =
+  struct
+    include Printable.Unit
+    let is_write_only _ = true
+  end
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
   let startstate _ = ()
