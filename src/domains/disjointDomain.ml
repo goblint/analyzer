@@ -605,7 +605,7 @@ struct
       type nonrec t = t
       type nonrec key = key
       type nonrec value = value
-      let bindings = bindings
+      let fold = fold
       let iter = iter
     end
     )
@@ -863,7 +863,7 @@ struct
       type nonrec t = t
       type nonrec key = key
       type nonrec value = value
-      let bindings = bindings
+      let fold = fold
       let iter = iter
     end
     )

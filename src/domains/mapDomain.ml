@@ -2,7 +2,6 @@
 
 module Pretty = GoblintCil.Pretty
 open Pretty
-module ME = Messages
 
 module type PS =
 sig
@@ -55,73 +54,83 @@ sig
   (* Leq test using a custom leq function for value rather than the default one provided for value *)
 end
 
-module type Groupable =
-sig
-  include Printable.S
-  type group (* use [@@deriving show { with_path = false }] *)
-  val show_group: group -> string
-  val to_group: t -> group
-end
-
 (** Subsignature of {!S}, which is sufficient for {!Print}. *)
 module type Bindings =
 sig
   type t
   type key
   type value
-  val bindings: t -> (key * value) list
+  val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val iter: (key -> value -> unit) -> t -> unit
 end
 
 (** Reusable output definitions for maps. *)
 module Print (D: Printable.S) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
 struct
-  let show x = "mapping" (* TODO: WTF? *)
-
-  let pretty () mapping =
-    let f dok (key, st) =
-      dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
+  let pretty () map =
+    let pretty_bindings () = M.fold (fun k v acc ->
+        acc ++ dprintf "%a ->@?  @[%a@]\n" D.pretty k R.pretty v
+      ) map nil
     in
-    let pretty_group map () = List.fold_left f nil (M.bindings map) in
-    let content () = pretty_group mapping () in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+    dprintf "@[{\n  @[%t@]}@]" pretty_bindings
 
-  let printXml f xs =
-    let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (D.show k)) R.printXml v
-    in
+  let show map = GobPretty.sprint pretty map
+
+  let printXml f map =
     BatPrintf.fprintf f "<value>\n<map>\n";
-    M.iter print_one xs;
+    M.iter (fun k v ->
+        BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (D.show k)) R.printXml v
+      ) map;
     BatPrintf.fprintf f "</map>\n</value>\n"
 
-  let to_yojson xs =
-    let f (k, v) = (D.show k, R.to_yojson v) in
-    `Assoc (xs |> M.bindings |> List.map f)
+  let to_yojson map =
+    let l = M.fold (fun k v acc ->
+        (D.show k, R.to_yojson v) :: acc
+      ) map []
+    in
+    `Assoc l
 end
 
-(** Reusable output definitions for maps. *)
+module type Groupable =
+sig
+  include Printable.S
+  type group (* use [@@deriving show { with_path = false }] *)
+  val compare_group: group -> group -> int
+  val show_group: group -> string
+  val to_group: t -> group
+end
+
+(** Reusable output definitions for maps with key grouping. *)
 module PrintGroupable (D: Groupable) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
 struct
   include Print (D) (R) (M)
 
+  module Group =
+  struct
+    type t = D.group
+    let compare = D.compare_group
+  end
+
+  module GroupMap = Map.Make (Group)
+
   let pretty () mapping =
-    let module MM = Map.Make (D) in
     let groups =
-      let h = Hashtbl.create 13 in
-      M.iter (fun k v -> BatHashtbl.modify_def MM.empty (D.to_group k) (MM.add k v) h) mapping;
-      let cmpBy f a b = Stdlib.compare (f a) (f b) in
-      (* sort groups (order of constructors in type group)  *)
-      BatHashtbl.to_list h |> List.sort (cmpBy fst)
+      M.fold (fun k v acc ->
+          GroupMap.update (D.to_group k) (fun doc ->
+              let doc = Option.value doc ~default:Pretty.nil in
+              let doc' = doc ++ dprintf "%a ->@?  @[%a@]\n" D.pretty k R.pretty v in
+              Some doc'
+            ) acc
+        ) mapping GroupMap.empty
     in
-    let f key st dok =
-      dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
-    in
-    let group_name a () = text (D.show_group a) in
-    let pretty_group map () = MM.fold f map nil in
-    let pretty_groups rest (g, map) =
-      rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
-    let content () = List.fold_left pretty_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+    let pretty_groups () = GroupMap.fold (fun group doc acc ->
+        acc ++ dprintf "@[%s {\n  @[%a@]}@]\n" (D.show_group group) Pretty.insert doc
+      ) groups nil in
+    dprintf "@[{\n  @[%t@]}@]" pretty_groups
+
+  let show map = GobPretty.sprint pretty map
+
+  (* TODO: groups in XML, JSON? *)
 end
 
 module PMap (Domain: Printable.S) (Range: Lattice.S) : PS with
@@ -181,7 +190,7 @@ struct
       type nonrec t = t
       type nonrec key = key
       type nonrec value = value
-      let bindings = bindings
+      let fold = fold
       let iter = iter
     end
     )

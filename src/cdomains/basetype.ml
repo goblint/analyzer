@@ -12,7 +12,7 @@ struct
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
   let pretty () x = Pretty.text (show x)
-  type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
+  type group = Global | Local | Parameter | Temp [@@deriving ord, show { with_path = false }]
   let to_group = function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
