@@ -6,7 +6,6 @@ open GoblintCil
 module Variables =
 struct
   include CilType.Varinfo
-  let trace_enabled = true
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in

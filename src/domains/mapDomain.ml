@@ -61,7 +61,6 @@ sig
   type group (* use [@@deriving show { with_path = false }] *)
   val show_group: group -> string
   val to_group: t -> group
-  val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
 (** Subsignature of {!S}, which is sufficient for {!Print}. *)
@@ -115,11 +114,7 @@ struct
       BatHashtbl.to_list h |> List.sort (cmpBy fst)
     in
     let f key st dok =
-      if ME.tracing && D.trace_enabled && !ME.tracevars <> [] &&
-         not (List.mem (D.show key) !ME.tracevars) then
-        dok
-      else
-        dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
+      dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
     in
     let group_name a () = text (D.show_group a) in
     let pretty_group map () = MM.fold f map nil in
