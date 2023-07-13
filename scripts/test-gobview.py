@@ -85,7 +85,7 @@ try:
 
     parameterChip = browser.find_element(By.XPATH, '//span[@class="m-1 badge rounded-pill bg-secondary text"]')
     textFromParameterChip = parameterChip.text
-    assert(parameterChip == parameter)
+    assert(textFromParameterChip == parameter)
     print("found the parameter chip in history", textFromParameterChip)
 
     # search for first tick symbol in history
