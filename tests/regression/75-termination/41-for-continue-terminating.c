@@ -3,38 +3,25 @@
 
 int main()
 {
-  int i;
-
   // Loop with a continue statement
   for (i = 1; i <= 10; i++)
   {
     if (i % 2 == 0)
     {
-      continue;
+      continue; // Converted to an goto to "for" in line 7
     }
     printf("%d ", i);
   }
   printf("\n");
 
-  // Loop with complex conditions
-  for (i = 1; i <= 10; i++)
-  {
-    if (i > 5 && i % 2 == 0)
-    {
-      printf("%d ", i);
-    }
-  }
-  printf("\n");
 
-  // Loop with complex conditions
-  i = 1;
-  while (i <= 10)
+  // Loop with a continue statement
+  for (int r = 1; r <= 10; r++)
   {
-    if (i > 5 && i % 2 == 0)
+    if (r % 3 == 0)
     {
-      printf("%d ", i);
+      continue; // Converted to an goto to "for" in line 19
     }
-    i++;
+    printf("Loop with Continue: %d\n", r);
   }
-  printf("\n");
 }
