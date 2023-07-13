@@ -3,33 +3,33 @@ open Pretty
 open Apron
 open Analyses
 
+module ID = IntDomain.IntDomTuple
+
 module Var = SharedFunctions.PrintableVar
 module V = RelationDomain.V (Var)
 
 module type StringRelationDomain =
 sig
   include RelationDomain.RD
-  type idx
 
-  val string_copy: Queries.ask -> t -> varinfo -> varinfo -> int option -> t
-  val string_concat: Queries.ask -> t -> varinfo -> varinfo -> int option -> t
-  val to_string_length: Queries.ask -> t  -> varinfo -> idx
-  val substring_extraction: Queries.ask -> t -> varinfo -> varinfo -> bool * bool
-  val string_comparison: Queries.ask -> t -> varinfo -> varinfo -> int option -> idx
+  val string_copy: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> t
+  val string_concat: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> t
+  val to_string_length: ('a, 'b, 'c, 'd) ctx -> t  -> varinfo -> ID.t
+  val substring_extraction: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> bool * bool
+  val string_comparison: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> ID.t
 end
 
-module RelationalSubstring (Idx: IntDomain.Z): StringRelationDomain with type idx = Idx.t =
+module RelationalSubstring : StringRelationDomain =
 struct
   module Var = Var
   module V = V
 
   type var = Var.t
-  type idx = Idx.t
 
   module Tracked = SharedFunctions.Tracked
   module EnvOps = SharedFunctions.EnvOps
 
-  (* only track must substring relations *)
+  (* only track must substring relations; we don't track trivial x <= x relations explicitly *)
   module S = SetDomain.Reverse (SetDomain.ToppedSet (Printable.Prod (Var) (Var)) (struct let topname = "All substrings of each other" end))
 
   type t = {
@@ -102,26 +102,149 @@ struct
 
   let invariant t = []
 
+  (* helpers *)
+  let varinfo_to_var (v:varinfo) =
+    if v.vglob then
+      V.global v
+    else
+      V.local v
+
+  let vid_to_id ik = function (* TODO: okay? *)
+    | `Lifted i -> i
+    | _ -> ID.top_of ik
+
   (* string functions *)
   let string_copy ctx t dest src n = 
-    let dest' = V.local dest in (* TODO: global instead? *)
+    let dest' = varinfo_to_var dest in
+    let src' = varinfo_to_var src in
+
+    (* remove all relations involving dest; add (dest <= src), (src <= dest) and transitively all relations involving src also for dest *)
     let t_without_dest = forget_vars t [dest'] in
+    let t_with_new_dest = {r_set = S.add (dest', src') (S.add (src', dest') t_without_dest.r_set); env = t_without_dest.env} in
+    let t_with_new_relations = 
+      {r_set = S.fold (fun (x, y) acc -> 
+           if Var.equal x src' then 
+             S.add (dest', y) acc 
+           else if Var.equal y src' then 
+             S.add (x, dest') acc 
+           else 
+             acc) 
+           t_without_dest.r_set t_with_new_dest.r_set; 
+       env = t_with_new_dest.env} in
 
-    let size_dest = Idx.top () in (* TODO: ctx.ask *)
-    let len_src = Idx.top () in (* TODO: ctx.ask *)
-    match Idx.minimal size_dest, Idx.maximal len_src with
-    | Some min_size_dest, Some max_len_src when Z.gt min_size_dest max_len_src -> 
-      let src' = V.local src in (* TODO: global instead? *)
-      {r_set = (S.fold (fun (x, y) acc -> if Var.equal x src then S.add (dest, y) acc else if Var.equal y src then S.add (x, dest) acc else acc) t_without_dest.r_set t_without_dest.r_set); env = t_without_dest.env}
-        failwith "TODO"
-    | _ -> t_without_dest (* TODO: no need to update ctx right? at least not here? *)
+    (* ask for size(dest) and strlen(src) *)
+    let size_dest = vid_to_id ILong (ctx.ask (VarArraySize dest)) in
+    let len_src = vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength src)) in
 
-  let string_concat ctx t dest src n = failwith "TODO"
+    (* add new relations if size(dest) > strlen(src) or (size(dest) >= n and n > strlen(src)) *)
+    match ID.minimal size_dest, ID.maximal len_src, n with
+    (* strcpy *)
+    | Some min_size_dest, Some max_len_src, None 
+      when Z.gt min_size_dest max_len_src -> 
+      if Var.equal dest' src' then (* check only performed here to exclude strcpy(x, x) for a string literal since it's undefined behavior *)
+        t
+      else
+        t_with_new_relations
+    (* strncpy *)
+    | Some min_size_dest, Some max_len_src, Some n 
+      when Z.geq min_size_dest (Z.of_int n) && Z.gt (Z.of_int n) max_len_src -> 
+      if Var.equal dest' src' || n <= 0 then
+        t
+      else
+        t_with_new_relations
+    | _ -> t_without_dest
 
-  let to_string_length ctx t s = failwith "TODO"
+  let string_concat ctx t dest src n =
+    let dest' = varinfo_to_var dest in
+    let src' = varinfo_to_var src in
 
-  let substring_extraction ctx t haystack needle = failwith "TODO"
+    (* remove relation (dest <= x); add (src <= dest) and transitively for all relations (x <= src) add (x <= dest) *)
+    let t_without_dest = {r_set = S.filter (fun (x, _) -> not (Var.equal x dest')) t.r_set; env = t.env} in
+    let t_with_src_substr_dest = {r_set = S.add (src', dest') t_without_dest.r_set; env = t_without_dest.env} in
+    let t_with_new_relations =
+      {r_set = S.fold (fun (x, y) acc ->
+           if Var.equal y src' then
+             S.add (x, dest') acc
+           else
+             acc)
+           t_without_dest.r_set t_with_src_substr_dest.r_set;
+       env = t_with_src_substr_dest.env} in
 
-  let string_comparison ctx t s1 s2 n = failwith "TODO"
+    (* ask for size(dest), strlen(dest) and strlen(src) *)
+    let size_dest = vid_to_id ILong (ctx.ask (VarArraySize dest)) in
+    let len_dest = vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength dest)) in
+    let len_src = vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength src)) in
+
+    (* add new relations if size(dest) > strlen(dest) + strlen(src) or (size(dest) >= strlen(dest) + n and n > strlen(src)) *)
+    match ID.minimal size_dest, ID.maximal len_dest, ID.maximal len_src, n with
+    (* strcat *)
+    | Some min_size_dest, Some max_len_dest, Some max_len_src, None 
+      when Z.gt min_size_dest (Z.add max_len_dest max_len_src) ->
+      if Var.equal dest' src' then (* check only performed here to exclude strcat(x, x) for a string literal since it's undefined behavior *)
+        t_without_dest
+      else
+        t_with_new_relations
+    (* strncat *)
+    | Some min_size_dest, Some max_len_dest, Some max_len_src, Some n 
+      when Z.geq min_size_dest (Z.add max_len_dest (Z.of_int n)) && Z.gt (Z.of_int n) max_len_src ->
+      if n <= 0 then
+        t
+      else if Var.equal dest' src' then
+        t_without_dest
+      else
+        t_with_new_relations
+    | _ -> t_without_dest
+
+  let to_string_length ctx t s =
+    let s' = varinfo_to_var s in
+    S.fold (fun (x, y) acc ->
+        (* if s <= y and y <= s, strlen(s) = strlen(y) *)
+        if Var.equal x s' && S.mem (y, s') t.r_set then
+          match V.to_cil_varinfo y with
+          | Some y -> vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength y))
+          | None -> acc
+          (* if s <= y, strlen(s) <= strlen(y) *)
+        else if Var.equal x s' then
+          match V.to_cil_varinfo y with
+          | Some y -> ID.meet acc (ID.le (ID.top_of !Cil.kindOfSizeOf) (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength y)))) (* TODO: does this work? *)
+          | None -> acc
+        else
+          acc)
+      t.r_set (ID.top_of !Cil.kindOfSizeOf) (* TODO: also query for length of s and perform another meet? *)
+
+  (* returns is_maybe_null_ptr, is_surely_offset_0 *)
+  let substring_extraction ctx t haystack needle =
+    let haystack' = varinfo_to_var haystack in
+    let needle' = varinfo_to_var needle in
+    (* if needle = haystack, strstr returns a pointer to haystack at offset 0 *)
+    if S.mem (needle', haystack') t.r_set && S.mem (haystack', needle') t.r_set then
+      false, true
+      (* if needle <= haystack, strstr returns a pointer to haystack, offset unknown *)
+    else if S.mem (needle', haystack') t.r_set then
+      false, false
+      (* else strstr could return a pointer to haystack with unknown offset or a null_ptr *)
+    else
+      true, false
+
+  let string_comparison ctx t s1 s2 n =
+    let s1' = varinfo_to_var s1 in
+    let s2' = varinfo_to_var s2 in
+    (* strcmp *)
+    match n with
+    | None ->
+      (* return 0 if s1 = s2 *)
+      if S.mem (s1', s2') t.r_set && S.mem (s2', s1') t.r_set then
+        ID.of_int IInt Z.zero
+      else
+        ID.top_of IInt
+    (* strncmp *)
+    | Some n ->
+      let len_s1 = vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength s1)) in
+      begin match ID.maximal len_s1 with
+        (* return 0 if s1 = s2 and n > strlen(s1) = strlen(s2) *)
+        | Some max_len_s1 when Z.gt (Z.of_int n) max_len_s1 
+                            && S.mem (s1', s2') t.r_set && S.mem (s2', s1') t.r_set -> ID.of_int IInt Z.zero
+        | _ -> ID.top_of IInt
+      end
 end
 

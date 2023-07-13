@@ -117,6 +117,8 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | VarArraySize: varinfo -> ID.t t (* size of an array or blob only *) (* for use in relational string domains, doesn't look at other relational string domains *)
+  | VarStringLength: varinfo -> ID.t t (* for use in relational string domains, doesn't look at other relational string domains *)
 
 type 'a result = 'a
 
@@ -181,6 +183,8 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | VarArraySize _ -> (module ID)
+    | VarStringLength _ -> (module ID)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -244,6 +248,8 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | VarArraySize _ -> ID.top_of ILong (* TODO: okay? *)
+    | VarStringLength _ -> ID.top_of !Cil.kindOfSizeOf
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -304,6 +310,8 @@ struct
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
+    | Any (VarArraySize _) -> 53
+    | Any (VarStringLength _) -> 54
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -444,6 +452,8 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any (VarArraySize v) -> Pretty.dprintf "VarArraySize %a" CilType.Varinfo.pretty v
+    | Any (VarStringLength v) -> Pretty.dprintf "VarStringLength %a" CilType.Varinfo.pretty v
 end
 
 let to_value_domain_ask (ask: ask) =

@@ -1344,6 +1344,23 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
+    | Q.VarArraySize v -> (* TODO: okay? + Blob? *)
+      let address = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (var v) in
+      begin match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local address None with
+        | Array ar -> 
+          begin match CArrays.length ar with
+            | None -> Queries.Result.top q
+            | Some size -> `Lifted (size)
+          end
+        | _ -> Queries.Result.top q
+      end
+    | Q.VarStringLength v -> (* TODO: okay? + Blob? *)
+      let address = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (var v) in
+      begin match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local address None with
+        | Address ad when AD.type_of ad = charPtrType -> `Lifted (AD.to_string_length ad)
+        | Array ar -> `Lifted (CArrays.to_string_length ar)
+        | _ -> Queries.Result.top q
+      end
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
