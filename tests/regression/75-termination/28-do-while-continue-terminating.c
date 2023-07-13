@@ -10,8 +10,7 @@ int main() {
     if (i % 2 == 0) {
 
       printf("Skipping %i is even\n", i);
-      continue; // This is handled as an goto to line 8 and there an up-jumping
-                // goto
+      continue; // This is handled as an goto to line 8 and therefore an up-jumping goto
     }
   } while (i <= 5);
 
