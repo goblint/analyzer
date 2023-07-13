@@ -75,11 +75,11 @@ struct
             [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
           M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
         (!upjumping_gotos) 
-      );
+    );
     (* multithreaded *)
     if not (!single_thread) then (
-        M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
-      )
+      M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
+    )
 
 
   let assign ctx (lval : lval) (rval : exp) =
@@ -135,9 +135,9 @@ struct
          Some b -> b
        | None -> false)
     | Queries.MustTermAllLoops ->
-      must_be_single_threaded_since_start ctx (* must be the first to be evaluated! 
-         This has the side effect that the single_Thread variable is set
-         In case of another order and due to lazy evaluation the correct value of single_Thread can otherwise not be guaranteed! *)
+      must_be_single_threaded_since_start ctx (* must be the first to be evaluated! *)
+      (*Reason: must_be_single_threaded_since_start has the side effect that the single_Thread variable is set
+      In case of another order and due to lazy evaluation the correct value of single_Thread can otherwise not be guaranteed! *)
       && no_upjumping_gotos ()
       && G.for_all (fun _ term_info -> term_info) (ctx.global ())
     | _ -> Queries.Result.top q
