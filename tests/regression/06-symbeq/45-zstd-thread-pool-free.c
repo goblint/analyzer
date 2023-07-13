@@ -1,5 +1,4 @@
-// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] mallocFresh --set lib.activated[+] zstd --disable ana.race.free
-// disabled free races because unsound: https://github.com/goblint/analyzer/pull/978
+// PARAM: --set ana.activated[+] symb_locks
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.
@@ -67,7 +66,7 @@ void ZSTD_customFree(void* ptr, ZSTD_customMem customMem)
         if (customMem.customFree)
             customMem.customFree(customMem.opaque, ptr);
         else
-            ZSTD_free(ptr);
+            ZSTD_free(ptr); // RACE
     }
 }
 
@@ -161,9 +160,9 @@ static void* POOL_thread(void* opaque) {
         }
         /* Pop a job off the queue */
         {   POOL_job const job = ctx->queue[ctx->queueHead]; // TODO NORACE
-            ctx->queueHead = (ctx->queueHead + 1) % ctx->queueSize; //NORACE
-            ctx->numThreadsBusy++; //NORACE
-            ctx->queueEmpty = (ctx->queueHead == ctx->queueTail); //NORACE
+            ctx->queueHead = (ctx->queueHead + 1) % ctx->queueSize; // RACE
+            ctx->numThreadsBusy++; // RACE
+            ctx->queueEmpty = (ctx->queueHead == ctx->queueTail); // RACE
             /* Unlock the mutex, signal a pusher, and run the job */
             ZSTD_pthread_cond_signal(&ctx->queuePushCond);
             ZSTD_pthread_mutex_unlock(&ctx->queueMutex);
@@ -172,7 +171,7 @@ static void* POOL_thread(void* opaque) {
 
             /* If the intended queue size was 0, signal after finishing job */
             ZSTD_pthread_mutex_lock(&ctx->queueMutex);
-            ctx->numThreadsBusy--; //NORACE
+            ctx->numThreadsBusy--; // RACE
             ZSTD_pthread_cond_signal(&ctx->queuePushCond);
             ZSTD_pthread_mutex_unlock(&ctx->queueMutex);
         }
@@ -197,26 +196,26 @@ POOL_ctx* POOL_create_advanced(size_t numThreads, size_t queueSize,
      * It needs one extra space since one space is wasted to differentiate
      * empty and full queues.
      */
-    ctx->queueSize = queueSize + 1; // NORACE
-    ctx->queue = (POOL_job*)ZSTD_customMalloc(ctx->queueSize * sizeof(POOL_job), customMem); // NORACE
-    ctx->queueHead = 0; // NORACE
-    ctx->queueTail = 0; // NORACE
-    ctx->numThreadsBusy = 0; // NORACE
-    ctx->queueEmpty = 1; // NORACE
+    ctx->queueSize = queueSize + 1;
+    ctx->queue = (POOL_job*)ZSTD_customMalloc(ctx->queueSize * sizeof(POOL_job), customMem);
+    ctx->queueHead = 0;
+    ctx->queueTail = 0;
+    ctx->numThreadsBusy = 0;
+    ctx->queueEmpty = 1;
     {
         int error = 0;
-        error |= ZSTD_pthread_mutex_init(&ctx->queueMutex, NULL); // NORACE
-        error |= ZSTD_pthread_cond_init(&ctx->queuePushCond, NULL); // NORACE
-        error |= ZSTD_pthread_cond_init(&ctx->queuePopCond, NULL); // NORACE
+        error |= ZSTD_pthread_mutex_init(&ctx->queueMutex, NULL);
+        error |= ZSTD_pthread_cond_init(&ctx->queuePushCond, NULL);
+        error |= ZSTD_pthread_cond_init(&ctx->queuePopCond, NULL);
         if (error) { POOL_free(ctx); return NULL; }
     }
-    ctx->shutdown = 0; // NORACE
+    ctx->shutdown = 0;
     /* Allocate space for the thread handles */
-    ctx->threads = (ZSTD_pthread_t*)ZSTD_customMalloc(numThreads * sizeof(ZSTD_pthread_t), customMem); // NORACE
-    ctx->threadCapacity = 0; // NORACE
-    ctx->customMem = customMem; // NORACE
+    ctx->threads = (ZSTD_pthread_t*)ZSTD_customMalloc(numThreads * sizeof(ZSTD_pthread_t), customMem);
+    ctx->threadCapacity = 0;
+    ctx->customMem = customMem;
     /* Check for errors */
-    if (!ctx->threads || !ctx->queue) { POOL_free(ctx); return NULL; } // NORACE
+    if (!ctx->threads || !ctx->queue) { POOL_free(ctx); return NULL; }
     /* Initialize the threads */
     {   size_t i;
         for (i = 0; i < numThreads; ++i) {
@@ -261,7 +260,5 @@ void POOL_free(POOL_ctx *ctx) {
 }
 
 int main() {
-    while (1) {
-        POOL_ctx* const ctx = POOL_create(20, 10);
-    }
+    POOL_ctx* const ctx = POOL_create(20, 10);
 }

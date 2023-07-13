@@ -6,6 +6,10 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
+(** Stores the result of the query if the program is single threaded or not
+    since finalize does not has ctx as an argument*)
+let single_thread : bool ref = ref false
+
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 
@@ -33,12 +37,6 @@ let check_bounded ctx varinfo =
   | `Lifted v -> not (is_top_of (ikind v) v)
   | `Bot -> raise (PreProcessing "Loop variable is Bot")
 
-module UnitV =
-struct
-  include Printable.Unit
-  let is_write_only _ = true
-end
-
 (** We want to record termination information of loops and use the loop
  * statements for that. We use this lifting because we need to have a
  * lattice. *)
@@ -55,22 +53,32 @@ struct
 
   module D = Lattice.Unit
   module C = D
-  module V = UnitV
+  module V =
+  struct
+    include Printable.Unit
+    let is_write_only _ = true
+  end
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
   let startstate _ = ()
   let exitstate = startstate
 
-  let finalize () = 
+  let finalize () =
+    (* warning for detected possible non-termination *)
+    (*upjumping gotos *)
     if not (no_upjumping_gotos ()) then (
-      List.iter 
-        (fun x -> 
-          let msgs =
-          [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
-        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
-        (!upjumping_gotos) 
-        );
-    ()
+      List.iter
+        (fun x ->
+           let msgs =
+             [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
+           M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
+        (!upjumping_gotos)
+    );
+    (* multithreaded *)
+    if not (!single_thread) then (
+      M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
+    )
+
 
   let assign ctx (lval : lval) (rval : exp) =
     if !AnalysisState.postsolving then
@@ -109,23 +117,25 @@ struct
   (** Checks whether a new thread was spawned some time. We want to discard
    * any knowledge about termination then (see query function) *)
   let must_be_single_threaded_since_start ctx =
-    (*
-    not (ctx.ask Queries.IsEverMultiThreaded)
-    *)
-    ctx.ask (Queries.MustBeSingleThreaded {since_start = true})
+    let single_threaded = not (ctx.ask Queries.IsEverMultiThreaded) in
+    single_thread := single_threaded;
+    single_threaded
 
   (** Provides information to Goblint *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustTermLoop loop_statement ->
-      (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
-         Some b -> b
-       | None -> false)
-      && must_be_single_threaded_since_start ctx
+      must_be_single_threaded_since_start ctx
+      && (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
+            Some b -> b
+          | None -> false)
     | Queries.MustTermAllLoops ->
-      G.for_all (fun _ term_info -> term_info) (ctx.global ())
+      (* Must be the first to be evaluated! This has the side effect that
+       * single_thread is set. In case of another order and due to lazy
+       * evaluation the correct value of single_thread can not be guaranteed! *)
+      must_be_single_threaded_since_start ctx
       && no_upjumping_gotos ()
-      && must_be_single_threaded_since_start ctx
+      && G.for_all (fun _ term_info -> term_info) (ctx.global ())
     | _ -> Queries.Result.top q
 
 end

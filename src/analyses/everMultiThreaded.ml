@@ -1,4 +1,4 @@
-(** Work in progress *)
+(** Analysis to register whether any additional thread has ever been spawned ([evermultithreaded]). *)
 
 open Analyses
 

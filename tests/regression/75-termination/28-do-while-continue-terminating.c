@@ -10,8 +10,7 @@ int main() {
     if (i % 2 == 0) {
 
       printf("Skipping %i is even\n", i);
-      continue; // This is handled as an goto to line 8 and there an up-jumping
-                // goto
+      continue; // This is handled as an goto to line 8 and therefore an up-jumping goto
     }
   } while (i <= 5);
 
@@ -45,8 +44,8 @@ statement. Hence, it is not analyzed for the upjumping gotos, which does not
 lead to the problem as with the "do while".
 
 
-------------------- SHORTENED CIL output for Test 28 (DO WHILE):
-------------------- int main(void)
+------- SHORTENED CIL output for Test 28 (DO WHILE): -------
+int main(void)
 {{{{
   #line 8
   while (1) {
@@ -71,8 +70,8 @@ lead to the problem as with the "do while".
 }}
 
 
-------------------- SHORTENED CIL output for Test 28 (WHILE):
-------------------- Test 28: replacing DO WHILE with WHILE: int main(void)
+------- SHORTENED CIL output for Test 28 (WHILE): -------
+Test 28: replacing DO WHILE with WHILE: int main(void)
 {{{{
   #line 8
   while (1) {
