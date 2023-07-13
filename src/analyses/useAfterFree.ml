@@ -5,6 +5,7 @@ open Analyses
 open MessageCategory
 
 module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
+module ThreadIdSet = SetDomain.Make(ThreadIdDomain.ThreadLifted)
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -14,6 +15,8 @@ struct
 
   module D = ToppedVarInfoSet
   module C = Lattice.Unit
+  module G = ThreadIdSet
+  module V = VarinfoV
 
   (** TODO: Try out later in benchmarks to see how we perform with and without context-sensititivty *)
   let context _ _ = ()
@@ -83,6 +86,13 @@ struct
     | StartOf lval
     | AddrOf lval -> warn_lval_might_contain_freed ~is_double_free transfer_fn_name ctx lval
 
+  let side_effect_mem_free ctx freed_heap_vars threadid =
+    let threadid = G.singleton threadid in
+    D.iter (fun var -> ctx.sideg var threadid) freed_heap_vars
+
+  let get_current_threadid ctx =
+    ctx.ask Queries.CurrentThreadId
+
 
   (* TRANSFER FUNCTIONS *)
 
@@ -138,8 +148,11 @@ struct
             Queries.LS.elements a
             |> List.map fst
             |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
+            |> D.of_list
           in
-          D.join state (D.of_list pointed_to_heap_vars) (* Add all heap vars, which ptr points to, to the state *)
+          (* Side-effect the tid that's freeing all the heap vars collected here *)
+          side_effect_mem_free ctx pointed_to_heap_vars (get_current_threadid ctx);
+          D.join state (pointed_to_heap_vars) (* Add all heap vars, which ptr points to, to the state *)
         | _ -> state
       end
     | _ -> state
