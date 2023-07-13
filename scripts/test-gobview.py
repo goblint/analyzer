@@ -80,6 +80,9 @@ try:
     inputBar.send_keys(parameter)
     inputBar.send_keys(Keys.ENTER)
     
+    # wait for ten seconds to let the analysis finish
+    browser.implicitly_wait(10)
+
     parameterChip = browser.find_element(By.X_PATH, '//span[@class="m-1 badge rounded-pill bg-secondary text"]')
     textFromParameterChip = parameterChip.text
     assert(parameterChip == parameter)
