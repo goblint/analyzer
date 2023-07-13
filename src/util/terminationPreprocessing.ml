@@ -3,6 +3,19 @@ include Printf
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
+let specialFunction name =
+   print_endline @@ "specialfunction done";
+   { svar  = makeGlobalVar name (TFun(voidType, Some [("exp", intType, [])], false,[]));
+     smaxid = 0;
+     slocals = [];
+     sformals = [];
+     sbody = mkBlock [];
+     smaxstmtid = None;
+     sallstmts = [];
+   }
+
+let f_bounded  = Lval (var (specialFunction "__goblint_bounded").svar)
+
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
    let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
    let ls = List.rev ls in
@@ -35,11 +48,12 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          let  check_stmt = mkStmtOneInstr @@ Set ((var !le), (Lval (var v)), loc, eloc) in
          let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
+         let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [Lval (var v)], loc, locUnknown) in
          (match b.bstmts with
             | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
-               b.bstmts <- inc_stmt :: check_stmt :: s :: inc_stmt2 :: ss;
+               b.bstmts <- inc_stmt :: check_stmt :: exit_stmt :: s :: inc_stmt2 :: ss;
             | ss ->
-               b.bstmts <- inc_stmt :: check_stmt :: ss;
+               b.bstmts <- inc_stmt :: check_stmt :: exit_stmt :: ss;
          );
          lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
          let nb = mkBlock [init_stmt; mkStmt s.skind] in
