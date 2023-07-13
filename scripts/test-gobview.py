@@ -29,7 +29,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 class Server(socketserver.TCPServer):
-    allow_reuse_address = True # avoids that during a consecutive run the server cannot connect due to an 'Adress already in use' os error
+    allow_reuse_address = True # avoids that during a consecutive run the server cannot connect due to an 'Address already in use' os error
 
 httpd = Server((IP, PORT), Handler)
 print("serving at port", PORT)
