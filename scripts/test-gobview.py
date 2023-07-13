@@ -5,6 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from threading import Thread
 import http.server
@@ -61,6 +62,32 @@ try:
     content = browser.find_element(By.CLASS_NAME, "content")
     panel = browser.find_element(By.CLASS_NAME, "panel")
     print("found DOM elements main, sidebar-left, sidebar-right, content and panel")
+
+    # simulate work flow for analysis rerun
+    parameterViewTab = browser.find_element(By.ID, "nav-item-2")
+    parameterViewTab.click()
+    parameterView = browser.find_element(By.ID, "parameterview")
+    print("found DOM element parameterview")
+    inputBar = browser.find_element(By.CLASS_NAME, "input")
+    inputBar.clear()
+    invalidFeedback = browser.find_element(By.X_PATH, '//div[@class="invalid-tooltip"]')
+    
+    feedback = invalidFeedback.text
+    assert(feedback == "At least one parameter has to be entered")
+    print("found the feedback", feedback)
+
+    parameter = '--incremental.force-reanalyze.funs ["main"]'
+    inputBar.send_keys(parameter)
+    inputBar.send_keys(Keys.ENTER)
+    
+    parameterChip = browser.find_element(By.X_PATH, '//span[@class="m-1 badge rounded-pill bg-secondary text"]')
+    textFromParameterChip = parameterChip.text
+    assert(parameterChip == parameter)
+    print("found the parameter chip in history", textFromParameterChip)
+
+    # search for first tick symbol in history
+    executedSvg = browser.find_element(By.X_PATH, '//svg[@class="bi bi-check2"]')
+    print("found tick symbol in history indicating successful reanalysis")
 
     cleanup(browser, httpd, thread)
 
