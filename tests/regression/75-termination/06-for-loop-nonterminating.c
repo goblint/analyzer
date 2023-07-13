@@ -3,7 +3,7 @@
 
 int main()
 {
-  for (;;)
+  for (;;) // NONTERMLOOP termination analysis shall mark beginning of for as non-terminating loop
   {
     printf("This loop does not terminate.\n");
   }

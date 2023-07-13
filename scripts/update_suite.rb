@@ -149,24 +149,27 @@ class Tests
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "term", "nonterm", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
+      ranking = ["other", "warn", "goto", "fundec", "loop", "term", "nonterm", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
       thiswarn = case obj
-                 when /\(conf\. \d+\)/            then "race"
-                 when /Deadlock/                  then "deadlock"
-                 when /lock (before|after):/      then "deadlock"
-                 when /Assertion .* will fail/    then "fail"
-                 when /Assertion .* will succeed/ then "success"
-                 when /Assertion .* is unknown/   then "unknown"
-                 when /invariant confirmed/       then "success"
-                 when /invariant unconfirmed/     then "unknown"
-                 when /invariant refuted/         then "fail"
-                 when /^\[Warning\]/              then "warn"
-                 when /^\[Error\]/                then "warn"
-                 when /^\[Info\]/                 then "warn"
-                 when /^\[Success\]/              then "success"
-                 when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
-                 when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
-                 when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                 when /\(conf\. \d+\)/                                  then "race"
+                 when /Deadlock/                                        then "deadlock"
+                 when /lock (before|after):/                            then "deadlock"
+                 when /Assertion .* will fail/                          then "fail"
+                 when /Assertion .* will succeed/                       then "success"
+                 when /Assertion .* is unknown/                         then "unknown"
+                 when /invariant confirmed/                             then "success"
+                 when /invariant unconfirmed/                           then "unknown"
+                 when /invariant refuted/                               then "fail"
+                 when /^\[Warning\]/                                    then "warn"
+                 when /^\[Error\]/                                      then "warn"
+                 when /^\[Info\]/                                       then "warn"
+                 when /^\[Success\]/                                    then "success"
+                 when /(Upjumping Goto)/                                then "goto"
+                 when /(Fundec \w+ is contained in a call graph cycle)/ then "fundec"
+                 when /(Loop analysis)/                                 then "loop"
+                 when /\[Debug\]/                                       then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
+                 when /^  on line \d+ $/                                then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                 when /^  on lines \d+..\d+ $/                          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                  else "other"
                  end
       oldwarn = warnings[i]
@@ -206,7 +209,7 @@ class Tests
         end
       }
       case type
-      when "deadlock", "race", "fail", "unknown", "warn"
+      when "goto", "fundec", "loop", "deadlock", "race", "fail", "unknown", "warn"
         check.call warnings[idx] == type
       when "nonterm"
         check.call warnings[idx] == type
@@ -309,6 +312,12 @@ class Project
         tests[i] = "success"
       elsif obj =~ /FAIL/ then
         tests[i] = "fail"
+      elsif obj =~ /NONTERMLOOP/ then
+        tests[i] = "loop"
+      elsif obj =~ /NONTERMGOTO/ then
+        tests[i] = "goto"
+      elsif obj =~ /NONTERMFUNDEC/ then
+        tests[i] = "fundec"
       elsif obj =~ /UNKNOWN/ then
         tests[i] = "unknown"
       elsif obj =~ /(assert|__goblint_check).*\(/ then

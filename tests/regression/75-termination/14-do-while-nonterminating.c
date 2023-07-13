@@ -9,7 +9,7 @@ int main()
   {
     printf("Inside the do-while loop\n");
     i++;
-  } while (i >= 2);
+  } while (i >= 2); // NONTERMLOOP termination analysis shall mark while as non-terminating loop
 
   printf("Exited the loop\n");
   return 0;

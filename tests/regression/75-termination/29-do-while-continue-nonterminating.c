@@ -15,7 +15,7 @@ int main()
       printf("Continue as %i is odd\n", i);
       continue;
     }
-  } while (i >= 2);
+  } while (i >= 2); // NONTERMLOOP termination analysis shall mark beginning of while as non-terminating loop
 
   printf("Exited the loop\n");
   return 0;

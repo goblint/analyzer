@@ -1,7 +1,7 @@
 // NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable ana.context.widen
 #include <stdio.h>
 
-void recursiveFunction(int n)
+void recursiveFunction(int n) // NONTERMFUNDEC termination analysis shall mark fundec of non-terminating function
 {
   // Base case: When n reaches 0, stop recursion
   if (n == 30)

@@ -7,7 +7,7 @@ int main()
 
   for (outerCount = 1; outerCount <= 3; outerCount++)
   {
-    for (innerCount = 1; innerCount > 0; innerCount++)
+    for (innerCount = 1; innerCount > 0; innerCount++) // NONTERMLOOP termination analysis shall mark beginning of for as non-terminating loop
     {
       printf("(%d, %d) ", outerCount, innerCount);
     }

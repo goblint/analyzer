@@ -5,9 +5,8 @@
 int main()
 {
   int short_run, i = 0;
-
-  while (i < 90 &&
-         short_run != 1) // Currently not able to detect this as terminating
+  // Currently not able to detect this as terminating due to multiple conditions
+  while (i < 90 && short_run != 1)
   {
     i++;
     if (rand())

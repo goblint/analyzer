@@ -6,7 +6,7 @@ int main()
   int forever, i = 0;
 
   // This loop is not provable, therefore it should throw a warning
-  while (i < 4 || forever == 1)
+  while (i < 4 || forever == 1) // NONTERMLOOP termination analysis shall mark beginning of while as non-terminating loop
   {
     i++;
     if (i == 4)

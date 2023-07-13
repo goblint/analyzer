@@ -70,13 +70,13 @@ struct
       List.iter
         (fun x ->
            let msgs =
-             [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
+             [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)", Some (M.Location.CilLocation x));] in
            M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
         (!upjumping_gotos)
     );
     (* multithreaded *)
     if not (!single_thread) then (
-      M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
+      M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)"
     )
 
 
@@ -93,7 +93,7 @@ struct
         (* In case the loop is not bounded, a warning is created*)
         if not (is_bounded) then (
           let msgs =
-            [(Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)));] in
+            [(Pretty.dprintf "The program might not terminate! (Loop analysis)", Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)));] in
           M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
         ()
       | _ -> ()

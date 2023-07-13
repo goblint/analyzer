@@ -12,7 +12,8 @@ loop:
 
   if (num <= 10)
   {
-    goto loop; // We are not able to detect up-jumping gotos as terminating, we
+    goto loop; // NONTERMGOTO termination analysis shall mark goto statement up-jumping goto
+               // We are not able to detect up-jumping gotos as terminating, we
                // just warn about them might being nonterminating.
   }
 

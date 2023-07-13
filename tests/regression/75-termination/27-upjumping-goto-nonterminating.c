@@ -11,11 +11,11 @@ mark1:
 
 mark2:
   printf("This is mark2\n");
-  goto mark1;
+  goto mark1; // NONTERMGOTO termination analysis shall mark goto statement up-jumping goto
 
 mark3:
   printf("This is mark3\n");
-  goto mark1;
+  goto mark1; // NONTERMGOTO termination analysis shall mark goto statement up-jumping goto
 
   return 0;
 }
