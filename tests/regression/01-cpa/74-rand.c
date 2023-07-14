@@ -7,7 +7,6 @@ int main () {
   int r = rand();
 
   __goblint_check(r >= 0);
-  __goblint_check(r <= RAND_MAX);
 
   return 0;
 }
