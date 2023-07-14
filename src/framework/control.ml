@@ -167,7 +167,7 @@ struct
           ) xs []
       in
       let msgs = List.rev msgs in (* lines in ascending order *)
-      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
+      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs (* TODO: function location for group *)
     in
     let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "ana.dead-code.lines" then (
