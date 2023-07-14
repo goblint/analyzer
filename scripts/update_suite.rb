@@ -139,10 +139,8 @@ class Tests
   end
 
   def collect_warnings
-    warnings[-1] = "term"
     lines = IO.readlines(warnfile, :encoding => "UTF-8")
     lines.each do |l|
-      if l =~ /Function 'main' does not return/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
         @vars = $1
         @evals = $2
@@ -150,7 +148,7 @@ class Tests
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
+      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
       thiswarn =  case obj
                     when /\(conf\. \d+\)/            then "race"
                     when /Deadlock/                  then "deadlock"
@@ -195,7 +193,7 @@ class Tests
         end
       }
       case type
-      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
+      when "deadlock", "race", "fail", "unknown", "warn"
         check.call warnings[idx] == type
       when "nowarn"
         check.call warnings[idx].nil?
@@ -307,12 +305,6 @@ class Project
           tests[i] = "assert"
         end
       end
-    end
-    case lines[0]
-    when /NON?TERM/
-      tests[-1] = "noterm"
-    when /TERM/
-      tests[-1] = "term"
     end
     Tests.new(self, tests, tests_line, todo)
   end

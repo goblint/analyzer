@@ -1,4 +1,4 @@
-  $ goblint 36-strict-loop-dead.c
+  $ goblint --enable warn.deterministic 36-strict-loop-dead.c
   [Warning][Deadcode] Function 'basic2' has dead code:
     on line 8 (36-strict-loop-dead.c:8-8)
     on line 11 (36-strict-loop-dead.c:11-11)

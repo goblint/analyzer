@@ -146,7 +146,8 @@ struct
           let s = GobPretty.sprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
           raise (Type_of_error (t, s))
       in type_of ~base:fi.ftype o
-    | TComp _, `Index (_,o) -> type_of ~base:t o (* this happens (hmmer, perlbench). safe? *)
+    (* TODO: Why? Imprecise on zstd-thread-pool regression tests. *)
+    (* | TComp _, `Index (_,o) -> type_of ~base:t o (* this happens (hmmer, perlbench). safe? *) *)
     | t,o ->
       let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t pretty o in
       raise (Type_of_error (t, s))

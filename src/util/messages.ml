@@ -243,10 +243,17 @@ let print ?(ppf= !formatter) (m: Message.t) =
 
 let add m =
   if not (Table.mem m) then (
-    print m;
+    if not (get_bool "warn.deterministic") then
+      print m;
     Table.add m
   )
 
+let finalize () =
+  if get_bool "warn.deterministic" then (
+    !Table.messages_list
+    |> List.sort Message.compare
+    |> List.iter print
+  )
 
 let current_context: ControlSpecC.t option ref = ref None
 
