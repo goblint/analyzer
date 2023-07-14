@@ -1718,40 +1718,13 @@ struct
   module V = GVarF(S.V)
 
   (* Tuple containing the fundec and context of the caller *)
-  module CallGraphTuple = 
-  struct 
-    include Printable.Prod (CilType.Fundec) (S.C) 
-  end
-
+  module CallGraphTuple = Printable.Prod (CilType.Fundec) (S.C) 
+ 
   (* Set containing multiple caller tuples *)
-  module CallGraphSet =
-  struct
-    include SetDomain.Make (CallGraphTuple)
-    let name () = "callerInfo"
-    let printXml f a =
-      BatPrintf.fprintf f "<value>\n<set>";
-      iter (CallGraphTuple.printXml f) a;
-      BatPrintf.fprintf f "</set>\n</value>\n"
-  end
+  module CallGraphSet = SetDomain.Make (CallGraphTuple)
 
   (* Mapping from the callee context to the set of all caller tuples*)
-  module CallGraphMap =
-  struct
-  include MapDomain.MapBot (
-    struct
-      include Printable.Std (* To make it Groupable *)
-      include S.C
-      let printXml f c = BatPrintf.fprintf f
-        "<value>\n
-        callee_context\n<value>%a</value>\n\n
-        </value>" printXml c
-    end    
-  ) (CallGraphSet)
-    let printXml f c = BatPrintf.fprintf f "<value><map>
-    <key>ContextTupleMap</key>\n
-    <value>%a</value>\n\n
-    </map></value>" printXml c
-  end
+  module CallGraphMap = MapDomain.MapBot (S.C) (CallGraphSet)
 
   module G = 
   struct 

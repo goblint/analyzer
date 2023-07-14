@@ -1,4 +1,5 @@
-// TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// The program terminates but as the termination analysis is meant to not handle multithreaded programs we expect NonTerm here
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
