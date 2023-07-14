@@ -4,6 +4,7 @@ open Analyses
 open GoblintCil
 open TerminationPreprocessing
 
+(* TODO: Remove *)
 exception PreProcessing of string
 
 (** Stores the result of the query if the program is single threaded or not
@@ -40,7 +41,7 @@ let check_bounded ctx varinfo =
 (** We want to record termination information of loops and use the loop
  * statements for that. We use this lifting because we need to have a
  * lattice. *)
-module Statements = Lattice.Flat (CilType.Stmt) (Printable.DefaultNames) (* TODO: Use Basetype.CilStmt instead? *)
+module Statements = Lattice.Flat (CilType.Stmt) (Printable.DefaultNames)
 
 (** The termination analysis considering loops and gotos *)
 module Spec : Analyses.MCPSpec =
@@ -79,7 +80,7 @@ struct
       M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
     )
 
-
+    (*
   let assign ctx (lval : lval) (rval : exp) =
     if !AnalysisState.postsolving then
       (* Detect assignment to loop counter variable *)
@@ -98,21 +99,23 @@ struct
         ()
       | _ -> ()
     else ()
+    *)
 
-    (*
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
-      (* TODO: Implement check for our special loop exit indicator function *)
     if !AnalysisState.postsolving then
       match f.vname, arglist with
         "__goblint_bounded", [Lval (Var x, NoOffset)] ->
-        let () = print_endline "schpecial" in
         let is_bounded = check_bounded ctx x in
         let loop_statement = VarToStmt.find x !loop_counters in
         ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+        (* In case the loop is not bounded, a warning is created*)
+        if not (is_bounded) then (
+          let msgs =
+            [(Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)));] in
+          M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
         ()
       | _ -> ()
     else ()
-    *)
 
   (** Checks whether a new thread was spawned some time. We want to discard
    * any knowledge about termination then (see query function) *)
