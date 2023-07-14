@@ -115,10 +115,12 @@ struct
             Some b -> b
           | None -> false)
     | Queries.MustTermAllLoops ->
+      let always_single_threaded = must_be_single_threaded_since_start ctx in
       (* Must be the first to be evaluated! This has the side effect that
        * single_thread is set. In case of another order and due to lazy
-       * evaluation the correct value of single_thread can not be guaranteed! *)
-      must_be_single_threaded_since_start ctx
+       * evaluation, the correct value of single_thread can not be guaranteed!
+       * Therefore, we use a let-in clause here. *)
+      always_single_threaded
       && no_upjumping_gotos ()
       && G.for_all (fun _ term_info -> term_info) (ctx.global ())
     | _ -> Queries.Result.top q
