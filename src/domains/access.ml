@@ -92,7 +92,7 @@ struct
   let pretty () vt =
     (* Imitate old printing for now *)
     match vt with
-    | `Var v -> Pretty.dprintf "%a@@%a" CilType.Varinfo.pretty v CilType.Location.pretty v.vdecl
+    | `Var v -> CilType.Varinfo.pretty () v
     | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)" c.cname
     | `Type t -> Pretty.dprintf "(%a)" CilType.Typ.pretty t
 
@@ -116,7 +116,7 @@ struct
   let pretty () (vt, o) =
     (* Imitate old printing for now *)
     match vt with
-    | `Var v -> Pretty.dprintf "%a%a@@%a" CilType.Varinfo.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
+    | `Var v -> Pretty.dprintf "%a%a" CilType.Varinfo.pretty v Offset.Unit.pretty o
     | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)%a" c.cname Offset.Unit.pretty o
     | `Type t -> Pretty.dprintf "(%a)%a" CilType.Typ.pretty t Offset.Unit.pretty o
 
@@ -459,6 +459,10 @@ let print_accesses memo grouped_accs =
     AS.elements race_accs
     |> List.map h
   in
+  let group_loc = match memo with
+    | (`Var v, _) -> Some (M.Location.CilLocation v.vdecl) (* TODO: offset location *)
+    | (`Type _, _) -> None (* TODO: type location *)
+  in
   grouped_accs
   |> List.fold_left (fun safe_accs accs ->
       match race_conf accs with
@@ -471,12 +475,12 @@ let print_accesses memo grouped_accs =
           else
             Info
         in
-        M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" Memo.pretty memo conf (msgs accs);
+        M.msg_group severity ?loc:group_loc ~category:Race "Memory location %a (race with conf. %d)" Memo.pretty memo conf (msgs accs);
         safe_accs
     ) (AS.empty ())
   |> (fun safe_accs ->
       if allglobs && not (AS.is_empty safe_accs) then
-        M.msg_group Success ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
+        M.msg_group Success ?loc:group_loc ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
     )
 
 let warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo accs =
