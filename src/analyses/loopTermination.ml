@@ -4,9 +4,6 @@ open Analyses
 open GoblintCil
 open TerminationPreprocessing
 
-(* TODO: Remove *)
-exception PreProcessing of string
-
 (** Stores the result of the query if the program is single threaded or not
     since finalize does not has ctx as an argument*)
 let single_thread : bool ref = ref false
@@ -33,7 +30,7 @@ let check_bounded ctx varinfo =
   match ctx.ask (EvalInt exp) with
   | `Top -> false
   | `Lifted v -> not (is_top_of (ikind v) v)
-  | `Bot -> raise (PreProcessing "Loop variable is Bot")
+  | `Bot -> failwith "Loop counter variable is Bot."
 
 (** We want to record termination information of loops and use the loop
  * statements for that. We use this lifting because we need to have a
