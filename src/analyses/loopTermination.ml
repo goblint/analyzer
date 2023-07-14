@@ -23,9 +23,6 @@ let loop_exit : varinfo ref = ref (makeVarinfo false "-error" Cil.intType)
 let is_loop_counter_var (x : varinfo) =
   VarToStmt.mem x !loop_counters
 
-let is_loop_exit_indicator (x : varinfo) =
-  x = !loop_exit
-
 let no_upjumping_gotos () =
   upjumping_gotos.contents = []
 
@@ -65,41 +62,23 @@ struct
   let exitstate = startstate
 
   let finalize () =
-    (* warning for detected possible non-termination *)
-    (*upjumping gotos *)
+    (* Warning for detected possible non-termination *)
+    (* Upjumping gotos *)
     if not (no_upjumping_gotos ()) then (
       List.iter
         (fun x ->
            let msgs =
-             [(Pretty.dprintf "The program might not terminate! (Upjumping Goto)\n", Some (M.Location.CilLocation x));] in
+             [(Pretty.dprintf
+                 "The program might not terminate! (Upjumping Goto)\n",
+               Some (M.Location.CilLocation x)
+              );] in
            M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
         (!upjumping_gotos)
     );
-    (* multithreaded *)
+    (* Multithreaded *)
     if not (!single_thread) then (
       M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
     )
-
-    (*
-  let assign ctx (lval : lval) (rval : exp) =
-    if !AnalysisState.postsolving then
-      (* Detect assignment to loop counter variable *)
-      match lval, rval with
-        (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
-        (* Loop exit: Check whether loop counter variable is bounded *)
-        (* TODO: Move to special *)
-        let is_bounded = check_bounded ctx x in
-        let loop_statement = VarToStmt.find x !loop_counters in
-        ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
-        (* In case the loop is not bounded, a warning is created*)
-        if not (is_bounded) then (
-          let msgs =
-            [(Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)));] in
-          M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
-        ()
-      | _ -> ()
-    else ()
-    *)
 
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
     if !AnalysisState.postsolving then
@@ -108,10 +87,13 @@ struct
         let is_bounded = check_bounded ctx x in
         let loop_statement = VarToStmt.find x !loop_counters in
         ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
-        (* In case the loop is not bounded, a warning is created*)
+        (* In case the loop is not bounded, a warning is created. *)
         if not (is_bounded) then (
           let msgs =
-            [(Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)));] in
+            [(Pretty.dprintf
+                "The program might not terminate! (Loop analysis)\n",
+              Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement))
+             );] in
           M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
         ()
       | _ -> ()
