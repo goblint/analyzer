@@ -2346,6 +2346,13 @@ struct
       let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
       set ~ctx ~t_override:t ask ctx.global ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+    | Rand, _ ->
+      begin match lv with
+      | Some x -> 
+        let result:value = (Int (ID.starting IInt Z.zero)) in
+        set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
+      | None -> st
+      end
     | _, _ ->
       let st =
         special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
