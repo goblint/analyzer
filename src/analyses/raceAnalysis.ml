@@ -12,12 +12,12 @@ struct
   let name () = "race"
 
   (* Two global invariants:
-     1. (lval, type) -> accesses  --  used for warnings
-     2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
+     1. memoroot -> (offset -> accesses)  --  used for warnings
+     2. varinfo -> set of memo  --  used for IterSysVars Global *)
 
   module V =
   struct
-    include Printable.Either (Access.Memo) (CilType.Varinfo)
+    include Printable.Either (Access.MemoRoot) (CilType.Varinfo)
     let name () = "race"
     let access x = `Left x
     let vars x = `Right x
@@ -25,12 +25,48 @@ struct
   end
 
   module MemoSet = SetDomain.Make (Access.Memo)
+
+  module OneOffset =
+  struct
+    include Printable.StdLeaf
+    type t =
+      | Field of CilType.Fieldinfo.t
+      | Index
+    [@@deriving eq, ord, hash, to_yojson]
+
+    let name () = "oneoffset"
+
+    let show = function
+      | Field f -> CilType.Fieldinfo.show f
+      | Index -> "?"
+
+    include Printable.SimpleShow (struct
+        type nonrec t = t
+        let show = show
+      end)
+
+    let to_offset : t -> Offset.Unit.t = function
+      | Field f -> `Field (f, `NoOffset)
+      | Index -> `Index ((), `NoOffset)
+  end
+
+  module OffsetTrie =
+  struct
+    include TrieDomain.Make (OneOffset) (Access.AS)
+
+    let rec singleton (offset : Offset.Unit.t) (value : value) : t =
+      match offset with
+      | `NoOffset -> (value, ChildMap.empty ())
+      | `Field (f, offset') -> (Access.AS.empty (), ChildMap.singleton (Field f) (singleton offset' value))
+      | `Index ((), offset') -> (Access.AS.empty (), ChildMap.singleton Index (singleton offset' value))
+  end
+
   module G =
   struct
-    include Lattice.Lift2 (Access.AS) (MemoSet) (Printable.DefaultNames)
+    include Lattice.Lift2 (OffsetTrie) (MemoSet) (Printable.DefaultNames)
 
     let access = function
-      | `Bot -> Access.AS.bot ()
+      | `Bot -> OffsetTrie.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "Race.access"
     let vars = function
@@ -58,9 +94,9 @@ struct
     | _ ->
       ()
 
-  let side_access ctx (conf, w, loc, e, a) memo =
+  let side_access ctx (conf, w, loc, e, a) ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memo) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
     side_vars ctx memo
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -68,11 +104,22 @@ struct
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
-        | `Left memo -> (* accesses *)
+        | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let accs = G.access (ctx.global g) in
-          let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
+          let trie = G.access (ctx.global g) in
+          (** Distribute access to contained fields. *)
+          let rec distribute_inner offset (accs, children) ancestor_accs =
+            let ancestor_accs' = Access.AS.union ancestor_accs accs in
+            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
+                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ancestor_accs'
+              ) children;
+            if not (Access.AS.is_empty accs) then (
+              let memo = (g', offset) in
+              let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs
+            )
+          in
+          distribute_inner `NoOffset trie (Access.AS.empty ())
         | `Right _ -> (* vars *)
           ()
       end
@@ -99,7 +146,7 @@ struct
       in
       let add_access_struct conf ci =
         let a = part_access None in
-        Access.add_distribute_inner (side_access octx (conf, kind, loc, e, a)) (`Type (TComp (ci, [])), `NoOffset)
+        Access.add_one (side_access octx (conf, kind, loc, e, a)) (`Type (TComp (ci, [])), `NoOffset)
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
