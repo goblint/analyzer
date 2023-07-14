@@ -48,13 +48,6 @@ end
     Include as the first thing to avoid these overriding actual definitions. *)
 module Std =
 struct
-  (* start MapDomain.Groupable *)
-  type group = |
-  let show_group (x: group) = match x with _ -> .
-  let to_group _ = None
-  let trace_enabled = false
-  (* end MapDomain.Groupable *)
-
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
 end
