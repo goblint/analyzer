@@ -2064,307 +2064,307 @@ struct
         s1_a, s1_typ, VD.top_value (unrollType s1_typ)
     in
     let st = match desc.special args, f.vname with
-    | Memset { dest; ch; count; }, _ ->
-      (* TODO: check count *)
-      let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
-      let dest_a, dest_typ = addr_type_of_exp dest in
-      let value =
-        match eval_ch with
-        | Int i when ID.to_int i = Some Z.zero ->
-          VD.zero_init_value dest_typ
-        | _ ->
-          VD.top_value dest_typ
-      in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Bzero { dest; count; }, _ ->
-      (* TODO: share something with memset special case? *)
-      (* TODO: check count *)
-      let dest_a, dest_typ = addr_type_of_exp dest in
-      let value = VD.zero_init_value dest_typ in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Memcpy { dest = dst; src }, _ ->
-      memory_copying dst src
-    (* strcpy(dest, src); *)
-    | Strcpy { dest = dst; src; n = None }, _ ->
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      (* when dest surely isn't a string literal, try copying src to dest *)
-      if AD.string_writing_defined dest_a then
-        memory_copying dst src
-      else
-        (* else return top (after a warning was issued) *)
-        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ))
-    (* strncpy(dest, src, n); *)
-    | Strcpy { dest = dst; src; n }, _ ->
-      begin match eval_n n with
-        | Some num ->
-          let dest_a, dest_typ, value = string_manipulation dst src None false None in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> failwith "already handled in case above"
-      end
-    | Strcat { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ, value = string_manipulation dst src None false None in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strlen s, _ ->
-      begin match lv with
-        | Some lv_val ->
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
-          let dest_typ = Cilfacade.typeOfLval lv_val in
-          let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
-          let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-          let (value:value) = Int(AD.to_string_length address) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> st
-      end
-    | Strstr { haystack; needle }, _ ->
-      begin match lv with
-        | Some _ ->
-          (* when haystack, needle and dest type coincide, check if needle is a substring of haystack:
-             if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
-             else use top *)
-          let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a))) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> st
-      end
-    | Strcmp { s1; s2; n }, _ ->
-      begin match lv with
-        | Some _ ->
-          (* when s1 and s2 type coincide, compare both both strings completely or their first n characters, otherwise use top *)
-          let dest_a, dest_typ, value = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> Int(AD.string_comparison s1_a s2_a (eval_n n)))) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> st
-      end
-    | Abort, _ -> raise Deadcode
-    | ThreadExit { ret_val = exp }, _ ->
-      begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-        | `Lifted tid ->
-          (
-            let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-            ctx.sideg (V.thread tid) (G.create_thread rv);
-            (* TODO: emit thread return event so other analyses are aware? *)
-            (* TODO: publish still needed? *)
-            publish_all ctx `Return; (* like normal return *)
-            match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-            | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
-              ignore @@ Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st
-            | _ -> ())
-        | _ -> ()
-      end;
-      raise Deadcode
-    | MutexAttrSetType {attr = attr; typ = mtyp}, _ ->
-      begin
-        let get_type lval =
-          let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-          AD.type_of address
+      | Memset { dest; ch; count; }, _ ->
+        (* TODO: check count *)
+        let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
+        let dest_a, dest_typ = addr_type_of_exp dest in
+        let value =
+          match eval_ch with
+          | Int i when ID.to_int i = Some Z.zero ->
+            VD.zero_init_value dest_typ
+          | _ ->
+            VD.top_value dest_typ
         in
-        let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
-        let dest_typ = get_type dst_lval in
-        let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
-        match eval_rv (Analyses.ask_of_ctx ctx) gs st mtyp with
-        | Int x ->
-          begin
-            match ID.to_int x with
-            | Some z ->
-              if M.tracing then M.tracel "attr" "setting\n";
-              set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.of_int z))
-            | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
-          end
-        | _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
-      end
-    | Identity e, _ ->
-      begin match lv with
-        | Some x -> assign ctx x e
-        | None -> ctx.local
-      end
-    (**Floating point classification and trigonometric functions defined in c99*)
-    | Math { fun_args; }, _ ->
-      let apply_unary fk float_fun x =
-        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
-        begin match eval_x with
-          | Float float_x -> float_fun (FD.cast_to fk float_x)
-          | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
+        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+      | Bzero { dest; count; }, _ ->
+        (* TODO: share something with memset special case? *)
+        (* TODO: check count *)
+        let dest_a, dest_typ = addr_type_of_exp dest in
+        let value = VD.zero_init_value dest_typ in
+        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+      | Memcpy { dest = dst; src }, _ ->
+        memory_copying dst src
+      (* strcpy(dest, src); *)
+      | Strcpy { dest = dst; src; n = None }, _ ->
+        let dest_a, dest_typ = addr_type_of_exp dst in
+        (* when dest surely isn't a string literal, try copying src to dest *)
+        if AD.string_writing_defined dest_a then
+          memory_copying dst src
+        else
+          (* else return top (after a warning was issued) *)
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ))
+      (* strncpy(dest, src, n); *)
+      | Strcpy { dest = dst; src; n }, _ ->
+        begin match eval_n n with
+          | Some num ->
+            let dest_a, dest_typ, value = string_manipulation dst src None false None in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          | None -> failwith "already handled in case above"
         end
-      in
-      let apply_binary fk float_fun x y =
-        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
-        let eval_y = eval_rv (Analyses.ask_of_ctx ctx) gs st y in
-        begin match eval_x, eval_y with
-          | Float float_x, Float float_y -> float_fun (FD.cast_to fk float_x) (FD.cast_to fk float_y)
-          | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
+      | Strcat { dest = dst; src; n }, _ ->
+        let dest_a, dest_typ, value = string_manipulation dst src None false None in
+        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+      | Strlen s, _ ->
+        begin match lv with
+          | Some lv_val ->
+            let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+            let dest_typ = Cilfacade.typeOfLval lv_val in
+            let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
+            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+            let (value:value) = Int(AD.to_string_length address) in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          | None -> st
         end
-      in
-      let result:value =
-        begin match fun_args with
-          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
-          | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
-          | Inf fk -> Float (FD.inf_of fk)
-          | Isfinite x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
-          | Isinf x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
-          | Isnan x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
-          | Isnormal x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
-          | Signbit x -> Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
-          | Ceil (fk,x) -> Float (apply_unary fk FD.ceil x)
-          | Floor (fk,x) -> Float (apply_unary fk FD.floor x)
-          | Fabs (fk, x) -> Float (apply_unary fk FD.fabs x)
-          | Acos (fk, x) -> Float (apply_unary fk FD.acos x)
-          | Asin (fk, x) -> Float (apply_unary fk FD.asin x)
-          | Atan (fk, x) -> Float (apply_unary fk FD.atan x)
-          | Atan2 (fk, y, x) -> Float (apply_binary fk (fun y' x' -> FD.atan (FD.div y' x')) y x)
-          | Cos (fk, x) -> Float (apply_unary fk FD.cos x)
-          | Sin (fk, x) -> Float (apply_unary fk FD.sin x)
-          | Tan (fk, x) -> Float (apply_unary fk FD.tan x)
-          | Isgreater (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
-          | Isgreaterequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
-          | Isless (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
-          | Islessequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
-          | Islessgreater (x,y) -> Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
-          | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
-          | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
-          | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
+      | Strstr { haystack; needle }, _ ->
+        begin match lv with
+          | Some _ ->
+            (* when haystack, needle and dest type coincide, check if needle is a substring of haystack:
+               if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
+               else use top *)
+            let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a))) in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          | None -> st
         end
-      in
-      begin match lv with
-        | Some lv_val -> set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
-        | None -> st
-      end
-    (* handling thread creations *)
-    | ThreadCreate _, _ ->
-      invalidate_ret_lv ctx.local (* actual results joined via threadspawn *)
-    (* handling thread joins... sort of *)
-    | ThreadJoin { thread = id; ret_var }, _ ->
-      let st' =
-        match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
-        | Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
-        | Address ret_a ->
-          begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
-            | Thread a ->
-              let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
-              (* TODO: is this type right? *)
-              set ~ctx (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
-            | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
+      | Strcmp { s1; s2; n }, _ ->
+        begin match lv with
+          | Some _ ->
+            (* when s1 and s2 type coincide, compare both both strings completely or their first n characters, otherwise use top *)
+            let dest_a, dest_typ, value = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> Int(AD.string_comparison s1_a s2_a (eval_n n)))) in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          | None -> st
+        end
+      | Abort, _ -> raise Deadcode
+      | ThreadExit { ret_val = exp }, _ ->
+        begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+          | `Lifted tid ->
+            (
+              let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+              ctx.sideg (V.thread tid) (G.create_thread rv);
+              (* TODO: emit thread return event so other analyses are aware? *)
+              (* TODO: publish still needed? *)
+              publish_all ctx `Return; (* like normal return *)
+              match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+              | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+                ignore @@ Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st
+              | _ -> ())
+          | _ -> ()
+        end;
+        raise Deadcode
+      | MutexAttrSetType {attr = attr; typ = mtyp}, _ ->
+        begin
+          let get_type lval =
+            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+            AD.type_of address
+          in
+          let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
+          let dest_typ = get_type dst_lval in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+          match eval_rv (Analyses.ask_of_ctx ctx) gs st mtyp with
+          | Int x ->
+            begin
+              match ID.to_int x with
+              | Some z ->
+                if M.tracing then M.tracel "attr" "setting\n";
+                set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.of_int z))
+              | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
+            end
+          | _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
+        end
+      | Identity e, _ ->
+        begin match lv with
+          | Some x -> assign ctx x e
+          | None -> ctx.local
+        end
+      (**Floating point classification and trigonometric functions defined in c99*)
+      | Math { fun_args; }, _ ->
+        let apply_unary fk float_fun x =
+          let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+          begin match eval_x with
+            | Float float_x -> float_fun (FD.cast_to fk float_x)
+            | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
           end
-        | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
-      in
-      let st' = invalidate_ret_lv st' in
-      Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
-    | Unknown, "__goblint_assume_join" ->
-      let id = List.hd args in
-      Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
-    | Malloc size, _ -> begin
-        match lv with
-        | Some lv ->
-          let heap_var =
-            if (get_bool "sem.malloc.fail")
-            then AD.join (AD.of_var (heap_var ctx)) AD.null_ptr
-            else AD.of_var (heap_var ctx)
-          in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
-                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
-        | _ -> st
-      end
-    | Calloc { count = n; size }, _ ->
-      begin match lv with
-        | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = heap_var ctx in
-          let add_null addr =
-            if get_bool "sem.malloc.fail"
-            then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
-            else addr in
-          let ik = Cilfacade.ptrdiff_ikind () in
-          let blobsize = ID.mul (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st size) (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st n) in
-          (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
-                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
-        | _ -> st
-      end
-    | Realloc { ptr = p; size }, _ ->
-      begin match lv with
-        | Some lv ->
-          let ask = Analyses.ask_of_ctx ctx in
-          let p_rv = eval_rv ask gs st p in
-          let p_addr =
-            match p_rv with
-            | Address a -> a
-            (* TODO: don't we already have logic for this? *)
-            | Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
-            | Int i -> AD.top_ptr
-            | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
-          in
-          let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
-          let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
-          let size_int = eval_int ask gs st size in
-          let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
-          let heap_addr = AD.of_var (heap_var ctx) in
-          let heap_addr' =
-            if get_bool "sem.malloc.fail" then
-              AD.join heap_addr AD.null_ptr
-            else
-              heap_addr
-          in
-          let lv_addr = eval_lv ask gs st lv in
-          set_many ~ctx ask gs st [
-            (heap_addr, TVoid [], heap_val);
-            (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr');
-          ] (* TODO: free (i.e. invalidate) old blob if successful? *)
-        | None ->
-          st
-      end
-    | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
-    | Setjmp { env }, _ ->
-      let ask = Analyses.ask_of_ctx ctx in
-      let st' = match eval_rv ask gs st env with
-        | Address jmp_buf ->
-          let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
-          let r = set ~ctx ask gs st jmp_buf (Cilfacade.typeOf env) value in
-          if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
-          r
-        | _ -> failwith "problem?!"
-      in
-      begin match lv with
-        | Some lv ->
-          set ~ctx ask gs st' (eval_lv ask ctx.global st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
-        | None -> st'
-      end
-    | Longjmp {env; value}, _ ->
-      let ask = Analyses.ask_of_ctx ctx in
-      let ensure_not_zero (rv:value) = match rv with
-        | Int i ->
-          begin match ID.to_bool i with
-            | Some true -> rv
-            | Some false ->
-              M.error "Must: Longjmp with a value of 0 is silently changed to 1";
-              Int (ID.of_int (ID.ikind i) Z.one)
-            | None ->
-              M.warn "May: Longjmp with a value of 0 is silently changed to 1";
-              let ik = ID.ikind i in
-              Int (ID.join (ID.meet i (ID.of_excl_list ik [Z.zero])) (ID.of_int ik Z.one))
+        in
+        let apply_binary fk float_fun x y =
+          let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+          let eval_y = eval_rv (Analyses.ask_of_ctx ctx) gs st y in
+          begin match eval_x, eval_y with
+            | Float float_x, Float float_y -> float_fun (FD.cast_to fk float_x) (FD.cast_to fk float_y)
+            | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
           end
-        | _ ->
-          M.warn ~category:Program "Arguments to longjmp are strange!";
-          rv
-      in
-      let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
-      let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t ask ctx.global ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
-    | Rand, _ ->
-      begin match lv with
-      | Some x -> 
-        let result:value = (Int (ID.starting IInt Z.zero)) in
-        set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
-      | None -> st
-      end
-    | _, _ ->
-      let st =
-        special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+        in
+        let result:value =
+          begin match fun_args with
+            | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
+            | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
+            | Inf fk -> Float (FD.inf_of fk)
+            | Isfinite x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
+            | Isinf x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
+            | Isnan x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
+            | Isnormal x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
+            | Signbit x -> Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+            | Ceil (fk,x) -> Float (apply_unary fk FD.ceil x)
+            | Floor (fk,x) -> Float (apply_unary fk FD.floor x)
+            | Fabs (fk, x) -> Float (apply_unary fk FD.fabs x)
+            | Acos (fk, x) -> Float (apply_unary fk FD.acos x)
+            | Asin (fk, x) -> Float (apply_unary fk FD.asin x)
+            | Atan (fk, x) -> Float (apply_unary fk FD.atan x)
+            | Atan2 (fk, y, x) -> Float (apply_binary fk (fun y' x' -> FD.atan (FD.div y' x')) y x)
+            | Cos (fk, x) -> Float (apply_unary fk FD.cos x)
+            | Sin (fk, x) -> Float (apply_unary fk FD.sin x)
+            | Tan (fk, x) -> Float (apply_unary fk FD.tan x)
+            | Isgreater (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
+            | Isgreaterequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
+            | Isless (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
+            | Islessequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
+            | Islessgreater (x,y) -> Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+            | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+            | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
+            | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
+          end
+        in
+        begin match lv with
+          | Some lv_val -> set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
+          | None -> st
+        end
+      (* handling thread creations *)
+      | ThreadCreate _, _ ->
+        invalidate_ret_lv ctx.local (* actual results joined via threadspawn *)
+      (* handling thread joins... sort of *)
+      | ThreadJoin { thread = id; ret_var }, _ ->
+        let st' =
+          match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
+          | Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
+          | Address ret_a ->
+            begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
+              | Thread a ->
+                let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
+                (* TODO: is this type right? *)
+                set ~ctx (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
+              | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
+            end
+          | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
+        in
+        let st' = invalidate_ret_lv st' in
+        Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
+      | Unknown, "__goblint_assume_join" ->
+        let id = List.hd args in
+        Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
+      | Malloc size, _ -> begin
+          match lv with
+          | Some lv ->
+            let heap_var =
+              if (get_bool "sem.malloc.fail")
+              then AD.join (AD.of_var (heap_var ctx)) AD.null_ptr
+              else AD.of_var (heap_var ctx)
+            in
+            (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
+                                                           (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
+          | _ -> st
+        end
+      | Calloc { count = n; size }, _ ->
+        begin match lv with
+          | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
+            let heap_var = heap_var ctx in
+            let add_null addr =
+              if get_bool "sem.malloc.fail"
+              then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
+              else addr in
+            let ik = Cilfacade.ptrdiff_ikind () in
+            let blobsize = ID.mul (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st size) (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st n) in
+            (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
+                                                           (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
+          | _ -> st
+        end
+      | Realloc { ptr = p; size }, _ ->
+        begin match lv with
+          | Some lv ->
+            let ask = Analyses.ask_of_ctx ctx in
+            let p_rv = eval_rv ask gs st p in
+            let p_addr =
+              match p_rv with
+              | Address a -> a
+              (* TODO: don't we already have logic for this? *)
+              | Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
+              | Int i -> AD.top_ptr
+              | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
+            in
+            let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
+            let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
+            let size_int = eval_int ask gs st size in
+            let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
+            let heap_addr = AD.of_var (heap_var ctx) in
+            let heap_addr' =
+              if get_bool "sem.malloc.fail" then
+                AD.join heap_addr AD.null_ptr
+              else
+                heap_addr
+            in
+            let lv_addr = eval_lv ask gs st lv in
+            set_many ~ctx ask gs st [
+              (heap_addr, TVoid [], heap_val);
+              (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr');
+            ] (* TODO: free (i.e. invalidate) old blob if successful? *)
+          | None ->
+            st
+        end
+      | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
+      | Setjmp { env }, _ ->
+        let ask = Analyses.ask_of_ctx ctx in
+        let st' = match eval_rv ask gs st env with
+          | Address jmp_buf ->
+            let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
+            let r = set ~ctx ask gs st jmp_buf (Cilfacade.typeOf env) value in
+            if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
+            r
+          | _ -> failwith "problem?!"
+        in
+        begin match lv with
+          | Some lv ->
+            set ~ctx ask gs st' (eval_lv ask ctx.global st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
+          | None -> st'
+        end
+      | Longjmp {env; value}, _ ->
+        let ask = Analyses.ask_of_ctx ctx in
+        let ensure_not_zero (rv:value) = match rv with
+          | Int i ->
+            begin match ID.to_bool i with
+              | Some true -> rv
+              | Some false ->
+                M.error "Must: Longjmp with a value of 0 is silently changed to 1";
+                Int (ID.of_int (ID.ikind i) Z.one)
+              | None ->
+                M.warn "May: Longjmp with a value of 0 is silently changed to 1";
+                let ik = ID.ikind i in
+                Int (ID.join (ID.meet i (ID.of_excl_list ik [Z.zero])) (ID.of_int ik Z.one))
+            end
+          | _ ->
+            M.warn ~category:Program "Arguments to longjmp are strange!";
+            rv
+        in
+        let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
+        let t = Cilfacade.typeOf value in
+        set ~ctx ~t_override:t ask ctx.global ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+      | Rand, _ ->
+        begin match lv with
+          | Some x ->
+            let result:value = (Int (ID.starting IInt Z.zero)) in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
+          | None -> st
+        end
+      | _, _ ->
+        let st =
+          special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
         (*
           *  TODO: invalidate vars reachable via args
           *  publish globals
           *  if single-threaded: *call f*, privatize globals
           *  else: spawn f
           *)
-      in
-      (* invalidate lhs in case of assign *)
-      invalidate_ret_lv st
+        in
+        (* invalidate lhs in case of assign *)
+        invalidate_ret_lv st
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
