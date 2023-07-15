@@ -24,9 +24,51 @@ struct
 
   (* HELPER FUNCTIONS *)
 
+  let get_current_threadid ctx =
+    ctx.ask Queries.CurrentThreadId
+
   let warn_for_multi_threaded ctx behavior cwe_number =
     if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Program isn't running in single-threaded mode. Use-After-Free might occur due to multi-threading"
+
+  let warn_for_multi_threaded_access ctx (heap_var:varinfo) behavior cwe_number =
+    let freeing_threads = ctx.global heap_var in
+    (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
+    if ctx.ask (Queries.MustBeSingleThreaded { since_start = true }) || ThreadIdSet.is_empty freeing_threads then ()
+    else begin
+      let possibly_started current = function
+        | `Lifted tid ->
+          let threads = ctx.ask Queries.CreatedThreads in
+          let not_started = MHP.definitely_not_started (current, threads) tid in
+          let possibly_started = not not_started in
+          possibly_started
+        | `Top -> true
+        | `Bot -> false
+      in
+      let equal_current current = function
+        | `Lifted tid ->
+          ThreadId.Thread.equal current tid
+        | `Top -> true
+        | `Bot -> false
+      in
+      match get_current_threadid ctx with
+      | `Lifted current ->
+        let possibly_started = ThreadIdSet.exists (possibly_started current) freeing_threads in
+        if possibly_started then
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. Use-After-Free might occur" CilType.Varinfo.pretty heap_var
+        else begin
+          let current_is_unique = ThreadId.Thread.is_unique current in
+          let any_equal_current threads = ThreadIdSet.exists (equal_current current) threads in
+          if not current_is_unique && any_equal_current freeing_threads then
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
+          else if D.mem heap_var ctx.local then
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Use-After-Free might occur in current unique thread %a for heap variable %a" ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
+        end
+      | `Top ->
+        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. A Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
+      | `Bot ->
+        M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom"
+    end
 
   let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (lval:lval) =
     let state = ctx.local in
@@ -56,7 +98,9 @@ struct
         |> List.map fst
         |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
       in
-      List.iter warn_for_heap_var pointed_to_heap_vars (* Warn for all heap vars that the lval possibly points to *)
+      List.iter warn_for_heap_var pointed_to_heap_vars; (* Warn for all heap vars that the lval possibly points to *)
+      (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
+      List.iter (fun heap_var -> warn_for_multi_threaded_access ctx heap_var undefined_behavior cwe_number) pointed_to_heap_vars
     | _ -> ()
 
   and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (exp:exp) =
@@ -89,9 +133,6 @@ struct
   let side_effect_mem_free ctx freed_heap_vars threadid =
     let threadid = G.singleton threadid in
     D.iter (fun var -> ctx.sideg var threadid) freed_heap_vars
-
-  let get_current_threadid ctx =
-    ctx.ask Queries.CurrentThreadId
 
 
   (* TRANSFER FUNCTIONS *)
