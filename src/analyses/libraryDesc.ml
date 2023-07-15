@@ -73,6 +73,7 @@ type special =
   | Setjmp of { env: Cil.exp; }
   | Longjmp of { env: Cil.exp; value: Cil.exp; }
   | Bounded of { exp: Cil.exp}
+  | Rand
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
