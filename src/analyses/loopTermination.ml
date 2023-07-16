@@ -14,9 +14,6 @@ let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 (** Contains the locations of the upjumping gotos *)
 let upjumping_gotos : location list ref = ref []
 
-(** Indicates the place in the code, right after a loop is exited. *)
-let loop_exit : varinfo ref = ref (makeVarinfo false "-error" Cil.intType)
-
 let is_loop_counter_var (x : varinfo) =
   VarToStmt.mem x !loop_counters
 
@@ -126,6 +123,6 @@ end
 
 let () =
   (* Register the preprocessing *)
-  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loop_counters upjumping_gotos loop_exit);
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loop_counters upjumping_gotos);
   (* Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)

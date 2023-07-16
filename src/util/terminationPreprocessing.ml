@@ -1,5 +1,4 @@
 open GoblintCil
-include Printf
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
@@ -29,15 +28,8 @@ let extract_file_name s =                    (*There still may be a need to filt
 let show_location_id l =
    string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
-class loopCounterVisitor lc lg le (fd : fundec) = object(self)
+class loopCounterVisitor lc lg (fd : fundec) = object(self)
    inherit nopCilVisitor
-   method! vfunc (f:fundec) =
-      if !le.vname <> "term_exit-" then begin
-         let exit_name = "term_exit-" in
-         let typ = Cil.intType in 
-         le := Cil.makeGlobalVar exit_name typ;
-      end;
-      DoChildren;     (* function definition *)
    method! vstmt s =
       let action s = match s.skind with
          | Loop (b, loc, eloc, _, _) ->
@@ -46,14 +38,13 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          let v = (Cil.makeLocalVar fd name typ) in (*Not tested for incremental mode*)
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
-         let  check_stmt = mkStmtOneInstr @@ Set ((var !le), (Lval (var v)), loc, eloc) in
          let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [Lval (var v)], loc, locUnknown) in
          (match b.bstmts with
             | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
-               b.bstmts <- inc_stmt :: check_stmt :: exit_stmt :: s :: inc_stmt2 :: ss;
+               b.bstmts <- inc_stmt :: exit_stmt :: s :: inc_stmt2 :: ss;
             | ss ->
-               b.bstmts <- inc_stmt :: check_stmt :: exit_stmt :: ss;
+               b.bstmts <- inc_stmt :: exit_stmt :: ss;
          );
          lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
          let nb = mkBlock [init_stmt; mkStmt s.skind] in
