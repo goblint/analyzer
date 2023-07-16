@@ -1770,7 +1770,7 @@ struct
         (*Cycle found*)
         let msgs =
           [
-            (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)\n" CilType.Fundec.pretty fundec_e, Some (M.Location.CilLocation fundec_e.svar.vdecl));
+            (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)" CilType.Fundec.pretty fundec_e, Some (M.Location.CilLocation fundec_e.svar.vdecl));
           ] in
         M.msg_group Warning ~category:NonTerminating "Recursion cycle" msgs) (* output a warning for non-termination*)
       else if not (LH.mem global_visited_calls call) then begin

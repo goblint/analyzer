@@ -1,7 +1,8 @@
 // NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-int main() {
+int main()
+{
   goto mark2;
 
 mark1:
@@ -10,11 +11,11 @@ mark1:
 
 mark2:
   printf("This is mark2\n");
-  goto mark1;
+  goto mark1; // NONTERMGOTO termination analysis shall mark goto statement up-jumping goto
 
 mark3:
   printf("This is mark3\n");
-  goto mark1;
+  goto mark1; // NONTERMGOTO termination analysis shall mark goto statement up-jumping goto
 
   return 0;
 }

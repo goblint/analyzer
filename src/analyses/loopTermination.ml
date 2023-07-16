@@ -66,7 +66,7 @@ struct
         (fun x ->
            let msgs =
              [(Pretty.dprintf
-                 "The program might not terminate! (Upjumping Goto)\n",
+                 "The program might not terminate! (Upjumping Goto)",
                Some (M.Location.CilLocation x)
               );] in
            M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
@@ -88,7 +88,7 @@ struct
         if not (is_bounded) then (
           let msgs =
             [(Pretty.dprintf
-                "The program might not terminate! (Loop analysis)\n",
+                "The program might not terminate! (Loop analysis)",
               Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement))
              );] in
           M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);

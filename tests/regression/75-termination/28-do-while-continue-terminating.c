@@ -1,13 +1,16 @@
 // TODO TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-int main() {
+int main()
+{
   int i = 1;
 
-  do {
+  do
+  {
     i++;
     printf("Inside the do-while loop\n");
-    if (i % 2 == 0) {
+    if (i % 2 == 0)
+    {
 
       printf("Skipping %i is even\n", i);
       continue; // This is handled as an goto to line 8 and therefore an up-jumping goto

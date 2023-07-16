@@ -1,9 +1,11 @@
 // TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
-void recursiveFunction(int n) {
+void recursiveFunction(int n)
+{
   // Base case: When n reaches 0, stop recursion
-  if (n == 0) {
+  if (n == 0)
+  {
     printf("Terminating recursion\n");
     return;
   }
@@ -14,7 +16,8 @@ void recursiveFunction(int n) {
   recursiveFunction(n - 1);
 }
 
-int main() {
+int main()
+{
   // Call the recursive function with an initial value
   recursiveFunction(5);
 
