@@ -1718,16 +1718,16 @@ struct
   module V = GVarF(S.V)
 
   (* Tuple containing the fundec and context of the caller *)
-  module CallGraphTuple = Printable.Prod (CilType.Fundec) (S.C) 
- 
+  module CallGraphTuple = Printable.Prod (CilType.Fundec) (S.C)
+
   (* Set containing multiple caller tuples *)
   module CallGraphSet = SetDomain.Make (CallGraphTuple)
 
   (* Mapping from the callee context to the set of all caller tuples*)
   module CallGraphMap = MapDomain.MapBot (S.C) (CallGraphSet)
 
-  module G = 
-  struct 
+  module G =
+  struct
     include Lattice.Lift2 (G) (CallGraphMap) (Printable.DefaultNames)
 
     let spec = function
