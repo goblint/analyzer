@@ -2,18 +2,7 @@ open GoblintCil
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
-let specialFunction name =
-   print_endline @@ "specialfunction done";
-   { svar  = makeGlobalVar name (TFun(voidType, Some [("exp", intType, [])], false,[]));
-     smaxid = 0;
-     slocals = [];
-     sformals = [];
-     sbody = mkBlock [];
-     smaxstmtid = None;
-     sallstmts = [];
-   }
 
-let f_bounded  = Lval (var (specialFunction "__goblint_bounded").svar)
 
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
    let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
@@ -30,7 +19,21 @@ let show_location_id l =
 
 class loopCounterVisitor lc lg (fd : fundec) = object(self)
    inherit nopCilVisitor
+   
    method! vstmt s =
+
+      let specialFunction name =
+         { svar  = makeGlobalVar name (TFun(voidType, Some [("exp", intType, [])], false,[]));
+           smaxid = 0;
+           slocals = [];
+           sformals = [];
+           sbody = mkBlock [];
+           smaxstmtid = None;
+           sallstmts = [];
+         } in
+      
+      let f_bounded  = Lval (var (specialFunction "__goblint_bounded").svar) in
+      
       let action s = match s.skind with
          | Loop (b, loc, eloc, _, _) ->
          let name = "term"^show_location_id loc in
