@@ -1719,7 +1719,7 @@ struct
 
   (* Tuple containing the fundec and context of the caller *)
   module CallGraphTuple = Printable.Prod (CilType.Fundec) (S.C) 
- 
+
   (* Set containing multiple caller tuples *)
   module CallGraphSet = SetDomain.Make (CallGraphTuple)
 
