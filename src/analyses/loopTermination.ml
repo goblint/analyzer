@@ -14,9 +14,6 @@ let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 (** Contains the locations of the upjumping gotos *)
 let upjumping_gotos : location list ref = ref []
 
-let is_loop_counter_var (x : varinfo) =
-  VarToStmt.mem x !loop_counters
-
 let no_upjumping_gotos () =
   upjumping_gotos.contents = []
 
@@ -78,18 +75,23 @@ struct
     if !AnalysisState.postsolving then
       match f.vname, arglist with
         "__goblint_bounded", [Lval (Var x, NoOffset)] ->
-        let is_bounded = check_bounded ctx x in
-        let loop_statement = VarToStmt.find x !loop_counters in
-        ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
-        (* In case the loop is not bounded, a warning is created. *)
-        if not (is_bounded) then (
-          let msgs =
-            [(Pretty.dprintf
-                "The program might not terminate! (Loop analysis)",
-              Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement))
-             );] in
-          M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
-        ()
+        (try
+           let loop_statement = VarToStmt.find x !loop_counters in
+           let is_bounded = check_bounded ctx x in
+           ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+           (* In case the loop is not bounded, a warning is created. *)
+           if not (is_bounded) then (
+             let msgs =
+               [(Pretty.dprintf
+                   "The program might not terminate! (Loop analysis)",
+                 Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement))
+                );] in
+             M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
+           ()
+         with Not_found ->
+           (* This should not happen as long as __goblint_bounded is only used
+            * for this analysis. *)
+           ())
       | _ -> ()
     else ()
 
