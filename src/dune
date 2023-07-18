@@ -47,6 +47,10 @@
       (apron -> relationPrecCompareUtil.apron.ml)
       (-> relationPrecCompareUtil.no-apron.ml)
     )
+    (select relationalStringAnalyses.ml from
+      (apron -> relationalStringAnalyses.apron.ml)
+      (-> relationalStringAnalyses.no-apron.ml)
+    )
     (select relationalStringDomains.ml from
       (apron -> relationalStringDomains.apron.ml)
       (-> relationalStringDomains.no-apron.ml)
