@@ -5,17 +5,17 @@ module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter va
 
 
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
-   let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
-   let ls = List.rev ls in
-   let s' = List.nth ls 0 in
-   let ls = String.split_on_char '.' s' in
-   let s' = List.nth ls 0 in
-   let without_spaces = String.split_on_char ' ' s' in
-   let s' = String.concat "" without_spaces in
-   s'   
+  let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
+  let ls = List.rev ls in
+  let s' = List.nth ls 0 in
+  let ls = String.split_on_char '.' s' in
+  let s' = List.nth ls 0 in
+  let without_spaces = String.split_on_char ' ' s' in
+  let s' = String.concat "" without_spaces in
+  s'
 
 let show_location_id l =
-   string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
+  string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
 class loopCounterVisitor lc lg (fd : fundec) = object(self)
    inherit nopCilVisitor

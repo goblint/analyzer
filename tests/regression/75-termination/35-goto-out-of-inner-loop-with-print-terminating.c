@@ -18,7 +18,7 @@ int main()
       }
       printf("(%d, %d) ", i, j);
     }
-  outer_loop:; // Label for the outer loop
+  outer_loop: // Label for the outer loop
     printf("\n");
   }
 
