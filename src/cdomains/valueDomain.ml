@@ -545,9 +545,7 @@ struct
         | None -> AD.join y AD.top_ptr)
     | (Address x, Address y) -> Address (AD.join x y)
     | (Struct x, Struct y) -> Struct (Structs.join x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join x y) (* f = g *)
-        | x -> (x, Top)) (* f <> g *)
+    | (Union x, Union y) -> Union (Unions.join x y)
     | (Array x, Array y) -> Array (CArrays.join x y)
     | (Blob x, Blob y) -> Blob (Blobs.join x y)
     | Blob (x,s,o), y
@@ -582,9 +580,7 @@ struct
         | None -> AD.widen y (AD.join y AD.top_ptr))
     | (Address x, Address y) -> Address (AD.widen x y)
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> (`Lifted f, widen x y) (* f = g *)
-        | x -> (x, Top))
+    | (Union x, Union y) -> Union (Unions.widen x y)
     | (Array x, Array y) -> Array (CArrays.widen x y)
     | (Blob x, Blob y) -> Blob (Blobs.widen x y)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
@@ -605,9 +601,10 @@ struct
     let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.join_with_fct join_elem x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
-        | x -> (x, Top)) (* f <> g *)
+    | (Union (f,x), Union (g,y)) ->
+      let field = UnionDomain.Field.join f g in
+      let value = join_elem x y in
+      Union (field, value)
     | (Array x, Array y) -> Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | _ -> join x y  (* Others can not contain array -> normal join  *)
 
@@ -615,9 +612,10 @@ struct
     let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.widen_with_fct widen_elem x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
-        | x -> x, Top) (* f <> g *)
+    | (Union (f,x), Union (g,y)) ->
+      let field = UnionDomain.Field.widen f g in
+      let value = widen_elem x y in
+      Union (field, value)
     | (Array x, Array y) -> Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | _ -> widen x y  (* Others can not contain array -> normal widen  *)
 
