@@ -33,11 +33,6 @@ struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
 
-  let meet (f, x) (g, y) =
-    let field = Field.meet f g in
-    let value = Values.meet x y in
-    (field, value)
-
   let invariant ~value_invariant ~offset ~lval (lift_f, v) =
     match offset with
     (* invariants for all fields *)
