@@ -40,6 +40,7 @@ options.add_argument('headless')
 browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)
 print("finished webdriver installation \n")
 browser.maximize_window()
+browser.implicitly_wait(10);
 
 try:
     # retrieve and wait until page is fully loaded and rendered
