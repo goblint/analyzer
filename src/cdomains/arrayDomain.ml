@@ -1687,8 +1687,9 @@ struct
         Idx.starting IInt Z.one
       else 
         (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
-        (try if Z.equal (must_nulls_min_elt must_nulls_set1) (may_nulls_min_elt may_nulls_set1) && (not n_exists || Z.lt (must_nulls_min_elt must_nulls_set1) n)
-                && Z.equal (must_nulls_min_elt must_nulls_set2) (may_nulls_min_elt may_nulls_set2) && (not n_exists || Z.lt (must_nulls_min_elt must_nulls_set2) n)
+        (try if Z.equal (must_nulls_min_elt must_nulls_set1) (may_nulls_min_elt may_nulls_set1) 
+                && Z.equal (must_nulls_min_elt must_nulls_set2) (may_nulls_min_elt may_nulls_set2)
+                && (not n_exists || Z.lt (must_nulls_min_elt must_nulls_set1) n || Z.lt (must_nulls_min_elt must_nulls_set2) n )
                 && not (Z.equal (must_nulls_min_elt must_nulls_set1) (must_nulls_min_elt must_nulls_set2)) then
              Idx.of_excl_list IInt [Z.zero]
            else
