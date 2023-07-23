@@ -49,6 +49,31 @@ struct
   let arbitrary () = failwith "no arbitrary"
   let relift t = t
 
+  (* helpers *)
+  let transitive_closure s =
+    let transitive_relations (x, y) s =
+      let new_x_relations =
+        S.filter (fun (y', z) -> Var.equal y' y && not (Var.equal z x)) s
+        |> S.map (fun (y, z) -> (x, z)) in
+      S.union s new_x_relations in
+    let rec add_all_relations s =
+      let s' = S.fold transitive_relations s s in
+      if S.equal s s' then
+        s
+      else
+        add_all_relations s' in
+    add_all_relations s
+
+  let varinfo_to_var (v:varinfo) =
+    if v.vglob then
+      V.global v
+    else
+      V.local v
+
+  let vid_to_id ik = function (* TODO: okay? *)
+    | `Lifted i -> i
+    | _ -> ID.top_of ik
+
   let bot () = {r_set = S.bot (); env = Environment.make [||] [||]}
   let is_bot t = S.is_bot t.r_set
 
@@ -57,8 +82,8 @@ struct
 
   let leq t1 t2 = S.leq t1.r_set t2.r_set
 
-  let join t1 t2 = {r_set = S.join t1.r_set t2.r_set; env = Environment.lce t1.env t2.env}
-  let meet t1 t2 = {r_set = S.meet t1.r_set t2.r_set; env = Environment.lce t1.env t2.env}
+  let join t1 t2 = {r_set = transitive_closure (S.join t1.r_set t2.r_set); env = Environment.lce t1.env t2.env}
+  let meet t1 t2 = {r_set = transitive_closure (S.meet t1.r_set t2.r_set); env = Environment.lce t1.env t2.env}
   let widen = join
   let narrow = meet
 
@@ -102,17 +127,6 @@ struct
 
   let invariant t = []
 
-  (* helpers *)
-  let varinfo_to_var (v:varinfo) =
-    if v.vglob then
-      V.global v
-    else
-      V.local v
-
-  let vid_to_id ik = function (* TODO: okay? *)
-    | `Lifted i -> i
-    | _ -> ID.top_of ik
-
   (* string functions *)
   let string_copy ctx t dest src n = 
     let dest' = varinfo_to_var dest in
@@ -121,16 +135,7 @@ struct
     (* remove all relations involving dest; add (dest <= src), (src <= dest) and transitively all relations involving src also for dest *)
     let t_without_dest = forget_vars t [dest'] in
     let t_with_new_dest = {r_set = S.add (dest', src') (S.add (src', dest') t_without_dest.r_set); env = t_without_dest.env} in
-    let t_with_new_relations = 
-      {r_set = S.fold (fun (x, y) acc -> 
-           if Var.equal x src' then 
-             S.add (dest', y) acc 
-           else if Var.equal y src' then 
-             S.add (x, dest') acc 
-           else 
-             acc) 
-           t_without_dest.r_set t_with_new_dest.r_set; 
-       env = t_with_new_dest.env} in
+    let t_with_new_relations = {r_set = transitive_closure t_with_new_dest.r_set; env = t_with_new_dest.env} in
 
     (* ask for size(dest) and strlen(src) *)
     let size_dest = vid_to_id ILong (ctx.ask (VarArraySize dest)) in
@@ -161,14 +166,7 @@ struct
     (* remove relation (dest <= x); add (src <= dest) and transitively for all relations (x <= src) add (x <= dest) *)
     let t_without_dest = {r_set = S.filter (fun (x, _) -> not (Var.equal x dest')) t.r_set; env = t.env} in
     let t_with_src_substr_dest = {r_set = S.add (src', dest') t_without_dest.r_set; env = t_without_dest.env} in
-    let t_with_new_relations =
-      {r_set = S.fold (fun (x, y) acc ->
-           if Var.equal y src' then
-             S.add (x, dest') acc
-           else
-             acc)
-           t_without_dest.r_set t_with_src_substr_dest.r_set;
-       env = t_with_src_substr_dest.env} in
+    let t_with_new_relations = {r_set = transitive_closure t_with_src_substr_dest.r_set; env = t_with_src_substr_dest.env} in
 
     (* ask for size(dest), strlen(dest) and strlen(src) *)
     let size_dest = vid_to_id ILong (ctx.ask (VarArraySize dest)) in
@@ -210,7 +208,7 @@ struct
           | None -> acc
         else
           acc)
-      t.r_set (ID.top_of !Cil.kindOfSizeOf) (* TODO: also query for length of s and perform another meet? *)
+      t.r_set (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength s)))
 
   (* returns is_maybe_null_ptr, is_surely_offset_0 *)
   let substring_extraction ctx t haystack needle =
