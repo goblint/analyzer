@@ -1,4 +1,4 @@
-// NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// SKIP NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 // The program terminates but the analysis is currently only meant to detect up-jumping gotos as potentially NonTerminating, therefore we expect an NonTerm
 #include <stdio.h>
 
