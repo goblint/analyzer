@@ -738,7 +738,7 @@ module Base =
           (* before delete_marked because we also want to restart write-only side effects from deleted nodes *)
           HM.iter (fun x w ->
               HM.iter (fun y d ->
-                  ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y);
+                  (* ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y); *)
                   HM.replace rho y (S.Dom.bot ());
                 ) w
             ) rho_write
