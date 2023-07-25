@@ -516,7 +516,6 @@ module Base =
 
         let restart_leaf x =
           if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
-          ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
           HM.replace rho x (S.Dom.bot ());
           (* HM.remove rho x; *)
           HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
