@@ -15,7 +15,7 @@ struct
       let module Spec =
       struct
         include SpecFunctor (Priv) (RSD) (PCU)
-        let name () = "relational_substr"    
+        let name () = "substr"    
       end
       in
       (module Spec)
