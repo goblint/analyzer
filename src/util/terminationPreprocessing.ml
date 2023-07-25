@@ -31,7 +31,9 @@ class loopCounterVisitor lc lg (fd : fundec) = object(self)
            smaxstmtid = None;
            sallstmts = [];
          } in
-      
+
+      let min_int_exp = Const(CInt(Cilint.shift_left_cilint Cilint.mone_cilint ((bytesSizeOfInt IInt)*8-1), IInt, None)) in
+   
       let f_bounded  = Lval (var (specialFunction "__goblint_bounded").svar) in
       
       let action s = match s.skind with
@@ -39,15 +41,15 @@ class loopCounterVisitor lc lg (fd : fundec) = object(self)
          let name = "term"^show_location_id loc in
          let typ = Cil.intType in 
          let v = (Cil.makeLocalVar fd name typ) in (*Not tested for incremental mode*)
-         let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
+         let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [Lval (var v)], loc, locUnknown) in
          (match b.bstmts with
             | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
-               b.bstmts <- inc_stmt :: exit_stmt :: s :: inc_stmt2 :: ss;
+               b.bstmts <- exit_stmt :: inc_stmt :: s :: inc_stmt2 :: ss;
             | ss ->
-               b.bstmts <- inc_stmt :: exit_stmt :: ss;
+               b.bstmts <- exit_stmt :: inc_stmt :: ss;
          );
          lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
          let nb = mkBlock [init_stmt; mkStmt s.skind] in
