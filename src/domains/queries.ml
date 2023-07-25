@@ -99,7 +99,10 @@ type _ t =
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | IsMultiple: varinfo -> MustBool.t t
+  (* For locals: Is another copy of this local variable reachable via pointers? *)
+  (* For dynamically allocated memory: Does this abstract variable corrrespond to a unique heap location? *)
+  (* For globals: Is it declared as thread-local? (https://github.com/goblint/analyzer/issues/1072) *)
   | MutexType: Mval.Unit.t -> MutexAttrDomain.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalMutexAttr: exp -> MutexAttrDomain.t t

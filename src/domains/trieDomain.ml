@@ -1,6 +1,6 @@
 (** Trie domains. *)
 
-module Make (Key: MapDomain.Groupable) (Value: Lattice.S) =
+module Make (Key: Printable.S) (Value: Lattice.S) =
 struct
   module rec Trie:
   sig
