@@ -57,33 +57,30 @@ struct
     | Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | _ -> VD.is_bot_value x
 
-  let apply_invariant oldv newv =
-    match oldv, newv with
-    (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
-    (*   Address (AD.join o n) *)
-    (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) o -> Address n *)
-    (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) n -> Address o *)
-    | _ -> VD.meet oldv newv
+  let apply_invariant ~old_val ~new_val =
+    try
+      VD.meet old_val new_val
+    with Lattice.Uncomparable -> old_val
 
   let refine_lv_fallback ctx a gs st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
     let addr = eval_lv a gs st lval in
     if (AD.is_top addr) then st
     else
-      let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+      let old_val = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
       let t_lval = Cilfacade.typeOfLval lval in
-      let oldval = map_oldval oldval t_lval in
-      let oldval =
-        if is_some_bot oldval then (
+      let old_val = map_oldval old_val t_lval in
+      let old_val =
+        if is_some_bot old_val then (
           if M.tracing then M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval;
           VD.top ()
         )
         else
-          oldval
+          old_val
       in
       let state_with_excluded = set a gs st addr t_lval value ~ctx in
       let value =  get a gs state_with_excluded addr None in
-      let new_val = apply_invariant oldval value in
+      let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
       if is_some_bot new_val then (
@@ -99,14 +96,14 @@ struct
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-      let oldv = get_var a gs st var in
-      let oldv = map_oldval oldv var.vtype in
+      let old_val = get_var a gs st var in
+      let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset a gs st o in
-      let newv = VD.update_offset (Queries.to_value_domain_ask a) oldv offs c' (Some exp) x (var.vtype) in
-      let v = VD.meet oldv newv in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
+      let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
-        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" CilType.Varinfo.pretty var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" CilType.Varinfo.pretty var VD.pretty old_val VD.pretty v pretty c VD.pretty c';
         let r = set' (Var var,NoOffset) v st in
         if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
         r
@@ -114,12 +111,12 @@ struct
     | Var _, _
     | Mem _, _ ->
       (* For accesses via pointers, not yet *)
-      let oldv = eval_rv_lval_refine a gs st exp x in
-      let oldv = map_oldval oldv (Cilfacade.typeOfLval x) in
-      let v = VD.meet oldv c' in
+      let old_val = eval_rv_lval_refine a gs st exp x in
+      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+      let v = apply_invariant ~old_val ~new_val:c' in
       if is_some_bot v then contra st
       else (
-        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
         set' x v st
       )
 

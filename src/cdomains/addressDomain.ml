@@ -76,12 +76,6 @@ module AddressPrintable (Mval: Mval.Printable) =
 struct
   include AddressBase (Mval)
 
-  type group = Basetype.Variables.group
-  let show_group = Basetype.Variables.show_group
-  let to_group = function
-    | Addr (x,_) -> Basetype.Variables.to_group x
-    | _ -> Some Basetype.Variables.Local
-
   let of_var x = Addr (x, `NoOffset)
   let of_mval (x, o) = Addr (x, o)
 

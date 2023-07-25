@@ -507,6 +507,12 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true ask ctx.global id st
+    | Rand, _ ->
+      (match r with
+       | Some lv ->
+         let st = invalidate_one ask ctx st lv in
+         assert_fn {ctx with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
+       | None -> st)
     | _, _ ->
       let lvallist e =
         let s = ask.f (Queries.MayPointTo e) in

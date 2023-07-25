@@ -36,11 +36,6 @@ end
 struct
   type elt = E.t
 
-  module R =
-  struct
-    include Printable.Std (* for Groupable *)
-    include R
-  end
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
@@ -475,11 +470,6 @@ struct
   type key = E.t
   type value = B.value
 
-  module R =
-  struct
-    include Printable.Std (* for Groupable *)
-    include R
-  end
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
@@ -610,17 +600,12 @@ struct
         | _, _ -> None
       ) m1 m2
 
-  module GroupableE =
-  struct
-    include Printable.Std (* for Groupable *)
-    include E
-  end
-  include MapDomain.Print (GroupableE) (V) (
+  include MapDomain.Print (E) (V) (
     struct
       type nonrec t = t
       type nonrec key = key
       type nonrec value = value
-      let bindings = bindings
+      let fold = fold
       let iter = iter
     end
     )
@@ -873,17 +858,12 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
-  module GroupableE =
-  struct
-    include Printable.Std (* for Groupable *)
-    include E
-  end
-  include MapDomain.Print (GroupableE) (R) (
+  include MapDomain.Print (E) (R) (
     struct
       type nonrec t = t
       type nonrec key = key
       type nonrec value = value
-      let bindings = bindings
+      let fold = fold
       let iter = iter
     end
     )
