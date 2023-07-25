@@ -139,7 +139,7 @@ git diff --no-prefix relative/path/to/test.c relative/path/to/test.json > relati
 The comparison input and the metadata in the patch headers are not necessary and can be removed.
 
 ### Incremental Analysis Test Toolchain - IATT
-The "Incremental Analysis Test Toolchain" in the bench repository (`bench/incremental-test-generation/`) enables you to generate and run incremental tests based on one single c file as input. You find more details in the readme file in the repository (`bench/incremental-test-generation/README.md`).
+The "Incremental Analysis Test Toolchain" in the bench repository (`bench/incremental-analysis-test-toolchain`) enables you to generate and run incremental tests based on one single c file as input. You find more details in the readme file in the repository (`bench/incremental-analysis-test-toolchain/README.md`).
 
 ## Unit tests
 
