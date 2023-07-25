@@ -22,4 +22,4 @@ To build GobView (also for development):
 2. The executable for the http-server can then be found in the directory `./_build/default/gobview/goblint-http-server`. It takes the analyzer directory and additional Goblint configurations such as the files to be analyzed as parameters. Run it e.g. with the following command:\
 `./_build/default/gobview/goblint-http-server/goblint_http.exe -with-goblint ../analyzer/goblint -goblint --set files[+] "../analyzer/tests/regression/00-sanity/01-assert.c"`
 
-4. Visit <http://localhost:8000>
+4. Visit <http://localhost:8080>
