@@ -1,2 +1,2 @@
-# Do not consider temporary files for the running of mutation generator
+# Do not consider temporary files for the running of the "Incremental Analysis Test Toolchain"
 99-temp
