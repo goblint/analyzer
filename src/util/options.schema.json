@@ -1495,7 +1495,7 @@
         },
         "goblint-check" : {
           "title": "trans.goblint-check",
-          "description": "Write __Goblint_Check(exp) in the file instead of __VERIFIER_assert(exp).",
+          "description": "Write __goblint_check(exp) in the file instead of __VERIFIER_assert(exp).",
           "type": "boolean",
           "default": false
         }
