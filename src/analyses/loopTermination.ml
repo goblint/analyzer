@@ -11,12 +11,6 @@ let single_thread : bool ref = ref false
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 
-(** Contains the locations of the upjumping gotos. *)
-let upjumping_gotos : location list ref = ref []
-
-let no_upjumping_gotos () =
-  upjumping_gotos.contents = []
-
 (** Checks whether a variable can be bounded. *)
 let check_bounded ctx varinfo =
   let open IntDomain.IntDomTuple in
@@ -53,18 +47,6 @@ struct
 
   (** Warnings for detected possible non-termination *)
   let finalize () =
-    (* Upjumping gotos *)
-    if not (no_upjumping_gotos ()) then (
-      List.iter
-        (fun x ->
-           let msgs =
-             [(Pretty.dprintf
-                 "The program might not terminate! (Upjumping Goto)",
-               Some (M.Location.CilLocation x)
-              );] in
-           M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
-        (!upjumping_gotos)
-    );
     (* Multithreaded *)
     if not (!single_thread) then (
       M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
@@ -117,12 +99,11 @@ struct
        * evaluation, the correct value of single_thread can not be guaranteed!
        * Therefore, we use a let-in clause here. *)
       always_single_threaded
-      && no_upjumping_gotos ()
       && G.for_all (fun _ term_info -> term_info) (ctx.global ())
     | _ -> Queries.Result.top q
 
 end
 
 let () =
-  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loop_counters upjumping_gotos);
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loop_counters);
   MCP.register_analysis (module Spec : MCPSpec)

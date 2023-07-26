@@ -17,7 +17,7 @@ let extract_file_name s =                    (*There still may be a need to filt
 let show_location_id l =
   string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
-class loopCounterVisitor lc lg (fd : fundec) = object(self)
+class loopCounterVisitor lc (fd : fundec) = object(self)
   inherit nopCilVisitor
 
   method! vstmt s =
@@ -55,6 +55,7 @@ class loopCounterVisitor lc lg (fd : fundec) = object(self)
         let nb = mkBlock [init_stmt; mkStmt s.skind] in
         s.skind <- Block nb;
         s
+        (*
       | Goto (sref, l) ->
         let goto_jmp_stmt = sref.contents.skind in
         let loc_stmt = get_stmtLoc goto_jmp_stmt in
@@ -62,6 +63,7 @@ class loopCounterVisitor lc lg (fd : fundec) = object(self)
         then
           lg := List.append !lg ([l] : location list); (*problem: the program might not terminate!*)
         s
+           *)
       | _ -> s
     in ChangeDoChildrenPost (s, action);
 end
