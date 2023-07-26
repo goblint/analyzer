@@ -606,3 +606,7 @@ let add_function_declarations (file: Cil.file): unit =
   let fun_decls = List.filter_map declaration_from_GFun functions in
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
+
+(** Contains the locations of the upjumping gotos and the respective functions
+ * they are being called in. *)
+let upjumping_gotos : (location * fundec) list ref = ref []
