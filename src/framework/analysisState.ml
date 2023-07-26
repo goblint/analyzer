@@ -7,6 +7,9 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
+(** Whether a Use-After-Free (UAF) happened *)
+let svcomp_may_use_after_free = ref false
+
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false
 
