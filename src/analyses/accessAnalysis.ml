@@ -1,7 +1,7 @@
-(** Access analysis. *)
+(** Analysis of memory accesses ([access]). *)
 
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open GobConfig
 
@@ -24,9 +24,12 @@ struct
   module G = AccessDomain.EventSet
 
   let collect_local = ref false
+  let emit_single_threaded = ref false
 
   let init _ =
-    collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed"
+    collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed";
+    let activated = get_string_list "ana.activated" in
+    emit_single_threaded := List.mem (ModifiedSinceLongjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
@@ -39,13 +42,15 @@ struct
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    if force || !collect_local || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
+    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)\n" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
+    if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
       if deref then
         do_access ctx kind reach exp;
-      Access.distribute_access_exp (do_access ctx Read false) exp
+      if M.tracing then M.tracei "access" "distribute_access_exp\n";
+      Access.distribute_access_exp (do_access ctx Read false) exp;
+      if M.tracing then M.traceu "access" "distribute_access_exp\n";
     );
-    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
+    if M.tracing then M.traceu "access" "access_one_top\n"
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
@@ -56,9 +61,13 @@ struct
 
   (** Transfer functions: *)
 
+  let vdecl ctx v =
+    access_one_top ctx Read false (SizeOf v.vtype);
+    ctx.local
+
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
-    if !GU.global_initialization then ctx.local else begin
+    if !AnalysisState.global_initialization then ctx.local else begin
       access_one_top ~deref:true ctx Write false (AddrOf lval);
       access_one_top ctx Read false rval;
       ctx.local
@@ -98,14 +107,18 @@ struct
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
-  let combine ctx lv fexp f args fc al f_ask =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    (* These should be in enter, but enter cannot emit events, nor has fexp argument *)
     access_one_top ctx Read false fexp;
+    List.iter (access_one_top ctx Read false) args;
+    au
+
+  let combine_assign ctx lv fexp f args fc al f_ask =
     begin match lv with
       | None      -> ()
       | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
     end;
-    List.iter (access_one_top ctx Read false) args;
-    al
+    ctx.local
 
 
   let threadspawn ctx lval f args fctx =
@@ -124,14 +137,14 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !Goblintutil.postsolving ->
+    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
       begin match lvals with
         | ls when Queries.LS.is_top ls ->
           let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
           ctx.sideg ctx.node (G.singleton access)
         | ls ->
           let events = Queries.LS.fold (fun (var, offs) acc ->
-              let coffs = Lval.CilLval.to_ciloffs offs in
+              let coffs = Offset.Exp.to_cil offs in
               let access: AccessDomain.Event.t =
                 if CilType.Varinfo.equal var dummyFunDec.svar then
                   {var_opt = None; offs_opt = (Some coffs); kind}

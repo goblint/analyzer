@@ -1,3 +1,5 @@
+(** Configuration access. *)
+
 (**
    New, untyped, path-based configuration subsystem.
 
@@ -18,7 +20,7 @@
    There is a "conf" [trace] option that traces setting.
 *)
 
-open Prelude
+open Batteries
 open Tracing
 open Printf
 
@@ -387,7 +389,7 @@ struct
   (** Merge configurations form a file with current. *)
   let merge_file fn =
     let cwd = Fpath.v (Sys.getcwd ()) in
-    let config_dirs = cwd :: Goblint_sites.conf in
+    let config_dirs = cwd :: Fpath.(parent (v Sys.executable_name)) :: Goblint_sites.conf in
     let file = List.find_map_opt (fun custom_include_dir ->
         let path = Fpath.append custom_include_dir fn in
         if Sys.file_exists (Fpath.to_string path) then
@@ -407,3 +409,12 @@ end
 include Impl
 
 let () = set_conf Options.defaults
+
+
+(** Another hack to see if earlyglobs is enabled *)
+let earlyglobs = ref false
+
+let jobs () =
+  match get_int "jobs" with
+  | 0 -> Cpu.numcores ()
+  | n -> n

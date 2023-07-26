@@ -11,7 +11,7 @@ source=$base/$test.c
 conf=$base/$test.json
 patch=$base/$test.patch
 
-args="--enable dbg.debug --enable dbg.timing.enabled -v --enable allglobs"
+args="--enable warn.debug --enable dbg.timing.enabled -v --enable allglobs"
 
 ./goblint --conf $conf $args --enable incremental.save $source &> $base/$test.before.log
 

@@ -1,3 +1,5 @@
+(** Terminal color utilities. *)
+
 open GobConfig
 
 let colors_on fd = (* use colors? *)

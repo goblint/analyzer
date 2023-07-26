@@ -1,4 +1,6 @@
-open Prelude
+(** Serialization/deserialization of incremental analysis data. *)
+
+open Batteries
 
 (* TODO: GoblintDir *)
 let incremental_data_file_name = "analysis.data"

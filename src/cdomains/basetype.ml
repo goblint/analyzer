@@ -1,36 +1,19 @@
-module GU = Goblintutil
+(** Printables and domains for some common types. *)
+
 open GoblintCil
 
-
-(** Location with special alphanumeric output for extraction. *)
-module ExtractLocation : Printable.S with type t = location =
-struct
-  include CilType.Location
-
-  let show loc =
-    let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
-    f loc.line ^ "b" ^ f loc.byte
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
-end
 
 module Variables =
 struct
   include CilType.Varinfo
-  let trace_enabled = true
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
   let pretty () x = Pretty.text (show x)
-  type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
-  let (%) = Batteries.(%)
-  let to_group = Option.some % function
+  type group = Global | Local | Parameter | Temp [@@deriving ord, show { with_path = false }]
+  let to_group = function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
     | x when Cilfacade.is_varinfo_formal x -> Parameter
@@ -43,7 +26,7 @@ end
 
 module RawStrings: Printable.S with type t = string =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   open Pretty
   type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = "\"" ^ x ^ "\""
@@ -60,7 +43,7 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 
 module RawBools: Printable.S with type t = bool =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   open Pretty
   type t = bool [@@deriving eq, ord, hash, to_yojson]
   let show (x:t) =  if x then "true" else "false"
@@ -77,7 +60,6 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 
 module CilExp =
 struct
-  include Printable.Std (* for Groupable *)
   include CilType.Exp
 
   let name () = "expressions"
@@ -174,8 +156,4 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
-module CilField =
-struct
-  include Printable.Std (* for default MapDomain.Groupable *)
-  include CilType.Fieldinfo
-end
+module CilField = CilType.Fieldinfo

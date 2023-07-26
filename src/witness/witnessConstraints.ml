@@ -1,6 +1,6 @@
-(** An analysis specification for witnesses. *)
+(** Analysis specification transformation for ARG construction. *)
 
-open Prelude.Ana
+open Batteries
 open Analyses
 
 
@@ -40,19 +40,20 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (R: Lattice.S) =
+  module SpecDMap (V: Lattice.S) =
   struct
-    module C =
+    module R =
     struct
+      include Spec.P
       type elt = Spec.D.t
-      let cong = Spec.should_join
     end
-    module J = MapDomain.Joined (Spec.D) (R)
-    include DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
+    module J = MapDomain.Joined (Spec.D) (V)
+    include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
   end
 
   module Dom =
   struct
+    module V = R
     include SpecDMap (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
@@ -60,7 +61,7 @@ struct
     let printXml f x =
       let print_one x r =
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
-        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x V.printXml r
       in
       iter print_one x
 
@@ -94,14 +95,13 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module P = UnitP
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
   type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
-
-  let should_join x y = true
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
@@ -157,6 +157,19 @@ struct
     let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
 
+  (* TODO???? *)
+  let map_event ctx e =
+    (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
+    let h x (xs, sync) =
+      try
+        let x' = Spec.event (conv ctx x) e (conv ctx x) in
+        (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+      with Deadcode -> (xs, sync)
+    in
+    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
+    if Dom.is_bot (fst d) then raise Deadcode else d
+
+
   let fold' ctx f g h a =
     let k x a =
       try h a x @@ g @@ f @@ conv ctx x
@@ -179,6 +192,12 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+  let event ctx e octx = map_event ctx e (* TODO: ???? *)
+
+  let paths_as_set ctx =
+    let (a,b) = ctx.local in
+    let r = Dom.bindings a in
+    List.map (fun (x,v) -> (Dom.singleton x v, b)) r
 
   let threadenter ctx lval f args =
     let g xs x' ys =
@@ -202,10 +221,16 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
+      if M.tracing then M.tracei "witness" "IterPrevVars\n";
       Dom.iter (fun x r ->
+          if M.tracing then M.tracei "witness" "x = %a\n" Spec.D.pretty x;
           R.iter (function ((n, c, j), e) ->
+              if M.tracing then M.tracec "witness" "n = %a\n" Node.pretty_plain n;
+              if M.tracing then M.tracec "witness" "c = %a\n" Spec.C.pretty c;
+              if M.tracing then M.tracec "witness" "j = %a\n" Spec.D.pretty j;
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-            ) r
+            ) r;
+          if M.tracing then M.traceu "witness" "\n"
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
@@ -214,12 +239,18 @@ struct
            | Function _ -> () (* returns post-sync in FromSpec *)
            | _ -> assert (Sync.is_bot (snd ctx.local));
          end; *)
+      if M.tracing then M.traceu "witness" "\n";
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->
           f (I.to_int x)
         ) (fst ctx.local);
       ()
+    | Queries.PathQuery (i, q) ->
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      (* let (d, _) = List.at (S.elements s) i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
+      Spec.query (conv ctx d) q
     | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
@@ -254,7 +285,21 @@ struct
     in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx l fe f a fc d f_ask =
+  let combine_env ctx l fe f a fc d  f_ask =
+    (* Don't yet consider call edge done before assign. *)
+    assert (Dom.cardinal (fst ctx.local) = 1);
+    let (cd, cdr) = Dom.choose (fst ctx.local) in
+    let k x (y, sync) =
+      try
+        let x' = Spec.combine_env (conv ctx cd) l fe f a fc x f_ask in
+        (Dom.add x' cdr y, Sync.add x' (Sync.find cd (snd ctx.local)) sync) (* keep predecessors and sync from ctx, sync required for step_ctx_inlined_edge in combine_assign *)
+      with Deadcode -> (y, sync)
+    in
+    let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
+    if Dom.is_bot (fst d) then raise Deadcode else d
+
+  let combine_assign ctx l fe f a fc d  f_ask =
+    (* Consider call edge done after entire call-assign. *)
     assert (Dom.cardinal (fst ctx.local) = 1);
     let cd = Dom.choose_key (fst ctx.local) in
     let k x (y, sync) =
@@ -268,7 +313,7 @@ struct
           step_ctx_edge ctx cd
       in
       try
-        let x' = Spec.combine (conv ctx cd) l fe f a fc x f_ask in
+        let x' = Spec.combine_assign (conv ctx cd) l fe f a fc x f_ask in
         (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (y, sync)
     in

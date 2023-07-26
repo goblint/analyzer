@@ -1,6 +1,8 @@
-open Prelude
+(** Domains for finite automaton specification file analysis. *)
 
-module D = LvalMapDomain
+open Batteries
+
+module D = MvalMapDomain
 
 
 module Val =

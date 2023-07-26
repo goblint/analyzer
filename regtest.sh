@@ -14,7 +14,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   grep="ggrep"
 fi
 params="`$grep -oP "PARAM: \K.*" $file`"
-cmd="./goblint --enable dbg.debug --enable dbg.regression --html $params ${@:3} $file" # -v
+cmd="./goblint --enable warn.debug --enable dbg.regression --html $params ${@:3} $file" # -v
 echo "$cmd"
 eval $cmd
 echo "See result/index.xml"

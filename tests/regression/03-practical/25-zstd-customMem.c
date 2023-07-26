@@ -1,3 +1,4 @@
+// PARAM: --set lib.activated[+] zstd
 // Extracted from zstd
 #include <stddef.h>
 #include <stdlib.h>

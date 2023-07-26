@@ -1,6 +1,8 @@
+(** Main internal functionality: analysis of the program by abstract interpretation via constraint solving. *)
+
 (** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
@@ -33,6 +35,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
                Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
+            |> lift true (module LongjmpLifter)
           ) in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
@@ -44,6 +47,8 @@ let get_spec (): (module Spec) =
   Lazy.force spec_module
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
+
+let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
@@ -160,7 +165,7 @@ struct
           ) xs []
       in
       let msgs = List.rev msgs in (* lines in ascending order *)
-      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
+      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs (* TODO: function location for group *)
     in
     let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "ana.dead-code.lines" then (
@@ -204,7 +209,7 @@ struct
     res
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) skippedByEdge =
     let module FileCfg: FileCfg =
     struct
       let file = file
@@ -212,7 +217,7 @@ struct
     end
     in
 
-    Goblintutil.should_warn := false; (* reset for server mode *)
+    AnalysisState.should_warn := false; (* reset for server mode *)
 
     (* exctract global xml from result *)
     let make_global_fast_xml f g =
@@ -318,7 +323,7 @@ struct
     in
 
     let print_globals glob =
-      let out = M.get_out (Spec.name ()) !GU.out in
+      let out = M.get_out (Spec.name ()) !M.out in
       let print_one v st =
         ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
       in
@@ -329,8 +334,8 @@ struct
     if get_bool "ana.sv-comp.enabled" then
       Witness.init (module FileCfg); (* TODO: move this out of analyze_loop *)
 
-    GU.global_initialization := true;
-    GU.earlyglobs := get_bool "exp.earlyglobs";
+    AnalysisState.global_initialization := true;
+    GobConfig.earlyglobs := get_bool "exp.earlyglobs";
     let marshal: Spec.marshal option =
       if get_string "load_run" <> "" then
         Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))
@@ -341,10 +346,10 @@ struct
     in
 
     (* Some happen in init, so enable this temporarily (if required by option). *)
-    Goblintutil.should_warn := PostSolverArg.should_warn;
+    AnalysisState.should_warn := PostSolverArg.should_warn;
     Spec.init marshal;
     Access.init file;
-    Goblintutil.should_warn := false;
+    AnalysisState.should_warn := false;
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
@@ -427,7 +432,7 @@ struct
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
-    GU.global_initialization := false;
+    AnalysisState.global_initialization := false;
 
     let startvars' =
       if get_bool "exp.forward" then
@@ -504,7 +509,7 @@ struct
           in
           if get_bool "dbg.verbose" then
             Logs.info "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-          Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
+          AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
@@ -524,7 +529,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
+                let json = to_yojson { command = GobSys.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = GobUnix.localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -537,7 +542,7 @@ struct
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
             );
-            Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
+            GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
           lh, gh
         )
@@ -560,7 +565,7 @@ struct
       );
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
-      Goblintutil.should_warn := PostSolverArg.should_warn;
+      AnalysisState.should_warn := PostSolverArg.should_warn;
 
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
@@ -587,7 +592,7 @@ struct
 
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
-      if get_bool "dbg.debug" && Spec.D.is_bot main_sol then
+      if Spec.D.is_bot main_sol then
         M.warn_noloc ~category:Deadcode "Function 'main' does not return";
 
       if get_bool "dump_globs" then
@@ -596,27 +601,51 @@ struct
       (* run activated transformations with the analysis result *)
       let active_transformations = get_string_list "trans.activated" in
       (if active_transformations <> [] then
-        (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
-        let joined =
-          let open Batteries in let open Enum in
-          let e = LHT.enum lh |> map (Tuple2.map1 (Node.location % fst)) in (* drop context from key and get location from node *)
-          let h = Hashtbl.create (if fast_count e then count e else 123) in
-          iter (fun (k,v) ->
-            (* join values for the same location *)
-            let v' = try Spec.D.join (Hashtbl.find h k) v with Not_found -> v in
-            Hashtbl.replace h k v') e;
-          h
+
+         (* Most transformations use the locations of statements, since they run using Cil visitors.
+            Join abstract values once per location and once per node. *)
+         let joined_by_loc, joined_by_node =
+           let open Enum in
+           let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+           let hashtbl_size = if fast_count node_values then count node_values else 123 in
+           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
+           node_values |> iter (fun (node, v) ->
+               let loc = Node.location node in
+               (* join values once for the same location and once for the same node *)
+               let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
+               Hashtbl.modify_opt loc join by_loc;
+               NodeH.modify_opt node join by_node;
+             );
+           by_loc, by_node
         in
-        let ask ~node loc = (fun (type a) (q: a Queries.t) ->
-            let local = Hashtbl.find_option joined loc in
-            match local with
+
+        let ask ?(node = MyCFG.dummy_node) loc =
+          let f (type a) (q : a Queries.t) : a =
+            match Hashtbl.find_option joined_by_loc loc with
             | None -> Queries.Result.bot q
-            | Some local ->
-              Query.ask_local_node gh node local q
-          )
+            | Some local -> Query.ask_local_node gh node local q
+          in
+          ({ f } : Queries.ask)
         in
-        let ask ?(node=MyCFG.dummy_node) loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask ~node loc q } in
-        List.iter (fun name -> Transform.run name ask file) active_transformations
+
+        (* A node is dead when its abstract value is bottom in all contexts;
+           it holds that: bottom in all contexts iff. bottom in the join of all contexts.
+           Therefore, we just answer whether the (stored) join is bottom. *)
+        let must_be_dead node =
+          NodeH.find_option joined_by_node node
+          (* nodes that didn't make it into the result are definitely dead (hence for_all) *)
+          |> GobOption.for_all Spec.D.is_bot
+        in
+
+        let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
+
+        let skipped_statements from_node edge to_node =
+          CfgTools.CfgEdgeH.find_default skippedByEdge (from_node, edge, to_node) []
+        in
+
+        Transform.run_transformations file active_transformations
+          { ask ; must_be_dead ; must_be_uncalled ;
+            cfg_forward = Cfg.next ; cfg_backward = Cfg.prev ; skipped_statements };
       );
 
       lh, gh
@@ -629,10 +658,10 @@ struct
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
          The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
-      raise GU.Timeout
+      raise Timeout.Timeout
     in
-    let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
+    let timeout = get_string "dbg.timeout" |> TimeUtil.seconds_of_duration_string in
+    let lh, gh = Timeout.wrap solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let module SpecSysSol: SpecSysSol with module SpecSys = SpecSys =
     struct
       module SpecSys = SpecSys
@@ -644,6 +673,32 @@ struct
 
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> Option.map LT.to_yojson (Result.find_option local_xml node));
+
+    current_varquery_global_state_json := (fun vq_opt ->
+        let iter_vars f = match vq_opt with
+          | None -> GHT.iter (fun v _ -> f v) gh
+          | Some vq ->
+            EQSys.iter_vars
+              (fun x -> try LHT.find lh x with Not_found -> EQSys.D.bot ())
+              (fun x -> try GHT.find gh x with Not_found -> EQSys.G.bot ())
+              vq
+              (fun _ -> ())
+              f
+        in
+        (* TODO: optimize this once server has a way to properly convert vid -> varinfo *)
+        let vars = GHT.create 113 in
+        iter_vars (fun x ->
+            GHT.replace vars x ()
+          );
+        let assoc = GHT.fold (fun x g acc ->
+            if GHT.mem vars x then
+              (EQSys.GVar.show x, EQSys.G.to_yojson g) :: acc
+            else
+              acc
+          ) gh []
+        in
+        `Assoc assoc
+      );
 
     let liveness =
       if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
@@ -670,13 +725,13 @@ struct
       let module Arg = (val ArgTool.create entrystates) in
       if get_bool "exp.argdot" then (
         let module ArgDot = ArgTools.Dot (Arg) in
-        let oc = Stdlib.open_out "arg.dot" in
+        let oc = Batteries.open_out "arg.dot" in
         Fun.protect (fun () ->
             let ppf = Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;
             Format.pp_print_flush ppf ()
           ) ~finally:(fun () ->
-            Stdlib.close_out oc
+            Batteries.close_out oc
           )
       );
       ArgTools.current_arg := Some (module Arg);
@@ -712,6 +767,8 @@ struct
         Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then Logs.info "Generating output: %s" (get_string "result");
+
+    Messages.finalize ();
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
 end
 
@@ -720,26 +777,28 @@ end
    [analyze_loop] cannot reside in it anymore since each invocation of
    [get_spec] in the loop might/should return a different module, and we
    cannot swap the functor parameter from inside [AnalyzeCFG]. *)
-let rec analyze_loop (module CFG : CfgBidir) file fs change_info =
+let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge =
   try
     let (module Spec) = get_spec () in
     let module A = AnalyzeCFG (CFG) (Spec) (struct let increment = change_info end) in
-    GobConfig.with_immutable_conf (fun () -> A.analyze file fs)
+    GobConfig.with_immutable_conf (fun () -> A.analyze file fs skippedByEdge)
   with Refinement.RestartAnalysis ->
     (* Tail-recursively restart the analysis again, when requested.
         All solving starts from scratch.
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
-    analyze_loop (module CFG) file fs change_info
+    analyze_loop (module CFG) file fs change_info skippedByEdge
 
-let compute_cfg file =
-  let cfgF, cfgB = CfgTools.getCFG file in
-  (module struct let prev = cfgB let next = cfgF end : CfgBidir)
+let compute_cfg_skips file =
+  let cfgF, cfgB, skippedByEdge = CfgTools.getCFG file in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
+
+let compute_cfg = fst % compute_cfg_skips
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then Logs.debug "Generating the control flow graph.";
-  let (module CFG) = compute_cfg file in
+  let (module CFG), skippedByEdge = compute_cfg_skips file in
   MyCFG.current_cfg := (module CFG);
-  analyze_loop (module CFG) file fs change_info
+  analyze_loop (module CFG) file fs change_info skippedByEdge

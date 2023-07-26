@@ -1,15 +1,16 @@
+(** Printables for CIL types. *)
+
 open GoblintCil
 open Pretty
 
 module type S =
 sig
   include Printable.S
-  (* include MapDomain.Groupable *) (* FIXME: dependency cycle *)
 end
 
 module Std =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
 end
 
 let hash_float = Hashtbl.hash (* TODO: float hash in ppx_deriving_hash *)

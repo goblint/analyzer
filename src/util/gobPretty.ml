@@ -1,4 +1,14 @@
-open GoblintCil.Pretty
+open GoblintCil
+
+let show = Pretty.sprint ~width:max_int
+
+let sprint f x = show (f () x)
+
+let sprintf (fmt: ('a, unit, Pretty.doc, string) format4): 'a =
+  Pretty.gprintf show fmt
+
+
+open Pretty
 
 (* Parses a format string to generate a nop-function of the correct type. *)
 let igprintf (finish: 'b) (format : ('a, unit, doc, 'b) format4) : 'a =

@@ -1,4 +1,4 @@
-open Prelude
+(** JSON schema validation. *)
 
 module JS = Json_schema.Make (Json_repr.Yojson)
 module JE = Json_encoding.Make (Json_repr.Yojson)

@@ -1,4 +1,8 @@
+(** Construction of {{!MyARG} ARGs} from constraint system solutions. *)
+
 open MyCFG
+
+module M = Messages
 
 module type BiArg =
 sig
@@ -6,6 +10,8 @@ sig
 
   val prev: Node.t -> (Edge.t * Node.t) list
   val iter_nodes: (Node.t -> unit) -> unit
+
+  val query: Node.t -> 'a Queries.t -> 'a Queries.result
 end
 
 module Dot (Arg: BiArg) =
@@ -101,14 +107,27 @@ struct
 
   let create entrystates: (module BiArg with type Node.t = MyCFG.node * Spec.C.t * int) =
     let (witness_prev_map, witness_prev, witness_next) =
+      (* Get all existing vars *)
+      let vars = NHT.create 100 in
+      LHT.iter (fun lvar local ->
+          ask_local lvar ~local (IterVars (fun i ->
+              let lvar' = (fst lvar, snd lvar, i) in
+              NHT.replace vars lvar' ()
+            ))
+        ) lh;
+
       let prev = NHT.create 100 in
       let next = NHT.create 100 in
       LHT.iter (fun lvar local ->
           ignore (ask_local lvar ~local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
-              let lvar' = (fst lvar, snd lvar, i) in
               let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
-              NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
-              NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
+              (* Exclude accumulated prevs, which were pruned *)
+              if NHT.mem vars prev_lvar then (
+                let lvar' = (fst lvar, snd lvar, i) in
+                if M.tracing then M.trace "witness" "%s -( %a )-> %s\n" (Node.to_string prev_lvar) MyARG.pretty_inline_edge edge (Node.to_string lvar');
+                NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+                NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
+              )
             )))
         ) lh;
 
@@ -147,6 +166,9 @@ struct
         NHT.iter (fun n _ ->
             f n
           ) witness_prev_map
+
+      let query ((n, c, i): Node.t) q =
+        R.ask_local (n, c) (PathQuery (i, q))
     end
     in
     (module Arg: BiArg with type Node.t = MyCFG.node * Spec.C.t * int)

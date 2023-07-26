@@ -11,7 +11,9 @@ type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
+  | DoubleFree
   | Uninitialized
+  | DoubleLocking
   | Other
 [@@deriving eq, ord, hash]
 
@@ -62,7 +64,9 @@ struct
     let array_out_of_bounds e: category = create @@ ArrayOutOfBounds e
     let nullpointer_dereference: category = create @@ NullPointerDereference
     let use_after_free: category = create @@ UseAfterFree
+    let double_free: category = create @@ DoubleFree
     let uninitialized: category = create @@ Uninitialized
+    let double_locking: category = create @@ DoubleLocking
     let other: category = create @@ Other
 
     module ArrayOutOfBounds =
@@ -97,7 +101,9 @@ struct
         | "array_out_of_bounds" -> ArrayOutOfBounds.from_string_list t
         | "nullpointer_dereference" -> nullpointer_dereference
         | "use_after_free" -> use_after_free
+        | "double_free" -> double_free
         | "uninitialized" -> uninitialized
+        | "double_locking" -> double_locking
         | "other" -> other
         | _ -> Unknown
 
@@ -106,7 +112,9 @@ struct
       | ArrayOutOfBounds e -> "ArrayOutOfBounds" :: ArrayOutOfBounds.path_show e
       | NullPointerDereference -> ["NullPointerDereference"]
       | UseAfterFree -> ["UseAfterFree"]
+      | DoubleFree -> ["DoubleFree"]
       | Uninitialized -> ["Uninitialized"]
+      | DoubleLocking -> ["DoubleLocking"]
       | Other -> ["Other"]
   end
 
@@ -214,7 +222,9 @@ let behaviorName = function
   |Undefined u -> match u with
     |NullPointerDereference -> "NullPointerDereference"
     |UseAfterFree -> "UseAfterFree"
+    |DoubleFree -> "DoubleFree"
     |Uninitialized -> "Uninitialized"
+    |DoubleLocking -> "DoubleLocking"
     |Other -> "Other"
     | ArrayOutOfBounds aob -> match aob with
       | PastEnd -> "PastEnd"

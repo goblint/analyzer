@@ -1,3 +1,5 @@
+(** [src/util/options.schema.json] low-level access. *)
+
 open Json_schema
 
 let schema =

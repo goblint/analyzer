@@ -1,3 +1,5 @@
+(** Box operator for warrowing solvers. *)
+
 module type S =
   functor (D: Lattice.S) ->
   sig

@@ -1,12 +1,13 @@
-(** Must equality between variables and logical expressions. *)
+(** Symbolic variable - logical expression equalities analysis ([condvars]). *)
 (* TODO: unused, what is this analysis? *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module Domain = struct
   module V =  Queries.ES
-  include MapDomain.MapBot (Lval.CilLval) (V)
+  include MapDomain.MapBot (Mval.Exp) (V)
   let rec var_in_lval p (lh,offs) = var_in_offs p offs && match lh with
     | Var v -> p v
     | Mem e -> var_in_expr p e
@@ -28,7 +29,7 @@ module Domain = struct
     |> filter_exprs_with_var p
   let remove_var v = filter_vars ((<>) v)
   let remove_fun_locals f d =
-    let p v = not @@ List.mem v (f.sformals @ f.slocals) in
+    let p v = not @@ List.mem_cmp CilType.Varinfo.compare v (f.sformals @ f.slocals) in
     filter_vars p d
   let only_globals d =
     let p v = v.vglob in
@@ -44,7 +45,7 @@ module Domain = struct
     if mem k d && V.cardinal (find k d) = 1 then
       let s = find k d in
       match V.choose s with
-      | Lval (Var v, offs) -> get (v, Lval.CilLval.of_ciloffs offs) d (* transitive lookup *)
+      | Lval (Var v, offs) -> get (v, Offset.Exp.of_cil offs) d (* transitive lookup *)
       | _ -> Some s
     else None
   let get_elt k d = Option.map V.choose @@ get k d
@@ -74,7 +75,7 @@ struct
       Queries.LS.elements a'
     | _ -> []
 
-  let mustPointTo ctx exp = (* this is just to get CilLval *)
+  let mustPointTo ctx exp = (* this is just to get Mval.Exp *)
     match mayPointTo ctx exp with
     | [clval] -> Some clval
     | _ -> None
@@ -107,7 +108,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Lval.CilLval.pretty clval d_exp expr;
+        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Mval.Exp.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
@@ -139,12 +140,15 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
     (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)
     let tainted = TaintPartialContexts.conv_varset (f_ask.f Queries.MayBeTainted) in
     D.only_untainted ctx.local tainted (* tainted globals might have changed... *)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* TODO: shouldn't there be some kind of invalidadte, depending on the effect of the special function? *)

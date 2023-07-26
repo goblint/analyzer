@@ -1,4 +1,7 @@
-open Prelude
+(** Terminating SLR3 solver ([slr3t]).
+    Simpler version of {!SLRphased} without phases. *)
+
+open Batteries
 open Analyses
 open Constraints
 open Messages

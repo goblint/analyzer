@@ -1,6 +1,8 @@
-(** The 'slr*' solvers. *)
+(** Various SLR solvers.
 
-open Prelude
+    @see <http://www2.in.tum.de/bib/files/apinis14diss.pdf> Apinis, K. Frameworks for analyzing multi-threaded C. *)
+
+open Batteries
 open Analyses
 open Constraints
 open Messages
@@ -205,7 +207,7 @@ module Make0 =
         try
           HM.find keys x
         with Not_found ->
-          incr Goblintutil.vars;
+          incr SolverStats.vars;
           decr last_key;
           HM.add keys x !last_key;
           !last_key
@@ -213,7 +215,7 @@ module Make0 =
       let get_index c =
         try (HM.find keys c, true)
         with Not_found ->
-          incr Goblintutil.vars;
+          incr SolverStats.vars;
           decr last_key;
           HM.add keys c !last_key;
           (!last_key, false)
@@ -392,7 +394,7 @@ module Make0 =
 
       and solve x =
         if not (P.has_item stable x) then begin
-          incr Goblintutil.evals;
+          incr SolverStats.evals;
           let _ = P.insert stable x in
           let old = X.get_value x in
 
@@ -484,7 +486,7 @@ module PrintInfluence =
       let r = S1.solve x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
-        let s = Pretty.sprint ~width:max_int (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
+        let s = GobPretty.sprintf "%a %d" S.Var.pretty_trace k (try HM.find S1.X.keys k with Not_found -> 0) in
         ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (XmlUtil.escape s) q);
         let f y =
           if try HM.find S1.X.keys k > HM.find S1.X.keys y with Not_found -> false then

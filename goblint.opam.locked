@@ -129,11 +129,11 @@ conflicts: [
 pin-depends: [
   [
     "goblint-cil.2.0.1"
-    "git+https://github.com/goblint/cil.git#6137a35a88dbe16c29e77d0138f7f2ae117d228d"
+    "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e"
   ]
   [
     "apron.v0.9.13"
-    "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"
+    "git+https://github.com/antoinemine/apron.git#1a8e91062c0d7d1e80333d19d5a432332bbbaec8"
   ]
   [
     "ppx_deriving.5.2.1"

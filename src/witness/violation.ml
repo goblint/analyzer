@@ -1,3 +1,5 @@
+(** Violation checking in an ARG. *)
+
 module type ViolationArg =
 sig
   include MyARG.S with module Edge = MyARG.InlineEdge
