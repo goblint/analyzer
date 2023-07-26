@@ -963,16 +963,16 @@ struct
               Top
         end
         | JmpBuf _, _ ->
-        (* hack for jmp_buf variables *)
-        begin match value with
-          | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
-          | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
-          | _ ->
-            if !AnalysisState.global_initialization then
-              JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
-            else
-              Top
-        end
+          (* hack for jmp_buf variables *)
+          begin match value with
+            | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
+            | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
+            | _ ->
+              if !AnalysisState.global_initialization then
+                JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
+              else
+                Top
+          end
       | _ ->
       let result =
         match offs with
