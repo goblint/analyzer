@@ -139,12 +139,15 @@ struct
     (*check if we have upjumping gotos*)
     List.iter
     (fun x ->
+      print_endline @@ "halloooo";
       let ((l: location), (fd: fundec)) = x in (*unpack tuple for later use*)
-      let fname = fd.svar.vname in 
+      let fname = fd.svar.vname in      
+      print_endline @@ "halloooo2";
       StringMap.iter 
         (fun fi _ ->
           let fundec_live = live fi fname in 
-          if (not (BatISet.is_empty fundec_live)) then (
+          print_endline @@ "halloooo3";
+          if ( not (BatISet.is_empty fundec_live)) then (
             let msgs =
               [(Pretty.dprintf
                   "The program might not terminate! (Upjumping Goto)",
@@ -152,9 +155,8 @@ struct
               );] in
             M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
           )
-        (!dead_lines))
+        (!live_lines))
     (!Cilfacade.upjumping_gotos);
-    
     dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
     dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
     dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
