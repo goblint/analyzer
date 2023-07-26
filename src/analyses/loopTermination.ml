@@ -4,20 +4,20 @@ open Analyses
 open GoblintCil
 open TerminationPreprocessing
 
-(** Stores the result of the query if the program is single threaded or not
-    since finalize does not has ctx as an argument*)
+(** Stores the result of the query whether the program is single threaded or not
+    since finalize does not have access to ctx. *)
 let single_thread : bool ref = ref false
 
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 
-(** Contains the locations of the upjumping gotos *)
+(** Contains the locations of the upjumping gotos. *)
 let upjumping_gotos : location list ref = ref []
 
 let no_upjumping_gotos () =
   upjumping_gotos.contents = []
 
-(** Checks whether a variable can be bounded *)
+(** Checks whether a variable can be bounded. *)
 let check_bounded ctx varinfo =
   let open IntDomain.IntDomTuple in
   let exp = Lval (Var varinfo, NoOffset) in
@@ -35,7 +35,6 @@ module Statements = Lattice.Flat (CilType.Stmt) (Printable.DefaultNames)
 module Spec : Analyses.MCPSpec =
 struct
 
-  (** Provides some default implementations *)
   include Analyses.IdentitySpec
 
   let name () = "termination"
@@ -52,8 +51,8 @@ struct
   let startstate _ = ()
   let exitstate = startstate
 
+  (** Warnings for detected possible non-termination *)
   let finalize () =
-    (* Warning for detected possible non-termination *)
     (* Upjumping gotos *)
     if not (no_upjumping_gotos ()) then (
       List.iter
@@ -71,6 +70,8 @@ struct
       M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
     )
 
+  (** Recognizes a call of [__goblint_bounded] to check the EvalInt of the
+   * respective loop counter variable at that position. *)
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
     if !AnalysisState.postsolving then
       match f.vname, arglist with
@@ -95,14 +96,13 @@ struct
       | _ -> ()
     else ()
 
-  (** Checks whether a new thread was spawned some time. We want to discard
-   * any knowledge about termination then (see query function) *)
+  (** Checks whether a new thread was spawned some time. We want to always
+   * assume non-termination then (see query function). *)
   let must_be_single_threaded_since_start ctx =
     let single_threaded = not (ctx.ask Queries.IsEverMultiThreaded) in
     single_thread := single_threaded;
     single_threaded
 
-  (** Provides information to Goblint *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustTermLoop loop_statement ->
@@ -124,7 +124,5 @@ struct
 end
 
 let () =
-  (* Register the preprocessing *)
   Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loop_counters upjumping_gotos);
-  (* Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)
