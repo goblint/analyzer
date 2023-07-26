@@ -136,6 +136,25 @@ struct
       try StringMap.find fn (StringMap.find file !live_lines)
       with Not_found -> BatISet.empty
     in
+    (*check if we have upjumping gotos*)
+    List.iter
+    (fun x ->
+      let ((l: location), (fd: fundec)) = x in (*unpack tuple for later use*)
+      let fname = fd.svar.vname in 
+      StringMap.iter 
+        (fun fi _ ->
+          let fundec_live = live fi fname in 
+          if (not (BatISet.is_empty fundec_live)) then (
+            let msgs =
+              [(Pretty.dprintf
+                  "The program might not terminate! (Upjumping Goto)",
+                Some (M.Location.CilLocation l)
+              );] in
+            M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
+          )
+        (!dead_lines))
+    (!Cilfacade.upjumping_gotos);
+    
     dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
     dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
     dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
