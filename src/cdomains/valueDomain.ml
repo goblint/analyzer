@@ -564,7 +564,7 @@ struct
       warn_type "join" x y;
       Top
 
-  let rec widen x y =
+  let widen x y =
     match (x,y) with
     | (Top, _) -> Top
     | (_, Top) -> Top
@@ -582,7 +582,7 @@ struct
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
     | (Union x, Union y) -> Union (Unions.widen x y)
     | (Array x, Array y) -> Array (CArrays.widen x y)
-    | (Blob x, Blob y) -> Blob (Blobs.widen x y)
+    | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
     | (Thread y, Int x) ->
