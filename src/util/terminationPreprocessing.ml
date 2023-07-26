@@ -2,8 +2,6 @@ open GoblintCil
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
-
-
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
   let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
   let ls = List.rev ls in
@@ -55,15 +53,13 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         let nb = mkBlock [init_stmt; mkStmt s.skind] in
         s.skind <- Block nb;
         s
-        (*
       | Goto (sref, l) ->
         let goto_jmp_stmt = sref.contents.skind in
-        let loc_stmt = get_stmtLoc goto_jmp_stmt in
+        let loc_stmt = Cil.get_stmtLoc goto_jmp_stmt in
         if CilType.Location.compare l loc_stmt >= 0 (*is pos if first loc is greater -> below the second loc*)
         then
-          lg := List.append !lg ([l] : location list); (*problem: the program might not terminate!*)
+          Cilfacade.upjumping_gotos := List.append !Cilfacade.upjumping_gotos ([(l, fd)] : (location * fundec) list); (*problem: the program might not terminate!*)
         s
-           *)
       | _ -> s
     in ChangeDoChildrenPost (s, action);
 end
