@@ -1,7 +1,6 @@
 open Goblint_lib
 open GobConfig
 open Maingoblint
-open Printf
 
 (** the main function *)
 let main () =

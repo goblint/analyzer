@@ -306,7 +306,6 @@ struct
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
     | "sarif" ->
-      let open BatPrintf in
       Logs.info "Writing Sarif to file: %s" (get_string "outfile");
       Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
