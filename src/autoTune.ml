@@ -185,6 +185,7 @@ let enableAnalyses anas =
 (*does not consider dynamic calls!*)
 
 let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
+let memorySafetyAnalyses = ["useAfterFree"]
 let reduceThreadAnalyses () =
   let isThreadCreate = function
     | LibraryDesc.ThreadCreate _ -> true
@@ -219,6 +220,9 @@ let focusOnSpecification () =
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
+  | MemorySafety -> (* Enable the memory safety analyses *)
+    print_endline @@ "Specification: MemorySafety -> enabling memory safety analyses \"" ^ (String.concat ", " memorySafetyAnalyses) ^ "\"";
+    enableAnalyses memorySafetyAnalyses
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound

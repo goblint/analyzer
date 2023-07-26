@@ -52,6 +52,7 @@ struct
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
+        | MemorySafety -> "memory-safety"
       in
       "false(" ^ result_spec ^ ")"
     | Unknown -> "unknown"
