@@ -139,14 +139,11 @@ struct
     (*check if we have upjumping gotos*)
     List.iter
     (fun x ->
-      print_endline @@ "halloooo";
       let ((l: location), (fd: fundec)) = x in (*unpack tuple for later use*)
       let fname = fd.svar.vname in      
-      print_endline @@ "halloooo2";
       StringMap.iter 
         (fun fi _ ->
           let fundec_live = live fi fname in 
-          print_endline @@ "halloooo3";
           if ( not (BatISet.is_empty fundec_live)) then (
             let msgs =
               [(Pretty.dprintf
