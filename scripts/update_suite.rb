@@ -331,7 +331,7 @@ class Project
       end
     end
     case lines[0]
-    when /TODO|SKIP/
+    when /TODO/
       case lines[0]
       when /NONTERM/
         tests[-1] = "nonterm"
