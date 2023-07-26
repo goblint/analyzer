@@ -230,7 +230,7 @@ struct
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
      let (cpa', v) as r = read_global ask getg cpa x in
-     Logs.debug "READ GLOBAL %a (%a, %B) = %a" d_varinfo x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v;
+     Logs.debug "READ GLOBAL %a (%a, %B) = %a" CilType.Varinfo.pretty x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v;
      r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
@@ -240,7 +240,7 @@ struct
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
      let cpa' = write_global ask getg sideg cpa x v in
-     Logs.debug "WRITE GLOBAL %a %a = %a" d_varinfo x VD.pretty v CPA.pretty cpa';
+     Logs.debug "WRITE GLOBAL %a %a = %a" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa';
      cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -335,7 +335,7 @@ struct
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
      let cpa' = write_global ask getg sideg cpa x v in
-     Logs.debug "WRITE GLOBAL %a %a = %a" d_varinfo x VD.pretty v CPA.pretty cpa';
+     Logs.debug "WRITE GLOBAL %a %a = %a" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa';
      cpa' *)
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
