@@ -42,6 +42,7 @@ struct
   let var_id = Node.show_id
 end
 
+
 module VarF (LD: Printable.S) =
 struct
   type t = Node.t * LD.t [@@deriving eq, ord, hash]
@@ -117,6 +118,7 @@ struct
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
+
 
 exception Deadcode
 
