@@ -697,7 +697,6 @@ struct
               | TFloat (fk, _) -> `Float (FD.of_int fk c)
               | _ -> `Int c
             in
-            let st = update_lval c x c' ID.pretty in
             (* handle special calls *)
             begin match t with
             | TInt (ik, _) ->
@@ -716,13 +715,13 @@ struct
                     | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
                     | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
                     | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
-                    | _ -> st
+                    | _ -> update_lval c x c' ID.pretty
                     end
-                  | None -> st
+                  | None -> update_lval c x c' ID.pretty
                   end
-                | _ -> st
+                | _ -> update_lval c x c' ID.pretty
               end
-            | _ -> st
+            | _ -> update_lval c x c' ID.pretty
             end
           | `Float c ->
             let c' = match t with
@@ -733,7 +732,6 @@ struct
               | TFloat (fk, _) -> `Float (FD.cast_to fk c)
               | _ -> `Float c
             in
-            let st = update_lval c x c' FD.pretty in
             (* handle special calls *)
             begin match t with
             | TFloat (fk, _) ->
@@ -749,11 +747,11 @@ struct
                       raise Analyses.Deadcode
                     else
                       inv_exp (`Float inv) xFloat st
-                  | _ -> st
+                  | _ -> update_lval c x c' FD.pretty
                   end
-                | _ -> st
+                | _ -> update_lval c x c' FD.pretty
               end
-            | _ -> st
+            | _ -> update_lval c x c' FD.pretty
             end
           | `Address c ->
             let c' = c_typed in (* TODO: need any of the type-matching nonsense? *)
