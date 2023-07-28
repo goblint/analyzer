@@ -1411,9 +1411,13 @@ struct
         let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
-        else if invariant then
+        else if invariant then (
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
-          VD.meet old_value new_value
+          try
+            VD.meet old_value new_value
+          with Lattice.Uncomparable ->
+            new_value
+        )
         else
           new_value
       in
