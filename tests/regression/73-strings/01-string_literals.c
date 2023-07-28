@@ -18,7 +18,28 @@ void id(char* s) {
     ID; // WARN
 }
 
-int main() {
+void example1() {
+    char* s1 = "bc\0test";
+    char* s2 = "bc";
+    char* s3;
+    if (rand())
+        s3 = "aabbcc";
+    else
+        s3 = "ebcdf";
+
+    int i = strcmp(s1, s2);
+    __goblint_check(i == 0);
+
+    char* s4 = strstr(s3, s1);
+    __goblint_check(s4 != NULL);
+
+    size_t len = strlen(s4);
+    __goblint_check(len >= 3);
+    __goblint_check(len <= 4);
+    __goblint_check(len == 3); // UNKNOWN!
+}
+
+void example2() {
     char* s1 = "abcde";
     char* s2 = "abcdfg";
     char* s3 = hello_world();
@@ -109,6 +130,11 @@ int main() {
         strcat(s5, " world"); // NOWARN
         strncat(s5, "! some further text", 1); // NOWARN
     #endif
+}
+
+int main() {
+    example1();
+    example2();
 
     return 0;
 }

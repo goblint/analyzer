@@ -14,11 +14,37 @@ int main() {
     example7();
     example8();
     example9();
+    example10();
 
     return 0;
 }
 
 void example1() {
+    char s1[] = "user1_"; // must and may null at 6 and 7
+    char s2[] = "pwd:\0abc"; // must and may null at 4 and 8
+    char s3[20]; // no must nulls, all may nulls
+
+    strcpy(s3, s1); // must null at 6, may nulls starting from 6
+
+    if (rand()) {
+        s2[4] = ' ';
+        strncat(s3, s2, 10); // must null at 14, may nulls starting from 14
+    } else 
+        strcat(s3, s2); // must null at 10, may nulls starting from 10
+
+    // s3: no must nulls, may nulls starting from 10
+
+    s3[14] = '\0'; // must null at 14, may nulls starting from 10
+
+    size_t len = strlen(s3);
+    __goblint_check(len >= 10);
+    __goblint_check(len <= 14);
+    __goblint_check(len == 10); // UNKNOWN!
+
+    strcpy(s1, s3); // WARN
+}
+
+void example2() {
     char s1[42];
     char s2[20] = "testing"; // must null at 7, may null starting from 7
 
@@ -33,7 +59,7 @@ void example1() {
     __goblint_check(len == 14);
 }
 
-void example2() {
+void example3() {
     char s1[42];
     char s2[20] = "testing"; // must null at 7, may null starting from 7
 
@@ -49,7 +75,7 @@ void example2() {
     strcpy(s2, s1); // WARN: no must null in s1
 }
 
-void example3() {
+void example4() {
     char s1[5] = "abc\0d"; // must and may null at 3
     char s2[] = "a"; // must and may null at 1
 
@@ -63,7 +89,7 @@ void example3() {
     __goblint_check(len == 3);
 }
 
-void example4() {
+void example5() {
     char s1[7] = "hello!"; // must and may null at 6
     char s2[8] = "goblint"; // must and may null at 7
 
@@ -73,7 +99,7 @@ void example4() {
     __goblint_check(len >= 7); // no null byte in s1
 }
 
-void example5() {
+void example6() {
     char s1[42] = "a string, i.e. null-terminated char array"; // must and may null at 42
     for (int i = 0; i < 42; i += 3) {
         if (rand() != 42)
@@ -97,7 +123,7 @@ void example5() {
     __goblint_check(len > 40); // UNKNOWN
 }
 
-void example6() {
+void example7() {
     char s1[50] = "hello"; // must and may null at 5
     char s2[] = " world!"; // must and may null at 7
     char s3[] = " goblint."; // must and may null at 9
@@ -127,7 +153,7 @@ void example6() {
     __goblint_check(len < 20); // UNKNOWN
 }
 
-void example7() {
+void example8() {
     char s1[6] = "abc"; // must and may null at 3
     if (rand() == 42)
         s1[5] = '\0'; // must null at 3, may nulls at 3 and 5
@@ -158,7 +184,7 @@ void example7() {
     __goblint_check(len >= 12);
 }
 
-void example8() {
+void example9() {
     char empty[] = "";
     char s1[] = "hello world"; // must and may null at 11
     char s2[] = "test"; // must and may null at 4
@@ -176,7 +202,7 @@ void example8() {
     __goblint_check(cmp_ptr == NULL);
 }
 
-void example9() {
+void example10() {
     char empty1[] = "";
     char empty2[] = "\0 also empty";
     char s1[] = "hi";
