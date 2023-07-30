@@ -92,9 +92,10 @@ struct
     match ctx.ask (Queries.MayPointTo lval_to_query) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
       let warn_for_heap_var var =
-        if D.mem var state then
+        if D.mem var state then begin
           AnalysisState.svcomp_may_use_after_free := true;
           M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
+        end
       in
       let pointed_to_heap_vars =
         Queries.LS.elements a
