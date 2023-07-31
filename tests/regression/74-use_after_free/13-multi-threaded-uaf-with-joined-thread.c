@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated[+] useAfterFree
+//PARAM: --set ana.activated[+] useAfterFree --set ana.activated[+] threadJoins
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -26,7 +26,7 @@ int main() {
 
     pthread_mutex_lock(&mtx);
     *gptr = 43; //NOWARN
-    free(gptr); //WARN
+    free(gptr); //NOWARN
     pthread_mutex_unlock(&mtx);
 
     return 0;
