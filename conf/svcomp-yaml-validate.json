@@ -79,7 +79,7 @@
     "invariant": {
       "loop-head": true,
       "after-lock": false,
-      "other": false
+      "other": true
     }
   },
   "solver": "td3",
