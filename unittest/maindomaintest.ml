@@ -67,7 +67,7 @@ let ikinds: Cil.ikind list = [
   IChar;
   ISChar;
   IUChar;
-  IBool;
+  (* IBool; *) (* see https://github.com/goblint/analyzer/pull/1111 *)
   IInt;
   IUInt;
   IShort;

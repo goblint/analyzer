@@ -6,16 +6,14 @@ open GoblintCil
 module Variables =
 struct
   include CilType.Varinfo
-  let trace_enabled = true
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
   let pretty () x = Pretty.text (show x)
-  type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
-  let (%) = Batteries.(%)
-  let to_group = Option.some % function
+  type group = Global | Local | Parameter | Temp [@@deriving ord, show { with_path = false }]
+  let to_group = function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
     | x when Cilfacade.is_varinfo_formal x -> Parameter
@@ -62,7 +60,6 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 
 module CilExp =
 struct
-  include Printable.Std (* for Groupable *)
   include CilType.Exp
 
   let name () = "expressions"
@@ -159,8 +156,4 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
-module CilField =
-struct
-  include Printable.Std (* for default MapDomain.Groupable *)
-  include CilType.Fieldinfo
-end
+module CilField = CilType.Fieldinfo

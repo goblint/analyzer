@@ -11,12 +11,6 @@ module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" 
 module Simple = Lattice.Reverse (Mutexes)
 module Priorities = IntDomain.Lifted
 
-module Glob =
-struct
-  module Var = Basetype.Variables
-  module Val = Simple
-end
-
 module Lockset =
 struct
 
