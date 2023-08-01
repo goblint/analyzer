@@ -19,7 +19,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin___mempcpy_chk", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []; drop "os" []]);
     ("memmove", unknown [drop "dest" [w]; drop "src" [r]; drop "count" []]);
     ("__builtin_memmove", unknown [drop "dest" [w]; drop "src" [r]; drop "count" []]);
-    ("__builtin___memmove_chk", unknown [drop "dest" [w]; drop "src" [r]; drop "count" []]);
+    ("__builtin___memmove_chk", unknown [drop "dest" [w]; drop "src" [r]; drop "count" []; drop "os" []]);
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin_strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin___strcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcpy { dest; src; n = None; });
