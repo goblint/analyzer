@@ -44,16 +44,17 @@ struct
   type b = unit
   type c = Pretty.doc
   let log level fmt =
-    (* Pretty.eprintf returns doc instead of unit *)
-    let finish doc =
-      Pretty.fprint stderr ~width:max_int doc;
-      if !AnsiColors.stderr then
-        prerr_string (List.assoc "reset" AnsiColors.table);
-      prerr_newline ()
-    in
     if Level.should_log level then (
       if !AnsiColors.stderr then
         prerr_string (List.assoc (Level.stag level) AnsiColors.table);
+      Printf.eprintf "[%s] " (Level.show level);
+      (* Pretty.eprintf returns doc instead of unit *)
+      let finish doc =
+        Pretty.fprint stderr ~width:max_int doc;
+        if !AnsiColors.stderr then
+          prerr_string (List.assoc "reset" AnsiColors.table);
+        prerr_newline ()
+      in
       Pretty.gprintf finish fmt
     )
     else
@@ -65,11 +66,11 @@ struct
   type b = Format.formatter
   type c = unit
   let log level fmt =
-    let finish ppf =
-      Format.fprintf ppf "@}\n%!"
-    in
     if Level.should_log level then (
-      Format.eprintf "@{<%s>" (Level.stag level);
+      Format.eprintf "@{<%s>[%a] " (Level.stag level) Level.pp level;
+      let finish ppf =
+        Format.fprintf ppf "@}\n%!"
+      in
       Format.kfprintf finish Format.err_formatter fmt
     )
     else
@@ -81,14 +82,15 @@ struct
   type b = unit BatIO.output
   type c = unit
   let log level fmt =
-    let finish out =
-      if !AnsiColors.stderr then
-        prerr_string (List.assoc "reset" AnsiColors.table);
-      BatPrintf.fprintf out "\n%!"
-    in
     if Level.should_log level then (
       if !AnsiColors.stderr then
         prerr_string (List.assoc (Level.stag level) AnsiColors.table);
+      BatPrintf.eprintf "[%s] " (Level.show level);
+      let finish out =
+        if !AnsiColors.stderr then
+          prerr_string (List.assoc "reset" AnsiColors.table);
+        BatPrintf.fprintf out "\n%!"
+      in
       BatPrintf.kfprintf finish BatIO.stderr fmt
     )
     else
