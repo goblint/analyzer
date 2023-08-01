@@ -1,4 +1,4 @@
-(** Messages (e.g. warnings) from the analysis. *)
+(** Messages (e.g. warnings) presented to the user about the program from the analysis. *)
 
 module Pretty = GoblintCil.Pretty
 

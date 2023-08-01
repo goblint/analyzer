@@ -1,3 +1,5 @@
+(** Logging, which isn't for presenting analysis results. *)
+
 module Level =
 struct
   type t =

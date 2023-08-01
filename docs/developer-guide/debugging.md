@@ -1,39 +1,44 @@
 # Debugging
 
-## Printing
-Goblint extensively uses [CIL's `Pretty`](https://people.eecs.berkeley.edu/~necula/cil/api/Pretty.html) module for printing due to many non-primitive values.
+## Logging
+Instead of debug printing directly to `stdout`, all logging should be done using the `Logs` module.
+This allows for consistent pretty terminal output, as well as avoiding interference with server mode.
+There are four logging levels: error, warning, info and debug.
+Log output is controlled by the `dbg.level` option, which defaults to "info".
 
-* Printing CIL values (e.g. an expression `exp`) using the corresponding pretty-printer `d_exp` from `Cil` module:
+Goblint extensively uses [CIL's `Pretty`](https://people.eecs.berkeley.edu/~necula/cil/api/Pretty.html) module for output due to many non-primitive values.
+
+* Logging CIL values (e.g. an expression `exp`) using the corresponding pretty-printer `d_exp` from `Cil` module:
 
 ```ocaml
-ignore (Pretty.printf "A CIL exp: %a\n" d_exp exp);
+Logs.debug "A CIL exp: %a\n" d_exp exp;
 ```
 
-* Printing Goblint's `Printable` values (e.g. a domain `D` element `d`) using the corresponding pretty-printer `D.pretty`:
+* Logging Goblint's `Printable` values (e.g. a domain `D` element `d`) using the corresponding pretty-printer `D.pretty`:
 
 ```ocaml
-ignore (Pretty.printf "A domain element: %a\n" D.pretty d);
+Logs.debug "A domain element: %a\n" D.pretty d;
 ```
 
-* Printing primitives (e.g. OCaml ints, strings, etc) using the standard [OCaml `Printf`](https://ocaml.org/api/Printf.html) specifiers:
+* Logging primitives (e.g. OCaml ints, strings, etc) using the standard [OCaml `Printf`](https://ocaml.org/api/Printf.html) specifiers:
 
 ```ocaml
-ignore (Pretty.printf "An int and a string: %d %s\n" 42 "magic");
+Logs.debug "An int and a string: %d %s\n" 42 "magic";
 ```
 
-* Printing lists of pretty-printables (e.g. expressions list `exps`) using `d_list`:
+* Logging lists of pretty-printables (e.g. expressions list `exps`) using `d_list`:
 
 ```ocaml
-ignore (Pretty.printf "Some expressions: %a\n" (d_list ", " d_exp) exps);
+Logs.debug "Some expressions: %a\n" (d_list ", " d_exp) exps;
 ```
 
 
 ## Tracing
-Tracing is a nicer alternative to debug printing, because it can be disabled for best performance and it can be used to only see relevant tracing output.
+Tracing is a nicer alternative to some logging, because it can be disabled for best performance and it can be used to only see relevant tracing output.
 
 Recompile with tracing enabled: `./scripts/trace_on.sh`.
 
-Instead of debug printing use a tracing function from the `Messages` module, which is often aliased to just `M` (and pick a relevant name instead of `mything`):
+Instead of logging use a tracing function from the `Messages` module, which is often aliased to just `M` (and pick a relevant name instead of `mything`):
 ```ocaml
 if M.tracing then M.trace "mything" "A domain element: %a\n" D.pretty d;
 ```
