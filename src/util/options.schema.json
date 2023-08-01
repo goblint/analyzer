@@ -1775,12 +1775,6 @@
           "enum": ["debug", "info", "warning", "error"],
           "default": "info"
         },
-        "verbose": {
-          "title": "dbg.verbose",
-          "description": "Prints some status information.",
-          "type": "boolean",
-          "default": false
-        },
         "timing": {
           "title": "dbg.timing",
           "type": "object",

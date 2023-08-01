@@ -81,21 +81,21 @@ module Base =
     }
 
     let print_data data =
-      Logs.info "|rho|=%d" (HM.length data.rho);
-      Logs.info "|stable|=%d" (HM.length data.stable);
-      Logs.info "|infl|=%d" (HM.length data.infl);
-      Logs.info "|wpoint|=%d" (HM.length data.wpoint);
-      Logs.info "|sides|=%d" (HM.length data.sides);
-      Logs.info "|side_dep|=%d" (HM.length data.side_dep);
-      Logs.info "|side_infl|=%d" (HM.length data.side_infl);
-      Logs.info "|var_messages|=%d" (HM.length data.var_messages);
-      Logs.info "|rho_write|=%d" (HM.length data.rho_write);
-      Logs.info "|dep|=%d" (HM.length data.dep);
+      Logs.debug "|rho|=%d" (HM.length data.rho);
+      Logs.debug "|stable|=%d" (HM.length data.stable);
+      Logs.debug "|infl|=%d" (HM.length data.infl);
+      Logs.debug "|wpoint|=%d" (HM.length data.wpoint);
+      Logs.debug "|sides|=%d" (HM.length data.sides);
+      Logs.debug "|side_dep|=%d" (HM.length data.side_dep);
+      Logs.debug "|side_infl|=%d" (HM.length data.side_infl);
+      Logs.debug "|var_messages|=%d" (HM.length data.var_messages);
+      Logs.debug "|rho_write|=%d" (HM.length data.rho_write);
+      Logs.debug "|dep|=%d" (HM.length data.dep);
       Hooks.print_data ()
 
     let print_data_verbose data str =
-      if GobConfig.get_bool "dbg.verbose" then (
-        Logs.info "%s:" str;
+      if Logs.Level.should_log Debug then (
+        Logs.debug "%s:" str;
         print_data data
       )
 
@@ -781,7 +781,7 @@ module Base =
         incr i;
         let unstable_vs = List.filter (neg (HM.mem stable)) vs in
         if unstable_vs <> [] then (
-          if GobConfig.get_bool "dbg.verbose" then (
+          if Logs.Level.should_log Debug then (
             if !i = 1 then Logs.newline ();
             Logs.debug "Unstable solver start vars in %d. phase:" !i;
             List.iter (fun v -> Logs.debug "\t%a" S.Var.pretty_trace v) unstable_vs;
@@ -1095,7 +1095,7 @@ module DepVals: GenericEqIncrSolver =
       module HM = HM
 
       let print_data () =
-        Logs.info "|dep_vals|=%d" (HM.length !current_dep_vals)
+        Logs.debug "|dep_vals|=%d" (HM.length !current_dep_vals)
 
       let system x =
         match S.system x with

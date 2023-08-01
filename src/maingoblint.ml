@@ -14,7 +14,7 @@ let print_version ch =
   printf "Dune profile:    %s\n" ConfigProfile.profile; (* nosemgrep: print-not-logging *)
   printf "OCaml version:   %s\n" Sys.ocaml_version; (* nosemgrep: print-not-logging *)
   printf "OCaml flambda:   %s\n" ConfigOcaml.flambda; (* nosemgrep: print-not-logging *)
-  if get_bool "dbg.verbose" then (
+  if Logs.Level.should_log Debug then (
     printf "Library versions:\n"; (* nosemgrep: print-not-logging *)
     List.iter (fun (name, version) ->
         let version = Option.default "[unknown]" version in
@@ -98,7 +98,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     complete_option_value !last_complete_option s
   in
   [ "-o"                   , Arg_complete.String (set_string "outfile", Arg_complete.empty), ""
-  ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "dbg.timing.enabled" true), ""
+  ; "-v"                   , Arg_complete.Unit (fun () -> set_string "dbg.level" "debug"; set_bool "dbg.timing.enabled" true), ""
   ; "-j"                   , Arg_complete.Int (set_int "jobs", Arg_complete.empty), ""
   ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", Arg_complete.empty), ""
   ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", Arg_complete.empty), ""
@@ -164,7 +164,7 @@ let check_arguments () =
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
-  if get_bool "dbg.verbose" then (
+  if Logs.Level.should_log Debug then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
     Errormsg.verboseFlag := true

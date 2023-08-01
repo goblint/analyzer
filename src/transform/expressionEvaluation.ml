@@ -37,9 +37,6 @@ struct
     | Some value -> value
     | None -> raise Stdlib.Exit
 
-  let is_debug () =
-    GobConfig.get_bool "dbg.verbose"
-
   let string_of_evaluation_result evaluation_result =
     match evaluation_result with
     | Some value -> if value then "TRUE" else "FALSE"
@@ -84,7 +81,7 @@ struct
         match ~? (fun () -> Formatcil.cExp expression_string (local_variables @ global_variables)) with
         (* Expression unparseable at this location *)
         | None ->
-          if is_debug () then Logs.debug "| (Unparseable)";
+          Logs.debug "| (Unparseable)";
           Some false
         (* Successfully parsed expression *)
         | Some expression ->
@@ -92,7 +89,7 @@ struct
           match self#try_ask location expression with
           (* Dead code or not listed as part of the control flow *)
           | None ->
-            if is_debug () then Logs.debug "| (Unreachable)";
+            Logs.debug "| (Unreachable)";
             Some false
           (* Valid location *)
           | Some value_before ->
@@ -116,17 +113,11 @@ struct
               (* Prefer successor evaluation *)
               match successor_evaluation with
               | None ->
-                if is_debug () then
-                  begin
-                    Logs.debug "%s" ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement))
-                  end;
+                Logs.debug "%s" ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement));
                 value_before
               | Some value_after ->
-                if is_debug () then
-                  begin
-                    Logs.debug "%s" ("| " ^ (statement |> string_of_statement) ^ "/*" ^ (value_after |> string_of_evaluation_result) ^ "*/");
-                    Logs.debug "%s" ("| " ^ (~! !succeeding_statement |> string_of_statement))
-                  end;
+                Logs.debug "%s" ("| " ^ (statement |> string_of_statement) ^ "/*" ^ (value_after |> string_of_evaluation_result) ^ "*/");
+                Logs.debug "%s" ("| " ^ (~! !succeeding_statement |> string_of_statement));
                 value_after
 
       method private try_ask location expression =
@@ -155,8 +146,7 @@ struct
       | Error message ->
         Error ("ExpEval: Unable to parse JSON query file: \"" ^ name ^ "\" (" ^ message ^ ")")
       | Ok query ->
-        if is_debug () then
-          Logs.debug "Successfully parsed JSON query file: \"%s\"" name;
+        Logs.debug "Successfully parsed JSON query file: \"%s\"" name;
         Ok query
 
   let string_of_location (location : Cil.location) =
@@ -199,11 +189,13 @@ struct
         | Some value ->
           if value then
             Logs.info "%s" (loc |> string_of_location)
-          else if is_debug () then
+          else
             Logs.debug "%s x" (loc |> string_of_location)
         | None ->
-          if query.mode = `May || is_debug () then
+          if query.mode = `May then
             Logs.info "%s ?" (loc |> string_of_location)
+          else
+            Logs.debug "%s ?" (loc |> string_of_location)
       in
       gv_results := results;
       List.iter print results
