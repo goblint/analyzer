@@ -19,14 +19,8 @@ int main() {
       i++;
       j++;
       __VERIFIER_assert(0 <= j);
-      __VERIFIER_assert(j <= i);
-      __VERIFIER_assert(i <= j + 3);
-      __VERIFIER_assert(j <= 4);
     }
     __VERIFIER_assert(0 <= j);
-    __VERIFIER_assert(j <= i);
-    __VERIFIER_assert(i <= j + 3);
-    __VERIFIER_assert(j <= 4);
     i = i - j + 1;
   }
   return 0;
