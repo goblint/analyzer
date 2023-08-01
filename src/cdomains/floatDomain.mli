@@ -43,9 +43,9 @@ module type FloatArith = sig
   (** tan(x) *)
 
   (** {inversions of unary functions}*)
-  val inv_ceil : t -> t
+  val inv_ceil : ?asPreciseAsConcrete:bool -> t -> t
   (** (inv_ceil z -> x) if (z = ceil(x)) *)
-  val inv_floor : t -> t
+  val inv_floor : ?asPreciseAsConcrete:bool -> t -> t
   (** (inv_floor z -> x) if (z = floor(x)) *)
   val inv_fabs : t -> t
   (** (inv_fabs z -> x) if (z = fabs(x)) *)
