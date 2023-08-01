@@ -1,4 +1,6 @@
-(** The 'slr*' solvers. *)
+(** Various SLR solvers.
+
+    @see <http://www2.in.tum.de/bib/files/apinis14diss.pdf> Apinis, K. Frameworks for analyzing multi-threaded C. *)
 
 open Batteries
 open Analyses
@@ -204,7 +206,7 @@ module Make0 =
         try
           HM.find keys x
         with Not_found ->
-          incr Goblintutil.vars;
+          incr SolverStats.vars;
           decr last_key;
           HM.add keys x !last_key;
           !last_key
@@ -212,7 +214,7 @@ module Make0 =
       let get_index c =
         try (HM.find keys c, true)
         with Not_found ->
-          incr Goblintutil.vars;
+          incr SolverStats.vars;
           decr last_key;
           HM.add keys c !last_key;
           (!last_key, false)
@@ -391,7 +393,7 @@ module Make0 =
 
       and solve x =
         if not (P.has_item stable x) then begin
-          incr Goblintutil.evals;
+          incr SolverStats.evals;
           let _ = P.insert stable x in
           let old = X.get_value x in
 

@@ -1,3 +1,5 @@
+(** Signatures for precision comparison. *)
+
 open Batteries
 
 (** A printable, where each element is related to one location.

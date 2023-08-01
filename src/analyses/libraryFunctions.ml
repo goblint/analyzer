@@ -15,10 +15,26 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
-    ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcpy { dest; src });
-    ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src });
+    ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
+    ("__builtin_strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
+    ("__builtin___strcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcpy { dest; src; n = None; });
+    ("strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
+    ("__builtin_strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
+    ("__builtin___strncpy_chk", special [__ "dest" [w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
+    ("strcat", special [__ "dest" [r; w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("__builtin_strcat", special [__ "dest" [r; w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("__builtin___strcat_chk", special [__ "dest" [r; w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
+    ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
+    ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
+    ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
+    ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
+    ("free", special [__ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
     ("ungetc", unknown [drop "c" []; drop "stream" [r; w]]);
@@ -54,6 +70,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("rand", special [] Rand);
   ]
 
 (** C POSIX library functions.
@@ -147,6 +164,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
     ("pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
     ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
+    ("pthread_mutexattr_settype", special [__ "attr" []; __ "type" []] @@ fun attr typ -> MutexAttrSetType {attr; typ});
+    ("pthread_mutex_init", special [__ "mutex" []; __ "attr" []] @@ fun mutex attr -> MutexInit {mutex; attr});
     ("pthread_attr_destroy", unknown [drop "attr" [f]]);
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
@@ -255,8 +274,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
   ]
 
-let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
-let console_sem = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType)))
+let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
+let console_sem = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[console semaphore]" intType)))
 
 (** Linux kernel functions. *)
 let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -292,7 +311,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ZSTD_customMalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Malloc size);
     ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
-    ("ZSTD_customFree", unknown [drop "ptr" [f]; drop "customMem" [r]]);
+    ("ZSTD_customFree", special [__ "ptr" [f]; drop "customMem" [r]] @@ fun ptr -> Free ptr);
   ]
 
 (** math functions.
@@ -391,8 +410,8 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fpclassifyl", unknown [drop "x" []]);
   ]
 
-let verifier_atomic_var = Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
-let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_var))
+let verifier_atomic_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
+let verifier_atomic = AddrOf (Cil.var (Cilfacade.create_var verifier_atomic_var))
 
 (** SV-COMP functions.
     Just the ones that require special handling and cannot be stubbed. *)
@@ -669,12 +688,7 @@ let invalidate_actions = [
     "__builtin___snprintf_chk", writes [1];(*keep [1]*)
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
-    "strcmp", readsAll;(*safe*)
     "strftime", writes [1];(*keep [1]*)
-    "strlen", readsAll;(*safe*)
-    "strncmp", readsAll;(*safe*)
-    "strncat", writes [1];(*keep [1]*)
-    "strstr", readsAll;(*safe*)
     "strdup", readsAll;(*safe*)
     "toupper", readsAll;(*safe*)
     "tolower", readsAll;(*safe*)
@@ -693,7 +707,6 @@ let invalidate_actions = [
     "sigfillset", writesAll; (*unsafe*)
     "sigprocmask", writesAll; (*unsafe*)
     "uname", writesAll;(*unsafe*)
-    "__builtin_strcmp", readsAll;(*safe*)
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
@@ -735,6 +748,7 @@ let invalidate_actions = [
     "pthread_sigmask", writesAllButFirst 2 readsAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
+    "__builtin_object_size", readsAll;(*safe*)
     "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
@@ -743,9 +757,6 @@ let invalidate_actions = [
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
-    "__builtin___strcpy", writes [1];(*keep [1]*)
-    "__builtin___strcpy_chk", writes [1];(*keep [1]*)
-    "strcat", writes [1];(*keep [1]*)
     "strtok", readsAll;(*safe*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
@@ -862,7 +873,6 @@ let invalidate_actions = [
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
     "srand", readsAll; (*safe*)
-    "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
     "setrlimit", readsAll; (*safe*)

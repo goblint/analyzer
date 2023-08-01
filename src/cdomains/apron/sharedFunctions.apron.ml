@@ -1,4 +1,4 @@
-(** Functions and modules that are shared among the original apronDomain and the new affineEqualityDomain. *)
+(** Relational value domain utilities. *)
 
 open GoblintCil
 open Batteries

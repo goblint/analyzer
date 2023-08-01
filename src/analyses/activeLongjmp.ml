@@ -1,4 +1,4 @@
-(** Analysis tracking which longjmp is currently active *)
+(** Analysis of active [longjmp] targets ([activeLongjmp]). *)
 
 open GoblintCil
 open Analyses

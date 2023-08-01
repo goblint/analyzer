@@ -1,4 +1,4 @@
-(** Variable equalities necessary for per-element patterns. *)
+(** Symbolic expression equalities analysis ([var_eq]). *)
 
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
@@ -55,13 +55,13 @@ struct
 
       method! vexpr e =
         if Cilfacade.isFloatType (Cilfacade.typeOf e) then
-          raise Exit;
+          raise Stdlib.Exit;
         DoChildren
     end
     in
     match Cil.visitCilExpr visitor e with
     | _ -> false
-    | exception Exit -> true
+    | exception Stdlib.Exit -> true
   let exp_equal e1 e2 =
     CilType.Exp.equal e1 e2 && not (contains_float_subexp e1)
 
@@ -369,7 +369,7 @@ struct
         | Lval rlval -> begin
             match ask (Queries.MayPointTo (mkAddrOf rlval)) with
               | rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 ->
-                  let rv = Lval.CilLval.to_exp (Queries.LS.choose rv) in
+                  let rv = Mval.Exp.to_cil_exp (Queries.LS.choose rv) in
                   if is_local lv && Exp.is_global_var rv = Some false
                   then D.add_eq (rv,Lval lv) st
                   else st
@@ -434,10 +434,10 @@ struct
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
          TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
-      if Queries.LS.is_top tainted || not (ctx.ask Queries.MustBeSingleThreaded) then
+      if Queries.LS.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
         D.top ()
       else
-        let taint_exp = Queries.ES.of_list (List.map (fun lv -> Lval (Lval.CilLval.to_lval lv)) (Queries.LS.elements tainted)) in
+        let taint_exp = Queries.ES.of_list (List.map Mval.Exp.to_cil_exp (Queries.LS.elements tainted)) in
         D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) ctx.local
     in
     let d = D.meet au d_local in
@@ -458,7 +458,7 @@ struct
          each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
          It is unknown, why that was necessary. *)
       Queries.LS.fold (fun lval st ->
-          remove ask (Lval.CilLval.to_lval lval) st
+          remove ask (Mval.Exp.to_cil lval) st
         ) rs st
 
   let unknown_fn ctx lval f args =

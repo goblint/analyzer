@@ -1,3 +1,5 @@
+(** YAML witness generation and validation. *)
+
 open Analyses
 open GoblintCil
 
@@ -16,7 +18,7 @@ struct
   let producer: Producer.t = {
     name = "Goblint";
     version = Version.goblint;
-    command_line = Some Goblintutil.command_line;
+    command_line = Some GobSys.command_line;
   }
 
   let metadata ?task (): Metadata.t =
@@ -169,15 +171,15 @@ struct
       if GobConfig.get_bool "witness.invariant.accessed" then (
         match R.ask_local_node n ~local MayAccessed with
         | `Top ->
-          CilLval.Set.top ()
+          Lval.Set.top ()
         | (`Lifted _) as es ->
           let lvals = AccessDomain.EventSet.fold (fun e lvals ->
               match e with
               | {var_opt = Some var; offs_opt = Some offs; kind = Write} ->
-                CilLval.Set.add (Var var, offs) lvals
+                Lval.Set.add (Var var, offs) lvals
               | _ ->
                 lvals
-            ) es (CilLval.Set.empty ())
+            ) es (Lval.Set.empty ())
           in
           let lvals =
             FileCfg.Cfg.next n
@@ -190,7 +192,7 @@ struct
             |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
                 match e with
                 | {var_opt = Some var; offs_opt = Some offs; kind = Read} ->
-                  CilLval.Set.add (Var var, offs) lvals
+                  Lval.Set.add (Var var, offs) lvals
                 | _ ->
                   lvals
               ) es lvals
@@ -198,7 +200,7 @@ struct
           lvals
       )
       else
-        CilLval.Set.top ()
+        Lval.Set.top ()
     in
 
     let entries = [] in
@@ -357,7 +359,7 @@ struct
                   | None
                   | Some [] -> acc
                   | Some (x::xs) ->
-                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with (* bisect_ppx cannot handle redefined (||) *)
                       | `Lifted inv ->
                         let invs = WitnessUtil.InvariantExp.process_exp inv in
                         let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)

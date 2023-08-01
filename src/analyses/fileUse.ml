@@ -1,4 +1,6 @@
-(** An analysis for checking correct use of file handles. *)
+(** Analysis of correct file handle usage ([file]).
+
+    @see <https://www2.in.tum.de/hp/file?fid=1323> Vogler, R. Verifying Regular Safety Properties of C Programs Using the Static Analyzer Goblint. Section 3.*)
 
 open Batteries
 open GoblintCil
@@ -13,8 +15,8 @@ struct
   module C = FileDomain.Dom
 
   (* special variables *)
-  let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let unclosed_var  = Goblintutil.create_var @@ Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
+  let return_var    = Cilfacade.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let unclosed_var  = Cilfacade.create_var @@ Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
 
   (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty
@@ -221,7 +223,7 @@ struct
         (* let m' = Option.map_default (fun v -> List.fold_left (fun m k -> D.add' k v m) m xs) m v in *)
         (* then check each key *)
         (* List.iter (fun k -> ignore(f k m')) xs; *)
-        (* get CilLval from lval *)
+        (* get Mval.Exp from lval *)
         let k' = D.key_from_lval lval in
         (* add joined value for that key *)
         let m' = Option.map_default (fun v -> D.add' k' v m) m v in

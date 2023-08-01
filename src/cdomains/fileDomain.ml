@@ -1,6 +1,8 @@
+(** Domains for file handles. *)
+
 open Batteries
 
-module D = LvalMapDomain
+module D = MvalMapDomain
 
 
 module Val =

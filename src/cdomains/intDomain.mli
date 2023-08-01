@@ -1,5 +1,5 @@
-(** Abstract Domains for integers. These are domains that support the C
-  * operations on integer values. *)
+(** Abstract domains for C integers. *)
+
 open GoblintCil
 
 val should_wrap: Cil.ikind -> bool

@@ -1,3 +1,5 @@
+(** Abstract domains for C arrays. *)
+
 open IntOps
 open GoblintCil
 module VDQ = ValueDomainQueries
@@ -57,6 +59,7 @@ sig
   val update_length: idx -> t -> t
 
   val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> VDQ.t -> t -> t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type LatticeWithSmartOps =

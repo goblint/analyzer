@@ -3,7 +3,6 @@ open GoblintCil
 open Pretty
 open PrecisionUtil
 
-module GU = Goblintutil
 module M = Messages
 module BI = IntOps.BigIntOps
 
@@ -78,8 +77,8 @@ type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
   let signed = Cil.isSigned ik in
-  if !GU.postsolving && signed && not cast then
-    Goblintutil.svcomp_may_overflow := true;
+  if !AnalysisState.postsolving && signed && not cast then
+    AnalysisState.svcomp_may_overflow := true;
   let sign = if signed then "Signed" else "Unsigned" in
   match underflow, overflow with
   | true, true ->
@@ -514,16 +513,19 @@ module Size = struct (* size in bits as int, range as int64 *)
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
-    let a,b = range t in
-    let c = card t in
-    (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
-    let y = Z.erem x c in
-    let y = if Z.gt y b then Z.sub y c
-      else if Z.lt y a then Z.add y c
-      else y
-    in
-    if M.tracing then M.tracel "cast_int" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (Z.to_string x) (Z.to_string a) (Z.to_string b) (Z.to_string c) (Z.to_string y) (if is_int64_big_int y then "fits" else "does not fit");
-    y
+    if t = IBool then
+      (* C11 6.3.1.2 Boolean type *) 
+      if Z.equal x Z.zero then Z.zero else Z.one
+    else
+      let a,b = range t in
+      let c = card t in
+      let y = Z.erem x c in
+      let y = if Z.gt y b then Z.sub y c
+        else if Z.lt y a then Z.add y c
+        else y
+      in
+      if M.tracing then M.tracel "cast" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (Z.to_string x) (Z.to_string a) (Z.to_string b) (Z.to_string c) (Z.to_string y) (if is_int64_big_int y then "fits" else "does not fit");
+      y
 
   let min_range_sign_agnostic x =
     let size ik =
@@ -1538,7 +1540,7 @@ struct
           else norm_interval ik (rcx, lcy) |> fst
       | _ -> []
     in
-    List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.flatten
+    List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 
@@ -1878,7 +1880,7 @@ struct
     else (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
       let min_a = min_of_range r in
       let max_a = max_of_range r in
-      GU.for_all_in_range (min_a, max_a) (fun el -> BISet.mem el xs || BISet.mem el ys)
+      GobZ.for_all_range (fun el -> BISet.mem el xs || BISet.mem el ys) (min_a, max_a)
 
   let leq (Exc (xs, r)) (Exc (ys, s)) =
     let min_a, max_a = min_of_range r, max_of_range r in
@@ -1892,13 +1894,13 @@ struct
           let min_b, max_b = min_of_range s, max_of_range s in
           let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
             if I.compare min_a min_b < 0 then
-              GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> BISet.mem x xs)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, BI.sub min_b BI.one)
             else
               true
           in
           let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
             if I.compare max_b max_a < 0 then
-              GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> BISet.mem x xs)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (BI.add max_b BI.one, max_a)
             else
               true
           in
@@ -1976,18 +1978,22 @@ struct
   let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
-      let r' = size ik in
-      `Excluded (
+      let r' = size ik in 
         if R.leq r r' then (* upcast -> no change *)
-          s, r
-        else (* downcast: may overflow *)
+          `Excluded (s, r)
+        else if ik = IBool then (* downcast to bool *)
+          if S.mem BI.zero s then
+            `Definite (BI.one)
+          else
+            `Excluded (S.empty(), r')
+        else 
+          (* downcast: may overflow *)
           (* let s' = S.map (BigInt.cast_to ik) s in *)
           (* We want to filter out all i in s' where (t)x with x in r could be i. *)
           (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
           (* S.diff s' s, r' *)
           (* The above is needed for test 21/03, but not sound! See example https://github.com/goblint/analyzer/pull/95#discussion_r483023140 *)
-          S.empty (), r'
-      )
+          `Excluded (S.empty (), r')
     | `Definite x -> `Definite (BigInt.cast_to ik x)
     | `Bot -> `Bot
 
@@ -2519,6 +2525,11 @@ module Enums : S with type int_t = BigInt.t = struct
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
         Exc (s, r)
+      else if ik = IBool then (* downcast to bool *)
+        if BISet.mem BI.zero s then
+          Inc (BISet.singleton BI.one)
+        else
+          Exc (BISet.empty(), r')
       else (* downcast: may overflow *)
         Exc ((BISet.empty ()), r')
     | Inc xs ->
@@ -2738,7 +2749,7 @@ module Enums : S with type int_t = BigInt.t = struct
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
         List.fold_left (fun a x ->
             let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
-            Invariant.(a || i)
+            Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
           ) (Invariant.bot ()) (BISet.elements ps)
       else
         Invariant.top ()

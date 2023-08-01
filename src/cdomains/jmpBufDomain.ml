@@ -1,3 +1,5 @@
+(** Domains for [setjmp] and [longjmp] analyses, and [setjmp] buffers. *)
+
 module BufferEntry = Printable.ProdSimple(Node)(ControlSpecC)
 
 module BufferEntryOrTop = struct

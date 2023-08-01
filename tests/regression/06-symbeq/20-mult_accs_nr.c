@@ -1,4 +1,4 @@
-// SKIP PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// SKIP PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 
 struct s {
@@ -10,7 +10,7 @@ struct s {
 extern struct s *get_s();
 
 void *t_fun(void *arg) {
-  struct s *s; 
+  struct s *s;
   s = get_s();
   pthread_mutex_lock(&s->mutex);
   s->data = 5; // NORACE

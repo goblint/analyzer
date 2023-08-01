@@ -1,3 +1,5 @@
+(** Hooks which run after the runtime configuration is fully loaded. *)
+
 let callbacks = ref []
 
 let register callback =

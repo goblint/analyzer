@@ -1,10 +1,11 @@
+(** Printables for CIL types. *)
+
 open GoblintCil
 open Pretty
 
 module type S =
 sig
   include Printable.S
-  (* include MapDomain.Groupable *) (* FIXME: dependency cycle *)
 end
 
 module Std =

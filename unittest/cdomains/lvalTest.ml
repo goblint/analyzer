@@ -3,20 +3,21 @@ open OUnit2
 open GoblintCil
 
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
-module LV = Lval.NormalLat (ID)
+module Offs = Offset.MakeLattice (ID)
+module LV = AddressDomain.AddressLattice (Mval.MakeLattice (Offs))
 
 let ikind = IntDomain.PtrDiffIkind.ikind ()
 
 let a_var = Cil.makeGlobalVar "a" Cil.intPtrType
-let a_lv = LV.from_var a_var
+let a_lv = LV.of_var a_var
 let i_0 = ID.of_int ikind Z.zero
-let a_lv_0 = LV.from_var_offset (a_var, `Index (i_0, `NoOffset))
+let a_lv_0 = LV.of_mval (a_var, `Index (i_0, `NoOffset))
 let i_1 = ID.of_int ikind Z.one
-let a_lv_1 = LV.from_var_offset (a_var, `Index (i_1, `NoOffset))
+let a_lv_1 = LV.of_mval (a_var, `Index (i_1, `NoOffset))
 let i_top = ID.join i_0 i_1
-let a_lv_top = LV.from_var_offset (a_var, `Index (i_top, `NoOffset))
+let a_lv_top = LV.of_mval (a_var, `Index (i_top, `NoOffset))
 let i_not_0 = ID.join i_1 (ID.of_int ikind (Z.of_int 2))
-let a_lv_not_0 = LV.from_var_offset (a_var, `Index (i_not_0, `NoOffset))
+let a_lv_not_0 = LV.of_mval (a_var, `Index (i_not_0, `NoOffset))
 
 
 let assert_leq x y =
@@ -33,7 +34,7 @@ let test_join_0 _ =
 let test_leq_not_0 _ =
   assert_leq a_lv_1 a_lv_not_0;
   OUnit.assert_equal ~printer:[%show: [`Eq | `Neq | `Top]] `Neq (ID.equal_to Z.zero i_not_0);
-  OUnit.assert_equal ~printer:[%show: [`MustZero | `MustNonzero | `MayZero]] `MustNonzero (LV.Offs.cmp_zero_offset (`Index (i_not_0, `NoOffset)));
+  OUnit.assert_equal ~printer:[%show: [`MustZero | `MustNonzero | `MayZero]] `MustNonzero (Offs.cmp_zero_offset (`Index (i_not_0, `NoOffset)));
   assert_not_leq a_lv a_lv_not_0;
   assert_not_leq a_lv_0 a_lv_not_0
 
