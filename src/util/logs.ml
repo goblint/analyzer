@@ -10,7 +10,14 @@ struct
 
   let compare x y = Stdlib.compare (to_enum x) (to_enum y)
 
-  let current = ref Warning
+  let of_string = function
+    | "debug" -> Debug
+    | "info" -> Info
+    | "warning" -> Warning
+    | "error" -> Error
+    | _ -> invalid_arg "Logs.Level.of_string"
+
+  let current = ref Debug
 
   let should_log l =
     compare l !current >= 0

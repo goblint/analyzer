@@ -1768,6 +1768,13 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
+        "level": {
+          "title": "dbg.level",
+          "description": "Logging level.",
+          "type": "string",
+          "enum": ["debug", "info", "warning", "error"],
+          "default": "warning"
+        },
         "verbose": {
           "title": "dbg.verbose",
           "description": "Prints some status information.",

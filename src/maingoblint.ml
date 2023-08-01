@@ -183,6 +183,7 @@ let handle_flags () =
     set_string "outfile" ""
 
 let handle_options () =
+  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
   check_arguments ();
   AfterConfig.run ();
   Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
