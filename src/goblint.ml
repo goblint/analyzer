@@ -73,7 +73,7 @@ let main () =
     exit 1
   | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
     do_stats ();
-    (* Printexc.print_backtrace BatInnerIO.stderr *)
+    Printexc.print_backtrace stderr;
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
