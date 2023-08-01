@@ -1773,7 +1773,7 @@
           "description": "Logging level.",
           "type": "string",
           "enum": ["debug", "info", "warning", "error"],
-          "default": "warning"
+          "default": "info"
         },
         "verbose": {
           "title": "dbg.verbose",
