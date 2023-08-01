@@ -6,6 +6,8 @@ module PCU = RelationPrecCompareUtil.DummyUtil
 
 module RA = RelationAnalysis.SpecFunctor (Priv) (RSD) (PCU)
 
+module BatS = BatSet.Make (Mval.Exp)
+
 module RelationalSubstringAnalysis =
 struct
   include RelationAnalysis
@@ -24,22 +26,38 @@ struct
   let get_spec (): (module MCPSpec) =
     Lazy.force spec_module
 
-  let after_config () =
-    let module Spec = (val get_spec ()) in
-    MCP.register_analysis (module Spec : MCPSpec);
-    GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())
-
-  let _ =
-    AfterConfig.register after_config
+  let strpcy_strcat_edge ctx (st:(RSD.t, Priv(RSD).D.t) RelationDomain.relcomponents_t) dest src n str_fun =
+    let ask = Analyses.ask_of_ctx ctx in
+    let dest' = Queries.LS.elements (ask.f (MayPointTo dest))
+                |> List.map (fun (v, _) -> v) in
+    let src' = Queries.LS.elements (ask.f (MayPointTo src))
+               |> List.map (fun (v, _) -> v) in
+    let prod = BatList.cartesian_product dest' src' in
+    let t = begin match n with
+      (* strcpy or strcat *)
+      | None -> 
+        List.map (fun (v1, v2) -> str_fun ctx st.rel v1 v2 None) prod
+        |> List.fold_left RSD.join (RSD.bot ())
+      (* strncpy or strncat *)
+      | Some n -> 
+        let n = ask.f (EvalInt n) in
+        begin match Queries.ID.to_int n with
+          | Some n -> 
+            List.map (fun (v1, v2) -> str_fun ctx st.rel v1 v2 (Some (Z.to_int n))) prod
+            |> List.fold_left RSD.join (RSD.bot ())
+          | _ -> 
+            List.map RSD.varinfo_to_var dest'
+            |> RSD.forget_vars st.rel
+        end
+    end in
+    {st with rel = t}
 
   let special ctx r f args =
-    let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    | Strcpy { dest; src; n }, _ -> failwith "TODO" (* TODO: how to exp -> varinfo? *)
-    (* RSD.string_copy ctx st dest src n *)
-    | Strcat { dest; src; n }, _ -> failwith "TODO"
+    | Strcpy { dest; src; n }, _ -> strpcy_strcat_edge ctx st dest src n RSD.string_copy
+    | Strcat { dest; src; n }, _ -> strpcy_strcat_edge ctx st dest src n RSD.string_concat
     | Strlen s, _ -> failwith "TODO"
     | Strstr { haystack; needle }, _ -> failwith "TODO"
     | Strcmp { s1; s2; n }, _ -> failwith "TODO"

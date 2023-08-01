@@ -8,9 +8,13 @@ module ID = IntDomain.IntDomTuple
 module Var = SharedFunctions.PrintableVar
 module V = RelationDomain.V (Var)
 
+module SetS = Set.Make(Var)
+
 module type StringRelationDomain =
 sig
   include RelationDomain.RD
+
+  val varinfo_to_var: varinfo -> var
 
   val string_copy: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> t
   val string_concat: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> t
@@ -64,12 +68,6 @@ struct
         add_all_relations s' in
     add_all_relations s
 
-  let varinfo_to_var (v:varinfo) =
-    if v.vglob then
-      V.global v
-    else
-      V.local v
-
   let vid_to_id ik = function (* TODO: okay? *)
     | `Lifted i -> i
     | _ -> ID.top_of ik
@@ -82,7 +80,7 @@ struct
 
   let leq t1 t2 = S.leq t1.r_set t2.r_set
 
-  let join t1 t2 = {r_set = transitive_closure (S.join t1.r_set t2.r_set); env = Environment.lce t1.env t2.env}
+  let join t1 t2 = {r_set = S.join t1.r_set t2.r_set; env = Environment.lce t1.env t2.env}
   let meet t1 t2 = {r_set = transitive_closure (S.meet t1.r_set t2.r_set); env = Environment.lce t1.env t2.env}
   let widen = join
   let narrow = meet
@@ -126,6 +124,12 @@ struct
   let cil_exp_of_lincons1 a = None
 
   let invariant t = []
+
+  let varinfo_to_var (v:varinfo) =
+    if v.vglob then
+      V.global v
+    else
+      V.local v
 
   (* string functions *)
   let string_copy ctx t dest src n = 
@@ -197,20 +201,43 @@ struct
 
   let to_string_length ctx t s =
     let s' = varinfo_to_var s in
-    S.fold (fun (x, y) acc ->
-        (* if s <= y and y <= s, strlen(s) = strlen(y) *)
+    (* collect all strings = s *)
+    let t_eq = S.fold (fun (x, y) acc -> 
         if Var.equal x s' && S.mem (y, s') t.r_set then
-          match V.to_cil_varinfo y with
-          | Some y -> vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength y))
-          | None -> acc
-          (* if s <= y, strlen(s) <= strlen(y) *)
-        else if Var.equal x s' then
-          match V.to_cil_varinfo y with
-          | Some y -> ID.meet acc (ID.le (ID.top_of !Cil.kindOfSizeOf) (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength y)))) (* TODO: does this work? *)
-          | None -> acc
+          SetS.add y acc
         else
           acc)
-      t.r_set (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength s)))
+        t.r_set SetS.empty in
+    (* collect all strings <= s *)
+    let t_leq = S.fold (fun (x, y) acc ->
+        if Var.equal x s' then 
+          SetS.add y acc
+        else
+          acc)
+        t.r_set SetS.empty in
+    (* collect all strings >= s *)
+    let t_geq = S.fold (fun (x, y) acc -> 
+        if Var.equal y s' then
+          SetS.add x acc
+        else
+          acc)
+        t.r_set SetS.empty in
+
+    (* s = s' ==> strlen(s) = strlen(s') *)
+    let len_eq = SetS.fold (fun x acc -> match V.to_cil_varinfo x with
+        | Some x -> ID.meet (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength x))) acc
+        | None -> acc)
+        t_eq (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength s))) in
+    (* s <= s' ==> strlen(s) <= strlen(s') *)
+    let len_eq_leq = SetS.fold (fun x acc -> match V.to_cil_varinfo x with
+        | Some x -> ID.meet (ID.le (ID.top_of !Cil.kindOfSizeOf) (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength x)))) acc
+        | None -> acc) 
+        t_leq len_eq in
+    (* s' <= s ==> strlen(s) >= strlen(s') *)
+    SetS.fold (fun x acc -> match V.to_cil_varinfo x with
+        | Some x -> ID.meet (ID.ge (ID.top_of !Cil.kindOfSizeOf) (vid_to_id !Cil.kindOfSizeOf (ctx.ask (VarStringLength x)))) acc
+        | None -> acc)
+      t_geq len_eq_leq
 
   (* returns is_maybe_null_ptr, is_surely_offset_0 *)
   let substring_extraction ctx t lval haystack needle =
