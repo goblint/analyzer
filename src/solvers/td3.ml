@@ -831,8 +831,7 @@ module Base =
       in
       (* restore values for non-widening-points *)
       if space && GobConfig.get_bool "solvers.td3.space_restore" then (
-        if GobConfig.get_bool "dbg.verbose" then
-          Logs.debug "Restoring missing values.";
+        Logs.debug "Restoring missing values.";
         let restore () =
           let get x =
             let d = get ~check:true x in
@@ -842,7 +841,7 @@ module Base =
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Timing.wrap "restore" restore ();
-        if GobConfig.get_bool "dbg.verbose" then Logs.debug "Solved %d vars. Total of %d vars after restore." !SolverStats.vars (HM.length rho);
+        Logs.debug "Solved %d vars. Total of %d vars after restore." !SolverStats.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing && cache then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );

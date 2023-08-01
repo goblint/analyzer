@@ -172,8 +172,7 @@ module WP =
       in
       (* restore values for non-widening-points *)
       if GobConfig.get_bool "solvers.wp.restore" then (
-        if (GobConfig.get_bool "dbg.verbose") then
-          Logs.debug ("Restoring missing values.");
+        Logs.debug "Restoring missing values.";
         let restore () =
           let get x =
             let d = get x in
@@ -182,7 +181,7 @@ module WP =
           List.iter get vs
         in
         Timing.wrap "restore" restore ();
-        if (GobConfig.get_bool "dbg.verbose") then Logs.debug "Solved %d vars. Total of %d vars after restore." !SolverStats.vars (HM.length rho);
+        Logs.debug "Solved %d vars. Total of %d vars after restore." !SolverStats.vars (HM.length rho);
       );
       let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
       if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);

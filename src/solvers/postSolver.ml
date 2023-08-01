@@ -63,8 +63,7 @@ module Prune: F =
     include Unit (S) (VH)
 
     let finalize ~vh ~reachable =
-      if get_bool "dbg.verbose" then
-        Logs.debug "Pruning result";
+      Logs.debug "Pruning result";
 
       VH.filteri_inplace (fun x _ ->
           VH.mem reachable x
@@ -130,8 +129,7 @@ module SaveRun: F =
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
       let save_run = Fpath.v save_run_str in
       let solver = Fpath.(save_run / solver_file) in
-      if get_bool "dbg.verbose" then
-        Logs.Format.info "Saving the solver result to %a" Fpath.pp solver;
+      Logs.Format.debug "Saving the solver result to %a" Fpath.pp solver;
       GobSys.mkdir_or_exists save_run;
       Serialize.marshal vh solver
   end
@@ -180,8 +178,7 @@ struct
   module VH = PS.VH
 
   let post xs vs vh =
-    if get_bool "dbg.verbose" then
-      Logs.debug "Postsolving";
+    Logs.debug "Postsolving";
 
     let module StartS =
     struct

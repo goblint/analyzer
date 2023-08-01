@@ -11,8 +11,7 @@ let is_bad name =
     | exception Not_found -> false
     | _ -> true
   in
-  if GobConfig.get_bool "dbg.verbose" then
-    Logs.debug "Preprocessor %s: is_bad=%B" name r;
+  Logs.debug "Preprocessor %s: is_bad=%B" name r;
   r
 
 let compgen prefix =

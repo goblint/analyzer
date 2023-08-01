@@ -15,7 +15,7 @@ let exec_command ?path (command: string) =
      if Sys.file_exists path_str && Sys.is_directory path_str then Sys.chdir path_str
      else failwith ("Directory " ^ path_str ^ " does not exist!")
    | None -> ());
-  if GobConfig.get_bool "dbg.verbose" then Logs.debug "%s" ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
+  Logs.debug "%s" ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
   let (std_out, std_in) = open_process command in
   let output = Buffer.create buff_size in
   try
@@ -51,7 +51,7 @@ let remove_comb_files path =
   try
     while true do
       let comb = Fpath.to_string (find_file_by_suffix path comb_suffix) in
-      if GobConfig.get_bool "dbg.verbose" then Logs.info "deleting %s" comb;
+      Logs.debug "deleting %s" comb;
       Sys.remove comb;
     done
   with Failure e -> ()

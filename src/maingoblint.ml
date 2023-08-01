@@ -240,7 +240,7 @@ let basic_preprocess ?preprocess ~all_cppflags fname =
     let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
     let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
     let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
-    if get_bool "dbg.verbose" then Logs.debug "%s" command;
+    Logs.debug "%s" command;
     (nname, Some {ProcessPool.command; cwd = None})
   )
   else
@@ -277,12 +277,10 @@ let preprocess_files () =
     List.map (fun p -> Fpath.(p / "stub" / "src")) source_lib_dirs @
     Goblint_sites.lib_stub_src
   in
-  if get_bool "dbg.verbose" then (
-    Logs.debug "Custom include dirs:";
-    List.iteri (fun i custom_include_dir ->
-        Logs.Format.debug "  %d. %a (exists=%B)" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
-      ) custom_include_dirs
-  );
+  Logs.debug "Custom include dirs:";
+  List.iteri (fun i custom_include_dir ->
+      Logs.Format.debug "  %d. %a (exists=%B)" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
+    ) custom_include_dirs;
   let custom_include_dirs = List.filter (Sys.file_exists % Fpath.to_string) custom_include_dirs in
   if custom_include_dirs = [] then
     Logs.warn "Warning, cannot find goblint's custom include files.";
@@ -356,7 +354,7 @@ let preprocess_files () =
   let all_cppflags = !cppflags @ include_args in
 
   (* preprocess all the files *)
-  if get_bool "dbg.verbose" then Logs.info "Preprocessing files.";
+  Logs.debug "Preprocessing files.";
 
   let rec preprocess_arg_file ?preprocess = function
     | filename when not (Sys.file_exists (Fpath.to_string filename)) ->
@@ -415,7 +413,7 @@ let preprocess_files () =
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
   (* get the AST *)
-  if get_bool "dbg.verbose" then Logs.info "Parsing files.";
+  Logs.debug "Parsing files.";
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
@@ -518,20 +516,18 @@ let do_analyze change_info merged_AST =
     Cilfacade.print merged_AST
   else (
     (* we first find the functions to analyze: *)
-    if get_bool "dbg.verbose" then Logs.info "And now...  the Goblin!";
+    Logs.debug "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
-    if get_bool "dbg.verbose" then Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a"
+    Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a"
                                              L.pretty stf L.pretty exf L.pretty otf;
     (* and here we run the analysis! *)
 
     let control_analyze ast funs =
-      if get_bool "dbg.verbose" then (
-        let aa = String.concat ", " @@ get_string_list "ana.activated" in
-        let at = String.concat ", " @@ get_string_list "trans.activated" in
-        Logs.info "Activated analyses: %s" aa;
-        Logs.info "Activated transformations: %s" at
-      );
+      let aa = String.concat ", " @@ get_string_list "ana.activated" in
+      let at = String.concat ", " @@ get_string_list "trans.activated" in
+      Logs.debug "Activated analyses: %s" aa;
+      Logs.debug "Activated transformations: %s" at;
       try Control.analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)

@@ -474,8 +474,7 @@ let createCFG (file: file) =
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  if get_bool "dbg.verbose" then
-    Logs.debug "cfgF (%a), cfgB (%a)" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB);
+  Logs.debug "cfgF (%a), cfgB (%a)" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB);
   cfgF, cfgB, skippedByEdge
 
 let createCFG = Timing.wrap "createCFG" createCFG

@@ -501,8 +501,7 @@ struct
 
 
   let warn_type op x y =
-    if GobConfig.get_bool "dbg.verbose" then
-      Logs.debug "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a" op (tag_name (x:t)) (tag_name (y:t)) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
+    Logs.debug "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a" op (tag_name (x:t)) (tag_name (y:t)) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
 
   let rec leq x y =
     match (x,y) with

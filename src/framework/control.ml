@@ -286,7 +286,7 @@ struct
         }
       in
       let edges = CfgTools.getGlobalInits file in
-      if (get_bool "dbg.verbose") then Logs.debug "Executing %d assigns." (List.length edges);
+      Logs.debug "Executing %d assigns." (List.length edges);
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
@@ -367,7 +367,7 @@ struct
     in
 
     let startstate, more_funs =
-      if (get_bool "dbg.verbose") then Logs.debug "Initializing %d globals." (CfgTools.numGlobals file);
+      Logs.debug "Initializing %d globals." (CfgTools.numGlobals file);
       Timing.wrap "global_inits" do_global_inits file
     in
 
@@ -507,8 +507,7 @@ struct
                 Some solver_data
             | None -> None
           in
-          if get_bool "dbg.verbose" then
-            Logs.info "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
+          Logs.debug "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
           if GobConfig.get_bool "incremental.save" then
@@ -522,9 +521,7 @@ struct
             let cil = Fpath.(save_run / "cil.marshalled") in
             let warnings = Fpath.(save_run / "warnings.marshalled") in
             let stats = Fpath.(save_run / "stats.marshalled") in
-            if get_bool "dbg.verbose" then (
-              Logs.Format.info "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
-            );
+            Logs.Format.debug "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
             GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
             let module Meta = struct
@@ -535,9 +532,7 @@ struct
             (* Yojson.Safe.to_file meta Meta.json; *)
             Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
             if gobview then (
-              if get_bool "dbg.verbose" then (
-                Logs.Format.info "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
-              );
+              Logs.Format.debug "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
@@ -766,7 +761,7 @@ struct
       if not (get_bool "server.enabled") then
         Serialize.Cache.store_data ()
     );
-    if get_bool "dbg.verbose" && get_string "result" <> "none" then Logs.info "Generating output: %s" (get_string "result");
+    if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
 
     Messages.finalize ();
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
@@ -798,7 +793,7 @@ let compute_cfg = fst % compute_cfg_skips
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
-  if (get_bool "dbg.verbose") then Logs.debug "Generating the control flow graph.";
+  Logs.debug "Generating the control flow graph.";
   let (module CFG), skippedByEdge = compute_cfg_skips file in
   MyCFG.current_cfg := (module CFG);
   analyze_loop (module CFG) file fs change_info skippedByEdge

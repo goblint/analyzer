@@ -33,10 +33,8 @@ let main () =
     handle_extraspecials ();
     GoblintDir.init ();
 
-    if get_bool "dbg.verbose" then (
-      Logs.debug "%s" (GobUnix.localtime ());
-      Logs.debug "%s" GobSys.command_line;
-    );
+    Logs.debug "%s" (GobUnix.localtime ());
+    Logs.debug "%s" GobSys.command_line;
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =
