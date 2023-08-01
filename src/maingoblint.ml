@@ -127,12 +127,12 @@ and complete args =
   |> List.iter print_endline; (* nosemgrep: print-not-logging *)
   raise Stdlib.Exit
 
-(* TODO: remove *)
-let eprint_color m = Logs.info "%s" (MessageUtil.colorize ~fd:Unix.stderr m)
-
 let check_arguments () =
-  let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in
-  let warn m = eprint_color ("{yellow}Option warning: "^m) in
+  let fail m =
+    Logs.error "%s" m;
+    failwith "Option error"
+  in
+  let warn m = Logs.warn "%s" m in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
@@ -626,7 +626,7 @@ let handle_extraspecials () =
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data option =
-    let warn m = eprint_color ("{yellow}Warning: "^m) in
+    let warn m = Logs.warn "%s" m in
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
       warn "incremental.load is activated but no data exists that can be loaded."
     end;
