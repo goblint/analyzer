@@ -31,16 +31,7 @@ struct
   let get_joined_threads ctx =
     ctx.ask Queries.MustJoinedThreads
 
-  let warn_about_deactivated_thread_joins () =
-    if not @@ List.mem "threadJoins" @@ get_string_list "ana.activated" then
-      M.warn "Running without thread joins analysis. Multi-threaded UAF detection might be imprecise!"
-
   let warn_for_multi_threaded_access ctx (heap_var:varinfo) behavior cwe_number =
-    (*
-      * We need the [threadJoins] analysis for making the multi-threaded UAF detection more precise
-      * Warn the user in case [threadJoins] is disabled
-    *)
-    warn_about_deactivated_thread_joins ();
     let freeing_threads = ctx.global heap_var in
     (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
     if ctx.ask (Queries.MustBeSingleThreaded { since_start = true }) || ThreadIdWithJoinedThreads.is_empty freeing_threads then ()
