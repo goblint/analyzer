@@ -6,7 +6,7 @@ open Analyses
 open MessageCategory
 
 module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
-module ThreadIdWithJoinedThreads = SetDomain.Make(Lattice.Prod(ThreadIdDomain.ThreadLifted)(ConcDomain.MustThreadSet))
+module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted)(ConcDomain.MustThreadSet)
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -16,7 +16,7 @@ struct
 
   module D = ToppedVarInfoSet
   module C = Lattice.Unit
-  module G = ThreadIdWithJoinedThreads
+  module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
 
   (** TODO: Try out later in benchmarks to see how we perform with and without context-sensititivty *)
@@ -34,35 +34,37 @@ struct
   let warn_for_multi_threaded_access ctx (heap_var:varinfo) behavior cwe_number =
     let freeing_threads = ctx.global heap_var in
     (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
-    if ctx.ask (Queries.MustBeSingleThreaded { since_start = true }) || ThreadIdWithJoinedThreads.is_empty freeing_threads then ()
+    if ctx.ask (Queries.MustBeSingleThreaded { since_start = true }) || G.is_empty freeing_threads then ()
     else begin
-      let possibly_started current = function
-        | `Lifted tid, joined_threads ->
+      let possibly_started current tid joined_threads =
+        match tid with
+        | `Lifted tid ->
           let created_threads = ctx.ask Queries.CreatedThreads in
           (* Discard joined threads, as they're supposed to be joined before the point of freeing the memory *)
           let threads = ConcDomain.MustThreadSet.diff created_threads joined_threads in
           let not_started = MHP.definitely_not_started (current, threads) tid in
           let possibly_started = not not_started in
           possibly_started
-        | `Top, _ -> true
-        | `Bot, _ -> false
+        | `Top -> true
+        | `Bot -> false
       in
-      let equal_current current = function
-        | `Lifted tid, _ ->
+      let equal_current current tid joined_threads =
+        match tid with
+        | `Lifted tid ->
           ThreadId.Thread.equal current tid
-        | `Top, _ -> true
-        | `Bot, _ -> false
+        | `Top -> true
+        | `Bot -> false
       in
       match get_current_threadid ctx with
       | `Lifted current ->
-        let possibly_started = ThreadIdWithJoinedThreads.exists (possibly_started current) freeing_threads in
+        let possibly_started = G.exists (possibly_started current) freeing_threads in
         if possibly_started then begin
           AnalysisState.svcomp_may_use_after_free := true;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. Use-After-Free might occur" CilType.Varinfo.pretty heap_var
         end
         else begin
           let current_is_unique = ThreadId.Thread.is_unique current in
-          let any_equal_current threads = ThreadIdWithJoinedThreads.exists (equal_current current) threads in
+          let any_equal_current threads = G.exists (equal_current current) threads in
           if not current_is_unique && any_equal_current freeing_threads then begin
             AnalysisState.svcomp_may_use_after_free := true;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
@@ -141,24 +143,17 @@ struct
     | AddrOf lval -> warn_lval_might_contain_freed ~is_double_free transfer_fn_name ctx lval
 
   let side_effect_mem_free ctx freed_heap_vars threadid joined_threads =
-    let side_effect_globals_to_heap_var heap_var globals_to_add =
-      let (tid_to_add, joined_threads_to_add) = globals_to_add in
+    let side_effect_globals_to_heap_var heap_var =
       let current_globals = ctx.global heap_var in
-      (*
-        * Check if there are tuples with the same first component (i.e., tid)
-        * If no, side-effect the globals that we receive here and be done
-        * If yes, join all second components together and side-effect a single global with
-        the tid as first component and the joined second components as a single second component
-      *)
-      let globals_with_same_tid = G.filter (fun (tid, _) -> ThreadIdDomain.ThreadLifted.equal tid tid_to_add) current_globals in
-      if G.is_empty globals_with_same_tid then
-        ctx.sideg heap_var (G.singleton globals_to_add)
-      else
-        let globals_to_add = G.fold (fun (t, j) (t_acc, j_acc) -> (t_acc, ConcDomain.MustThreadSet.join j j_acc)) globals_with_same_tid (tid_to_add, joined_threads_to_add) in
-        ctx.sideg heap_var (G.singleton globals_to_add)
+      let joined_threads_to_add = match G.find_opt threadid current_globals with
+        | Some threads -> ConcDomain.ThreadSet.inter joined_threads threads
+        | None -> joined_threads
+      in
+      let globals_to_side_effect = G.add threadid joined_threads_to_add current_globals in
+      ctx.sideg heap_var globals_to_side_effect
     in
-    let globals_to_side_effect = (threadid, joined_threads) in
-    D.iter (fun var -> side_effect_globals_to_heap_var var globals_to_side_effect) freed_heap_vars
+    D.iter side_effect_globals_to_heap_var freed_heap_vars
+
 
 
   (* TRANSFER FUNCTIONS *)
