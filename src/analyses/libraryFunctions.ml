@@ -15,11 +15,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
-    ("mempcpy", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []]);
-    ("__builtin___mempcpy_chk", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []; drop "os" []]);
-    ("memmove", unknown [drop "dest" [w]; drop "src" [r]; drop "count" []]);
-    ("__builtin_memmove", unknown [drop "dest" [w]; drop "src" [r]; drop "count" []]);
-    ("__builtin___memmove_chk", unknown [drop "dest" [w]; drop "src" [r]; drop "count" []; drop "os" []]);
+    ("memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
+    ("__builtin_memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
+    ("__builtin___memmove_chk", special [__ "dest" [w]; __ "src" [r]; drop "count" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin_strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin___strcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcpy { dest; src; n = None; });
@@ -33,20 +31,15 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
-    ("free", unknown [drop "ptr" [f]]);
     ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
     ("feof", unknown [drop "stream" [r_deep; w_deep]]);
     ("ferror", unknown [drop "stream" [r_deep; w_deep]]);
     ("fflush", unknown [drop "stream" [r_deep; w_deep]]);
     ("fgetc", unknown [drop "stream" [r_deep; w_deep]]);
-    ("getc", unknown [drop "stream" [r_deep; w_deep]]);
-    ("fgets", unknown [drop "str" [w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
-    ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
-    ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
-    ("printf", unknown (drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
-    ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
-    ("sprintf", unknown (drop "buffer" [w] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
-    ("snprintf", unknown (drop "buffer" [w] :: drop "bufsz" [] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
+    ("printf", unknown (drop "format" [r] :: VarArgs (drop' [r])));
+    ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("sprintf", unknown (drop "buffer" [w] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("snprintf", unknown (drop "buffer" [w] :: drop "bufsz" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("fputc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
     ("putc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
     ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep]]);
@@ -87,6 +80,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("putchar", unknown [drop "ch" []]);
     ("puts", unknown [drop "s" [r]]);
     ("rand", unknown ~attrs:[ThreadUnsafe] []);
+    ("setgrent", unknown ~attrs:[ThreadUnsafe] []);
+    ("setpwent", unknown ~attrs:[ThreadUnsafe] []);
+    ("setutxent", unknown ~attrs:[ThreadUnsafe] []);
+    ("strerror", unknown ~attrs:[ThreadUnsafe] [drop "errnum" []]);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strftime", unknown [drop "str" [w]; drop "count" []; drop "format" [r]; drop "tp" [r]]);
@@ -107,7 +104,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]);
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
-    ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
+    ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
     ("system", unknown ~attrs:[ThreadUnsafe] [drop "command" [r]]);
@@ -185,16 +182,16 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("putenv", unknown ~attrs:[ThreadUnsafe] [drop "string" [r; w]]);
     ("readdir", unknown ~attrs:[ThreadUnsafe] [drop "dirp" [r_deep]]);
     ("setenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]; drop "name" [r]; drop "overwrite" []]);
-    ("setgrent", unknown ~attrs:[ThreadUnsafe] []);
-    ("setpwent", unknown ~attrs:[ThreadUnsafe] []);
-    ("setutxent", unknown ~attrs:[ThreadUnsafe] []);
-    ("strerror", unknown ~attrs:[ThreadUnsafe] [drop "errnum" []]);
     ("strsignal", unknown ~attrs:[ThreadUnsafe] [drop "sig" []]);
     ("unsetenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
     ("lseek", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
     ("fcntl", unknown (drop "fd" [] :: drop "cmd" [] :: VarArgs (drop' [r; w])));
     ("fseeko", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "whence" []]);
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
+    ("fgets", unknown [drop "str" [w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
+    ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
+    ("getc", unknown [drop "stream" [r_deep; w_deep]]);
     ("getopt", unknown ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r]]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
@@ -438,6 +435,8 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
     ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
     ("fopencookie", unknown [drop "cookie" []; drop "mode" [r]; drop "io_funcs" [s_deep]]); (* doesn't access cookie but passes it to io_funcs *)
+    ("mempcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
+    ("__builtin___mempcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -449,7 +448,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("epoll_create", unknown [drop "size" []]);
     ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
     ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
-    ("__fprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]]);
+    ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("sysinfo", unknown [drop "info" [w_deep]]);
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
