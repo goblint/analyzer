@@ -141,7 +141,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dbm_store", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]; drop "key" []; drop "content" []; drop "store_mode" []]);
     ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
     ("drand48", unknown ~attrs:[ThreadUnsafe] []);
-    ("encrypt", unknown ~attrs:[ThreadUnsafe] [drop "block" []; drop "edflag" []]);
+    ("encrypt", unknown ~attrs:[ThreadUnsafe] [drop "block" [r; w]; drop "edflag" []]);
     ("endgrent", unknown ~attrs:[ThreadUnsafe] []);
     ("endpwent", unknown ~attrs:[ThreadUnsafe] []);
     ("fcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigits" []; drop "decpt" [w]; drop "sign" [w]]);
