@@ -40,22 +40,22 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fflush", unknown [drop "stream" [r_deep; w_deep]]);
     ("fgetc", unknown [drop "stream" [r_deep; w_deep]]);
     ("getc", unknown [drop "stream" [r_deep; w_deep]]);
-    ("fgets", unknown [drop "str" [r; w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("fgets", unknown [drop "str" [w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
     ("printf", unknown (drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
     ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
-    ("sprintf", unknown (drop "buffer" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
-    ("snprintf", unknown (drop "buffer" [r_deep; w_deep] :: drop "bufsz" [] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
+    ("sprintf", unknown (drop "buffer" [w] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
+    ("snprintf", unknown (drop "buffer" [w] :: drop "bufsz" [] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
     ("fputc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
     ("putc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
     ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep]]);
-    ("fread", unknown [drop "buffer" [w_deep]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("fread", unknown [drop "buffer" [w]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fseek", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "origin" []]);
     ("ftell", unknown [drop "stream" [r_deep]]);
-    ("fwrite", unknown [drop "buffer" [r_deep]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("fwrite", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("rewind", unknown [drop "stream" [r_deep; w_deep]]);
-    ("setvbuf", unknown [drop "stream" [r_deep; w_deep]; drop "buffer" [r_deep; w_deep]; drop "mode" []; drop "size" []]); 
+    ("setvbuf", unknown [drop "stream" [r_deep; w_deep]; drop "buffer" [r; w]; drop "mode" []; drop "size" []]); 
     (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
     (* as any future write (or flush) of the stream could result in a write to the buffer *)
     ("gmtime", unknown ~attrs:[ThreadUnsafe] [drop "timer" [r_deep]]);
@@ -64,7 +64,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
-    ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r]; drop "delim" [r]]);
+    ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r; w]; drop "delim" [r]]);
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
@@ -73,7 +73,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("exit", special [drop "exit_code" []] Abort);
     ("ungetc", unknown [drop "c" []; drop "stream" [r; w]]);
     ("scanf", unknown ((drop "format" [r]) :: (VarArgs (drop' [w]))));
-    ("fscanf", unknown ((drop "stream" [r; w]) :: (drop "format" [r]) :: (VarArgs (drop' [w])))); (* TODO: why stream not r_deep; w_deep? *) 
+    ("fscanf", unknown ((drop "stream" [r_deep; w_deep]) :: (drop "format" [r]) :: (VarArgs (drop' [w]))));
     ("sscanf", unknown ((drop "buffer" [r]) :: (drop "format" [r]) :: (VarArgs (drop' [w]))));
     ("__freading", unknown [drop "stream" [r]]);
     ("mbsinit", unknown [drop "ps" [r]]);
@@ -99,7 +99,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("tolower", unknown [drop "ch" []]);
     ("toupper", unknown [drop "ch" []]);
     ("time", unknown [drop "arg" [w]]);
-    ("tmpnam", unknown ~attrs:[ThreadUnsafe] [drop "filename" [r]]);
+    ("tmpnam", unknown ~attrs:[ThreadUnsafe] [drop "filename" [w]]);
     ("vprintf", unknown [drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vfprintf", unknown [drop "stream" [r_deep; w_deep]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vsprintf", unknown [drop "buffer" [w]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
@@ -112,7 +112,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
     ("system", unknown ~attrs:[ThreadUnsafe] [drop "command" [r]]);
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
-    ("wcrtomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [r]; drop "wc" []; drop "ps" [w_deep]]);
+    ("wcrtomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]; drop "wc" []; drop "ps" [r_deep; w_deep]]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
@@ -128,9 +128,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
     ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
     ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
-    ("catgets", unknown ~attrs:[ThreadUnsafe] [drop "catalog" [r_deep]; drop "set_number" []; drop "message_number" []; drop "message" [r_deep]]);
+    ("catgets", unknown ~attrs:[ThreadUnsafe] [drop "catalog" [r_deep]; drop "set_number" []; drop "message_number" []; drop "message" [r]]);
     ("crypt", unknown ~attrs:[ThreadUnsafe] [drop "key" [r]; drop "salt" [r]]);
-    ("ctermid", unknown ~attrs:[ThreadUnsafe] [drop "s" [r]]);
+    ("ctermid", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]]);
     ("dbm_clearerr", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]]);
     ("dbm_close", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep; f_deep]]);
     ("dbm_delete", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]; drop "key" []]);
@@ -138,7 +138,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dbm_fetch", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]; drop "key" []]);
     ("dbm_firstkey", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]]);
     ("dbm_nextkey", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]]);
-    ("dbm_open", unknown ~attrs:[ThreadUnsafe] [drop "file" [r_deep; w_deep]; drop "open_flags" []; drop "file_mode" []]);
+    ("dbm_open", unknown ~attrs:[ThreadUnsafe] [drop "file" [r; w]; drop "open_flags" []; drop "file_mode" []]);
     ("dbm_store", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]; drop "key" []; drop "content" []; drop "store_mode" []]);
     ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
     ("drand48", unknown ~attrs:[ThreadUnsafe] []);
@@ -180,7 +180,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getc_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "stream" [r_deep; w_deep]]);
     ("getchar_unlocked", unknown ~attrs:[ThreadUnsafe] []);
     ("ptsname", unknown ~attrs:[ThreadUnsafe] [drop "fd" []]);
-    ("putc_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "c" []; drop "stream" [w]]);
+    ("putc_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "c" []; drop "stream" [r_deep; w_deep]]);
     ("putchar_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "c" []]);
     ("putenv", unknown ~attrs:[ThreadUnsafe] [drop "string" [r; w]]);
     ("readdir", unknown ~attrs:[ThreadUnsafe] [drop "dirp" [r_deep]]);
@@ -195,7 +195,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fcntl", unknown (drop "fd" [] :: drop "cmd" [] :: VarArgs (drop' [r; w])));
     ("fseeko", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "whence" []]);
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
-    ("getopt", unknown ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r]; drop "optstring" [r]]);
+    ("getopt", unknown ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r]]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
     ("iconv_close", unknown [drop "cd" [f]]);
@@ -241,7 +241,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
     ("getpwnam", unknown [drop "name" [r]]);
     ("chdir", unknown [drop "path" [r]]);
-    ("closedir", unknown [drop "dirp" [w]]);
+    ("closedir", unknown [drop "dirp" [r]]);
     ("mkdir", unknown [drop "pathname" [r]; drop "mode" []]);
     ("opendir", unknown [drop "name" [r]]);
     ("rmdir", unknown [drop "path" [r]]);
@@ -286,8 +286,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
-    ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [w]]);
-    ("__pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [w]]);
+    ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
+    ("__pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
     ("__pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
     ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
@@ -308,7 +308,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__pthread_mutex_unlock", special [__ "mutex" []] @@ fun mutex -> Unlock mutex);
     ("pthread_mutexattr_init", unknown [drop "attr" [w]]);
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
-    ("pthread_rwlock_init", unknown [drop "rwlock" [w]; drop "attr" [w]]);
+    ("pthread_rwlock_init", unknown [drop "rwlock" [w]; drop "attr" [r]]);
     ("pthread_rwlock_destroy", unknown [drop "rwlock" [f]]);
     ("pthread_rwlock_rdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = true});
     ("pthread_rwlock_tryrdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = true});
@@ -317,18 +317,18 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_rwlock_unlock", special [__ "rwlock" []] @@ fun rwlock -> Unlock rwlock);
     ("pthread_rwlockattr_init", unknown [drop "attr" [w]]);
     ("pthread_rwlockattr_destroy", unknown [drop "attr" [f]]);
-    ("pthread_spin_init", unknown [drop "lock" []; drop "pshared" []]);
+    ("pthread_spin_init", unknown [drop "lock" [w]; drop "pshared" []]);
     ("pthread_spin_destroy", unknown [drop "lock" [f]]);
     ("pthread_spin_lock", special [__ "lock" []] @@ fun lock -> Lock {lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true});
     ("pthread_spin_trylock", special [__ "lock" []] @@ fun lock -> Lock {lock = lock; try_ = true; write = true; return_on_success = false});
     ("pthread_spin_unlock", special [__ "lock" []] @@ fun lock -> Unlock lock);
     ("pthread_attr_init", unknown [drop "attr" [w]]);
     ("pthread_attr_destroy", unknown [drop "attr" [f]]);
-    ("pthread_attr_getdetachstate", unknown [drop "attr" [r]; drop "detachstate" [r]]);
+    ("pthread_attr_getdetachstate", unknown [drop "attr" [r]; drop "detachstate" [w]]);
     ("pthread_attr_setdetachstate", unknown [drop "attr" [w]; drop "detachstate" []]);
-    ("pthread_attr_getstacksize", unknown [drop "attr" [r]; drop "stacksize" [r]]);
+    ("pthread_attr_getstacksize", unknown [drop "attr" [r]; drop "stacksize" [w]]);
     ("pthread_attr_setstacksize", unknown [drop "attr" [w]; drop "stacksize" []]);
-    ("pthread_attr_getscope", unknown [drop "attr" [r]; drop "scope" [r]]);
+    ("pthread_attr_getscope", unknown [drop "attr" [r]; drop "scope" [w]]);
     ("pthread_attr_setscope", unknown [drop "attr" [w]; drop "scope" []]);
     ("pthread_self", unknown []);
     ("pthread_sigmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
@@ -408,10 +408,10 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("euidaccess", unknown [drop "pathname" [r]; drop "mode" []]);
     ("rpmatch", unknown [drop "response" [r]]);
     ("getpagesize", unknown []);
-    ("__fgets_alias", unknown [drop "__s" [r; w]; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
-    ("__fgets_chk", unknown [drop "__s" [r; w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
-    ("__fread_alias", unknown [drop "__ptr" [w_deep]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
-    ("__fread_chk", unknown [drop "__ptr" [w_deep]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fgets_alias", unknown [drop "__s" [w]; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fgets_chk", unknown [drop "__s" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_alias", unknown [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_chk", unknown [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__read_chk", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []; drop "__buflen" []]);
     ("__read_alias", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []]);
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
