@@ -42,13 +42,15 @@ struct
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
+    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)\n" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
       if deref then
         do_access ctx kind reach exp;
-      Access.distribute_access_exp (do_access ctx Read false) exp
+      if M.tracing then M.tracei "access" "distribute_access_exp\n";
+      Access.distribute_access_exp (do_access ctx Read false) exp;
+      if M.tracing then M.traceu "access" "distribute_access_exp\n";
     );
-    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
+    if M.tracing then M.traceu "access" "access_one_top\n"
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()

@@ -1336,7 +1336,8 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
-    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
+    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak ||
+                        (hasAttribute "thread" v.vattr && v.vaddrof) (* thread-local variables if they have their address taken, as one could then compare several such variables *)
     | Q.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr (V.priv x)) in
       Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
@@ -1410,9 +1411,13 @@ struct
         let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
-        else if invariant then
+        else if invariant then (
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
-          VD.meet old_value new_value
+          try
+            VD.meet old_value new_value
+          with Lattice.Uncomparable ->
+            new_value
+        )
         else
           new_value
       in
@@ -1997,6 +2002,16 @@ struct
     let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs in
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
+  let check_free_of_non_heap_mem ctx special_fn ptr =
+    match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
+    | Address a ->
+      let points_to_set = addrToLvalSet a in
+      if Q.LS.is_top points_to_set then
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potential free of non-dynamically allocated memory may occur" d_exp ptr special_fn.vname
+      else if (Q.LS.exists (fun (v, _) -> not (ctx.ask (Q.IsHeapVar v))) points_to_set) || (AD.mem Addr.UnknownPtr a) then
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
+    | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
+
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
       | Some lv ->
@@ -2277,6 +2292,8 @@ struct
         | _ -> st
       end
     | Realloc { ptr = p; size }, _ ->
+      (* Realloc shouldn't be passed non-dynamically allocated memory *)
+      check_free_of_non_heap_mem ctx f p;
       begin match lv with
         | Some lv ->
           let ask = Analyses.ask_of_ctx ctx in
@@ -2308,6 +2325,10 @@ struct
         | None ->
           st
       end
+    | Free ptr, _ ->
+      (* Free shouldn't be passed non-dynamically allocated memory *)
+      check_free_of_non_heap_mem ctx f ptr;
+      st
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
       let ask = Analyses.ask_of_ctx ctx in
@@ -2345,6 +2366,13 @@ struct
       let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
       set ~ctx ~t_override:t ask ctx.global ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+    | Rand, _ ->
+      begin match lv with
+        | Some x ->
+          let result:value = (Int (ID.starting IInt Z.zero)) in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
+        | None -> st
+      end
     | _, _ ->
       let st =
         special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args

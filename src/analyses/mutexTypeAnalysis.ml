@@ -71,5 +71,8 @@ struct
     | _ -> Queries.Result.top q
 end
 
+let must_be_recursive ctx (v,o) =
+  ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) = `Lifted MutexAttrDomain.MutexKind.Recursive
+
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)

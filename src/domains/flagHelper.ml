@@ -40,28 +40,6 @@ struct
   let arbitrary () = failwith (Msg.name ^ ": no arbitrary")
 end
 
-module GroupableFlagHelper (L:MapDomain.Groupable) (R:MapDomain.Groupable) (Msg: FlagError) =
-struct
-  include FlagHelper (L) (R) (Msg)
-  type group = L.group option * R.group option
-
-  let trace_enabled = false
-
-  let show_group = unop L.show_group R.show_group
-  let to_group (h,p) = match (h, p) with
-    | (Some h, None) ->
-      (let r = L.to_group h in
-       match r with
-       | Some r -> Some (Some r, None)
-       | _ -> None)
-    | (None, Some p) ->
-      (let r = R.to_group p in
-       match r with
-       | Some r -> Some (None, Some r)
-       | _ -> None)
-    | _ -> failwith Msg.msg
-end
-
 module type LatticeFlagHelperArg = sig
   include Lattice.PO
   val is_top: t -> bool

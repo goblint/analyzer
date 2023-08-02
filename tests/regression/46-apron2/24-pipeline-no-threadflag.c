@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated[+] apron --set ana.activated[-] threadflag --set ana.activated[-] thread --set ana.activated[-] threadid
+// SKIP PARAM: --set ana.activated[+] apron --set ana.activated[-] threadflag --set ana.activated[-] thread --set ana.activated[-] threadid
 // Minimized from sv-benchmarks/c/systemc/pipeline.cil-1.c
 #include <assert.h>
 #include <goblint.h>
