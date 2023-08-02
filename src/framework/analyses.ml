@@ -75,6 +75,7 @@ end
 module GVarF (V: SpecSysVar) =
 struct
   include Printable.Either (V) (CilType.Fundec)
+  let name () = "FromSpec"
   let spec x = `Left x
   let contexts x = `Right x
 
