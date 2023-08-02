@@ -52,7 +52,9 @@ struct
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
-        | MemorySafety -> "memory-safety"
+        | ValidFree -> "valid-free"
+        | ValidDeref -> "valid-deref"
+        | ValidMemtrack -> "valid-memtrack"
       in
       "false(" ^ result_spec ^ ")"
     | Unknown -> "unknown"
