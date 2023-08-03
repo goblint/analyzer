@@ -1055,7 +1055,6 @@ struct
            else if AD.may_be_null adr
            then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
           AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
-        | Bot -> AD.bot ()
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
           AD.unknown_ptr
