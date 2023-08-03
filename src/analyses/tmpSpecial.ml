@@ -28,21 +28,12 @@ struct
     (* Invalidate all entrys from the map that are possibly written by the assignment *)
     invalidate (Analyses.ask_of_ctx ctx) (mkAddrOf lval) ctx.local
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    (* For now we only track relationships intraprocedurally. TODO: handle interprocedural tracking *)
+    (* For now we only track relationships intraprocedurally. *)
     [ctx.local, D.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) f_ask : D.t =
-    (* For now we only track relationships intraprocedurally. TODO: handle interprocedural tracking *)
+    (* For now we only track relationships intraprocedurally. *)
     D.bot ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

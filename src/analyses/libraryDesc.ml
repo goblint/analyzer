@@ -186,15 +186,15 @@ module MathPrintable = struct
     | Sin (fk, exp) -> Pretty.dprintf "(%a )sin(%a)" d_fkind fk d_exp exp
     | Tan (fk, exp) -> Pretty.dprintf "(%a )tan(%a)" d_fkind fk d_exp exp
 
-    include Printable.SimplePretty (
-      struct
-        type nonrec t = t
-        let pretty = pretty
-      end
-      )
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 module MathLifted = Lattice.Flat (MathPrintable) (struct
-  let top_name = "Unknown or no math desc"
-  let bot_name = "Nonexistent math desc"
-end)
+    let top_name = "Unknown or no math desc"
+    let bot_name = "Nonexistent math desc"
+  end)
