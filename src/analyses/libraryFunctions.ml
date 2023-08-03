@@ -51,7 +51,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ftell", unknown [drop "stream" [r_deep]]);
     ("fwrite", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("rewind", unknown [drop "stream" [r_deep; w_deep]]);
-    ("setvbuf", unknown [drop "stream" [r_deep; w_deep]; drop "buffer" [r; w]; drop "mode" []; drop "size" []]); 
+    ("setvbuf", unknown [drop "stream" [r_deep; w_deep]; drop "buffer" [r; w]; drop "mode" []; drop "size" []]);
     (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
     (* as any future write (or flush) of the stream could result in a write to the buffer *)
     ("gmtime", unknown ~attrs:[ThreadUnsafe] [drop "timer" [r_deep]]);
@@ -364,7 +364,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* MacOS's built-in assert *)
     ("__assert_fail", special [drop "assertion" [r]; drop "file" [r]; drop "line" []; drop "function" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
-    ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
+    ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
     ("__builtin_sadd_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
     ("__builtin_saddl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
@@ -1119,7 +1119,7 @@ let invalidate_actions = [
   ]
 
 let () = List.iter (fun (x, _) ->
-    if Hashtbl.exists (fun _ b -> List.mem_assoc x b) libraries then 
+    if Hashtbl.exists (fun _ b -> List.mem_assoc x b) libraries then
       failwith ("You have added a function to invalidate_actions that already exists in libraries. Please undo this for function: " ^ x);
   ) invalidate_actions
 
