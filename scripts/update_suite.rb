@@ -311,12 +311,14 @@ class Project
       elsif obj =~ /(\b|\/)UNKNOWN/ then
         tests[i] = "unknown"
       elsif obj =~ /(\b|\/)(assert|__goblint_check).*\(/ then
-        if obj =~ /(\b|\/)FAIL/ then
-          tests[i] = "fail"
-        elsif obj =~ /(\b|\/)UNKNOWN/ then
-          tests[i] = "unknown"
-        else
-          tests[i] = "assert"
+        unless obj =~ /^\s*extern\b/
+          if obj =~ /(\b|\/)FAIL/ then
+            tests[i] = "fail"
+          elsif obj =~ /(\b|\/)UNKNOWN/ then
+            tests[i] = "unknown"
+          else
+            tests[i] = "assert"
+          end
         end
       end
     end
