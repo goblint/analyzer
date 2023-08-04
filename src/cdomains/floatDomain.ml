@@ -41,6 +41,13 @@ module type FloatArith = sig
   val tan : t -> t
   (** tan(x) *)
 
+  (** {inversions of unary functions}*)
+  val inv_ceil : ?asPreciseAsConcrete:bool -> t -> t
+  (** (inv_ceil z -> x) if (z = ceil(x)) *)
+  val inv_floor : ?asPreciseAsConcrete:bool -> t -> t
+  (** (inv_floor z -> x) if (z = floor(x)) *)
+  val inv_fabs : t -> t
+  (** (inv_fabs z -> x) if (z = fabs(x)) *)
 
   (** {b Comparison operators} *)
   val lt : t -> t -> IntDomain.IntDomTuple.t
@@ -88,6 +95,7 @@ module type FloatDomainBase = sig
   val starting : float -> t
   val ending_before : float -> t
   val starting_after : float -> t
+  val finite : t
 
   val minimal: t -> float option
   val maximal: t -> float option
@@ -210,6 +218,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let ending_before e = of_interval' (Float_t.lower_bound, Float_t.pred @@ Float_t.of_float Up e)
   let starting s = of_interval' (Float_t.of_float Down s, Float_t.upper_bound)
   let starting_after s = of_interval' (Float_t.succ @@ Float_t.of_float Down s, Float_t.upper_bound)
+  let finite = of_interval' (Float_t.lower_bound, Float_t.upper_bound)
 
   let minimal = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "minimal %s" (show Bot)))
@@ -312,13 +321,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     warn_on_special "Second operand" "comparison" op2
 
   (** evaluation of the unary and binary operations *)
-  let eval_unop onTop eval_operation op =
-    warn_on_specials_unop op;
+  let eval_unop ?(warn=false) eval_operation op =
+    if warn then warn_on_specials_unop op;
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
     | Interval v -> eval_operation v
-    | Top -> onTop
-    | _ -> onTop (* TODO: Do better *)
+    | Top -> top ()
+    | _ -> top () (* TODO: Do better *)
 
   let eval_binop eval_operation v1 v2 =
     let is_exact_before = is_exact (Interval v1) && is_exact (Interval v2) in
@@ -661,6 +670,44 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
 
+  let eval_inv_ceil ?(asPreciseAsConcrete=false) = function
+    | (l, h) -> 
+      if (Float_t.sub Up (Float_t.ceil l) (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0)) = (Float_t.of_float Nearest 1.0)) then
+        (* if [ceil(l) - (ceil(l) - 1.0) = 1.0], then we are in a range, where each int is expressable as float.
+          With that we can say, that [(ceil(x) >= l) => (x > (ceil(l) - 1.0)] *)
+        if asPreciseAsConcrete then
+          (* in case abstract and concrete precision are the same, [succ(l - 1.0), h] is more precise *)
+          Interval (Float_t.succ (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0)), h)
+        else
+          Interval (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0), h)
+      else
+        (* if we know the abstract and concrete precision are the same, we return [l, h] as an interval, since no x in [l - 1.0, l] could exist such that ceil(x) = l appart from l itself *)
+        if asPreciseAsConcrete then
+          Interval (l, h)
+        else
+          Interval (Float_t.pred l, h)
+
+  let eval_inv_floor ?(asPreciseAsConcrete=false) = function
+    | (l, h) -> 
+      if (Float_t.sub Up (Float_t.add Up (Float_t.floor h) (Float_t.of_float Nearest 1.0)) (Float_t.floor h) = (Float_t.of_float Nearest 1.0)) then
+        (* if [(floor(h) + 1.0) - floor(h) = 1.0], then we are in a range, where each int is expressable as float.
+          With that we can say, that [(floor(x) <= h) => (x < (floor(h) + 1.0)] *)
+        if asPreciseAsConcrete then
+          (* in case abstract and concrete precision are the same, [l, pred(floor(h) + 1.0)] is more precise than [l, floor(h) + 1.0] *)
+          Interval (l, Float_t.pred (Float_t.add Up (Float_t.floor h) (Float_t.of_float Nearest 1.0)))
+        else
+          Interval (l, Float_t.add Up (Float_t.floor h) (Float_t.of_float Nearest 1.0))
+      else
+        (* if we know the abstract and concrete precision are the same, we return [l, h] as an interval, since no x in [h, h + 1.0] could exist such that floor(x) = h appart from h itself *)
+        if asPreciseAsConcrete then
+          Interval (l, h)
+        else
+          Interval (l, Float_t.succ h)
+
+  let eval_inv_fabs = function
+    | (_, h) when h < Float_t.zero -> Bot  (* Result of fabs cannot be negative *)
+    | (_, h) -> Interval (Float_t.neg h, h)
+
   let isfinite op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
@@ -727,12 +774,23 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | PlusInfinity -> PlusInfinity
     | MinusInfinity -> MinusInfinity
 
-  let acos = eval_unop (top ()) eval_acos
-  let asin = eval_unop (top ()) eval_asin
-  let atan = eval_unop (top ()) eval_atan
-  let cos = eval_unop (top ()) eval_cos
-  let sin = eval_unop (top ()) eval_sin
-  let tan = eval_unop (top ()) eval_tan
+  let acos = eval_unop eval_acos
+  let asin = eval_unop eval_asin
+  let atan = eval_unop eval_atan
+  let cos = eval_unop eval_cos
+  let sin = eval_unop eval_sin
+  let tan = eval_unop eval_tan
+
+  let inv_ceil ?(asPreciseAsConcrete=false) = eval_unop ~warn:false (eval_inv_ceil ~asPreciseAsConcrete:asPreciseAsConcrete)
+  let inv_floor ?(asPreciseAsConcrete=false) = eval_unop ~warn:false (eval_inv_floor ~asPreciseAsConcrete:asPreciseAsConcrete)
+  let inv_fabs op =
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Top -> Top
+    | Interval v -> eval_inv_fabs v
+    | NaN -> NaN (* so we assume, fabs(NaN) = NaN?)*)
+    | PlusInfinity -> Top (* +/-inf *)
+    | MinusInfinity -> Bot
 end
 
 module F64Interval = FloatIntervalImpl(CDouble)
@@ -761,6 +819,7 @@ module type FloatDomain = sig
   val starting : Cil.fkind -> float -> t
   val ending_before : Cil.fkind -> float -> t
   val starting_after : Cil.fkind -> float -> t
+  val finite : Cil.fkind -> t
 
   val minimal: t -> float option
   val maximal: t -> float option
@@ -836,6 +895,20 @@ module FloatIntervalImplLifted = struct
   let cos = lift (F1.cos, F2.cos)
   let sin = lift (F1.sin, F2.sin)
   let tan = lift (F1.tan, F2.tan)
+
+  let inv_ceil ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) = function
+  | F32 a -> F32 (F1.inv_ceil ~asPreciseAsConcrete:true a)
+  | F64 a -> F64 (F2.inv_ceil ~asPreciseAsConcrete:true a)
+  | FLong a -> FLong (F2.inv_ceil a)
+  | FFloat128 a -> FFloat128 (F2.inv_ceil a)
+
+  let inv_floor ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) = function
+  | F32 a -> F32 (F1.inv_floor ~asPreciseAsConcrete:true a)
+  | F64 a -> F64 (F2.inv_floor ~asPreciseAsConcrete:true a)
+  | FLong a -> FLong (F2.inv_floor a)
+  | FFloat128 a -> FFloat128 (F2.inv_floor a)
+
+  let inv_fabs = lift (F1.inv_fabs, F2.inv_fabs)
   let add = lift2 (F1.add, F2.add)
   let sub = lift2 (F1.sub, F2.sub)
   let mul = lift2 (F1.mul, F2.mul)
@@ -860,7 +933,7 @@ module FloatIntervalImplLifted = struct
   let is_bot = dispatch (F1.is_bot, F2.is_bot)
   let top_of fkind = dispatch_fkind fkind (F1.top, F2.top)
   let top () = failwith "top () is not implemented for FloatIntervalImplLifted."
-  let is_top = dispatch (F1.is_bot, F2.is_bot)
+  let is_top = dispatch (F1.is_top, F2.is_top)
 
   let nan_of fkind = dispatch_fkind fkind (F1.nan, F2.nan)
   let is_nan = dispatch (F1.is_nan, F2.is_nan)
@@ -900,6 +973,7 @@ module FloatIntervalImplLifted = struct
   let of_interval fkind i = dispatch_fkind fkind ((fun () -> F1.of_interval i), (fun () -> F2.of_interval i))
   let starting fkind s = dispatch_fkind fkind ((fun () -> F1.starting s), (fun () -> F2.starting s))
   let starting_after fkind s = dispatch_fkind fkind ((fun () -> F1.starting_after s), (fun () -> F2.starting_after s))
+  let finite fkind = dispatch_fkind fkind ((fun () -> F1.finite), (fun () -> F2.finite))
   let ending fkind e = dispatch_fkind fkind ((fun () -> F1.ending e), (fun () -> F2.ending e))
   let ending_before fkind e = dispatch_fkind fkind ((fun () -> F1.ending_before e), (fun () -> F2.ending_before e))
   let minimal = dispatch (F1.minimal, F2.minimal)
@@ -1003,6 +1077,8 @@ module FloatDomTupleImpl = struct
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.ending_before fkind); }
   let starting_after fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting_after fkind); }
+  let finite =
+    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.finite); } 
 
   let of_string fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_string fkind); }
@@ -1080,6 +1156,15 @@ module FloatDomTupleImpl = struct
   let tan =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.tan); }
 
+  (*"asPreciseAsConcrete" has no meaning here*)
+  let inv_ceil ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_ceil ~asPreciseAsConcrete:(BoolDomain.MustBool.top ())); }
+  (*"asPreciseAsConcrete" has no meaning here*)
+  let inv_floor ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_floor ~asPreciseAsConcrete:(BoolDomain.MustBool.top ())); }
+  let inv_fabs =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_fabs); }
+  
   (* f2: binary ops *)
   let join =
     map2 { f2= (fun (type a) (module F : FloatDomain with type t = a) -> F.join); }
