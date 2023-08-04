@@ -671,38 +671,42 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
 
   let eval_inv_ceil ?(asPreciseAsConcrete=false) = function
-    | (l, h) -> 
-      if (Float_t.sub Up (Float_t.ceil l) (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0)) = (Float_t.of_float Nearest 1.0)) then
+    | (l, h) ->
+      if (Float_t.sub Up (Float_t.ceil l) (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0)) = (Float_t.of_float Nearest 1.0)) then (
         (* if [ceil(l) - (ceil(l) - 1.0) = 1.0], then we are in a range, where each int is expressable as float.
-          With that we can say, that [(ceil(x) >= l) => (x > (ceil(l) - 1.0)] *)
+           With that we can say, that [(ceil(x) >= l) => (x > (ceil(l) - 1.0)] *)
         if asPreciseAsConcrete then
           (* in case abstract and concrete precision are the same, [succ(l - 1.0), h] is more precise *)
           Interval (Float_t.succ (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0)), h)
         else
           Interval (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0), h)
-      else
+      )
+      else (
         (* if we know the abstract and concrete precision are the same, we return [l, h] as an interval, since no x in [l - 1.0, l] could exist such that ceil(x) = l appart from l itself *)
         if asPreciseAsConcrete then
           Interval (l, h)
         else
           Interval (Float_t.pred l, h)
+      )
 
   let eval_inv_floor ?(asPreciseAsConcrete=false) = function
-    | (l, h) -> 
-      if (Float_t.sub Up (Float_t.add Up (Float_t.floor h) (Float_t.of_float Nearest 1.0)) (Float_t.floor h) = (Float_t.of_float Nearest 1.0)) then
+    | (l, h) ->
+      if (Float_t.sub Up (Float_t.add Up (Float_t.floor h) (Float_t.of_float Nearest 1.0)) (Float_t.floor h) = (Float_t.of_float Nearest 1.0)) then (
         (* if [(floor(h) + 1.0) - floor(h) = 1.0], then we are in a range, where each int is expressable as float.
-          With that we can say, that [(floor(x) <= h) => (x < (floor(h) + 1.0)] *)
+           With that we can say, that [(floor(x) <= h) => (x < (floor(h) + 1.0)] *)
         if asPreciseAsConcrete then
           (* in case abstract and concrete precision are the same, [l, pred(floor(h) + 1.0)] is more precise than [l, floor(h) + 1.0] *)
           Interval (l, Float_t.pred (Float_t.add Up (Float_t.floor h) (Float_t.of_float Nearest 1.0)))
         else
           Interval (l, Float_t.add Up (Float_t.floor h) (Float_t.of_float Nearest 1.0))
-      else
+      )
+      else (
         (* if we know the abstract and concrete precision are the same, we return [l, h] as an interval, since no x in [h, h + 1.0] could exist such that floor(x) = h appart from h itself *)
         if asPreciseAsConcrete then
           Interval (l, h)
         else
           Interval (l, Float_t.succ h)
+      )
 
   let eval_inv_fabs = function
     | (_, h) when h < Float_t.zero -> Bot  (* Result of fabs cannot be negative *)
@@ -897,16 +901,16 @@ module FloatIntervalImplLifted = struct
   let tan = lift (F1.tan, F2.tan)
 
   let inv_ceil ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) = function
-  | F32 a -> F32 (F1.inv_ceil ~asPreciseAsConcrete:true a)
-  | F64 a -> F64 (F2.inv_ceil ~asPreciseAsConcrete:true a)
-  | FLong a -> FLong (F2.inv_ceil a)
-  | FFloat128 a -> FFloat128 (F2.inv_ceil a)
+    | F32 a -> F32 (F1.inv_ceil ~asPreciseAsConcrete:true a)
+    | F64 a -> F64 (F2.inv_ceil ~asPreciseAsConcrete:true a)
+    | FLong a -> FLong (F2.inv_ceil a)
+    | FFloat128 a -> FFloat128 (F2.inv_ceil a)
 
   let inv_floor ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) = function
-  | F32 a -> F32 (F1.inv_floor ~asPreciseAsConcrete:true a)
-  | F64 a -> F64 (F2.inv_floor ~asPreciseAsConcrete:true a)
-  | FLong a -> FLong (F2.inv_floor a)
-  | FFloat128 a -> FFloat128 (F2.inv_floor a)
+    | F32 a -> F32 (F1.inv_floor ~asPreciseAsConcrete:true a)
+    | F64 a -> F64 (F2.inv_floor ~asPreciseAsConcrete:true a)
+    | FLong a -> FLong (F2.inv_floor a)
+    | FFloat128 a -> FFloat128 (F2.inv_floor a)
 
   let inv_fabs = lift (F1.inv_fabs, F2.inv_fabs)
   let add = lift2 (F1.add, F2.add)
@@ -1078,7 +1082,7 @@ module FloatDomTupleImpl = struct
   let starting_after fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting_after fkind); }
   let finite =
-    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.finite); } 
+    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.finite); }
 
   let of_string fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_string fkind); }
@@ -1164,7 +1168,7 @@ module FloatDomTupleImpl = struct
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_floor ~asPreciseAsConcrete:(BoolDomain.MustBool.top ())); }
   let inv_fabs =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_fabs); }
-  
+
   (* f2: binary ops *)
   let join =
     map2 { f2= (fun (type a) (module F : FloatDomain with type t = a) -> F.join); }
