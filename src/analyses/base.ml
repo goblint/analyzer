@@ -1261,11 +1261,22 @@ struct
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
-          let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
-          (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
-          (match r with
-           | Blob (_,s,_) -> `Lifted s
-           | _ -> Queries.Result.top q)
+          let s = addrToLvalSet a in
+          let has_offset = function
+            | `NoOffset -> false
+            | `Field _
+            | `Index _ -> true
+          in
+          (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
+          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || has_offset o) s then
+            Queries.Result.bot q
+          else (
+            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
+            (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
+            (match r with
+             | Blob (_,s,_) -> `Lifted s
+             | _ -> Queries.Result.top q)
+          )
         | _ -> Queries.Result.top q
       end
     | Q.MayPointTo e -> begin
