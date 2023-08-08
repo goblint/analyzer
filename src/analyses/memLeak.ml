@@ -22,6 +22,14 @@ struct
     if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program isn't running in single-threaded mode. A memory leak might occur due to multi-threading"
 
+  let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
+    let state = ctx.local in
+    if not @@ D.is_empty state then
+      if assert_exp_imprecise && Option.is_some exp then
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp (Option.get exp) D.pretty state
+      else
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
+
   (* TRANSFER FUNCTIONS *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     ctx.local
@@ -33,11 +41,9 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    let state = ctx.local in
-    (* TODO: Is this too hacky of a solution? *)
-    if f.svar.vname = "main" && not @@ D.is_empty state then
-      M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak from function \"%s\": %a" f.svar.vname D.pretty state;
-    state
+    (* Returning from "main" is one possible program exit => need to check for memory leaks *)
+    if f.svar.vname = "main" then check_for_mem_leak ctx;
+    ctx.local
 
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, ctx.local]
@@ -74,6 +80,26 @@ struct
           D.diff state unique_pointed_to_heap_vars
         | _ -> state
       end
+    | Abort ->
+      (* An "Abort" special function indicates program exit => need to check for memory leaks *)
+      check_for_mem_leak ctx;
+      state
+    | Assert { exp; _ } ->
+      let warn_for_assert_exp =
+        match ctx.ask (Queries.EvalInt exp) with
+        | a when Queries.ID.is_bot a -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
+        | a ->
+          begin match Queries.ID.to_bool a with
+            | Some b ->
+              (* If we know for sure that the expression in "assert" is false => need to check for memory leaks *)
+              if b = false then
+                check_for_mem_leak ctx
+              else ()
+            | None -> check_for_mem_leak ctx ~assert_exp_imprecise:true ~exp:(Some exp)
+          end
+      in
+      warn_for_assert_exp;
+      state
     | _ -> state
 
   let threadenter ctx lval f args = [ctx.local]
