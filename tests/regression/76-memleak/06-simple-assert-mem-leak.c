@@ -1,4 +1,4 @@
-//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak
+//PARAM: --set warn.assert false --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak
 #include <stdlib.h>
 #include <assert.h>
 
