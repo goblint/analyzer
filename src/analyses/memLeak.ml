@@ -36,7 +36,7 @@ struct
     let state = ctx.local in
     (* TODO: Is this too hacky of a solution? *)
     if f.svar.vname = "main" && not @@ D.is_empty state then
-      M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak from function \"%s\": %a\n" f.svar.vname D.pretty state;
+      M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak from function \"%s\": %a" f.svar.vname D.pretty state;
     state
 
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
