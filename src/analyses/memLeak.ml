@@ -25,10 +25,9 @@ struct
   let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
     let state = ctx.local in
     if not @@ D.is_empty state then
-      if assert_exp_imprecise && Option.is_some exp then
-        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp (Option.get exp) D.pretty state
-      else
-        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
+      match assert_exp_imprecise, exp with
+      | true, Some exp -> M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
+      | _ -> M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
 
   (* TRANSFER FUNCTIONS *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
