@@ -4,5 +4,5 @@
 int main(int argc, char const *argv[]) {
     int *p = malloc(sizeof(int));
     // No free => memory is leaked
-    return 0; //TODO: `make test` detects OTHER and not WARN here
+    return 0; //WARN
 }
