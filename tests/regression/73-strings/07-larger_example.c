@@ -15,6 +15,8 @@ int main() {
         strcpy(user, "++++++++"); // WARN
 
     char pwd_gen[20];
+    for (size_t i = 12; i < 20; i++)
+        pwd_gen[i] = (char) (rand() % 123);
     
     char* p1 = "hello";
     char* p2 = "12345";
