@@ -1,0 +1,14 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-g",
+      "-c",
+      "-pthread",
+      "06-callback.c"
+    ],
+    "directory": "./tests/regression/03-practical",
+    "file": "./tests/regression/03-practical/06-callback.c"
+  }
+]

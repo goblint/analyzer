@@ -62,6 +62,20 @@ try:
     panel = browser.find_element(By.CLASS_NAME, "panel")
     print("found DOM elements main, sidebar-left, sidebar-right, content and panel")
 
+    # Navigate to a file and check wether the Graph panel exists
+    leftS.find_element(By.CLASS_NAME,"text-link").click()
+    print("Executed file navigation")
+    breadcrumb = browser.find_element(By.CLASS_NAME,"breadcrumb-item")
+    assert(".c" in breadcrumb.text)
+    print("sucessfully opened file")
+
+    graph_button = browser.find_element(By.ID,"Graph")
+    assert(graph_button.text == "Graph")
+    print("found DOM element for Callgraph panel")
+
+
+
+
     cleanup(browser, httpd, thread)
 
 except Exception as e:

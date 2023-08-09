@@ -176,3 +176,8 @@ jobs:
         run: |
           ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
           python3 scripts/test-gobview.py
+
+      - name: Test Gobview with Compilation Database
+        run: |
+          ./goblint --enable gobview tests/others/compile_commands.json
+          python3 scripts/test-gobview.py
