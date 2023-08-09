@@ -8,7 +8,7 @@ module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topnam
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "memLeak"
 
@@ -30,27 +30,9 @@ struct
       | _ -> M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
 
   (* TRANSFER FUNCTIONS *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Returning from "main" is one possible program exit => need to check for memory leaks *)
     if f.svar.vname = "main" then check_for_mem_leak ctx;
-    ctx.local
-
-  let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
-
-  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
-    callee_local
-
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     ctx.local
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -69,7 +51,7 @@ struct
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
         | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) && Queries.LS.cardinal a = 1 ->
-          (* TODO: Need to always set "ana.malloc.unique_address_count" to smth > 0 *)
+          (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           let unique_pointed_to_heap_vars =
             Queries.LS.filter (fun (v, _) -> ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v)) a
             |> Queries.LS.elements
@@ -100,9 +82,6 @@ struct
       warn_for_assert_exp;
       state
     | _ -> state
-
-  let threadenter ctx lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
