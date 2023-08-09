@@ -1529,15 +1529,12 @@ struct
   let string_concat (must_nulls_set1, may_nulls_set1, size1) (must_nulls_set2, may_nulls_set2, size2) n =
     let update_sets min_size1 max_size1 max_size1_exists minlen1 maxlen1 maxlen1_exists minlen2 maxlen2 maxlen2_exists must_nulls_set2' may_nulls_set2' = 
       (* track any potential buffer overflow and issue warning if needed *)
-      (if max_size1_exists && Z.lt max_size1 (Z.add minlen1 minlen2) then
+      (if max_size1_exists && Z.leq max_size1 (Z.add minlen1 minlen2) then
          M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end
            "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
-       else if (maxlen1_exists && maxlen2_exists && Z.lt min_size1 (Z.add maxlen1 maxlen2)) 
-            || (maxlen1_exists && Z.lt min_size1 (Z.add maxlen1 minlen2))
-            || (maxlen2_exists && Z.lt min_size1 (Z.add minlen1 maxlen2)) 
-            || Z.lt min_size1 (Z.add minlen1 minlen2) then
+       else if (maxlen1_exists && maxlen2_exists && Z.leq min_size1 (Z.add maxlen1 maxlen2)) || not maxlen1_exists || not maxlen2_exists then
          M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end 
-           "The length of the conctenation of the strings in src and dest may be greater than the allocated size for dest");
+           "The length of the concatenation of the strings in src and dest may be greater than the allocated size for dest");
       (* if any must_nulls_set empty, result must_nulls_set also empty; 
        * for all i1, i2 in may_nulls_set1, may_nulls_set2: add i1 + i2 if it is <= strlen(dest) + strlen(src) to new may_nulls_set
        * and keep indexes > minimal strlen(dest) + strlen(src) of may_nulls_set *)

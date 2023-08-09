@@ -300,7 +300,7 @@ struct
         | _ -> false
       end
     | Address a when AD.may_be_null a -> false
-    | _ -> true
+    | _ -> false (* we don't know anything *)
 
   let is_int_ikind = function
     | Int n -> Some (ID.ikind n)
