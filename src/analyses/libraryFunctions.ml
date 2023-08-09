@@ -68,6 +68,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("free", special [__ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
+    ("quick_exit", special [drop "exit_code" []] Abort);
     ("ungetc", unknown [drop "c" []; drop "stream" [r; w]]);
     ("scanf", unknown ((drop "format" [r]) :: (VarArgs (drop' [w]))));
     ("fscanf", unknown ((drop "stream" [r_deep; w_deep]) :: (drop "format" [r]) :: (VarArgs (drop' [w]))));
