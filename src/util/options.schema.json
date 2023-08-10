@@ -1013,6 +1013,12 @@
               "description": "Collect and distribute direct (i.e. not in a field) accesses to arithmetic types.",
               "type": "boolean",
               "default": false
+            },
+            "volatile" :{
+              "title": "ana.race.volatile",
+              "description": "Report races for volatile variables.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
