@@ -117,11 +117,7 @@ module Locksets =
 struct
   module Lock = LockDomain.Addr
 
-  module Lockset =
-  struct
-    include Printable.Std (* To make it Groupable *)
-    include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-  end
+  module Lockset = SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
 
   module MustLockset = SetDomain.Reverse (Lockset)
 

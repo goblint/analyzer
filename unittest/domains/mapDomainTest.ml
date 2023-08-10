@@ -3,12 +3,12 @@ open OUnit2
 
 module Pretty = GoblintCil.Pretty
 
-module GroupableDriver : MapDomain.Groupable with type t = string  =
+module PrintableDriver : Printable.S with type t = string  =
 struct
   include Printable.Strings
 end
 
-module LatticeDriver = Lattice.Fake (GroupableDriver)
+module LatticeDriver = Lattice.Fake (PrintableDriver)
 
 
 module TestMap (M:MapDomain.S with type key = string and type value = string) =
@@ -162,8 +162,8 @@ struct
 end
 
 
-module Mbot = MapDomain.MapBot (GroupableDriver) (LatticeDriver)
-module Mtop = MapDomain.MapTop (GroupableDriver) (LatticeDriver)
+module Mbot = MapDomain.MapBot (PrintableDriver) (LatticeDriver)
+module Mtop = MapDomain.MapTop (PrintableDriver) (LatticeDriver)
 
 module Tbot = TestMap (Mbot)
 module Ttop = TestMap (Mtop)
