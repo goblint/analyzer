@@ -14,6 +14,10 @@ int main() {
     if (strcmp(user, "Alice") == 0)
         strcpy(user, "++++++++"); // WARN
 
+    __goblint_check(strcmp(user, "Alice") == 0); // UNKNOWN
+    __goblint_check(strcmp(user, "Bob") == 0); // UNKNOWN
+    __goblint_check(strcmp(user, "Eve") != 0); // TODO: check implementation, maybe returning top wrong and we should return bot in string literals domain
+
     char pwd_gen[20];
     for (size_t i = 12; i < 20; i++)
         pwd_gen[i] = (char) (rand() % 123);
@@ -26,7 +30,6 @@ int main() {
     strncat(pwd_gen, p1, 4); 
     __goblint_check(pwd_gen[5] != '\0'); // TODO: fix get in attributeconfiguredarraydomain
 
-    pwd_gen[10] = '\0';
     int cmp = strcmp(pwd_gen, "12345hello");
     __goblint_check(cmp != 0);
 
