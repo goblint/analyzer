@@ -1,4 +1,6 @@
-(** Locally track the variables that may have been written since the corresponding jumpbuffer was set *)
+(** Analysis of variables modified since [setjmp] ([modifiedSinceLongjmp]). *)
+
+(* TODO: this name is wrong *)
 
 open GoblintCil
 open Analyses

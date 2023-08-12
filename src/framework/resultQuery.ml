@@ -1,3 +1,5 @@
+(** Perform {{!Queries.t} queries} on the constraint system solution. *)
+
 open Analyses
 
 module Query (SpecSys: SpecSys) =

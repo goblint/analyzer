@@ -522,20 +522,6 @@
           },
           "additionalProperties": false
         },
-        "mutex": {
-          "title": "ana.mutex",
-          "type": "object",
-          "properties": {
-            "disjoint_types": {
-              "title": "ana.mutex.disjoint_types",
-              "description":
-                "Do not propagate basic type writes to all struct fields",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
-        },
         "autotune": {
           "title": "ana.autotune",
           "type": "object",
@@ -975,6 +961,33 @@
                 "Whether the node at which a thread is created is part of its threadid",
               "type": "boolean",
               "default" : true
+            },
+            "wrappers": {
+              "title": "ana.thread.wrappers",
+              "description":
+                "Loads a list of known thread spawn (pthread_create) wrapper functions.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "unique_thread_id_count": {
+              "title": "ana.thread.unique_thread_id_count",
+              "description": "Number of unique thread IDs allocated for each pthread_create node.",
+              "type": "integer",
+              "default": 0
+            },
+            "context": {
+              "title": "ana.thread.context",
+              "type": "object",
+              "properties": {
+                "create-edges": {
+                  "title": "ana.thread.context.create-edges",
+                  "description": "threadID analysis: Encountered create edges in context.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -986,6 +999,18 @@
             "free": {
               "title": "ana.race.free",
               "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            },
+            "direct-arithmetic": {
+              "title": "ana.race.direct-arithmetic",
+              "description": "Collect and distribute direct (i.e. not in a field) accesses to arithmetic types.",
+              "type": "boolean",
+              "default": false
+            },
+            "volatile" :{
+              "title": "ana.race.volatile",
+              "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
             }
@@ -1137,6 +1162,12 @@
           "type": "string",
           "enum": ["ast", "cfg"],
           "default": "ast"
+        },
+        "detect-renames": {
+          "title": "incremental.detect-renames",
+          "description": "If Goblint should try to detect renamed local variables, function parameters, functions and global variables",
+          "type":"boolean",
+          "default": true
         },
         "force-reanalyze": {
           "title": "incremental.force-reanalyze",
@@ -1651,9 +1682,9 @@
         },
         "g2html_path": {
           "title": "exp.g2html_path",
-          "description": "Location of the g2html.jar file.",
+          "description": "Location of the g2html.jar file. If empty, then goblint executable directory is used.",
           "type": "string",
-          "default": "."
+          "default": ""
         },
         "extraspecials": {
           "title": "exp.extraspecials",
@@ -1679,7 +1710,7 @@
         "fast_global_inits": {
           "title": "exp.fast_global_inits",
           "description":
-            "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n].",
+            "Only generate one 'a[any_index] = x' for all assignments a[...] = x for a global array a[n].",
           "type": "boolean",
           "default": true
         },
@@ -1737,12 +1768,6 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
-        "debug": {
-          "title": "dbg.debug",
-          "description": "Debug mode: for testing the analyzer itself.",
-          "type": "boolean",
-          "default": false
-        },
         "verbose": {
           "title": "dbg.verbose",
           "description": "Prints some status information.",
@@ -1810,14 +1835,14 @@
         "solver-signal": {
           "title": "dbg.solver-signal",
           "description":
-            "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
+            "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in gobSys.ml).",
           "type": "string",
           "default": "sigusr1"
         },
         "backtrace-signal": {
           "title": "dbg.backtrace-signal",
           "description":
-            "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
+            "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in gobSys.ml).",
           "type": "string",
           "default": "sigusr2"
         },
@@ -2111,6 +2136,12 @@
           "description": "Races with confidence at least threshold are warnings, lower are infos.",
           "type": "integer",
           "default": 0
+        },
+        "deterministic": {
+          "title": "warn.deterministic",
+          "description": "Output messages in deterministic order. Useful for cram testing.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -2319,6 +2350,12 @@
                 "cond",
                 "RETURN"
               ]
+            },
+            "goblint": {
+              "title": "witness.invariant.goblint",
+              "description": "Emit non-standard Goblint-specific invariants. Currently array invariants with all_index offsets.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

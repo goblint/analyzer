@@ -1,4 +1,4 @@
-(** Access analysis. *)
+(** Analysis of memory accesses ([access]). *)
 
 module LF = LibraryFunctions
 open GoblintCil
@@ -42,13 +42,15 @@ struct
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    if force || !collect_local || !emit_single_threaded || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
-      if deref then
+    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)\n" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
+    if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
+      if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
         do_access ctx kind reach exp;
-      Access.distribute_access_exp (do_access ctx Read false) exp
+      if M.tracing then M.tracei "access" "distribute_access_exp\n";
+      Access.distribute_access_exp (do_access ctx Read false) exp;
+      if M.tracing then M.traceu "access" "distribute_access_exp\n";
     );
-    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
+    if M.tracing then M.traceu "access" "access_one_top\n"
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
@@ -65,7 +67,7 @@ struct
 
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
-    if !GU.global_initialization then ctx.local else begin
+    if !AnalysisState.global_initialization then ctx.local else begin
       access_one_top ~deref:true ctx Write false (AddrOf lval);
       access_one_top ctx Read false rval;
       ctx.local
@@ -135,14 +137,14 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !Goblintutil.postsolving ->
+    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
       begin match lvals with
         | ls when Queries.LS.is_top ls ->
           let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
           ctx.sideg ctx.node (G.singleton access)
         | ls ->
           let events = Queries.LS.fold (fun (var, offs) acc ->
-              let coffs = Lval.CilLval.to_ciloffs offs in
+              let coffs = Offset.Exp.to_cil offs in
               let access: AccessDomain.Event.t =
                 if CilType.Varinfo.equal var dummyFunDec.svar then
                   {var_opt = None; offs_opt = (Some coffs); kind}

@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.activated[+] "'mallocFresh'" --set ana.malloc.wrappers '["Malloc"]' --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals --set pre.cppflags[+] -D_FORTIFY_SOURCE=2 --set pre.cppflags[+] -O3
+// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.activated[+] "'mallocFresh'" --set ana.malloc.wrappers '["Malloc"]' --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals --set pre.cppflags[+] -D_FORTIFY_SOURCE=2 --set pre.cppflags[+] -O3 --disable ana.race.free
+// Disabled races from free because type-based memory locations don't know the getaddrinfo-free pattern is safe.
 #include <stddef.h>
 #include <stdint.h>
 // #include <sys/types.h>

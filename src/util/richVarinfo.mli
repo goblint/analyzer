@@ -1,3 +1,5 @@
+(** Custom {!GoblintCil.varinfo} management. *)
+
 open GoblintCil
 
 val single: name:string -> (unit -> varinfo)

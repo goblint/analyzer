@@ -1,3 +1,5 @@
+(** Integer and floating-point option and attribute handling. *)
+
 (* We define precision by the number of IntDomains activated.
  * We currently have 5 types: DefExc, Interval, Enums, Congruence, IntervalSet *)
 type int_precision = (bool * bool * bool * bool * bool)

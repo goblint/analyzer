@@ -1,3 +1,7 @@
+(** OCaml implementation of the affine equalities domain.
+
+    @see <https://doi.org/10.1007/BF00268497> Karr, M. Affine relationships among variables of a program. *)
+
 (** Abstract states in the newly added domain are represented by structs containing a matrix and an apron environment.
     Matrices are modeled as proposed by Karr: Each variable is assigned to a column and each row represents a linear affine relationship that must hold at the corresponding program point.
     The apron environment is hereby used to organize the order of columns and variables. *)
@@ -75,12 +79,14 @@ struct
   let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
 
   let add_vars t vars =
+    let t = copy t in
     let env' = add_vars t.env vars in
     change_d t env' true false
 
   let add_vars t vars = timing_wrap "add_vars" (add_vars t) vars
 
   let drop_vars t vars del =
+    let t = copy t in
     let env' = remove_vars t.env vars in
     change_d t env' false del
 
@@ -107,12 +113,14 @@ struct
     t.env <- t'.env
 
   let keep_filter t f =
+    let t = copy t in
     let env' = keep_filter t.env f in
     change_d t env' false false
 
   let keep_filter t f = timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
+    let t = copy t in
     let env' = keep_vars t.env vs in
     change_d t env' false false
 
