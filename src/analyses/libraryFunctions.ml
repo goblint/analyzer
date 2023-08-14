@@ -84,7 +84,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getchar", unknown []);
     ("putchar", unknown [drop "ch" []]);
     ("puts", unknown [drop "s" [r]]);
-    ("rand", unknown ~attrs:[ThreadUnsafe] []);
+    ("rand", special ~attrs:[ThreadUnsafe] [] Rand);
     ("strerror", unknown ~attrs:[ThreadUnsafe] [drop "errnum" []]);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
@@ -118,7 +118,6 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
-    ("rand", special [] Rand);
   ]
 
 (** C POSIX library functions.
