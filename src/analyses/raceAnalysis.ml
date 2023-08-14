@@ -105,7 +105,7 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* accesses *)
-          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
+          (* ignore (Pretty.printf "WarnGlobal %a\n" Access.MemoRoot.pretty g'); *)
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
           let rec distribute_inner offset (accs, children) ancestor_accs =
@@ -202,7 +202,7 @@ struct
       let loc = Option.get !Node.current_node in
       let vo = Some f in
       let a = Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind=Call}))) in
-      side_access ctx (conf, Call, loc, e, a) ((`Type f.vtype), `NoOffset) ;
+      side_access ctx (conf, Call, loc, e, a) ((`Var f), `NoOffset) ;
     );
     ctx.local
 
