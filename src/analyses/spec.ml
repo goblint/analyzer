@@ -253,7 +253,7 @@ struct
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
       M.debug ~category:Analyzer "assign (only k2 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       let m = D.alias k1 k2 m in (* point k1 to k2 *)
-      if Basetype.Variables.to_group (fst k2) = Some Temp (* check if k2 is a temporary Lval introduced by CIL *)
+      if Basetype.Variables.to_group (fst k2) = Temp (* check if k2 is a temporary Lval introduced by CIL *)
       then D.remove' k2 m (* if yes we need to remove it from our map *)
       else m (* otherwise no change *)
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)

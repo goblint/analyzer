@@ -12,30 +12,65 @@ struct
   let name () = "race"
 
   (* Two global invariants:
-     1. (lval, type) -> accesses  --  used for warnings
-     2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
+     1. memoroot -> (offset -> accesses)  --  used for warnings
+     2. varinfo -> set of memo  --  used for IterSysVars Global *)
 
-  module V0 = Printable.Prod (Access.LVOpt) (Access.T)
   module V =
   struct
-    include Printable.Either (V0) (CilType.Varinfo)
+    include Printable.Either (Access.MemoRoot) (CilType.Varinfo)
     let name () = "race"
     let access x = `Left x
     let vars x = `Right x
     let is_write_only _ = true
   end
 
-  module V0Set = SetDomain.Make (V0)
+  module MemoSet = SetDomain.Make (Access.Memo)
+
+  module OneOffset =
+  struct
+    include Printable.StdLeaf
+    type t =
+      | Field of CilType.Fieldinfo.t
+      | Index
+    [@@deriving eq, ord, hash, to_yojson]
+
+    let name () = "oneoffset"
+
+    let show = function
+      | Field f -> CilType.Fieldinfo.show f
+      | Index -> "?"
+
+    include Printable.SimpleShow (struct
+        type nonrec t = t
+        let show = show
+      end)
+
+    let to_offset : t -> Offset.Unit.t = function
+      | Field f -> `Field (f, `NoOffset)
+      | Index -> `Index ((), `NoOffset)
+  end
+
+  module OffsetTrie =
+  struct
+    include TrieDomain.Make (OneOffset) (Access.AS)
+
+    let rec singleton (offset : Offset.Unit.t) (value : value) : t =
+      match offset with
+      | `NoOffset -> (value, ChildMap.empty ())
+      | `Field (f, offset') -> (Access.AS.empty (), ChildMap.singleton (Field f) (singleton offset' value))
+      | `Index ((), offset') -> (Access.AS.empty (), ChildMap.singleton Index (singleton offset' value))
+  end
+
   module G =
   struct
-    include Lattice.Lift2 (Access.AS) (V0Set) (Printable.DefaultNames)
+    include Lattice.Lift2 (OffsetTrie) (MemoSet) (Printable.DefaultNames)
 
     let access = function
-      | `Bot -> Access.AS.bot ()
+      | `Bot -> OffsetTrie.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "Race.access"
     let vars = function
-      | `Bot -> V0Set.bot ()
+      | `Bot -> MemoSet.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "Race.vars"
     let create_access access = `Lifted1 access
@@ -51,24 +86,18 @@ struct
     vulnerable := 0;
     unsafe := 0
 
-  let side_vars ctx lv_opt ty =
-    match lv_opt with
-    | Some (v, _) ->
+  let side_vars ctx memo =
+    match memo with
+    | (`Var v, _) ->
       if !AnalysisState.should_warn then
-        ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
-    | None ->
+        ctx.sideg (V.vars v) (G.create_vars (MemoSet.singleton memo))
+    | _ ->
       ()
 
-  let side_access ctx ty lv_opt (conf, w, loc, e, a) =
-    let ty =
-      if Option.is_some lv_opt then
-        `Type Cil.voidType (* avoid unsound type split for alloc variables *)
-      else
-        ty
-    in
+  let side_access ctx (conf, w, loc, e, a) ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
-    side_vars ctx lv_opt ty
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
+    side_vars ctx memo
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -77,15 +106,25 @@ struct
       begin match g with
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let accs = G.access (ctx.global g) in
-          let (lv, ty) = g' in
-          let mem_loc_str = GobPretty.sprint Access.d_memo (ty, lv) in
-          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe g') accs
+          let trie = G.access (ctx.global g) in
+          (** Distribute access to contained fields. *)
+          let rec distribute_inner offset (accs, children) ancestor_accs =
+            let ancestor_accs' = Access.AS.union ancestor_accs accs in
+            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
+                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ancestor_accs'
+              ) children;
+            if not (Access.AS.is_empty accs) then (
+              let memo = (g', offset) in
+              let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs
+            )
+          in
+          distribute_inner `NoOffset trie (Access.AS.empty ())
         | `Right _ -> (* vars *)
           ()
       end
     | IterSysVars (Global g, vf) ->
-      V0Set.iter (fun v ->
+      MemoSet.iter (fun v ->
           vf (Obj.repr (V.access v))
         ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
@@ -96,17 +135,18 @@ struct
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
       let module LS = Queries.LS in
-      let part_access (vo:varinfo option) (oo: offset option): MCPAccess.A.t =
+      let part_access (vo:varinfo option): MCPAccess.A.t =
         (*partitions & locks*)
         Obj.obj (octx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
       in
-      let add_access conf vo oo =
-        let a = part_access vo oo in
-        Access.add (side_access octx) e kind conf vo oo a;
+      let loc = Option.get !Node.current_node in
+      let add_access conf voffs =
+        let a = part_access (Option.map fst voffs) in
+        Access.add (side_access octx (conf, kind, loc, e, a)) e voffs;
       in
       let add_access_struct conf ci =
-        let a = part_access None None in
-        Access.add_struct (side_access octx) e kind conf (`Struct (ci,`NoOffset)) None a
+        let a = part_access None in
+        Access.add_one (side_access octx (conf, kind, loc, e, a)) (`Type (TComp (ci, [])), `NoOffset)
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
@@ -118,9 +158,9 @@ struct
         let f (var, offs) =
           let coffs = Offset.Exp.to_cil offs in
           if CilType.Varinfo.equal var dummyFunDec.svar then
-            add_access conf None (Some coffs)
+            add_access conf None
           else
-            add_access conf (Some var) (Some coffs)
+            add_access conf (Some (var, coffs))
         in
         LS.iter f ls
       in
@@ -147,7 +187,7 @@ struct
           end;
           on_lvals ls !includes_uk
         | _ ->
-          add_access (conf - 60) None None
+          add_access (conf - 60) None
       end;
       ctx.local
     | _ ->
@@ -162,7 +202,7 @@ struct
       let loc = Option.get !Node.current_node in
       let vo = Some f in
       let a = Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind=Call}))) in
-      side_access ctx (`Type f.vtype) (Some (f, `NoOffset)) (conf, Call, loc, e, a);
+      side_access ctx (conf, Call, loc, e, a) ((`Type f.vtype), `NoOffset) ;
     );
     ctx.local
 

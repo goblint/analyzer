@@ -177,6 +177,7 @@ module Lattice = Lattice
 module BoolDomain = BoolDomain
 module SetDomain = SetDomain
 module MapDomain = MapDomain
+module TrieDomain = TrieDomain
 module DisjointDomain = DisjointDomain
 module HoareDomain = HoareDomain
 module PartitionDomain = PartitionDomain

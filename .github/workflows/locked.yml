@@ -174,5 +174,4 @@ jobs:
 
       - name: Test Gobview
         run: |
-          ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
           python3 scripts/test-gobview.py
