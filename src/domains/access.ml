@@ -378,11 +378,18 @@ let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),lo
   else
     true
 
-let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
-  if M.tracing then M.tracei "access" "group_may_race\n\tancestors_accs: %a\n\touter_accs: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs;
+type warn_accs = {
+  node: AS.t;
+  prefix: AS.t;
+  type_suffix: AS.t;
+  type_suffix_prefix: AS.t;
+}
+
+let group_may_race warn_accs =
+  if M.tracing then M.tracei "access" "group_may_race\n\tprefix: %a\n\ttype_suffix: %a\n" AS.pretty warn_accs.prefix AS.pretty warn_accs.type_suffix;
   (* BFS to traverse one component with may_race edges *)
-  let rec bfs' ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs ~todo ~visited =
-    let may_race_accs ~accs ~todo =
+  let rec bfs' {prefix; type_suffix_prefix; type_suffix; node} ~todo ~visited =
+    let may_race_accs ~accs ~todo = (* TODO: rename to from-to *)
       AS.fold (fun acc todo' ->
           AS.fold (fun acc' todo' ->
               if may_race acc acc' then
@@ -392,56 +399,54 @@ let group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs =
             ) accs todo'
         ) todo (AS.empty ())
     in
-    let accs' = AS.diff accs todo in
-    let ancestor_accs' = AS.diff ancestor_accs todo in
-    let ancestor_outer_accs' = AS.diff ancestor_outer_accs todo in
-    let outer_accs' = AS.diff outer_accs todo in
-    let todo_accs = may_race_accs ~accs:accs' ~todo in
-    let accs_todo = AS.inter todo accs in
-    let todo_ancestor_accs = may_race_accs ~accs:ancestor_accs' ~todo:accs_todo in
-    let todo_ancestor_outer_accs = may_race_accs ~accs:ancestor_outer_accs' ~todo:accs_todo in
-    let todo_outer_accs = may_race_accs ~accs:outer_accs' ~todo:accs_todo in
-    let todo_ancestor_accs_cross = may_race_accs ~accs:ancestor_accs' ~todo:(AS.inter todo outer_accs) in
-    let todo_outer_accs_cross = may_race_accs ~accs:outer_accs' ~todo:(AS.inter todo ancestor_accs) in
-    let todos = [todo_accs; todo_ancestor_accs; todo_ancestor_outer_accs; todo_outer_accs; todo_ancestor_accs_cross; todo_outer_accs_cross] in
-    let todo' = List.reduce AS.union todos in
-    let visited' = AS.union visited todo in
+    let node' = AS.diff node todo in
+    let prefix' = AS.diff prefix todo in
+    let type_suffix' = AS.diff type_suffix todo in
+    let type_suffix_prefix' = AS.diff type_suffix_prefix todo in
+    let todo_node = AS.inter todo node in
+    let todo_node' = may_race_accs ~accs:node' ~todo in
+    let todo_prefix' = may_race_accs ~accs:prefix' ~todo:(AS.union todo_node (AS.inter todo type_suffix)) in
+    let todo_type_suffix' = may_race_accs ~accs:type_suffix' ~todo:(AS.union todo_node (AS.inter todo prefix)) in
+    let todo_type_suffix_prefix' = may_race_accs ~accs:type_suffix_prefix' ~todo:todo_node in
+    let todo' = List.reduce AS.union [todo_node'; todo_prefix'; todo_type_suffix_prefix'; todo_type_suffix'] in
+    let visited' = AS.union visited todo in (* TODO: use warn_accs record for todo *)
+    let warn_accs' = {prefix=prefix'; type_suffix_prefix=type_suffix_prefix'; type_suffix=type_suffix'; node=node'} in
     if AS.is_empty todo' then
-      (accs', ancestor_accs', ancestor_outer_accs', outer_accs', visited')
+      (warn_accs', visited')
     else
-      (bfs' [@tailcall]) ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs' ~outer_accs:outer_accs' ~accs:accs' ~todo:todo' ~visited:visited'
+      (bfs' [@tailcall]) warn_accs' ~todo:todo' ~visited:visited'
   in
-  let bfs ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs acc = bfs' ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
+  let bfs warn_accs acc = bfs' warn_accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
   (* repeat BFS to find all components *)
-  let rec components comps ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs =
-    if AS.is_empty accs then
-      (comps, ancestor_accs, outer_accs)
+  let rec components comps warn_accs =
+    if AS.is_empty warn_accs.node then
+      (comps, warn_accs)
     else (
-      let acc = AS.choose accs in
-      let (accs', ancestor_accs', ancestor_outer_accs', outer_accs', comp) = bfs ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs acc in
+      let acc = AS.choose warn_accs.node in
+      let (warn_accs', comp) = bfs warn_accs acc in
       let comps' = comp :: comps in
-      components comps' ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs' ~outer_accs:outer_accs' ~accs:accs'
+      components comps' warn_accs'
     )
   in
-  let (comps, ancestor_accs, outer_accs) = components [] ~ancestor_accs ~ancestor_outer_accs ~outer_accs ~accs in
-  if M.tracing then M.trace "access" "components\n\tancestors_accs: %a\n\touter_accs: %a\n" AS.pretty ancestor_accs AS.pretty outer_accs;
-  let rec components_cross comps ~ancestor_accs ~outer_accs =
-    if AS.is_empty ancestor_accs then
+  let (comps, warn_accs) = components [] warn_accs in
+  if M.tracing then M.trace "access" "components\n\tprefix: %a\n\ttype_suffix: %a\n" AS.pretty warn_accs.prefix AS.pretty warn_accs.type_suffix;
+  let rec components_cross comps ~prefix ~type_suffix =
+    if AS.is_empty prefix then
       comps
     else (
-      let ancestor_acc = AS.choose ancestor_accs in
-      let (_, ancestor_accs', _, outer_accs', comp) = bfs ~ancestor_accs ~ancestor_outer_accs:(AS.empty ()) ~outer_accs ~accs:(AS.empty ()) ancestor_acc in
-      if M.tracing then M.trace "access" "components_cross\n\tancestors_accs: %a\n\touter_accs: %a\n" AS.pretty ancestor_accs' AS.pretty outer_accs';
+      let prefix_acc = AS.choose prefix in
+      let (warn_accs', comp) = bfs {prefix; type_suffix_prefix=(AS.empty ()); type_suffix; node=(AS.empty ())} prefix_acc in
+      if M.tracing then M.trace "access" "components_cross\n\tprefix: %a\n\ttype_suffix: %a\n" AS.pretty warn_accs'.prefix AS.pretty warn_accs'.type_suffix;
       let comps' =
         if AS.cardinal comp > 1 then
           comp :: comps
         else
-          comps (* ignore self-race ancestor_acc component, self-race checked at ancestor's level *)
+          comps (* ignore self-race prefix_acc component, self-race checked at prefix's level *)
       in
-      components_cross comps' ~ancestor_accs:ancestor_accs' ~outer_accs:outer_accs'
+      components_cross comps' ~prefix:warn_accs'.prefix ~type_suffix:warn_accs'.type_suffix
     )
   in
-  let components_cross = components_cross comps ~ancestor_accs ~outer_accs in
+  let components_cross = components_cross comps ~prefix:warn_accs.prefix ~type_suffix:warn_accs.type_suffix in
   if M.tracing then M.traceu "access" "group_may_race\n";
   components_cross
 
@@ -507,7 +512,7 @@ let print_accesses memo grouped_accs =
         M.msg_group Success ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
     )
 
-let warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs ~ancestor_outer_accs ~outer_accs memo accs =
-  let grouped_accs = group_may_race ~ancestor_accs ~ancestor_outer_accs ~outer_accs accs in (* do expensive component finding only once *)
+let warn_global ~safe ~vulnerable ~unsafe warn_accs memo =
+  let grouped_accs = group_may_race warn_accs in (* do expensive component finding only once *)
   incr_summary ~safe ~vulnerable ~unsafe memo grouped_accs;
   print_accesses memo grouped_accs

@@ -155,7 +155,7 @@ struct
             if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty ancestor_accs) && not (Access.AS.is_empty outer_accs)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs ~ancestor_outer_accs ~outer_accs memo) accs
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {prefix=ancestor_accs; type_suffix_prefix=ancestor_outer_accs; type_suffix=outer_accs; node=accs}) memo
             );
             let ancestor_outer_accs' = Access.AS.union ancestor_outer_accs outer_accs in
             let ancestor_accs' = Access.AS.union ancestor_accs accs in
