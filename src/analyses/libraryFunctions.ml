@@ -1165,7 +1165,8 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
     | Read when GobConfig.get_bool "sem.unknown_function.read.args" -> args
     | Read -> []
     | Free -> []
-    | Call -> [] (* TODO: option *)
+    | Call when get_bool "sem.unknown_function.call.args" -> args
+    | Call -> []
     | Spawn when get_bool "sem.unknown_function.spawn" -> args
     | Spawn -> []
   in
