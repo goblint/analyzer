@@ -306,6 +306,7 @@ struct
             let write = match kind with
               | Write | Free -> true
               | Read -> false
+              | Call
               | Spawn -> false (* TODO: nonsense? *)
             in
             let s = GProtecting.make ~write ~recovered:is_recovered_to_st locks in
