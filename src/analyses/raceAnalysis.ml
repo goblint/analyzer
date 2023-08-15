@@ -111,7 +111,7 @@ struct
       ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.empty ()))));
     side_vars ctx memo
 
-  let outer_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
+  let type_suffix_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
     match root, offset with
     | `Var v, _ -> Some (`Type v.vtype, offset) (* TODO: Alloc variables void type *)
     | _, `NoOffset -> None
@@ -125,12 +125,12 @@ struct
       | `Lifted accs -> accs
       | `Bot -> Access.AS.empty ()
     in
-    let outer_accs =
-      match outer_memo (root, offset) with
-      | Some outer_memo -> distribute_outer ctx outer_memo
+    let type_suffix =
+      match type_suffix_memo (root, offset) with
+      | Some type_suffix_memo -> distribute_outer ctx type_suffix_memo
       | None -> Access.AS.empty ()
     in
-    Access.AS.union accs outer_accs
+    Access.AS.union accs type_suffix
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -141,29 +141,29 @@ struct
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
-          let rec distribute_inner offset (accs, children) ~ancestor_accs ~ancestor_outer_accs =
+          let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =
             let accs =
               match accs with
               | `Lifted accs -> accs
               | `Bot -> Access.AS.empty ()
             in
-            let outer_accs =
-              match outer_memo (g', offset) with
-              | Some outer_memo -> distribute_outer ctx outer_memo
+            let type_suffix =
+              match type_suffix_memo (g', offset) with
+              | Some type_suffix_memo -> distribute_outer ctx type_suffix_memo
               | None -> Access.AS.empty ()
             in
-            if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty ancestor_accs) && not (Access.AS.is_empty outer_accs)) then (
+            if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {prefix=ancestor_accs; type_suffix_prefix=ancestor_outer_accs; type_suffix=outer_accs; node=accs}) memo
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {prefix; type_suffix_prefix; type_suffix; node=accs}) memo
             );
-            let ancestor_outer_accs' = Access.AS.union ancestor_outer_accs outer_accs in
-            let ancestor_accs' = Access.AS.union ancestor_accs accs in
+            let prefix' = Access.AS.union prefix accs in
+            let type_suffix_prefix' = Access.AS.union type_suffix_prefix type_suffix in
             OffsetTrie.ChildMap.iter (fun child_key child_trie ->
-                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ~ancestor_accs:ancestor_accs' ~ancestor_outer_accs:ancestor_outer_accs'
+                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ~prefix:prefix' ~type_suffix_prefix:type_suffix_prefix'
               ) children;
           in
-          distribute_inner `NoOffset trie ~ancestor_accs:(Access.AS.empty ()) ~ancestor_outer_accs:(Access.AS.empty ())
+          distribute_inner `NoOffset trie ~prefix:(Access.AS.empty ()) ~type_suffix_prefix:(Access.AS.empty ())
         | `Right _ -> (* vars *)
           ()
       end
