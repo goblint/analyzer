@@ -378,17 +378,42 @@ let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),lo
   else
     true
 
-type warn_accs = {
-  node: AS.t;
-  prefix: AS.t;
-  type_suffix: AS.t;
-  type_suffix_prefix: AS.t;
-}
+module WarnAccs =
+struct
+  type t = {
+    node: AS.t;
+    prefix: AS.t;
+    type_suffix: AS.t;
+    type_suffix_prefix: AS.t;
+  }
 
-let group_may_race warn_accs =
-  if M.tracing then M.tracei "access" "group_may_race\n\tprefix: %a\n\ttype_suffix: %a\n" AS.pretty warn_accs.prefix AS.pretty warn_accs.type_suffix;
+  let diff w1 w2 = {
+    node = AS.diff w1.node w2.node;
+    prefix = AS.diff w1.prefix w2.prefix;
+    type_suffix = AS.diff w1.type_suffix w2.type_suffix;
+    type_suffix_prefix = AS.diff w1.type_suffix_prefix w2.type_suffix_prefix;
+  }
+
+  let union_all w =
+    AS.union
+      (AS.union w.node w.prefix)
+      (AS.union w.type_suffix w.type_suffix_prefix)
+
+  let is_empty w =
+    AS.is_empty w.node && AS.is_empty w.prefix && AS.is_empty w.type_suffix && AS.is_empty w.type_suffix_prefix
+
+  let empty () =
+    {node=AS.empty (); prefix=AS.empty (); type_suffix=AS.empty (); type_suffix_prefix=AS.empty ()}
+
+  let pretty () w =
+    Pretty.dprintf "{node = %a; prefix = %a; type_suffix = %a; type_suffix_prefix = %a}"
+      AS.pretty w.node AS.pretty w.prefix AS.pretty w.type_suffix AS.pretty w.type_suffix_prefix
+end
+
+let group_may_race (warn_accs:WarnAccs.t) =
+  if M.tracing then M.tracei "access" "group_may_race %a\n" WarnAccs.pretty warn_accs;
   (* BFS to traverse one component with may_race edges *)
-  let rec bfs' {prefix; type_suffix_prefix; type_suffix; node} ~todo ~visited =
+  let rec bfs' warn_accs ~todo ~visited =
     let may_race_accs ~accs ~todo = (* TODO: rename to from-to *)
       AS.fold (fun acc todo' ->
           AS.fold (fun acc' todo' ->
@@ -399,44 +424,42 @@ let group_may_race warn_accs =
             ) accs todo'
         ) todo (AS.empty ())
     in
-    let node' = AS.diff node todo.node in
-    let prefix' = AS.diff prefix todo.prefix in
-    let type_suffix' = AS.diff type_suffix todo.type_suffix in
-    let type_suffix_prefix' = AS.diff type_suffix_prefix todo.type_suffix_prefix in
-    let todo_all = AS.union todo.node (AS.union (AS.union todo.prefix todo.type_suffix) todo.type_suffix_prefix) in
-    let todo_node' = may_race_accs ~accs:node' ~todo:todo_all in
-    let todo_prefix' = may_race_accs ~accs:prefix' ~todo:(AS.union todo.node todo.type_suffix) in
-    let todo_type_suffix' = may_race_accs ~accs:type_suffix' ~todo:(AS.union todo.node todo.prefix) in
-    let todo_type_suffix_prefix' = may_race_accs ~accs:type_suffix_prefix' ~todo:todo.node in
-    let todo' = {prefix=todo_prefix'; type_suffix=todo_type_suffix'; type_suffix_prefix=todo_type_suffix_prefix'; node=todo_node'} in
+    let warn_accs' = WarnAccs.diff warn_accs todo in
+    let todo_all = WarnAccs.union_all todo in
     let visited' = AS.union visited todo_all in
-    let warn_accs' = {prefix=prefix'; type_suffix_prefix=type_suffix_prefix'; type_suffix=type_suffix'; node=node'} in
-    if AS.is_empty todo'.node && AS.is_empty todo'.prefix && AS.is_empty todo'.type_suffix && AS.is_empty todo'.type_suffix_prefix then
+    let todo' : WarnAccs.t = {
+      node = may_race_accs ~accs:warn_accs'.node ~todo:todo_all;
+      prefix = may_race_accs ~accs:warn_accs'.prefix ~todo:(AS.union todo.node todo.type_suffix);
+      type_suffix = may_race_accs ~accs:warn_accs'.type_suffix ~todo:(AS.union todo.node todo.prefix);
+      type_suffix_prefix = may_race_accs ~accs:warn_accs'.type_suffix_prefix ~todo:todo.node
+    } 
+    in
+    if WarnAccs.is_empty todo' then
       (warn_accs', visited')
     else
       (bfs' [@tailcall]) warn_accs' ~todo:todo' ~visited:visited'
   in
   let bfs warn_accs todo = bfs' warn_accs ~todo ~visited:(AS.empty ()) in
   (* repeat BFS to find all components *)
-  let rec components comps warn_accs =
+  let rec components comps (warn_accs:WarnAccs.t) =
     if AS.is_empty warn_accs.node then
       (comps, warn_accs)
     else (
       let acc = AS.choose warn_accs.node in
-      let (warn_accs', comp) = bfs warn_accs {node=AS.singleton acc; prefix=AS.empty (); type_suffix=AS.empty (); type_suffix_prefix=AS.empty ()} in
+      let (warn_accs', comp) = bfs warn_accs {(WarnAccs.empty ()) with node=AS.singleton acc} in
       let comps' = comp :: comps in
       components comps' warn_accs'
     )
   in
   let (comps, warn_accs) = components [] warn_accs in
-  if M.tracing then M.trace "access" "components\n\tprefix: %a\n\ttype_suffix: %a\n" AS.pretty warn_accs.prefix AS.pretty warn_accs.type_suffix;
+  if M.tracing then M.trace "access" "components %a\n" WarnAccs.pretty warn_accs;
   let rec components_cross comps ~prefix ~type_suffix =
     if AS.is_empty prefix then
       comps
     else (
       let prefix_acc = AS.choose prefix in
-      let (warn_accs', comp) = bfs {prefix; type_suffix_prefix=(AS.empty ()); type_suffix; node=(AS.empty ())} {node=AS.empty (); prefix=AS.singleton prefix_acc; type_suffix=AS.empty (); type_suffix_prefix=AS.empty ()} in
-      if M.tracing then M.trace "access" "components_cross\n\tprefix: %a\n\ttype_suffix: %a\n" AS.pretty warn_accs'.prefix AS.pretty warn_accs'.type_suffix;
+      let (warn_accs', comp) = bfs {(WarnAccs.empty ()) with prefix; type_suffix} {(WarnAccs.empty ()) with prefix=AS.singleton prefix_acc} in
+      if M.tracing then M.trace "access" "components_cross %a\n" WarnAccs.pretty warn_accs';
       let comps' =
         if AS.cardinal comp > 1 then
           comp :: comps
