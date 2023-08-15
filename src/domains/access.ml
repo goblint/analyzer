@@ -203,8 +203,7 @@ let add_one ~side memo: unit =
 
 (** Distribute empty access set for type-based access to variables and containing fields.
     Empty access sets are needed for prefix-type_suffix race checking. *)
-let rec add_distribute_outer ~side ~side_empty (t: typ) (o: Offset.Unit.t) =
-  let ts = typeSig t in
+let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
   let memo = (`Type ts, o) in
   if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
   add_one ~side memo; (* Add actual access for non-recursive call, or empty access for recursive call when side is side_empty. *)
@@ -220,7 +219,7 @@ let rec add_distribute_outer ~side ~side_empty (t: typ) (o: Offset.Unit.t) =
   let fields = TSH.find_all typeIncl ts in
   List.iter (fun f ->
       (* prepend field and distribute to outer struct *)
-      add_distribute_outer ~side:side_empty ~side_empty (TComp (f.fcomp, [])) (`Field (f, o)) (* Switch to side_empty. *)
+      add_distribute_outer ~side:side_empty ~side_empty (TSComp (f.fcomp.cstruct, f.fcomp.cname, [])) (`Field (f, o)) (* Switch to side_empty. *)
     ) fields;
 
   if M.tracing then M.traceu "access" "add_distribute_outer\n"
@@ -241,7 +240,7 @@ let add ~side ~side_empty e voffs =
       in
       match o with
       | `NoOffset when not !collect_direct_arithmetic && isArithmeticType t -> ()
-      | _ -> add_distribute_outer ~side ~side_empty t o (* distribute to variables and outer offsets *)
+      | _ -> add_distribute_outer ~side ~side_empty (Cil.typeSig t) o (* distribute to variables and outer offsets *)
   end;
   if M.tracing then M.traceu "access" "add\n"
 
