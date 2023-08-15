@@ -1,7 +1,7 @@
 (** Library function descriptor (specification). *)
 
 module Cil = GoblintCil
-
+open Cil
 (** Pointer argument access specification. *)
 module Access =
 struct
@@ -14,31 +14,31 @@ struct
 end
 
 type math =
-  | Nan of (Cil.fkind * Cil.exp)
-  | Inf of Cil.fkind
-  | Isfinite of Cil.exp
-  | Isinf of Cil.exp
-  | Isnan of Cil.exp
-  | Isnormal of Cil.exp
-  | Signbit of Cil.exp
-  | Isgreater of (Cil.exp * Cil.exp)
-  | Isgreaterequal of (Cil.exp * Cil.exp)
-  | Isless of (Cil.exp * Cil.exp)
-  | Islessequal of (Cil.exp * Cil.exp)
-  | Islessgreater of (Cil.exp * Cil.exp)
-  | Isunordered of (Cil.exp * Cil.exp)
-  | Ceil of (Cil.fkind * Cil.exp)
-  | Floor of (Cil.fkind * Cil.exp)
-  | Fabs of (Cil.fkind * Cil.exp)
-  | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
-  | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
-  | Acos of (Cil.fkind * Cil.exp)
-  | Asin of (Cil.fkind * Cil.exp)
-  | Atan of (Cil.fkind * Cil.exp)
-  | Atan2 of (Cil.fkind * Cil.exp * Cil.exp)
-  | Cos of (Cil.fkind * Cil.exp)
-  | Sin of (Cil.fkind * Cil.exp)
-  | Tan of (Cil.fkind * Cil.exp)
+  | Nan of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Inf of CilType.Fkind.t
+  | Isfinite of Basetype.CilExp.t
+  | Isinf of Basetype.CilExp.t
+  | Isnan of Basetype.CilExp.t
+  | Isnormal of Basetype.CilExp.t
+  | Signbit of Basetype.CilExp.t
+  | Isgreater of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Isgreaterequal of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Isless of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Islessequal of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Islessgreater of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Isunordered of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Ceil of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Floor of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Fabs of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Fmax of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
+  | Fmin of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
+  | Acos of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Asin of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Atan of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Atan2 of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
+  | Cos of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Sin of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Tan of (CilType.Fkind.t * Basetype.CilExp.t) [@@deriving eq, ord, hash]
 
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
@@ -46,6 +46,7 @@ type special =
   | Malloc of Cil.exp
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
+  | Free of Cil.exp
   | Assert of { exp: Cil.exp; check: bool; refine: bool; }
   | Lock of { lock: Cil.exp; try_: bool; write: bool; return_on_success: bool; }
   | Unlock of Cil.exp
@@ -71,6 +72,7 @@ type special =
   | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Setjmp of { env: Cil.exp; }
   | Longjmp of { env: Cil.exp; value: Cil.exp; }
+  | Rand
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
@@ -150,3 +152,49 @@ let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old) (classify_name): 
   accs = Accesses.of_old old_accesses;
   special = special_of_old classify_name;
 }
+
+module MathPrintable = struct
+  include Printable.StdLeaf
+  type t = math [@@deriving eq, ord, hash]
+
+  let name () = "MathPrintable"
+
+  let pretty () = function
+    | Nan (fk, exp) -> Pretty.dprintf "(%a )nan(%a)" d_fkind fk d_exp exp
+    | Inf fk -> Pretty.dprintf "(%a )inf()" d_fkind fk
+    | Isfinite exp -> Pretty.dprintf "isFinite(%a)" d_exp exp
+    | Isinf exp -> Pretty.dprintf "isInf(%a)" d_exp exp
+    | Isnan exp -> Pretty.dprintf "isNan(%a)" d_exp exp
+    | Isnormal exp -> Pretty.dprintf "isNormal(%a)" d_exp exp
+    | Signbit exp -> Pretty.dprintf "signbit(%a)" d_exp exp
+    | Isgreater (exp1, exp2) -> Pretty.dprintf "isGreater(%a, %a)" d_exp exp1 d_exp exp2
+    | Isgreaterequal (exp1, exp2) -> Pretty.dprintf "isGreaterEqual(%a, %a)" d_exp exp1 d_exp exp2
+    | Isless (exp1, exp2) -> Pretty.dprintf "isLess(%a, %a)" d_exp exp1 d_exp exp2
+    | Islessequal (exp1, exp2) -> Pretty.dprintf "isLessEqual(%a, %a)" d_exp exp1 d_exp exp2
+    | Islessgreater (exp1, exp2) -> Pretty.dprintf "isLessGreater(%a, %a)" d_exp exp1 d_exp exp2
+    | Isunordered (exp1, exp2) -> Pretty.dprintf "isUnordered(%a, %a)" d_exp exp1 d_exp exp2
+    | Ceil (fk, exp) -> Pretty.dprintf "(%a )ceil(%a)" d_fkind fk d_exp exp
+    | Floor (fk, exp) -> Pretty.dprintf "(%a )floor(%a)" d_fkind fk d_exp exp
+    | Fabs (fk, exp) -> Pretty.dprintf "(%a )fabs(%a)" d_fkind fk d_exp exp
+    | Fmax (fk, exp1, exp2) -> Pretty.dprintf "(%a )fmax(%a, %a)" d_fkind fk d_exp exp1 d_exp exp2
+    | Fmin (fk, exp1, exp2) -> Pretty.dprintf "(%a )fmin(%a, %a)" d_fkind fk d_exp exp1 d_exp exp2
+    | Acos (fk, exp) -> Pretty.dprintf "(%a )acos(%a)" d_fkind fk d_exp exp
+    | Asin (fk, exp) -> Pretty.dprintf "(%a )asin(%a)" d_fkind fk d_exp exp
+    | Atan (fk, exp) -> Pretty.dprintf "(%a )atan(%a)" d_fkind fk d_exp exp
+    | Atan2 (fk, exp1, exp2) -> Pretty.dprintf "(%a )atan2(%a, %a)" d_fkind fk d_exp exp1 d_exp exp2
+    | Cos (fk, exp) -> Pretty.dprintf "(%a )cos(%a)" d_fkind fk d_exp exp
+    | Sin (fk, exp) -> Pretty.dprintf "(%a )sin(%a)" d_fkind fk d_exp exp
+    | Tan (fk, exp) -> Pretty.dprintf "(%a )tan(%a)" d_fkind fk d_exp exp
+
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+module MathLifted = Lattice.Flat (MathPrintable) (struct
+    let top_name = "Unknown or no math desc"
+    let bot_name = "Nonexistent math desc"
+  end)

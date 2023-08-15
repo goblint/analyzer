@@ -61,6 +61,7 @@
   (preprocess
     (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
   (preprocessor_deps (file util/options.schema.json))
+  (instrumentation (backend bisect_ppx))
 )
 
 ; Workaround for alternative dependencies with unqualified subdirs.

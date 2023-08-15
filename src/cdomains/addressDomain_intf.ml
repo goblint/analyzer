@@ -9,7 +9,6 @@ sig
       | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
       | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
     include Printable.S with type t := t (** @closed *)
-    include MapDomain.Groupable with type t := t (** @closed *)
 
     val of_string: string -> t
     (** Convert string to {!StrPtr}. *)
@@ -32,7 +31,6 @@ sig
   module AddressPrintable (Mval: Mval.Printable):
   sig
     include module type of AddressBase (Mval)
-    include MapDomain.Groupable with type t := t and type group = Basetype.Variables.group (** @closed *)
 
     val is_definite: t -> bool
     (** Whether address is a [NULL] pointer or an mvalue that has only definite integer indexing (and fields). *)

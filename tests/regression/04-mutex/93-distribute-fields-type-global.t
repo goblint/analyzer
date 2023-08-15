@@ -11,9 +11,9 @@
     live: 7
     dead: 0
     total lines: 7
-  [Success][Race] Memory location s@93-distribute-fields-type-global.c:9:10-9:11 (safe):
+  [Success][Race] Memory location s (safe): (93-distribute-fields-type-global.c:9:10-9:11)
     write with [mhp:{tid=[main]; created={[main, t_fun@93-distribute-fields-type-global.c:21:3-21:40#top]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:23:3-23:9)
-  [Warning][Race] Memory location s.field@93-distribute-fields-type-global.c:9:10-9:11 (race with conf. 110):
+  [Warning][Race] Memory location s.field (race with conf. 110): (93-distribute-fields-type-global.c:9:10-9:11)
     read with [mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:21:3-21:40#top]}, thread:[main, t_fun@93-distribute-fields-type-global.c:21:3-21:40#top]] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:14:3-14:29)
     write with [mhp:{tid=[main]; created={[main, t_fun@93-distribute-fields-type-global.c:21:3-21:40#top]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:23:3-23:9)
   [Success][Race] Memory location (struct S).field (safe):

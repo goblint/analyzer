@@ -7,7 +7,6 @@ open BatPervasives
 module type S =
 sig
   include Printable.S
-  include MapDomain.Groupable with type t := t
 
   val threadinit: varinfo -> multiple:bool -> t
   val is_main: t -> bool
@@ -212,7 +211,7 @@ struct
   (* Plain thread IDs *)
   module P = Unit(FunNode)
 
-  include GroupableFlagHelper(H)(P)(struct
+  include FlagHelper(H)(P)(struct
       let msg = "FlagConfiguredTID received a value where not exactly one component is set"
       let name = "FlagConfiguredTID"
     end)

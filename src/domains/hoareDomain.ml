@@ -255,12 +255,7 @@ end
 (* TODO: weaken R to Lattice.S ? *)
 module MapBot (SpecD:Lattice.S) (R:SetDomain.S) =
 struct
-  module SpecDGroupable =
-  struct
-    include Printable.Std
-    include SpecD
-  end
-  include MapDomain.MapBot (SpecDGroupable) (R)
+  include MapDomain.MapBot (SpecD) (R)
 
   (* TODO: get rid of these value-ignoring set-mimicing hacks *)
   let choose' = choose
