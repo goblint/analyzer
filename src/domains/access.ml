@@ -93,7 +93,7 @@ struct
     match vt with
     | `Var v -> CilType.Varinfo.pretty () v
     | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)" name
-    | `Type t -> Pretty.dprintf "(%a)" CilType.Typsig.pretty t (* TODO: fix TSBase printing *)
+    | `Type t -> Pretty.dprintf "(%a)" Cilfacade.pretty_typsig_like_typ t
 
   include Printable.SimplePretty (
     struct
@@ -116,7 +116,7 @@ struct
     match vt with
     | `Var v -> Pretty.dprintf "%a%a" CilType.Varinfo.pretty v Offset.Unit.pretty o
     | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)%a" name Offset.Unit.pretty o
-    | `Type t -> Pretty.dprintf "(%a)%a" CilType.Typsig.pretty t Offset.Unit.pretty o (* TODO: fix TSBase printing *)
+    | `Type t -> Pretty.dprintf "(%a)%a" Cilfacade.pretty_typsig_like_typ t Offset.Unit.pretty o
 
   include Printable.SimplePretty (
     struct
