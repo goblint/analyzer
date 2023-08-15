@@ -399,31 +399,31 @@ let group_may_race warn_accs =
             ) accs todo'
         ) todo (AS.empty ())
     in
-    let node' = AS.diff node todo in
-    let prefix' = AS.diff prefix todo in
-    let type_suffix' = AS.diff type_suffix todo in
-    let type_suffix_prefix' = AS.diff type_suffix_prefix todo in
-    let todo_node = AS.inter todo node in
-    let todo_node' = may_race_accs ~accs:node' ~todo in
-    let todo_prefix' = may_race_accs ~accs:prefix' ~todo:(AS.union todo_node (AS.inter todo type_suffix)) in
-    let todo_type_suffix' = may_race_accs ~accs:type_suffix' ~todo:(AS.union todo_node (AS.inter todo prefix)) in
-    let todo_type_suffix_prefix' = may_race_accs ~accs:type_suffix_prefix' ~todo:todo_node in
-    let todo' = List.reduce AS.union [todo_node'; todo_prefix'; todo_type_suffix_prefix'; todo_type_suffix'] in
-    let visited' = AS.union visited todo in (* TODO: use warn_accs record for todo *)
+    let node' = AS.diff node todo.node in
+    let prefix' = AS.diff prefix todo.prefix in
+    let type_suffix' = AS.diff type_suffix todo.type_suffix in
+    let type_suffix_prefix' = AS.diff type_suffix_prefix todo.type_suffix_prefix in
+    let todo_all = AS.union todo.node (AS.union (AS.union todo.prefix todo.type_suffix) todo.type_suffix_prefix) in
+    let todo_node' = may_race_accs ~accs:node' ~todo:todo_all in
+    let todo_prefix' = may_race_accs ~accs:prefix' ~todo:(AS.union todo.node todo.type_suffix) in
+    let todo_type_suffix' = may_race_accs ~accs:type_suffix' ~todo:(AS.union todo.node todo.prefix) in
+    let todo_type_suffix_prefix' = may_race_accs ~accs:type_suffix_prefix' ~todo:todo.node in
+    let todo' = {prefix=todo_prefix'; type_suffix=todo_type_suffix'; type_suffix_prefix=todo_type_suffix_prefix'; node=todo_node'} in
+    let visited' = AS.union visited todo_all in
     let warn_accs' = {prefix=prefix'; type_suffix_prefix=type_suffix_prefix'; type_suffix=type_suffix'; node=node'} in
-    if AS.is_empty todo' then
+    if AS.is_empty todo'.node && AS.is_empty todo'.prefix && AS.is_empty todo'.type_suffix && AS.is_empty todo'.type_suffix_prefix then
       (warn_accs', visited')
     else
       (bfs' [@tailcall]) warn_accs' ~todo:todo' ~visited:visited'
   in
-  let bfs warn_accs acc = bfs' warn_accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
+  let bfs warn_accs todo = bfs' warn_accs ~todo ~visited:(AS.empty ()) in
   (* repeat BFS to find all components *)
   let rec components comps warn_accs =
     if AS.is_empty warn_accs.node then
       (comps, warn_accs)
     else (
       let acc = AS.choose warn_accs.node in
-      let (warn_accs', comp) = bfs warn_accs acc in
+      let (warn_accs', comp) = bfs warn_accs {node=AS.singleton acc; prefix=AS.empty (); type_suffix=AS.empty (); type_suffix_prefix=AS.empty ()} in
       let comps' = comp :: comps in
       components comps' warn_accs'
     )
@@ -435,7 +435,7 @@ let group_may_race warn_accs =
       comps
     else (
       let prefix_acc = AS.choose prefix in
-      let (warn_accs', comp) = bfs {prefix; type_suffix_prefix=(AS.empty ()); type_suffix; node=(AS.empty ())} prefix_acc in
+      let (warn_accs', comp) = bfs {prefix; type_suffix_prefix=(AS.empty ()); type_suffix; node=(AS.empty ())} {node=AS.empty (); prefix=AS.singleton prefix_acc; type_suffix=AS.empty (); type_suffix_prefix=AS.empty ()} in
       if M.tracing then M.trace "access" "components_cross\n\tprefix: %a\n\ttype_suffix: %a\n" AS.pretty warn_accs'.prefix AS.pretty warn_accs'.type_suffix;
       let comps' =
         if AS.cardinal comp > 1 then
