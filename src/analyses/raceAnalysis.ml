@@ -116,7 +116,8 @@ struct
     | `Var v, _ -> Some (`Type (Cil.typeSig v.vtype), offset) (* TODO: Alloc variables void type *)
     | _, `NoOffset -> None
     | _, `Field (f, offset') -> Some (`Type (Cil.typeSig f.ftype), offset')
-    | _, `Index ((), offset') -> None (* TODO *)
+    | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset')
+    | _, `Index ((), offset') -> None (* TODO: why indexing on non-array? *)
 
   let rec distribute_outer ctx ((root, offset) : Access.Memo.t) : Access.AS.t =
     let trie = G.access (ctx.global (V.access root)) in
