@@ -12,7 +12,7 @@ struct
   let name () = "race"
 
   (* Two global invariants:
-     1. memoroot -> (offset -> accesses)  --  used for warnings
+     1. memoroot -> (offset --trie--> accesses)  --  used for warnings
      2. varinfo -> set of memo  --  used for IterSysVars Global *)
 
   module V =
@@ -52,6 +52,9 @@ struct
 
   module OffsetTrie =
   struct
+    (* LiftBot such that add_distribute_outer can side-effect empty set to indicate
+       all offsets that exist for prefix-type_suffix race checking.
+       Otherwise, there are no trie nodes to traverse to where this check must happen. *)
     include TrieDomain.Make (OneOffset) (Lattice.LiftBot (Access.AS))
 
     let rec find (offset : Offset.Unit.t) ((accs, children) : t) : value =
@@ -105,18 +108,19 @@ struct
       ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton (conf, w, loc, e, a)))));
     side_vars ctx memo
 
-  let side_access0 ctx ((memoroot, offset) as memo) =
-    (* ignore (Pretty.printf "memo: %a\n" Access.Memo.pretty memo); *)
+  (** Side-effect empty access set for prefix-type_suffix race checking. *)
+  let side_access_empty ctx ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
       ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.empty ()))));
     side_vars ctx memo
 
+  (** Get immediate type_suffix memo. *)
   let type_suffix_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
     match root, offset with
-    | `Var v, _ -> Some (`Type (Cil.typeSig v.vtype), offset) (* TODO: Alloc variables void type *)
-    | _, `NoOffset -> None
-    | _, `Field (f, offset') -> Some (`Type (Cil.typeSig f.ftype), offset')
-    | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset')
+    | `Var v, _ -> Some (`Type (Cil.typeSig v.vtype), offset) (* global.foo.bar -> (struct S).foo.bar *) (* TODO: Alloc variables void type *)
+    | _, `NoOffset -> None (* primitive type *)
+    | _, `Field (f, offset') -> Some (`Type (Cil.typeSig f.ftype), offset') (* (struct S).foo.bar -> (struct T).bar *)
+    | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset') (* (int[])[*] -> int *)
     | _, `Index ((), offset') -> None (* TODO: why indexing on non-array? *)
 
   let rec find_type_suffix' ctx ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
@@ -129,6 +133,7 @@ struct
     let type_suffix = find_type_suffix ctx memo in
     Access.AS.union accs type_suffix
 
+  (** Find accesses from all type_suffixes transitively. *)
   and find_type_suffix ctx (memo : Access.Memo.t) : Access.AS.t =
     match type_suffix_memo memo with
     | Some type_suffix_memo -> find_type_suffix' ctx type_suffix_memo
@@ -153,8 +158,10 @@ struct
             if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {prefix; type_suffix_prefix; type_suffix; node=accs}) memo
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {node=accs; prefix; type_suffix; type_suffix_prefix}) memo
             );
+
+            (* Recurse to children. *)
             let prefix' = Access.AS.union prefix accs in
             let type_suffix_prefix' = Access.AS.union type_suffix_prefix type_suffix in
             OffsetTrie.ChildMap.iter (fun child_key child_trie ->
@@ -184,11 +191,11 @@ struct
       let loc = Option.get !Node.current_node in
       let add_access conf voffs =
         let a = part_access (Option.map fst voffs) in
-        Access.add (side_access octx (conf, kind, loc, e, a)) (side_access0 octx) e voffs;
+        Access.add ~side:(side_access octx (conf, kind, loc, e, a)) ~side_empty:(side_access_empty octx) e voffs;
       in
       let add_access_struct conf ci =
         let a = part_access None in
-        Access.add_one (side_access octx (conf, kind, loc, e, a)) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
+        Access.add_one ~side:(side_access octx (conf, kind, loc, e, a)) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
