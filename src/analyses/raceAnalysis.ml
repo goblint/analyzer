@@ -113,9 +113,9 @@ struct
 
   let type_suffix_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
     match root, offset with
-    | `Var v, _ -> Some (`Type v.vtype, offset) (* TODO: Alloc variables void type *)
+    | `Var v, _ -> Some (`Type (Cil.typeSig v.vtype), offset) (* TODO: Alloc variables void type *)
     | _, `NoOffset -> None
-    | _, `Field (f, offset') -> Some (`Type f.ftype, offset')
+    | _, `Field (f, offset') -> Some (`Type (Cil.typeSig f.ftype), offset')
     | _, `Index ((), offset') -> None (* TODO *)
 
   let rec distribute_outer ctx ((root, offset) : Access.Memo.t) : Access.AS.t =
@@ -190,7 +190,7 @@ struct
       in
       let add_access_struct conf ci =
         let a = part_access None in
-        Access.add_one (side_access octx (conf, kind, loc, e, a)) (`Type (TComp (ci, [])), `NoOffset)
+        Access.add_one (side_access octx (conf, kind, loc, e, a)) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls

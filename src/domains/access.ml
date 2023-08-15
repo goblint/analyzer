@@ -83,8 +83,7 @@ type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset
 module MemoRoot =
 struct
   include Printable.StdLeaf
-  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] [@@deriving eq, ord, hash]
-  (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
+  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typsig.t] [@@deriving eq, ord, hash]
 
   let name () = "memoroot"
 
@@ -92,8 +91,8 @@ struct
     (* Imitate old printing for now *)
     match vt with
     | `Var v -> Pretty.dprintf "%a@@%a" CilType.Varinfo.pretty v CilType.Location.pretty v.vdecl
-    | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)" c.cname
-    | `Type t -> Pretty.dprintf "(%a)" CilType.Typ.pretty t
+    | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)" name
+    | `Type t -> Pretty.dprintf "(%a)" CilType.Typsig.pretty t
 
   include Printable.SimplePretty (
     struct
@@ -108,7 +107,6 @@ module Memo =
 struct
   include Printable.StdLeaf
   type t = MemoRoot.t * Offset.Unit.t [@@deriving eq, ord, hash]
-  (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
 
   let name () = "memo"
 
@@ -116,8 +114,8 @@ struct
     (* Imitate old printing for now *)
     match vt with
     | `Var v -> Pretty.dprintf "%a%a@@%a" CilType.Varinfo.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
-    | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)%a" c.cname Offset.Unit.pretty o
-    | `Type t -> Pretty.dprintf "(%a)%a" CilType.Typ.pretty t Offset.Unit.pretty o
+    | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)%a" name Offset.Unit.pretty o
+    | `Type t -> Pretty.dprintf "(%a)%a" CilType.Typsig.pretty t Offset.Unit.pretty o
 
   include Printable.SimplePretty (
     struct
@@ -128,23 +126,14 @@ struct
 
   let of_ty (ty: acc_typ): t =
     match ty with
-    | `Struct (c, o) -> (`Type (TComp (c, [])), o)
-    | `Type t -> (`Type t, `NoOffset)
+    | `Struct (c, o) -> (`Type (TSComp (c.cstruct, c.cname, [])), o)
+    | `Type t -> (`Type (Cil.typeSig t), `NoOffset)
 
   let to_mval: t -> Mval.Unit.t option = function
     | (`Var v, o) -> Some (v, o)
     | (`Type _, _) -> None
 
   let add_offset ((vt, o): t) o2: t = (vt, Offset.Unit.add_offset o o2)
-
-  let type_of_base ((vt, _): t): typ =
-    match vt with
-    | `Var v -> v.vtype
-    | `Type t -> t
-
-  (** @raise Offset.Type_of_error *)
-  let type_of ((vt, o) as memo: t): typ =
-    Offset.Unit.type_of ~base:(type_of_base memo) o
 end
 
 (* TODO: What is the logic for get_type? *)
@@ -213,12 +202,12 @@ let add_one side memo: unit =
 
 (** Distribute type-based access to variables and containing fields. *)
 let rec add_distribute_outer side side0 (t: typ) (o: Offset.Unit.t) =
-  let memo = (`Type t, o) in
+  let ts = typeSig t in
+  let memo = (`Type ts, o) in
   if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
   add_one side memo;
 
   (* distribute to variables of the type *)
-  let ts = typeSig t in
   let vars = TSH.find_all typeVar ts in
   List.iter (fun v ->
       add_one side0 (`Var v, o) (* same offset, but on variable *)
