@@ -3,6 +3,85 @@
 open GoblintCil
 open Analyses
 
+(** Data race analysis with tries and hookers.
+
+    Accesses are to memory locations ({{!Access.Memo} memos}) which consist of a root and offset.
+    {{!Access.MemoRoot} Root} can be:
+    + variable, if access is to known global variable or alloc-variable;
+    + type, if access is to unknown pointer.
+
+    Accesses are (now) collected to sets for each corresponding memo,
+    after points-to sets are resolved, during postsolving.
+
+    Race checking is performed per-memo,
+    except must additionally account for accesses to other memos (see diagram below):
+    + access to [s.f] can race with access to a prefix like [s], which writes an entire struct at once;
+    + access to [s.f] can race with type-based access like [(struct S).f];
+    + access to [(struct S).f] can race with type-based access to a suffix like [(int)].
+    + access to [(struct T).s.f] can race with type-based access like [(struct S)], which is a combination of the above.
+
+    These are accounted for lazily (unlike in the past).
+
+    Prefixes (a.k.a. inner distribution) are handled using a trie data structure enriched with lattice properties.
+    Race checking starts at the root and passes accesses to ancestor nodes down to children.
+
+    Type suffixes (a.k.a. outer distribution) are handled by computing successive immediate type suffixes transitively
+    and accessing corresponding offsets from corresponding root tries in the global invariant.
+
+    Type suffix prefixes (for the combination of the two) are handled by passing type suffix accesses down when traversing the prefix trie.
+
+    Race checking happens at each trie node with the above three access sets at hand using {!Access.group_may_race}.
+    All necessary combinations between the four classes are handled, but unnecessary repeated work is carefully avoided.
+    E.g. accesses which are pairwise checked at some prefix are not re-checked pairwise at a node.
+    Thus, races (with prefixes or type suffixes) are reported for most precise memos with actual accesses:
+    at the longest prefix and longest type suffix.
+
+    Additionally, accesses between prefix and type suffix intersecting at a node are checked.
+    These races are reported at the unique memo at the intersection of the prefix and the type suffix.
+    This requires an implementation hack to still eagerly do outer distribution, but only of empty access sets.
+    It ensures that corresponding trie nodes exist for traversal later. *)
+
+(** Example structure of related memos for race checking:
+    {v
+     (int)   (S)     (T)
+        \   /   \   /   \
+          f       s       t
+            \   /   \   /
+              f       s
+                \   /
+                  f
+    v}
+    where:
+    - [(int)] is a type-based memo root for the primitive [int] type;
+    - [(S)] and [(T)] are short for [(struct S)] and [(struct T)], which are type-based memo roots;
+    - [f] is a field of [S] and [s] is a field of [T];
+    - [t] is a global variable of type [T].
+    - prefix relations are indicated by [/];
+    - type suffix relations are indicated by [\ ].
+
+    Prefix races:
+    - Race between [t.s.f] and [t.s] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [t] is checked/reported at [t.s.f].
+    - Race between [t.s] and [t] is checked/reported at [t.s].
+    - Race between [t] and [t] is checked/reported at [t].
+    - Race between [(S).f] and [(S)] is checked/reported at [(S).f].
+
+    Type suffix races:
+    - Race between [t.s.f] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(int)] is checked/reported at [t.s.f].
+    - Race between [(S).f] and [(int)] is checked/reported at [(S).f].
+
+    Type suffix prefix races:
+    - Race between [t.s.f] and [(T).s] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(T)] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(S)] is checked/reported at [t.s.f].
+    - Race between [(T).s.f] and [(S)] is checked/reported at [(T).s.f].
+
+    Prefix-type suffix races:
+    - Race between [(T).s] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [t] and [(S).f] is checked/reported at [t.s.f]. *)
+
 
 (** Data race analyzer without base --- this is the new standard *)
 module Spec =
