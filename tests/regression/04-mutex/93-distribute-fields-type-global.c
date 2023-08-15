@@ -1,4 +1,3 @@
-//PARAM: --enable ana.race.direct-arithmetic
 #include <pthread.h>
 #include <stdio.h>
 

@@ -1,11 +1,10 @@
-//PARAM: --enable ana.race.direct-arithmetic
 #include <pthread.h>
 #include <stdio.h>
 
 // (int)   (S)     (T)     (U)
-//    \   /   \   /   \   / 
+//    \   /   \   /   \   /
 //      f       s       t
-//        \   /   \   /  
+//        \   /   \   /
 //         >f<      s
 //            \   /
 //             >f<
