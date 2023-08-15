@@ -414,7 +414,11 @@ let group_may_race (warn_accs:WarnAccs.t) =
   if M.tracing then M.tracei "access" "group_may_race %a\n" WarnAccs.pretty warn_accs;
   (* BFS to traverse one component with may_race edges *)
   let rec bfs' warn_accs ~todo ~visited =
-    let may_race_accs ~accs ~todo = (* TODO: rename to from-to *)
+    let warn_accs' = WarnAccs.diff warn_accs todo in
+    let todo_all = WarnAccs.union_all todo in
+    let visited' = AS.union visited todo_all in
+
+    let step_may_race ~todo ~accs = (* step from todo to accs if may_race *)
       AS.fold (fun acc todo' ->
           AS.fold (fun acc' todo' ->
               if may_race acc acc' then
@@ -424,16 +428,28 @@ let group_may_race (warn_accs:WarnAccs.t) =
             ) accs todo'
         ) todo (AS.empty ())
     in
-    let warn_accs' = WarnAccs.diff warn_accs todo in
-    let todo_all = WarnAccs.union_all todo in
-    let visited' = AS.union visited todo_all in
+    (* Undirected graph of may_race checks:
+
+                type_suffix_prefix
+                        |
+                        |
+          type_suffix --+-- prefix
+                     \  |  /
+                      \ | /
+                       node
+                       / \
+                       \_/
+
+       Each undirected edge is handled by two opposite step_may_race-s.
+       All missing edges are checked at other nodes by other group_may_race calls. *)
     let todo' : WarnAccs.t = {
-      node = may_race_accs ~accs:warn_accs'.node ~todo:todo_all;
-      prefix = may_race_accs ~accs:warn_accs'.prefix ~todo:(AS.union todo.node todo.type_suffix);
-      type_suffix = may_race_accs ~accs:warn_accs'.type_suffix ~todo:(AS.union todo.node todo.prefix);
-      type_suffix_prefix = may_race_accs ~accs:warn_accs'.type_suffix_prefix ~todo:todo.node
+      node = step_may_race ~todo:todo_all ~accs:warn_accs'.node;
+      prefix = step_may_race ~todo:(AS.union todo.node todo.type_suffix) ~accs:warn_accs'.prefix;
+      type_suffix = step_may_race ~todo:(AS.union todo.node todo.prefix) ~accs:warn_accs'.type_suffix;
+      type_suffix_prefix = step_may_race ~todo:todo.node ~accs:warn_accs'.type_suffix_prefix
     } 
     in
+
     if WarnAccs.is_empty todo' then
       (warn_accs', visited')
     else
