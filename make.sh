@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-variants.4.14.0+options ocaml-option-flambda --locked
+  opam switch -y create . --deps-only ocaml-variants.5.0.0+options ocaml-option-flambda --locked
 }
 
 rule() {

@@ -18,7 +18,8 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda
+          - 5.0.x
           - 4.14.x
           - 4.13.x
           - 4.12.x
@@ -31,10 +32,10 @@ jobs:
 
         include:
           - os: ubuntu-latest
-            ocaml-compiler: 4.14.x
+            ocaml-compiler: 5.0.x
             z3: true
           - os: ubuntu-latest
-            ocaml-compiler: 5.0.0
+            ocaml-compiler: 5.0.x
             apron: false
 
     # customize name to use readable string for apron instead of just a boolean
@@ -120,7 +121,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file, downgrade deps step
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda # matches opam lock file, downgrade deps step
 
     name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
 
@@ -155,7 +156,7 @@ jobs:
 
       - name: Downgrade dependencies
         # must specify ocaml-base-compiler again to prevent it from being downgraded
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda)
+        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.5.0.0+options ocaml-option-flambda)
 
       - name: Build
         run: ./make.sh nat
@@ -240,7 +241,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda # matches opam lock file
 
     runs-on: ${{ matrix.os }}
 
