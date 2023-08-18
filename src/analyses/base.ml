@@ -2016,7 +2016,7 @@ struct
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
       else if (Q.LS.exists (fun (v, _) -> not (ctx.ask (Q.IsHeapVar v))) points_to_set) || (AD.mem Addr.UnknownPtr a) then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
-      else if Q.LS.exists (fun (_, o) -> o <> `NoOffset) points_to_set then
+      else if Q.LS.exists (fun (_, o) -> Offset.Exp.cmp_zero_offset o <> `MustZero) points_to_set then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
