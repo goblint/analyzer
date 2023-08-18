@@ -53,6 +53,7 @@ for ml_path in src_root_path.glob("**/*.ml"):
 
     src_modules.add(module_name)
 
-if len(src_modules) > 0:
-    print(f"Modules missing from {goblint_lib_path}: {src_modules - goblint_lib_modules}")
+missing_modules = src_modules - goblint_lib_modules
+if len(missing_modules) > 0:
+    print(f"Modules missing from {goblint_lib_path}: {missing_modules}")
     sys.exit(1)
