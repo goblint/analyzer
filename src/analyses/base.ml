@@ -138,6 +138,11 @@ struct
   let project ask p_opt cpa fundec =
     CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
+  let has_offset = function
+    | `NoOffset -> false
+    | `Field _
+    | `Index _ -> true
+
 
   (**************************************************************************
    * Initializing my variables
@@ -1262,11 +1267,6 @@ struct
         match p with
         | Address a ->
           let s = addrToLvalSet a in
-          let has_offset = function
-            | `NoOffset -> false
-            | `Field _
-            | `Index _ -> true
-          in
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || has_offset o) s then
             Queries.Result.bot q
@@ -2014,11 +2014,6 @@ struct
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
-    let has_offset = function
-      | `NoOffset -> false
-      | `Field _
-      | `Index _ -> true
-    in
     match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
       let points_to_set = addrToLvalSet a in
