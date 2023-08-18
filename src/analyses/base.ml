@@ -2013,14 +2013,21 @@ struct
     let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs in
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
-  let check_free_of_non_heap_mem ctx special_fn ptr =
+  let check_invalid_mem_dealloc ctx special_fn ptr =
+    let has_offset = function
+      | `NoOffset -> false
+      | `Field _
+      | `Index _ -> true
+    in
     match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
       let points_to_set = addrToLvalSet a in
       if Q.LS.is_top points_to_set then
-        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potential free of non-dynamically allocated memory may occur" d_exp ptr special_fn.vname
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
       else if (Q.LS.exists (fun (v, _) -> not (ctx.ask (Q.IsHeapVar v))) points_to_set) || (AD.mem Addr.UnknownPtr a) then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
+      else if Q.LS.exists (fun (_, o) -> has_offset o) points_to_set then
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
@@ -2304,7 +2311,7 @@ struct
       end
     | Realloc { ptr = p; size }, _ ->
       (* Realloc shouldn't be passed non-dynamically allocated memory *)
-      check_free_of_non_heap_mem ctx f p;
+      check_invalid_mem_dealloc ctx f p;
       begin match lv with
         | Some lv ->
           let ask = Analyses.ask_of_ctx ctx in
@@ -2338,7 +2345,7 @@ struct
       end
     | Free ptr, _ ->
       (* Free shouldn't be passed non-dynamically allocated memory *)
-      check_free_of_non_heap_mem ctx f ptr;
+      check_invalid_mem_dealloc ctx f ptr;
       st
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
