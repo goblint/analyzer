@@ -138,11 +138,6 @@ struct
   let project ask p_opt cpa fundec =
     CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
-  let has_offset = function
-    | `NoOffset -> false
-    | `Field _
-    | `Index _ -> true
-
 
   (**************************************************************************
    * Initializing my variables
@@ -1268,7 +1263,7 @@ struct
         | Address a ->
           let s = addrToLvalSet a in
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || has_offset o) s then
+          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset) s then
             Queries.Result.bot q
           else (
             let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
@@ -2021,7 +2016,7 @@ struct
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
       else if (Q.LS.exists (fun (v, _) -> not (ctx.ask (Q.IsHeapVar v))) points_to_set) || (AD.mem Addr.UnknownPtr a) then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
-      else if Q.LS.exists (fun (_, o) -> has_offset o) points_to_set then
+      else if Q.LS.exists (fun (_, o) -> o <> `NoOffset) points_to_set then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
