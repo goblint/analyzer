@@ -1,5 +1,6 @@
-(* Analysis that tracks which variables hold the results of calls to math library functions.
-   For each equivalence a set of expressions is tracked, that contains the arguments of the corresponding call as well as the Lval it is assigned to, so an equivalence can be removed if one of these expressions may be changed.*)
+(** Analysis that tracks which variables hold the results of calls to math library functions ([tmpSpecial]). *)
+
+(** For each equivalence a set of expressions is tracked, that contains the arguments of the corresponding call as well as the Lval it is assigned to, so an equivalence can be removed if one of these expressions may be changed. *)
 
 module VarEq = VarEq.Spec
 
@@ -69,7 +70,7 @@ struct
         (* actually it would be necessary to check here, if one of the arguments is written by the call. However this is not the case for any of the math functions and no other functions are covered so far *)
         if List.exists (fun arg -> VarEq.may_change ask (mkAddrOf lv) arg) arglist then
           d
-        else 
+        else
           D.add (v, Offset.Exp.of_cil offs) ((ML.lift fun_args, Deps.of_list ((Lval lv)::arglist))) d
       | _ -> d
 
