@@ -3,27 +3,21 @@ open Analyses
 open MessageCategory
 
 module AS = AnalysisState
+module VDQ = ValueDomainQueries
 
 module Spec =
 struct
   include Analyses.IdentitySpec
 
   module D = Lattice.Unit
-  module C = Lattice.Unit
+  module C = D
 
-  (* TODO: Do this later *)
+  (* TODO: Check out later for benchmarking *)
   let context _ _ = ()
 
   let name () = "memOutOfBounds"
 
   (* HELPER FUNCTIONS *)
-
-
-  (* A safe way to call [cilint_to_int] without having to worry about exceptions *)
-  let cilint_to_int_wrapper i =
-    try
-      Some (cilint_to_int i)
-    with _ -> None
 
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
@@ -59,128 +53,57 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-  let lval_is_ptr_var (lval:lval) =
-    let (host, _) = lval in
-    match host with
-    | Var v -> isPointerType v.vtype
-    (* Intuition: If the lval has a Mem host, then it's not a direct ptr which is what we're looking for here *)
-    | Mem e -> false
-
-  let exp_points_to_heap ctx (exp:exp) =
-    match ctx.ask (Queries.MayPointTo exp) with
+  let points_to_heap_only ctx ptr =
+    match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      Queries.LS.elements a
-      |> List.map fst
-      |> List.exists (fun x -> ctx.ask (Queries.IsHeapVar x))
-    | _ -> false (* TODO: Is this sound? Maybe not quite. *)
+      Queries.LS.for_all (fun (v, _) -> ctx.ask (Queries.IsHeapVar v)) a
+    | _ -> false
 
-  let get_size_for_heap_ptr ctx (exp:exp) =
-    (* TODO:
-        BlobSize always seems to respond with top when it's passed an Lval exp of a ptr var which in turn contains mem allocated via malloc.
-        Am I doing smth wrong here?
-    *)
-    match ctx.ask (Queries.BlobSize exp) with
-    | a when not (Queries.ID.is_top a) ->
-      begin match Queries.ID.to_int a with
-        | Some i -> Some (IntOps.BigIntOps.to_int i)
-        | None -> None
-      end
-    | _ -> None
-
-  (* TODO: Here we assume that the given exp is a Lval exp *)
-  let get_size_for_stack_ptr ctx (exp:exp) =
-    match exp with
-    | Lval lval ->
-      if lval_is_ptr_var lval then
-        let (host, _) = lval in
-        begin match host with
-          | Var v ->
-            begin match sizeOf v.vtype with
-              | Const (CInt (i, _, _)) -> cilint_to_int_wrapper i
-              | _ -> None
-            end
-          | _ -> None
+  let get_size_of_ptr_target ctx ptr =
+    (* Call Queries.BlobSize only if ptr points solely to the heap. Otherwise we get bot *)
+    if points_to_heap_only ctx ptr then
+      ctx.ask (Queries.BlobSize ptr)
+    else
+      match ctx.ask (Queries.MayPointTo ptr) with
+      | a when not (Queries.LS.is_top a) ->
+        let pts_list = Queries.LS.elements a in
+        let pts_elems_to_sizes (v, _) =
+          if isArrayType v.vtype then
+            ctx.ask (Queries.EvalLength ptr)
+          else
+            let var_type_size = match Cil.getInteger (sizeOf v.vtype) with
+              | Some z ->
+                let ikindOfTypeSize = intKindForValue z true in
+                VDQ.ID.of_int ikindOfTypeSize z
+              | None -> VDQ.ID.bot ()
+            in
+            var_type_size
+        in
+        (* Map each points-to-set element to its size *)
+        let pts_sizes = List.map pts_elems_to_sizes pts_list in
+        (* Take the smallest of all sizes that ptr's contents may have *)
+        begin match pts_sizes with
+          | [] -> VDQ.ID.bot ()
+          | [x] -> x
+          | x::xs -> List.fold_left (fun acc elem ->
+              if VDQ.ID.compare acc elem >= 0 then elem else acc
+            ) x xs
         end
-      else None
-    | _ -> None
+      | _ ->
+        M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+        VDQ.ID.top ()
 
-  let get_ptr_size_for_exp ctx (exp:exp) =
-    match exp_points_to_heap ctx exp with
-    (* We're dealing with a ptr that points to the heap *)
-    | true -> get_size_for_heap_ptr ctx exp
-    (* Assumption here is that if it doesn't point to the heap, then it points to the stack *)
-    | false -> get_size_for_stack_ptr ctx exp
+  let eval_ptr_offset_in_binop ctx exp =
+    ctx.ask (Queries.EvalInt exp)
 
-  (**
-    * If we get [None], then the offset's size/value is unknown
-    * In the case [NoOffset], [Some 0] indicates that this offset type simply has value 0
-  *)
-  let rec get_offset_size = function
-    | NoOffset -> Some 0
-    | Index (e, o) ->
-      let exp_val = begin match constFold true e with
-        | Const (CInt (i, _, _)) -> cilint_to_int_wrapper i
-        | _ -> None
-      end
-      in
-      begin match exp_val, get_offset_size o with
-        | Some ei, Some oi -> Some (ei + oi)
-        | _, _ -> None
-      end
-    | Field (f, o) ->
-      begin match get_offset_size o, sizeOf f.ftype with
-        | Some oi, Const (CInt (i, _, _)) ->
-          begin match cilint_to_int_wrapper i with
-            | Some i -> Some (oi + i)
-            | None -> None
-          end
-        | _, _ -> None
-      end
+  let rec check_lval_for_oob_access ctx lval =
+    if not @@ lval_contains_a_ptr lval then ()
+    else
+      match lval with
+      | Var _, _ -> ()
+      | Mem e, _ -> check_exp_for_oob_access ctx e
 
-  let rec check_lval_for_oob_access ctx (lval:lval) =
-    let undefined_behavior = Undefined MemoryOutOfBoundsAccess in
-    let cwe_number = 823 in
-    match lval_contains_a_ptr lval with
-    | false -> () (* Nothing to do here *)
-    | true ->
-      let (host, offset) = lval in
-      match host, get_offset_size offset with
-      | _, None ->
-        AS.svcomp_may_invalid_deref := true;
-        M.warn ~category:(Behavior undefined_behavior) "Offset size for lval %a not known. A memory out-of-bounds access may occur" CilType.Lval.pretty lval
-      | Var v, Some oi ->
-        begin match sizeOf v.vtype with
-          | Const (CInt (i, _, _)) ->
-            begin match cilint_to_int_wrapper i with
-              | Some i ->
-                if  i < oi then
-                  AS.svcomp_may_invalid_deref := true;
-                  M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Offset bigger than var type's size for lval %a. A memory out-of-bounds access must occur" CilType.Lval.pretty lval
-              | _ ->
-                AS.svcomp_may_invalid_deref := true;
-                M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
-            end
-          | _ ->
-            AS.svcomp_may_invalid_deref := true;
-            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Unknown size of var %a for lval %a. A memory out-of-bounds access might occur" CilType.Varinfo.pretty v CilType.Lval.pretty lval
-        end
-      | Mem e, Some oi ->
-        check_exp_for_oob_access ctx e;
-        (* TODO:
-          * Not sure if we actually need these checks below.
-          * They never seem to apply
-          * I.e., for ptrs, it always seems to be the case that we have a binop which adds the offset to the ptr
-            instead of having the offset represented as an offset of the lval
-          * For this reason, the checks below are currently commented out
-        *)
-        (* begin match get_ptr_size_for_exp ctx e with
-            | Some ei ->
-            if ei < oi then
-              M.warn "Offset bigger than size of pointer memory, denoted by expression %a in lval %a" d_exp e CilType.Lval.pretty lval
-            | _ -> M.warn "Unknown size of pointer memory, denoted by exp %a for lval %a" d_exp e CilType.Lval.pretty lval
-            end *)
-
-  and check_exp_for_oob_access ctx (exp:exp) =
+  and check_exp_for_oob_access ctx exp =
     match exp with
     | Const _
     | SizeOf _
@@ -193,8 +116,8 @@ struct
     | AlignOfE e
     | UnOp (_, e, _)
     | CastE (_, e) -> check_exp_for_oob_access ctx e
-    | BinOp (bop, e1, e2, _) ->
-      check_binop_exp ctx bop e1 e2;
+    | BinOp (bop, e1, e2, t) ->
+      check_binop_exp ctx bop e1 e2 t;
       check_exp_for_oob_access ctx e1;
       check_exp_for_oob_access ctx e2
     | Question (e1, e2, e3, _) ->
@@ -205,33 +128,30 @@ struct
     | StartOf lval
     | AddrOf lval -> check_lval_for_oob_access ctx lval
 
-  and check_binop_exp ctx (binop:binop) (e1:exp) (e2:exp) =
-    let undefined_behavior = Undefined MemoryOutOfBoundsAccess in
+  and check_binop_exp ctx binop e1 e2 t =
+    let binopexp = BinOp (binop, e1, e2, t) in
+    let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
     match binop with
     | PlusPI
     | IndexPI
     | MinusPI ->
-      let ptr_size = get_ptr_size_for_exp ctx e1 in
-      let offset_size = eval_ptr_offset_in_binop e2 in
-      begin match ptr_size, offset_size with
-        | Some pi, Some oi ->
-          if pi < oi then
+      let ptr_size = get_size_of_ptr_target ctx e1 in
+      let offset_size = eval_ptr_offset_in_binop ctx e2 in
+      begin match VDQ.ID.is_top ptr_size, VDQ.ID.is_top offset_size with
+        | true, _ ->
+          AS.svcomp_may_invalid_deref := true;
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer (%a) size in expression %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp binopexp
+        | _, true ->
+          AS.svcomp_may_invalid_deref := true;
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a not known. Memory out-of-bounds access might occur" d_exp binopexp
+        | false, false ->
+          if ptr_size < offset_size then begin
             AS.svcomp_may_invalid_deref := true;
-            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Pointer size in expression %a %a %a is smaller than offset for pointer arithmetic. Memory out-of-bounds access must occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | None, _ ->
-          AS.svcomp_may_invalid_deref := true;
-          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Pointer (%a) size in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp e1 CilType.Binop.pretty binop d_exp e2
-        | _, None ->
-          AS.svcomp_may_invalid_deref := true;
-          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a %a %a not known. Memory out-of-bounds access might occur" d_exp e1 CilType.Binop.pretty binop d_exp e2
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer size (%a) in expression %a is smaller than offset (%a) for pointer arithmetic. Memory out-of-bounds access must occur" VDQ.ID.pretty ptr_size d_exp binopexp VDQ.ID.pretty offset_size
+          end
       end
     | _ -> ()
-
-  and eval_ptr_offset_in_binop (exp:exp) =
-    match constFold true exp with
-    | Const (CInt (i, _, _)) -> cilint_to_int_wrapper i
-    | _ -> None (* TODO: Maybe try to also Eval the exp via Queries and not rely only on constFold *)
 
 
   (* TRANSFER FUNCTIONS *)
