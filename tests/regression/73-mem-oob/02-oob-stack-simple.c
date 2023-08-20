@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval
 #include <stdlib.h>
 
 int main(int argc, char const *argv[]) {
