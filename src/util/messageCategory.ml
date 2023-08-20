@@ -14,6 +14,7 @@ type undefined_behavior =
   | MemoryOutOfBoundsAccess
   | DoubleFree
   | InvalidMemoryDeallocation
+  | MemoryLeak
   | Uninitialized
   | DoubleLocking
   | Other
@@ -69,6 +70,7 @@ struct
     let memory_out_of_bounds_access: category = create @@ MemoryOutOfBoundsAccess
     let double_free: category = create @@ DoubleFree
     let invalid_memory_deallocation: category = create @@ InvalidMemoryDeallocation
+    let memory_leak: category = create @@ MemoryLeak
     let uninitialized: category = create @@ Uninitialized
     let double_locking: category = create @@ DoubleLocking
     let other: category = create @@ Other
@@ -121,6 +123,7 @@ struct
       | MemoryOutOfBoundsAccess -> ["MemoryOutOfBoundsAccess"]
       | DoubleFree -> ["DoubleFree"]
       | InvalidMemoryDeallocation -> ["InvalidMemoryDeallocation"]
+      | MemoryLeak -> ["MemoryLeak"]
       | Uninitialized -> ["Uninitialized"]
       | DoubleLocking -> ["DoubleLocking"]
       | Other -> ["Other"]
@@ -233,6 +236,7 @@ let behaviorName = function
     |MemoryOutOfBoundsAccess -> "MemoryOutOfBoundsAccess"
     |DoubleFree -> "DoubleFree"
     |InvalidMemoryDeallocation -> "InvalidMemoryDeallocation"
+    |MemoryLeak -> "MemoryLeak"
     |Uninitialized -> "Uninitialized"
     |DoubleLocking -> "DoubleLocking"
     |Other -> "Other"

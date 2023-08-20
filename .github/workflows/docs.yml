@@ -32,6 +32,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Check for undocumented modules
+        run: python scripts/goblint-lib-modules.py
+
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
           # otherwise setup-ocaml pins non-locked dependencies
