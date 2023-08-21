@@ -41,7 +41,20 @@ open Analyses
     This requires an implementation hack to still eagerly do outer distribution, but only of empty access sets.
     It ensures that corresponding trie nodes exist for traversal later. *)
 
-(** Example structure of related memos for race checking:
+(** Given C declarations:
+    {@c[
+    struct S {
+      int f;
+    };
+
+    struct T {
+      struct S s;
+    };
+
+    struct T t;
+    ]}
+
+    Example structure of related memos for race checking:
     {v
      (int)   (S)     (T)
         \   /   \   /   \
@@ -54,9 +67,7 @@ open Analyses
     where:
     - [(int)] is a type-based memo root for the primitive [int] type;
     - [(S)] and [(T)] are short for [(struct S)] and [(struct T)], which are type-based memo roots;
-    - [f] is a field of [S] and [s] is a field of [T];
-    - [t] is a global variable of type [T].
-    - prefix relations are indicated by [/];
+    - prefix relations are indicated by [/], so access paths run diagonally from top-right to bottom-left;
     - type suffix relations are indicated by [\ ].
 
     Prefix races:
