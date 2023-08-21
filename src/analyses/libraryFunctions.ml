@@ -346,8 +346,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
     ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
-    ("pthread_setaffinity_np", unknown [drop "thread" [w]; drop "cpusetsize" []; drop "cpuset" [r; w]]);
-    ("pthread_getaffinity_np", unknown [drop "thread" [w]; drop "cpusetsize" []; drop "cpuset" [r; w]]);
+    ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
+    ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
   ]
 
 (** GCC builtin functions.
