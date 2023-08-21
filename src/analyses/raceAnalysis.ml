@@ -3,7 +3,7 @@
 open GoblintCil
 open Analyses
 
-(** Data race analysis with tries and hookers.
+(** Data race analysis with tries for offsets and type-based memory locations for open code.
 
     Accesses are to memory locations ({{!Access.Memo} memos}) which consist of a root and offset.
     {{!Access.MemoRoot} Root} can be:
