@@ -118,7 +118,6 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
-    ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
   ]
 
 (** C POSIX library functions.
@@ -281,6 +280,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
     ("sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env });
     ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
   ]
 
 (** Pthread functions. *)
