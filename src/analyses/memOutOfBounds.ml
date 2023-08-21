@@ -174,9 +174,12 @@ struct
     List.iter (fun arg -> check_exp_for_oob_access ctx arg) arglist;
     ctx.local
 
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    List.iter (fun arg -> check_exp_for_oob_access ctx arg) args;
+    [ctx.local, ctx.local]
+
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
     Option.iter (fun x -> check_lval_for_oob_access ctx x) lval;
-    List.iter (fun arg -> check_exp_for_oob_access ctx arg) args;
     ctx.local
 
   let startstate v = ()
