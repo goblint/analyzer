@@ -241,6 +241,7 @@ struct
     match root, offset with
     | `Var v, _ -> Some (`Type (Cil.typeSig v.vtype), offset) (* global.foo.bar -> (struct S).foo.bar *) (* TODO: Alloc variables void type *)
     | _, `NoOffset -> None (* primitive type *)
+    (* TODO: should handle ana.race.direct-arithmetic special case here? *)
     | _, `Field (f, offset') -> Some (`Type (Cil.typeSig f.ftype), offset') (* (struct S).foo.bar -> (struct T).bar *)
     | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset') (* (int[])[*] -> int *)
     | _, `Index ((), offset') -> None (* TODO: why indexing on non-array? *)
