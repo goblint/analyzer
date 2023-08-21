@@ -1,3 +1,5 @@
+(** Abstract domains for C arrays. *)
+
 open IntOps
 open GoblintCil
 module VDQ = ValueDomainQueries

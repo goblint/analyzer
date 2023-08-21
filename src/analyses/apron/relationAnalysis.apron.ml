@@ -1,3 +1,7 @@
+(** Abstract relational {e integer} value analysis.
+
+    See {!ApronAnalysis} and {!AffineEqualityAnalysis}. *)
+
 (** Contains most of the implementation of the original apronDomain, but now solely operates with functions provided by relationDomain. *)
 
 open Batteries
@@ -21,6 +25,12 @@ struct
     include Priv.V
     include StdV
   end
+  module P =
+  struct
+    include Priv.P
+
+    let of_elt {priv; _} = of_elt priv
+  end
 
   module RV = RD.V
 
@@ -28,8 +38,6 @@ struct
 
   (* Result map used for comparison of results for relational traces paper. *)
   let results = PCU.RH.create 103
-
-  let should_join = Priv.should_join
 
   let context fd x =
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
@@ -155,7 +163,7 @@ struct
          st
        | `Lifted s ->
          let lvals = Queries.LS.elements r in
-         let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Lval.CilLval.to_lval lv) f) lvals in
+         let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Mval.Exp.to_cil lv) f) lvals in
          List.fold_right D.join ass' (D.bot ())
       )
     (* Ignoring all other assigns *)
@@ -211,8 +219,7 @@ struct
       | Lval (Mem e, NoOffset) ->
         (match ask (Queries.MayPointTo e) with
          | a when not (Queries.LS.is_top a || Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) && (Queries.LS.cardinal a) = 1 ->
-           let lval = Lval.CilLval.to_lval (Queries.LS.choose a) in
-           Lval lval
+           Mval.Exp.to_cil_exp (Queries.LS.choose a)
          (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
          (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
          | _ -> Lval (Mem e, NoOffset))
@@ -273,12 +280,9 @@ struct
     | None -> true
     | Some v -> any_local_reachable
 
-  let enter ctx r f args =
+  let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    if M.tracing then M.tracel "combine" "relation enter f: %a\n" CilType.Varinfo.pretty f.svar;
-    if M.tracing then M.tracel "combine" "relation enter formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
-    if M.tracing then M.tracel "combine" "relation enter local: %a\n" D.pretty ctx.local;
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
@@ -289,12 +293,16 @@ struct
     let new_rel = RD.add_vars st.rel arg_vars in
     (* RD.assign_exp_parallel_with new_rel arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
-    let ask = Analyses.ask_of_ctx ctx in
-    let new_rel = List.fold_left (fun new_rel (var, e) ->
-        assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
-            RD.assign_exp rel' var e' (no_overflow ask e)
-          )
-      ) new_rel arg_assigns
+    let new_rel =
+      if thread then
+        new_rel
+      else
+        let ask = Analyses.ask_of_ctx ctx in
+        List.fold_left (fun new_rel (var, e) ->
+            assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
+                RD.assign_exp rel' var e' (no_overflow ask e)
+              )
+          ) new_rel arg_assigns
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
@@ -304,7 +312,11 @@ struct
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
-    [st, {st with rel = new_rel}]
+    new_rel
+
+  let enter ctx r f args =
+    let calle_rel = make_callee_rel ~thread:false ctx f args in
+    [ctx.local, {ctx.local with rel = calle_rel}]
 
   let body ctx f =
     let st = ctx.local in
@@ -446,7 +458,7 @@ struct
         |> List.map Cil.var
       | Some rs ->
         Queries.LS.elements rs
-        |> List.map Lval.CilLval.to_lval
+        |> List.map Mval.Exp.to_cil
     in
     List.fold_left (fun st lval ->
         invalidate_one ask ctx st lval
@@ -495,12 +507,18 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true ask ctx.global id st
+    | Rand, _ ->
+      (match r with
+       | Some lv ->
+         let st = invalidate_one ask ctx st lv in
+         assert_fn {ctx with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
+       | None -> st)
     | _, _ ->
       let lvallist e =
         let s = ask.f (Queries.MayPointTo e) in
         match s with
         | `Top -> []
-        | `Lifted _ -> List.map (Lval.CilLval.to_lval) (Queries.LS.elements s)
+        | `Lifted _ -> List.map Mval.Exp.to_cil (Queries.LS.elements s)
       in
       let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
       let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
@@ -620,12 +638,7 @@ struct
       if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
-      let arg_vars =
-        fd.sformals
-        |> List.filter RD.Tracked.varinfo_tracked
-        |> List.map RV.arg
-      in
-      let new_rel = RD.add_vars st'.rel arg_vars in
+      let new_rel = make_callee_rel ~thread:true ctx fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
       (* Unknown functions *)

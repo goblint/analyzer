@@ -1,4 +1,4 @@
-(** Signatures for analyzers, analysis specifications, and result output.  *)
+(** {{!Spec} Analysis specification} and {{!MonSystem} constraint system} signatures. *)
 
 open Batteries
 open GoblintCil
@@ -217,8 +217,12 @@ struct
     in
     let one_w f (m: Messages.Message.t) = match m.multipiece with
       | Single piece  -> one_text f piece
-      | Group {group_text = n; pieces = e} ->
-        BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
+      | Group {group_text = n; pieces = e; group_loc} ->
+        let group_loc_text = match group_loc with
+          | None -> ""
+          | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
+        in
+        BatPrintf.fprintf f "<group name=\"%s%s\">%a</group>\n" n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
     List.iter (one_w f) !Messages.Table.messages_list
@@ -357,6 +361,7 @@ sig
   module G : Lattice.S
   module C : Printable.S
   module V: SpecSysVar (** Global constraint variables. *)
+  module P: DisjointDomain.Representative with type elt := D.t (** Path-representative. *)
 
   val name : unit -> string
 
@@ -378,21 +383,46 @@ sig
   val morphstate : varinfo -> D.t -> D.t
   val exitstate  : varinfo -> D.t
 
-  val should_join : D.t -> D.t -> bool
   val context : fundec -> D.t -> C.t
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
+
+  (** A transfer function which handles the assignment of a rval to a lval, i.e.,
+      it handles program points of the form "lval = rval;" *)
   val assign: (D.t, G.t, C.t, V.t) ctx -> lval -> exp -> D.t
+
+  (** A transfer function used for declaring local variables.
+      By default only for variable-length arrays (VLAs). *)
   val vdecl : (D.t, G.t, C.t, V.t) ctx -> varinfo -> D.t
+
+  (** A transfer function which handles conditional branching yielding the
+      truth value passed as a boolean argument *)
   val branch: (D.t, G.t, C.t, V.t) ctx -> exp -> bool -> D.t
+
+  (** A transfer function which handles going from the start node of a function (fundec) into
+      its function body. Meant to handle, e.g., initialization of local variables *)
   val body  : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t
+
+  (** A transfer function which handles the return statement, i.e.,
+      "return exp" or "return" in the passed function (fundec) *)
   val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
+
+  (** A transfer function meant to handle inline assembler program points *)
   val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  (** A transfer function which works as the identity function, i.e., it skips and does nothing.
+      Used for empty loops. *)
   val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
-
+  (** A transfer function which, for a call to a {e special} function f "lval = f(args)" or "f(args)",
+      computes the caller state after the function call *)
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
+
+  (** For a function call "lval = f(args)" or "f(args)",
+      [enter] returns a caller state, and the initial state of the callee.
+      In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
+      will compute the caller state after the function call, given the return state of the callee *)
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
 
   (* Combine is split into two steps: *)
@@ -584,23 +614,30 @@ struct
   let should_print _ = false
 end
 
+module UnitP =
+struct
+  include Printable.Unit
+  let of_elt _ = ()
+end
+
+module IdentityP (D: Lattice.S) =
+struct
+  include D
+  let of_elt x = x
+end
 
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
   module G = Lattice.Unit
   module V = EmptyV
+  module P = UnitP
 
   type marshal = unit
   let init _ = ()
   let finalize () = ()
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)
-
-  let should_join _ _ = true
-  (* hint for path sensitivity --- MCP no longer overrides this so if you want
-    your analysis to be path sensitive, do override this. To obtain a behavior
-    where all paths are kept apart, set this to D.equal x y                    *)
 
   let vdecl ctx _ = ctx.local
 

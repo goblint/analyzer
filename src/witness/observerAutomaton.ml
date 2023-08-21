@@ -1,3 +1,5 @@
+(** Finite automaton for matching an infeasible ARG path. *)
+
 module type S =
 sig
   type q

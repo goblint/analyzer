@@ -1,4 +1,4 @@
-(** Multi-threadedness analysis. *)
+(** Multi-threadedness analysis ([threadflag]). *)
 
 module LF = LibraryFunctions
 
@@ -20,6 +20,7 @@ struct
   module Flag = ThreadFlagDomain.Simple
   module D = Flag
   module C = Flag
+  module P = IdentityP (D)
 
   let name () = "threadflag"
 
@@ -30,8 +31,6 @@ struct
 
   let create_tid v =
     Flag.get_multi ()
-
-  let should_join = D.equal
 
   let return ctx exp fundec  =
     match fundec.svar.vname with

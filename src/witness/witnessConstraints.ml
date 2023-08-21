@@ -1,4 +1,4 @@
-(** An analysis specification for witnesses. *)
+(** Analysis specification transformation for ARG construction. *)
 
 open Batteries
 open Analyses
@@ -40,19 +40,20 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (R: Lattice.S) =
+  module SpecDMap (V: Lattice.S) =
   struct
-    module C =
+    module R =
     struct
+      include Spec.P
       type elt = Spec.D.t
-      let cong = Spec.should_join
     end
-    module J = MapDomain.Joined (Spec.D) (R)
-    include DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
+    module J = MapDomain.Joined (Spec.D) (V)
+    include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
   end
 
   module Dom =
   struct
+    module V = R
     include SpecDMap (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
@@ -60,7 +61,7 @@ struct
     let printXml f x =
       let print_one x r =
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
-        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x V.printXml r
       in
       iter print_one x
 
@@ -94,14 +95,13 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module P = UnitP
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
   type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
-
-  let should_join x y = true
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())

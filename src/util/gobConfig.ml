@@ -1,3 +1,5 @@
+(** Configuration access. *)
+
 (**
    New, untyped, path-based configuration subsystem.
 

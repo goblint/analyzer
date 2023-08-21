@@ -1,3 +1,4 @@
+(** {{!Analyses.MCPA} Memory access metadata module} for MCP. *)
 
 open MCPRegistry
 module Pretty = GoblintCil.Pretty

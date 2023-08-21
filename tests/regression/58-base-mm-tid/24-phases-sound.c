@@ -10,7 +10,7 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 void *t_benign(void *arg) {
   pthread_mutex_lock(&A);
   g = 10;
-  __goblint_check(g == 10); //TODO
+  __goblint_check(g == 10);
   pthread_mutex_unlock(&A);
   return NULL;
 }
@@ -19,7 +19,7 @@ void *t_benign2(void *arg) {
   pthread_mutex_lock(&A);
   __goblint_check(g == 20);
   g = 10;
-  __goblint_check(g == 10); //TODO
+  __goblint_check(g == 10);
   pthread_mutex_unlock(&A);
   return NULL;
 }
@@ -34,8 +34,8 @@ int main(void) {
   g = 20;
   __goblint_check(g == 20);
 
-
-  pthread_create(&id2, NULL, t_benign2, NULL);
+  pthread_t id;
+  pthread_create(&id, NULL, t_benign2, NULL);
 
 
   pthread_mutex_lock(&A);

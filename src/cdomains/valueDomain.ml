@@ -1,11 +1,14 @@
+(** Domain for a single {!Base} analysis value. *)
+
 open GoblintCil
 open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Lval.OffsetLat (IndexDomain)
+module Offs = Offset.MakeLattice (IndexDomain)
 module M = Messages
 module BI = IntOps.BigIntOps
+module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
 module LS = VDQ.LS
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
@@ -27,6 +30,7 @@ sig
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) ->  t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
+  val is_mutex_type: typ -> bool
   val bot_value: ?varAttr:attributes -> typ -> t
   val is_bot_value: t -> bool
   val init_value: ?varAttr:attributes -> typ -> t
@@ -72,36 +76,43 @@ end
 module Threads = ConcDomain.ThreadSet
 module JmpBufs = JmpBufDomain.JmpBufSetTaint
 
-module rec Compound: S with type t = [
-    | `Top
-    | `Int of ID.t
-    | `Float of FD.t
-    | `Address of AD.t
-    | `Struct of Structs.t
-    | `Union of Unions.t
-    | `Array of CArrays.t
-    | `Blob of Blobs.t
-    | `Thread of Threads.t
-    | `JmpBuf of JmpBufs.t
-    | `Mutex
-    | `Bot
-  ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
+module rec Compound: sig
+  type t =
+    | Top
+    | Int of ID.t
+    | Float of FD.t
+    | Address of AD.t
+    | Struct of Structs.t
+    | Union of Unions.t
+    | Array of CArrays.t
+    | Blob of Blobs.t
+    | Thread of Threads.t
+    | JmpBuf of JmpBufs.t
+    | Mutex
+    | MutexAttr of MutexAttrDomain.t
+    | Bot
+  include S with type t := t and type offs = IndexDomain.t Offset.t
+end =
 struct
-  type t = [
-    | `Top
-    | `Int of ID.t
-    | `Float of FD.t
-    | `Address of AD.t
-    | `Struct of Structs.t
-    | `Union of Unions.t
-    | `Array of CArrays.t
-    | `Blob of Blobs.t
-    | `Thread of Threads.t
-    | `JmpBuf of JmpBufs.t
-    | `Mutex
-    | `Bot
-  ] [@@deriving eq, ord, hash]
+  type t =
+    | Top
+    | Int of ID.t
+    | Float of FD.t
+    | Address of AD.t
+    | Struct of Structs.t
+    | Union of Unions.t
+    | Array of CArrays.t
+    | Blob of Blobs.t
+    | Thread of Threads.t
+    | JmpBuf of JmpBufs.t
+    | Mutex
+    | MutexAttr of MutexAttrDomain.t
+    | Bot
+  [@@deriving eq, ord, hash]
 
+  let is_mutexattr_type (t:typ): bool = match t with
+    | TNamed (info, attr) -> info.tname = "pthread_mutexattr_t"
+    | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
     | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
@@ -124,95 +135,101 @@ struct
 
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
-    | _ when is_mutex_type t -> `Mutex
-    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.bot ())
-    | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
-    | TFloat _ -> `Bot
-    | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
-    | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
+    | _ when is_mutex_type t -> Mutex
+    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.bot ())
+    | TInt _ -> Bot (*Int (ID.bot ()) -- should be lower than any int or address*)
+    | TFloat _ -> Bot
+    | TPtr _ -> Address (AD.bot ())
+    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=false; _},_) -> Union (Unions.bot ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let len = array_length_idx (IndexDomain.bot ()) length in
-      `Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
-    | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
-    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.Bufs.empty (), false)
+      Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
+    | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ())
+    | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.bot ())
+    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.Bufs.empty (), false)
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
-    | _ -> `Bot
+    | _ -> Bot
 
   let is_bot_value x =
     match x with
-    | `Int x -> ID.is_bot x
-    | `Float x -> FD.is_bot x
-    | `Address x -> AD.is_bot x
-    | `Struct x -> Structs.is_bot x
-    | `Union x -> Unions.is_bot x
-    | `Array x -> CArrays.is_bot x
-    | `Blob x -> Blobs.is_bot x
-    | `Thread x -> Threads.is_bot x
-    | `JmpBuf x -> JmpBufs.is_bot x
-    | `Mutex -> true
-    | `Bot -> true
-    | `Top -> false
+    | Int x -> ID.is_bot x
+    | Float x -> FD.is_bot x
+    | Address x -> AD.is_bot x
+    | Struct x -> Structs.is_bot x
+    | Union x -> Unions.is_bot x
+    | Array x -> CArrays.is_bot x
+    | Blob x -> Blobs.is_bot x
+    | Thread x -> Threads.is_bot x
+    | JmpBuf x -> JmpBufs.is_bot x
+    | Mutex -> true
+    | MutexAttr x -> MutexAttr.is_bot x
+    | Bot -> true
+    | Top -> false
 
   let rec init_value ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
-    | t when is_mutex_type t -> `Mutex
-    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
-    | TInt (ik,_) -> `Int (ID.top_of ik)
-    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
-    | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
-    | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
+    | t when is_mutex_type t -> Mutex
+    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
+    | TInt (ik,_) -> Int (ID.top_of ik)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
+    | TPtr _ -> Address AD.top_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
       let len = array_length_idx (IndexDomain.bot ()) length in
-      `Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (init_value ai) else (bot_value ai)))
-    (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
+      Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (init_value ai) else (bot_value ai)))
+    (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
-    | _ -> `Top
+    | _ -> Top
 
   let rec top_value ?(varAttr=[]) (t: typ): t =
     match t with
-    | _ when is_mutex_type t -> `Mutex
-    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
-    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
-    | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
-    | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
+    | _ when is_mutex_type t -> Mutex
+    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
+    | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik)))
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
+    | TPtr _ -> Address AD.top_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
       let len = array_length_idx (IndexDomain.top ()) length in
-      `Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai) else (bot_value ai)))
+      Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
-    | _ -> `Top
+    | _ -> Top
 
   let is_top_value x (t: typ) =
     match x with
-    | `Int x -> ID.is_top_of (Cilfacade.get_ikind (t)) x
-    | `Float x -> FD.is_top x
-    | `Address x -> AD.is_top x
-    | `Struct x -> Structs.is_top x
-    | `Union x -> Unions.is_top x
-    | `Array x -> CArrays.is_top x
-    | `Blob x -> Blobs.is_top x
-    | `Thread x -> Threads.is_top x
-    | `JmpBuf x -> JmpBufs.is_top x
-    | `Mutex -> true
-    | `Top -> true
-    | `Bot -> false
+    | Int x -> ID.is_top_of (Cilfacade.get_ikind (t)) x
+    | Float x -> FD.is_top x
+    | Address x -> AD.is_top x
+    | Struct x -> Structs.is_top x
+    | Union x -> Unions.is_top x
+    | Array x -> CArrays.is_top x
+    | Blob x -> Blobs.is_top x
+    | Thread x -> Threads.is_top x
+    | MutexAttr x -> MutexAttr.is_top x
+    | JmpBuf x -> JmpBufs.is_top x
+    | Mutex -> true
+    | Top -> true
+    | Bot -> false
 
   let rec zero_init_value ?(varAttr=[]) (t:typ): t =
     match t with
-    | _ when is_mutex_type t -> `Mutex
-    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
-    | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
-    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind 0.0)
-    | TPtr _ -> `Address AD.null_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
+    | _ when is_mutex_type t -> Mutex
+    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
+    | TInt (ikind, _) -> Int (ID.of_int ikind BI.zero)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_const fkind 0.0)
+    | TPtr _ -> Address AD.null_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _} as ci,_) ->
       let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
@@ -222,72 +239,74 @@ struct
         (* Union with no members ò.O *)
           Failure _ -> Unions.top ()
       in
-      `Union(v)
+      Union(v)
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let len = array_length_idx (IndexDomain.top ()) length in
-      `Array (CArrays.make ~varAttr ~typAttr len (zero_init_value ai))
-    (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
+      Array (CArrays.make ~varAttr ~typAttr len (zero_init_value ai))
+    (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
-    | _ -> `Top
+    | _ -> Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `JmpBuf _ -> "JmpBuf" | `Bot -> "Bot"
+    | Top -> "Top" | Int _ -> "Int" | Float _ -> "Float" | Address _ -> "Address" | Struct _ -> "Struct" | Union _ -> "Union" | Array _ -> "Array" | Blob _ -> "Blob" | Thread _ -> "Thread" | Mutex -> "Mutex" | MutexAttr _ -> "MutexAttr" | JmpBuf _ -> "JmpBuf" | Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
 
-  type offs = (fieldinfo,IndexDomain.t) Lval.offs
+  type offs = IndexDomain.t Offset.t
 
 
-  let bot () = `Bot
-  let is_bot x = x = `Bot
+  let bot () = Bot
+  let is_bot x = x = Bot
   let bot_name = "Uninitialized"
-  let top () = `Top
-  let is_top x = x = `Top
+  let top () = Top
+  let is_top x = x = Top
   let top_name = "Unknown"
 
   let pretty () state =
     match state with
-    | `Int n ->  ID.pretty () n
-    | `Float n ->  FD.pretty () n
-    | `Address n ->  AD.pretty () n
-    | `Struct n ->  Structs.pretty () n
-    | `Union n ->  Unions.pretty () n
-    | `Array n ->  CArrays.pretty () n
-    | `Blob n ->  Blobs.pretty () n
-    | `Thread n -> Threads.pretty () n
-    | `JmpBuf n -> JmpBufs.pretty () n
-    | `Mutex -> text "mutex"
-    | `Bot -> text bot_name
-    | `Top -> text top_name
+    | Int n ->  ID.pretty () n
+    | Float n ->  FD.pretty () n
+    | Address n ->  AD.pretty () n
+    | Struct n ->  Structs.pretty () n
+    | Union n ->  Unions.pretty () n
+    | Array n ->  CArrays.pretty () n
+    | Blob n ->  Blobs.pretty () n
+    | Thread n -> Threads.pretty () n
+    | MutexAttr n -> MutexAttr.pretty () n
+    | JmpBuf n -> JmpBufs.pretty () n
+    | Mutex -> text "mutex"
+    | Bot -> text bot_name
+    | Top -> text top_name
 
   let show state =
     match state with
-    | `Int n ->  ID.show n
-    | `Float n ->  FD.show n
-    | `Address n ->  AD.show n
-    | `Struct n ->  Structs.show n
-    | `Union n ->  Unions.show n
-    | `Array n ->  CArrays.show n
-    | `Blob n ->  Blobs.show n
-    | `Thread n -> Threads.show n
-    | `JmpBuf n -> JmpBufs.show n
-    | `Mutex -> "mutex"
-    | `Bot -> bot_name
-    | `Top -> top_name
+    | Int n ->  ID.show n
+    | Float n ->  FD.show n
+    | Address n ->  AD.show n
+    | Struct n ->  Structs.show n
+    | Union n ->  Unions.show n
+    | Array n ->  CArrays.show n
+    | Blob n ->  Blobs.show n
+    | Thread n -> Threads.show n
+    | JmpBuf n -> JmpBufs.show n
+    | Mutex -> "mutex"
+    | MutexAttr x -> MutexAttr.show x
+    | Bot -> bot_name
+    | Top -> top_name
 
   let pretty_diff () (x,y) =
     match (x,y) with
-    | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
-    | (`Float x, `Float y) -> FD.pretty_diff () (x,y)
-    | (`Address x, `Address y) -> AD.pretty_diff () (x,y)
-    | (`Struct x, `Struct y) -> Structs.pretty_diff () (x,y)
-    | (`Union x, `Union y) -> Unions.pretty_diff () (x,y)
-    | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
-    | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
-    | (`Thread x, `Thread y) -> Threads.pretty_diff () (x, y)
-    | (`JmpBuf x, `JmpBuf y) -> JmpBufs.pretty_diff () (x, y)
+    | (Int x, Int y) -> ID.pretty_diff () (x,y)
+    | (Float x, Float y) -> FD.pretty_diff () (x,y)
+    | (Address x, Address y) -> AD.pretty_diff () (x,y)
+    | (Struct x, Struct y) -> Structs.pretty_diff () (x,y)
+    | (Union x, Union y) -> Unions.pretty_diff () (x,y)
+    | (Array x, Array y) -> CArrays.pretty_diff () (x,y)
+    | (Blob x, Blob y) -> Blobs.pretty_diff () (x,y)
+    | (Thread x, Thread y) -> Threads.pretty_diff () (x, y)
+    | (JmpBuf x, JmpBuf y) -> JmpBufs.pretty_diff () (x, y)
     | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
   (************************************************************
@@ -331,7 +350,7 @@ struct
       | t -> t
     in
     let rec adjust_offs v o d =
-      let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
+      let ta = try Addr.Offs.type_of ~base:v.vtype o with Offset.Type_of_error (t,s) -> raise (CastError s) in
       let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
@@ -344,7 +363,7 @@ struct
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
-        else if Addr.is_zero_offset o then adjust_offs v (Addr.remove_offset o) (Some true)
+        else if Addr.Offs.cmp_zero_offset o = `MustZero then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
@@ -353,14 +372,14 @@ struct
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
               M.tracel "casta" "cast struct to its first field\n";
-              adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
             | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
     let one_addr = let open Addr in function
@@ -391,59 +410,60 @@ struct
    * 2. dereferencing pointers (needed?)
   *)
   let cast ?torg t v =
-    (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
+    (*if v = Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
     match v with
-    | `Bot
-    | `Thread _
-    | `Mutex
-    | `JmpBuf _ ->
+    | Bot
+    | Thread _
+    | Mutex
+    | MutexAttr _
+    | JmpBuf _ ->
       v
     | _ ->
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
       let t = unrollType t in
       let v' = match t with
         | TInt (ik,_) ->
-          `Int (ID.cast_to ?torg ik (match v with
-              | `Int x -> x
-              | `Address x -> AD.to_int (module ID) x
-              | `Float x -> FD.to_int ik x
-              (*| `Struct x when Structs.cardinal x > 0 ->
+          Int (ID.cast_to ?torg ik (match v with
+              | Int x -> x
+              | Address x -> AD.to_int x
+              | Float x -> FD.to_int ik x
+              (*| Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
                 let first = List.hd some.fcomp.cfields in
-                (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
+                (match Structs.get x first with Int x -> x | _ -> raise CastError)*)
               | _ -> log_top __POS__; ID.top_of ik
             ))
         | TFloat (fkind,_) when not (Cilfacade.isComplexFKind fkind) ->
           (match v with
-           |`Int ix ->  `Float (FD.of_int fkind ix)
-           |`Float fx ->  `Float (FD.cast_to fkind fx)
-           | _ -> log_top __POS__; `Top)
-        | TFloat _ -> log_top __POS__; `Top (*ignore complex numbers by going to top*)
+           |Int ix ->  Float (FD.of_int fkind ix)
+           |Float fx ->  Float (FD.cast_to fkind fx)
+           | _ -> log_top __POS__; Top)
+        | TFloat _ -> log_top __POS__; Top (*ignore complex numbers by going to top*)
         | TEnum ({ekind=ik; _},_) ->
-          `Int (ID.cast_to ?torg ik (match v with
-              | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
+          Int (ID.cast_to ?torg ik (match v with
+              | Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
               | _ -> log_top __POS__; ID.top_of ik
             ))
         | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
           (match v with
-          | `Address a -> v
-          | `Int i -> `Int(ID.cast_to ?torg (Cilfacade.ptr_ikind ()) i)
-          | _ -> v (* TODO: Does it make sense to have things here that are neither `Address nor `Int? *)
+           | Address a -> v
+           | Int i -> Int(ID.cast_to ?torg (Cilfacade.ptr_ikind ()) i)
+           | _ -> v (* TODO: Does it make sense to have things here that are neither Address nor Int? *)
           )
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
-          `Address (match v with
-              | `Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
-              | `Int x -> AD.top_ptr
+          Address (match v with
+              | Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
+              | Int x -> AD.top_ptr
               (* we ignore casts to void*! TODO report UB! *)
-              | `Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
-              (*| `Address x -> x*)
+              | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
+              (*| Address x -> x*)
               | _ -> log_top __POS__; AD.top_ptr
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
           (* TODO handle casts between different sizes? *)
-          `Array (match v with
-              | `Array x -> x
+          Array (match v with
+              | Array x -> x
               | _ -> log_top __POS__; CArrays.top ()
             )
         | TComp (ci,_) -> (* struct/union *)
@@ -457,23 +477,23 @@ struct
            * 2. dereferencing a casted pointer works, but is undefined behavior because of the strict aliasing rule (compiler assumes that pointers of different type can never point to the same location)
           *)
           if ci.cstruct then
-            `Struct (match v with
-                | `Struct x when same_struct x -> x
-                | `Struct x when ci.cfields <> [] ->
+            Struct (match v with
+                | Struct x when same_struct x -> x
+                | Struct x when ci.cfields <> [] ->
                   let first = List.hd ci.cfields in
                   Structs.(replace (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci) first (get x first))
                 | _ -> log_top __POS__; Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci
               )
           else
-            `Union (match v with
-                | `Union x (* when same (Unions.keys x) *) -> x
+            Union (match v with
+                | Union x (* when same (Unions.keys x) *) -> x
                 | _ -> log_top __POS__; Unions.top ()
               )
-        (* | _ -> log_top (); `Top *)
-        | TVoid _ -> log_top __POS__; `Top
+        (* | _ -> log_top (); Top *)
+        | TVoid _ -> log_top __POS__; Top
         | TBuiltin_va_list _ ->
           (* cast to __builtin_va_list only happens in preprocessed SV-COMP files where vararg declarations are more explicit *)
-          log_top __POS__; `Top
+          log_top __POS__; Top
         | _ -> log_top __POS__; assert false
       in
       let s_torg = match torg with Some t -> CilType.Typ.show t | None -> "?" in
@@ -486,179 +506,182 @@ struct
 
   let rec leq x y =
     match (x,y) with
-    | (_, `Top) -> true
-    | (`Top, _) -> false
-    | (`Bot, _) -> true
-    | (_, `Bot) -> false
-    | (`Int x, `Int y) -> ID.leq x y
-    | (`Float x, `Float y) -> FD.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
-    | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
-    | (`Address x, `Address y) -> AD.leq x y
-    | (`Struct x, `Struct y) -> Structs.leq x y
-    | (`Union x, `Union y) -> Unions.leq x y
-    | (`Array x, `Array y) -> CArrays.leq x y
-    | (`Blob x, `Blob y) -> Blobs.leq x y
-    | `Blob (x,s,o), y -> leq (x:t) y
-    | x, `Blob (y,s,o) -> leq x (y:t)
-    | (`Thread x, `Thread y) -> Threads.leq x y
-    | (`Int x, `Thread y) -> true
-    | (`Address x, `Thread y) -> true
-    | (`JmpBuf x, `JmpBuf y) -> JmpBufs.leq x y
-    | (`Mutex, `Mutex) -> true
+    | (_, Top) -> true
+    | (Top, _) -> false
+    | (Bot, _) -> true
+    | (_, Bot) -> false
+    | (Int x, Int y) -> ID.leq x y
+    | (Float x, Float y) -> FD.leq x y
+    | (Int x, Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
+    | (Int _, Address y) when AD.may_be_unknown y -> true
+    | (Address _, Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
+    | (Address x, Address y) -> AD.leq x y
+    | (Struct x, Struct y) -> Structs.leq x y
+    | (Union x, Union y) -> Unions.leq x y
+    | (Array x, Array y) -> CArrays.leq x y
+    | (Blob x, Blob y) -> Blobs.leq x y
+    | Blob (x,s,o), y -> leq (x:t) y
+    | x, Blob (y,s,o) -> leq x (y:t)
+    | (Thread x, Thread y) -> Threads.leq x y
+    | (Int x, Thread y) -> true
+    | (Address x, Thread y) -> true
+    | (JmpBuf x, JmpBuf y) -> JmpBufs.leq x y
+    | (Mutex, Mutex) -> true
+    | (MutexAttr x, MutexAttr y) -> MutexAttr.leq x y
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
     match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer ~tags:[Category Imprecise] "%s" m; `Top)
-    | (`Float x, `Float y) -> `Float (FD.join x y)
-    | (`Int x, `Address y)
-    | (`Address y, `Int x) -> `Address (match ID.to_int x with
+    | (Top, _) -> Top
+    | (_, Top) -> Top
+    | (Bot, x) -> x
+    | (x, Bot) -> x
+    | (Int x, Int y) -> (try Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer ~tags:[Category Imprecise] "%s" m; Top)
+    | (Float x, Float y) -> Float (FD.join x y)
+    | (Int x, Address y)
+    | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
         | Some x -> AD.(join y not_null)
         | None -> AD.join y AD.top_ptr)
-    | (`Address x, `Address y) -> `Address (AD.join x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join x y) (* f = g *)
-        | x -> (x, `Top)) (* f <> g *)
-    | (`Array x, `Array y) -> `Array (CArrays.join x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
-    | `Blob (x,s,o), y
-    | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o)
-    | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Thread y (* TODO: ignores address! *)
-    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.join x y)
-    | (`Mutex, `Mutex) -> `Mutex
+    | (Address x, Address y) -> Address (AD.join x y)
+    | (Struct x, Struct y) -> Struct (Structs.join x y)
+    | (Union x, Union y) -> Union (Unions.join x y)
+    | (Array x, Array y) -> Array (CArrays.join x y)
+    | (Blob x, Blob y) -> Blob (Blobs.join x y)
+    | Blob (x,s,o), y
+    | y, Blob (x,s,o) -> Blob (join (x:t) y, s, o)
+    | (Thread x, Thread y) -> Thread (Threads.join x y)
+    | (Int x, Thread y)
+    | (Thread y, Int x) ->
+      Thread y (* TODO: ignores int! *)
+    | (Address x, Thread y)
+    | (Thread y, Address x) ->
+      Thread y (* TODO: ignores address! *)
+    | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.join x y)
+    | (Mutex, Mutex) -> Mutex
+    | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.join x y)
     | _ ->
       warn_type "join" x y;
-      `Top
+      Top
 
-  let rec widen x y =
+  let widen x y =
     match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
-    | (`Float x, `Float y) -> `Float (FD.widen x y)
+    | (Top, _) -> Top
+    | (_, Top) -> Top
+    | (Bot, x) -> x
+    | (x, Bot) -> x
+    | (Int x, Int y) -> (try Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; Top)
+    | (Float x, Float y) -> Float (FD.widen x y)
     (* TODO: symmetric widen, wtf? *)
-    | (`Int x, `Address y)
-    | (`Address y, `Int x) -> `Address (match ID.to_int x with
+    | (Int x, Address y)
+    | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
         | Some x -> AD.(widen y (join y not_null))
         | None -> AD.widen y (AD.join y AD.top_ptr))
-    | (`Address x, `Address y) -> `Address (AD.widen x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> (`Lifted f, widen x y) (* f = g *)
-        | x -> (x, `Top))
-    | (`Array x, `Array y) -> `Array (CArrays.widen x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
-    | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Thread y (* TODO: ignores address! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.widen x y)
+    | (Address x, Address y) -> Address (AD.widen x y)
+    | (Struct x, Struct y) -> Struct (Structs.widen x y)
+    | (Union x, Union y) -> Union (Unions.widen x y)
+    | (Array x, Array y) -> Array (CArrays.widen x y)
+    | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
+    | (Thread x, Thread y) -> Thread (Threads.widen x y)
+    | (Int x, Thread y)
+    | (Thread y, Int x) ->
+      Thread y (* TODO: ignores int! *)
+    | (Address x, Thread y)
+    | (Thread y, Address x) ->
+      Thread y (* TODO: ignores address! *)
+    | (Mutex, Mutex) -> Mutex
+    | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.widen x y)
+    | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.widen x y)
     | _ ->
       warn_type "widen" x y;
-      `Top
+      Top
 
   let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
     let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
     match (x,y) with
-    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
-        | x -> (x, `Top)) (* f <> g *)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
+    | (Struct x, Struct y) -> Struct (Structs.join_with_fct join_elem x y)
+    | (Union (f,x), Union (g,y)) ->
+      let field = UnionDomain.Field.join f g in
+      let value = join_elem x y in
+      Union (field, value)
+    | (Array x, Array y) -> Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | _ -> join x y  (* Others can not contain array -> normal join  *)
 
   let rec smart_widen x_eval_int y_eval_int x y:t =
     let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
-    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
-        | x -> x, `Top) (* f <> g *)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
+    | (Struct x, Struct y) -> Struct (Structs.widen_with_fct widen_elem x y)
+    | (Union (f,x), Union (g,y)) ->
+      let field = UnionDomain.Field.widen f g in
+      let value = widen_elem x y in
+      Union (field, value)
+    | (Array x, Array y) -> Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | _ -> widen x y  (* Others can not contain array -> normal widen  *)
 
 
   let rec smart_leq x_eval_int y_eval_int x y =
     let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
-    | (`Struct x, `Struct y) ->
+    | (Struct x, Struct y) ->
           Structs.leq_with_fct leq_elem x y
-    | (`Union (f, x), `Union (g, y)) ->
+    | (Union (f, x), Union (g, y)) ->
         UnionDomain.Field.leq f g && leq_elem x y
-    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
+    | (Array x, Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
     | _ -> leq x y (* Others can not contain array -> normal leq *)
 
   let rec meet x y =
     match (x,y) with
-    | (`Bot, _) -> `Bot
-    | (_, `Bot) -> `Bot
-    | (`Top, x) -> x
-    | (x, `Top) -> x
-    | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Float x, `Float y) -> `Float (FD.meet x y)
-    | (`Int _, `Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
-    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
-    | (`Address x, `Address y) -> `Address (AD.meet x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
-    | (`Union x, `Union y) -> `Union (Unions.meet x y)
-    | (`Array x, `Array y) -> `Array (CArrays.meet x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
-    | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Int x (* TODO: ignores thread! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Address x (* TODO: ignores thread! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.meet x y)
+    | (Bot, _) -> Bot
+    | (_, Bot) -> Bot
+    | (Top, x) -> x
+    | (x, Top) -> x
+    | (Int x, Int y) -> Int (ID.meet x y)
+    | (Float x, Float y) -> Float (FD.meet x y)
+    | (Int _, Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
+    | (Address x, Int y) -> Address (AD.meet x (AD.of_int y))
+    | (Address x, Address y) -> Address (AD.meet x y)
+    | (Struct x, Struct y) -> Struct (Structs.meet x y)
+    | (Union x, Union y) -> Union (Unions.meet x y)
+    | (Array x, Array y) -> Array (CArrays.meet x y)
+    | (Blob x, Blob y) -> Blob (Blobs.meet x y)
+    | (Thread x, Thread y) -> Thread (Threads.meet x y)
+    | (Int x, Thread y)
+    | (Thread y, Int x) ->
+      Int x (* TODO: ignores thread! *)
+    | (Address x, Thread y)
+    | (Thread y, Address x) ->
+      Address x (* TODO: ignores thread! *)
+    | (Mutex, Mutex) -> Mutex
+    | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.meet x y)
+    | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.meet x y)
     | _ ->
       warn_type "meet" x y;
-      `Bot
+      Bot
 
   let rec narrow x y =
     match (x,y) with
-    | (`Int x, `Int y) -> `Int (ID.narrow x y)
-    | (`Float x, `Float y) -> `Float (FD.narrow x y)
-    | (`Int _, `Address _) -> narrow x (cast IntDomain.Size.top_typ y)
-    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
-    | (`Address x, `Address y) -> `Address (AD.narrow x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
-    | (`Union x, `Union y) -> `Union (Unions.narrow x y)
-    | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
-    | (`Thread x, `Thread y) -> `Thread (Threads.narrow x y)
-    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.narrow x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Int x (* TODO: ignores thread! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Address x (* TODO: ignores thread! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | x, `Top | `Top, x -> x
-    | x, `Bot | `Bot, x -> `Bot
+    | (Int x, Int y) -> Int (ID.narrow x y)
+    | (Float x, Float y) -> Float (FD.narrow x y)
+    | (Int _, Address _) -> narrow x (cast IntDomain.Size.top_typ y)
+    | (Address x, Int y) -> Address (AD.narrow x (AD.of_int y))
+    | (Address x, Address y) -> Address (AD.narrow x y)
+    | (Struct x, Struct y) -> Struct (Structs.narrow x y)
+    | (Union x, Union y) -> Union (Unions.narrow x y)
+    | (Array x, Array y) -> Array (CArrays.narrow x y)
+    | (Blob x, Blob y) -> Blob (Blobs.narrow x y)
+    | (Thread x, Thread y) -> Thread (Threads.narrow x y)
+    | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.narrow x y)
+    | (Int x, Thread y)
+    | (Thread y, Int x) ->
+      Int x (* TODO: ignores thread! *)
+    | (Address x, Thread y)
+    | (Thread y, Address x) ->
+      Address x (* TODO: ignores thread! *)
+    | (Mutex, Mutex) -> Mutex
+    | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.narrow x y)
+    | x, Top | Top, x -> x
+    | x, Bot | Bot, x -> Bot
     | _ ->
       warn_type "narrow" x y;
       x
@@ -674,20 +697,20 @@ struct
     in
     let array_idx_top = (None, ArrIdxDomain.top ()) in
     match typ, state with
-    |                 _ , `Address n    -> `Address (AD.join AD.top_ptr n)
-    | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
-    |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
-    | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value ask fd.ftype n)
-    | TArray (t,_,_), `Array n      ->
+    |                 _ , Address n    -> Address (AD.join AD.top_ptr n)
+    | TComp (ci,_)  , Struct n     -> Struct (invalid_struct ci n)
+    |                 _ , Struct n     -> Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
+    | TComp (ci,_)  , Union (`Lifted fd,n) -> Union (`Lifted fd, invalidate_value ask fd.ftype n)
+    | TArray (t,_,_), Array n      ->
       let v = invalidate_value ask t (CArrays.get ask n array_idx_top) in
-      `Array (CArrays.set ask n (array_idx_top) v)
-    |                 _ , `Array n      ->
+      Array (CArrays.set ask n (array_idx_top) v)
+    |                 _ , Array n      ->
       let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
-      `Array (CArrays.set ask n (array_idx_top) v)
-    |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
-    |                 _ , `Thread _     -> state (* TODO: no top thread ID set! *)
-    |                 _ , `JmpBuf _     -> state (* TODO: no top jmpbuf *)
-    | _, `Bot -> `Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
+      Array (CArrays.set ask n (array_idx_top) v)
+    |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
+    |                 _ , Thread _     -> state (* TODO: no top thread ID set! *)
+    |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
+    | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
 
@@ -792,7 +815,7 @@ struct
     if orig then
       (* This Blob came from malloc *)
       x
-    else if x = `Bot then
+    else if x = Bot then
       (* This Blob came from calloc *)
       zero_init_value t (* This should be zero initialized *)
     else
@@ -802,65 +825,65 @@ struct
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
       match x, offs with
-      | `Blob((va, _, orig) as c), `Index (_, ox) ->
+      | Blob((va, _, orig) as c), `Index (_, ox) ->
         begin
           let l', o' = shift_one_over l o in
           let ev = do_eval_offset ask f (Blobs.value c) ox exp l' o' v t in
           zero_init_calloced_memory orig ev t
         end
-      | `Blob((va, _, orig) as c), `Field _ ->
+      | Blob((va, _, orig) as c), `Field _ ->
         begin
           let l', o' = shift_one_over l o in
           let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
           zero_init_calloced_memory orig ev t
         end
-      | `Blob((va, _, orig) as c), `NoOffset ->
+      | Blob((va, _, orig) as c), `NoOffset ->
       begin
         let l', o' = shift_one_over l o in
         let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
         zero_init_calloced_memory orig ev t
       end
-      | `Bot, _ -> `Bot
+      | Bot, _ -> Bot
       | _ ->
         match offs with
         | `NoOffset -> x
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
-            | `Struct str ->
+            | Struct str ->
               let x = Structs.get str fld in
               let l', o' = shift_one_over l o in
               do_eval_offset ask f x offs exp l' o' v t
-            | `Top -> M.info ~category:Imprecise "Trying to read a field, but the struct is unknown"; top ()
+            | Top -> M.info ~category:Imprecise "Trying to read a field, but the struct is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
             match x with
-            | `Union (`Lifted l_fld, value) ->
+            | Union (`Lifted l_fld, value) ->
               (match value, fld.ftype with
                (* only return an actual value if we have a type and return actually the exact same type *)
-               | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
-               | `Float _, t -> top_value t
-               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
+               | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
+               | Float _, t -> top_value t
+               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
                | _ ->
                  let x = cast ~torg:l_fld.ftype fld.ftype value in
                  let l', o' = shift_one_over l o in
                  do_eval_offset ask f x offs exp l' o' v t)
-            | `Union _ -> top ()
-            | `Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
+            | Union _ -> top ()
+            | Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
             match x with
-            | `Array x ->
+            | Array x ->
               let e = determine_offset ask l o exp v in
               do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v t
-            | `Address _ ->
+            | Address _ ->
               begin
                 do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
             | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
-            | `Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
+            | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
     in
@@ -873,20 +896,20 @@ struct
   let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
-      let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
+      let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
-        | `Mutex, _ -> (* hide mutex structure contents, not updated anyway *)
-          `Mutex
-      | `Blob (x,s,orig), `Index (_,ofs) ->
+        | Mutex, _ -> (* hide mutex structure contents, not updated anyway *)
+          Mutex
+        | Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x t in
-          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
+          mu (Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
         end
-      | `Blob (x,s,orig), `Field(f, _) ->
+        | Blob (x,s,orig), `Field(f, _) ->
         begin
-          (* We only have `Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
+          (* We only have Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
           (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
           (* consider them in VD *)
           let l', o' = shift_one_over l o in
@@ -904,11 +927,11 @@ struct
             | _ -> false
           in
           if do_strong_update then
-            `Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+            Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
           else
-            mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
         end
-      | `Blob (x,s,orig), _ ->
+        | Blob (x,s,orig), _ ->
         begin
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x t in
@@ -925,66 +948,66 @@ struct
             end
           in
           if do_strong_update then
-            `Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+            Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
           else
-            mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
         end
-      | `Thread _, _ ->
+        | Thread _, _ ->
         (* hack for pthread_t variables *)
         begin match value with
-          | `Thread t -> value (* if actually assigning thread, use value *)
+          | Thread t -> value (* if actually assigning thread, use value *)
           | _ ->
             if !AnalysisState.global_initialization then
-              `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+              Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
             else
-              `Top
+              Top
         end
-      | `JmpBuf _, _ ->
-        (* hack for jmp_buf variables *)
-        begin match value with
-          | `JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
-          | `Blob(`Bot, _, _) -> `Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
-          | _ ->
-            if !AnalysisState.global_initialization then
-              `JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
-            else
-              `Top
-        end
+        | JmpBuf _, _ ->
+          (* hack for jmp_buf variables *)
+          begin match value with
+            | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
+            | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
+            | _ ->
+              if !AnalysisState.global_initialization then
+                JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
+              else
+                Top
+          end
       | _ ->
       let result =
         match offs with
         | `NoOffset -> begin
             match value with
-            | `Blob (y, s, orig) -> mu (`Blob (join x y, s, orig))
-            | `Int _ -> cast t value
+            | Blob (y, s, orig) -> mu (Blob (join x y, s, orig))
+            | Int _ -> cast t value
             | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             let t = fld.ftype in
             match x with
-            | `Struct str ->
+            | Struct str ->
               begin
                 let l', o' = shift_one_over l o in
                 let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t in
-                `Struct (Structs.replace str fld value')
+                Struct (Structs.replace str fld value')
               end
-            | `Bot ->
+            | Bot ->
               let init_comp compinfo =
-                let nstruct = Structs.create (fun fd -> `Bot) compinfo in
-                let init_field nstruct fd = Structs.replace nstruct fd `Bot in
+                let nstruct = Structs.create (fun fd -> Bot) compinfo in
+                let init_field nstruct fd = Structs.replace nstruct fd Bot in
                 List.fold_left init_field nstruct compinfo.cfields
               in
               let strc = init_comp fld.fcomp in
               let l', o' = shift_one_over l o in
-              `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v t))
-            | `Top -> M.warn ~category:Imprecise "Trying to update a field, but the struct is unknown"; top ()
+              Struct (Structs.replace strc fld (do_update_offset ask Bot offs value exp l' o' v t))
+            | Top -> M.warn ~category:Imprecise "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
             let t = fld.ftype in
             let l', o' = shift_one_over l o in
             match x with
-            | `Union (last_fld, prev_val) ->
+            | Union (last_fld, prev_val) ->
               let tempval, tempoffs =
                 if UnionDomain.Field.equal last_fld (`Lifted fld) then
                   prev_val, offs
@@ -992,7 +1015,7 @@ struct
                   match offs with
                   | `Field (fldi, _) when fldi.fcomp.cstruct ->
                     (top_value ~varAttr:fld.fattr fld.ftype), offs
-                  | `Field (fldi, _) -> `Union (Unions.top ()), offs
+                  | `Field (fldi, _) -> Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->
                     begin
@@ -1000,7 +1023,7 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) `Top), offs
+                        Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
@@ -1010,36 +1033,36 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
-            | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v t)
-            | `Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
+              Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
+            | Bot -> Union (`Lifted fld, do_update_offset ask Bot offs value exp l' o' v t)
+            | Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
             match x with
-            | `Array x' ->
+            | Array x' ->
               let t = (match t with
               | TArray(t1 ,_,_) -> t1
               | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
               let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
-              `Array new_array_value
-            | `Bot ->
+              Array new_array_value
+            | Bot ->
               let t,len = (match t with
                   | TArray(t1 ,len,_) -> t1, len
                   | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
+              let new_value_at_index = do_update_offset ask Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
               let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
               let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
               let new_array_value = CArrays.update_length newl new_array_value in
-              `Array new_array_value
-            | `Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
+              Array new_array_value
+            | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
             | x when GobOption.exists (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
@@ -1057,17 +1080,17 @@ struct
   let rec affect_move ?(replace_with_const=false) ask (x:t) (v:varinfo) movement_for_expr:t =
     let move_fun x = affect_move ~replace_with_const:replace_with_const ask x v movement_for_expr in
     match x with
-    | `Array a ->
+    | Array a ->
       begin
         (* potentially move things (i.e. other arrays after arbitrarily deep nesting) in array first *)
         let moved_elems = CArrays.map move_fun a in
         (* then move the array itself *)
         let new_val = CArrays.move_if_affected ~replace_with_const:replace_with_const ask moved_elems v movement_for_expr in
-        `Array (new_val)
+        Array (new_val)
       end
-    | `Struct s -> `Struct (Structs.map (move_fun) s)
-    | `Union (f, v) -> `Union(f, move_fun v)
-    (* `Blob can not contain Array *)
+    | Struct s -> Struct (Structs.map (move_fun) s)
+    | Union (f, v) -> Union(f, move_fun v)
+    (* Blob can not contain Array *)
     | x -> x
 
   let rec affecting_vars (x:t) =
@@ -1075,22 +1098,22 @@ struct
       list @ (affecting_vars va)
     in
     match x with
-    | `Array a ->
+    | Array a ->
       begin
         let immediately_affecting = CArrays.get_vars_in_e a in
         CArrays.fold_left add_affecting_one_level immediately_affecting a
       end
-    | `Struct s ->
+    | Struct s ->
         Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
-    | `Union (f, v) ->
+    | Union (f, v) ->
         affecting_vars v
-    (* `Blob can not contain Array *)
+    (* Blob can not contain Array *)
     | _ -> []
 
   (* Won't compile without the final :t annotation *)
   let rec update_array_lengths (eval_exp: exp -> t) (v:t) (typ:Cil.typ):t =
     match v, typ with
-    | `Array(n), TArray(ti, e, _) ->
+    | Array(n), TArray(ti, e, _) ->
       begin
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
@@ -1099,82 +1122,80 @@ struct
           | Some e ->
             begin
               match eval_exp e with
-              | `Int x -> ID.cast_to (Cilfacade.ptrdiff_ikind ())  x
+              | Int x -> ID.cast_to (Cilfacade.ptrdiff_ikind ())  x
               | _ ->
                 M.debug ~category:Analyzer "Expression for size of VLA did not evaluate to Int at declaration";
                 ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
             end
         in
-        `Array(CArrays.update_length newl n')
+        Array(CArrays.update_length newl n')
       end
     | _ -> v
 
   let rec mark_jmpbufs_as_copied (v:t):t =
     match v with
-    | `JmpBuf (v,t) -> `JmpBuf (v, true)
-    | `Array n -> `Array (CArrays.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
-    | `Struct n -> `Struct (Structs.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
-    | `Union (f, n) -> `Union (f, mark_jmpbufs_as_copied n)
-    | `Blob (a,b,c) -> `Blob (mark_jmpbufs_as_copied a, b,c)
+    | JmpBuf (v,t) -> JmpBuf (v, true)
+    | Array n -> Array (CArrays.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
+    | Struct n -> Struct (Structs.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
+    | Union (f, n) -> Union (f, mark_jmpbufs_as_copied n)
+    | Blob (a,b,c) -> Blob (mark_jmpbufs_as_copied a, b,c)
     | _ -> v
 
   let printXml f state =
     match state with
-    | `Int n ->  ID.printXml f n
-    | `Float n ->  FD.printXml f n
-    | `Address n ->  AD.printXml f n
-    | `Struct n ->  Structs.printXml f n
-    | `Union n ->  Unions.printXml f n
-    | `Array n ->  CArrays.printXml f n
-    | `Blob n ->  Blobs.printXml f n
-    | `Thread n -> Threads.printXml f n
-    | `JmpBuf n -> JmpBufs.printXml f n
-    | `Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
-    | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
-    | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+    | Int n ->  ID.printXml f n
+    | Float n ->  FD.printXml f n
+    | Address n ->  AD.printXml f n
+    | Struct n ->  Structs.printXml f n
+    | Union n ->  Unions.printXml f n
+    | Array n ->  CArrays.printXml f n
+    | Blob n ->  Blobs.printXml f n
+    | Thread n -> Threads.printXml f n
+    | MutexAttr n -> MutexAttr.printXml f n
+    | JmpBuf n -> JmpBufs.printXml f n
+    | Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
+    | Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
+    | Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 
   let to_yojson = function
-    | `Int n -> ID.to_yojson n
-    | `Float n -> FD.to_yojson n
-    | `Address n -> AD.to_yojson n
-    | `Struct n -> Structs.to_yojson n
-    | `Union n -> Unions.to_yojson n
-    | `Array n -> CArrays.to_yojson n
-    | `Blob n -> Blobs.to_yojson n
-    | `Thread n -> Threads.to_yojson n
-    | `JmpBuf n -> JmpBufs.to_yojson n
-    | `Mutex -> `String "mutex"
-    | `Bot -> `String "⊥"
-    | `Top -> `String "⊤"
+    | Int n -> ID.to_yojson n
+    | Float n -> FD.to_yojson n
+    | Address n -> AD.to_yojson n
+    | Struct n -> Structs.to_yojson n
+    | Union n -> Unions.to_yojson n
+    | Array n -> CArrays.to_yojson n
+    | Blob n -> Blobs.to_yojson n
+    | Thread n -> Threads.to_yojson n
+    | MutexAttr n -> MutexAttr.to_yojson n
+    | JmpBuf n -> JmpBufs.to_yojson n
+    | Mutex -> `String "mutex"
+    | Bot -> `String "⊥"
+    | Top -> `String "⊤"
 
-  let arbitrary () = QCheck.always `Bot (* S TODO: other elements *)
+  let arbitrary () = QCheck.always Bot (* S TODO: other elements *)
 
   (*Changes the value: if p is present, change all Integer precisions. If array_attr=(varAttr, typeAttr) is present, change the top level array domain according to the attributes *)
   let rec project ask p array_attr (v: t): t =
     match v, p, array_attr with
     | _, None, None -> v (*Nothing to change*)
     (* as long as we only have one representation, project is a nop*)
-    | `Float n, _, _ ->  `Float n
-    | `Int n, Some p, _->  `Int (ID.project p n)
-    | `Address n, Some p, _-> `Address (project_addr p n)
-    | `Struct n, _, _ -> `Struct (Structs.map (fun (x: t) -> project ask p None x) n)
-    | `Union (f, v), _, _ -> `Union (f, project ask p None v)
-    | `Array n , _, _ -> `Array (project_arr ask p array_attr n)
-    | `Blob (v, s, z), Some p', _ -> `Blob (project ask p None v, ID.project p' s, z)
-    | `Thread n, _, _ -> `Thread n
-    | `Bot, _, _ -> `Bot
-    | `Top, _, _ -> `Top
+    | Float n, _, _ ->  Float n
+    | Int n, Some p, _->  Int (ID.project p n)
+    | Address n, Some p, _-> Address (project_addr p n)
+    | Struct n, _, _ -> Struct (Structs.map (fun (x: t) -> project ask p None x) n)
+    | Union (f, v), _, _ -> Union (f, project ask p None v)
+    | Array n , _, _ -> Array (project_arr ask p array_attr n)
+    | Blob (v, s, z), Some p', _ -> Blob (project ask p None v, ID.project p' s, z)
+    | Thread n, _, _ -> Thread n
+    | Bot, _, _ -> Bot
+    | Top, _, _ -> Top
     | _, _, _ -> v (*Nothing to change*)
   and project_addr p a =
     AD.map (fun addr ->
         match addr with
         | Addr.Addr (v, o) -> Addr.Addr (v, project_offs p o)
         | ptr -> ptr) a
-  and project_offs p offs =
-    match offs with
-    | `NoOffset -> `NoOffset
-    | `Field (field, offs') -> `Field (field, project_offs p offs')
-    | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
+  and project_offs p offs = Offs.map_indices (ID.project p) offs
   and project_arr ask p array_attr n =
     let n = match array_attr with
       | Some (varAttr,typAttr) -> CArrays.project ~varAttr ~typAttr ask n
@@ -1187,18 +1208,19 @@ struct
 
   let relift state =
     match state with
-    | `Int n -> `Int (ID.relift n)
-    | `Float n -> `Float (FD.relift n)
-    | `Address n -> `Address (AD.relift n)
-    | `Struct n -> `Struct (Structs.relift n)
-    | `Union n -> `Union (Unions.relift n)
-    | `Array n -> `Array (CArrays.relift n)
-    | `Blob n -> `Blob (Blobs.relift n)
-    | `Thread n -> `Thread (Threads.relift n)
-    | `JmpBuf n -> `JmpBuf (JmpBufs.relift n)
-    | `Mutex -> `Mutex
-    | `Bot -> `Bot
-    | `Top -> `Top
+    | Int n -> Int (ID.relift n)
+    | Float n -> Float (FD.relift n)
+    | Address n -> Address (AD.relift n)
+    | Struct n -> Struct (Structs.relift n)
+    | Union n -> Union (Unions.relift n)
+    | Array n -> Array (CArrays.relift n)
+    | Blob n -> Blob (Blobs.relift n)
+    | Thread n -> Thread (Threads.relift n)
+    | JmpBuf n -> JmpBuf (JmpBufs.relift n)
+    | MutexAttr n -> MutexAttr (MutexAttr.relift n)
+    | Mutex -> Mutex
+    | Bot -> Bot
+    | Top -> Top
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
@@ -1235,16 +1257,8 @@ struct
         | Addr.UnknownPtr ->
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-          let rec offs_to_offset = function
-            | `NoOffset -> NoOffset
-            | `Field (f, offs) -> Field (f, offs_to_offset offs)
-            | `Index (i, offs) ->
-              (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
-              let i_definite = BatOption.get (IndexDomain.to_int i) in
-              let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
-              Index (i_exp, offs_to_offset offs)
-          in
-          let offset = offs_to_offset offs in
+          (* Addr.Offs.is_definite implies to_cil doesn't contain Offset.any_index_exp. *)
+          let offset = Addr.Offs.to_cil offs in
 
           let cast_to_void_ptr e =
             Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
@@ -1301,23 +1315,23 @@ struct
     vd_invariant ~vs ~offset ~lval v
 
   and vd_invariant ~vs ~offset ~lval = function
-    | `Int n ->
+    | Compound.Int n ->
       let e = Lval lval in
       if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
         ID.invariant e n
       else
         Invariant.none
-    | `Float n ->
+    | Float n ->
       let e = Lval lval in
       if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
         FD.invariant e n
       else
         Invariant.none
-    | `Address n -> ad_invariant ~vs ~offset ~lval n
-    | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
-    | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
-    | `Array n -> CArrays.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
-    | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
+    | Address n -> ad_invariant ~vs ~offset ~lval n
+    | Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | Array n -> CArrays.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 
   and deref_invariant ~vs vi ~offset ~lval =

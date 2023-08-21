@@ -1,3 +1,5 @@
+(** Streaming GraphML output. *)
+
 module type GraphMlWriter =
 sig
   type t

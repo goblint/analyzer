@@ -1,3 +1,5 @@
+(** Main internal functionality: analysis of the program by abstract interpretation via constraint solving. *)
+
 (** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *)
 
 open Batteries
@@ -163,7 +165,7 @@ struct
           ) xs []
       in
       let msgs = List.rev msgs in (* lines in ascending order *)
-      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
+      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs (* TODO: function location for group *)
     in
     let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "ana.dead-code.lines" then (
@@ -765,6 +767,8 @@ struct
         Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
+
+    Messages.finalize ();
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
 end
 

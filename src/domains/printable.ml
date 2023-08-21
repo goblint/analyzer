@@ -1,4 +1,5 @@
-(** Some things are not quite lattices ... *)
+(** Signature for comparable and outputtable elements.
+    Functors for common printables. *)
 
 module Pretty = GoblintCil.Pretty
 open Pretty
@@ -47,13 +48,6 @@ end
     Include as the first thing to avoid these overriding actual definitions. *)
 module Std =
 struct
-  (* start MapDomain.Groupable *)
-  type group = |
-  let show_group (x: group) = match x with _ -> .
-  let to_group _ = None
-  let trace_enabled = false
-  (* end MapDomain.Groupable *)
-
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
 end
@@ -427,6 +421,35 @@ struct
 
   let relift (x,y,z) = (Base1.relift x, Base2.relift y, Base3.relift z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
+end
+
+module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) = struct
+  type t = Base1.t * Base2.t * Base3.t * Base4.t [@@deriving eq, ord, hash]
+  include Std
+
+  let show (x,y,z,w) = "(" ^ Base1.show x ^ ", " ^ Base2.show y ^ ", " ^ Base3.show z ^ ", " ^ Base4.show w ^ ")"
+
+  let pretty () (x,y,z,w) =
+    text "(" ++
+    Base1.pretty () x
+    ++ text ", " ++
+    Base2.pretty () y
+    ++ text ", " ++
+    Base3.pretty () z
+    ++ text ", " ++
+    Base4.pretty () w
+    ++ text ")"
+
+  let printXml f (x,y,z,w) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z (XmlUtil.escape (Base4.name ())) Base4.printXml w
+
+  let to_yojson (x, y, z, w) =
+    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z); (Base4.name (), Base4.to_yojson w) ]
+
+  let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name () ^ " * " ^ Base4.name ()
+
+  let relift (x,y,z,w) = (Base1.relift x, Base2.relift y, Base3.relift z, Base4.relift w)
+  let arbitrary () = QCheck.quad (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
 end
 
 module Liszt (Base: S) =

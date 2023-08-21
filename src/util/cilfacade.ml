@@ -1,4 +1,4 @@
-(** Helpful functions for dealing with [Cil]. *)
+(** {!GoblintCil} utilities. *)
 
 open GobConfig
 open GoblintCil
@@ -32,6 +32,10 @@ let rec isVLAType t =
     let variable_len = GobOption.exists (Fun.negate Cil.isConstant) len in
     variable_len || isVLAType et
   | _ -> false
+
+let is_first_field x = match x.fcomp.cfields with
+  | [] -> false
+  | f :: _ -> CilType.Fieldinfo.equal f x
 
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
@@ -163,7 +167,7 @@ let getFuns fileAST : startfuns =
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
-    | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
+    | GFun ({svar={vstorage=NoStorage; vattr; _}; _} as def, _) when get_bool "nonstatic" && not (Cil.hasAttribute "goblint_stub" vattr) -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
     | _ -> acc
   in
@@ -337,6 +341,23 @@ let makeBinOp binop e1 e2 =
   let t2 = typeOf e2 in
   let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
   e
+
+let anoncomp_name_regexp = Str.regexp {|^__anon\(struct\|union\)_\(.+\)_\([0-9]+\)$|}
+
+let split_anoncomp_name name =
+  (* __anonunion_pthread_mutexattr_t_488594144 *)
+  if Str.string_match anoncomp_name_regexp name 0 then (
+    let struct_ = match Str.matched_group 1 name with
+      | "struct" -> true
+      | "union" -> false
+      | _ -> assert false
+    in
+    let name' = Str.matched_group 2 name in
+    let id = int_of_string (Str.matched_group 3 name) in
+    (struct_, name', id)
+  )
+  else
+    invalid_arg "Cilfacade.split_anoncomp_name"
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200

@@ -23,6 +23,11 @@ rule() {
       dune build $TARGET.exe &&
       rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
+    ;; coverage)
+      eval $(opam config env)
+      dune build --instrument-with bisect_ppx $TARGET.exe &&
+      rm -f goblint &&
+      cp _build/default/$TARGET.exe goblint
     ;; release)
       eval $(opam config env)
       dune build --profile=release $TARGET.exe &&

@@ -1,3 +1,5 @@
+(** Messages (e.g. warnings) from the analysis. *)
+
 module Pretty = GoblintCil.Pretty
 
 open GobConfig
@@ -73,7 +75,11 @@ end
 
 module MultiPiece =
 struct
-  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, ord, hash, yojson]
+  type group = {
+    group_text: string;
+    group_loc: Location.t option;
+    pieces: Piece.t list;
+  } [@@deriving eq, ord, hash, yojson]
   type t =
     | Single of Piece.t
     | Group of group
@@ -188,9 +194,12 @@ let print ?(ppf= !formatter) (m: Message.t) =
     | Success -> "green"
   in
   let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
+  let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
+  let pp_loc ppf loc =
+    Format.fprintf ppf "%a" (Format.pp_print_option pp_loc) (Option.map Location.to_cil loc)
+  in
   let pp_piece ppf piece =
-    let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
-    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.loc)
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) pp_loc piece.loc
   in
   let pp_quote ppf (loc: GoblintCil.location) =
     let lines = BatFile.lines_of loc.file in
@@ -215,30 +224,36 @@ let print ?(ppf= !formatter) (m: Message.t) =
         | _ -> assert false
       end
   in
-  let pp_piece ppf piece =
+  let pp_quote ppf loc =
     if get_bool "warn.quote-code" then (
       let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" pp_quote in
-      Format.fprintf ppf "%a%a" pp_piece piece (Format.pp_print_option pp_cut_quote) (Option.map Location.to_cil piece.loc)
+      (Format.pp_print_option pp_cut_quote) ppf (Option.map Location.to_cil loc)
     )
-    else
-      pp_piece ppf piece
   in
+  let pp_piece ppf piece = Format.fprintf ppf "%a%a" pp_piece piece pp_quote piece.loc in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
       pp_piece ppf piece
-    | Group {group_text; pieces} ->
+    | Group {group_text; group_loc; pieces} ->
       let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
-      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
+      Format.fprintf ppf "@{<%s>%s:@}%a%a@,@[<v>%a@]" severity_stag group_text pp_loc group_loc pp_quote group_loc (Format.pp_print_list pp_piece2) pieces
   in
   Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
 
 
 let add m =
   if not (Table.mem m) then (
-    print m;
+    if not (get_bool "warn.deterministic") then
+      print m;
     Table.add m
   )
 
+let finalize () =
+  if get_bool "warn.deterministic" then (
+    !Table.messages_list
+    |> List.sort Message.compare
+    |> List.iter print
+  )
 
 let current_context: ControlSpecC.t option ref = ref None
 
@@ -274,7 +289,7 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   else
     GobPretty.igprintf () fmt
 
-let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+let msg_group severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc msgs =
       let group_text = GobPretty.show doc in
@@ -282,7 +297,7 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
         let text = GobPretty.show doc in
         Piece.{loc; text; context = None}
       in
-      add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
+      add {tags = Category category :: tags; severity; multipiece = Group {group_text; group_loc = loc; pieces = List.map piece_of_msg msgs}}
     in
     Pretty.gprintf finish fmt
   )

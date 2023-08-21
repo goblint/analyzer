@@ -67,6 +67,9 @@ jobs:
       - name: Test regression cram
         run: opam exec -- dune runtest tests/regression
 
+      - name: Test incremental cram
+        run: opam exec -- dune runtest tests/incremental
+
       - name: Test unit
         run: opam exec -- dune runtest unittest
 
@@ -171,5 +174,4 @@ jobs:
 
       - name: Test Gobview
         run: |
-          ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
           python3 scripts/test-gobview.py

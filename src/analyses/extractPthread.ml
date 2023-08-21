@@ -1,4 +1,4 @@
-(** Tracking of pthread lib code. Output to promela. *)
+(** Promela extraction analysis for Pthread programs ([extract-pthread]). *)
 
 open GoblintCil
 open Pretty
@@ -1127,8 +1127,8 @@ module Spec : Analyses.MCPSpec = struct
         let funs_ls =
           let ls = ctx.ask (Queries.ReachableFrom func) in
           Queries.LS.filter
-            (fun (v, o) ->
-               let lval = (Var v, Lval.CilLval.to_ciloffs o) in
+            (fun lv ->
+               let lval = Mval.Exp.to_cil lv in
                isFunctionType (typeOfLval lval))
             ls
         in

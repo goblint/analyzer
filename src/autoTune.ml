@@ -1,3 +1,5 @@
+(** Autotuning of the configuration based on syntactic heuristics. *)
+
 open GobConfig
 open GoblintCil
 open AutoTune0
@@ -202,7 +204,7 @@ let activateLongjmpAnalysesWhenRequired () =
   let isLongjmp = function
     | LibraryDesc.Longjmp _ -> true
     | _ -> false
-in
+  in
   if hasFunction isLongjmp  then (
     print_endline @@ "longjmp -> enabling longjmp analyses \"" ^ (String.concat ", " longjmpAnalyses) ^ "\"";
     enableAnalyses longjmpAnalyses;
