@@ -70,28 +70,60 @@ open Analyses
     - prefix relations are indicated by [/], so access paths run diagonally from top-right to bottom-left;
     - type suffix relations are indicated by [\ ].
 
-    Prefix races:
+    All same-node races:
+    - Race between [t.s.f] and [t.s.f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [t.s] is checked/reported at [t.s].
+    - Race between [t] and [t] is checked/reported at [t].
+    - Race between [(T).s.f] and [(T).s.f] is checked/reported at [(T).s.f].
+    - Race between [(T).s] and [(T).s] is checked/reported at [(T).s].
+    - Race between [(T)] and [(T)] is checked/reported at [(T)].
+    - Race between [(S).f] and [(S).f] is checked/reported at [(S).f].
+    - Race between [(S)] and [(S)] is checked/reported at [(S)].
+    - Race between [(int)] and [(int)] is checked/reported at [(int)].
+
+    All prefix races:
     - Race between [t.s.f] and [t.s] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [t] is checked/reported at [t.s.f].
     - Race between [t.s] and [t] is checked/reported at [t.s].
-    - Race between [t] and [t] is checked/reported at [t].
+    - Race between [(T).s.f] and [(T).s] is checked/reported at [(T).s.f].
+    - Race between [(T).s.f] and [(T)] is checked/reported at [(T).s.f].
+    - Race between [(T).s] and [(T)] is checked/reported at [(T).s].
     - Race between [(S).f] and [(S)] is checked/reported at [(S).f].
 
-    Type suffix races:
+    All type suffix races:
     - Race between [t.s.f] and [(T).s.f] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(S).f] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(int)] is checked/reported at [t.s.f].
+    - Race between [(T).s.f] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [(T).s.f] and [(int)] is checked/reported at [(T).s.f].
     - Race between [(S).f] and [(int)] is checked/reported at [(S).f].
+    - Race between [t.s] and [(T).s] is checked/reported at [t.s].
+    - Race between [t.s] and [(S)] is checked/reported at [t.s].
+    - Race between [(T).s] and [(S)] is checked/reported at [(T).s].
+    - Race between [t] and [(T)] is checked/reported at [t].
 
-    Type suffix prefix races:
+    All type suffix prefix races:
     - Race between [t.s.f] and [(T).s] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(T)] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(S)] is checked/reported at [t.s.f].
     - Race between [(T).s.f] and [(S)] is checked/reported at [(T).s.f].
+    - Race between [t.s] and [(T)] is checked/reported at [t.s].
 
-    Prefix-type suffix races:
+    All prefix-type suffix races:
+    - Race between [t.s] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [(int)] is checked/reported at [t.s.f].
+    - Race between [t] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t] and [(int)] is checked/reported at [t.s.f].
+    - Race between [t] and [(T).s] is checked/reported at [t.s].
+    - Race between [t] and [(S)] is checked/reported at [t.s].
     - Race between [(T).s] and [(S).f] is checked/reported at [(T).s.f].
-    - Race between [t] and [(S).f] is checked/reported at [t.s.f]. *)
+    - Race between [(T).s] and [(int)] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(int)] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(S)] is checked/reported at [(T).s].
+    - Race between [(S)] and [(int)] is checked/reported at [(S).f]. *)
 
 
 (** Data race analyzer without base --- this is the new standard *)
