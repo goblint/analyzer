@@ -137,7 +137,7 @@ struct
 
   (* TODO: why unused? how different from below? *)
   let may_change_pt ask (b:exp) (a:exp) : bool =
-    let pt e = ask (Queries.MayPointTo e) in
+    let pt e = ask (Queries.MayPointToA e) in
     let rec lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
         match o with
@@ -175,7 +175,7 @@ struct
 
   let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
-    let pt e = ask.f (Queries.MayPointTo e) in
+    let pt e = ask.f (Queries.MayPointToA e) in
     let bls = pt b in
     let bt =
       match unrollTypeDeep (Cilfacade.typeOf b) with
@@ -208,26 +208,26 @@ struct
         | at -> at
       in
       bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
-              match a with
-              | Const _
-              | SizeOf _
-              | SizeOfE _
-              | SizeOfStr _
-              | AlignOf _
-              | AlignOfE _
-              | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
-              | UnOp (_,e,_)
-              | Real e
-              | Imag e -> type_may_change_t deref e
-              | BinOp (_,e1,e2,_) -> type_may_change_t deref e1 || type_may_change_t deref e2
-              | Lval (Var _,o)
-              | AddrOf (Var _,o)
-              | StartOf (Var _,o) -> may_change_t_offset o
-              | Lval (Mem e,o)    -> may_change_t_offset o || type_may_change_t true e
-              | AddrOf (Mem e,o)  -> may_change_t_offset o || type_may_change_t false e
-              | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t false e
-              | CastE (t,e) -> type_may_change_t deref e
-              | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
+      match a with
+      | Const _
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+      | UnOp (_,e,_)
+      | Real e
+      | Imag e -> type_may_change_t deref e
+      | BinOp (_,e1,e2,_) -> type_may_change_t deref e1 || type_may_change_t deref e2
+      | Lval (Var _,o)
+      | AddrOf (Var _,o)
+      | StartOf (Var _,o) -> may_change_t_offset o
+      | Lval (Mem e,o)    -> may_change_t_offset o || type_may_change_t true e
+      | AddrOf (Mem e,o)  -> may_change_t_offset o || type_may_change_t false e
+      | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t false e
+      | CastE (t,e) -> type_may_change_t deref e
+      | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
 
     and lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
@@ -255,18 +255,21 @@ struct
           | `Index (i1,o), `Index (i2,s) when exp_equal i1 i2     -> oleq o s
           | _ -> false
         in
-        if Queries.LS.is_top als
+        if Queries.AD.is_top als
         then false
-        else Queries.LS.exists (fun (u,s) -> CilType.Varinfo.equal v u && oleq o s) als
+        else Queries.AD.exists (function
+            | Addr (u,s) -> CilType.Varinfo.equal v u && oleq o (Addr.Offs.to_exp s)
+            | _ -> false
+          ) als
       in
       let (als, test) =
         match addrOfExp a with
-        | None -> (Queries.LS.bot (), false)
+        | None -> (Queries.AD.bot (), false)
         | Some e ->
           let als = pt e in
           (als, lval_is_not_disjoint bl als)
       in
-      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
+      if Queries.AD.is_top als
       then type_may_change_apt a
       else test ||
            match a with
@@ -292,9 +295,12 @@ struct
     in
     let r =
       if Cil.isConstant b then false
-      else if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
+      else if Queries.AD.is_top bls
       then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
-      else Queries.LS.exists (lval_may_change_pt a) bls
+      else Queries.AD.exists (function
+          | Addr (v,o) -> lval_may_change_pt a (v, Addr.Offs.to_exp o)
+          | _ -> false
+        ) bls
     in
     (*    if r
           then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
@@ -338,9 +344,12 @@ struct
     | Lval (Var v,_) ->
       Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
     | Lval (Mem e, _) ->
-      begin match ask.f (Queries.MayPointTo e) with
-        | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
-          Some (Queries.LS.exists (fun (v, _) -> is_global_var ask (Lval (var v)) = Some true) ls)
+      begin match ask.f (Queries.MayPointToA e) with
+        | ls when not (Queries.AD.is_top ls) ->
+          Some (Queries.AD.exists (function
+              | Addr (v, _) -> is_global_var ask (Lval (var v)) = Some true
+              | _ -> false
+            ) ls)
         | _ -> Some true
       end
     | CastE (t,e) -> is_global_var ask e
@@ -489,8 +498,8 @@ struct
       end
     | ThreadCreate { arg; _ } ->
       begin match D.is_bot ctx.local with
-      | true -> raise Analyses.Deadcode
-      | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
+        | true -> raise Analyses.Deadcode
+        | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
       end
     | _ -> unknown_fn ctx lval f args
   (* query stuff *)
