@@ -281,13 +281,19 @@ struct
 
   let keys_from_lval lval (ask: Queries.ask) = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)
-    let query_lv (ask: Queries.ask) exp = match ask.f (Queries.MayPointTo exp) with
-      | l when not (Queries.LS.is_top l) -> Queries.LS.elements l
+    let query_lv (ask: Queries.ask) exp = match ask.f (Queries.MayPointToA exp) with
+      | l when not (Queries.AD.is_top l) -> Queries.AD.elements l
       | _ -> []
     in
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
+    let keys = List.fold (fun l addr -> 
+        match addr with
+        | Queries.AD.Addr.Addr (v,o) -> (v, ValueDomain.Offs.to_exp o) :: l
+        | _ -> l
+      ) [] xs
+    in
     let pretty_key k = Pretty.text (string_of_key k) in
-    Messages.debug ~category:Analyzer "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs;
-    xs
+    Messages.debug ~category:Analyzer "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) keys;
+    keys
 end
