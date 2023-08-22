@@ -4,6 +4,7 @@ open GoblintCil
 open Analyses
 
 module M = Messages
+module AD = Queries.AD
 
 let has_escaped (ask: Queries.ask) (v: varinfo): bool =
   assert (not v.vglob);
@@ -35,13 +36,17 @@ struct
       D.empty ()
 
   let mpt (ask: Queries.ask) e: D.t =
-    match ask.f (Queries.MayPointTo e) with
-    | a when not (Queries.LS.is_top a) ->
-      let to_extra (v,o) set = D.add v set in
-      Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
+    match ask.f (Queries.MayPointToA e) with
+    | a when not (AD.is_top a) ->
+      let to_extra addr set = 
+        match addr with
+        | AD.Addr.Addr (v,_) -> D.add v set
+        | _ -> set
+      in
+      AD.fold to_extra (AD.remove UnknownPtr a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | a ->
-      if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e Queries.LS.pretty a;
+      if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e AD.pretty a;
       D.empty ()
 
   let thread_id ctx =
