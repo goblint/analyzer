@@ -18,10 +18,13 @@ struct
   let exitstate _ = D.empty ()
 
   let assign_lval (ask: Queries.ask) lval local =
-    match ask.f (MayPointTo (AddrOf lval)) with
-    | ls when Queries.LS.is_top ls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls ->
+    match ask.f (MayPointToA (AddrOf lval)) with
+    | ls when Queries.AD.is_top ls ->
       D.empty ()
-    | ls when Queries.LS.exists (fun (v, _) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)) ls ->
+    | ls when Queries.AD.exists (function
+        | Queries.AD.Addr.Addr (v,_) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)
+        | _ -> false
+      ) ls ->
       D.empty ()
     | _ ->
       local
