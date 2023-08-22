@@ -64,15 +64,17 @@ struct
   let (>?) = Option.bind
 
   let mayPointTo ctx exp =
-    match ctx.ask (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
-      let top_elt = (dummyFunDec.svar, `NoOffset) in
-      let a' = if Queries.LS.mem top_elt a then (
+    match ctx.ask (Queries.MayPointToA exp) with
+    | a when not (Queries.AD.is_top a) && Queries.AD.cardinal a > 0 ->
+      let a' = if Queries.AD.mem UnknownPtr a then (
           M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
-          Queries.LS.remove top_elt a
+          Queries.AD.remove UnknownPtr a
         ) else a
       in
-      Queries.LS.elements a'
+      List.filter_map (function
+          | ValueDomain.Addr.Addr (v,o) -> Some (v, ValueDomain.Addr.Offs.to_exp o)
+          | _ -> None
+        ) (Queries.AD.elements a')
     | _ -> []
 
   let mustPointTo ctx exp = (* this is just to get Mval.Exp *)
