@@ -34,6 +34,7 @@ module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
 
 module SD = Basetype.Strings
 module VD = ValueDomain.Compound
+module AD = ValueDomain.AD
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
@@ -72,6 +73,7 @@ type invariant_context = Invariant.context = {
 type _ t =
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> LS.t t
+  | MayPointToA: exp -> AD.t t
   | ReachableFrom: exp -> LS.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
@@ -141,6 +143,7 @@ struct
     | EqualSet _ -> (module ES)
     | CondVars _ -> (module ES)
     | MayPointTo _ -> (module LS)
+    | MayPointToA _ -> (module AD)
     | ReachableFrom _ -> (module LS)
     | Regions _ -> (module LS)
     | MustLockset -> (module LS)
@@ -205,6 +208,7 @@ struct
     | EqualSet _ -> ES.top ()
     | CondVars _ -> ES.top ()
     | MayPointTo _ -> LS.top ()
+    | MayPointToA _ -> AD.top ()
     | ReachableFrom _ -> LS.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
@@ -265,6 +269,7 @@ struct
   let order = function
     | Any (EqualSet _) -> 0
     | Any (MayPointTo _) -> 1
+    | Any (MayPointToA _) -> 999
     | Any (ReachableFrom _) -> 2
     | Any (ReachableUkTypes _) -> 3
     | Any (Regions _) -> 4
@@ -321,6 +326,7 @@ struct
       match a, b with
       | Any (EqualSet e1), Any (EqualSet e2) -> CilType.Exp.compare e1 e2
       | Any (MayPointTo e1), Any (MayPointTo e2) -> CilType.Exp.compare e1 e2
+      | Any (MayPointToA e1), Any (MayPointToA e2) -> CilType.Exp.compare e1 e2
       | Any (ReachableFrom e1), Any (ReachableFrom e2) -> CilType.Exp.compare e1 e2
       | Any (ReachableUkTypes e1), Any (ReachableUkTypes e2) -> CilType.Exp.compare e1 e2
       | Any (Regions e1), Any (Regions e2) -> CilType.Exp.compare e1 e2
@@ -366,6 +372,7 @@ struct
   let rec hash_arg = function
     | Any (EqualSet e) -> CilType.Exp.hash e
     | Any (MayPointTo e) -> CilType.Exp.hash e
+    | Any (MayPointToA e) -> CilType.Exp.hash e
     | Any (ReachableFrom e) -> CilType.Exp.hash e
     | Any (ReachableUkTypes e) -> CilType.Exp.hash e
     | Any (Regions e) -> CilType.Exp.hash e
@@ -408,6 +415,7 @@ struct
   let rec pretty () = function
     | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
     | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
+    | Any (MayPointToA e) -> Pretty.dprintf "MayPointToA %a" CilType.Exp.pretty e
     | Any (ReachableFrom e) -> Pretty.dprintf "ReachableFrom %a" CilType.Exp.pretty e
     | Any (ReachableUkTypes e) -> Pretty.dprintf "ReachableUkTypes %a" CilType.Exp.pretty e
     | Any (Regions e) -> Pretty.dprintf "Regions %a" CilType.Exp.pretty e
