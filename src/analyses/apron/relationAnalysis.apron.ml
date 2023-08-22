@@ -216,12 +216,16 @@ struct
       | CastE (t,e) -> CastE (t, inner e)
       | Lval (Var v, off) -> Lval (Var v, off)
       | Lval (Mem e, NoOffset) ->
-        (match ask (Queries.MayPointTo e) with
-         | a when not (Queries.LS.is_top a || Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) && (Queries.LS.cardinal a) = 1 ->
-           Mval.Exp.to_cil_exp (Queries.LS.choose a)
-         (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
-         (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
-         | _ -> Lval (Mem e, NoOffset))
+        begin match ask (Queries.MayPointToA e) with
+          | a when not (Queries.AD.is_top a) && (Queries.AD.cardinal a) = 1 ->
+            begin match Queries.AD.Addr.to_mval (Queries.AD.choose a) with
+              | Some mval -> ValueDomain.Addr.Mval.to_cil_exp mval
+              | None -> Lval (Mem e, NoOffset)
+            end
+          (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
+          (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
+          | _ -> Lval (Mem e, NoOffset)
+        end
       | e -> e (* TODO: Potentially recurse further? *)
     in
     inner e
@@ -514,10 +518,12 @@ struct
        | None -> st)
     | _, _ ->
       let lvallist e =
-        let s = ask.f (Queries.MayPointTo e) in
-        match s with
-        | `Top -> []
-        | `Lifted _ -> List.map Mval.Exp.to_cil (Queries.LS.elements s)
+        match ask.f (Queries.MayPointToA e) with
+        | a when Queries.AD.is_top a -> []
+        | a ->
+          Queries.AD.elements a
+          |> List.filter_map Queries.AD.Addr.to_mval 
+          |> List.map ValueDomain.Addr.Mval.to_cil
       in
       let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
       let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
