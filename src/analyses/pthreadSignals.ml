@@ -17,13 +17,7 @@ struct
   module C = MustSignals
   module G = SetDomain.ToppedSet (MHP) (struct let topname = "All Threads" end)
 
-  (* TODO: Use AddressDomain for queries *)
-  let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.of_mval (v, ValueDomain.Addr.Offs.of_exp o) :: b in
-    match a.f (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | _ -> []
+  let eval_exp_addr (a: Queries.ask) exp = Queries.AD.elements (a.f (Queries.MayPointToA exp))
 
   let possible_vinfos a cv_arg =
     List.filter_map ValueDomain.Addr.to_var_may (eval_exp_addr a cv_arg)
