@@ -157,15 +157,14 @@ struct
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
-      (let r = ask.f (Queries.MayPointTo v) in
-       match r with
-       | `Top ->
-         st
-       | `Lifted s ->
-         let lvals = Queries.LS.elements r in
-         let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Mval.Exp.to_cil lv) f) lvals in
-         List.fold_right D.join ass' (D.bot ())
-      )
+      begin match ask.f (Queries.MayPointToA v) with
+        | a when Queries.AD.is_top a ->
+          st
+        | a ->
+          let lvals = List.filter_map Queries.AD.Addr.to_mval (Queries.AD.elements a) in
+          let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil lv) f) lvals in
+          List.fold_right D.join ass' (D.bot ())
+      end
     (* Ignoring all other assigns *)
     | _ ->
       st
