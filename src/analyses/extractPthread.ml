@@ -880,20 +880,23 @@ module Spec : Analyses.MCPSpec = struct
   module ExprEval = struct
     let eval_ptr ctx exp =
       let mayPointTo ctx exp =
-        let a = ctx.ask (Queries.MayPointTo exp) in
-        if (not (Queries.LS.is_top a)) && Queries.LS.cardinal a > 0 then
-          let top_elt = (dummyFunDec.svar, `NoOffset) in
+        let a = ctx.ask (Queries.MayPointToA exp) in
+        if (not (Queries.AD.is_top a)) && Queries.AD.cardinal a > 0 then
           let a' =
-            if Queries.LS.mem top_elt a
+            if Queries.AD.mem UnknownPtr a
             then (* UNSOUND *)
-              Queries.LS.remove top_elt a
+              Queries.AD.remove UnknownPtr a
             else a
           in
-          Queries.LS.elements a'
+          Queries.AD.elements a'
         else
           []
       in
-      List.map fst @@ mayPointTo ctx exp
+      List.fold (fun l addr ->
+          match addr with
+          | Queries.AD.Addr.Addr (v,_) -> v :: l
+          | _ -> l
+        ) [] (mayPointTo ctx exp)
 
 
     let eval_var ctx exp =
