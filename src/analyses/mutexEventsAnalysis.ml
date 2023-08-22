@@ -18,24 +18,12 @@ struct
   include UnitAnalysis.Spec
   let name () = "mutexEvents"
 
-  (* TODO: Use AddressDomain for queries *)
-  let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.of_mval (v, Addr.Offs.of_exp o) :: b in
-    match a.f (Queries.MayPointTo exp) with
-    | a when Queries.LS.is_top a ->
-      [Addr.UnknownPtr]
-    | a ->
-      let top_elt = (dummyFunDec.svar, `NoOffset) in
-      let addrs = Queries.LS.fold gather_addr (Queries.LS.remove top_elt a) [] in
-      if Queries.LS.mem top_elt a then
-        Addr.UnknownPtr :: addrs
-      else
-        addrs
+  let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointToA exp)
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv arg =
     match lv with
     | None ->
-      List.iter (fun e ->
+      Queries.AD.iter (fun e ->
           ctx.split () [Events.Lock (e, rw)]
         ) (eval_exp_addr a arg);
       if may_fail then
@@ -43,7 +31,7 @@ struct
       raise Analyses.Deadcode
     | Some lv ->
       let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
-      List.iter (fun e ->
+      Queries.AD.iter (fun e ->
           ctx.split () [sb; Events.Lock (e, rw)];
         ) (eval_exp_addr a arg);
       if may_fail then (
@@ -67,7 +55,7 @@ struct
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x = x in
     let unlock arg remove_fn =
-      List.iter (fun e ->
+      Queries.AD.iter (fun e ->
           ctx.split () [Events.Unlock (remove_fn e)]
         ) (eval_exp_addr (Analyses.ask_of_ctx ctx) arg);
       raise Analyses.Deadcode
@@ -83,7 +71,7 @@ struct
       (* mutex is unlocked while waiting but relocked when returns *)
       (* emit unlock-lock events for privatization *)
       let ms = eval_exp_addr (Analyses.ask_of_ctx ctx) m_arg in
-      List.iter (fun m ->
+      Queries.AD.iter (fun m ->
           (* unlock-lock each possible mutex as a split to be dependent *)
           (* otherwise may-point-to {a, b} might unlock a, but relock b *)
           ctx.split () [Events.Unlock m; Events.Lock (m, true)];
