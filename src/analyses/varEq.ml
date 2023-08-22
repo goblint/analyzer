@@ -389,17 +389,11 @@ struct
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
     let reachable e st =
-      match st with
-      | None -> None
-      | Some st ->
-        let q = if deep then Queries.ReachableFrom e else Queries.MayPointTo e in
-        let vs = ask.f q in
-        if Queries.LS.is_top vs then
-          None
-        else
-          Some (Queries.LS.join vs st)
+      let q = if deep then Queries.ReachableFromA e else Queries.MayPointToA e in
+      let vs = ask.f q in
+      Queries.AD.join vs st
     in
-    List.fold_right reachable es (Some (Queries.LS.empty ()))
+    List.fold_right reachable es (Queries.AD.empty ())
 
 
   (* Probably ok as is. *)
@@ -460,15 +454,16 @@ struct
     | None -> ctx.local
 
   let remove_reachable ~deep ask es st =
-    match reachables ~deep ask es with
-    | None -> D.top ()
-    | Some rs ->
-      (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
-         each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
-         It is unknown, why that was necessary. *)
-      Queries.LS.fold (fun lval st ->
-          remove ask (Mval.Exp.to_cil lval) st
-        ) rs st
+    let rs = reachables ~deep ask es in
+    (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
+       each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
+       It is unknown, why that was necessary. *)
+    Queries.AD.fold (fun addr st ->
+        match addr with
+        | Queries.AD.Addr.Addr (v,o) -> remove ask (Mval.Exp.to_cil (v,ValueDomain.Offs.to_exp o)) st
+        | UnknownPtr -> D.top ()
+        | _ -> st
+      ) rs st
 
   let unknown_fn ctx lval f args =
     let desc = LF.find f in

@@ -279,6 +279,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
     ("sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env });
     ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w_deep]]);
   ]
 
 (** Pthread functions. *)
