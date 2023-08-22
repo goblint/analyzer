@@ -82,16 +82,18 @@ struct
       | Var _ -> Lval lval
       | Mem _ -> mkAddrOf lval (* Take the lval's address if its lhost is of the form *p, where p is a ptr *)
     in
-    match ctx.ask (Queries.MayPointTo lval_to_query) with
-    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
+    match ctx.ask (Queries.MayPointToA lval_to_query) with
+    | a when not (Queries.AD.is_top a) && not (Queries.AD.mem UnknownPtr a) ->
       let warn_for_heap_var var =
         if D.mem var state then
           M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
       in
       let pointed_to_heap_vars =
-        Queries.LS.elements a
-        |> List.map fst
-        |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
+        Queries.AD.fold (fun addr l ->
+            match addr with
+            | Queries.AD.Addr.Addr (var, _) when ctx.ask (Queries.IsHeapVar var) -> var :: l
+            | _ -> l
+          ) a [] 
       in
       List.iter warn_for_heap_var pointed_to_heap_vars; (* Warn for all heap vars that the lval possibly points to *)
       (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
