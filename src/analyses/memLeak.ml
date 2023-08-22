@@ -49,14 +49,15 @@ struct
         | _ -> state
       end
     | Free ptr ->
-      begin match ctx.ask (Queries.MayPointTo ptr) with
-        | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) && Queries.LS.cardinal a = 1 ->
+      begin match ctx.ask (Queries.MayPointToA ptr) with
+        | a when not (Queries.AD.is_top a) && not (Queries.AD.mem UnknownPtr a) && Queries.AD.cardinal a = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           let unique_pointed_to_heap_vars =
-            Queries.LS.filter (fun (v, _) -> ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v)) a
-            |> Queries.LS.elements
-            |> List.map fst
-            |> D.of_list
+            Queries.AD.fold (fun addr s -> 
+                match addr with
+                | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.add v s
+                | _ -> s
+              ) a (D.empty ())
           in
           D.diff state unique_pointed_to_heap_vars
         | _ -> state
