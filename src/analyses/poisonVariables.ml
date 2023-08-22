@@ -80,23 +80,28 @@ struct
         ) longjmp_nodes;
       D.join modified_locals ctx.local
     | Access {lvals; kind = Read; _} ->
-      if Queries.LS.is_top lvals then (
+      (* TODO: what about AD with both known and unknown pointers? *)
+      if Queries.AD.is_top lvals then (
         if not (VS.is_empty octx.local) then
           M.warn ~category:(Behavior (Undefined Other)) "reading unknown memory location, may be tainted!"
       )
       else (
-        Queries.LS.iter (fun lv ->
+        Queries.AD.iter (function
             (* Use original access state instead of current with removed written vars. *)
-            check_lval octx.local lv
+            | Queries.AD.Addr.Addr (v,o) -> check_lval octx.local (v, ValueDomain.Offs.to_exp o)
+            | _ -> ()
           ) lvals
       );
       ctx.local
     | Access {lvals; kind = Write; _} ->
-      if Queries.LS.is_top lvals then
+      (* TODO: what about AD with both known and unknown pointers? *)
+      if Queries.AD.is_top lvals then
         ctx.local
       else (
-        Queries.LS.fold (fun lv acc ->
-            rem_lval acc lv
+        Queries.AD.fold (fun addr acc ->
+            match addr with
+            | Queries.AD.Addr.Addr (v,o) -> rem_lval acc (v, ValueDomain.Offs.to_exp o)
+            | _ -> acc
           ) lvals ctx.local
       )
     | _ -> ctx.local

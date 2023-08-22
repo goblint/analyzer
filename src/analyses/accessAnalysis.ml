@@ -33,7 +33,7 @@ struct
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
-    let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
+    let reach_or_mpt: _ Queries.t = if reach then ReachableFromA e else MayPointToA e in
     let ls = ctx.ask reach_or_mpt in
     ctx.emit (Access {exp=e; lvals=ls; kind; reach})
 
@@ -138,24 +138,19 @@ struct
   let event ctx e octx =
     match e with
     | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
-      begin match lvals with
-        | ls when Queries.LS.is_top ls ->
-          let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
-          ctx.sideg ctx.node (G.singleton access)
-        | ls ->
-          let events = Queries.LS.fold (fun (var, offs) acc ->
-              let coffs = Offset.Exp.to_cil offs in
-              let access: AccessDomain.Event.t =
-                if CilType.Varinfo.equal var dummyFunDec.svar then
-                  {var_opt = None; offs_opt = (Some coffs); kind}
-                else
-                  {var_opt = (Some var); offs_opt = (Some coffs); kind}
-              in
-              G.add access acc
-            ) ls (G.empty ())
-          in
-          ctx.sideg ctx.node events
-      end
+      let events = Queries.AD.fold (fun addr acc ->
+          match addr with
+          | Queries.AD.Addr.Addr (var, offs) ->
+            let coffs = Offset.Exp.to_cil (ValueDomain.Offs.to_exp offs) in
+            let access: AccessDomain.Event.t = {var_opt = (Some var); offs_opt = (Some coffs); kind} in
+            G.add access acc
+          | UnknownPtr -> 
+            let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
+            G.add access acc
+          | _ -> acc
+        ) lvals (G.empty ())
+      in
+      ctx.sideg ctx.node events
     | _ ->
       ctx.local
 end

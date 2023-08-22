@@ -296,7 +296,7 @@ struct
     | Events.Access {exp; lvals; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       let is_recovered_to_st = not (ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx)) in
       (* must use original (pre-assign, etc) ctx queries *)
-      let old_access var_opt offs_opt =
+      let old_access var_opt =
         (* TODO: this used to use ctx instead of octx, why? *)
         (*privatization*)
         match var_opt with
@@ -325,24 +325,22 @@ struct
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
-      let module LS = Queries.LS in
+      let module AD = Queries.AD in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
-      let on_lvals ls =
-        let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-        let f (var, offs) =
-          let coffs = Offset.Exp.to_cil offs in
-          if CilType.Varinfo.equal var dummyFunDec.svar then
-            old_access None (Some coffs)
-          else
-            old_access (Some var) (Some coffs)
+      let on_lvals ad =
+        let f addr =
+          match addr with
+          | AD.Addr.Addr (g,o) when g.vglob || has_escaped g -> old_access (Some g)
+          | UnknownPtr -> old_access None
+          | _ -> () 
         in
-        LS.iter f ls
+        AD.iter f ad
       in
       begin match lvals with
-        | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+        | ad when not (AD.is_top ad) ->
           (* the case where the points-to set is non top and does not contain unknown values *)
-          on_lvals ls
-        | ls when not (LS.is_top ls) ->
+          on_lvals ad
+        | ad ->
           (* the case where the points-to set is non top and contains unknown values *)
           (* now we need to access all fields that might be pointed to: is this correct? *)
           begin match octx.ask (ReachableUkTypes exp) with
@@ -354,11 +352,11 @@ struct
                 | _ -> false
               in
               if Queries.TS.exists f ts then
-                old_access None None
+                old_access None
           end;
-          on_lvals ls
-        | _ ->
-          old_access None None
+          on_lvals ad
+          (* | _ ->
+             old_access None None *)
       end;
       ctx.local
     | _ ->
