@@ -31,10 +31,14 @@ struct
 
   (* TODO: Use AddressDomain for queries *)
   let access_address (ask: Queries.ask) write lv =
-    match ask.f (Queries.MayPointTo (AddrOf lv)) with
-    | a when not (Queries.LS.is_top a) ->
-      let to_extra (v,o) xs = (v, Addr.Offs.of_exp o, write) :: xs  in
-      Queries.LS.fold to_extra a []
+    match ask.f (Queries.MayPointToA (AddrOf lv)) with
+    | a when not (Queries.AD.is_top a) ->
+      let to_extra addr xs =
+        match addr with
+        | Queries.AD.Addr.Addr (v,o) -> (v, o, write) :: xs
+        | _ -> xs
+      in
+      Queries.AD.fold to_extra a []
     | _ ->
       M.info ~category:Unsound "Access to unknown address could be global"; []
 
@@ -164,10 +168,11 @@ struct
     let init_vo (v: varinfo) (ofs: lval_offs) : D.t =
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
-    match a.f (Queries.MayPointTo (AddrOf lv)) with
-    | a when Queries.LS.cardinal a = 1 ->  begin
-        let var, ofs = Queries.LS.choose a in
-        init_vo var (Addr.Offs.of_exp ofs)
+    match a.f (Queries.MayPointToA (AddrOf lv)) with
+    | a when Queries.AD.cardinal a = 1 ->
+      begin match Queries.AD.Addr.to_mval (Queries.AD.choose a) with
+        | Some (var, ofs) -> init_vo var ofs
+        | None -> st
       end
     | _ -> st
 
