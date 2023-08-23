@@ -26,13 +26,17 @@ struct
   module G = ThreadIdSet
 
   let reachable (ask: Queries.ask) e: D.t =
-    match ask.f (Queries.ReachableFrom e) with
-    | a when not (Queries.LS.is_top a) ->
-      let to_extra (v,o) set = D.add v set in
-      Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
+    match ask.f (Queries.ReachableFromA e) with
+    | a when not (Queries.AD.is_top a) ->
+      let to_extra addr set =
+        match addr with
+        | Queries.AD.Addr.Addr (v,_) -> D.add v set
+        | _ -> set
+      in
+      Queries.AD.fold to_extra a (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | a ->
-      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.LS.pretty a;
+      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.AD.pretty a;
       D.empty ()
 
   let mpt (ask: Queries.ask) e: D.t =
