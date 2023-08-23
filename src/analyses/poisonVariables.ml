@@ -42,14 +42,17 @@ struct
     if VS.is_empty ctx.local then
       [ctx.local,ctx.local]
     else (
-      let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
-      if Queries.LS.is_top reachable_from_args || VS.is_top ctx.local then
+      let reachable_from_args = List.fold (fun ls e -> Queries.AD.join ls (ctx.ask (ReachableFromA e))) (Queries.AD.empty ()) args in
+      if Queries.AD.is_top reachable_from_args || VS.is_top ctx.local then
         [ctx.local, ctx.local]
       else
         let reachable_vars =
-          Queries.LS.elements reachable_from_args
-          |> List.map fst
-          |> VS.of_list
+          let get_vars addr vs =
+            match addr with
+            | Queries.AD.Addr.Addr (v,_) -> VS.add v vs
+            | _ -> vs
+          in
+          Queries.AD.fold get_vars reachable_from_args (VS.empty ())
         in
         [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local]
     )
