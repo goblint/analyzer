@@ -161,7 +161,7 @@ struct
         | a when Queries.AD.is_top a ->
           st
         | a ->
-          let lvals = List.filter_map Queries.AD.Addr.to_mval (Queries.AD.elements a) in
+          let lvals = Queries.AD.to_mval a in
           let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil lv) f) lvals in
           List.fold_right D.join ass' (D.bot ())
       end
@@ -521,8 +521,7 @@ struct
         match ask.f (Queries.MayPointToA e) with
         | a when Queries.AD.is_top a -> []
         | a ->
-          Queries.AD.elements a
-          |> List.filter_map Queries.AD.Addr.to_mval 
+          Queries.AD.to_mval a
           |> List.map ValueDomain.Addr.Mval.to_cil
       in
       let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in

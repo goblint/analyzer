@@ -211,11 +211,7 @@ struct
 
   let eval_fv ask exp: varinfo option =
     match query_lv ask exp with
-    | [addr] ->
-      begin match addr with
-        | Queries.AD.Addr.Addr (v,_) -> Some v
-        | _ -> None
-      end
+    | [addr] -> Queries.AD.Addr.to_var_may addr
     | _ -> None
 
 
