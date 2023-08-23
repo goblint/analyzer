@@ -156,11 +156,18 @@ struct
     if D.is_empty caller_state then
       [caller_state, caller_state]
     else (
-      let reachable_from_args = List.fold_left (fun acc arg -> Queries.LS.join acc (ctx.ask (ReachableFrom arg))) (Queries.LS.empty ()) args in
-      if Queries.LS.is_top reachable_from_args || D.is_top caller_state then
+      let reachable_from_args = List.fold_left (fun acc arg -> Queries.AD.join acc (ctx.ask (ReachableFromA arg))) (Queries.AD.empty ()) args in
+      if Queries.AD.is_top reachable_from_args || D.is_top caller_state then
         [caller_state, caller_state]
       else
-        let reachable_vars = List.map fst (Queries.LS.elements reachable_from_args) in
+        let reachable_vars =
+          let get_vars addr vs =
+            match addr with
+            | Queries.AD.Addr.Addr (v,_) -> v :: vs
+            | _ -> vs
+          in
+          Queries.AD.fold get_vars reachable_from_args []
+        in
         let callee_state = D.filter (fun var -> List.mem var reachable_vars) caller_state in
         [caller_state, callee_state]
     )
