@@ -195,10 +195,14 @@ struct
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
       let do_exp e =
-        match ask.f (Queries.ReachableFrom e) with
-        | a when not (Queries.LS.is_top a) ->
-          let to_extra (v,o) xs = AD.of_mval (v, Addr.Offs.of_exp o) :: xs  in
-          Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
+        match ask.f (Queries.ReachableFromA e) with
+        | a when not (Queries.AD.is_top a) ->
+          let to_extra addr xs =
+            match addr with
+            | Queries.AD.Addr.Addr addr ->  AD.of_mval addr :: xs
+            | _ -> xs
+          in
+          Queries.AD.fold to_extra a []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
