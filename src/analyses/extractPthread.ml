@@ -869,8 +869,6 @@ module Spec : Analyses.MCPSpec = struct
   module C = D
 
   (** Set of created tasks to spawn when going multithreaded *)
-  module Tasks = SetDomain.Make (Lattice.Prod (Queries.AD) (D))
-
   module G = Tasks
 
   let tasks_var =
