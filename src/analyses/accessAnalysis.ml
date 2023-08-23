@@ -141,10 +141,10 @@ struct
       let events = Queries.AD.fold (fun addr acc ->
           match addr with
           | Queries.AD.Addr.Addr (var, offs) ->
-            let coffs = Offset.Exp.to_cil (ValueDomain.Offs.to_exp offs) in
+            let coffs = ValueDomain.Offs.to_cil offs in
             let access: AccessDomain.Event.t = {var_opt = (Some var); offs_opt = (Some coffs); kind} in
             G.add access acc
-          | UnknownPtr -> 
+          | UnknownPtr ->
             let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
             G.add access acc
           | _ -> acc

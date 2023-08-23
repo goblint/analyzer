@@ -157,10 +157,10 @@ struct
         let f addr =
           match addr with
           | AD.Addr.Addr (g,o) when g.vglob || has_escaped g ->
-            let coffs = Offset.Exp.to_cil (ValueDomain.Offs.to_exp o) in
+            let coffs = ValueDomain.Offs.to_cil o in
             add_access conf (Some (g, coffs))
           | UnknownPtr -> add_access conf None
-          | _ -> () 
+          | _ -> ()
         in
         AD.iter f ad
       in

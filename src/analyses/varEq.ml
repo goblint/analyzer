@@ -461,7 +461,7 @@ struct
        It is unknown, why that was necessary. *)
     Queries.AD.fold (fun addr st ->
         match addr with
-        | Queries.AD.Addr.Addr (v,o) -> remove ask (Mval.Exp.to_cil (v,ValueDomain.Offs.to_exp o)) st
+        | Queries.AD.Addr.Addr mval -> remove ask (ValueDomain.Mval.to_cil mval) st
         | UnknownPtr -> D.top ()
         | _ -> st
       ) rs st
