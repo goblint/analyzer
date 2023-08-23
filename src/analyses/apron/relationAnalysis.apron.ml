@@ -11,6 +11,7 @@ open Analyses
 open RelationDomain
 
 module M = Messages
+module VS = SetDomain.Make (CilType.Varinfo)
 
 module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
@@ -271,7 +272,15 @@ struct
   let any_local_reachable fundec reachable_from_args =
     let locals = fundec.sformals @ fundec.slocals in
     let locals_id = List.map (fun v -> v.vid) locals in
-    Queries.LS.exists (fun (v',_) -> List.mem v'.vid locals_id && RD.Tracked.varinfo_tracked v') reachable_from_args
+    VS.exists (fun v -> List.mem v.vid locals_id && RD.Tracked.varinfo_tracked v) reachable_from_args
+
+  let reachable_from_args ctx args =
+    let vs e =
+      ctx.ask (ReachableFromA e)
+      |> LockDomain.MayLocksetNoRW.to_var_may
+      |> VS.of_list
+    in
+    List.fold (fun ls e -> VS.join ls (vs e)) (VS.empty ()) args
 
   let pass_to_callee fundec any_local_reachable var =
     (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
@@ -291,7 +300,6 @@ struct
       |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
       |> List.map (Tuple2.map1 RV.arg)
     in
-    let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
     (* RD.assign_exp_parallel_with new_rel arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
@@ -307,6 +315,7 @@ struct
               )
           ) new_rel arg_assigns
     in
+    let reachable_from_args = reachable_from_args ctx args in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
@@ -369,16 +378,20 @@ struct
 
   let combine_env ctx r fe f args fc fun_st (f_ask : Queries.ask) =
     let st = ctx.local in
-    let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
+    let reachable_from_args = reachable_from_args ctx args in
     let fundec = Node.find_fundec ctx.node in
     if M.tracing then M.tracel "combine" "relation f: %a\n" CilType.Varinfo.pretty f.svar;
     if M.tracing then M.tracel "combine" "relation formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
     if M.tracing then M.tracel "combine" "relation args: %a\n" (d_list "," d_exp) args;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
+      let filter_actuals (x,e) =
+        RD.Tracked.varinfo_tracked x
+        && List.for_all (fun v -> not (VS.mem v reachable_from_args)) (Basetype.CilExp.get_vars e)
+      in
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       (* Do not do replacement for actuals whose value may be modified after the call *)
-      |> List.filter (fun (x, e) -> RD.Tracked.varinfo_tracked x && List.for_all (fun v -> not (Queries.LS.exists (fun (v',_) -> v'.vid = v.vid) reachable_from_args)) (Basetype.CilExp.get_vars e))
+      |> List.filter filter_actuals
       |> List.map (Tuple2.map1 RV.arg)
     in
     (* RD.substitute_exp_parallel_with new_fun_rel arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
@@ -441,13 +454,13 @@ struct
       match st with
       | None -> None
       | Some st ->
-        let vs = ask.f (Queries.ReachableFrom e) in
-        if Queries.LS.is_top vs then
+        let vs = ask.f (Queries.ReachableFromA e) in
+        if Queries.AD.is_top vs then
           None
         else
-          Some (Queries.LS.join vs st)
+          Some (Queries.AD.join vs st)
     in
-    List.fold_right reachable es (Some (Queries.LS.empty ()))
+    List.fold_right reachable es (Some (Queries.AD.empty ()))
 
 
   let forget_reachable ctx st es =
@@ -460,8 +473,12 @@ struct
         |> List.filter_map RV.to_cil_varinfo
         |> List.map Cil.var
       | Some rs ->
-        Queries.LS.elements rs
-        |> List.map Mval.Exp.to_cil
+        let to_cil addr xs =
+          match addr with
+          | Queries.AD.Addr.Addr addr -> (ValueDomain.Addr.Mval.to_cil addr) :: xs
+          | _ -> xs
+        in
+        Queries.AD.fold to_cil rs []
     in
     List.fold_left (fun st lval ->
         invalidate_one ask ctx st lval
