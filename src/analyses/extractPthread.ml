@@ -244,7 +244,7 @@ let fun_ctx ctx f =
   f.vname ^ "_" ^ ctx_hash
 
 
-module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (PthreadDomain.D))
+module Tasks = SetDomain.Make (Lattice.Prod (Queries.AD) (PthreadDomain.D))
 module rec Env : sig
   type t
 
@@ -869,7 +869,7 @@ module Spec : Analyses.MCPSpec = struct
   module C = D
 
   (** Set of created tasks to spawn when going multithreaded *)
-  module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D))
+  module Tasks = SetDomain.Make (Lattice.Prod (Queries.AD) (D))
 
   module G = Tasks
 
@@ -1119,18 +1119,21 @@ module Spec : Analyses.MCPSpec = struct
       let arglist' = List.map (stripCasts % constFold false) arglist in
       match (LibraryFunctions.find f).special arglist', f.vname, arglist with
       | ThreadCreate { thread; start_routine = func; _ }, _, _ ->
-        let funs_ls =
-          let ls = ctx.ask (Queries.ReachableFrom func) in
-          Queries.LS.filter
-            (fun lv ->
-               let lval = Mval.Exp.to_cil lv in
-               isFunctionType (typeOfLval lval))
-            ls
+        let funs_ad =
+          let ad = ctx.ask (Queries.ReachableFromA func) in
+          Queries.AD.filter
+            (function
+              | Queries.AD.Addr.Addr addr ->
+                isFunctionType (ValueDomain.Addr.Mval.type_of addr)
+              | _ -> false)
+            ad
         in
         let thread_fun =
-          funs_ls
-          |> Queries.LS.elements
-          |> List.map fst
+          Queries.AD.fold (fun addr acc -> 
+              match addr with
+              | Queries.AD.Addr.Addr (v,_) -> v :: acc
+              | _ -> acc
+            ) funs_ad []
           |> List.unique ~eq:(fun a b -> a.vid = b.vid)
           |> List.hd
         in
@@ -1143,7 +1146,7 @@ module Spec : Analyses.MCPSpec = struct
               ; ctx = Ctx.top ()
               }
             in
-            Tasks.singleton (funs_ls, f_d)
+            Tasks.singleton (funs_ad, f_d)
           in
           ctx.sideg tasks_var tasks ;
         in
@@ -1255,7 +1258,10 @@ module Spec : Analyses.MCPSpec = struct
     (* TODO: optimize finding *)
     let tasks_f =
       Tasks.filter
-        (fun (fs, f_d) -> Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs)
+        (fun (fs, f_d) -> Queries.AD.exists (function
+             | Queries.AD.Addr.Addr (ls_f, _) -> ls_f = f
+             | _ -> false) 
+             fs)
         tasks
     in
     let f_d = snd (Tasks.choose tasks_f) in
