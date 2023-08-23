@@ -96,13 +96,13 @@ struct
     let reachable =
       let do_exp e =
         match ask.f (Queries.ReachableFromA e) with
-        | a when not (Queries.AD.is_top a)  ->
-          Queries.AD.fold (
-            fun addr xs ->
-              match addr with
-              | Queries.AD.Addr.Addr (v,o) -> AD.of_mval (v,o) :: xs 
-              | _ -> xs 
-          ) a []
+        | a when not (Queries.AD.is_top a) ->
+          let to_extra addr xs =
+            match addr with
+            | Queries.AD.Addr.Addr addr -> AD.of_mval addr :: xs
+            | _ -> xs
+          in
+          Queries.AD.fold to_extra a []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
