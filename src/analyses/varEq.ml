@@ -455,6 +455,7 @@ struct
 
   let remove_reachable ~deep ask es st =
     let rs = reachables ~deep ask es in
+    if M.tracing then M.tracel "var_eq" "remove_reachable %a: %a\n" (Pretty.d_list ", " d_exp) es AD.pretty rs;
     (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
        each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
        It is unknown, why that was necessary. *)
