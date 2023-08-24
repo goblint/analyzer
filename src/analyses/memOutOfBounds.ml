@@ -101,7 +101,17 @@ struct
     else
       match lval with
       | Var _, _ -> ()
-      | Mem e, _ -> check_exp_for_oob_access ctx e
+      | Mem e, _ ->
+        begin match e with
+          | Lval lval -> check_lval_for_oob_access ctx lval
+          | BinOp (PlusPI as binop, e1, e2, t)
+          | BinOp (MinusPI as binop, e1, e2, t)
+          | BinOp (IndexPI as binop, e1, e2, t) ->
+            check_binop_exp ctx binop e1 e2 t;
+            check_exp_for_oob_access ctx e1;
+            check_exp_for_oob_access ctx e2
+          | _ -> check_exp_for_oob_access ctx e
+        end
 
   and check_exp_for_oob_access ctx exp =
     match exp with
@@ -117,7 +127,6 @@ struct
     | UnOp (_, e, _)
     | CastE (_, e) -> check_exp_for_oob_access ctx e
     | BinOp (bop, e1, e2, t) ->
-      check_binop_exp ctx bop e1 e2 t;
       check_exp_for_oob_access ctx e1;
       check_exp_for_oob_access ctx e2
     | Question (e1, e2, e3, _) ->
@@ -141,14 +150,14 @@ struct
       begin match VDQ.ID.is_top ptr_size, VDQ.ID.is_top offset_size with
         | true, _ ->
           AS.svcomp_may_invalid_deref := true;
-          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer (%a) size in expression %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp binopexp
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a in expression %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp binopexp
         | _, true ->
           AS.svcomp_may_invalid_deref := true;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a not known. Memory out-of-bounds access might occur" d_exp binopexp
         | false, false ->
           if ptr_size < offset_size then begin
             AS.svcomp_may_invalid_deref := true;
-            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer size (%a) in expression %a is smaller than offset (%a) for pointer arithmetic. Memory out-of-bounds access must occur" VDQ.ID.pretty ptr_size d_exp binopexp VDQ.ID.pretty offset_size
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a in expression %a is smaller than offset %a for pointer arithmetic. Memory out-of-bounds access must occur" VDQ.ID.pretty ptr_size d_exp binopexp VDQ.ID.pretty offset_size
           end
       end
     | _ -> ()
