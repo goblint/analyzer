@@ -34,8 +34,8 @@ struct
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let reach_or_mpt: _ Queries.t = if reach then ReachableFromA e else MayPointToA e in
-    let ls = ctx.ask reach_or_mpt in
-    ctx.emit (Access {exp=e; lvals=ls; kind; reach})
+    let ad = ctx.ask reach_or_mpt in
+    ctx.emit (Access {exp=e; ad; kind; reach})
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
@@ -137,18 +137,18 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
-      let events = Queries.AD.fold (fun addr acc ->
+    | Events.Access {ad; kind; _} when !collect_local && !AnalysisState.postsolving ->
+      let events = Queries.AD.fold (fun addr es ->
           match addr with
           | Queries.AD.Addr.Addr (var, offs) ->
             let coffs = ValueDomain.Offs.to_cil offs in
             let access: AccessDomain.Event.t = {var_opt = (Some var); offs_opt = (Some coffs); kind} in
-            G.add access acc
+            G.add access es
           | UnknownPtr ->
             let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
-            G.add access acc
-          | _ -> acc
-        ) lvals (G.empty ())
+            G.add access es
+          | _ -> es
+        ) ad (G.empty ())
       in
       ctx.sideg ctx.node events
     | _ ->

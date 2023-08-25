@@ -293,7 +293,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp; ad; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       let is_recovered_to_st = not (ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx)) in
       (* must use original (pre-assign, etc) ctx queries *)
       let old_access var_opt =
@@ -327,19 +327,18 @@ struct
       in
       let module AD = Queries.AD in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
-      let on_lvals ad =
-        let f addr =
-          match addr with
-          | AD.Addr.Addr (g,o) when g.vglob || has_escaped g -> old_access (Some g)
+      let on_ad ad =
+        let f = function
+          | AD.Addr.Addr (g,_) when g.vglob || has_escaped g -> old_access (Some g)
           | UnknownPtr -> old_access None
-          | _ -> () 
+          | _ -> ()
         in
         AD.iter f ad
       in
-      begin match lvals with
+      begin match ad with
         | ad when not (AD.is_top ad) ->
           (* the case where the points-to set is non top and does not contain unknown values *)
-          on_lvals ad
+          on_ad ad
         | ad ->
           (* the case where the points-to set is non top and contains unknown values *)
           (* now we need to access all fields that might be pointed to: is this correct? *)
@@ -354,9 +353,9 @@ struct
               if Queries.TS.exists f ts then
                 old_access None
           end;
-          on_lvals ad
+          on_ad ad
           (* | _ ->
-             old_access None None *)
+             old_access None None *) (* TODO: what about this case? *)
       end;
       ctx.local
     | _ ->

@@ -176,7 +176,7 @@ struct
   let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
     let pt e = ask.f (Queries.MayPointToA e) in
-    let bls = pt b in
+    let bad = pt b in
     let bt =
       match unrollTypeDeep (Cilfacade.typeOf b) with
       | TPtr (t,_) -> t
@@ -247,7 +247,7 @@ struct
         | CastE   (t,e) -> addrOfExp e
         | _ -> None
       in
-      let lval_is_not_disjoint (v,o) als =
+      let lval_is_not_disjoint (v,o) aad =
         let rec oleq o s =
           match o, s with
           | `NoOffset, _ -> true
@@ -255,21 +255,21 @@ struct
           | `Index (i1,o), `Index (i2,s) when exp_equal i1 i2     -> oleq o s
           | _ -> false
         in
-        if Queries.AD.is_top als
+        if Queries.AD.is_top aad
         then false
         else Queries.AD.exists (function
             | Addr (u,s) -> CilType.Varinfo.equal v u && oleq o (Addr.Offs.to_exp s)
             | _ -> false
-          ) als
+          ) aad
       in
-      let (als, test) =
+      let (aad, test) =
         match addrOfExp a with
         | None -> (Queries.AD.bot (), false)
         | Some e ->
-          let als = pt e in
-          (als, lval_is_not_disjoint bl als)
+          let aad = pt e in
+          (aad, lval_is_not_disjoint bl aad)
       in
-      if Queries.AD.is_top als
+      if Queries.AD.is_top aad
       then type_may_change_apt a
       else test ||
            match a with
@@ -295,12 +295,12 @@ struct
     in
     let r =
       if Cil.isConstant b then false
-      else if Queries.AD.is_top bls
+      else if Queries.AD.is_top bad
       then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.AD.exists (function
           | Addr (v,o) -> lval_may_change_pt a (v, Addr.Offs.to_exp o)
           | _ -> false
-        ) bls
+        ) bad
     in
     (*    if r
           then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
@@ -345,11 +345,11 @@ struct
       Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointToA e) with
-        | ls when not (Queries.AD.is_top ls) ->
+        | ad when not (Queries.AD.is_top ad) ->
           Some (Queries.AD.exists (function
-              | Addr (v, _) -> is_global_var ask (Lval (var v)) = Some true
+              | Addr (v,_) -> is_global_var ask (Lval (var v)) = Some true
               | _ -> false
-            ) ls)
+            ) ad)
         | _ -> Some true
       end
     | CastE (t,e) -> is_global_var ask e
@@ -390,8 +390,8 @@ struct
   let reachables ~deep (ask: Queries.ask) es =
     let reachable e st =
       let q = if deep then Queries.ReachableFromA e else Queries.MayPointToA e in
-      let vs = ask.f q in
-      Queries.AD.join vs st
+      let ad = ask.f q in
+      Queries.AD.join ad st
     in
     List.fold_right reachable es (Queries.AD.empty ())
 

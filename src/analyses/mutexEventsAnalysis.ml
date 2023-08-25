@@ -20,8 +20,8 @@ struct
 
   let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointToA exp)
 
-  let lock ctx rw may_fail nonzero_return_when_aquired a lv arg =
-    match lv with
+  let lock ctx rw may_fail nonzero_return_when_aquired a lv_opt arg =
+    match lv_opt with
     | None ->
       Queries.AD.iter (fun e ->
           ctx.split () [Events.Lock (e, rw)]

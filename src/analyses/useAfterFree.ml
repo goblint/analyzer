@@ -83,17 +83,17 @@ struct
       | Mem _ -> mkAddrOf lval (* Take the lval's address if its lhost is of the form *p, where p is a ptr *)
     in
     match ctx.ask (Queries.MayPointToA lval_to_query) with
-    | a when not (Queries.AD.is_top a) ->
-      let warn_for_heap_var var =
-        if D.mem var state then
-          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
+    | ad when not (Queries.AD.is_top ad) ->
+      let warn_for_heap_var v =
+        if D.mem v state then
+          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
       in
       let pointed_to_heap_vars =
-        Queries.AD.fold (fun addr l ->
+        Queries.AD.fold (fun addr vars ->
             match addr with
-            | Queries.AD.Addr.Addr (var, _) when ctx.ask (Queries.IsHeapVar var) -> var :: l
-            | _ -> l
-          ) a []
+            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsHeapVar v) -> v :: vars
+            | _ -> vars
+          ) ad []
       in
       List.iter warn_for_heap_var pointed_to_heap_vars; (* Warn for all heap vars that the lval possibly points to *)
       (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
@@ -156,15 +156,15 @@ struct
     if D.is_empty caller_state then
       [caller_state, caller_state]
     else (
-      let reachable_from_args = List.fold_left (fun acc arg -> Queries.AD.join acc (ctx.ask (ReachableFromA arg))) (Queries.AD.empty ()) args in
+      let reachable_from_args = List.fold_left (fun ad arg -> Queries.AD.join ad (ctx.ask (ReachableFromA arg))) (Queries.AD.empty ()) args in
       if Queries.AD.is_top reachable_from_args || D.is_top caller_state then
         [caller_state, caller_state]
       else
         let reachable_vars =
-          let get_vars addr vs =
+          let get_vars addr vars =
             match addr with
-            | Queries.AD.Addr.Addr (v,_) -> v :: vs
-            | _ -> vs
+            | Queries.AD.Addr.Addr (v,_) -> v :: vars
+            | _ -> vars
           in
           Queries.AD.fold get_vars reachable_from_args []
         in
@@ -188,13 +188,13 @@ struct
     match desc.special arglist with
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointToA ptr) with
-        | a when not (Queries.AD.is_top a) ->
+        | ad when not (Queries.AD.is_top ad) ->
           let pointed_to_heap_vars =
-            Queries.AD.fold (fun addr s ->
+            Queries.AD.fold (fun addr state ->
                 match addr with
-                | Queries.AD.Addr.Addr (var, _) when ctx.ask (Queries.IsHeapVar var) -> D.add var s
-                | _ -> s
-              ) a (D.empty ())
+                | Queries.AD.Addr.Addr (var,_) when ctx.ask (Queries.IsHeapVar var) -> D.add var state
+                | _ -> state
+              ) ad (D.empty ())
           in
           (* Side-effect the tid that's freeing all the heap vars collected here *)
           side_effect_mem_free ctx pointed_to_heap_vars (get_current_threadid ctx);

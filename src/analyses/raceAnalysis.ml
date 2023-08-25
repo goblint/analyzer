@@ -131,7 +131,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp=e; lvals; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp=e; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
       let module AD = Queries.AD in
@@ -151,7 +151,7 @@ struct
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
          -- this is the common case if we have a sound points-to set. *)
-      let on_lvals ad includes_uk =
+      let on_ad ad includes_uk =
         let conf = if reach then conf - 20 else conf in
         let conf = if includes_uk then conf - 10 else conf in
         let f addr =
@@ -164,10 +164,10 @@ struct
         in
         AD.iter f ad
       in
-      begin match lvals with
+      begin match ad with
         | ad when not (AD.is_top ad) ->
           (* the case where the points-to set is non top and does not contain unknown values *)
-          on_lvals ad false
+          on_ad ad false
         | ad ->
           (* the case where the points-to set is non top and contains unknown values *)
           let includes_uk = ref false in
@@ -185,9 +185,9 @@ struct
               in
               Queries.TS.iter f ts
           end;
-          on_lvals ad !includes_uk
+          on_ad ad !includes_uk
           (* | _ ->
-             add_access (conf - 60) None *)
+             add_access (conf - 60) None *) (* TODO: what about this case? *)
       end;
       ctx.local
     | _ ->

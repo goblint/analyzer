@@ -27,30 +27,30 @@ struct
 
   let reachable (ask: Queries.ask) e: D.t =
     match ask.f (Queries.ReachableFromA e) with
-    | a when not (Queries.AD.is_top a) ->
+    | ad when not (Queries.AD.is_top ad) ->
       let to_extra addr set =
         match addr with
         | Queries.AD.Addr.Addr (v,_) -> D.add v set
         | _ -> set
       in
-      Queries.AD.fold to_extra a (D.empty ())
+      Queries.AD.fold to_extra ad (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
-    | a ->
-      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.AD.pretty a;
+    | ad ->
+      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.AD.pretty ad;
       D.empty ()
 
   let mpt (ask: Queries.ask) e: D.t =
     match ask.f (Queries.MayPointToA e) with
-    | a when not (AD.is_top a) ->
-      let to_extra addr set = 
+    | ad when not (AD.is_top ad) ->
+      let to_extra addr set =
         match addr with
         | AD.Addr.Addr (v,_) -> D.add v set
         | _ -> set
       in
-      AD.fold to_extra (AD.remove UnknownPtr a) (D.empty ())
+      AD.fold to_extra (AD.remove UnknownPtr ad) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
-    | a ->
-      if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e AD.pretty a;
+    | ad ->
+      if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e AD.pretty ad;
       D.empty ()
 
   let thread_id ctx =
