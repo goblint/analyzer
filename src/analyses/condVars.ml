@@ -65,11 +65,11 @@ struct
 
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
-    | a when not (Queries.AD.is_top a) && Queries.AD.cardinal a > 0 ->
-      let a' = if Queries.AD.mem UnknownPtr a then (
+    | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad > 0 ->
+      let a' = if Queries.AD.mem UnknownPtr ad then (
           M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
-          Queries.AD.remove UnknownPtr a
-        ) else a
+          Queries.AD.remove UnknownPtr ad
+        ) else ad
       in
       List.filter_map (function
           | ValueDomain.Addr.Addr (v,o) -> Some (v, ValueDomain.Addr.Offs.to_exp o)

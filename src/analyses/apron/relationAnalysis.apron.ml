@@ -217,8 +217,8 @@ struct
       | Lval (Var v, off) -> Lval (Var v, off)
       | Lval (Mem e, NoOffset) ->
         begin match ask (Queries.MayPointTo e) with
-          | a when not (Queries.AD.is_top a) && (Queries.AD.cardinal a) = 1 ->
-            begin match Queries.AD.Addr.to_mval (Queries.AD.choose a) with
+          | ad when not (Queries.AD.is_top ad) && (Queries.AD.cardinal ad) = 1 ->
+            begin match Queries.AD.Addr.to_mval (Queries.AD.choose ad) with
               | Some mval -> ValueDomain.Addr.Mval.to_cil_exp mval
               | None -> Lval (Mem e, NoOffset)
             end
