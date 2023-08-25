@@ -191,7 +191,8 @@ struct
                 | `Index (i, o) ->
                   let exp_as_int_dom = match ctx.ask (Queries.EvalInt i) with
                     | `Lifted i -> i
-                    | _ -> IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
+                    | `Bot -> IntDomain.IntDomTuple.bot_of @@ Cilfacade.ptrdiff_ikind ()
+                    | `Top -> IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
                   in
                   `Index (exp_as_int_dom, to_int_dom_offs o)
               in
