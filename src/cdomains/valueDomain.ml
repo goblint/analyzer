@@ -10,7 +10,7 @@ module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
-module LS = VDQ.LS
+module AD = VDQ.AD
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -756,9 +756,9 @@ struct
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin match ask.may_point_to (Lval lval) with
-          | v when LS.cardinal v = 1 && not (LS.is_top v) ->
-            begin match LS.choose v with
-              | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
+          | v when AD.cardinal v = 1 && not (AD.is_top v) ->
+            begin match AD.choose v with
+              | AD.Addr.Addr (var,`Index (i,`NoOffset)) when ID.equal_to Z.zero i = `Eq && CilType.Varinfo.equal var arr_start_var ->
                 (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
                 add
               | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
