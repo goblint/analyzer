@@ -38,11 +38,11 @@ struct
       match e with
       | Lval (Var v, offs) ->
         begin match a.f (Queries.MayPointToA (mkAddrOf (Var v,offs))) with
-          | a when not (Queries.AD.is_top a) ->
+          | ad when not (Queries.AD.is_top ad) ->
             Queries.AD.iter (function
-                | Queries.AD.Addr.Addr addr -> warn_lval st addr
+                | Queries.AD.Addr.Addr mval -> warn_lval st mval
                 | _ -> ()
-              ) a
+              ) ad
           | _ -> ()
         end
       | _ -> ()
@@ -96,13 +96,13 @@ struct
     let reachable =
       let do_exp e =
         match ask.f (Queries.ReachableFromA e) with
-        | a when not (Queries.AD.is_top a) ->
-          let to_extra addr xs =
+        | ad when not (Queries.AD.is_top ad) ->
+          let to_extra addr ads =
             match addr with
-            | Queries.AD.Addr.Addr addr -> AD.of_mval addr :: xs
-            | _ -> xs
+            | Queries.AD.Addr.Addr mval -> AD.of_mval mval :: ads
+            | _ -> ads
           in
-          Queries.AD.fold to_extra a []
+          Queries.AD.fold to_extra ad []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
@@ -119,8 +119,8 @@ struct
 
   let get_concrete_lval (ask: Queries.ask) (lval:lval) =
     match ask.f (Queries.MayPointToA (mkAddrOf lval)) with
-    | a when Queries.AD.cardinal a = 1 && not (Queries.AD.mem UnknownPtr a) ->
-      Queries.AD.Addr.to_mval (Queries.AD.choose a)
+    | ad when Queries.AD.cardinal ad = 1 && not (Queries.AD.mem UnknownPtr ad) ->
+      Queries.AD.Addr.to_mval (Queries.AD.choose ad)
     | _ -> None
 
   let get_concrete_exp (exp:exp) gl (st:D.t) =
@@ -131,13 +131,13 @@ struct
 
   let might_be_null (ask: Queries.ask) lv gl st =
     match ask.f (Queries.MayPointToA (mkAddrOf lv)) with
-    | a when not (Queries.AD.is_top a) ->
+    | ad when not (Queries.AD.is_top ad) ->
       let one_addr_might = function
-        | Queries.AD.Addr.Addr addr ->
-          D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of addr x) (Addr.to_mval x)) st
+        | Queries.AD.Addr.Addr mval ->
+          D.exists (fun addr -> GobOption.exists (fun x -> is_prefix_of mval x) (Addr.to_mval addr)) st
         | _ -> false
       in
-      Queries.AD.exists one_addr_might a
+      Queries.AD.exists one_addr_might ad
     | _ -> false
 
   (*
@@ -149,8 +149,8 @@ struct
     warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval lval) ;
     warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local rval;
     match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval (Analyses.ask_of_ctx ctx) lval with
-    | Some rv, Some addr when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
-      D.add (Addr.of_mval addr) ctx.local
+    | Some rv, Some mval when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
+      D.add (Addr.of_mval mval) ctx.local
     | _ -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -191,7 +191,7 @@ struct
     match lval, D.mem (return_addr ()) au with
     | Some lv, true ->
       begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
-        | Some addr -> D.add (Addr.of_mval addr) ctx.local
+        | Some mval -> D.add (Addr.of_mval mval) ctx.local
         | _ -> ctx.local
       end
     | _ -> ctx.local
@@ -204,9 +204,9 @@ struct
     | Malloc _, Some lv ->
       begin
         match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
-        | Some addr ->
+        | Some mval ->
           ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
-          ctx.split (D.add (Addr.of_mval addr) ctx.local) [Events.SplitBranch ((Lval lv), false)];
+          ctx.split (D.add (Addr.of_mval mval) ctx.local) [Events.SplitBranch ((Lval lv), false)];
           raise Analyses.Deadcode
         | _ -> ctx.local
       end

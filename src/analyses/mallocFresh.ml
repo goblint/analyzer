@@ -19,15 +19,12 @@ struct
 
   let assign_lval (ask: Queries.ask) lval local =
     match ask.f (MayPointToA (AddrOf lval)) with
-    | ls when Queries.AD.is_top ls ->
-      D.empty ()
-    | ls when Queries.AD.exists (function
+    | ad when Queries.AD.is_top ad -> D.empty ()
+    | ad when Queries.AD.exists (function
         | Queries.AD.Addr.Addr (v,_) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)
         | _ -> false
-      ) ls ->
-      D.empty ()
-    | _ ->
-      local
+      ) ad -> D.empty ()
+    | _ -> local
 
   let assign ctx lval rval =
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local

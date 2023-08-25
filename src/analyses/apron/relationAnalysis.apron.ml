@@ -159,11 +159,10 @@ struct
       )
     | (Mem v, NoOffset) ->
       begin match ask.f (Queries.MayPointToA v) with
-        | a when Queries.AD.is_top a ->
-          st
-        | a ->
-          let lvals = Queries.AD.to_mval a in
-          let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil lv) f) lvals in
+        | ad when Queries.AD.is_top ad -> st
+        | ad ->
+          let mvals = Queries.AD.to_mval ad in
+          let ass' = List.map (fun mval -> assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f) mvals in
           List.fold_right D.join ass' (D.bot ())
       end
     (* Ignoring all other assigns *)
@@ -275,12 +274,12 @@ struct
     VS.exists (fun v -> List.mem v.vid locals_id && RD.Tracked.varinfo_tracked v) reachable_from_args
 
   let reachable_from_args ctx args =
-    let vs e =
+    let to_vs e =
       ctx.ask (ReachableFromA e)
       |> LockDomain.MayLocksetNoRW.to_var_may
       |> VS.of_list
     in
-    List.fold (fun ls e -> VS.join ls (vs e)) (VS.empty ()) args
+    List.fold (fun vs e -> VS.join vs (to_vs e)) (VS.empty ()) args
 
   let pass_to_callee fundec any_local_reachable var =
     (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
@@ -454,11 +453,11 @@ struct
       match st with
       | None -> None
       | Some st ->
-        let vs = ask.f (Queries.ReachableFromA e) in
-        if Queries.AD.is_top vs then
+        let ad = ask.f (Queries.ReachableFromA e) in
+        if Queries.AD.is_top ad then
           None
         else
-          Some (Queries.AD.join vs st)
+          Some (Queries.AD.join ad st)
     in
     List.fold_right reachable es (Some (Queries.AD.empty ()))
 
@@ -472,13 +471,13 @@ struct
         RD.vars st.rel
         |> List.filter_map RV.to_cil_varinfo
         |> List.map Cil.var
-      | Some rs ->
-        let to_cil addr xs =
+      | Some ad ->
+        let to_cil addr rs =
           match addr with
-          | Queries.AD.Addr.Addr addr -> (ValueDomain.Addr.Mval.to_cil addr) :: xs
-          | _ -> xs
+          | Queries.AD.Addr.Addr mval -> (ValueDomain.Addr.Mval.to_cil mval) :: rs
+          | _ -> rs
         in
-        Queries.AD.fold to_cil rs []
+        Queries.AD.fold to_cil ad []
     in
     List.fold_left (fun st lval ->
         invalidate_one ask ctx st lval
@@ -536,9 +535,9 @@ struct
     | _, _ ->
       let lvallist e =
         match ask.f (Queries.MayPointToA e) with
-        | a when Queries.AD.is_top a -> []
-        | a ->
-          Queries.AD.to_mval a
+        | ad when Queries.AD.is_top ad -> []
+        | ad ->
+          Queries.AD.to_mval ad
           |> List.map ValueDomain.Addr.Mval.to_cil
       in
       let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in

@@ -1323,9 +1323,8 @@ struct
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let xs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
-          let addrs = List.fold_left (Q.AD.join) (Q.AD.empty ()) xs in
-          addrs
+          let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
+          List.fold_left (Q.AD.join) (Q.AD.empty ()) addrs
         | _ -> Q.AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin

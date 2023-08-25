@@ -877,15 +877,14 @@ module Spec : Analyses.MCPSpec = struct
 
   module ExprEval = struct
     let eval_ptr ctx exp =
-      let a = ctx.ask (Queries.MayPointToA exp) in
-      if (not (Queries.AD.is_top a)) && Queries.AD.cardinal a > 0 then
-        let a' =
-          if Queries.AD.mem UnknownPtr a
-          then (* UNSOUND *)
-            Queries.AD.remove UnknownPtr a
-          else a
-        in
-        Queries.AD.to_var_may a'
+      let ad = ctx.ask (Queries.MayPointToA exp) in
+      if (not (Queries.AD.is_top ad)) && Queries.AD.cardinal ad > 0 then
+        if Queries.AD.mem UnknownPtr ad
+        then (* UNSOUND *)
+          Queries.AD.remove UnknownPtr ad
+          |> Queries.AD.to_var_may
+        else
+          Queries.AD.to_var_may ad
       else
         []
 
@@ -1121,16 +1120,16 @@ module Spec : Analyses.MCPSpec = struct
           let ad = ctx.ask (Queries.ReachableFromA func) in
           Queries.AD.filter
             (function
-              | Queries.AD.Addr.Addr addr ->
-                isFunctionType (ValueDomain.Addr.Mval.type_of addr)
+              | Queries.AD.Addr.Addr mval ->
+                isFunctionType (ValueDomain.Mval.type_of mval)
               | _ -> false)
             ad
         in
         let thread_fun =
-          Queries.AD.fold (fun addr acc -> 
+          Queries.AD.fold (fun addr vars ->
               match addr with
-              | Queries.AD.Addr.Addr (v,_) -> v :: acc
-              | _ -> acc
+              | Queries.AD.Addr.Addr (v,_) -> v :: vars
+              | _ -> vars
             ) funs_ad []
           |> List.unique ~eq:(fun a b -> a.vid = b.vid)
           |> List.hd
@@ -1255,12 +1254,12 @@ module Spec : Analyses.MCPSpec = struct
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)
     let tasks_f =
-      Tasks.filter
-        (fun (fs, f_d) -> Queries.AD.exists (function
-             | Queries.AD.Addr.Addr (ls_f, _) -> ls_f = f
-             | _ -> false) 
-             fs)
-        tasks
+      let var_in_ad ad f = Queries.AD.exists (function
+          | Queries.AD.Addr.Addr (ls_f,_) -> ls_f = f
+          | _ -> false
+        ) ad
+      in
+      Tasks.filter (fun (ad,_) -> var_in_ad ad f) tasks
     in
     let f_d = snd (Tasks.choose tasks_f) in
     [ { f_d with pred = d.pred } ]

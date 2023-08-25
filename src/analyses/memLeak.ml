@@ -50,14 +50,12 @@ struct
       end
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointToA ptr) with
-        | a when not (Queries.AD.is_top a) && not (Queries.AD.mem UnknownPtr a) && Queries.AD.cardinal a = 1 ->
+        | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
-          let unique_pointed_to_heap_vars = (* TODO: no need for fold due to a being singleton *)
-            Queries.AD.fold (fun addr s -> 
-                match addr with
-                | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.add v s
-                | _ -> s
-              ) a (D.empty ())
+          let unique_pointed_to_heap_vars =
+            match Queries.AD.choose ad with
+            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.singleton v
+            | _ -> D.empty ()
           in
           D.diff state unique_pointed_to_heap_vars
         | _ -> state
