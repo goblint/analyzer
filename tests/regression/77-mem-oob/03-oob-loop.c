@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval
+// PARAM: --set ana.activated[+] memOutOfBounds --set exp.unrolling-factor 10 --enable ana.int.interval
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -9,10 +9,8 @@ int main(int argc, char const *argv[]) {
         ptr++;
     }
 
-    //TODO: We cannot currently detect OOB memory accesses happening due to loops like the one above
-    // => Both lines below can't have WARNs for now
-    printf("%s", *ptr); //NOWARN
-    free(ptr); //NOWARN
+    printf("%s", *ptr); //WARN
+    free(ptr); //WARN
 
     return 0;
 }
