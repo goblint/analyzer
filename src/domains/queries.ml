@@ -72,9 +72,7 @@ type invariant_context = Invariant.context = {
 (** GADT for queries with specific result type. *)
 type _ t =
   | EqualSet: exp -> ES.t t
-  | MayPointTo: exp -> LS.t t
   | MayPointToA: exp -> AD.t t
-  | ReachableFrom: exp -> LS.t t
   | ReachableFromA: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
@@ -143,9 +141,7 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> (module ES)
     | CondVars _ -> (module ES)
-    | MayPointTo _ -> (module LS)
     | MayPointToA _ -> (module AD)
-    | ReachableFrom _ -> (module LS)
     | ReachableFromA _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LS)
@@ -209,9 +205,7 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> ES.top ()
     | CondVars _ -> ES.top ()
-    | MayPointTo _ -> LS.top ()
     | MayPointToA _ -> AD.top ()
-    | ReachableFrom _ -> LS.top ()
     | ReachableFromA _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
@@ -271,10 +265,8 @@ struct
   (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
   let order = function
     | Any (EqualSet _) -> 0
-    | Any (MayPointTo _) -> 1
-    | Any (MayPointToA _) -> 999
-    | Any (ReachableFrom _) -> 2
-    | Any (ReachableFromA _) -> 666
+    | Any (MayPointToA _) -> 1
+    | Any (ReachableFromA _) -> 2
     | Any (ReachableUkTypes _) -> 3
     | Any (Regions _) -> 4
     | Any (MayEscape _) -> 5
@@ -329,9 +321,7 @@ struct
     else
       match a, b with
       | Any (EqualSet e1), Any (EqualSet e2) -> CilType.Exp.compare e1 e2
-      | Any (MayPointTo e1), Any (MayPointTo e2) -> CilType.Exp.compare e1 e2
       | Any (MayPointToA e1), Any (MayPointToA e2) -> CilType.Exp.compare e1 e2
-      | Any (ReachableFrom e1), Any (ReachableFrom e2) -> CilType.Exp.compare e1 e2
       | Any (ReachableFromA e1), Any (ReachableFromA e2) -> CilType.Exp.compare e1 e2
       | Any (ReachableUkTypes e1), Any (ReachableUkTypes e2) -> CilType.Exp.compare e1 e2
       | Any (Regions e1), Any (Regions e2) -> CilType.Exp.compare e1 e2
@@ -376,9 +366,7 @@ struct
 
   let rec hash_arg = function
     | Any (EqualSet e) -> CilType.Exp.hash e
-    | Any (MayPointTo e) -> CilType.Exp.hash e
     | Any (MayPointToA e) -> CilType.Exp.hash e
-    | Any (ReachableFrom e) -> CilType.Exp.hash e
     | Any (ReachableFromA e) -> CilType.Exp.hash e
     | Any (ReachableUkTypes e) -> CilType.Exp.hash e
     | Any (Regions e) -> CilType.Exp.hash e
@@ -420,9 +408,7 @@ struct
 
   let rec pretty () = function
     | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
-    | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
     | Any (MayPointToA e) -> Pretty.dprintf "MayPointToA %a" CilType.Exp.pretty e
-    | Any (ReachableFrom e) -> Pretty.dprintf "ReachableFrom %a" CilType.Exp.pretty e
     | Any (ReachableFromA e) -> Pretty.dprintf "ReachableFromA %a" CilType.Exp.pretty e
     | Any (ReachableUkTypes e) -> Pretty.dprintf "ReachableUkTypes %a" CilType.Exp.pretty e
     | Any (Regions e) -> Pretty.dprintf "Regions %a" CilType.Exp.pretty e

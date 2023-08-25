@@ -1279,16 +1279,6 @@ struct
           )
         | _ -> Queries.Result.top q
       end
-    | Q.MayPointTo e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Address a ->
-          let s = addrToLvalSet a in
-          if AD.mem Addr.UnknownPtr a
-          then Q.LS.add (dummyFunDec.svar, `NoOffset) s
-          else s
-        | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | _ -> Queries.Result.top q
-      end
     | Q.MayPointToA e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address a -> a
@@ -1302,20 +1292,6 @@ struct
         | Thread a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
-      end
-    | Q.ReachableFrom e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Top -> Queries.Result.top q
-        | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe *)
-          let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in
-          let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
-          if AD.mem Addr.UnknownPtr a then
-            Q.LS.add (dummyFunDec.svar, `NoOffset) addrs (* add unknown back *)
-          else
-            addrs
-        | _ -> Q.LS.empty ()
       end
     | Q.ReachableFromA e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
