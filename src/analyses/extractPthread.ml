@@ -878,7 +878,7 @@ module Spec : Analyses.MCPSpec = struct
   module ExprEval = struct
     let eval_ptr ctx exp =
       let ad = ctx.ask (Queries.MayPointTo exp) in
-      if (not (Queries.AD.is_top ad)) && Queries.AD.cardinal ad > 0 then
+      if (not (Queries.AD.is_top ad)) && not (Queries.AD.is_empty ad) then
         if Queries.AD.mem UnknownPtr ad
         then (* UNSOUND *)
           Queries.AD.remove UnknownPtr ad

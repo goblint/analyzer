@@ -65,7 +65,7 @@ struct
 
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
-    | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad > 0 ->
+    | ad when not (Queries.AD.is_top ad) && not (Queries.AD.is_empty ad) ->
       let a' = if Queries.AD.mem UnknownPtr ad then (
           M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.AD.remove UnknownPtr ad
