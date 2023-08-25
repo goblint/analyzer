@@ -33,7 +33,7 @@ struct
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
-    let reach_or_mpt: _ Queries.t = if reach then ReachableFromA e else MayPointToA e in
+    let reach_or_mpt: _ Queries.t = if reach then ReachableFromA e else MayPointTo e in
     let ad = ctx.ask reach_or_mpt in
     ctx.emit (Access {exp=e; ad; kind; reach})
 

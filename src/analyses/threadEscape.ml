@@ -40,7 +40,7 @@ struct
       D.empty ()
 
   let mpt (ask: Queries.ask) e: D.t =
-    match ask.f (Queries.MayPointToA e) with
+    match ask.f (Queries.MayPointTo e) with
     | ad when not (AD.is_top ad) ->
       let to_extra addr set =
         match addr with

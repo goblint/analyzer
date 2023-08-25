@@ -37,7 +37,7 @@ struct
               with SetDomain.Unsupported _ -> () end;*)
       match e with
       | Lval (Var v, offs) ->
-        begin match a.f (Queries.MayPointToA (mkAddrOf (Var v,offs))) with
+        begin match a.f (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
           | ad when not (Queries.AD.is_top ad) ->
             Queries.AD.iter (function
                 | Queries.AD.Addr.Addr mval -> warn_lval st mval
@@ -118,7 +118,7 @@ struct
     else D.filter (fun x -> AD.mem x vars) st
 
   let get_concrete_lval (ask: Queries.ask) (lval:lval) =
-    match ask.f (Queries.MayPointToA (mkAddrOf lval)) with
+    match ask.f (Queries.MayPointTo (mkAddrOf lval)) with
     | ad when Queries.AD.cardinal ad = 1 && not (Queries.AD.mem UnknownPtr ad) ->
       Queries.AD.Addr.to_mval (Queries.AD.choose ad)
     | _ -> None
@@ -130,7 +130,7 @@ struct
     | _ -> None
 
   let might_be_null (ask: Queries.ask) lv gl st =
-    match ask.f (Queries.MayPointToA (mkAddrOf lv)) with
+    match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
     | ad when not (Queries.AD.is_top ad) ->
       let one_addr_might = function
         | Queries.AD.Addr.Addr mval ->

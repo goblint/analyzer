@@ -54,7 +54,7 @@ struct
     match desc.special arglist with
     | MutexInit {mutex = mutex; attr = attr} ->
       let attr = ctx.ask (Queries.EvalMutexAttr attr) in
-      let mutexes = ctx.ask (Queries.MayPointToA mutex) in
+      let mutexes = ctx.ask (Queries.MayPointTo mutex) in
       (* It is correct to iter over these sets here, as mutexes need to be intialized before being used, and an analysis that detects usage before initialization is a different analysis. *)
       Queries.AD.iter (function addr -> 
         match addr with

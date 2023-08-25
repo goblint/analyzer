@@ -1279,7 +1279,7 @@ struct
           )
         | _ -> Queries.Result.top q
       end
-    | Q.MayPointToA e -> begin
+    | Q.MayPointTo e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)

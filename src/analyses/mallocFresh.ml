@@ -18,7 +18,7 @@ struct
   let exitstate _ = D.empty ()
 
   let assign_lval (ask: Queries.ask) lval local =
-    match ask.f (MayPointToA (AddrOf lval)) with
+    match ask.f (MayPointTo (AddrOf lval)) with
     | ad when Queries.AD.is_top ad -> D.empty ()
     | ad when Queries.AD.exists (function
         | Queries.AD.Addr.Addr (v,_) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)

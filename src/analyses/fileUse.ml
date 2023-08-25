@@ -24,11 +24,11 @@ struct
   (* queries *)
   let query ctx (type a) (q: a Queries.t) =
     match q with
-    | Queries.MayPointToA exp -> if M.tracing then M.tracel "file" "query MayPointToA: %a" d_plainexp exp; Queries.Result.top q
+    | Queries.MayPointTo exp -> if M.tracing then M.tracel "file" "query MayPointTo: %a" d_plainexp exp; Queries.Result.top q
     | _ -> Queries.Result.top q
 
   let query_ad (ask: Queries.ask) exp =
-    match ask.f (Queries.MayPointToA exp) with
+    match ask.f (Queries.MayPointTo exp) with
     | ad when not (Queries.AD.is_top ad) -> Queries.AD.elements ad
     | _ -> []
   let print_query_lv ?msg:(msg="") ask exp =
@@ -36,7 +36,7 @@ struct
     let pretty_key = function
       | Queries.AD.Addr.Addr (v,o) -> Pretty.text (D.string_of_key (v, ValueDomain.Addr.Offs.to_exp o))
       | _ -> Pretty.text "" in
-    if M.tracing then M.tracel "file" "%s MayPointToA %a = [%a]" msg d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) addrs
+    if M.tracing then M.tracel "file" "%s MayPointTo %a = [%a]" msg d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) addrs
 
   let eval_fv ask exp: varinfo option =
     match query_ad ask exp with

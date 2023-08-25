@@ -49,7 +49,7 @@ struct
         | _ -> state
       end
     | Free ptr ->
-      begin match ctx.ask (Queries.MayPointToA ptr) with
+      begin match ctx.ask (Queries.MayPointTo ptr) with
         | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           let unique_pointed_to_heap_vars =

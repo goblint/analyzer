@@ -18,7 +18,7 @@ struct
   include UnitAnalysis.Spec
   let name () = "mutexEvents"
 
-  let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointToA exp)
+  let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointTo exp)
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv_opt arg =
     match lv_opt with

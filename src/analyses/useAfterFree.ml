@@ -82,7 +82,7 @@ struct
       | Var _ -> Lval lval
       | Mem _ -> mkAddrOf lval (* Take the lval's address if its lhost is of the form *p, where p is a ptr *)
     in
-    match ctx.ask (Queries.MayPointToA lval_to_query) with
+    match ctx.ask (Queries.MayPointTo lval_to_query) with
     | ad when not (Queries.AD.is_top ad) ->
       let warn_for_heap_var v =
         if D.mem v state then
@@ -187,7 +187,7 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Free ptr ->
-      begin match ctx.ask (Queries.MayPointToA ptr) with
+      begin match ctx.ask (Queries.MayPointTo ptr) with
         | ad when not (Queries.AD.is_top ad) ->
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr state ->

@@ -158,7 +158,7 @@ struct
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
-      begin match ask.f (Queries.MayPointToA v) with
+      begin match ask.f (Queries.MayPointTo v) with
         | ad when Queries.AD.is_top ad -> st
         | ad ->
           let mvals = Queries.AD.to_mval ad in
@@ -216,7 +216,7 @@ struct
       | CastE (t,e) -> CastE (t, inner e)
       | Lval (Var v, off) -> Lval (Var v, off)
       | Lval (Mem e, NoOffset) ->
-        begin match ask (Queries.MayPointToA e) with
+        begin match ask (Queries.MayPointTo e) with
           | a when not (Queries.AD.is_top a) && (Queries.AD.cardinal a) = 1 ->
             begin match Queries.AD.Addr.to_mval (Queries.AD.choose a) with
               | Some mval -> ValueDomain.Addr.Mval.to_cil_exp mval
@@ -534,7 +534,7 @@ struct
        | None -> st)
     | _, _ ->
       let lvallist e =
-        match ask.f (Queries.MayPointToA e) with
+        match ask.f (Queries.MayPointTo e) with
         | ad when Queries.AD.is_top ad -> []
         | ad ->
           Queries.AD.to_mval ad

@@ -137,7 +137,7 @@ struct
 
   (* TODO: why unused? how different from below? *)
   let may_change_pt ask (b:exp) (a:exp) : bool =
-    let pt e = ask (Queries.MayPointToA e) in
+    let pt e = ask (Queries.MayPointTo e) in
     let rec lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
         match o with
@@ -175,7 +175,7 @@ struct
 
   let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
-    let pt e = ask.f (Queries.MayPointToA e) in
+    let pt e = ask.f (Queries.MayPointTo e) in
     let bad = pt b in
     let bt =
       match unrollTypeDeep (Cilfacade.typeOf b) with
@@ -344,7 +344,7 @@ struct
     | Lval (Var v,_) ->
       Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
     | Lval (Mem e, _) ->
-      begin match ask.f (Queries.MayPointToA e) with
+      begin match ask.f (Queries.MayPointTo e) with
         | ad when not (Queries.AD.is_top ad) ->
           Some (Queries.AD.exists (function
               | Addr (v,_) -> is_global_var ask (Lval (var v)) = Some true
@@ -389,7 +389,7 @@ struct
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
     let reachable e st =
-      let q = if deep then Queries.ReachableFromA e else Queries.MayPointToA e in
+      let q = if deep then Queries.ReachableFromA e else Queries.MayPointTo e in
       let ad = ask.f q in
       Queries.AD.join ad st
     in

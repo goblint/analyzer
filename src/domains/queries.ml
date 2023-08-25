@@ -72,7 +72,7 @@ type invariant_context = Invariant.context = {
 (** GADT for queries with specific result type. *)
 type _ t =
   | EqualSet: exp -> ES.t t
-  | MayPointToA: exp -> AD.t t
+  | MayPointTo: exp -> AD.t t
   | ReachableFromA: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
@@ -141,7 +141,7 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> (module ES)
     | CondVars _ -> (module ES)
-    | MayPointToA _ -> (module AD)
+    | MayPointTo _ -> (module AD)
     | ReachableFromA _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LS)
@@ -205,7 +205,7 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> ES.top ()
     | CondVars _ -> ES.top ()
-    | MayPointToA _ -> AD.top ()
+    | MayPointTo _ -> AD.top ()
     | ReachableFromA _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
@@ -265,7 +265,7 @@ struct
   (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
   let order = function
     | Any (EqualSet _) -> 0
-    | Any (MayPointToA _) -> 1
+    | Any (MayPointTo _) -> 1
     | Any (ReachableFromA _) -> 2
     | Any (ReachableUkTypes _) -> 3
     | Any (Regions _) -> 4
@@ -321,7 +321,7 @@ struct
     else
       match a, b with
       | Any (EqualSet e1), Any (EqualSet e2) -> CilType.Exp.compare e1 e2
-      | Any (MayPointToA e1), Any (MayPointToA e2) -> CilType.Exp.compare e1 e2
+      | Any (MayPointTo e1), Any (MayPointTo e2) -> CilType.Exp.compare e1 e2
       | Any (ReachableFromA e1), Any (ReachableFromA e2) -> CilType.Exp.compare e1 e2
       | Any (ReachableUkTypes e1), Any (ReachableUkTypes e2) -> CilType.Exp.compare e1 e2
       | Any (Regions e1), Any (Regions e2) -> CilType.Exp.compare e1 e2
@@ -366,7 +366,7 @@ struct
 
   let rec hash_arg = function
     | Any (EqualSet e) -> CilType.Exp.hash e
-    | Any (MayPointToA e) -> CilType.Exp.hash e
+    | Any (MayPointTo e) -> CilType.Exp.hash e
     | Any (ReachableFromA e) -> CilType.Exp.hash e
     | Any (ReachableUkTypes e) -> CilType.Exp.hash e
     | Any (Regions e) -> CilType.Exp.hash e
@@ -408,7 +408,7 @@ struct
 
   let rec pretty () = function
     | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
-    | Any (MayPointToA e) -> Pretty.dprintf "MayPointToA %a" CilType.Exp.pretty e
+    | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
     | Any (ReachableFromA e) -> Pretty.dprintf "ReachableFromA %a" CilType.Exp.pretty e
     | Any (ReachableUkTypes e) -> Pretty.dprintf "ReachableUkTypes %a" CilType.Exp.pretty e
     | Any (Regions e) -> Pretty.dprintf "Regions %a" CilType.Exp.pretty e
@@ -460,7 +460,7 @@ end
 
 let to_value_domain_ask (ask: ask) =
   let eval_int e = ask.f (EvalInt e) in
-  let may_point_to e = ask.f (MayPointToA e) in
+  let may_point_to e = ask.f (MayPointTo e) in
   let is_multiple v = ask.f (IsMultiple v) in
   { VDQ.eval_int; may_point_to; is_multiple }
 

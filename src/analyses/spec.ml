@@ -204,7 +204,7 @@ struct
     | _ -> Queries.Result.top q
 
   let query_addrs ask exp =
-    match ask (Queries.MayPointToA exp) with
+    match ask (Queries.MayPointTo exp) with
     | ad when not (Queries.AD.is_top ad) -> Queries.AD.elements ad
     | _ -> []
 

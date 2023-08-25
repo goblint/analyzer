@@ -31,7 +31,7 @@ struct
 
   (* TODO: Use AddressDomain for queries *)
   let access_address (ask: Queries.ask) write lv =
-    match ask.f (Queries.MayPointToA (AddrOf lv)) with
+    match ask.f (Queries.MayPointTo (AddrOf lv)) with
     | a when not (Queries.AD.is_top a) ->
       let to_extra addr xs =
         match addr with
@@ -168,7 +168,7 @@ struct
     let init_vo (v: varinfo) (ofs: lval_offs) : D.t =
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
-    match a.f (Queries.MayPointToA (AddrOf lv)) with
+    match a.f (Queries.MayPointTo (AddrOf lv)) with
     | a when Queries.AD.cardinal a = 1 ->
       begin match Queries.AD.Addr.to_mval (Queries.AD.choose a) with
         | Some (var, ofs) -> init_vo var ofs

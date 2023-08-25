@@ -17,7 +17,7 @@ struct
   module C = MustSignals
   module G = SetDomain.ToppedSet (MHP) (struct let topname = "All Threads" end)
 
-  let eval_exp_addr (a: Queries.ask) exp = Queries.AD.elements (a.f (Queries.MayPointToA exp))
+  let eval_exp_addr (a: Queries.ask) exp = Queries.AD.elements (a.f (Queries.MayPointTo exp))
 
   let possible_vinfos a cv_arg =
     List.filter_map ValueDomain.Addr.to_var_may (eval_exp_addr a cv_arg)

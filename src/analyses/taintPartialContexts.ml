@@ -29,7 +29,7 @@ struct
     let d = ctx.local in
     (match lval with
      | (Var v, offs) -> D.add (v, Offset.Exp.of_cil offs) d
-     | (Mem e, _) -> D.union (to_mvals (ctx.ask (Queries.MayPointToA e))) d
+     | (Mem e, _) -> D.union (to_mvals (ctx.ask (Queries.MayPointTo e))) d
     )
 
   (* this analysis is context insensitive*)
@@ -94,7 +94,7 @@ struct
       else
         deep_addrs
     in
-    let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.MayPointToA addr)))) d shallow_addrs
+    let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.MayPointTo addr)))) d shallow_addrs
     in
     let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.ReachableFromA addr)))) d deep_addrs
     in
