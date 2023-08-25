@@ -188,7 +188,12 @@ struct
               let rec to_int_dom_offs = function
                 | `NoOffset -> `NoOffset
                 | `Field (f, o) -> `Field (f, to_int_dom_offs o)
-                | `Index (i, o) -> `Index (VDQ.ID.unlift (fun x -> x) @@ ctx.ask (Queries.EvalInt i), to_int_dom_offs o)
+                | `Index (i, o) ->
+                  let exp_as_int_dom = match ctx.ask (Queries.EvalInt i) with
+                    | `Lifted i -> i
+                    | _ -> IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
+                  in
+                  `Index (exp_as_int_dom, to_int_dom_offs o)
               in
               offs_to_idx t (to_int_dom_offs o)
           end
