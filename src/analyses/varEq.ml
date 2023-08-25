@@ -389,7 +389,7 @@ struct
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
     let reachable e st =
-      let q = if deep then Queries.ReachableFromA e else Queries.MayPointTo e in
+      let q = if deep then Queries.ReachableFrom e else Queries.MayPointTo e in
       let ad = ask.f q in
       Queries.AD.join ad st
     in

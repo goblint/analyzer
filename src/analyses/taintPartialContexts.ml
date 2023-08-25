@@ -96,7 +96,7 @@ struct
     in
     let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.MayPointTo addr)))) d shallow_addrs
     in
-    let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.ReachableFromA addr)))) d deep_addrs
+    let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.ReachableFrom addr)))) d deep_addrs
     in
     d
 

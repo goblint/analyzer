@@ -156,7 +156,7 @@ struct
     if D.is_empty caller_state then
       [caller_state, caller_state]
     else (
-      let reachable_from_args = List.fold_left (fun ad arg -> Queries.AD.join ad (ctx.ask (ReachableFromA arg))) (Queries.AD.empty ()) args in
+      let reachable_from_args = List.fold_left (fun ad arg -> Queries.AD.join ad (ctx.ask (ReachableFrom arg))) (Queries.AD.empty ()) args in
       if Queries.AD.is_top reachable_from_args || D.is_top caller_state then
         [caller_state, caller_state]
       else

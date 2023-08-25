@@ -275,7 +275,7 @@ struct
 
   let reachable_from_args ctx args =
     let to_vs e =
-      ctx.ask (ReachableFromA e)
+      ctx.ask (ReachableFrom e)
       |> LockDomain.MayLocksetNoRW.to_var_may
       |> VS.of_list
     in
@@ -453,7 +453,7 @@ struct
       match st with
       | None -> None
       | Some st ->
-        let ad = ask.f (Queries.ReachableFromA e) in
+        let ad = ask.f (Queries.ReachableFrom e) in
         if Queries.AD.is_top ad then
           None
         else

@@ -195,7 +195,7 @@ struct
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
       let do_exp e =
-        match ask.f (Queries.ReachableFromA e) with
+        match ask.f (Queries.ReachableFrom e) with
         | ad when not (Queries.AD.is_top ad) ->
           let to_extra ad ads =
             match ad with

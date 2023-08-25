@@ -42,7 +42,7 @@ struct
     if VS.is_empty ctx.local then
       [ctx.local,ctx.local]
     else (
-      let reachable_from_args = List.fold (fun ad e -> Queries.AD.join ad (ctx.ask (ReachableFromA e))) (Queries.AD.empty ()) args in
+      let reachable_from_args = List.fold (fun ad e -> Queries.AD.join ad (ctx.ask (ReachableFrom e))) (Queries.AD.empty ()) args in
       if Queries.AD.is_top reachable_from_args || VS.is_top ctx.local then
         [ctx.local, ctx.local]
       else

@@ -26,7 +26,7 @@ struct
   module G = ThreadIdSet
 
   let reachable (ask: Queries.ask) e: D.t =
-    match ask.f (Queries.ReachableFromA e) with
+    match ask.f (Queries.ReachableFrom e) with
     | ad when not (Queries.AD.is_top ad) ->
       let to_extra addr set =
         match addr with
