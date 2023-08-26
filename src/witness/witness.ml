@@ -479,7 +479,7 @@ struct
         let next _ = []
       end
       in
-      if not !AnalysisState.svcomp_may_use_after_free then
+      if not !AnalysisState.svcomp_may_invalid_free then
         let module TaskResult =
         struct
           module Arg = Arg

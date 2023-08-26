@@ -7,8 +7,8 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
-(** Whether a Use-After-Free (UAF) happened *)
-let svcomp_may_use_after_free = ref false
+(** Whether an invalid free happened *)
+let svcomp_may_invalid_free = ref false
 
 (** Whether an invalid pointer dereference happened *)
 let svcomp_may_invalid_deref = ref false

@@ -1,6 +1,5 @@
 (** An analysis for the detection of use-after-free vulnerabilities ([useAfterFree]). *)
 
-open GobConfig
 open GoblintCil
 open Analyses
 open MessageCategory
@@ -25,13 +24,19 @@ struct
 
   (* HELPER FUNCTIONS *)
 
+  let set_global_svcomp_var is_double_free =
+    if is_double_free then
+      AnalysisState.svcomp_may_invalid_free := true
+    else
+      AnalysisState.svcomp_may_invalid_deref := true
+
   let get_current_threadid ctx =
     ctx.ask Queries.CurrentThreadId
 
   let get_joined_threads ctx =
     ctx.ask Queries.MustJoinedThreads
 
-  let warn_for_multi_threaded_access ctx (heap_var:varinfo) behavior cwe_number =
+  let warn_for_multi_threaded_access ctx ?(is_double_free = false) (heap_var:varinfo) behavior cwe_number =
     let freeing_threads = ctx.global heap_var in
     (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
     if ctx.ask (Queries.MustBeSingleThreaded { since_start = true }) || G.is_empty freeing_threads then ()
@@ -59,23 +64,23 @@ struct
       | `Lifted current ->
         let possibly_started = G.exists (possibly_started current) freeing_threads in
         if possibly_started then begin
-          AnalysisState.svcomp_may_use_after_free := true;
+          set_global_svcomp_var is_double_free;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. Use-After-Free might occur" CilType.Varinfo.pretty heap_var
         end
         else begin
           let current_is_unique = ThreadId.Thread.is_unique current in
           let any_equal_current threads = G.exists (equal_current current) threads in
           if not current_is_unique && any_equal_current freeing_threads then begin
-            AnalysisState.svcomp_may_use_after_free := true;
+            set_global_svcomp_var is_double_free;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
           end
           else if D.mem heap_var ctx.local then begin
-            AnalysisState.svcomp_may_use_after_free := true;
+            set_global_svcomp_var is_double_free;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Use-After-Free might occur in current unique thread %a for heap variable %a" ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
           end
         end
       | `Top ->
-        AnalysisState.svcomp_may_use_after_free := true;
+        set_global_svcomp_var is_double_free;
         M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. A Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
       | `Bot ->
         M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom"
@@ -104,7 +109,7 @@ struct
         | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
           let warn_for_heap_var var =
             if D.mem var state then begin
-              AnalysisState.svcomp_may_use_after_free := true;
+              set_global_svcomp_var is_double_free;
               M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
             end
           in
@@ -116,7 +121,7 @@ struct
           (* Warn for all heap vars that the lval possibly points to *)
           List.iter warn_for_heap_var pointed_to_heap_vars;
           (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
-          List.iter (fun heap_var -> warn_for_multi_threaded_access ctx heap_var undefined_behavior cwe_number) pointed_to_heap_vars
+          List.iter (fun heap_var -> warn_for_multi_threaded_access ctx ~is_double_free heap_var undefined_behavior cwe_number) pointed_to_heap_vars
         | _ -> ()
       end
 
