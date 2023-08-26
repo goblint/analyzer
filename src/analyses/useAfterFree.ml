@@ -82,38 +82,43 @@ struct
     end
 
   let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (lval:lval) =
-    let state = ctx.local in
-    let undefined_behavior = if is_double_free then Undefined DoubleFree else Undefined UseAfterFree in
-    let cwe_number = if is_double_free then 415 else 416 in
-    let rec offset_might_contain_freed offset =
-      match offset with
-      | NoOffset -> ()
-      | Field (f, o) -> offset_might_contain_freed o
-      | Index (e, o) -> warn_exp_might_contain_freed transfer_fn_name ctx e; offset_might_contain_freed o
-    in
-    let (lval_host, o) = lval in offset_might_contain_freed o; (* Check the lval's offset *)
-    let lval_to_query =
-      match lval_host with
-      | Var _ -> Lval lval
-      | Mem _ -> mkAddrOf lval (* Take the lval's address if its lhost is of the form *p, where p is a ptr *)
-    in
-    match ctx.ask (Queries.MayPointTo lval_to_query) with
-    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      let warn_for_heap_var var =
-        if D.mem var state then begin
-          AnalysisState.svcomp_may_use_after_free := true;
-          M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
-        end
+    match is_double_free, lval with
+    (* If we're not checking for a double-free and there's no deref happening, then there's no need to check for an invalid deref or an invalid free *)
+    | false, (Var _, NoOffset) -> ()
+    | _ ->
+      let state = ctx.local in
+      let undefined_behavior = if is_double_free then Undefined DoubleFree else Undefined UseAfterFree in
+      let cwe_number = if is_double_free then 415 else 416 in
+      let rec offset_might_contain_freed = function
+        | NoOffset -> ()
+        | Field (f, o) -> offset_might_contain_freed o
+        | Index (e, o) -> warn_exp_might_contain_freed transfer_fn_name ctx e; offset_might_contain_freed o
       in
-      let pointed_to_heap_vars =
-        Queries.LS.elements a
-        |> List.map fst
-        |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
+      let (lval_host, o) = lval in offset_might_contain_freed o; (* Check the lval's offset *)
+      let lval_to_query =
+        match lval_host with
+        | Var _ -> Lval lval
+        | Mem _ -> mkAddrOf lval (* Take the lval's address if its lhost is of the form *p, where p is a ptr *)
       in
-      List.iter warn_for_heap_var pointed_to_heap_vars; (* Warn for all heap vars that the lval possibly points to *)
-      (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
-      List.iter (fun heap_var -> warn_for_multi_threaded_access ctx heap_var undefined_behavior cwe_number) pointed_to_heap_vars
-    | _ -> ()
+      begin match ctx.ask (Queries.MayPointTo lval_to_query) with
+        | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
+          let warn_for_heap_var var =
+            if D.mem var state then begin
+              AnalysisState.svcomp_may_use_after_free := true;
+              M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
+            end
+          in
+          let pointed_to_heap_vars =
+            Queries.LS.elements a
+            |> List.map fst
+            |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
+          in
+          (* Warn for all heap vars that the lval possibly points to *)
+          List.iter warn_for_heap_var pointed_to_heap_vars;
+          (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
+          List.iter (fun heap_var -> warn_for_multi_threaded_access ctx heap_var undefined_behavior cwe_number) pointed_to_heap_vars
+        | _ -> ()
+      end
 
   and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (exp:exp) =
     match exp with
