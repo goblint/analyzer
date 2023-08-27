@@ -60,28 +60,29 @@ struct
         | `Top -> true
         | `Bot -> false
       in
+      let bug_name = if is_double_free then "Double Free" else "Use After Free" in
       match get_current_threadid ctx with
       | `Lifted current ->
         let possibly_started = G.exists (possibly_started current) freeing_threads in
         if possibly_started then begin
           set_global_svcomp_var is_double_free;
-          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. Use-After-Free might occur" CilType.Varinfo.pretty heap_var
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. %s might occur" CilType.Varinfo.pretty heap_var bug_name
         end
         else begin
           let current_is_unique = ThreadId.Thread.is_unique current in
           let any_equal_current threads = G.exists (equal_current current) threads in
           if not current_is_unique && any_equal_current freeing_threads then begin
             set_global_svcomp_var is_double_free;
-            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
           end
           else if D.mem heap_var ctx.local then begin
             set_global_svcomp_var is_double_free;
-            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Use-After-Free might occur in current unique thread %a for heap variable %a" ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
           end
         end
       | `Top ->
         set_global_svcomp_var is_double_free;
-        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. A Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
+        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
       | `Bot ->
         M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom"
     end
