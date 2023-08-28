@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated[+] useAfterFree
+//PARAM: --set ana.activated[+] useAfterFree --set ana.activated[+] threadJoins
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
