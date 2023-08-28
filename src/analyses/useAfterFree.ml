@@ -45,11 +45,11 @@ struct
         match tid with
         | `Lifted tid ->
           let created_threads = ctx.ask Queries.CreatedThreads in
-          (* Discard joined threads, as they're supposed to be joined before the point of freeing the memory *)
-          let threads = ConcDomain.MustThreadSet.diff created_threads joined_threads in
-          let not_started = MHP.definitely_not_started (current, threads) tid in
+          let not_started = MHP.definitely_not_started (current, created_threads) tid in
           let possibly_started = not not_started in
-          possibly_started
+          (* If [current] is possibly running together with [tid], but is also joined before the free() in [tid], then no need to WARN *)
+          let current_joined_before_free = ConcDomain.MustThreadSet.mem current joined_threads in
+          possibly_started && not current_joined_before_free
         | `Top -> true
         | `Bot -> false
       in
