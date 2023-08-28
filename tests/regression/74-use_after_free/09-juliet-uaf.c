@@ -68,9 +68,10 @@ void CWE416_Use_After_Free__return_freed_ptr_08_bad()
     if(staticReturnsTrue())
     {
         {
-            // No need to warn in the two lines below, since there's no dereferencing of the freed memory
+            // No need to warn in the line below, since there's no dereferencing of the freed memory
             char * reversedString = helperBad("BadSink"); // NOWARN
-            printf("%s\n", reversedString); // NOWARN
+            // printf() is considered an implicit deref => need to warn here
+            printf("%s\n", reversedString); // WARN
         }
     }
 }

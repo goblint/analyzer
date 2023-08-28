@@ -27,8 +27,8 @@ int main(int argc, char const *argv[]) {
     my_free2(p);
 
     *(p + 42) = 'c'; //WARN
-    // No dereferencing in the line below => no need to warn
-    printf("%s", p); //NOWARN
+    // printf() is considered an implicit deref => need to warn
+    printf("%s", p); //WARN
 
     // No dereferencing happening in the lines below => no need to warn for an invalid-deref
     // Also no need to warn for an invalid-free, as the call to free is within these functions and they're not the "free" function itself
