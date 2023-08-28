@@ -591,7 +591,7 @@ let do_gobview cilfile =
           | Some p -> Fpath.to_string p
           | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
         Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
-        FileUtil.cp ~recurse:true [Fpath.to_string path] (Fpath.to_string dest) in
+        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest) in
       let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) |>  List.mapi (fun i e ->(e, i)) |> List.filter (fun (e,_) -> Fpath.is_file_path e) in
       List.iter copy source_paths;
       Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
