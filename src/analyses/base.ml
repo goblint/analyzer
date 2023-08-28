@@ -108,7 +108,7 @@ struct
         | (info,(value:VD.t))::xs ->
           match value with
           | Address t when hasAttribute "goblint_array_domain" info.vattr ->
-            let possibleVars = List.to_seq (PreValueDomain.AD.to_var_may t) in
+            let possibleVars = List.to_seq (AD.to_var_may t) in
             Seq.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ Seq.filter (fun info -> isArrayType info.vtype) possibleVars
           | _ -> pointedArrayMap xs
       in
@@ -345,7 +345,7 @@ struct
           if AD.is_definite x && AD.is_definite y then
             let ax = AD.choose x in
             let ay = AD.choose y in
-            let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
+            let handle_address_is_multiple addr = begin match Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
                 if M.tracing then M.tracel "addr" "IsMultiple %a\n" CilType.Varinfo.pretty v;
                 None
@@ -353,7 +353,7 @@ struct
                 Some true
             end
             in
-            match AD.Addr.semantic_equal ax ay with
+            match Addr.semantic_equal ax ay with
             | Some true ->
               if M.tracing then M.tracel "addr" "semantic_equal %a %a\n" AD.pretty x AD.pretty y;
               handle_address_is_multiple ax
@@ -591,7 +591,7 @@ struct
         | Struct n    -> Struct (ValueDomain.Structs.map replace_val n)
         | Union (f,v) -> Union (f,replace_val v)
         | Blob (n,s,o)  -> Blob (replace_val n,s,o)
-        | Address x -> Address (ValueDomain.AD.map ValueDomain.Addr.top_indices x)
+        | Address x -> Address (AD.map ValueDomain.Addr.top_indices x)
         | x -> x
       in
       CPA.map replace_val st
@@ -1257,8 +1257,8 @@ struct
             | `Index _ -> true
           in
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          if Q.AD.exists (function
-              | Q.AD.Addr.Addr (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || has_offset o
+          if AD.exists (function
+              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || has_offset o
               | _ -> false) a then
             Queries.Result.bot q
           else (
@@ -1291,8 +1291,8 @@ struct
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
           let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
-          List.fold_left (Q.AD.join) (Q.AD.empty ()) addrs
-        | _ -> Q.AD.empty ()
+          List.fold_left (AD.join) (AD.empty ()) addrs
+        | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -1998,13 +1998,13 @@ struct
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
   let check_free_of_non_heap_mem ctx special_fn ptr =
-    let has_non_heap_var = Q.AD.exists (function
-        | Q.AD.Addr.Addr (v,_) -> not (ctx.ask (Q.IsHeapVar v))
+    let has_non_heap_var = AD.exists (function
+        | Addr (v,_) -> not (ctx.ask (Q.IsHeapVar v))
         | _ -> false)
     in
     match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
-      if Q.AD.is_top a then
+      if AD.is_top a then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potential free of non-dynamically allocated memory may occur" d_exp ptr special_fn.vname
       else if has_non_heap_var a then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
