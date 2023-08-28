@@ -156,11 +156,7 @@ struct
   let side_effect_mem_free ctx freed_heap_vars threadid joined_threads =
     let side_effect_globals_to_heap_var heap_var =
       let current_globals = ctx.global heap_var in
-      let joined_threads_to_add = match G.find_opt threadid current_globals with
-        | Some threads -> ConcDomain.ThreadSet.inter joined_threads threads
-        | None -> joined_threads
-      in
-      let globals_to_side_effect = G.add threadid joined_threads_to_add current_globals in
+      let globals_to_side_effect = G.add threadid joined_threads current_globals in
       ctx.sideg heap_var globals_to_side_effect
     in
     D.iter side_effect_globals_to_heap_var freed_heap_vars
