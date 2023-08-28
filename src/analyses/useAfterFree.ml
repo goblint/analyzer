@@ -87,10 +87,10 @@ struct
         M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom"
     end
 
-  let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (lval:lval) =
-    match is_double_free, lval with
+  let rec warn_lval_might_contain_freed ?(is_implicitly_derefed = false) ?(is_double_free = false) (transfer_fn_name:string) ctx (lval:lval) =
+    match is_implicitly_derefed, is_double_free, lval with
     (* If we're not checking for a double-free and there's no deref happening, then there's no need to check for an invalid deref or an invalid free *)
-    | false, (Var _, NoOffset) -> ()
+    | false, false, (Var _, NoOffset) -> ()
     | _ ->
       let state = ctx.local in
       let undefined_behavior = if is_double_free then Undefined DoubleFree else Undefined UseAfterFree in
@@ -126,7 +126,7 @@ struct
         | _ -> ()
       end
 
-  and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) ctx (exp:exp) =
+  and warn_exp_might_contain_freed ?(is_implicitly_derefed = false) ?(is_double_free = false) (transfer_fn_name:string) ctx (exp:exp) =
     match exp with
     (* Base recursion cases *)
     | Const _
@@ -140,18 +140,18 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, e) -> warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e
+    | CastE (_, e) -> warn_exp_might_contain_freed ~is_implicitly_derefed ~is_double_free transfer_fn_name ctx e
     | BinOp (_, e1, e2, _) ->
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e1;
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e2
+      warn_exp_might_contain_freed ~is_implicitly_derefed ~is_double_free transfer_fn_name ctx e1;
+      warn_exp_might_contain_freed ~is_implicitly_derefed ~is_double_free transfer_fn_name ctx e2
     | Question (e1, e2, e3, _) ->
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e1;
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e2;
-      warn_exp_might_contain_freed ~is_double_free transfer_fn_name ctx e3
+      warn_exp_might_contain_freed ~is_implicitly_derefed ~is_double_free transfer_fn_name ctx e1;
+      warn_exp_might_contain_freed ~is_implicitly_derefed ~is_double_free transfer_fn_name ctx e2;
+      warn_exp_might_contain_freed ~is_implicitly_derefed ~is_double_free transfer_fn_name ctx e3
     (* Lval cases (need [warn_lval_might_contain_freed] for them) *)
     | Lval lval
     | StartOf lval
-    | AddrOf lval -> warn_lval_might_contain_freed ~is_double_free transfer_fn_name ctx lval
+    | AddrOf lval -> warn_lval_might_contain_freed ~is_implicitly_derefed ~is_double_free transfer_fn_name ctx lval
 
   let side_effect_mem_free ctx freed_heap_vars threadid joined_threads =
     let side_effect_globals_to_heap_var heap_var =
@@ -210,9 +210,16 @@ struct
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = ctx.local in
-    Option.iter (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) ctx x) lval;
-    List.iter (fun arg -> warn_exp_might_contain_freed ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) ctx arg) arglist;
     let desc = LibraryFunctions.find f in
+    let is_arg_implicitly_derefed arg =
+      let read_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = false } arglist in
+      let read_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = true } arglist in
+      let write_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
+      let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
+      List.mem arg read_shallow_args || List.mem arg read_deep_args || List.mem arg write_shallow_args || List.mem arg write_deep_args
+    in
+    Option.iter (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) ctx x) lval;
+    List.iter (fun arg -> warn_exp_might_contain_freed ~is_implicitly_derefed:(is_arg_implicitly_derefed arg) ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) ctx arg) arglist;
     match desc.special arglist with
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
