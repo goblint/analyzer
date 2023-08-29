@@ -80,7 +80,6 @@ type _ t =
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
-  | MustLockset: LS.t t
   | MustLocksetA: AD.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
@@ -115,7 +114,6 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
-  | MustProtectedVars: mustprotectedvars -> LS.t t
   | MustProtectedVarsA: mustprotectedvars -> AD.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -146,7 +144,6 @@ struct
     | MayPointTo _ -> (module AD)
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
-    | MustLockset -> (module LS)
     | MustLocksetA -> (module AD)
     | EvalFunvar _ -> (module LS)
     | ReachableUkTypes _ -> (module TS)
@@ -182,7 +179,6 @@ struct
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
-    | MustProtectedVars _ -> (module LS)
     | MustProtectedVarsA _ -> (module AD)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
@@ -212,7 +208,6 @@ struct
     | MayPointTo _ -> AD.top ()
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
-    | MustLockset -> LS.top ()
     | MustLocksetA -> AD.top ()
     | EvalFunvar _ -> LS.top ()
     | ReachableUkTypes _ -> TS.top ()
@@ -248,7 +243,6 @@ struct
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
-    | MustProtectedVars _ -> LS.top ()
     | MustProtectedVarsA _ -> AD.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
@@ -279,8 +273,7 @@ struct
     | Any (MayBePublic _) -> 7
     | Any (MayBePublicWithout _) -> 8
     | Any (MustBeProtectedBy _) -> 9
-    | Any MustLockset -> 10
-    | Any MustLocksetA -> 1010
+    | Any MustLocksetA -> 10
     | Any MustBeAtomic -> 11
     | Any (MustBeSingleThreaded _)-> 12
     | Any MustBeUniqueThread -> 13
@@ -305,8 +298,7 @@ struct
     | Any (Invariant _) -> 36
     | Any (IterSysVars _) -> 37
     | Any (InvariantGlobal _) -> 38
-    | Any (MustProtectedVars _) -> 39
-    | Any (MustProtectedVarsA _) -> 3939
+    | Any (MustProtectedVarsA _) -> 39
     | Any MayAccessed -> 40
     | Any MayBeTainted -> 41
     | Any (PathQuery _) -> 42
@@ -363,7 +355,6 @@ struct
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
-      | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MustProtectedVarsA m1), Any (MustProtectedVarsA m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
@@ -403,7 +394,6 @@ struct
     | Any (Invariant i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
-    | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MustProtectedVarsA m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
@@ -426,7 +416,6 @@ struct
     | Any (MayBePublic x) -> Pretty.dprintf "MayBePublic _"
     | Any (MayBePublicWithout x) -> Pretty.dprintf "MayBePublicWithout _"
     | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
-    | Any MustLockset -> Pretty.dprintf "MustLockset"
     | Any MustLocksetA -> Pretty.dprintf "MustLocksetA"
     | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
     | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
@@ -455,7 +444,6 @@ struct
     | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
     | Any ThreadsJoinedCleanly -> Pretty.dprintf "ThreadsJoinedCleanly"
-    | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
     | Any (MustProtectedVarsA m) -> Pretty.dprintf "MustProtectedVarsA _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"

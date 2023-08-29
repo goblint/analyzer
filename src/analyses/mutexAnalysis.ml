@@ -237,11 +237,6 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       Mutexes.mem (LockDomain.Addr.of_var LF.verifier_atomic_var) held_locks
-    | Queries.MustProtectedVars {mutex = m; write} ->
-      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
-      VarSet.fold (fun v acc ->
-          Queries.LS.add (v, `NoOffset) acc
-        ) protected (Queries.LS.empty ())
     | Queries.MustProtectedVarsA {mutex = m; write} ->
       let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
