@@ -242,6 +242,11 @@ struct
       VarSet.fold (fun v acc ->
           Queries.LS.add (v, `NoOffset) acc
         ) protected (Queries.LS.empty ())
+    | Queries.MustProtectedVarsA {mutex = m; write} ->
+      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
+      VarSet.fold (fun v acc ->
+          Queries.AD.join (Queries.AD.of_var v) acc
+        ) protected (Queries.AD.empty ())
     | Queries.IterSysVars (Global g, f) ->
       f (Obj.repr (V.protecting g)) (* TODO: something about V.protected? *)
     | WarnGlobal g ->
