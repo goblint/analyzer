@@ -61,12 +61,13 @@ struct
 
   let protected_vars (ask: Q.ask): varinfo list =
     let module VS = Set.Make (CilType.Varinfo) in
-    Q.LS.fold (fun (v, _) acc ->
-        let m = ValueDomain.Addr.of_var v in (* TODO: don't ignore offsets *)
-        Q.LS.fold (fun l acc ->
-            VS.add (fst l) acc (* always `NoOffset from mutex analysis *)
-          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
-      ) (ask.f Q.MustLockset) VS.empty
+    Q.AD.fold (fun m acc ->
+        Q.AD.fold (fun l acc ->
+            match l with
+            | Q.AD.Addr.Addr (v,_) -> VS.add v acc (* always `NoOffset from mutex analysis *)
+            | _ -> acc
+          ) (ask.f (Q.MustProtectedVarsA {mutex = m; write = true})) acc
+      ) (ask.f Q.MustLocksetA) VS.empty
     |> VS.elements
 end
 
@@ -126,10 +127,8 @@ struct
     if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
-      let ls = ask.f Queries.MustLockset in
-      Q.LS.fold (fun (var, offs) acc ->
-          Lockset.add (Lock.of_mval (var, Lock.Offs.of_exp offs)) acc
-        ) ls (Lockset.empty ())
+      let ad = ask.f Queries.MustLocksetA in
+      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ())
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)

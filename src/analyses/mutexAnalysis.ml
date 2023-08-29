@@ -231,15 +231,9 @@ struct
         true
       else *)
       Mutexes.leq mutex_lockset protecting
-    | Queries.MustLockset ->
+    | Queries.MustLocksetA ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
-      let ls = Mutexes.fold (fun addr ls ->
-          match Addr.to_mval addr with
-          | Some (var, offs) -> Queries.LS.add (var, Addr.Offs.to_exp offs) ls
-          | None -> ls
-        ) held_locks (Queries.LS.empty ())
-      in
-      ls
+      Mutexes.fold (fun addr ls -> Queries.AD.add addr ls) held_locks (Queries.AD.empty ())
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       Mutexes.mem (LockDomain.Addr.of_var LF.verifier_atomic_var) held_locks
