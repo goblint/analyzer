@@ -1202,11 +1202,6 @@ struct
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
-    | Q.EvalFunvar e ->
-      begin
-        let fs = eval_funvar ctx e in
-        List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
-      end
     | Q.EvalFunvarA e ->
       begin
         let fs = eval_funvar ctx e in
