@@ -146,7 +146,7 @@ struct
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
     (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)
-    let tainted = TaintPartialContexts.conv_varset (f_ask.f Queries.MayBeTaintedA) in
+    let tainted = TaintPartialContexts.conv_varset (f_ask.f Queries.MayBeTainted) in
     D.only_untainted ctx.local tainted (* tainted globals might have changed... *)
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =

@@ -98,7 +98,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t) : a Queries.result =
     match q with
-    | MayBeTaintedA -> (ctx.local : Queries.AD.t)
+    | MayBeTainted -> (ctx.local : Queries.AD.t)
     | _ -> Queries.Result.top q
 
 end

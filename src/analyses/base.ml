@@ -2431,7 +2431,7 @@ struct
         (* Remove the return value as this is dealt with separately. *)
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
         let ask = (Analyses.ask_of_ctx ctx) in
-        let tainted = f_ask.f Q.MayBeTaintedA in
+        let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname AD.pretty tainted;
         if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
         if AD.is_top tainted then

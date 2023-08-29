@@ -120,7 +120,7 @@ type _ t =
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
-  | MayBeTaintedA: AD.t t
+  | MayBeTainted: AD.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
 
@@ -185,7 +185,7 @@ struct
     | WarnGlobal _ -> (module Unit)
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
-    | MayBeTaintedA -> (module AD)
+    | MayBeTainted -> (module AD)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | TmpSpecial _ -> (module ML)
 
@@ -249,7 +249,7 @@ struct
     | WarnGlobal _ -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
-    | MayBeTaintedA -> AD.top ()
+    | MayBeTainted -> AD.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | TmpSpecial _ -> ML.top ()
 end
@@ -300,7 +300,7 @@ struct
     | Any (InvariantGlobal _) -> 38
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
-    | Any MayBeTaintedA -> 41
+    | Any MayBeTainted -> 41
     | Any (PathQuery _) -> 42
     | Any DYojson -> 43
     | Any (EvalValue _) -> 44
@@ -452,7 +452,7 @@ struct
     | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"
     | Any (EvalMutexAttr a) ->  Pretty.dprintf "EvalMutexAttr _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
-    | Any MayBeTaintedA -> Pretty.dprintf "MayBeTaintedA"
+    | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv

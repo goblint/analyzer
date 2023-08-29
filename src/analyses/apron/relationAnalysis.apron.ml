@@ -407,7 +407,7 @@ struct
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
     if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
-    let tainted = f_ask.f Queries.MayBeTaintedA in
+    let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with

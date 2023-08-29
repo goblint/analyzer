@@ -433,7 +433,7 @@ struct
     | false -> [ctx.local,nst]
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    let tainted = f_ask.f Queries.MayBeTaintedA in
+    let tainted = f_ask.f Queries.MayBeTainted in
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
          TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
