@@ -1202,7 +1202,7 @@ struct
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
-    | Q.EvalFunvarA e ->
+    | Q.EvalFunvar e ->
       begin
         let fs = eval_funvar ctx e in
         List.fold_left (fun ad v -> Q.AD.join (Q.AD.of_var v) ad) (Q.AD.empty ()) fs

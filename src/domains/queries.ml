@@ -87,7 +87,7 @@ type _ t =
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | ThreadCreateIndexedNode: ThreadNodeLattice.t t
   | MayBeThreadReturn: MayBool.t t
-  | EvalFunvarA: exp -> AD.t t
+  | EvalFunvar: exp -> AD.t t
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
@@ -145,7 +145,7 @@ struct
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module AD)
-    | EvalFunvarA _ -> (module AD)
+    | EvalFunvar _ -> (module AD)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
     | MayBePublic _ -> (module MayBool)
@@ -209,7 +209,7 @@ struct
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> AD.top ()
-    | EvalFunvarA _ -> AD.top ()
+    | EvalFunvar _ -> AD.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
     | MayBePublic _ -> MayBool.top ()
@@ -279,7 +279,7 @@ struct
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
     | Any MayBeThreadReturn -> 15
-    | Any (EvalFunvarA _) -> 16
+    | Any (EvalFunvar _) -> 16
     | Any (EvalInt _) -> 17
     | Any (EvalStr _) -> 18
     | Any (EvalLength _) -> 19
@@ -329,7 +329,7 @@ struct
       | Any (MayBePublic x1), Any (MayBePublic x2) -> compare_maybepublic x1 x2
       | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
-      | Any (EvalFunvarA e1), Any (EvalFunvarA e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
@@ -374,7 +374,7 @@ struct
     | Any (MayBePublic x) -> hash_maybepublic x
     | Any (MayBePublicWithout x) -> hash_maybepublicwithout x
     | Any (MustBeProtectedBy x) -> hash_mustbeprotectedby x
-    | Any (EvalFunvarA e) -> CilType.Exp.hash e
+    | Any (EvalFunvar e) -> CilType.Exp.hash e
     | Any (EvalInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
@@ -423,7 +423,7 @@ struct
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
     | Any ThreadCreateIndexedNode -> Pretty.dprintf "ThreadCreateIndexedNode"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
-    | Any (EvalFunvarA e) -> Pretty.dprintf "EvalFunvarA %a" CilType.Exp.pretty e
+    | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
