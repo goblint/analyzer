@@ -299,12 +299,12 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.EvalFunvar e ->
+    | Queries.EvalFunvarA e ->
       let (d,l) = ctx.local in
       if leq0 l then
-        Queries.LS.empty ()
+        Queries.AD.empty ()
       else
-        query' ctx (Queries.EvalFunvar e)
+        query' ctx (Queries.EvalFunvarA e)
     | q -> query' ctx q
 end
 
@@ -754,8 +754,8 @@ struct
         [v]
       | _ ->
         (* Depends on base for query. *)
-        let ls = ctx.ask (Queries.EvalFunvar e) in
-        Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
+        let ad = ctx.ask (Queries.EvalFunvarA e) in
+        List.filter_map (fun addr -> Queries.AD.Addr.to_var addr) (Queries.AD.elements ad)
     in
     let one_function f =
       match f.vtype with
