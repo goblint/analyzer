@@ -2541,7 +2541,7 @@ struct
                 | MayBePublic _
                 | MayBePublicWithout _
                 | MustBeProtectedBy _
-                | MustLocksetA
+                | MustLockset
                 | MustBeAtomic
                 | MustBeSingleThreaded _
                 | MustBeUniqueThread

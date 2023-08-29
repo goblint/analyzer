@@ -66,8 +66,8 @@ struct
             match l with
             | Q.AD.Addr.Addr (v,_) -> VS.add v acc (* always `NoOffset from mutex analysis *)
             | _ -> acc
-          ) (ask.f (Q.MustProtectedVarsA {mutex = m; write = true})) acc
-      ) (ask.f Q.MustLocksetA) VS.empty
+          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+      ) (ask.f Q.MustLockset) VS.empty
     |> VS.elements
 end
 
@@ -127,7 +127,7 @@ struct
     if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
-      let ad = ask.f Queries.MustLocksetA in
+      let ad = ask.f Queries.MustLockset in
       Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ())
 
   (* TODO: reversed SetDomain.Hoare *)
