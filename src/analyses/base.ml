@@ -1207,6 +1207,11 @@ struct
         let fs = eval_funvar ctx e in
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
+    | Q.EvalFunvarA e ->
+      begin
+        let fs = eval_funvar ctx e in
+        List.fold_left (fun ad v -> Q.AD.join (Q.AD.of_var v) ad) (Q.AD.empty ()) fs
+      end
     | Q.EvalJumpBuf e ->
       begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address jmp_buf ->
