@@ -433,14 +433,19 @@ struct
     | false -> [ctx.local,nst]
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    let tainted = f_ask.f Queries.MayBeTainted in
+    let tainted = f_ask.f Queries.MayBeTaintedA in
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
          TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
-      if Queries.LS.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
+      if Queries.AD.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
         D.top ()
       else
-        let taint_exp = Queries.ES.of_list (List.map Mval.Exp.to_cil_exp (Queries.LS.elements tainted)) in
+        let taint_exp =
+          Queries.AD.elements tainted
+          |> List.filter_map Addr.to_mval
+          |> List.map Addr.Mval.to_cil_exp
+          |> Queries.ES.of_list
+        in
         D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) ctx.local
     in
     let d = D.meet au d_local in
