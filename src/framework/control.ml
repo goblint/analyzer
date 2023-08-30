@@ -145,6 +145,7 @@ struct
         (fun fi _ ->
           let fundec_live = live fi fname in 
           if ( not (BatISet.is_empty fundec_live)) then (
+            AnalysisState.svcomp_may_not_terminate := true;
             let msgs =
               [(Pretty.dprintf
                   "The program might not terminate! (Upjumping Goto)",
