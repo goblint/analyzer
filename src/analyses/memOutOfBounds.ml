@@ -100,7 +100,8 @@ struct
       * and thus we always get a warning for an OOB memory access. Should we maybe change Queries.BlobSize again?
     *)
     if points_to_heap_only ctx ptr then
-      ctx.ask (Queries.BlobSize ptr)
+      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+      ctx.ask (Queries.BlobSize (ptr, true))
     else
       match ctx.ask (Queries.MayPointTo ptr) with
       | a when not (Queries.LS.is_top a) ->
