@@ -90,15 +90,6 @@ struct
     | _ -> false
 
   let get_size_of_ptr_target ctx ptr =
-    (* Call Queries.BlobSize only if ptr points solely to the heap. Otherwise we get bot *)
-    (* TODO:
-      * If the ptr's address has been offset, then Queries.BlobSize will answer with bot. For example:
-            char *ptr = malloc(10 * sizeof(char));
-            ptr++;
-            printf("%s", *ptr); // => Issues a WARN even though it shouldn't
-      * However, in this case we're too imprecise, since we're always comparing something with bot
-      * and thus we always get a warning for an OOB memory access. Should we maybe change Queries.BlobSize again?
-    *)
     if points_to_heap_only ctx ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
       ctx.ask (Queries.BlobSize (ptr, true))
