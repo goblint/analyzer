@@ -174,7 +174,6 @@ struct
               (*
                 Offset should be the same for all elements in the points-to set.
                 Hence, we can just pick one element and obtain its offset
-                TODO: Does this make sense?
               *)
               let (_, o) = VDQ.LS.choose a in
               let rec to_int_dom_offs = function
@@ -198,19 +197,22 @@ struct
       M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
       IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
 
-  and check_lval_for_oob_access ctx lval =
+  and check_lval_for_oob_access ctx ?(is_implicitly_derefed = false) lval =
     if not @@ lval_contains_a_ptr lval then ()
     else
-      match lval with
-      | Var _, _ -> ()
-      | Mem e, _ ->
+      (* If the lval doesn't indicate an explicit dereference, we still need to check for an implicit dereference *)
+      (* An implicit dereference is, e.g., printf("%p", ptr), where ptr is a pointer *)
+      match lval, is_implicitly_derefed with
+      | (Var _, _), false -> ()
+      | (Var v, _), true -> check_no_binop_deref ctx (Lval lval)
+      | (Mem e, _), _ ->
         begin match e with
           | Lval (Var v, _) as lval_exp -> check_no_binop_deref ctx lval_exp
           | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI ->
             check_binop_exp ctx binop e1 e2 t;
-            check_exp_for_oob_access ctx e1;
-            check_exp_for_oob_access ctx e2
-          | _ -> check_exp_for_oob_access ctx e
+            check_exp_for_oob_access ctx ~is_implicitly_derefed e1;
+            check_exp_for_oob_access ctx ~is_implicitly_derefed e2
+          | _ -> check_exp_for_oob_access ctx ~is_implicitly_derefed e
         end
 
   and check_no_binop_deref ctx lval_exp =
@@ -235,7 +237,7 @@ struct
       end
     | _ -> M.error "Expression %a is not a pointer" d_exp lval_exp
 
-  and check_exp_for_oob_access ctx exp =
+  and check_exp_for_oob_access ctx ?(is_implicitly_derefed = false) exp =
     match exp with
     | Const _
     | SizeOf _
@@ -247,17 +249,17 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, e) -> check_exp_for_oob_access ctx e
+    | CastE (_, e) -> check_exp_for_oob_access ctx ~is_implicitly_derefed e
     | BinOp (bop, e1, e2, t) ->
-      check_exp_for_oob_access ctx e1;
-      check_exp_for_oob_access ctx e2
+      check_exp_for_oob_access ctx ~is_implicitly_derefed e1;
+      check_exp_for_oob_access ctx ~is_implicitly_derefed e2
     | Question (e1, e2, e3, _) ->
-      check_exp_for_oob_access ctx e1;
-      check_exp_for_oob_access ctx e2;
-      check_exp_for_oob_access ctx e3
+      check_exp_for_oob_access ctx ~is_implicitly_derefed e1;
+      check_exp_for_oob_access ctx ~is_implicitly_derefed e2;
+      check_exp_for_oob_access ctx ~is_implicitly_derefed e3
     | Lval lval
     | StartOf lval
-    | AddrOf lval -> check_lval_for_oob_access ctx lval
+    | AddrOf lval -> check_lval_for_oob_access ctx ~is_implicitly_derefed lval
 
   and check_binop_exp ctx binop e1 e2 t =
     let binopexp = BinOp (binop, e1, e2, t) in
@@ -314,8 +316,16 @@ struct
     ctx.local
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let desc = LibraryFunctions.find f in
+    let is_arg_implicitly_derefed arg =
+      let read_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = false } arglist in
+      let read_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = true } arglist in
+      let write_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
+      let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
+      List.mem arg read_shallow_args || List.mem arg read_deep_args || List.mem arg write_shallow_args || List.mem arg write_deep_args
+    in
     Option.iter (fun x -> check_lval_for_oob_access ctx x) lval;
-    List.iter (fun arg -> check_exp_for_oob_access ctx arg) arglist;
+    List.iter (fun arg -> check_exp_for_oob_access ctx ~is_implicitly_derefed:(is_arg_implicitly_derefed arg) arg) arglist;
     ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
