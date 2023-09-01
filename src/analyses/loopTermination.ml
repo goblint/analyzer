@@ -78,9 +78,9 @@ struct
       | _ -> ()
     else ()
 
-  (** Checks whether a new thread was spawned some time. We want to always
-   * assume non-termination then (see query function). *)
-  let must_be_single_threaded_since_start ctx =
+  (* Checks whether the program always remains single-threaded.
+     If the program does not remain single-threaded, we assume non-termination (see query function). *)
+  let must_always_be_single_threaded ctx =
     let single_threaded = not (ctx.ask Queries.IsEverMultiThreaded) in
     single_thread := single_threaded;
     single_threaded
@@ -88,12 +88,12 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustTermLoop loop_statement ->
-      must_be_single_threaded_since_start ctx
+      must_always_be_single_threaded ctx
       && (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
             Some b -> b
           | None -> false)
     | Queries.MustTermAllLoops ->
-      let always_single_threaded = must_be_single_threaded_since_start ctx in
+      let always_single_threaded = must_always_be_single_threaded ctx in
       (* Must be the first to be evaluated! This has the side effect that
        * single_thread is set. In case of another order and due to lazy
        * evaluation, the correct value of single_thread can not be guaranteed!
