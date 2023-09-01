@@ -120,10 +120,7 @@ sig
     val not_null: t
     (** Address set containing the unknown pointer, which is non-[NULL]. *)
 
-    val top_ptr: t
-    (** Address set containing any pointer, [NULL] or not. *)
-
-    val top_ptr_n: Node.t option -> t
+    val top_ptr: unit -> t
     (** Address set containing any pointer, [NULL] or not. *)
 
     val is_null: t -> bool

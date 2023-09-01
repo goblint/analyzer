@@ -264,9 +264,7 @@ struct
   let null_ptr       = singleton Addr.NullPtr
   let unknown_ptr    = singleton (Addr.UnknownPtr {node = None})
   let not_null       = unknown_ptr
-  let top_ptr        = of_list Addr.[UnknownPtr {node = None}; NullPtr]
-
-  let top_ptr_n n    = of_list Addr.[UnknownPtr {node = n}; NullPtr]
+  let top_ptr ()     = of_list Addr.[UnknownPtr {node = !Node.current_node}; NullPtr]
 
   let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
   let is_null x = is_element Addr.NullPtr x
@@ -284,7 +282,7 @@ struct
     | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null
     | _ -> match ID.to_excl_list i with
       | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null
-      | _ -> top_ptr
+      | _ -> top_ptr ()
 
   let to_int x =
     let ik = Cilfacade.ptr_ikind () in
@@ -339,7 +337,7 @@ struct
 
     (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
     if List.mem None haystack' || List.mem None needle' then
-      top_ptr
+      top_ptr ()
     else
       (* else try to find the first occurrence of all strings in needle' in all strings s of haystack',
          collect s starting from that occurrence or if there is none, collect a NULL pointer,
@@ -423,7 +421,7 @@ struct
   *)
 
   let is_top = may_be_unknown
-  let top () = top_ptr
+  let top () = top_ptr ()
 
   let merge uop cop x y =
     let no_null x y =

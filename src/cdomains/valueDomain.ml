@@ -175,7 +175,7 @@ struct
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.top_of ik)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
-    | TPtr _ -> Address AD.top_ptr
+    | TPtr _ -> Address (AD.top_ptr ())
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
@@ -194,7 +194,7 @@ struct
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik)))
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
-    | TPtr _ -> Address AD.top_ptr
+    | TPtr _ -> Address (AD.top_ptr ())
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
@@ -454,11 +454,11 @@ struct
         | TPtr (t,_) ->
           Address (match v with
               | Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
-              | Int x -> AD.top_ptr
+              | Int x -> AD.top_ptr ()
               (* we ignore casts to void*! TODO report UB! *)
               | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
               (*| Address x -> x*)
-              | _ -> log_top __POS__; AD.top_ptr
+              | _ -> log_top __POS__; AD.top_ptr ()
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
           (* TODO handle casts between different sizes? *)
@@ -542,7 +542,7 @@ struct
     | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
         | Some x -> AD.(join y not_null)
-        | None -> AD.join y AD.top_ptr)
+        | None -> AD.join y (AD.top_ptr ()))
     | (Address x, Address y) -> Address (AD.join x y)
     | (Struct x, Struct y) -> Struct (Structs.join x y)
     | (Union x, Union y) -> Union (Unions.join x y)
@@ -577,7 +577,7 @@ struct
     | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
         | Some x -> AD.(widen y (join y not_null))
-        | None -> AD.widen y (AD.join y AD.top_ptr))
+        | None -> AD.widen y (AD.join y (AD.top_ptr ())))
     | (Address x, Address y) -> Address (AD.widen x y)
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
     | (Union x, Union y) -> Union (Unions.widen x y)
@@ -697,7 +697,7 @@ struct
     in
     let array_idx_top = (None, ArrIdxDomain.top ()) in
     match typ, state with
-    |                 _ , Address n    -> Address (AD.join AD.top_ptr n)
+    |                 _ , Address n    -> Address (AD.join (AD.top_ptr ()) n)
     | TComp (ci,_)  , Struct n     -> Struct (invalid_struct ci n)
     |                 _ , Struct n     -> Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
     | TComp (ci,_)  , Union (`Lifted fd,n) -> Union (`Lifted fd, invalidate_value ask fd.ftype n)
