@@ -151,27 +151,27 @@ class Tests
 
       ranking = ["other", "warn", "goto", "fundec", "loop", "term", "nonterm", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
       thiswarn = case obj
-                 when /\(conf\. \d+\)/                                  then "race"
-                 when /Deadlock/                                        then "deadlock"
-                 when /lock (before|after):/                            then "deadlock"
-                 when /Assertion .* will fail/                          then "fail"
-                 when /Assertion .* will succeed/                       then "success"
-                 when /Assertion .* is unknown/                         then "unknown"
-                 when /invariant confirmed/                             then "success"
-                 when /invariant unconfirmed/                           then "unknown"
-                 when /invariant refuted/                               then "fail"
-                 when /^\[Warning\]/                                    then "warn"
-                 when /^\[Error\]/                                      then "warn"
-                 when /^\[Info\]/                                       then "warn"
-                 when /^\[Success\]/                                    then "success"
-                 when /(Upjumping Goto)/                                then "goto"
-                 when /(Fundec \w+ is contained in a call graph cycle)/ then "fundec"
-                 when /(Loop analysis)/                                 then "loop"
-                 when /\[Debug\]/                                       then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
-                 when /^  on line \d+ $/                                then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
-                 when /^  on lines \d+..\d+ $/                          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
-                 else "other"
-                 end
+                  when /\(conf\. \d+\)/                                  then "race"
+                  when /Deadlock/                                        then "deadlock"
+                  when /lock (before|after):/                            then "deadlock"
+                  when /Assertion .* will fail/                          then "fail"
+                  when /Assertion .* will succeed/                       then "success"
+                  when /Assertion .* is unknown/                         then "unknown"
+                  when /invariant confirmed/                             then "success"
+                  when /invariant unconfirmed/                           then "unknown"
+                  when /invariant refuted/                               then "fail"
+                  when /^\[Warning\]/                                    then "warn"
+                  when /^\[Error\]/                                      then "warn"
+                  when /^\[Info\]/                                       then "warn"
+                  when /^\[Success\]/                                    then "success"
+                  when /(Upjumping Goto)/                                then "goto"
+                  when /(Fundec \w+ is contained in a call graph cycle)/ then "fundec"
+                  when /(Loop analysis)/                                 then "loop"
+                  when /\[Debug\]/                                       then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
+                  when /^  on line \d+ $/                                then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                  when /^  on lines \d+..\d+ $/                          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                  else "other"
+                end
       oldwarn = warnings[i]
       if oldwarn.nil? then
         warnings[i] = thiswarn
