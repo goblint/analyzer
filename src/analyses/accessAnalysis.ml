@@ -144,7 +144,7 @@ struct
             let coffs = ValueDomain.Offs.to_cil offs in
             let access: AccessDomain.Event.t = {var_opt = (Some var); offs_opt = (Some coffs); kind} in
             G.add access es
-          | UnknownPtr ->
+          | UnknownPtr _ ->
             let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
             G.add access es
           | _ -> es

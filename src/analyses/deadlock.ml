@@ -58,15 +58,15 @@ struct
       let global_visited_locks = LH.create 100 in
 
       let may_equal l1 l2 = match l1, l2 with
-        | ValueDomain.Addr.UnknownPtr, _
-        | _, ValueDomain.Addr.UnknownPtr ->
+        | ValueDomain.Addr.UnknownPtr _, _
+        | _, ValueDomain.Addr.UnknownPtr _ ->
           true
         | _, _ -> Lock.equal l1 l2
       in
 
       (* DFS *)
       let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
-        if LS.mem lock path_visited_locks || LS.mem ValueDomain.Addr.UnknownPtr path_visited_locks || (not (LS.is_empty path_visited_locks) && lock = ValueDomain.Addr.UnknownPtr) then (
+        if LS.mem lock path_visited_locks || LS.mem (ValueDomain.Addr.UnknownPtr ()) path_visited_locks || (not (LS.is_empty path_visited_locks) && lock = (ValueDomain.Addr.UnknownPtr ())) then (
           (* cycle may not return to first lock, but an intermediate one, cut off the non-cyclic stem *)
           let path_visited_lock_event_pairs =
             (* path_visited_lock_event_pairs cannot be empty *)

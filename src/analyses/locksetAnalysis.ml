@@ -45,7 +45,7 @@ struct
     match e with
     | Events.Lock l ->
       Arg.add ctx l (* add all locks, including blob and unknown *)
-    | Events.Unlock UnknownPtr ->
+    | Events.Unlock (UnknownPtr _) ->
       ctx.local (* don't remove any locks, including unknown itself *)
     | Events.Unlock Addr (v, _) when ctx.ask (IsMultiple v) ->
       ctx.local (* don't remove non-unique lock *)
@@ -72,13 +72,13 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Lock (UnknownPtr, _) ->
+    | Events.Lock (UnknownPtr _, _) ->
       ctx.local (* don't add unknown lock *)
     | Events.Lock (Addr (v, _), _) when ctx.ask (IsMultiple v) ->
       ctx.local (* don't add non-unique lock *)
     | Events.Lock l ->
       Arg.add ctx l (* add definite lock or none in parallel if ambiguous *)
-    | Events.Unlock UnknownPtr ->
+    | Events.Unlock (UnknownPtr _) ->
       Arg.remove_all ctx (* remove all locks *)
     | Events.Unlock l ->
       Arg.remove ctx l (* remove definite lock or all in parallel if ambiguous (blob lock is never added) *)

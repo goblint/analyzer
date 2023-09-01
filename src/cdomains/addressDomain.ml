@@ -7,13 +7,15 @@ module M = Messages
 module Mval_outer = Mval
 
 
+type unknownOrigin = unit [@@deriving eq, ord, hash]
+
 module AddressBase (Mval: Printable.S) =
 struct
   include Printable.StdLeaf
   type t =
     | Addr of Mval.t
     | NullPtr
-    | UnknownPtr
+    | UnknownPtr of unknownOrigin
     | StrPtr of string option
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
 
@@ -31,7 +33,7 @@ struct
     | Addr m -> Mval.show m
     | StrPtr (Some x)   -> "\"" ^ x ^ "\""
     | StrPtr None -> "(unknown string)"
-    | UnknownPtr -> "?"
+    | UnknownPtr _ -> "?"
     | NullPtr    -> "NULL"
 
   include Printable.SimpleShow (
@@ -69,7 +71,7 @@ struct
     | Some x -> Some (String.length x)
     | _ -> None
 
-  let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
+  let arbitrary () = QCheck.always (UnknownPtr ()) (* S TODO: non-unknown *)
 end
 
 module AddressPrintable (Mval: Mval.Printable) =
@@ -96,7 +98,7 @@ struct
     | Addr (x, o) -> Mval.type_of (x, o)
     | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
-    | UnknownPtr -> voidPtrType
+    | UnknownPtr _ -> voidPtrType
 
   (* TODO: seems to be unused *)
   let to_exp = function
@@ -104,7 +106,7 @@ struct
     | StrPtr (Some x) -> mkString x
     | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
-    | UnknownPtr -> raise Lattice.TopValue
+    | UnknownPtr _ -> raise Lattice.TopValue
   (* TODO: unused *)
   let add_offset x o = match x with
     | Addr m -> Addr (Mval.add_offset m o)
@@ -127,11 +129,11 @@ struct
     | StrPtr _, StrPtr None -> Some true
     | StrPtr (Some a), StrPtr (Some b) -> if a = b then None else Some false
     | NullPtr, NullPtr -> Some true
-    | UnknownPtr, UnknownPtr
-    | UnknownPtr, Addr _
-    | Addr _, UnknownPtr
-    | UnknownPtr, StrPtr _
-    | StrPtr _, UnknownPtr -> None
+    | UnknownPtr _, UnknownPtr _
+    | UnknownPtr _, Addr _
+    | Addr _, UnknownPtr _
+    | UnknownPtr _, StrPtr _
+    | StrPtr _, UnknownPtr _ -> None
     | _, _ -> Some false
 
   let leq x y = match x, y with
@@ -166,7 +168,7 @@ struct
 
   let merge mop sop x y =
     match x, y with
-    | UnknownPtr, UnknownPtr -> UnknownPtr
+    | UnknownPtr _, UnknownPtr _ -> UnknownPtr ()
     | NullPtr   , NullPtr -> NullPtr
     | StrPtr a, StrPtr b -> StrPtr (sop a b)
     | Addr x, Addr y -> Addr (mop x y)
@@ -197,7 +199,7 @@ struct
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
-      | UnknownPtr -> UnknownPtr
+      | UnknownPtr _ -> UnknownPtr ()
   end
 
   module UnitOffsetRepr: DisjointDomain.Representative with type elt = t =
@@ -214,7 +216,7 @@ struct
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
-      | UnknownPtr -> UnknownPtr
+      | UnknownPtr _ -> UnknownPtr ()
   end
 end
 
@@ -257,15 +259,15 @@ struct
     r
 
   let null_ptr       = singleton Addr.NullPtr
-  let unknown_ptr    = singleton Addr.UnknownPtr
+  let unknown_ptr    = singleton (Addr.UnknownPtr ())
   let not_null       = unknown_ptr
-  let top_ptr        = of_list Addr.[UnknownPtr; NullPtr]
+  let top_ptr        = of_list Addr.[UnknownPtr (); NullPtr]
 
   let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
   let is_null x = is_element Addr.NullPtr x
   let may_be_null x = mem Addr.NullPtr x
   let is_not_null x = not (may_be_null x)
-  let may_be_unknown x = mem Addr.UnknownPtr x
+  let may_be_unknown x = mem (Addr.UnknownPtr ()) x
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
 
   let of_int i =

@@ -159,7 +159,7 @@ struct
           | AD.Addr.Addr (g,o) when g.vglob || has_escaped g ->
             let coffs = ValueDomain.Offs.to_cil o in
             add_access conf (Some (g, coffs))
-          | UnknownPtr -> add_access conf None
+          | UnknownPtr _ -> add_access conf None
           | _ -> ()
         in
         AD.iter f ad

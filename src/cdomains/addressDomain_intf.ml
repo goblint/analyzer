@@ -6,7 +6,7 @@ sig
     type t =
       | Addr of Mval.t (** Pointer to mvalue. *)
       | NullPtr (** NULL pointer. *)
-      | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
+      | UnknownPtr of unit (** Unknown pointer. Could point to globals, heap and escaped variables. *)
       | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
     include Printable.S with type t := t (** @closed *)
 

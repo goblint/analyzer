@@ -119,7 +119,7 @@ struct
 
   let get_concrete_lval (ask: Queries.ask) (lval:lval) =
     match ask.f (Queries.MayPointTo (mkAddrOf lval)) with
-    | ad when Queries.AD.cardinal ad = 1 && not (Queries.AD.mem UnknownPtr ad) ->
+    | ad when Queries.AD.cardinal ad = 1 && not (Queries.AD.is_top ad) ->
       Queries.AD.Addr.to_mval (Queries.AD.choose ad)
     | _ -> None
 

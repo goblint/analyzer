@@ -293,7 +293,7 @@ struct
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
-        | _ -> Addr.UnknownPtr
+        | _ -> Addr.UnknownPtr ()
       in
       match Addr.to_mval addr with
       | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
@@ -474,7 +474,7 @@ struct
             | "assume_top" -> top
             | _ -> assert false
           end
-        | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
+        | Addr.UnknownPtr _ -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
         | Addr.StrPtr _ -> Int (ID.top_of IChar)
       in
       (* We form the collecting function by joining *)
@@ -931,7 +931,7 @@ struct
                 else
                   false
           end
-        | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
+        | NullPtr | UnknownPtr _ -> true (* TODO: are these sound? *)
         | _ -> false
       in
       (** Lookup value at base address [addr] with given offset [ofs]. *)
@@ -1100,7 +1100,7 @@ struct
     let exception OnlyUnknown in
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
-      if AD.mem Addr.UnknownPtr fp then begin
+      if AD.is_top fp then begin
         let others = AD.to_var_may fp in
         if others = [] then raise OnlyUnknown;
         M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
@@ -1210,7 +1210,7 @@ struct
     | Q.EvalJumpBuf e ->
       begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address jmp_buf ->
-          if AD.mem Addr.UnknownPtr jmp_buf then
+          if AD.is_top jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
           begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
             | JmpBuf (x, copied) ->
@@ -1289,7 +1289,7 @@ struct
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
+          let a' = AD.remove (Addr.UnknownPtr ()) a in (* run reachable_vars without unknown just to be safe: TODO why? *)
           let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
           List.fold_left (AD.join) (AD.empty ()) addrs
         | _ -> AD.empty ()
@@ -1298,7 +1298,7 @@ struct
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
+        | Address a when AD.is_top a ->
           Q.TS.top ()
         | Address a ->
           reachable_top_pointers_types ctx a
@@ -1666,7 +1666,7 @@ struct
       let not_local x =
         match Addr.to_var_may x with
         | Some x -> is_global (Analyses.ask_of_ctx ctx) x
-        | None -> x = Addr.UnknownPtr
+        | None -> x = Addr.UnknownPtr ()
       in
       AD.is_top xs || AD.exists not_local xs
     in
@@ -1942,7 +1942,7 @@ struct
         let start_addr = eval_tv (Analyses.ask_of_ctx ctx) ctx.global ctx.local start in
         let start_funvars = AD.to_var_may start_addr in
         let start_funvars_with_unknown =
-          if AD.mem Addr.UnknownPtr start_addr then
+          if AD.is_top start_addr then
             dummyFunDec.svar :: start_funvars
           else
             start_funvars
@@ -2659,7 +2659,7 @@ struct
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      if addr = UnknownPtr then
+      if addr = UnknownPtr () then
         M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->
           Priv.unlock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr

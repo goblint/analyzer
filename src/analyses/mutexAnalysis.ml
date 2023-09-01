@@ -324,7 +324,7 @@ struct
       let on_ad ad =
         let f = function
           | AD.Addr.Addr (g,_) when g.vglob || has_escaped g -> old_access (Some g)
-          | UnknownPtr -> old_access None
+          | UnknownPtr _ -> old_access None
           | _ -> ()
         in
         AD.iter f ad

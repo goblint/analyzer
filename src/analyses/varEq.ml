@@ -467,7 +467,7 @@ struct
     Queries.AD.fold (fun addr st ->
         match addr with
         | Queries.AD.Addr.Addr mval -> remove ask (ValueDomain.Mval.to_cil mval) st
-        | UnknownPtr -> D.top ()
+        | UnknownPtr _ -> D.top ()
         | _ -> st
       ) rs st
 

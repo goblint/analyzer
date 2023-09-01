@@ -386,8 +386,8 @@ struct
         (* only allow conversion of float pointers if source and target type are the same *)
         | Addr ({ vtype = TFloat(fkind, _); _}, _) as x when (match t with TFloat (fkind', _) when fkind = fkind' -> true | _ -> false) -> x
         (* do not allow conversion from/to float pointers*)
-        | Addr ({ vtype = TFloat(_); _}, _) -> UnknownPtr
-        | _ when (match t with TFloat _ -> true | _ -> false) -> UnknownPtr
+        | Addr ({ vtype = TFloat(_); _}, _) -> UnknownPtr ()
+        | _ when (match t with TFloat _ -> true | _ -> false) -> UnknownPtr ()
         | Addr ({ vtype = TVoid _; _} as v, offs) when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
           Addr ({ v with vtype = t }, offs) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
         | Addr (v, o) as a ->
@@ -1254,7 +1254,7 @@ struct
     let is_opt = AD.fold (fun addr acc_opt ->
         let* acc = acc_opt in
         match addr with
-        | Addr.UnknownPtr ->
+        | Addr.UnknownPtr _ ->
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
           (* Addr.Offs.is_definite implies to_cil doesn't contain Offset.any_index_exp. *)
