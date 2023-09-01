@@ -7,7 +7,9 @@ module M = Messages
 module Mval_outer = Mval
 
 
-type unknownOrigin = unit [@@deriving eq, ord, hash]
+type unknownOrigin = {
+  node : Node.t option
+} [@@deriving eq, ord, hash]
 
 module AddressBase (Mval: Printable.S) =
 struct
@@ -71,7 +73,7 @@ struct
     | Some x -> Some (String.length x)
     | _ -> None
 
-  let arbitrary () = QCheck.always (UnknownPtr ()) (* S TODO: non-unknown *)
+  let arbitrary () = QCheck.always (UnknownPtr {node = None}) (* S TODO: non-unknown *)
 end
 
 module AddressPrintable (Mval: Mval.Printable) =
@@ -140,6 +142,7 @@ struct
     | StrPtr _, StrPtr None -> true
     | StrPtr a, StrPtr b   -> a = b
     | Addr x, Addr y -> Mval.leq x y
+    | UnknownPtr x, UnknownPtr y -> equal_unknownOrigin x y
     | _                      -> x = y
 
   let top_indices = function
@@ -168,7 +171,7 @@ struct
 
   let merge mop sop x y =
     match x, y with
-    | UnknownPtr _, UnknownPtr _ -> UnknownPtr ()
+    | UnknownPtr o1, UnknownPtr o2 when equal_unknownOrigin o1 o2 -> UnknownPtr o1
     | NullPtr   , NullPtr -> NullPtr
     | StrPtr a, StrPtr b -> StrPtr (sop a b)
     | Addr x, Addr y -> Addr (mop x y)
@@ -199,7 +202,7 @@ struct
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
-      | UnknownPtr _ -> UnknownPtr ()
+      | UnknownPtr o -> UnknownPtr o
   end
 
   module UnitOffsetRepr: DisjointDomain.Representative with type elt = t =
@@ -216,7 +219,7 @@ struct
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
-      | UnknownPtr _ -> UnknownPtr ()
+      | UnknownPtr o -> UnknownPtr o
   end
 end
 
@@ -259,15 +262,20 @@ struct
     r
 
   let null_ptr       = singleton Addr.NullPtr
-  let unknown_ptr    = singleton (Addr.UnknownPtr ())
+  let unknown_ptr    = singleton (Addr.UnknownPtr {node = None})
   let not_null       = unknown_ptr
-  let top_ptr        = of_list Addr.[UnknownPtr (); NullPtr]
+  let top_ptr        = of_list Addr.[UnknownPtr {node = None}; NullPtr]
+
+  let top_ptr_n n    = of_list Addr.[UnknownPtr {node = n}; NullPtr]
 
   let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
   let is_null x = is_element Addr.NullPtr x
   let may_be_null x = mem Addr.NullPtr x
   let is_not_null x = not (may_be_null x)
-  let may_be_unknown x = mem (Addr.UnknownPtr ()) x
+  let may_be_unknown x = exists (function 
+      | Addr.UnknownPtr _ -> true
+      | _ -> false
+    ) x
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
 
   let of_int i =
@@ -444,4 +452,9 @@ struct
     r
 
   let filter f ad = fold (fun addr ad -> if f addr then add addr ad else ad) ad (empty ())
+
+  let remove_unknownptrs ad = filter (function
+      | UnknownPtr _ -> false
+      | _ -> true
+    ) ad
 end

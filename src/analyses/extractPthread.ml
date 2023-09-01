@@ -879,9 +879,11 @@ module Spec : Analyses.MCPSpec = struct
     let eval_ptr ctx exp =
       let ad = ctx.ask (Queries.MayPointTo exp) in
       if (not (Queries.AD.is_top ad)) && not (Queries.AD.is_empty ad) then
-        if Queries.AD.mem (UnknownPtr ()) ad
+        if Queries.AD.exists (function (* TODO: always false *)
+            | UnknownPtr _ -> true
+            | _ -> false) ad
         then (* UNSOUND *)
-          Queries.AD.remove (UnknownPtr ()) ad
+          Queries.AD.remove_unknownptrs ad
           |> Queries.AD.to_var_may
         else
           Queries.AD.to_var_may ad

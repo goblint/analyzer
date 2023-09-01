@@ -293,7 +293,7 @@ struct
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
-        | _ -> Addr.UnknownPtr ()
+        | _ -> Addr.UnknownPtr {node = !Node.current_node}
       in
       match Addr.to_mval addr with
       | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
@@ -1289,7 +1289,7 @@ struct
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
-          let a' = AD.remove (Addr.UnknownPtr ()) a in (* run reachable_vars without unknown just to be safe: TODO why? *)
+          let a' = AD.remove_unknownptrs a in (* run reachable_vars without unknown just to be safe: TODO why? *)
           let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
           List.fold_left (AD.join) (AD.empty ()) addrs
         | _ -> AD.empty ()
@@ -1664,9 +1664,10 @@ struct
     (* M.debug ~category:Analyzer @@ sprint ~width:max_int @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs =
       let not_local x =
-        match Addr.to_var_may x with
-        | Some x -> is_global (Analyses.ask_of_ctx ctx) x
-        | None -> x = Addr.UnknownPtr ()
+        match x with
+        | Addr.Addr (x,_) -> is_global (Analyses.ask_of_ctx ctx) x
+        | Addr.UnknownPtr _ -> true
+        | _ -> false
       in
       AD.is_top xs || AD.exists not_local xs
     in
@@ -2659,8 +2660,11 @@ struct
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      if addr = UnknownPtr () then
-        M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
+      begin match addr with
+        | UnknownPtr _ ->
+          M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
+        | _ -> ()
+      end;
       WideningTokens.with_local_side_tokens (fun () ->
           Priv.unlock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
         )

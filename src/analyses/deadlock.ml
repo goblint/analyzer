@@ -53,7 +53,7 @@ struct
       let g: V.t = Obj.obj g in
 
       let module LH = Hashtbl.Make (Lock) in
-      let module LS = Set.Make (Lock) in
+      let module LS = Set.Make (Lock) in (* TODO: use AddressDomain *)
       (* TODO: find all cycles/SCCs *)
       let global_visited_locks = LH.create 100 in
 
@@ -66,7 +66,14 @@ struct
 
       (* DFS *)
       let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
-        if LS.mem lock path_visited_locks || LS.mem (ValueDomain.Addr.UnknownPtr ()) path_visited_locks || (not (LS.is_empty path_visited_locks) && lock = (ValueDomain.Addr.UnknownPtr ())) then (
+        if LS.mem lock path_visited_locks
+        || LS.exists (function
+               | ValueDomain.Addr.UnknownPtr _ -> true
+               | _ -> false) path_visited_locks
+        || (not (LS.is_empty path_visited_locks)
+            && match lock with
+            | ValueDomain.Addr.UnknownPtr _ -> true
+            | _ -> false) then (
           (* cycle may not return to first lock, but an intermediate one, cut off the non-cyclic stem *)
           let path_visited_lock_event_pairs =
             (* path_visited_lock_event_pairs cannot be empty *)

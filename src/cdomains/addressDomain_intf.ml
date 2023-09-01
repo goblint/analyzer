@@ -1,12 +1,16 @@
 module type AddressDomain =
 sig
 
+  type unknownOrigin = {
+    node : Node.t option
+  } [@@deriving eq, ord, hash]
+
   module AddressBase (Mval: Printable.S):
   sig
     type t =
       | Addr of Mval.t (** Pointer to mvalue. *)
       | NullPtr (** NULL pointer. *)
-      | UnknownPtr of unit (** Unknown pointer. Could point to globals, heap and escaped variables. *)
+      | UnknownPtr of unknownOrigin (** Unknown pointer. Could point to globals, heap and escaped variables. *)
       | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
     include Printable.S with type t := t (** @closed *)
 
@@ -119,6 +123,9 @@ sig
     val top_ptr: t
     (** Address set containing any pointer, [NULL] or not. *)
 
+    val top_ptr_n: Node.t option -> t
+    (** Address set containing any pointer, [NULL] or not. *)
+
     val is_null: t -> bool
     (** Whether address set contains only the [NULL] pointer. *)
 
@@ -176,5 +183,6 @@ sig
     val substring_extraction: t -> t -> t
     val string_comparison: t -> t -> int option -> ID.t
     val string_writing_defined: t -> bool
+    val remove_unknownptrs: t -> t
   end
 end

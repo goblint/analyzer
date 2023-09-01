@@ -68,7 +68,7 @@ struct
     | ad when not (Queries.AD.is_top ad) && not (Queries.AD.is_empty ad) ->
       let a' = if Queries.AD.is_top ad then ( (* TODO: always false *)
           M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
-          Queries.AD.remove (UnknownPtr ()) ad
+          Queries.AD.remove_unknownptrs ad
         ) else ad
       in
       List.filter_map (function
