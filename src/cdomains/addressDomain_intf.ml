@@ -127,7 +127,7 @@ sig
     val not_null: t
     (** Address set containing the unknown pointer, which is non-[NULL]. *)
 
-    val top_ptr: unit -> t
+    val top_ptr: unknownKind -> t
     (** Address set containing any pointer, [NULL] or not. *)
 
     val is_null: t -> bool
