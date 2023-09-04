@@ -3,6 +3,7 @@ sig
 
   type unknownKind =
     | Cast
+    | PointerArithmetic
     | Unknown
   [@@deriving eq, ord, hash]
 

@@ -8,6 +8,7 @@ module Mval_outer = Mval
 
 type unknownKind =
   | Cast
+  | PointerArithmetic
   | Unknown
 [@@deriving eq, ord, hash]
 

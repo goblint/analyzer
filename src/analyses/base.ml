@@ -293,7 +293,7 @@ struct
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
-        | _ -> Addr.UnknownPtr {node = !Node.current_node; kind = Unknown}
+        | _ -> Addr.UnknownPtr {node = !Node.current_node; kind = PointerArithmetic}
       in
       match Addr.to_mval addr with
       | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
