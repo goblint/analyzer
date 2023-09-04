@@ -2451,6 +2451,26 @@
             }
           },
           "additionalProperties": false
+        },
+        "violation": {
+          "title": "witness.violation",
+          "type": "object",
+          "properties": {
+              "filename": {
+                "title": "witness.violation.filename",
+                "type": "string",
+                "description": "Violation witness output filename",
+                "default": "violation-witness.graphml"  
+              },
+              "unreach-functions": {
+                "title": "witness.violation.unreach-functions",
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "List of functions names for violation witness unreachable check",
+                "default": ["reach_error"]  
+              } 
+          },
+          "additionalProperties": false    
         }
       },
       "additionalProperties": false

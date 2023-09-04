@@ -8,6 +8,19 @@ let iso8601_of_tm {tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _} =
 
 let iso8601_now () = iso8601_of_tm (gmtime (time ()))
 
+let iso8601_of_tm2 {tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _} offset =
+  let year = 1900 + tm_year in
+  let month = tm_mon + 1 in
+  let offset_hours = offset / 3600 in
+  let offset_minutes = abs (offset mod 3600) / 60 in
+  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d%+03d:%02d" year month tm_mday tm_hour tm_min tm_sec offset_hours offset_minutes
+
+let iso8601_now_with_offset () =
+  let now = time () in
+  let gm_tm = gmtime now in
+  let local_offset = (gmtime now).tm_sec - (gmtime (time ())).tm_sec in
+  iso8601_of_tm2 gm_tm local_offset
+
 let seconds_of_duration_string =
   let unit = function
     | "" | "s" -> 1

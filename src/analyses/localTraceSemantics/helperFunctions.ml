@@ -3,16 +3,62 @@ open Batteries
 open Analyses
 open LocalTraces
 open PostSolvingFlag
+open WitnessCreatedFlag
 open AuxiliaryClasses
+open ViolationWitness
 
 (* Custom exceptions for error messaging *)
 exception Overflow_addition_Int
 exception Underflow_subtraction_Int
+exception Overflow_cast_Int
+exception Underflow_cast_Int
 
 (* Constants *)
-let intMax = 2147483647
-let intMin = -2147483648
+let intMax = Big_int_Z.big_int_of_int 2147483647
+let intMin = Big_int_Z.big_int_of_int (-2147483648)
+let intUMax = Big_int_Z.big_int_of_string "4294967295" 
 
+let charMax = Big_int_Z.big_int_of_int 127
+let charMin = Big_int_Z.big_int_of_int (-128)
+let charUMax = Big_int_Z.big_int_of_int 255 
+let shortMax = Big_int_Z.big_int_of_int 32767
+let shortMin = Big_int_Z.big_int_of_int (-32768)
+let shortUMax = Big_int_Z.big_int_of_int 65535 
+let longlongMax = Big_int_Z.big_int_of_string "9223372036854775807"
+let longlongMin = Big_int_Z.big_int_of_string "-9223372036854775808"
+let longlongUMax = Big_int_Z.big_int_of_string "18446744073709551615"
+
+let charUModule = Big_int_Z.big_int_of_int 256
+let shortUModule = Big_int_Z.big_int_of_int 65536
+let intUModule = Big_int_Z.big_int_of_string "4294967296" 
+let longlongUModule = Big_int_Z.big_int_of_string "18446744073709551616" 
+
+let getIntMax ik = match ik with  
+        | IInt -> intMax 
+        | IUInt -> intUMax 
+        | IShort -> shortMax
+        | IUShort -> shortUMax
+        | _ -> Big_int_Z.zero_big_int
+let getIntUModule ik = match ik with  
+      | IInt | IUInt | ILong | IULong -> intUModule 
+      | IShort | IUShort -> shortUModule
+      | IUChar | IChar -> charUModule
+      | IULongLong | ILongLong -> longlongUModule
+      | _ -> Big_int_Z.zero_big_int
+let getIntMin ik = match ik with 
+    | IInt -> intMin 
+    | IShort -> shortMin 
+    | IUInt | IUShort -> Big_int_Z.zero_big_int 
+    | _ -> Big_int_Z.zero_big_int
+  
+let calculateIntOverflow v ik = match ik with 
+    | IUInt | IUShort | IUChar | IULong | IULongLong -> Big_int_Z.(mod_big_int v (getIntUModule ik)) 
+    | IChar | IShort | IInt | ILong | ILongLong ->
+          let uMax = getIntUModule ik in 
+          let uRes = Big_int_Z.(mod_big_int v uMax) in
+          let vMax = getIntMax ik in 
+          if uRes<=vMax then uRes else Big_int_Z.(sub_big_int uRes uMax)
+    | _ -> v
 
 let add_dependency_from_last_unlock graph mutexVinfo =
   let lastNode = LocalTrace.get_last_node graph in
@@ -132,29 +178,53 @@ and
   (* Evaluates the effects of an assignment to sigma *)
   eval sigOld vinfo (rval: exp) graph node tv =
   let nopVal sigEnhanced newExp = (Int((Big_int_Z.big_int_of_int (-13)), (Big_int_Z.big_int_of_int (-13)),IInt), false, sigEnhanced, [], newExp) in
+  
+  (* check int supported types here - in one place !*)
+  let checkSupportedInt ik = match ik with | IInt | IUInt | IShort | IUShort | ILong | IULong | ILongLong | IULongLong | IChar | IUChar -> true | _ -> false  
+  in 
+  (* check for which type checking overflow should be applied *)
+  let checkIntCanBinOp ik1 ik2 = checkSupportedInt ik1 && checkSupportedInt ik2 (*CilType.Ikind.equal ik1 ik2*) 
+  in
+  (* here should be more sophisticated way to check involving parameters, I guess - only IInt or other constant too (?) *)
+  let supportIntOverflow ik isCast = match ik with | IInt | IShort | ILong | ILongLong | IChar -> true | _ -> false 
+  in
+  (* helper function check if overflow or underflow over big int present and calculate overflowed value or throw proper exception *)
+  let checkOverflow v ik isCast = 
+    if not (supportIntOverflow ik isCast) 
+    then calculateIntOverflow v ik   
+    else 
+      let iMax = getIntMax ik in
+      if v>iMax then (if isCast then raise Overflow_cast_Int else raise Overflow_addition_Int)
+      else let iMin = getIntMin ik in
+           if v<iMin then (if isCast then raise Underflow_cast_Int else raise Underflow_cast_Int)  
+           else v 
+  in 
 
   (* returns a function which calculates [l1, u1] OP [l2, u2]*)
   let get_binop_int op ik =
-    if not (CilType.Ikind.equal ik IInt) then (Printf.printf "This type of assignment is not supported in get_binop_int\n"; exit 0) else
+    if not (checkSupportedInt ik) then (Printf.printf "This type of assignment is not supported in get_binop_int\n"; exit 0) else
       (match op with
        | PlusA ->
          fun x1 x2 -> (match (x1,x2) with
-               (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
-               (if (Big_int_Z.add_big_int u1 u2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 l2, Big_int_Z.add_big_int u1 u2, ik))
+               (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((checkSupportedInt ik1) && (checkSupportedInt ik2)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
+               (*(if (Big_int_Z.add_big_int u1 u2 > getIntMax ik) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 l2, Big_int_Z.add_big_int u1 u2, ik))*)
+               Int(Big_int_Z.add_big_int l1 l2, checkOverflow (Big_int_Z.add_big_int u1 u2) ik false, ik)
              | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
        | MinusA ->
          fun x1 x2 -> (match (x1,x2) with 
-               (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
+               (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((checkSupportedInt ik1) && (checkSupportedInt ik2)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
                (let neg_second_lower = Big_int_Z.minus_big_int u2 in 
                 let neg_second_upper = Big_int_Z.minus_big_int l2 in 
                 print_string("get_binop_int with MinusA: l1="^(Big_int_Z.string_of_big_int l1)^", u1="^(Big_int_Z.string_of_big_int u1)^", neg_second_lower="^(Big_int_Z.string_of_big_int neg_second_lower)^", neg_second_upper="^(Big_int_Z.string_of_big_int neg_second_upper)^"\n");
-                if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin) then raise Underflow_subtraction_Int else Int(Big_int_Z.add_big_int l1 neg_second_lower, Big_int_Z.add_big_int u1 neg_second_upper, ik))
+                (*if (Big_int_Z.add_big_int l1 neg_second_lower < getIntMin ik) then raise Underflow_subtraction_Int else Int(Big_int_Z.add_big_int l1 neg_second_lower, Big_int_Z.add_big_int u1 neg_second_upper, ik)*)
+                Int(checkOverflow (Big_int_Z.add_big_int l1 neg_second_lower) ik false, Big_int_Z.add_big_int u1 neg_second_upper, ik)
+                )
              | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
        | Lt ->
          fun x1 x2 -> (match (x1,x2) with
-             | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
+             | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((checkSupportedInt ik1) && (checkSupportedInt ik2)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
                (if Big_int_Z.lt_big_int u1 l2 then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) )
                 else if Big_int_Z.le_big_int u2 l1 then (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik))
                 else (print_string "Overlapping Lt is not supported\n"; exit 1)
@@ -168,20 +238,26 @@ and
   let rec eval_helper subexp currentSigEnhanced =
     (match subexp with
 
-     | Const(CInt(c, ik, s)) -> (match ik with
-         | IInt -> if c < Big_int_Z.big_int_of_int intMin
-           then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true,currentSigEnhanced, [], Const(CInt(c, ik, s)))
-           else if c > Big_int_Z.big_int_of_int intMax
-           then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
-           else (Int (c,c, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
-         | IUInt -> if c < Big_int_Z.zero_big_int
-           then (Int (Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik), true,currentSigEnhanced, [], Const(CInt(c, ik, s)))
-           else if c > Big_int_Z.big_int_of_int intMax
-           then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
-           else (Int (c,c, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
-         | IShort -> print_string "in eval_helper Const, type IShort is not supported. But we continue with evaluation because this could be some pthread.h initializations\n";
-           (Int (c,c, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
-         | _ ->  print_string ("This type of assignment is not supported in eval_helper Const, ik="^(CilType.Ikind.show ik)^"\n"); exit 0 )
+     | Const(CInt(c, ik, s)) -> (
+        (*
+        let ikMin = getIntMin ik in
+        let ikMax = getIntMax ik in
+        match ik with
+         | IInt | IShort | IUInt | IUShort -> 
+           if c < ikMin
+           then (Int (ikMin,ikMin, ik), true,currentSigEnhanced, [], Const(CInt(c, ik, s)))
+           else if c > ikMax
+                then (Int (ikMax,ikMax, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
+                else (Int (c,c, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
+         | _ ->  print_string ("This type of assignment is not supported in eval_helper Const, ik="^(CilType.Ikind.show ik)^"\n"); exit 0 
+        *)
+        if checkSupportedInt ik 
+          then 
+            let correctedC = calculateIntOverflow c ik in
+            (Int (correctedC, correctedC, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
+          else (print_string ("This type of assignment is not supported in eval_helper Const, ik="^(CilType.Ikind.show ik)^"\n"); exit 0) 
+        )
+
 
      (* The only case where I need to evaluate a global *)
      | Lval(Var(var), NoOffset) -> if var.vglob = true
@@ -235,20 +311,47 @@ and
      (* unop expressions *)
      (* for type Integer *)
      | UnOp(Neg, unopExp, TInt(unopIk, attr)) ->
-       (match eval_helper unopExp currentSigEnhanced with (Int(l,u,ik), true, sigEnhanced, otherValues, newUnopExp) ->
-          (match ik with
-           |IInt ->
-             if CilType.Ikind.equal unopIk IInt then(
-               let negLowerBound = (if Big_int_Z.minus_big_int u < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
-                                    else if Big_int_Z.minus_big_int u > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int u ) in
-               let negUpperBound = (if Big_int_Z.minus_big_int l < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
-                                    else if Big_int_Z.minus_big_int l > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int l ) in
+       (match eval_helper unopExp currentSigEnhanced with 
+        | (Int(l,u,ik), true, sigEnhanced, otherValues, newUnopExp) ->
+          if (checkSupportedInt unopIk) then
+            (Int (calculateIntOverflow (Big_int_Z.minus_big_int l) unopIk, calculateIntOverflow (Big_int_Z.minus_big_int u) unopIk, unopIk), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, UnOp(Neg, newUnopExp, TInt(unopIk, attr)))
+          else (Printf.printf "This type of assignment is not supported in eval_helper UnOp\n"; exit 0)   
+          (*
+          (let ikMin = getIntMin ik in
+           let ikMax = getIntMax ik in 
+           match ik with
+           | IInt | IUInt | IShort | IUShort ->
+             if (*CilType.Ikind.equal unopIk IInt*) checkSupportedInt unopIk then(
+               let negLowerBound = (if Big_int_Z.minus_big_int u < ikMin then ikMin
+                                    else if Big_int_Z.minus_big_int u > ikMax then ikMax else Big_int_Z.minus_big_int u ) in
+               let negUpperBound = (if Big_int_Z.minus_big_int l < ikMin then ikMin
+                                    else if Big_int_Z.minus_big_int l > ikMax then ikMax else Big_int_Z.minus_big_int l ) in
                (Int (negLowerBound, negUpperBound, unopIk), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, UnOp(Neg, newUnopExp, TInt(unopIk, attr))))
              else (Printf.printf "This type of assignment is not supported in eval_helper UnOp\n"; exit 0)
-           | _ -> Printf.printf "This type of assignment is not supported in eval_helper UnOp\n"; exit 0)
-                                                        |(_, false, sigEnhanced, _, newUnopExp) -> print_string "nopVal created at unop Neg for Int\n";
-                                                          nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) (UnOp(Neg, newUnopExp, TInt(unopIk, attr)))
-                                                        |(_, _,_,_, _) -> Printf.printf "This type of assignment is not supported in eval_helper in UnOp\n"; exit 0)
+           | _ -> Printf.printf "This type of assignment is not supported in eval_helper UnOp\n"; exit 0
+            *) 
+        |(_, false, sigEnhanced, _, newUnopExp) -> 
+            print_string "nopVal created at unop Neg for Int\n";
+            nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) (UnOp(Neg, newUnopExp, TInt(unopIk, attr)))
+        |(_, _,_,_, _) -> Printf.printf "This type of assignment is not supported in eval_helper in UnOp\n"; exit 0
+      )
+        
+     (* need process cast for case of different types of int for now *)
+     | CastE(TInt(castIk, _), expr) ->
+       if checkSupportedInt castIk then
+         let toCastRes = eval_helper expr currentSigEnhanced in
+         match toCastRes with 
+           | (Int(l,u,ik), true, sigEnhanced, otherValues, newCastExp) -> 
+            (* to do check overflow HERE (!) *)
+            (* let castMin = getIntMin castIk in 
+            let castMax = getIntMax castIk in 
+            if u>castMax then raise Overflow_cast_Int  
+            else if l<castMin then raise Underflow_cast_Int 
+                else (Int(l, u, castIk), true, sigEnhanced, otherValues, newCastExp)
+            *)
+            (Int(checkOverflow l castIk true, checkOverflow u castIk true, castIk), true, sigEnhanced, otherValues, newCastExp)  
+           | _ -> (print_string ("This type of expression to cast is not supported in eval_helper CastE operation("^ CilType.Exp.show subexp ^ ")\n"); exit 0); 
+        else (print_string ("This type of cast is not supported in eval_helper CastE opetation("^ CilType.Exp.show subexp ^ ")\n"); exit 0)     
 
      (* binop expressions *)
      (* Lt could be a special case since it has enhancements on sigma *)
@@ -266,7 +369,7 @@ and
            let vd2 = (SigmaMap.find newVar2 sigOld) in
            match vd1,vd2 with
            | (Int(l1,u1,k1)), (Int(l2,u2,k2)) ->
-             if not (CilType.Ikind.equal k1 k2) then (Printf.printf "This type of assignment is not supported in eval_helper in BinOp(var, var)\n"; exit 0);
+             if not (checkIntCanBinOp k1 k2) then (Printf.printf "This type of assignment is not supported in eval_helper in BinOp(var, var)\n"; exit 0);
              if (u1 < l2) || (u2 <= l1) then ((get_binop_int Lt biopIk) (Int(l1, u1, k1)) (Int(l2, u2, k2)), true , currentSigEnhanced,[], newExpr)
              else
                (* overlap split *)
@@ -277,10 +380,10 @@ and
            (print_string "nopVal created at binop Lt of two variables. second is unknown\n";
             match SigmaMap.find newVar1 sigOld with
             | Int(l1,u1,k1) -> if tv then (
-                (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true, SigmaMap.add newVar2 (Int(Big_int_Z.add_int_big_int 1 u1,Big_int_Z.big_int_of_int intMax, k1)) currentSigEnhanced, [], newExpr)
+                (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true, SigmaMap.add newVar2 (Int(Big_int_Z.add_int_big_int 1 u1,getIntMax k1, k1)) currentSigEnhanced, [], newExpr)
               )
               else (
-                (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k1), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int intMin,l1, k1)) currentSigEnhanced, [], newExpr)
+                (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k1), true, SigmaMap.add newVar2 (Int(getIntMin k1,l1, k1)) currentSigEnhanced, [], newExpr)
               )
             | _ -> print_string "In expresion v1 < v2, v1 has unexpected type"; exit 0
            )
@@ -288,30 +391,30 @@ and
            (print_string "nopVal created at binop Lt of two variables. first is unknown\n";
             match SigmaMap.find newVar2 sigOld with
             | Int(l2,u2,k2) -> if tv then (
-                (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k2), true, SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.sub_big_int l2 (Big_int_Z.big_int_of_int 1), k2)) currentSigEnhanced, [], newExpr)
+                (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k2), true, SigmaMap.add newVar1 (Int(getIntMin k2,Big_int_Z.sub_big_int l2 (Big_int_Z.big_int_of_int 1), k2)) currentSigEnhanced, [], newExpr)
               )
               else (
-                (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k2), true, SigmaMap.add newVar1 (Int(u2,Big_int_Z.big_int_of_int (intMax), k2)) currentSigEnhanced, [], newExpr)
+                (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k2), true, SigmaMap.add newVar1 (Int(u2,getIntMax k2, k2)) currentSigEnhanced, [], newExpr)
               )
             | _ -> print_string "In expresion v1 < v2, v1 has unexpected type"; exit 0
            )
          else
            (print_string "nopVal created at binop Lt of two variables. both are unknown\n";
             if tv then (
-              let newOtherValues = [(newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-1), IInt));
-                                    (newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-2), IInt));
-                                    (newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 1, IInt));
-                                    (newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 2, IInt))
+              let newOtherValues = [(newVar1, Int(intMin,Big_int_Z.big_int_of_int (-1), IInt));
+                                    (newVar1, Int(intMin,Big_int_Z.big_int_of_int (-2), IInt));
+                                    (newVar1, Int(intMin,Big_int_Z.big_int_of_int 1, IInt));
+                                    (newVar1, Int(intMin,Big_int_Z.big_int_of_int 2, IInt))
                                    ] in
-              (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, IInt), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int intMax, IInt)) (SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 0, IInt)) currentSigEnhanced), newOtherValues, newExpr)
+              (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, IInt), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int 1,intMax, IInt)) (SigmaMap.add newVar1 (Int(intMin,Big_int_Z.big_int_of_int 0, IInt)) currentSigEnhanced), newOtherValues, newExpr)
             )
             else(
-              let newOtherValues = [(newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-1), IInt));
-                                    (newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-2), IInt));
-                                    (newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 1, IInt));
-                                    (newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 2, IInt))
+              let newOtherValues = [(newVar2, Int(intMin,Big_int_Z.big_int_of_int (-1), IInt));
+                                    (newVar2, Int(intMin,Big_int_Z.big_int_of_int (-2), IInt));
+                                    (newVar2, Int(intMin,Big_int_Z.big_int_of_int 1, IInt));
+                                    (newVar2, Int(intMin,Big_int_Z.big_int_of_int 2, IInt))
                                    ] in
-              (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, IInt), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 0, IInt)) (SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int intMax, IInt)) currentSigEnhanced), newOtherValues, newExpr)
+              (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, IInt), true, SigmaMap.add newVar2 (Int(intMin,Big_int_Z.big_int_of_int 0, IInt)) (SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int 0,intMax, IInt)) currentSigEnhanced), newOtherValues, newExpr)
             )
            )
        )
@@ -325,14 +428,14 @@ and
              let newExpr = BinOp(Lt, newBinOpExp1,Lval(Var(newVar), NoOffset),TInt(biopIk, attr)) in
              if SigmaMap.mem newVar sigEnhanced then
                (match SigmaMap.find newVar sigEnhanced with Int(lVar, uVar, kVar) ->
-                  if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
+                  if not (checkIntCanBinOp k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
                   if uVar <= l || u < lVar
                   then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, newExpr)
                   else (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
                                                           | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
              else if SigmaMap.mem newVar sigOld then
                (match SigmaMap.find newVar sigOld with Int(lVar, uVar, kVar) ->
-                  if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
+                  if not (checkIntCanBinOp k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
                   if uVar <= l || u < lVar
                   then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, newExpr)
                   else (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
@@ -340,10 +443,10 @@ and
              else (
                if var.vglob then (print_string("Error: there is a global in expression 'exp < var' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
                if tv then
-                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), Big_int_Z.big_int_of_int intMax, k)) (SigmaMap.empty)) in 
+                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), getIntMax k, k)) (SigmaMap.empty)) in 
                  (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
                else
-                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.big_int_of_int intMin, l, k)) (SigmaMap.empty)) in 
+                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(getIntMin k, l, k)) (SigmaMap.empty)) in 
                  (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
              )
            )
@@ -360,24 +463,24 @@ and
              let newExpr = BinOp(Lt, Lval(Var(newVar), NoOffset), newBinOpExp2,TInt(biopIk, attr)) in
              if SigmaMap.mem newVar sigEnhanced then
                (match SigmaMap.find newVar sigEnhanced with Int(lVar, uVar, kVar) ->
-                  if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp), unequal Ikind in sigEnhanced\n"; exit 0);
+                  if not (checkIntCanBinOp k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp), unequal Ikind in sigEnhanced\n"; exit 0);
                   if uVar < l || u <= lVar
                   then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, newExpr)
                   else (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
                                                           | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp), var is not an Integer in sigEnhanced\n"; exit 0)
              else if SigmaMap.mem newVar sigOld then
                (match SigmaMap.find newVar sigOld with Int(lVar, uVar, kVar) ->
-                  if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp), unequal IKind in sigOld\n"; exit 0);
+                  if not (checkIntCanBinOp k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp), unequal IKind in sigOld\n"; exit 0);
                   if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, newExpr)
                   else (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
                                                      | other -> print_string ("This type of assignment is not supported in eval_helper BinOp(var, exp), var="^(CilType.Varinfo.show newVar)^" is not an Integer in sigOld:"^(show_varDomain other)^"\n"); exit 0)
              else (
                if var.vglob then (print_string("Error: there is a global in expression 'var < exp' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
                if tv then
-                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.big_int_of_int intMin, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty)) in 
+                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(getIntMin k, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty)) in 
                  (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
                else
-                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(u, Big_int_Z.big_int_of_int intMax, k )) (SigmaMap.empty)) in 
+                 let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(u, getIntMax k, k )) (SigmaMap.empty)) in 
                  (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
              ))
          | (_,false, sigEnhanced, _, newExp) -> nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) newExp
@@ -392,7 +495,7 @@ and
        (match ((value1, success1, sigEnhanced1, otherValues1), eval_helper binopExp2 mergedEnhancedSigma) with
         | ((Int(l1,u1, ik1), true,sigEnhanced1,otherValues1),(Int(l2,u2, ik2), true,sigEnhanced2,otherValues2, newBinOpExp2)) ->
           let newExpr = BinOp(op, newBinOpExp1, newBinOpExp2,TInt(biopIk, attr)) in
-          if CilType.Ikind.equal ik1 ik2 then
+          if checkIntCanBinOp ik1 ik2 then
             ((get_binop_int op biopIk) (Int(l1,u1, ik1)) (Int(l2,u2, ik2)), true, NodeImpl.destruct_add_sigma mergedEnhancedSigma sigEnhanced2, otherValues1@otherValues2, newExpr)
           else (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, exp)\n"; exit 0)
         | ((_,_,sigEnhanced1,_), (_,false, sigEnhanced2,_, newBinOpExp2)) ->
@@ -414,13 +517,21 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
 
 (* Catches exception in eval function and produces warnings *)
 let eval_catch_exceptions sigOld vinfo rval graph node tv =
+  let overflowCatch warnMessage =
+    (
+      Messages.warn warnMessage;
+      witnessCreated#checkSpecification "overflow" ;
+      (*flag will be set only if overflow or reach_error occurs*)
+      witnessCreated#setFlag (); 
+      (*omitPostSolving#setFlag ();*)
+      ((SigmaMap.add vinfo Error sigOld, [], rval) ,false);
+    )
+  in  
   try (eval sigOld vinfo rval graph node tv, true) with
-  | Overflow_addition_Int -> Messages.warn "Contains a trace with overflow of Integer addition";
-    omitPostSolving#setFlag ();
-    ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
-  | Underflow_subtraction_Int -> Messages.warn "Contains a trace with underflow of Integer subtraction";
-    omitPostSolving#setFlag ();
-    ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
+  | Overflow_addition_Int -> overflowCatch "Contains a trace with overflow of Integer addition";
+  | Overflow_cast_Int -> overflowCatch "Contains a trace with overflow of Integer during cast operation";  
+  | Underflow_subtraction_Int -> overflowCatch "Contains a trace with underflow of Integer subtraction";
+  | Underflow_cast_Int -> overflowCatch "Contains a trace with underflow of Integer during cast operation"
 
 (* Manages other generated values and return a set of sigmas *)
 let eval_wrapper sigOld vinfo rval graph node tv =

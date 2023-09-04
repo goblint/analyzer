@@ -4,6 +4,7 @@ open Analyses
 open Constraints
 open PostSolvingFlag
 open PriorityCalc
+open ViolationWitness
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -98,7 +99,12 @@ module Make =
         let x, vs' = VS.pop !vs in
         let _ = vs := vs' in
         set x (eq x (eval x) set);
-        if omitPostSolving#getFlag ()  then print_string "We have an error trace, so solver should stop right here\n"
+        if omitPostSolving#getFlag ()  then print_string "We have an error trace, so solver should stop right here\n";
+        if omitPostSolving#getFlag ()  then 
+          let 
+            message = print_string "Creating a violation witness\n"
+          in  
+            message;
       done;
       if (omitPostSolving#getFlag () ) then Messages.warn_noloc "Program contains an error trace";
       stop_event ();

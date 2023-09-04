@@ -6,6 +6,9 @@ open AuxiliaryClasses
 open PriorityCalc
 open PostSolvingFlag
 open HelperFunctions
+open ViolationWitness
+open SvcompSpec
+open WitnessCreatedFlag
 (* Analysis framework for local traces *)
 module Spec : Analyses.MCPSpec =
 struct
@@ -18,7 +21,6 @@ struct
   module V = SideEffectDomain
 
   module G = GraphSet
-
 
   (* Creates a sequence of assignments where custom local variables are generated.
      This helper-function utilizes modules D and V, therefore it is not moved into 'locTraceHelper.ml' *)
@@ -98,8 +100,18 @@ struct
              (
                let lastNode = LocalTrace.get_last_node graph_outter in
                let sigmaList,success_inner, newExp = eval_wrapper lastNode.sigma x rval  graph_outter lastNode true in
-               if not success_inner then (print_string "assignment did not succeed!\n";
-                                          [LocalTrace.extend_by_gEdge graph_outter (lastNode,Assign(lval, newExp),{programPoint=LocalTrace.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})] )
+               if (not success_inner || witnessCreated#getFlag ())  then (print_string "assignment did not succeed!\n";
+                                            let newGraph = LocalTrace.extend_by_gEdge graph_outter (lastNode, Assign (lval, newExp), {programPoint = LocalTrace.error_node; sigma = SigmaMap.empty; id = -1; tid = -1; lockSet = VarinfoSet.empty}) in
+                                            if (witnessCreated#getFlag ()) then (
+                                              let specification = witnessCreated#getSpecification () in
+                                              let _ = ViolationWitness.create_witness newGraph specification in
+                                              let _ = omitPostSolving#setFlag () in
+                                              [newGraph]
+                                            ) else (
+                                              omitPostSolving#setFlag ();
+                                              [newGraph]
+                                            )
+                                            )
                else
                  (List.fold ( fun outerGraphList evaluated ->
                       let newSigma = remove_global_locals_sigma evaluated (VarinfoSet.to_list rvalGlobals) in
@@ -301,7 +313,16 @@ struct
                                       List.map (fun sigma_map ->
                                           let newSigma = remove_global_locals_sigma sigma_map (VarinfoSet.to_list rvalGlobals) in
                                           let myEdge: node*CustomEdge.t*node =
-                                            if success = false then (print_string "Error: Evaluation of return expression was unsuccessful\n"; exit 0)
+                                            if success = false then (
+                                              print_string "Error: Evaluation of return expression was unsuccessful\n"; 
+                                              let result_graph_with_error = LocalTrace.extend_by_gEdge graph_outter (lastNode,Ret(Some(newExp),f), {programPoint=LocalTrace.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) in
+                                              if (witnessCreated#getFlag ()) then (
+                                                let specification = witnessCreated#getSpecification () in
+                                                let _ = ViolationWitness.create_witness result_graph_with_error specification in
+                                                exit 0
+                                            ) else (
+                                                exit 0
+                                            ))
                                             else (lastNode,Ret(Some(newExp),f),{programPoint=ctx.node;sigma=newSigma;id=(idGenerator#getID lastNode (Ret(Some(newExp),f)) ctx.node newSigma tid ls);tid=tid;lockSet=ls}) in
                                           let result_graph =
                                             LocalTrace.extend_by_gEdge graph_outter myEdge in
@@ -398,10 +419,19 @@ struct
                          | _ -> Printf.printf "Error: wrong type of argument of pthread_join in special\n"; exit 0 in
                        if LocalTrace.is_already_joined tidJoin graph then (
                          Messages.warn "ThreadJoin on already joined Thread-ID";
-                         omitPostSolving#setFlag ();
                          print_string ("ThreadJoin did not succeed due to already joined TID for graph: \n"^(LocalTrace.show graph)^"\nand tidJoin: "^(string_of_int tidJoin)^"\n");
+                         (* let lastNode = LocalTrace.get_last_node graph in *)
                          let graph_error_edge = LocalTrace.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTrace.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) in
-                         graph_error_edge::graphList
+                         (*TODO: send the real last node*)
+                         if(witnessCreated#getFlag ()) then (
+                            let specification = witnessCreated#getSpecification () in
+                            let _ = ViolationWitness.create_witness graph_error_edge specification in
+                            let _ = omitPostSolving#setFlag () in
+                            graph_error_edge::graphList
+                         ) else (
+                            omitPostSolving#setFlag ();
+                            graph_error_edge::graphList
+                         )
                        )
                        else
                          let myTmp:V.t = ThreadID(tidJoin) in
@@ -410,11 +440,20 @@ struct
                          let joinableTraces = find_joinable_traces endingTraces graph tid in
                          if not (tidRecord#existsTID tidJoin) then (
                            Messages.warn "ThreadJoin on non-existent Thread-ID";
-                           omitPostSolving#setFlag ();
+                           (* let lastNode = LocalTrace.get_last_node graph in *)
                            let graph_error_edge = LocalTrace.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTrace.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) in
                            print_string("In ThreadJoin, we add an error-trace with endingTraces:\n
-["^(List.fold (fun s_fold graph_fold -> (LocalTrace.show graph_fold)^";\n"^s_fold) "" endingTraces)^"]\n");
-                           graph_error_edge::graphList
+                            ["^(List.fold (fun s_fold graph_fold -> (LocalTrace.show graph_fold)^";\n"^s_fold) "" endingTraces)^"]\n");
+                           (*TODO: send the real last node*)
+                           if (witnessCreated#getFlag ()) then (
+                            let specification = witnessCreated#getSpecification () in
+                            let _ = ViolationWitness.create_witness graph_error_edge specification in
+                            let _ = omitPostSolving#setFlag () in
+                            graph_error_edge::graphList
+                           ) else (
+                            omitPostSolving#setFlag ();
+                            graph_error_edge::graphList
+                           )
                          )
                          else if List.is_empty joinableTraces then
                            (* we cannot join *)
@@ -454,9 +493,18 @@ and after, we have:
     with arglist: "^(List.fold (fun acc_fold arg_fold -> (CilType.Exp.show arg_fold)^"; "^acc_fold) "" arglist)^"\n");
             match arglist with [AddrOf(Var(argVinfo),_)] -> if VarinfoSet.mem argVinfo ls
               then ( Messages.warn "mutex_destroy on locked mutex";
-                     omitPostSolving#setFlag ();
+                     (* let lastNode = LocalTrace.get_last_node graph in *)
                      let graph_error_edge = LocalTrace.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTrace.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) in
-                     [graph_error_edge])
+                     if (witnessCreated#getFlag ()) then ( 
+                      let specification = witnessCreated#getSpecification () in
+                      let _ = ViolationWitness.create_witness graph_error_edge specification in 
+                      let _ = omitPostSolving#setFlag () in
+                      [graph_error_edge]
+                     ) else (
+                      omitPostSolving#setFlag ();
+                      [graph_error_edge]
+                     )
+                     )
               else (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls}) in
                     let result_graph = LocalTrace.extend_by_gEdge graph myEdge in
                     [result_graph])
@@ -505,38 +553,51 @@ and after, we have:
 
   (* perform enter-effect on given node *)
   let enter_on_node graph ctx f args {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} =
-    let rvalGlobals = List.fold (fun ls_fold arg_fold -> get_all_globals arg_fold ls_fold) VarinfoSet.empty args in
-    print_string ("in enter, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
-    let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx in
-    (* print_string ("someTmp: "^(List.fold (fun s_acc graph_fold -> (LocalTrace.show graph_fold)^"; "^s_acc) "" someTmp)^"\n"); *)
-    let outterResultList = List.fold ( fun resultList_outter graph_outter ->
-        (
-          let lastNode = LocalTrace.get_last_node graph_outter in
-          let sigma_formalList, _, newExpList = List.fold (
-              fun (sigAcc, formalExp, expListAcc) formal -> (match formalExp with
-                  | x::xs -> (
-                      let resultList, success, newExp = eval_wrapper lastNode.sigma formal x graph_outter lastNode true in 
-                      if success = true
-                      then (
-                        let varDomainList = List.fold (fun varDomList_fold sigma_fold -> (SigmaMap.find formal sigma_fold)::varDomList_fold) [] resultList in
-                        (construct_sigma_combinations formal varDomainList sigAcc) , xs, newExp::expListAcc)
-                      else (sigAcc, xs, newExp::expListAcc)
-                    )
-                  | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
-            ) ([SigmaMap.empty], args, []) f.sformals in
-          print_string ("sigma_formalList={"^(List.fold (fun s_fold sigma_fold -> (NodeImpl.show_sigma sigma_fold)^";"^s_fold) "" sigma_formalList)^"}\n");
-          List.map (fun sigma_map ->
-              print_string ("in enter_on_node, sigma_map="^(NodeImpl.show_sigma sigma_map)^"\n");
-              let newEdgeLabel:CustomEdge.t = match ctx.edge with Proc(lvalOp, fexp, _) -> print_string ("Edge is a Proc("^(CilType.Exp.show fexp)^") \n");
-                Proc(lvalOp, fexp, List.rev newExpList)
-                                                                | Skip -> Skip (* in case of main function *)
-                                                                | _ -> print_string ("Error: in enter, the edge label is not a function call (or skip); ctx.edge="^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"\n"); exit 0 in
-              let myEdge = (lastNode, newEdgeLabel,
-                            {programPoint=(FunctionEntry(f));sigma= (remove_global_locals_sigma sigma_map (VarinfoSet.to_list rvalGlobals));id=(idGenerator#getID lastNode newEdgeLabel (FunctionEntry(f)) sigma_map tid ls);tid=tid;lockSet=ls}) in
-              LocalTrace.extend_by_gEdge graph_outter myEdge
-            ) sigma_formalList)@resultList_outter
-      ) [] someTmp in
-    outterResultList
+      let rvalGlobals = List.fold (fun ls_fold arg_fold -> get_all_globals arg_fold ls_fold) VarinfoSet.empty args in
+      print_string ("in enter, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
+      let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx in
+      (* print_string ("someTmp: "^(List.fold (fun s_acc graph_fold -> (LocalTrace.show graph_fold)^"; "^s_acc) "" someTmp)^"\n"); *)
+      let outterResultList = List.fold ( fun resultList_outter graph_outter ->
+          (
+            let lastNode = LocalTrace.get_last_node graph_outter in
+            let sigma_formalList, _, newExpList = List.fold (
+                fun (sigAcc, formalExp, expListAcc) formal -> (match formalExp with
+                    | x::xs -> (
+                        let resultList, success, newExp = eval_wrapper lastNode.sigma formal x graph_outter lastNode true in 
+                        if success = true
+                        then (
+                          let varDomainList = List.fold (fun varDomList_fold sigma_fold -> (SigmaMap.find formal sigma_fold)::varDomList_fold) [] resultList in
+                          (construct_sigma_combinations formal varDomainList sigAcc) , xs, newExp::expListAcc)
+                        else (sigAcc, xs, newExp::expListAcc)
+                      )
+                    | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
+              ) ([SigmaMap.empty], args, []) f.sformals in
+            print_string ("sigma_formalList={"^(List.fold (fun s_fold sigma_fold -> (NodeImpl.show_sigma sigma_fold)^";"^s_fold) "" sigma_formalList)^"}\n");
+            List.map (fun sigma_map ->
+                print_string ("in enter_on_node, sigma_map="^(NodeImpl.show_sigma sigma_map)^"\n");
+                let newEdgeLabel:CustomEdge.t = match ctx.edge with Proc(lvalOp, fexp, _) -> print_string ("Edge is a Proc("^(CilType.Exp.show fexp)^") \n");
+                  Proc(lvalOp, fexp, List.rev newExpList)
+                                                                  | Skip -> Skip (* in case of main function *)
+                                                                  | _ -> print_string ("Error: in enter, the edge label is not a function call (or skip); ctx.edge="^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"\n"); exit 0 in
+                let funcNameToCheck = match newEdgeLabel with Proc (_, fname, _) -> (CilType.Exp.show fname) | _ -> "" in   
+                let _ = 
+                  if (ViolationWitness.check_function_for_unreachable funcNameToCheck) then (
+                    (*TODO: pass exact function which should not be called*)
+                    let new_graph_outter_error = LocalTrace.extend_by_gEdge graph_outter (lastNode, Skip ,{programPoint=LocalTrace.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) in
+                    (* let lastNodeNew = LocalTrace.get_last_node new_graph_outter_error in *)
+                    let _ = (print_string ("Graph for reach witness:\n"^(LocalTrace.show new_graph_outter_error)^"\n"); new_graph_outter_error) in
+                    let specification = SvcompSpec.UnreachCall funcNameToCheck in 
+                    let _ = ViolationWitness.create_witness new_graph_outter_error specification in
+                    let _ = omitPostSolving#setFlag () in
+                    new_graph_outter_error
+                  ) else ( graph_outter ) in
+                let myEdge = (lastNode, newEdgeLabel,
+                              {programPoint=(FunctionEntry(f));sigma= (remove_global_locals_sigma sigma_map (VarinfoSet.to_list rvalGlobals));id=(idGenerator#getID lastNode newEdgeLabel (FunctionEntry(f)) sigma_map tid ls);tid=tid;lockSet=ls}) in              
+                let new_graph_outter = LocalTrace.extend_by_gEdge graph_outter myEdge in
+                new_graph_outter
+              ) sigma_formalList)@resultList_outter
+        ) [] someTmp in
+      outterResultList
 
 
 
