@@ -1,8 +1,13 @@
 module type AddressDomain =
 sig
 
+  type unknownKind =
+    | Unknown
+  [@@deriving eq, ord, hash]
+
   type unknownOrigin = {
-    node : Node.t option
+    node : Node.t option;
+    kind : unknownKind;
   } [@@deriving eq, ord, hash]
 
   module AddressBase (Mval: Printable.S):

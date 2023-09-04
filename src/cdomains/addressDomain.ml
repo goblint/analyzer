@@ -6,9 +6,13 @@ open IntOps
 module M = Messages
 module Mval_outer = Mval
 
+type unknownKind =
+  | Unknown
+[@@deriving eq, ord, hash]
 
 type unknownOrigin = {
-  node : Node.t option
+  node : Node.t option;
+  kind : unknownKind;
 } [@@deriving eq, ord, hash]
 
 module AddressBase (Mval: Printable.S) =
@@ -35,8 +39,8 @@ struct
     | Addr m -> Mval.show m
     | StrPtr (Some x)   -> "\"" ^ x ^ "\""
     | StrPtr None -> "(unknown string)"
-    | UnknownPtr {node = Some node} -> "? origin:" ^ Node.show node
-    | UnknownPtr {node = None} -> "?"
+    | UnknownPtr {node = Some node; _} -> "? origin:" ^ Node.show node
+    | UnknownPtr {node = None; _} -> "?"
     | NullPtr    -> "NULL"
 
   include Printable.SimpleShow (
@@ -74,7 +78,7 @@ struct
     | Some x -> Some (String.length x)
     | _ -> None
 
-  let arbitrary () = QCheck.always (UnknownPtr {node = None}) (* S TODO: non-unknown *)
+  let arbitrary () = QCheck.always (UnknownPtr {node = None; kind = Unknown}) (* S TODO: non-unknown *)
 end
 
 module AddressPrintable (Mval: Mval.Printable) =
@@ -263,9 +267,9 @@ struct
     r
 
   let null_ptr       = singleton Addr.NullPtr
-  let unknown_ptr    = singleton (Addr.UnknownPtr {node = None})
+  let unknown_ptr    = singleton (Addr.UnknownPtr {node = None; kind = Unknown})
   let not_null       = unknown_ptr
-  let top_ptr ()     = of_list Addr.[UnknownPtr {node = !Node.current_node}; NullPtr]
+  let top_ptr ()     = of_list Addr.[UnknownPtr {node = !Node.current_node; kind = Unknown}; NullPtr]
 
   let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
   let is_null x = is_element Addr.NullPtr x
@@ -459,7 +463,7 @@ struct
   let unknownptrs_origins doc ad =
     fold (fun addr acc ->
         match addr with
-        | Addr.UnknownPtr {node = Some node} -> (doc, Some (M.Location.Node node)) :: acc
+        | Addr.UnknownPtr {node = Some node; _} -> (doc, Some (M.Location.Node node)) :: acc
         | _ -> acc
       ) ad []
 end
