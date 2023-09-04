@@ -35,7 +35,8 @@ struct
     | Addr m -> Mval.show m
     | StrPtr (Some x)   -> "\"" ^ x ^ "\""
     | StrPtr None -> "(unknown string)"
-    | UnknownPtr _ -> "?"
+    | UnknownPtr {node = Some node} -> "? origin:" ^ Node.show node
+    | UnknownPtr {node = None} -> "?"
     | NullPtr    -> "NULL"
 
   include Printable.SimpleShow (
