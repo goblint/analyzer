@@ -121,10 +121,10 @@ sig
     val null_ptr: t
     (** Address set containing only the [NULL] pointer. *)
 
-    val unknown_ptr: t
+    val unknown_ptr: unknownKind -> t
     (** Address set containing the unknown pointer, which is non-[NULL]. *)
 
-    val not_null: t
+    val not_null: unknownKind -> t
     (** Address set containing the unknown pointer, which is non-[NULL]. *)
 
     val top_ptr: unknownKind -> t

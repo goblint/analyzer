@@ -541,7 +541,7 @@ struct
     | (Int x, Address y)
     | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
-        | Some x -> AD.(join y not_null)
+        | Some x -> AD.(join y (not_null Unknown))
         | None -> AD.join y (AD.top_ptr Unknown))
     | (Address x, Address y) -> Address (AD.join x y)
     | (Struct x, Struct y) -> Struct (Structs.join x y)
@@ -576,7 +576,7 @@ struct
     | (Int x, Address y)
     | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
-        | Some x -> AD.(widen y (join y not_null))
+        | Some x -> AD.(widen y (join y (not_null Unknown)))
         | None -> AD.widen y (AD.join y (AD.top_ptr Unknown)))
     | (Address x, Address y) -> Address (AD.widen x y)
     | (Struct x, Struct y) -> Struct (Structs.widen x y)

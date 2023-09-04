@@ -269,9 +269,9 @@ struct
     r
 
   let null_ptr       = singleton Addr.NullPtr
-  let unknown_ptr    = singleton (Addr.UnknownPtr {node = None; kind = Unknown})
+  let unknown_ptr kind = singleton (Addr.UnknownPtr {node = !Node.current_node; kind})
   let not_null       = unknown_ptr
-  let top_ptr kind     = of_list Addr.[UnknownPtr {node = !Node.current_node; kind = kind}; NullPtr]
+  let top_ptr kind     = of_list Addr.[UnknownPtr {node = !Node.current_node; kind}; NullPtr]
 
   let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
   let is_null x = is_element Addr.NullPtr x
@@ -286,9 +286,9 @@ struct
   let of_int i =
     match ID.to_int i with
     | x when GobOption.exists BigIntOps.(equal (zero)) x -> null_ptr
-    | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null
+    | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null Unknown
     | _ -> match ID.to_excl_list i with
-      | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null
+      | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null Unknown
       | _ -> top_ptr Unknown
 
   let to_int x =

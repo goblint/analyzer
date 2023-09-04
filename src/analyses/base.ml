@@ -1044,7 +1044,7 @@ struct
         | Bot -> AD.bot ()
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
-          AD.unknown_ptr
+          AD.unknown_ptr Unknown
       end
 
   (* run eval_rv from above and keep a result that is bottom *)

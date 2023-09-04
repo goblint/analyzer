@@ -151,7 +151,7 @@ struct
               | Address a when AD.is_definite n ->
                 Some (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
-                Some (x, Address AD.not_null)
+                Some (x, Address (AD.not_null Unknown))
               | v ->
                 if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pretty v AD.pretty n;
                 None
