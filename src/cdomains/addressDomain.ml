@@ -456,4 +456,10 @@ struct
       | UnknownPtr _ -> false
       | _ -> true
     ) ad
+  let unknownptrs_origins doc ad =
+    fold (fun addr acc ->
+        match addr with
+        | Addr.UnknownPtr {node = Some node} -> (doc, Some (M.Location.Node node)) :: acc
+        | _ -> acc
+      ) ad []
 end
