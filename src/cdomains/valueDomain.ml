@@ -175,7 +175,7 @@ struct
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.top_of ik)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
-    | TPtr _ -> Address (AD.top_ptr Unknown)
+    | TPtr _ -> Address (AD.top_ptr Uninitialized)
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
@@ -454,11 +454,11 @@ struct
         | TPtr (t,_) ->
           Address (match v with
               | Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
-              | Int x -> AD.top_ptr Unknown
+              | Int x -> AD.top_ptr Cast
               (* we ignore casts to void*! TODO report UB! *)
               | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
               (*| Address x -> x*)
-              | _ -> log_top __POS__; AD.top_ptr Unknown
+              | _ -> log_top __POS__; AD.top_ptr Cast
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
           (* TODO handle casts between different sizes? *)
@@ -541,8 +541,8 @@ struct
     | (Int x, Address y)
     | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
-        | Some x -> AD.(join y (not_null Unknown))
-        | None -> AD.join y (AD.top_ptr Unknown))
+        | Some x -> AD.(join y (not_null Join))
+        | None -> AD.join y (AD.top_ptr Join))
     | (Address x, Address y) -> Address (AD.join x y)
     | (Struct x, Struct y) -> Struct (Structs.join x y)
     | (Union x, Union y) -> Union (Unions.join x y)
@@ -576,8 +576,8 @@ struct
     | (Int x, Address y)
     | (Address y, Int x) -> Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
-        | Some x -> AD.(widen y (join y (not_null Unknown)))
-        | None -> AD.widen y (AD.join y (AD.top_ptr Unknown)))
+        | Some x -> AD.(widen y (join y (not_null Join)))
+        | None -> AD.widen y (AD.join y (AD.top_ptr Join)))
     | (Address x, Address y) -> Address (AD.widen x y)
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
     | (Union x, Union y) -> Union (Unions.widen x y)

@@ -8,7 +8,10 @@ module Mval_outer = Mval
 
 type unknownKind =
   | Cast
+  | Join
   | PointerArithmetic
+  | TypeMismatch
+  | Uninitialized
   | Unknown
 [@@deriving eq, ord, hash]
 
@@ -286,10 +289,10 @@ struct
   let of_int i =
     match ID.to_int i with
     | x when GobOption.exists BigIntOps.(equal (zero)) x -> null_ptr
-    | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null Unknown
+    | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null Cast
     | _ -> match ID.to_excl_list i with
-      | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null Unknown
-      | _ -> top_ptr Unknown
+      | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null Cast
+      | _ -> top_ptr Cast
 
   let to_int x =
     let ik = Cilfacade.ptr_ikind () in

@@ -3,7 +3,10 @@ sig
 
   type unknownKind =
     | Cast
+    | Join
     | PointerArithmetic
+    | TypeMismatch
+    | Uninitialized
     | Unknown
   [@@deriving eq, ord, hash]
 
