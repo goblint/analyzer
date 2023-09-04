@@ -2,6 +2,7 @@ module type AddressDomain =
 sig
 
   type unknownKind =
+    | Cast
     | Unknown
   [@@deriving eq, ord, hash]
 

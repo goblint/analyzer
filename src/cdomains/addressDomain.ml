@@ -7,6 +7,7 @@ module M = Messages
 module Mval_outer = Mval
 
 type unknownKind =
+  | Cast
   | Unknown
 [@@deriving eq, ord, hash]
 
