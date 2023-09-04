@@ -2661,10 +2661,13 @@ struct
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       begin match addr with
-        | UnknownPtr {node = Some node} ->
-          M.info ~category:Unsound "Unknown mutex (origin: %a) unlocked, base privatization unsound" Node.pretty node; (* TODO: something more sound *)
         | UnknownPtr _ ->
-          M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
+          (* TODO: something more sound *)
+          (* TODO: create one group msg for AD with several unknowns *)
+          (* TODO: explain privatization in warning msg *)
+          let group_loc = Option.map (fun node -> M.Location.Node node) !Node0.current_node in
+          let origins = AD.unknownptrs_origins (dprintf "Unknown mutex origin") (AD.singleton addr) in
+          M.msg_group Info ?loc:group_loc ~category:Unsound "Unknown mutex unlocked, base privatization unsound" origins;
         | _ -> ()
       end;
       WideningTokens.with_local_side_tokens (fun () ->
