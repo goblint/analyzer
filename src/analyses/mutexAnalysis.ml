@@ -317,7 +317,7 @@ struct
               if is_recovered_to_st && not @@ Mutexes.is_top held_weak then
                 Mutexes.iter (fun addr -> ctx.sideg (V.protected addr) protected) held_weak;
             )
-        | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
+        | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound." (* TODO: show origin *)
       in
       let module AD = Queries.AD in
       let has_escaped g = octx.ask (Queries.MayEscape g) in

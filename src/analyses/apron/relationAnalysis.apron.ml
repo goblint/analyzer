@@ -675,6 +675,8 @@ struct
       Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       begin match addr with
+        | UnknownPtr {node = Some node} ->
+          M.info ~category:Unsound "Unknown mutex (origin: %a) unlocked, relation privatization unsound" Node.pretty node; (* TODO: something more sound *)
         | UnknownPtr _ ->
           M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
         | _ -> ()
