@@ -23,7 +23,7 @@ sig
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> VDQ.t -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
-  val invalidate_value: VDQ.t -> typ -> t -> t
+  val invalidate_value: VDQ.t -> typ -> t -> AddressDomain.unknownKind -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t ->  t
@@ -50,7 +50,7 @@ sig
   include Lattice.S with type t = value * size * origin
 
   val value: t -> value
-  val invalidate_value: VDQ.t -> typ -> t -> t
+  val invalidate_value: VDQ.t -> typ -> t  -> AddressDomain.unknownKind -> t
 end
 
 (* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
@@ -70,7 +70,7 @@ struct
 
   let value (a, b, c) = a
   let relift (a, b, c) = Value.relift a, b, c
-  let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
+  let invalidate_value ask t (v, s, o) unknownKind = Value.invalidate_value ask t v unknownKind, s, o
 end
 
 module Threads = ConcDomain.ThreadSet
@@ -686,12 +686,12 @@ struct
       warn_type "narrow" x y;
       x
 
-  let rec invalidate_value (ask:VDQ.t) typ (state:t) : t =
+  let rec invalidate_value (ask:VDQ.t) typ (state:t) (uk:AddressDomain.unknownKind) : t =
     let typ = unrollType typ in
     let invalid_struct compinfo old =
-      let nstruct = Structs.create (fun fd -> invalidate_value ask fd.ftype (Structs.get old fd)) compinfo in
+      let nstruct = Structs.create (fun fd -> invalidate_value ask fd.ftype (Structs.get old fd) uk) compinfo in
       let top_field nstruct fd =
-        Structs.replace nstruct fd (invalidate_value ask fd.ftype (Structs.get old fd))
+        Structs.replace nstruct fd (invalidate_value ask fd.ftype (Structs.get old fd) uk)
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
@@ -699,15 +699,15 @@ struct
     match typ, state with
     |                 _ , Address n    -> Address (AD.join (AD.top_ptr Unknown) n)
     | TComp (ci,_)  , Struct n     -> Struct (invalid_struct ci n)
-    |                 _ , Struct n     -> Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
-    | TComp (ci,_)  , Union (`Lifted fd,n) -> Union (`Lifted fd, invalidate_value ask fd.ftype n)
+    |                 _ , Struct n     -> Struct (Structs.map (fun x -> invalidate_value ask voidType x uk) n)
+    | TComp (ci,_)  , Union (`Lifted fd,n) -> Union (`Lifted fd, invalidate_value ask fd.ftype n uk)
     | TArray (t,_,_), Array n      ->
-      let v = invalidate_value ask t (CArrays.get ask n array_idx_top) in
+      let v = invalidate_value ask t (CArrays.get ask n array_idx_top) uk in
       Array (CArrays.set ask n (array_idx_top) v)
     |                 _ , Array n      ->
-      let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
+      let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) uk in
       Array (CArrays.set ask n (array_idx_top) v)
-    |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
+    |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n uk)
     |                 _ , Thread _     -> state (* TODO: no top thread ID set! *)
     |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)

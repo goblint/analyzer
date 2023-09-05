@@ -1828,7 +1828,7 @@ struct
       List.map mpt exps
     )
 
-  let invalidate ?(deep=true) ~ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
+  let invalidate ?(deep=true) ~ctx ask (gs:glob_fun) (st:store) (exps: exp list) (uk:AddressDomain.unknownKind): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
@@ -1836,7 +1836,7 @@ struct
     let invalidate_address st a =
       let t = AD.type_of a in
       let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
-      let nv =  VD.invalidate_value (Queries.to_value_domain_ask ask) t v in
+      let nv =  VD.invalidate_value (Queries.to_value_domain_ask ask) t v uk in
       (a, t, nv)
     in
     (* We define the function that invalidates all the values that an address
@@ -1993,8 +1993,8 @@ struct
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs in
-    invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
+    let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs Invalidate in
+    invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs Invalidate
 
   let check_free_of_non_heap_mem ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
@@ -2013,7 +2013,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
-        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv] Invalidate
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2251,9 +2251,9 @@ struct
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
-            | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
+            | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var] TypeMismatch
           end
-        | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
+        | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var] TypeMismatch
       in
       let st' = invalidate_ret_lv st' in
       Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'

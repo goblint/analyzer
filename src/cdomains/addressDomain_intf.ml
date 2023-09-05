@@ -3,6 +3,7 @@ sig
 
   type unknownKind =
     | Cast
+    | Invalidate
     | Join
     | PointerArithmetic
     | TypeMismatch

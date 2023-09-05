@@ -8,6 +8,7 @@ module Mval_outer = Mval
 
 type unknownKind =
   | Cast
+  | Invalidate
   | Join
   | PointerArithmetic
   | TypeMismatch
