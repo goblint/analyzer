@@ -471,11 +471,19 @@ struct
         | Addr.NullPtr ->
           begin match get_string "sem.null-pointer.dereference" with
             | "assume_none" -> VD.bot ()
-            | "assume_top" -> top
+            | "assume_top" ->
+              begin match top with
+                | Address _ -> Address (AD.top_ptr Null)
+                | _ -> top
+              end
             | _ -> assert false
           end
-        (* TODO: preserve UnknownPtr origin instead of using top *)
-        | Addr.UnknownPtr _ -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
+        | Addr.UnknownPtr o -> 
+          begin match top with (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
+            (* TODO: in case of structs this does not work *)
+            | Address _ -> Address (AD.singleton (UnknownPtr o))
+            | _ -> top
+          end
         | Addr.StrPtr _ -> Int (ID.top_of IChar)
       in
       (* We form the collecting function by joining *)

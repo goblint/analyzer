@@ -5,6 +5,7 @@ sig
     | Cast
     | Invalidate
     | Join
+    | Null
     | PointerArithmetic
     | String
     | TypeMismatch

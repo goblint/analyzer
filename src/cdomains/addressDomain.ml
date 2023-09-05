@@ -10,6 +10,7 @@ type unknownKind =
   | Cast
   | Invalidate
   | Join
+  | Null
   | PointerArithmetic
   | String
   | TypeMismatch
