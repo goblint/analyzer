@@ -474,6 +474,7 @@ struct
             | "assume_top" -> top
             | _ -> assert false
           end
+        (* TODO: preserve UnknownPtr origin instead of using top *)
         | Addr.UnknownPtr _ -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
         | Addr.StrPtr _ -> Int (ID.top_of IChar)
       in
@@ -936,7 +937,7 @@ struct
       let lookup_with_offs addr =
         let v = (* abstract base value *)
           if cast_ok addr then
-            get ~top:(VD.top_value t) a gs st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
+            get ~top:(VD.top_value t Unknown) a gs st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
           else
             VD.top () (* upcasts not! *)
         in
@@ -1057,9 +1058,9 @@ struct
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
-      if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) else r
+      if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) Uninitialized else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
-      ValueDomain.Compound.top_value (Cilfacade.typeOf exp)
+      ValueDomain.Compound.top_value (Cilfacade.typeOf exp) Uninitialized
 
   let query_evalint ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
@@ -1115,7 +1116,7 @@ struct
     (* no way to do eval_rv with expected type, so filter expression beforehand *)
     match Cilfacade.typeOf e with
     | t when Cil.isArithmeticType t -> (* definitely not address *)
-      VD.top_value t
+      VD.top_value t Cast
     | exception Cilfacade.TypeOfError _ (* something weird, might be address *)
     | _ ->
       eval_rv ask gs st e
@@ -1342,7 +1343,7 @@ struct
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top_value ~varAttr:variable.vattr typ) cpa
+      CPA.add variable (VD.top_value ~varAttr:variable.vattr typ Unknown) cpa
     else
       CPA.add variable value cpa
 
@@ -1611,7 +1612,7 @@ struct
   let set_savetop ~ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
-    | Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.type_of adr)) ?lval_raw ?rval_raw
+    | Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.type_of adr) Unknown) ?lval_raw ?rval_raw
     | v -> set ~ctx ask gs st adr lval_t v ?lval_raw ?rval_raw
 
 
@@ -2037,7 +2038,7 @@ struct
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
         else
-          VD.top_value (unrollType dest_typ)
+          VD.top_value (unrollType dest_typ) TypeMismatch
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value in
     (* for string functions *)
@@ -2068,11 +2069,11 @@ struct
         else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
           lv_a, lv_typ, (f s1_a s2_a)
         else
-          lv_a, lv_typ, (VD.top_value (unrollType lv_typ))
+          lv_a, lv_typ, ((VD.top_value (unrollType lv_typ)) String)
       | _ ->
         (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
         let _ = AD.string_writing_defined s1_a in
-        s1_a, s1_typ, VD.top_value (unrollType s1_typ)
+        s1_a, s1_typ, (VD.top_value (unrollType s1_typ) String)
     in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
@@ -2084,7 +2085,7 @@ struct
         | Int i when ID.to_int i = Some Z.zero ->
           VD.zero_init_value dest_typ
         | _ ->
-          VD.top_value dest_typ
+          VD.top_value dest_typ Cast
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Bzero { dest; count; }, _ ->
@@ -2103,7 +2104,7 @@ struct
         memory_copying dst src
       else
         (* else return top (after a warning was issued) *)
-        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ))
+        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ) String)
     (* strncpy(dest, src, n); *)
     | Strcpy { dest = dst; src; n }, _ ->
       begin match eval_n n with
@@ -2605,7 +2606,7 @@ struct
 
           let refine_entire_var = false
           let map_oldval oldval t_lval =
-            if VD.is_bot oldval then VD.top_value t_lval else oldval
+            if VD.is_bot oldval then VD.top_value t_lval Uninitialized else oldval
           let eval_rv_lval_refine a gs st exp lv =
             (* new, use different ctx for eval_lv (for Mem): *)
             eval_rv_base_lval ~eval_lv a gs st exp lv

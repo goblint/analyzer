@@ -34,7 +34,7 @@ sig
   val bot_value: ?varAttr:attributes -> typ -> t
   val is_bot_value: t -> bool
   val init_value: ?varAttr:attributes -> typ -> t
-  val top_value: ?varAttr:attributes -> typ -> t
+  val top_value: ?varAttr:attributes -> typ -> AddressDomain.unknownKind -> t
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
@@ -187,22 +187,22 @@ struct
     | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
     | _ -> Top
 
-  let rec top_value ?(varAttr=[]) (t: typ): t =
+  let rec top_value ?(varAttr=[]) (t: typ) (uk:AddressDomain.unknownKind): t =
     match t with
     | _ when is_mutex_type t -> Mutex
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik)))
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
-    | TPtr _ -> Address (AD.top_ptr Unknown)
-    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TPtr _ -> Address (AD.top_ptr uk)
+    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype uk) ci)
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
       let len = array_length_idx (IndexDomain.top ()) length in
-      Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai) else (bot_value ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
+      Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai uk) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t uk
     | _ -> Top
 
   let is_top_value x (t: typ) =
@@ -481,8 +481,8 @@ struct
                 | Struct x when same_struct x -> x
                 | Struct x when ci.cfields <> [] ->
                   let first = List.hd ci.cfields in
-                  Structs.(replace (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci) first (get x first))
-                | _ -> log_top __POS__; Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci
+                  Structs.(replace (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype Cast) ci) first (get x first))
+                | _ -> log_top __POS__; Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype Cast) ci
               )
           else
             Union (match v with
@@ -697,7 +697,7 @@ struct
     in
     let array_idx_top = (None, ArrIdxDomain.top ()) in
     match typ, state with
-    |                 _ , Address n    -> Address (AD.join (AD.top_ptr Unknown) n)
+    |                 _ , Address n    -> Address (AD.join (AD.top_ptr uk) n)
     | TComp (ci,_)  , Struct n     -> Struct (invalid_struct ci n)
     |                 _ , Struct n     -> Struct (Structs.map (fun x -> invalidate_value ask voidType x uk) n)
     | TComp (ci,_)  , Union (`Lifted fd,n) -> Union (`Lifted fd, invalidate_value ask fd.ftype n uk)
@@ -711,7 +711,7 @@ struct
     |                 _ , Thread _     -> state (* TODO: no top thread ID set! *)
     |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
-    |                 t , _             -> top_value t
+    |                 t , _             -> top_value t uk
 
 
   (* take the last offset in offset and move it over to left *)
@@ -862,7 +862,7 @@ struct
               (match value, fld.ftype with
                (* only return an actual value if we have a type and return actually the exact same type *)
                | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
-               | Float _, t -> top_value t
+               | Float _, t -> top_value t Union
                | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
                | _ ->
                  let x = cast ~torg:l_fld.ftype fld.ftype value in
@@ -1014,7 +1014,7 @@ struct
                 else begin
                   match offs with
                   | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value ~varAttr:fld.fattr fld.ftype), offs
+                    (top_value ~varAttr:fld.fattr fld.ftype) Union, offs
                   | `Field (fldi, _) -> Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->

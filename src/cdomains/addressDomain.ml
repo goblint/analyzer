@@ -11,8 +11,10 @@ type unknownKind =
   | Invalidate
   | Join
   | PointerArithmetic
+  | String
   | TypeMismatch
   | Uninitialized
+  | Union
   | Unknown
 [@@deriving eq, ord, hash]
 
