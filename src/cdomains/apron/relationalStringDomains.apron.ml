@@ -19,7 +19,9 @@ sig
   val string_copy: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> t
   val string_concat: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> t
   val to_string_length: ('a, 'b, 'c, 'd) ctx -> t  -> varinfo -> ID.t
-  val substring_extraction: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> varinfo -> t * bool * bool
+  val substring_extraction: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> varinfo -> t
+  val substring_is_maybe_null_ptr: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> bool
+  val substring_is_surely_offset_zero: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> bool
   val string_comparison: ('a, 'b, 'c, 'd) ctx -> t -> varinfo -> varinfo -> int option -> ID.t
 end
 
@@ -239,7 +241,6 @@ struct
         | None -> acc)
       t_geq len_eq_leq
 
-  (* returns is_maybe_null_ptr, is_surely_offset_0 *)
   let substring_extraction ctx t lval haystack needle =
     let lval' = varinfo_to_var lval in
     let haystack' = varinfo_to_var haystack in
@@ -252,17 +253,33 @@ struct
         |> S.add (lval', needle')
         |> S.add (needle', lval')
         |> transitive_closure in
-      {r_set = new_r_set; env = t.env}, false, true
+      {r_set = new_r_set; env = t.env}
       (* if needle <= haystack, strstr returns a pointer to haystack with unknown offset and needle <= lval <= haystack *)
     else if S.mem (needle', haystack') t.r_set then
       let new_r_set =
         S.add (lval', haystack') t.r_set
         |> S.add (needle', lval')
         |> transitive_closure in
-      {r_set = new_r_set; env = t.env}, false, false
+      {r_set = new_r_set; env = t.env}
       (* else strstr could return a pointer to haystack with unknown offset or a null_ptr *)
     else
-      t, true, false
+      t
+
+  let substring_is_maybe_null_ptr ctx t haystack needle =
+    let haystack' = varinfo_to_var haystack in
+    let needle' = varinfo_to_var needle in
+    if S.mem (needle', haystack') t.r_set || S.mem (haystack', needle') t.r_set then
+      false
+    else
+      true
+
+  let substring_is_surely_offset_zero ctx t haystack needle =
+    let haystack' = varinfo_to_var haystack in
+    let needle' = varinfo_to_var needle in
+    if S.mem (needle', haystack') t.r_set && S.mem (haystack', needle') t.r_set then
+      true
+    else
+      false
 
   let string_comparison ctx t s1 s2 n =
     let s1' = varinfo_to_var s1 in
