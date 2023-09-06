@@ -512,7 +512,7 @@ struct
         let next _ = []
       end
       in
-      if not !AnalysisState.svcomp_may_invalid_free then
+      if not !AnalysisState.svcomp_may_invalid_free then (
         let module TaskResult =
         struct
           module Arg = Arg
@@ -523,7 +523,7 @@ struct
         end
         in
         (module TaskResult:WitnessTaskResult)
-      else (
+      ) else (
         let module TaskResult =
         struct
           module Arg = TrivialArg
@@ -542,7 +542,7 @@ struct
         let next _ = []
       end
       in
-      if not !AnalysisState.svcomp_may_invalid_deref then
+      if not !AnalysisState.svcomp_may_invalid_deref then (
         let module TaskResult =
         struct
           module Arg = Arg
@@ -553,7 +553,7 @@ struct
         end
         in
         (module TaskResult:WitnessTaskResult)
-      else (
+      ) else (
         let module TaskResult =
         struct
           module Arg = TrivialArg
@@ -572,7 +572,7 @@ struct
         let next _ = []
       end
       in
-      if not !AnalysisState.svcomp_may_invalid_memtrack then
+      if not !AnalysisState.svcomp_may_invalid_memtrack then (
         let module TaskResult =
         struct
           module Arg = Arg
@@ -583,7 +583,7 @@ struct
         end
         in
         (module TaskResult:WitnessTaskResult)
-      else (
+      ) else (
         let module TaskResult =
         struct
           module Arg = TrivialArg
