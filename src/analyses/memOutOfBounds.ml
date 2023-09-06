@@ -1,3 +1,5 @@
+(** An analysis for the detection of out-of-bounds memory accesses ([memOutOfBounds]).*)
+
 open GoblintCil
 open Analyses
 open MessageCategory
@@ -5,6 +7,12 @@ open MessageCategory
 module AS = AnalysisState
 module VDQ = ValueDomainQueries
 
+(*
+  Note:
+  * This functionality is implemented as an analysis solely for the sake of maintaining
+    separation of concerns, as well as for having the ablility to conveniently turn it on or off
+  * It doesn't track any internal state
+*)
 module Spec =
 struct
   include Analyses.IdentitySpec
@@ -12,7 +20,6 @@ struct
   module D = Lattice.Unit
   module C = D
 
-  (* TODO: Check out later for benchmarking *)
   let context _ _ = ()
 
   let name () = "memOutOfBounds"
