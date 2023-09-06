@@ -19,15 +19,21 @@ struct
 
   (* HELPER FUNCTIONS *)
   let warn_for_multi_threaded ctx =
-    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then
+    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then (
+      AnalysisState.svcomp_may_invalid_memtrack := true;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program isn't running in single-threaded mode. A memory leak might occur due to multi-threading"
+    )
 
   let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
     let state = ctx.local in
     if not @@ D.is_empty state then
       match assert_exp_imprecise, exp with
-      | true, Some exp -> M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
-      | _ -> M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
+      | true, Some exp ->
+        AnalysisState.svcomp_may_invalid_memtrack := true;
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
+      | _ ->
+        AnalysisState.svcomp_may_invalid_memtrack := true;
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
 
   (* TRANSFER FUNCTIONS *)
   let return ctx (exp:exp option) (f:fundec) : D.t =

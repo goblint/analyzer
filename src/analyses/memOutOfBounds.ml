@@ -194,7 +194,10 @@ struct
           IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
       end
     | _ ->
-      M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+      (
+        AnalysisState.svcomp_may_invalid_deref :=true;
+        M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr
+      );
       IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
 
   and check_lval_for_oob_access ctx ?(is_implicitly_derefed = false) lval =
