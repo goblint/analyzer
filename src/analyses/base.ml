@@ -1257,16 +1257,26 @@ struct
       end
     | Q.EvalValue e ->
       eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
-    | Q.BlobSize e -> begin
+    | Q.BlobSize (e, from_base_addr) -> begin
         let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
           let s = addrToLvalSet a in
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset) s then
+          (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
+          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || (if not from_base_addr then o <> `NoOffset else false)) s then
             Queries.Result.bot q
           else (
+            (* If we need the BlobSize from the base address, then remove any offsets *)
+            let a =
+              if from_base_addr then
+                ValueDomainQueries.LS.elements s
+                |> List.map (fun (v, _) -> Addr.of_var v)
+                |> AD.of_list
+              else
+                a
+            in
             let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
