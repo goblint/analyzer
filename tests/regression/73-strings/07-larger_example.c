@@ -16,7 +16,7 @@ int main() {
 
     __goblint_check(strcmp(user, "Alice") == 0); // UNKNOWN
     __goblint_check(strcmp(user, "Bob") == 0); // UNKNOWN
-    __goblint_check(strcmp(user, "Eve") != 0); // TODO: check implementation, maybe returning top wrong and we should return bot in string literals domain
+    __goblint_check(strcmp(user, "Eve") != 0);
 
     char pwd_gen[20];
     for (size_t i = 12; i < 20; i++)

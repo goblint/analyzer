@@ -253,7 +253,7 @@ struct
   let get_vars_in_e _ = []
   let map f (xl, xr) = ((List.map f xl), f xr)
   let fold_left f a x = f a (join_of_all_parts x)
-  let content_to_top x = (Base.top (), Val.top ())
+  let content_to_top _ = (Base.top (), Val.top ())
   let printXml f (xl,xr) = BatPrintf.fprintf f "<value>\n<map>\n
   <key>unrolled array</key>\n
   <key>xl</key>\n%a\n\n
@@ -867,7 +867,7 @@ struct
   let fold_left f a (x, l) = Base.fold_left f a x
   let get_vars_in_e _ = []
 
-  let content_to_top (x, l) = (Base.content_to_top x, l)
+  let content_to_top (x, l) = (Base.content_to_top x, Idx.top_of ILong)
 
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -916,7 +916,7 @@ struct
   let fold_left f a (x, l) = Base.fold_left f a x
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
-  let content_to_top (x, l) = (Base.content_to_top x, l)
+  let content_to_top (x, l) = (Base.content_to_top x, Idx.top_of ILong)
 
   let smart_join x_eval_int y_eval_int (x,xl) (y,yl) =
     let l = Idx.join xl yl in
@@ -970,7 +970,7 @@ struct
   let fold_left f a (x, l) = Base.fold_left f a x
   let get_vars_in_e _ = []
 
-  let content_to_top (x, l) = (Base.content_to_top x, l)
+  let content_to_top (x, l) = (Base.content_to_top x, Idx.top_of ILong)
 
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -1071,7 +1071,9 @@ struct
           check_all_indexes (Z.succ i)
         else
           false in
-      if Z.lt (Z.of_int (MustNulls.cardinal must_nulls_set)) (Z.sub max i) then
+      if MustNulls.is_bot may_nulls_set then
+        true
+      else if Z.lt (Z.of_int (MustNulls.cardinal must_nulls_set)) (Z.sub max i) then
         false
       else
         check_all_indexes i in
@@ -1277,7 +1279,7 @@ struct
 
   let fold_left f acc _ = f acc (Val.top ())
 
-  let content_to_top (_, _, size) = (MustNulls.top (), MayNulls.top (), size)
+  let content_to_top (_, _, size) = (MustNulls.top (), MayNulls.top (), Idx.top_of ILong)
 
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -1607,22 +1609,25 @@ struct
     let compute_concat must_nulls_set2' may_nulls_set2' =
       let strlen1 = to_string_length (must_nulls_set1, may_nulls_set1, size1) in
       let strlen2 = to_string_length (must_nulls_set2', may_nulls_set2', size2) in
-      match Idx.minimal size1, idx_maximal size1, Idx.minimal strlen1, idx_maximal strlen1, Idx.minimal strlen2, idx_maximal strlen2 with
-      | Some min_size1, Some max_size1, Some minlen1, Some maxlen1, Some minlen2, Some maxlen2 ->
-        update_sets min_size1 max_size1 true minlen1 maxlen1 true minlen2 maxlen2 true must_nulls_set2' may_nulls_set2'
-      (* no upper bound for length of concatenation *)
-      | Some min_size1, Some max_size1, Some minlen1, None, Some minlen2, Some _
-      | Some min_size1, Some max_size1, Some minlen1, Some _, Some minlen2, None
-      | Some min_size1, Some max_size1, Some minlen1, None, Some minlen2, None -> 
-        update_sets min_size1 max_size1 true minlen1 Z.zero false minlen2 Z.zero false must_nulls_set2' may_nulls_set2'
-      (* no upper bound for size of dest *)
-      | Some min_size1, None, Some minlen1, Some maxlen1, Some minlen2, Some maxlen2 ->
-        update_sets min_size1 Z.zero false minlen1 maxlen1 true minlen2 maxlen2 true must_nulls_set2' may_nulls_set2'
-      (* no upper bound for size of dest and length of concatenation *)
-      | Some min_size1, None, Some minlen1, None, Some minlen2, Some _
-      | Some min_size1, None, Some minlen1, Some _, Some minlen2, None
-      | Some min_size1, None, Some minlen1, None, Some minlen2, None ->
-        update_sets min_size1 Z.zero false minlen1 Z.zero false minlen2 Z.zero false must_nulls_set2' may_nulls_set2'
+      match Idx.minimal size1, Idx.minimal strlen1, Idx.minimal strlen2 with
+      | Some min_size1, Some minlen1, Some minlen2 -> 
+        begin match idx_maximal size1, idx_maximal strlen1, idx_maximal strlen2 with
+          | Some max_size1, Some maxlen1, Some maxlen2 ->
+            update_sets min_size1 max_size1 true minlen1 maxlen1 true minlen2 maxlen2 true must_nulls_set2' may_nulls_set2'
+          (* no upper bound for length of concatenation *)
+          | Some max_size1, None, Some _
+          | Some max_size1, Some _, None
+          | Some max_size1, None, None -> 
+            update_sets min_size1 max_size1 true minlen1 Z.zero false minlen2 Z.zero false must_nulls_set2' may_nulls_set2'
+          (* no upper bound for size of dest *)
+          | None, Some maxlen1, Some maxlen2 ->
+            update_sets min_size1 Z.zero false minlen1 maxlen1 true minlen2 maxlen2 true must_nulls_set2' may_nulls_set2'
+          (* no upper bound for size of dest and length of concatenation *)
+          | None, None, Some _
+          | None, Some _, None
+          | None, None, None ->
+            update_sets min_size1 Z.zero false minlen1 Z.zero false minlen2 Z.zero false must_nulls_set2' may_nulls_set2'
+        end
       (* any other case shouldn't happen as minimal index is always >= 0 *)
       | _ -> (MustNulls.top (), MayNulls.top (), size1) in
 
@@ -1942,7 +1947,7 @@ struct
 
   let to_null_byte_domain s = 
     if get_bool "ana.base.arrays.nullbytes" then
-      (F.top (), N.to_null_byte_domain s)
+      (F.make (Idx.top_of ILong) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
     else
       (F.top (), N.top ())
   let to_string_length (_, t_n) = 
@@ -1955,7 +1960,7 @@ struct
       (F.content_to_top t_f1, N.string_copy t_n1 t_n2 n)
     else
       (F.content_to_top t_f1, N.top ())
-  let string_concat (t_f1, t_n1) (_, t_n2) n = 
+  let string_concat (t_f1, t_n1) (_, t_n2) n =
     if get_bool "ana.base.arrays.nullbytes" then
       (F.content_to_top t_f1, N.string_concat t_n1 t_n2 n)
     else
