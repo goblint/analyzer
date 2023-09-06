@@ -55,6 +55,7 @@ struct
         | ValidFree -> "valid-free"
         | ValidDeref -> "valid-deref"
         | ValidMemtrack -> "valid-memtrack"
+        | MemorySafety -> "memory-safety" (* TODO: Currently here only to complete the pattern match *)
       in
       "false(" ^ result_spec ^ ")"
     | Unknown -> "unknown"
