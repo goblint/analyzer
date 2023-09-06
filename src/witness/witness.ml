@@ -602,7 +602,7 @@ struct
         let next _ = []
       end
       in
-      if not !AnalysisState.svcomp_may_invalid_free || not !AnalysisState.svcomp_may_invalid_deref || not !AnalysisState.svcomp_may_invalid_memtrack then (
+      if not !AnalysisState.svcomp_may_invalid_free && not !AnalysisState.svcomp_may_invalid_deref && not !AnalysisState.svcomp_may_invalid_memtrack then (
         let module TaskResult =
         struct
           module Arg = Arg
