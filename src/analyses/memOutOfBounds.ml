@@ -99,7 +99,7 @@ struct
   let get_size_of_ptr_target ctx ptr =
     if points_to_heap_only ctx ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-      ctx.ask (Queries.BlobSize (ptr, true))
+      ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
     else
       match ctx.ask (Queries.MayPointTo ptr) with
       | a when not (Queries.LS.is_top a) ->

@@ -91,9 +91,9 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
-  | BlobSize: exp * bool -> ID.t t
+  | BlobSize: {exp: Cil.exp; base_address: bool} -> ID.t t
   (* Size of a dynamically allocated `Blob pointed to by exp. *)
-  (* If the second component is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
+  (* If the record's second field is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
@@ -336,7 +336,7 @@ struct
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
-      | Any (BlobSize (e1, _)), Any (BlobSize (e2, _)) -> CilType.Exp.compare e1 e2
+      | Any (BlobSize {exp = e1; _}), Any (BlobSize {exp = e2; _}) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
@@ -381,7 +381,7 @@ struct
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
     | Any (EvalValue e) -> CilType.Exp.hash e
-    | Any (BlobSize (e, from_base_addr)) -> CilType.Exp.hash e + Hashtbl.hash from_base_addr
+    | Any (BlobSize {exp = e; base_address = b}) -> CilType.Exp.hash e + Hashtbl.hash b
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
@@ -429,7 +429,7 @@ struct
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
     | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
-    | Any (BlobSize (e, from_base_addr)) -> Pretty.dprintf "BlobSize %a (from base address: %b)" CilType.Exp.pretty e from_base_addr
+    | Any (BlobSize {exp = e; base_address = b}) -> Pretty.dprintf "BlobSize %a (base_address: %b)" CilType.Exp.pretty e b
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
