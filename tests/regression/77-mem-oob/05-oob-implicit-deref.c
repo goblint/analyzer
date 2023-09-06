@@ -1,4 +1,8 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info
+/*
+    Note: the "--disable warn.info" above is a temporary workaround,
+    since the GitHub CI seems to be considering Info messages as violations of NOWARN (cf. https://github.com/goblint/analyzer/issues/1151)
+*/
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
