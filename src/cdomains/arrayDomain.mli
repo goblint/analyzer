@@ -115,9 +115,15 @@ sig
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 end
 
-module type LatticeWithSmartOps =
+module type LatticeWithInvalidate = 
 sig
   include Lattice.S
+  val invalidate_abstract_value: t -> t
+end
+
+module type LatticeWithSmartOps =
+sig
+  include LatticeWithInvalidate
   val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t ->  t
   val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> bool
@@ -136,12 +142,12 @@ sig
   val not_zero_of_ikind: Cil.ikind -> t
 end
 
-module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
+module Trivial (Val: LatticeWithInvalidate) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is taken as a parameter to satisfy the type system, it is not
   * used in the implementation. *)
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
+module TrivialWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 

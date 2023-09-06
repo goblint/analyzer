@@ -95,9 +95,15 @@ sig
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 end
 
-module type LatticeWithSmartOps =
+module type LatticeWithInvalidate = 
 sig
   include Lattice.S
+  val invalidate_abstract_value: t -> t
+end
+
+module type LatticeWithSmartOps =
+sig
+  include LatticeWithInvalidate
   val smart_join: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
   val smart_widen: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> bool
@@ -116,7 +122,7 @@ sig
   val not_zero_of_ikind: Cil.ikind -> t
 end
 
-module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
+module Trivial (Val: LatticeWithInvalidate) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
   include Val
   let name () = "trivial arrays"
@@ -143,7 +149,7 @@ struct
   let map f x = f x
   let fold_left f a x = f a x
 
-  let content_to_top _ = Val.top ()
+  let content_to_top x = Val.invalidate_abstract_value x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
   let smart_join _ _ = join
@@ -174,7 +180,7 @@ let factor () =
   | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
   | x -> x
 
-module Unroll (Val: Lattice.S) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module Unroll (Val: LatticeWithInvalidate) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
   module Base = Lattice.ProdList (Val) (Factor)
@@ -253,7 +259,9 @@ struct
   let get_vars_in_e _ = []
   let map f (xl, xr) = ((List.map f xl), f xr)
   let fold_left f a x = f a (join_of_all_parts x)
-  let content_to_top _ = (Base.top (), Val.top ())
+  let content_to_top (xl, xr) = 
+    let invalidated_val _ = Val.invalidate_abstract_value xr in
+    (List.map invalidated_val xl, invalidated_val xr)
   let printXml f (xl,xr) = BatPrintf.fprintf f "<value>\n<map>\n
   <key>unrolled array</key>\n
   <key>xl</key>\n%a\n\n
@@ -346,7 +354,7 @@ struct
   let is_top = function
     | Joint x -> Val.is_top x
     | _-> false
-  let content_to_top _ = top ()
+  let content_to_top x = Joint (Val.invalidate_abstract_value (join_of_all_parts x))
 
   let join (x:t) (y:t) = normalize @@
     match x, y with
@@ -847,7 +855,7 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
   else ()
 
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module TrivialWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Trivial (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
@@ -867,7 +875,7 @@ struct
   let fold_left f a (x, l) = Base.fold_left f a x
   let get_vars_in_e _ = []
 
-  let content_to_top (x, l) = (Base.content_to_top x, Idx.top_of ILong)
+  let content_to_top (x, l) = (Base.content_to_top x, l)
 
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -916,7 +924,7 @@ struct
   let fold_left f a (x, l) = Base.fold_left f a x
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
-  let content_to_top (x, l) = (Base.content_to_top x, Idx.top_of ILong)
+  let content_to_top (x, l) = (Base.content_to_top x, l)
 
   let smart_join x_eval_int y_eval_int (x,xl) (y,yl) =
     let l = Idx.join xl yl in
@@ -949,7 +957,7 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module UnrollWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module UnrollWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Unroll (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
@@ -970,7 +978,7 @@ struct
   let fold_left f a (x, l) = Base.fold_left f a x
   let get_vars_in_e _ = []
 
-  let content_to_top (x, l) = (Base.content_to_top x, Idx.top_of ILong)
+  let content_to_top (x, l) = (Base.content_to_top x, l)
 
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -1279,7 +1287,7 @@ struct
 
   let fold_left f acc _ = f acc (Val.top ())
 
-  let content_to_top (_, _, size) = (MustNulls.top (), MayNulls.top (), Idx.top_of ILong)
+  let content_to_top (_, _, size) = (MustNulls.top (), MayNulls.top (), size)
 
   let smart_join _ _ = join
   let smart_widen _ _ = widen

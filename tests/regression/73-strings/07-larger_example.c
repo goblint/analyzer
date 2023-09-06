@@ -26,9 +26,9 @@ int main() {
     char* p2 = "12345";
     strcat(pwd_gen, p1); // WARN
     strncpy(pwd_gen, p2, 6);
-    __goblint_check(pwd_gen[5] == '\0'); // TODO: fix get in attributeconfiguredarraydomain
+    __goblint_check(pwd_gen[5] == '\0');
     strncat(pwd_gen, p1, 4); 
-    __goblint_check(pwd_gen[5] != '\0'); // TODO: fix get in attributeconfiguredarraydomain
+    __goblint_check(pwd_gen[5] != '\0');
 
     int cmp = strcmp(pwd_gen, "12345hello");
     __goblint_check(cmp != 0);

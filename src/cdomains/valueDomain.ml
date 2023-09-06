@@ -24,6 +24,7 @@ sig
   val affect_move: ?replace_with_const:bool -> VDQ.t -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
   val invalidate_value: VDQ.t -> typ -> t -> t
+  val invalidate_abstract_value: t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t ->  t
@@ -756,6 +757,21 @@ struct
     |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
+
+  let invalidate_abstract_value = function
+    | Top -> Top
+    | Int i -> Int (ID.top_of (ID.ikind i))
+    | Float f -> Float (FD.top_of (FD.get_fkind f))
+    | Address _ -> Address (AD.top_ptr)
+    | Struct _ -> Struct (Structs.top ())
+    | Union _ -> Union (Unions.top ())
+    | Array _ -> Array (CArrays.top ())
+    | Blob _ -> Blob (Blobs.top ())
+    | Thread _ -> Thread (Threads.top ())
+    | JmpBuf _ -> JmpBuf (JmpBufs.top ())
+    | Mutex -> Mutex
+    | MutexAttr _ -> MutexAttr (MutexAttrDomain.top ())
+    | Bot -> Bot
 
 
   (* take the last offset in offset and move it over to left *)
