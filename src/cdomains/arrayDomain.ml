@@ -1079,7 +1079,7 @@ struct
           check_all_indexes (Z.succ i)
         else
           false in
-      if MustNulls.is_bot may_nulls_set then
+      if MustNulls.is_bot must_nulls_set then
         true
       else if Z.lt (Z.of_int (MustNulls.cardinal must_nulls_set)) (Z.sub max i) then
         false
