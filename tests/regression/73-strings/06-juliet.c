@@ -157,6 +157,10 @@ void CWE665_Improper_Initialization__char_ncat_11_bad()
         sourceLen = strlen(source);
         __goblint_check(sourceLen <= 99);
         /* POTENTIAL FLAW: If data is not initialized properly, strncat() may not function correctly */
-        strncat(data, source, sourceLen); // NOWARN because sourceLen is not exactly known => array domain not consulted
+        #ifdef __APPLE__
+            ;
+        #else
+            strncat(data, source, sourceLen); // NOWARN because sourceLen is not exactly known => array domain not consulted
+        #endif
     }
 }
