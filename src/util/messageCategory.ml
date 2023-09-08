@@ -13,6 +13,7 @@ type undefined_behavior =
   | UseAfterFree
   | DoubleFree
   | InvalidMemoryDeallocation
+  | MemoryLeak
   | Uninitialized
   | DoubleLocking
   | Other
@@ -67,6 +68,7 @@ struct
     let use_after_free: category = create @@ UseAfterFree
     let double_free: category = create @@ DoubleFree
     let invalid_memory_deallocation: category = create @@ InvalidMemoryDeallocation
+    let memory_leak: category = create @@ MemoryLeak
     let uninitialized: category = create @@ Uninitialized
     let double_locking: category = create @@ DoubleLocking
     let other: category = create @@ Other
@@ -117,6 +119,7 @@ struct
       | UseAfterFree -> ["UseAfterFree"]
       | DoubleFree -> ["DoubleFree"]
       | InvalidMemoryDeallocation -> ["InvalidMemoryDeallocation"]
+      | MemoryLeak -> ["MemoryLeak"]
       | Uninitialized -> ["Uninitialized"]
       | DoubleLocking -> ["DoubleLocking"]
       | Other -> ["Other"]
@@ -228,6 +231,7 @@ let behaviorName = function
     |UseAfterFree -> "UseAfterFree"
     |DoubleFree -> "DoubleFree"
     |InvalidMemoryDeallocation -> "InvalidMemoryDeallocation"
+    |MemoryLeak -> "MemoryLeak"
     |Uninitialized -> "Uninitialized"
     |DoubleLocking -> "DoubleLocking"
     |Other -> "Other"
