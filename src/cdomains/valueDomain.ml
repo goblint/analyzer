@@ -564,7 +564,7 @@ struct
       warn_type "join" x y;
       Top
 
-  let rec widen x y =
+  let widen x y =
     match (x,y) with
     | (Top, _) -> Top
     | (_, Top) -> Top
@@ -582,7 +582,7 @@ struct
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
     | (Union x, Union y) -> Union (Unions.widen x y)
     | (Array x, Array y) -> Array (CArrays.widen x y)
-    | (Blob x, Blob y) -> Blob (Blobs.widen x y)
+    | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
     | (Thread y, Int x) ->
@@ -963,16 +963,16 @@ struct
               Top
         end
         | JmpBuf _, _ ->
-        (* hack for jmp_buf variables *)
-        begin match value with
-          | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
-          | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
-          | _ ->
-            if !AnalysisState.global_initialization then
-              JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
-            else
-              Top
-        end
+          (* hack for jmp_buf variables *)
+          begin match value with
+            | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
+            | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
+            | _ ->
+              if !AnalysisState.global_initialization then
+                JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
+              else
+                Top
+          end
       | _ ->
       let result =
         match offs with

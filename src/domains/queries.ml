@@ -15,6 +15,7 @@ module NFL = WrapperFunctionAnalysis0.NodeFlatLattice
 module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
 
 module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
+module ML = LibraryDesc.MathLifted
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"
@@ -120,6 +121,7 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | TmpSpecial:  Mval.Exp.t -> ML.t t
   | VarArraySize: varinfo -> ID.t t (* size of an array or blob only *)
   | VarStringLength: varinfo -> ID.t t
   | SubstringMayNullPtr: varinfo * varinfo -> MayBool.t t
@@ -189,6 +191,7 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | TmpSpecial _ -> (module ML)
     | VarArraySize _ -> (module ID)
     | VarStringLength _ -> (module ID)
     | SubstringMayNullPtr _ -> (module MayBool)
@@ -257,6 +260,7 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | TmpSpecial _ -> ML.top ()
     | VarArraySize _ -> ID.top_of ILong
     | VarStringLength _ -> ID.top_of !Cil.kindOfSizeOf
     | SubstringMayNullPtr _ -> MayBool.top ()
@@ -322,11 +326,12 @@ struct
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
-    | Any (VarArraySize _) -> 53
-    | Any (VarStringLength _) -> 54
-    | Any (SubstringMayNullPtr _) -> 55
-    | Any (SubstringMustOffsetZero _) -> 56
-    | Any (StringComparison _) -> 57
+    | Any (TmpSpecial _) -> 53
+    | Any (VarArraySize _) -> 54
+    | Any (VarStringLength _) -> 55
+    | Any (SubstringMayNullPtr _) -> 56
+    | Any (SubstringMustOffsetZero _) -> 57
+    | Any (StringComparison _) -> 58
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -372,6 +377,7 @@ struct
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
+      | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -410,6 +416,7 @@ struct
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
+    | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -467,6 +474,7 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (VarArraySize v) -> Pretty.dprintf "VarArraySize %a" CilType.Varinfo.pretty v
     | Any (VarStringLength v) -> Pretty.dprintf "VarStringLength %a" CilType.Varinfo.pretty v
     | Any (SubstringMayNullPtr (v1, v2)) -> Pretty.dprintf "SubstringMayNullPtr %a %a" CilType.Varinfo.pretty v1 CilType.Varinfo.pretty v2
