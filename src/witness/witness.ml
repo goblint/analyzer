@@ -297,12 +297,45 @@ struct
   module ArgTool = ArgTools.Make (R)
   module NHT = ArgTool.NHT
 
-  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
-    let module Arg = (val ArgTool.create entrystates) in
+  module type BiArgInvariant =
+  sig
+    include ArgTools.BiArg
+    val find_invariant: Node.t -> Invariant.t
+  end
 
-    let find_invariant (n, c, i) =
-      let context = {Invariant.default_context with path = Some i} in
-      ask_local (n, c) (Invariant context)
+  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
+    let module Arg: BiArgInvariant =
+      (val if GobConfig.get_bool "witness.enabled" then (
+           let module Arg = (val ArgTool.create entrystates) in
+           let module Arg =
+           struct
+             include Arg
+
+             let find_invariant (n, c, i) =
+               let context = {Invariant.default_context with path = Some i} in
+               ask_local (n, c) (Invariant context)
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+         else (
+           let module Arg =
+           struct
+             module Node = ArgTool.Node
+             module Edge = MyARG.InlineEdge
+             let next _ = []
+             let prev _ = []
+             let find_invariant _ = Invariant.none
+             let main_entry =
+               let lvar = WitnessUtil.find_main_entry entrystates in
+               (fst lvar, snd lvar, -1)
+             let iter_nodes f = f main_entry
+             let query _ q = Queries.Result.top q
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+      )
     in
 
     match Task.specification with
@@ -324,7 +357,7 @@ struct
         struct
           module Arg = Arg
           let result = Result.True
-          let invariant = find_invariant
+          let invariant = Arg.find_invariant
           let is_violation _ = false
           let is_sink _ = false
         end
@@ -332,13 +365,13 @@ struct
         (module TaskResult:WitnessTaskResult)
       ) else (
         let is_violation = function
-          | FunctionEntry f, _, _ when Svcomp.is_error_function f.svar -> true
-          | _, _, _ -> false
+          | FunctionEntry f when Svcomp.is_error_function f.svar -> true
+          | _ -> false
         in
         (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
         let is_violation n =
           Arg.next n
-          |> List.exists (fun (_, to_n) -> is_violation to_n)
+          |> List.exists (fun (_, to_n) -> is_violation (Arg.Node.cfgnode to_n))
         in
         let violations =
           (* TODO: fold_nodes?s *)
@@ -363,7 +396,7 @@ struct
           struct
             module Arg = Arg
             let result = Result.Unknown
-            let invariant = find_invariant
+            let invariant = Arg.find_invariant
             let is_violation = is_violation
             let is_sink = is_sink
           end
@@ -454,7 +487,7 @@ struct
         struct
           module Arg = Arg
           let result = Result.True
-          let invariant = find_invariant
+          let invariant = Arg.find_invariant
           let is_violation _ = false
           let is_sink _ = false
         end
@@ -480,7 +513,6 @@ struct
 
     print_task_result (module TaskResult);
 
-    (* TODO: use witness.enabled elsewhere as well *)
     if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
       let witness_path = get_string "witness.path" in
       Timing.wrap "write" (write_file witness_path (module Task)) (module TaskResult)

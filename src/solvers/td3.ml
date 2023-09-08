@@ -334,6 +334,8 @@ module Base =
           );
           if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( (* value changed *)
             if tracing then trace "sol" "Changed\n";
+            (* if tracing && not (S.Dom.is_bot old) && HM.mem wpoint x then trace "solchange" "%a (wpx: %b): %a -> %a\n" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty old S.Dom.pretty wpd; *)
+            if tracing && not (S.Dom.is_bot old) && HM.mem wpoint x then trace "solchange" "%a (wpx: %b): %a\n" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
             HM.replace rho x wpd;
             destabilize x;
@@ -429,7 +431,8 @@ module Base =
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
-          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %b) from %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x;
+          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %b) from %a: %a -> %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty old S.Dom.pretty tmp;
+          if tracing && not (S.Dom.is_bot old) then trace "solchange" "side to %a (wpx: %b) from %a: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty_diff (tmp, old);
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in

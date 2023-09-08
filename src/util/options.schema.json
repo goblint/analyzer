@@ -1323,6 +1323,13 @@
               "type": "boolean",
               "default": true
             },
+            "call": {
+              "title": "sem.unknown_function.call",
+              "description":
+                "Unknown function call calls reachable functions",
+              "type": "boolean",
+              "default": true
+            },
             "invalidate": {
               "title": "sem.unknown_function.invalidate",
               "type": "object",
