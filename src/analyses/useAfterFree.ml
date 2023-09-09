@@ -3,6 +3,7 @@
 open GoblintCil
 open Analyses
 open MessageCategory
+open AnalysisStateUtil
 
 module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
 module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted)(ConcDomain.MustThreadSet)
@@ -23,12 +24,6 @@ struct
 
 
   (* HELPER FUNCTIONS *)
-
-  let set_global_svcomp_var is_double_free =
-    if is_double_free then
-      AnalysisState.svcomp_may_invalid_free := true
-    else
-      AnalysisState.svcomp_may_invalid_deref := true
 
   let get_current_threadid ctx =
     ctx.ask Queries.CurrentThreadId
@@ -65,23 +60,23 @@ struct
       | `Lifted current ->
         let possibly_started = G.exists (possibly_started current) freeing_threads in
         if possibly_started then begin
-          set_global_svcomp_var is_double_free;
+          if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. %s might occur" CilType.Varinfo.pretty heap_var bug_name
         end
         else begin
           let current_is_unique = ThreadId.Thread.is_unique current in
           let any_equal_current threads = G.exists (equal_current current) threads in
           if not current_is_unique && any_equal_current freeing_threads then begin
-            set_global_svcomp_var is_double_free;
+            if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
           end
           else if D.mem heap_var ctx.local then begin
-            set_global_svcomp_var is_double_free;
+            if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
           end
         end
       | `Top ->
-        set_global_svcomp_var is_double_free;
+        if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
         M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
       | `Bot ->
         M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom"
@@ -110,7 +105,7 @@ struct
         | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
           let warn_for_heap_var var =
             if D.mem var state then begin
-              set_global_svcomp_var is_double_free;
+              if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" var.vname transfer_fn_name
             end
           in

@@ -3,6 +3,7 @@
 open GoblintCil
 open Analyses
 open MessageCategory
+open AnalysisStateUtil
 
 module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
 
@@ -20,7 +21,7 @@ struct
   (* HELPER FUNCTIONS *)
   let warn_for_multi_threaded ctx =
     if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then (
-      AnalysisState.svcomp_may_invalid_memtrack := true;
+      set_mem_safety_flag InvalidMemTrack;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program isn't running in single-threaded mode. A memory leak might occur due to multi-threading"
     )
 
@@ -29,10 +30,10 @@ struct
     if not @@ D.is_empty state then
       match assert_exp_imprecise, exp with
       | true, Some exp ->
-        AnalysisState.svcomp_may_invalid_memtrack := true;
+        AnalysisStateUtil.set_mem_safety_flag InvalidMemTrack;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
       | _ ->
-        AnalysisState.svcomp_may_invalid_memtrack := true;
+        AnalysisStateUtil.set_mem_safety_flag InvalidMemTrack;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
 
   (* TRANSFER FUNCTIONS *)

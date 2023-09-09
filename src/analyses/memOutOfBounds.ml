@@ -1,6 +1,7 @@
 open GoblintCil
 open Analyses
 open MessageCategory
+open AnalysisStateUtil
 
 module AS = AnalysisState
 module VDQ = ValueDomainQueries
@@ -195,7 +196,7 @@ struct
       end
     | _ ->
       (
-        AnalysisState.svcomp_may_invalid_deref :=true;
+        set_mem_safety_flag InvalidDeref;
         M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr
       );
       IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
@@ -229,12 +230,12 @@ struct
     | Some t ->
       begin match VDQ.ID.is_top ptr_size with
         | true ->
-          AS.svcomp_may_invalid_deref := true;
+          set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a not known. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
         | false ->
           let offs = `Lifted addr_offs in
           if ptr_size < offs then begin
-            AS.svcomp_may_invalid_deref := true;
+            set_mem_safety_flag InvalidDeref;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" VDQ.ID.pretty ptr_size VDQ.ID.pretty offs
           end
       end
@@ -287,14 +288,14 @@ struct
           in
           begin match VDQ.ID.is_top ptr_size, VDQ.ID.is_top offset_size_with_addr_size with
             | true, _ ->
-              AS.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a in expression %a not known. Memory out-of-bounds access might occur" d_exp e1 d_exp binopexp
             | _, true ->
-              AS.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a not known. Memory out-of-bounds access might occur" d_exp binopexp
             | false, false ->
               if ptr_size < offset_size_with_addr_size then begin
-                AS.svcomp_may_invalid_deref := true;
+                set_mem_safety_flag InvalidDeref;
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer in expression %a is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" d_exp binopexp VDQ.ID.pretty ptr_size VDQ.ID.pretty offset_size_with_addr_size
               end
           end
