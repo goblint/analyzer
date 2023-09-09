@@ -138,11 +138,12 @@ struct
 
   let eval_ptr_offset_in_binop ctx exp ptr_contents_typ =
     let eval_offset = ctx.ask (Queries.EvalInt exp) in
-    let eval_offset = Option.get @@ VDQ.ID.to_int eval_offset in
-    let eval_offset = VDQ.ID.of_int (Cilfacade.ptrdiff_ikind ()) eval_offset in
     let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
     match eval_offset with
-    | `Lifted i -> `Lifted (IntDomain.IntDomTuple.mul i ptr_contents_typ_size_in_bytes)
+    | `Lifted i ->
+      (* The offset must be casted to ptrdiff_ikind in order to have matching ikinds for the multiplication below *)
+      let casted_offset = IntDomain.IntDomTuple.cast_to (Cilfacade.ptrdiff_ikind ()) i in
+      `Lifted (IntDomain.IntDomTuple.mul casted_offset ptr_contents_typ_size_in_bytes)
     | `Top -> `Top
     | `Bot -> `Bot
 
