@@ -161,6 +161,13 @@ struct
       let remaining_offset = offs_to_idx typ o in
       IntDomain.IntDomTuple.add bytes_offset remaining_offset
 
+  let ptr_only_has_str_addr ctx ptr =
+    ctx.ask (Queries.MayPointTo ptr)
+    |> VDQ.LS.elements
+    |> List.map (fun (v, o) -> ValueDomain.Addr.of_mval (v, ValueDomain.Addr.Offs.of_exp o))
+    |> ValueDomain.AD.of_list
+    |> ValueDomain.AD.for_all (fun addr -> match addr with | StrPtr _ -> true | _ -> false)
+
   let rec get_addr_offs ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (VDQ.LS.is_top a) ->
@@ -202,7 +209,8 @@ struct
       IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
 
   and check_lval_for_oob_access ctx ?(is_implicitly_derefed = false) lval =
-    if not @@ lval_contains_a_ptr lval then ()
+    (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
+    if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr ctx (Lval lval) then ()
     else
       (* If the lval doesn't indicate an explicit dereference, we still need to check for an implicit dereference *)
       (* An implicit dereference is, e.g., printf("%p", ptr), where ptr is a pointer *)
