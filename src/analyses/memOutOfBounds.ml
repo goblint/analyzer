@@ -162,6 +162,22 @@ struct
       let remaining_offset = offs_to_idx typ o in
       IntDomain.IntDomTuple.add bytes_offset remaining_offset
 
+  let check_unknown_addr_deref ctx ptr =
+    let may_contain_unknown_addr =
+      match ctx.ask (Queries.EvalValue ptr) with
+      | a when not (Queries.VD.is_top a) ->
+        begin match a with
+          | Address a -> ValueDomain.AD.may_be_unknown a
+          | _ -> false
+        end
+      (* Intuition: if ptr evaluates to top, it could potentially evaluate to the unknown address *)
+      | _ -> true
+    in
+    if may_contain_unknown_addr then begin
+      set_mem_safety_flag InvalidDeref;
+      M.warn ~category:(Behavior (Undefined Other)) "Pointer %a contains an unknown address. Invalid dereference may occur" d_exp ptr
+    end
+
   let ptr_only_has_str_addr ctx ptr =
     match ctx.ask (Queries.EvalValue ptr) with
     | a when not (Queries.VD.is_top a) ->
@@ -230,6 +246,7 @@ struct
         end
 
   and check_no_binop_deref ctx lval_exp =
+    check_unknown_addr_deref ctx lval_exp;
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
     let ptr_size = get_size_of_ptr_target ctx lval_exp in
@@ -276,6 +293,7 @@ struct
     | AddrOf lval -> check_lval_for_oob_access ctx ~is_implicitly_derefed lval
 
   and check_binop_exp ctx binop e1 e2 t =
+    check_unknown_addr_deref ctx e1;
     let binopexp = BinOp (binop, e1, e2, t) in
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
