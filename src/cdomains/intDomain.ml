@@ -826,7 +826,18 @@ struct
       | _              -> (top_of ik,{underflow=true; overflow=true})
 
   let bitxor = bit (fun _ik -> Ints_t.bitxor)
-  let bitand = bit (fun _ik -> Ints_t.bitand)
+
+  let bitand ik i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, true -> bot_of ik
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try of_int ik (Ints_t.bitand x y) |> fst with Division_by_zero -> top_of ik)
+      | _, Some y  when Ints_t.equal y Ints_t.one -> of_interval ik (Ints_t.zero, Ints_t.one) |> fst
+      | _ -> top_of ik
+
   let bitor  = bit (fun _ik -> Ints_t.bitor)
 
   let bit1 f ik i1 =
@@ -2282,7 +2293,28 @@ struct
   let ge ik x y = le ik y x
 
   let bitnot = lift1 BigInt.bitnot
-  let bitand = lift2 BigInt.bitand
+
+  let bitand ik x y = norm ik (match x,y with
+      (* We don't bother with exclusion sets: *)
+      | `Excluded _, `Definite i ->
+        (* Except in two special cases *)
+        if BigInt.equal i BigInt.zero then
+          `Definite BigInt.zero
+        else if BigInt.equal i BigInt.one then
+          of_interval IBool (BigInt.zero, BigInt.one)
+        else
+          top ()
+      | `Definite _, `Excluded _
+      | `Excluded _, `Excluded _ -> top ()
+      (* The good case: *)
+      | `Definite x, `Definite y ->
+        (try `Definite (BigInt.bitand x y) with | Division_by_zero -> top ())
+      | `Bot, `Bot -> `Bot
+      | _ ->
+        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
+
+
   let bitor  = lift2 BigInt.bitor
   let bitxor = lift2 BigInt.bitxor
 
