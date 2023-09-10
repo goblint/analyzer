@@ -88,9 +88,7 @@ struct
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
       Queries.LS.for_all (fun (v, _) -> ctx.ask (Queries.IsHeapVar v)) a
-    | _ ->
-      M.warn "Pointer %a has a points-to set of top. An invalid memory access might occur" d_exp ptr;
-      false
+    | _ -> false
 
   let get_size_of_ptr_target ctx ptr =
     if points_to_heap_only ctx ptr then
@@ -165,16 +163,14 @@ struct
       IntDomain.IntDomTuple.add bytes_offset remaining_offset
 
   let ptr_only_has_str_addr ctx ptr =
-    match ctx.ask (Queries.MayPointTo ptr) with
-    | a when not (VDQ.LS.is_top a) ->
-      VDQ.LS.elements a
-      |> List.map (fun (v, o) -> ValueDomain.Addr.of_mval (v, ValueDomain.Addr.Offs.of_exp o))
-      |> ValueDomain.AD.of_list
-      |> ValueDomain.AD.for_all (fun addr -> match addr with | StrPtr _ -> true | _ -> false)
-    | _ ->
-      M.warn "Pointer %a has a points-to set of top. An invalid memory access might occur" d_exp ptr;
-      (* Intuition: if the points-to set is top, then we don't know with certainty if there are only string addresses inside *)
-      false
+    match ctx.ask (Queries.EvalValue ptr) with
+    | a when not (Queries.VD.is_top a) ->
+      begin match a with
+        | Address a -> ValueDomain.AD.for_all (fun addr -> match addr with | StrPtr _ -> true | _ -> false) a
+        | _ -> false
+      end
+    (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
+    | _ -> false
 
   let rec get_addr_offs ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
