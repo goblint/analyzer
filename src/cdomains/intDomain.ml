@@ -514,7 +514,7 @@ module Size = struct (* size in bits as int, range as int64 *)
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
     if t = IBool then
-      (* C11 6.3.1.2 Boolean type *) 
+      (* C11 6.3.1.2 Boolean type *)
       if Z.equal x Z.zero then Z.zero else Z.one
     else
       let a,b = range t in
@@ -1978,7 +1978,7 @@ struct
   let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
-      let r' = size ik in 
+      let r' = size ik in
         if R.leq r r' then (* upcast -> no change *)
           `Excluded (s, r)
         else if ik = IBool then (* downcast to bool *)
@@ -1986,7 +1986,7 @@ struct
             `Definite (BI.one)
           else
             `Excluded (S.empty(), r')
-        else 
+        else
           (* downcast: may overflow *)
           (* let s' = S.map (BigInt.cast_to ik) s in *)
           (* We want to filter out all i in s' where (t)x with x in r could be i. *)
@@ -3134,7 +3134,7 @@ struct
 
   (** The implementation of the bit operations could be improved based on the master’s thesis
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
-      see: https://www.dsi.unive.it/~avp/domains.pdf *)
+      see: http://www.es.mdh.se/pdf_publications/948.pdf *)
   let bit2 f ik x y = match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
@@ -3144,7 +3144,19 @@ struct
 
   let bitor ik x y = bit2 Ints_t.bitor ik x y
 
-  let bitand ik x y = bit2 Ints_t.bitand ik x y
+  let bitand ik x y =  match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c, m), Some (c', m') ->
+      if (m =: Ints_t.zero && m' =: Ints_t.zero) then
+        (* both arguments constant *)
+        Some (Ints_t.bitand c c', Ints_t.zero)
+      else if m' =: Ints_t.zero && c' =: Ints_t.one && Ints_t.rem m (Ints_t.of_int 2) =: Ints_t.zero then
+        (* x & 1  and  x == c (mod 2*z) *)
+        (* Value is equal to LSB of c *)
+        Some (Ints_t.bitand c c', Ints_t.zero)
+      else
+        top ()
 
   let bitxor ik x y = bit2 Ints_t.bitxor ik x y
 
