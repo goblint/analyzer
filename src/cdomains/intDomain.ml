@@ -835,7 +835,8 @@ struct
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (Ints_t.bitand x y) |> fst with Division_by_zero -> top_of ik)
-      | _, Some y  when Ints_t.equal y Ints_t.one -> of_interval ik (Ints_t.zero, Ints_t.one) |> fst
+      | _, Some y when Ints_t.equal y Ints_t.zero -> of_int ik Ints_t.zero |> fst
+      | _, Some y when Ints_t.equal y Ints_t.one -> of_interval ik (Ints_t.zero, Ints_t.one) |> fst
       | _ -> top_of ik
 
   let bitor  = bit (fun _ik -> Ints_t.bitor)
