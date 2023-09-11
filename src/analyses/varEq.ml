@@ -294,7 +294,7 @@ struct
            | Question (b, t, f, _) -> lval_may_change_pt b bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let r =
-      if Cil.isConstant b then false
+      if Cil.isConstant b || Cil.isConstant a then false
       else if Queries.AD.is_top bad
       then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.AD.exists (function
