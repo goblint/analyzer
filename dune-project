@@ -42,7 +42,7 @@
     (sha (>= 1.12))
     cpu
     arg-complete
-    yaml
+    (yaml (>= 3.0.0))
     uuidm
     catapult
     catapult-file
