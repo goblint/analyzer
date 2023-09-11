@@ -57,7 +57,7 @@ struct
             | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.singleton v
             | _ -> D.empty ()
           in
-          D.diff state unique_pointed_to_heap_vars
+          D.diff state unique_pointed_to_heap_vars (* TODO: use D.remove instead of diffing singleton *)
         | _ -> state
       end
     | Abort ->

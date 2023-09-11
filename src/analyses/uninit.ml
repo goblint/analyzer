@@ -198,7 +198,7 @@ struct
         | ad when not (Queries.AD.is_top ad) ->
           let to_extra ad ads =
             match ad with
-            | Queries.AD.Addr.Addr mval -> AD.of_mval mval :: ads
+            | Queries.AD.Addr.Addr mval -> AD.of_mval mval :: ads (* TODO: why list of singleton AD-s? *)
             | _ -> ads
           in
           Queries.AD.fold to_extra ad []

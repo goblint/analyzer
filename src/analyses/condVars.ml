@@ -72,7 +72,7 @@ struct
         ) else ad
       in
       List.filter_map (function
-          | ValueDomain.Addr.Addr (v,o) -> Some (v, ValueDomain.Addr.Offs.to_exp o)
+          | ValueDomain.Addr.Addr (v,o) -> Some (v, ValueDomain.Addr.Offs.to_exp o) (* TODO: use unconverted addrs in domain? *)
           | _ -> None
         ) (Queries.AD.elements a')
     | _ -> []

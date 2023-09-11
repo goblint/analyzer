@@ -103,7 +103,7 @@ struct
         | ad ->
           Queries.AD.fold (fun addr vs ->
               match addr with
-              | Queries.AD.Addr.Addr (v,o) -> rem_mval vs (v, ValueDomain.Offs.to_exp o)
+              | Queries.AD.Addr.Addr (v,o) -> rem_mval vs (v, ValueDomain.Offs.to_exp o) (* TODO: use unconverted addrs in domain? *)
               | _ -> vs
             ) ad ctx.local
       end

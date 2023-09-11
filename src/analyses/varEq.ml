@@ -258,7 +258,7 @@ struct
         if Queries.AD.is_top aad
         then false
         else Queries.AD.exists (function
-            | Addr (u,s) -> CilType.Varinfo.equal v u && oleq o (Addr.Offs.to_exp s)
+            | Addr (u,s) -> CilType.Varinfo.equal v u && oleq o (Addr.Offs.to_exp s) (* TODO: avoid conversion? *)
             | _ -> false
           ) aad
       in
@@ -298,7 +298,7 @@ struct
       else if Queries.AD.is_top bad
       then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.AD.exists (function
-          | Addr (v,o) -> lval_may_change_pt a (v, Addr.Offs.to_exp o)
+          | Addr (v,o) -> lval_may_change_pt a (v, Addr.Offs.to_exp o) (* TODO: avoid conversion? *)
           | _ -> false
         ) bad
     in

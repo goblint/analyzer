@@ -18,7 +18,7 @@ struct
   module O = Offset.Unit
 
   module V = struct
-    include Printable.Prod(CilType.Varinfo)(O)
+    include Printable.Prod(CilType.Varinfo)(O) (* TODO: use Mval.Unit *)
     let is_write_only _ = false
   end
 
@@ -56,7 +56,7 @@ struct
       let attr = ctx.ask (Queries.EvalMutexAttr attr) in
       let mutexes = ctx.ask (Queries.MayPointTo mutex) in
       (* It is correct to iter over these sets here, as mutexes need to be intialized before being used, and an analysis that detects usage before initialization is a different analysis. *)
-      Queries.AD.iter (function addr -> 
+      Queries.AD.iter (function addr ->
         match addr with
         | Queries.AD.Addr.Addr (v,o) -> ctx.sideg (v,O.of_offs o) attr
         | _ -> ()

@@ -12,7 +12,7 @@ let to_mvals ad =
   (* TODO: should one handle ad with unknown pointers separately like in (all) other analyses? *)
   Queries.AD.fold (fun addr mvals ->
       match addr with
-      | Queries.AD.Addr.Addr (v,o) -> D.add (v, ValueDomain.Offs.to_exp o) mvals
+      | Queries.AD.Addr.Addr (v,o) -> D.add (v, ValueDomain.Offs.to_exp o) mvals (* TODO: use unconverted addrs in domain? *)
       | _ -> mvals
     ) ad (D.empty ())
 
