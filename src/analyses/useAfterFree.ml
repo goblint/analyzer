@@ -160,15 +160,8 @@ struct
       if Queries.AD.is_top reachable_from_args || D.is_top caller_state then
         [caller_state, caller_state]
       else
-        let reachable_vars =
-          let get_vars addr vars =
-            match addr with
-            | Queries.AD.Addr.Addr (v,_) -> v :: vars
-            | _ -> vars
-          in
-          Queries.AD.fold get_vars reachable_from_args []
-        in
-        let callee_state = D.filter (fun var -> List.mem var reachable_vars) caller_state in
+        let reachable_vars = Queries.AD.to_var_may reachable_from_args in
+        let callee_state = D.filter (fun var -> List.mem var reachable_vars) caller_state in (* TODO: use AD.mem directly *)
         [caller_state, callee_state]
     )
 

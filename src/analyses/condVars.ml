@@ -64,18 +64,16 @@ struct
   let (>?) = Option.bind
 
   let mayPointTo ctx exp =
-    match ctx.ask (Queries.MayPointTo exp) with
-    | ad when not (Queries.AD.is_top ad) && not (Queries.AD.is_empty ad) ->
-      let a' = if Queries.AD.mem UnknownPtr ad then (
-          M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
-          Queries.AD.remove UnknownPtr ad
-        ) else ad
-      in
-      List.filter_map (function
-          | ValueDomain.Addr.Addr (v,o) -> Some (v, ValueDomain.Addr.Offs.to_exp o) (* TODO: use unconverted addrs in domain? *)
-          | _ -> None
-        ) (Queries.AD.elements a')
-    | _ -> []
+    let ad = ctx.ask (Queries.MayPointTo exp) in
+    let a' = if Queries.AD.mem UnknownPtr ad then (
+        M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
+        Queries.AD.remove UnknownPtr ad
+      ) else ad
+    in
+    List.filter_map (function
+        | ValueDomain.Addr.Addr (v,o) -> Some (v, ValueDomain.Addr.Offs.to_exp o) (* TODO: use unconverted addrs in domain? *)
+        | _ -> None
+      ) (Queries.AD.elements a')
 
   let mustPointTo ctx exp = (* this is just to get Mval.Exp *)
     match mayPointTo ctx exp with
