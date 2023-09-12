@@ -569,7 +569,7 @@ struct
     (* now watch this ... *)
     let rec ctx =
       { ask     = (fun (type a) (q: a Queries.t) -> S.query ctx q)
-      ; emit    = (fun _ -> failwith "emit outside MCP")
+      ; emit    = (fun _ -> ())
       ; node    = fst var
       ; prev_node = prev_node
       ; control_context = snd var |> Obj.obj

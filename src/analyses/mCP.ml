@@ -333,7 +333,7 @@ struct
     in
     let emit = match emits with
       | Some emits -> (fun e -> emits := e :: !emits) (* [emits] is in reverse order. *)
-      | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
+      | None -> (fun _ -> ())
     in
     let querycache = Queries.Hashtbl.create 13 in
     let rec ctx' =
