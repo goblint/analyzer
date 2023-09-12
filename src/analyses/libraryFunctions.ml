@@ -196,6 +196,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("unsetenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
     ("lseek", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
     ("fcntl", unknown (drop "fd" [] :: drop "cmd" [] :: VarArgs (drop' [r; w])));
+    ("__open_missing_mode", unknown []);
     ("fseeko", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "whence" []]);
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
@@ -286,6 +287,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
     ("ftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []]); (* TODO: use Call instead of Spawn *)
     ("nftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []; drop "flags" []]); (* TODO: use Call instead of Spawn *)
+    ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
   ]
 
 (** Pthread functions. *)
@@ -351,6 +353,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
     ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
+    ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
+    ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
   ]
 
 (** GCC builtin functions.
@@ -461,6 +465,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sysinfo", unknown [drop "info" [w_deep]]);
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
+    ("madvise", unknown [drop "addr" []; drop "length" []; drop "advice" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -810,6 +815,15 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
   ]
 
+let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("pcre_compile", unknown [drop "pattern" [r]; drop "options" []; drop "errptr" [w]; drop "erroffset" [w]; drop "tableptr" [r]]);
+    ("pcre_compile2", unknown [drop "pattern" [r]; drop "options" []; drop "errorcodeptr" [w]; drop "errptr" [w]; drop "erroffset" [w]; drop "tableptr" [r]]);
+    ("pcre_config", unknown [drop "what" []; drop "where" [w]]);
+    ("pcre_exec", unknown [drop "code" [r_deep]; drop "extra" [r_deep]; drop "subject" [r]; drop "length" []; drop "startoffset" []; drop "options" []; drop "ovector" [w]; drop "ovecsize" []]);
+    ("pcre_study", unknown [drop "code" [r_deep]; drop "options" []; drop "errptr" [w]]);
+    ("pcre_version", unknown []);
+  ]
+
 let libraries = Hashtbl.of_list [
     ("c", c_descs_list @ math_descs_list);
     ("posix", posix_descs_list);
@@ -822,6 +836,7 @@ let libraries = Hashtbl.of_list [
     ("sv-comp", svcomp_descs_list);
     ("ncurses", ncurses_descs_list);
     ("zstd", zstd_descs_list);
+    ("pcre", pcre_descs_list);
   ]
 
 let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
