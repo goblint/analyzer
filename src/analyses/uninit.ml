@@ -196,16 +196,16 @@ struct
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
         | ad when not (Queries.AD.is_top ad) ->
-          let to_extra ad ads =
-            match ad with
-            | Queries.AD.Addr.Addr mval -> AD.of_mval mval :: ads (* TODO: why list of singleton AD-s? *)
-            | _ -> ads
+          let to_extra addr ad =
+            match addr with
+            | Queries.AD.Addr.Addr _ -> AD.add addr ad
+            | _ -> ad
           in
-          Queries.AD.fold to_extra ad []
+          Queries.AD.fold to_extra ad (AD.empty ())
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _ -> []
+        | _ -> AD.empty ()
       in
-      List.concat_map do_exp args
+      List.map do_exp args
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
