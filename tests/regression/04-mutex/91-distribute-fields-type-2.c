@@ -1,11 +1,11 @@
 #include <pthread.h>
 #include <stdio.h>
 
-// (int)   (S)     (T)     (U)
+// (int)  >(S)<   >(T)<    (U)
 //    \   /   \   /   \   /
-//     >f<      s       t
+//      f       s       t
 //        \   /   \   /
-//         >f<      s
+//          f       s
 //            \   /
 //              f
 
@@ -28,13 +28,15 @@ extern struct T* getT();
 void *t_fun(void *arg) {
   // should write to (struct T).s.field in addition to (struct S).field
   // but easier to implement the other way around?
-  getS()->field = 1; // RACE!
+  struct S s1;
+  *(getS()) = s1; // RACE!
   return NULL;
 }
 
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  getT()->s.field = 2; // RACE!
+  struct T t1;
+  *(getT()) = t1; // RACE!
   return 0;
 }
