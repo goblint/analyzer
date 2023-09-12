@@ -18,7 +18,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}

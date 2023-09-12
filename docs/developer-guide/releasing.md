@@ -33,9 +33,9 @@
 
 11. Check created _distribution archive_ (in `_build`) in a clean environment:
 
-    1. Pull Docker image: `docker pull ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
+    1. Pull Docker image: `docker pull ocaml/opam:ubuntu-22.04-ocaml-5.0` (or newer).
     2. Extract distribution archive.
-    3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
+    3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-5.0` (or newer).
     4. Navigate to distribution archive inside Docker container: `cd /goblint`.
     5. Pin package from distribution archive: `opam pin add --no-action .`.
     6. Install depexts: `opam depext --with-test goblint`.

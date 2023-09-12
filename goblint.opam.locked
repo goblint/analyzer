@@ -21,11 +21,13 @@ doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
-  "apron" {= "v0.9.13"}
+  "apron" {= "v0.9.14~beta.2"}
   "arg-complete" {= "0.1.0"}
   "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
+  "base-domains" {= "base"}
+  "base-nnp" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
   "batteries" {= "3.6.0"}
@@ -56,22 +58,22 @@ depends: [
   "dune-private-libs" {= "3.6.1"}
   "dune-site" {= "3.6.1"}
   "dyn" {= "3.6.1"}
+  "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
   "goblint-cil" {= "2.0.1"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.12.1"}
   "jsonrpc" {= "1.15.0~5.0preview1"}
-  "fileutils" {= "0.6.4"}
   "logs" {= "0.7.0"}
-  "mlgmpidl" {= "1.2.14"}
+  "mlgmpidl" {= "1.2.15"}
   "num" {= "1.4"}
-  "ocaml" {= "4.14.0"}
-  "ocaml-variants" {= "4.14.0+options"}
+  "ocaml" {= "5.0.0"}
   "ocaml-compiler-libs" {= "v0.12.4"}
-  "ocaml-config" {= "2"}
+  "ocaml-config" {= "3"}
   "ocaml-option-flambda" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
+  "ocaml-variants" {= "5.0.0+options"}
   "ocamlbuild" {= "0.14.2"}
   "ocamlfind" {= "1.9.5"}
   "odoc" {= "2.2.0" & with-doc}
@@ -130,10 +132,6 @@ pin-depends: [
   [
     "goblint-cil.2.0.1"
     "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e"
-  ]
-  [
-    "apron.v0.9.13"
-    "git+https://github.com/antoinemine/apron.git#1a8e91062c0d7d1e80333d19d5a432332bbbaec8"
   ]
   [
     "ppx_deriving.5.2.1"
