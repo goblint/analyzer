@@ -3,7 +3,7 @@
 open GoblintCil
 open Analyses
 
-(** Data race analysis with tries and hookers.
+(** Data race analysis with tries for offsets and type-based memory locations for open code.
 
     Accesses are to memory locations ({{!Access.Memo} memos}) which consist of a root and offset.
     {{!Access.MemoRoot} Root} can be:
@@ -41,7 +41,20 @@ open Analyses
     This requires an implementation hack to still eagerly do outer distribution, but only of empty access sets.
     It ensures that corresponding trie nodes exist for traversal later. *)
 
-(** Example structure of related memos for race checking:
+(** Given C declarations:
+    {@c[
+    struct S {
+      int f;
+    };
+
+    struct T {
+      struct S s;
+    };
+
+    struct T t;
+    ]}
+
+    Example structure of related memos for race checking:
     {v
      (int)   (S)     (T)
         \   /   \   /   \
@@ -54,33 +67,63 @@ open Analyses
     where:
     - [(int)] is a type-based memo root for the primitive [int] type;
     - [(S)] and [(T)] are short for [(struct S)] and [(struct T)], which are type-based memo roots;
-    - [f] is a field of [S] and [s] is a field of [T];
-    - [t] is a global variable of type [T].
-    - prefix relations are indicated by [/];
+    - prefix relations are indicated by [/], so access paths run diagonally from top-right to bottom-left;
     - type suffix relations are indicated by [\ ].
 
-    Prefix races:
+    All same-node races:
+    - Race between [t.s.f] and [t.s.f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [t.s] is checked/reported at [t.s].
+    - Race between [t] and [t] is checked/reported at [t].
+    - Race between [(T).s.f] and [(T).s.f] is checked/reported at [(T).s.f].
+    - Race between [(T).s] and [(T).s] is checked/reported at [(T).s].
+    - Race between [(T)] and [(T)] is checked/reported at [(T)].
+    - Race between [(S).f] and [(S).f] is checked/reported at [(S).f].
+    - Race between [(S)] and [(S)] is checked/reported at [(S)].
+    - Race between [(int)] and [(int)] is checked/reported at [(int)].
+
+    All prefix races:
     - Race between [t.s.f] and [t.s] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [t] is checked/reported at [t.s.f].
     - Race between [t.s] and [t] is checked/reported at [t.s].
-    - Race between [t] and [t] is checked/reported at [t].
+    - Race between [(T).s.f] and [(T).s] is checked/reported at [(T).s.f].
+    - Race between [(T).s.f] and [(T)] is checked/reported at [(T).s.f].
+    - Race between [(T).s] and [(T)] is checked/reported at [(T).s].
     - Race between [(S).f] and [(S)] is checked/reported at [(S).f].
 
-    Type suffix races:
+    All type suffix races:
     - Race between [t.s.f] and [(T).s.f] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(S).f] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(int)] is checked/reported at [t.s.f].
+    - Race between [(T).s.f] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [(T).s.f] and [(int)] is checked/reported at [(T).s.f].
     - Race between [(S).f] and [(int)] is checked/reported at [(S).f].
+    - Race between [t.s] and [(T).s] is checked/reported at [t.s].
+    - Race between [t.s] and [(S)] is checked/reported at [t.s].
+    - Race between [(T).s] and [(S)] is checked/reported at [(T).s].
+    - Race between [t] and [(T)] is checked/reported at [t].
 
-    Type suffix prefix races:
+    All type suffix prefix races:
     - Race between [t.s.f] and [(T).s] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(T)] is checked/reported at [t.s.f].
     - Race between [t.s.f] and [(S)] is checked/reported at [t.s.f].
     - Race between [(T).s.f] and [(S)] is checked/reported at [(T).s.f].
+    - Race between [t.s] and [(T)] is checked/reported at [t.s].
 
-    Prefix-type suffix races:
+    All prefix-type suffix races:
+    - Race between [t.s] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [(int)] is checked/reported at [t.s.f].
+    - Race between [t] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t] and [(int)] is checked/reported at [t.s.f].
+    - Race between [t] and [(T).s] is checked/reported at [t.s].
+    - Race between [t] and [(S)] is checked/reported at [t.s].
     - Race between [(T).s] and [(S).f] is checked/reported at [(T).s.f].
-    - Race between [t] and [(S).f] is checked/reported at [t.s.f]. *)
+    - Race between [(T).s] and [(int)] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(int)] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(S)] is checked/reported at [(T).s].
+    - Race between [(S)] and [(int)] is checked/reported at [(S).f]. *)
 
 
 (** Data race analyzer without base --- this is the new standard *)
@@ -195,6 +238,8 @@ struct
 
   (** Get immediate type_suffix memo. *)
   let type_suffix_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
+    (* No need to make ana.race.direct-arithmetic return None here,
+       because (int) is empty anyway since Access.add_distribute_outer isn't called. *)
     match root, offset with
     | `Var v, _ -> Some (`Type (Cil.typeSig v.vtype), offset) (* global.foo.bar -> (struct S).foo.bar *) (* TODO: Alloc variables void type *)
     | _, `NoOffset -> None (* primitive type *)

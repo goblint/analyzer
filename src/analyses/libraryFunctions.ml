@@ -111,7 +111,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
     ("system", unknown ~attrs:[ThreadUnsafe] [drop "command" [r]]);
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
+    ("wctomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]; drop "wc" []]);
     ("wcrtomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]; drop "wc" []; drop "ps" [r_deep; w_deep]]);
+    ("wcstombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r]; drop "size" []]);
+    ("wcsrtombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r_deep; w]; drop "size" []; drop "ps" [r_deep; w_deep]]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
@@ -142,9 +145,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
     ("drand48", unknown ~attrs:[ThreadUnsafe] []);
     ("encrypt", unknown ~attrs:[ThreadUnsafe] [drop "block" [r; w]; drop "edflag" []]);
+    ("setkey", unknown ~attrs:[ThreadUnsafe] [drop "key" [r]]);
     ("endgrent", unknown ~attrs:[ThreadUnsafe] []);
     ("endpwent", unknown ~attrs:[ThreadUnsafe] []);
     ("fcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigits" []; drop "decpt" [w]; drop "sign" [w]]);
+    ("ecvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigits" []; drop "decpt" [w]; drop "sign" [w]]);
     ("gcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigit" []; drop "buf" [w]]);
     ("getdate", unknown ~attrs:[ThreadUnsafe] [drop "string" [r]]);
     ("getenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
@@ -280,6 +285,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
     ("sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env });
     ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("ftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []]); (* TODO: use Call instead of Spawn *)
+    ("nftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []; drop "flags" []]); (* TODO: use Call instead of Spawn *)
     ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
   ]
 

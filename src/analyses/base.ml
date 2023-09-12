@@ -397,6 +397,8 @@ struct
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.zero else match eq p1 p2 with Some x when x -> ID.of_int ik BI.one | _ -> bool_top ik)
         | Ne ->
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.one else match eq p1 p2 with Some x when x -> ID.of_int ik BI.zero | _ -> bool_top ik)
+        | IndexPI when AD.to_string p2 = ["all_index"] ->
+          addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
         | _ -> VD.top ()
       end
     (* For other values, we just give up! *)
@@ -1053,7 +1055,6 @@ struct
            else if AD.may_be_null adr
            then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
           AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
-        | Bot -> AD.bot ()
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
           AD.unknown_ptr
@@ -1262,13 +1263,8 @@ struct
         match p with
         | Address a ->
           let s = addrToLvalSet a in
-          let has_offset = function
-            | `NoOffset -> false
-            | `Field _
-            | `Index _ -> true
-          in
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || has_offset o) s then
+          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset) s then
             Queries.Result.bot q
           else (
             let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
@@ -2013,14 +2009,16 @@ struct
     let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs in
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
-  let check_free_of_non_heap_mem ctx special_fn ptr =
+  let check_invalid_mem_dealloc ctx special_fn ptr =
     match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
       let points_to_set = addrToLvalSet a in
       if Q.LS.is_top points_to_set then
-        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potential free of non-dynamically allocated memory may occur" d_exp ptr special_fn.vname
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
       else if (Q.LS.exists (fun (v, _) -> not (ctx.ask (Q.IsHeapVar v))) points_to_set) || (AD.mem Addr.UnknownPtr a) then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
+      else if Q.LS.exists (fun (_, o) -> Offset.Exp.cmp_zero_offset o <> `MustZero) points_to_set then
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
@@ -2296,15 +2294,27 @@ struct
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           let ik = Cilfacade.ptrdiff_ikind () in
-          let blobsize = ID.mul (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st size) (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st n) in
-          (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
-                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
+          let sizeval = eval_int (Analyses.ask_of_ctx ctx) gs st size in
+          let countval = eval_int (Analyses.ask_of_ctx ctx) gs st n in
+          if ID.to_int countval = Some Z.one then (
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
+              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
+              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
+            ]
+          )
+          else (
+            let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
+            (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
+              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
+              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
+            ]
+          )
         | _ -> st
       end
     | Realloc { ptr = p; size }, _ ->
       (* Realloc shouldn't be passed non-dynamically allocated memory *)
-      check_free_of_non_heap_mem ctx f p;
+      check_invalid_mem_dealloc ctx f p;
       begin match lv with
         | Some lv ->
           let ask = Analyses.ask_of_ctx ctx in
@@ -2338,7 +2348,7 @@ struct
       end
     | Free ptr, _ ->
       (* Free shouldn't be passed non-dynamically allocated memory *)
-      check_free_of_non_heap_mem ctx f ptr;
+      check_invalid_mem_dealloc ctx f ptr;
       st
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->

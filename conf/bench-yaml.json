@@ -48,20 +48,6 @@
       ]
     }
   },
-  "witness": {
-    "enabled": false,
-    "yaml": {
-      "enabled": true
-    },
-    "invariant": {
-      "exact": false,
-      "exclude-vars": [
-        "tmp\\(___[0-9]+\\)?",
-        "cond",
-        "RETURN"
-      ]
-    }
-  },
   "sem": {
     "unknown_function": {
       "invalidate": {
