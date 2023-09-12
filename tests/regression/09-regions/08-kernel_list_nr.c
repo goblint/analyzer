@@ -8,7 +8,8 @@ struct s {
   struct list_head list;
 };
 
-struct list_head A, B;
+LIST_HEAD(A);
+LIST_HEAD(B);
 
 static DEFINE_MUTEX(A_mutex);
 static DEFINE_MUTEX(B_mutex);

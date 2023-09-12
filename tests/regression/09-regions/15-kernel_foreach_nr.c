@@ -9,7 +9,7 @@ struct s {
   struct list_head list;
 };
 
-struct list_head slot[10];
+struct list_head slot[10]; // TODO: correctly initialize list heads
 struct mutex slots_mutex[10];
 
 struct s *new(int x) {
