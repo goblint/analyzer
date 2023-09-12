@@ -3199,8 +3199,8 @@ struct
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some(c2, m2) ->
       if m2 =: Ints_t.zero then
-        if (c2 |: m1) then
-          Some(c1 %: c2,Ints_t.zero)
+        if (c2 |: m1) && (c1 %: c2 =: Ints_t.zero || m1 =: Ints_t.zero || not (Cil.isSigned ik)) then
+          Some(c1 %: c2, Ints_t.zero)
         else
           normalize ik (Some(c1, (Ints_t.gcd m1 c2)))
       else
