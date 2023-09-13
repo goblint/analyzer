@@ -1417,6 +1417,12 @@
               "type": "string",
               "enum": ["assume_top", "assume_none"],
               "default": "assume_none"
+            },
+            "dereference-refine": {
+              "title": "sem.null-pointer.dereference-refine",
+              "description": "Assume not null after first null dereference",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

@@ -1054,7 +1054,7 @@ struct
            then M.error ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "Must dereference NULL pointer"
            else if AD.may_be_null adr
            then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
-          if AD.may_be_null adr then emit (Events.SplitBranch (n, true));
+          if get_bool "sem.null-pointer.dereference-refine" && AD.may_be_null adr then emit (Events.SplitBranch (n, true));
           AD.map (add_offset_varinfo (convert_offset a emit gs st ofs)) adr
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;

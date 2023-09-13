@@ -1,3 +1,4 @@
+// PARAM: --disable sem.null-pointer.dereference-refine
 #include <stdio.h>
 struct person {
   int age;

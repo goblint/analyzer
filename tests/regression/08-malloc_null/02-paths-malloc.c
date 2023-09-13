@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] malloc_null
+// PARAM: --set ana.activated[+] malloc_null --disable sem.null-pointer.dereference-refine
 #include <stdlib.h>
 #include <stdio.h>
 

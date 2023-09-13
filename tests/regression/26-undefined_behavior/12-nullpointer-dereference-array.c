@@ -1,3 +1,4 @@
+// PARAM: --disable sem.null-pointer.dereference-refine
 #include <stdio.h>
 // source base:
 // https://stackoverflow.com/questions/4007268/what-exactly-is-meant-by-de-referencing-a-null-pointer
