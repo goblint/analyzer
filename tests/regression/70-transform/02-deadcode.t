@@ -210,15 +210,15 @@
 
 Transformation still works with 'exp.mincfg', but can not find all dead code; test against the diff.
 Macintosh's diff(1) adds whitespace after the function names, strip with sed.
-  $ diff -p -U0 "$(./transform.sh --file $args 02-deadcode.c)" "$(./transform.sh --file $args --enable exp.mincfg 02-deadcode.c)" | sed 's/[[:blank:]]*$//' | tail -n +3
-  @@ -13,0 +14,3 @@ int basic1(int n )
+  $ diff -U0 "$(./transform.sh --file $args 02-deadcode.c)" "$(./transform.sh --file $args --enable exp.mincfg 02-deadcode.c)" | sed 's/[[:blank:]]*$//' | tail -n +3
+  @@ -13,0 +14,3 @@
   +  if (n < 0) {
   +    return (0);
   +  }
-  @@ -54,0 +58,2 @@ int one_branch_dead(int x )
+  @@ -54,0 +58,2 @@
   +  } else {
   +    return (7 - x);
-  @@ -65,0 +71,8 @@ int uncalled_but_referenced_function(int
+  @@ -65,0 +71,8 @@
   +int uncalled1(void)
   +{
   +
@@ -227,17 +227,17 @@ Macintosh's diff(1) adds whitespace after the function names, strip with sed.
   +
   +}
   +}
-  @@ -79,0 +93,5 @@ int conditional_call_in_loop(int x )
+  @@ -79,0 +93,5 @@
   +    if (i > 7) {
   +      {
   +      uncalled1();
   +      }
   +    }
-  @@ -151,0 +170,4 @@ int loop_dead_on_break(int z )
+  @@ -151,0 +170,4 @@
   +    {
   +    s += s;
   +    i ++;
   +    }
-  @@ -203,0 +226,2 @@ int main(void)
+  @@ -203,0 +226,2 @@
   +  uncalled1();
   +  uncalled_but_referenced_function(3);
