@@ -1,3 +1,7 @@
+## v2.2.1
+* Bump batteries lower bound to 3.5.0.
+* Fix flaky dead code elimination transformation test.
+
 ## v2.2.0
 * Add `setjmp`/`longjmp` analysis (#887, #970, #1015, #1019).
 * Refactor race analysis to lazy distribution (#1084, #1089, #1136, #1016).
