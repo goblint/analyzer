@@ -58,7 +58,7 @@ depends: [
   "dyn" {= "3.6.1"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.1"}
+  "goblint-cil" {= "2.0.2"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.12.1"}
   "jsonrpc" {= "1.15.0~5.0preview1"}
@@ -127,10 +127,6 @@ conflicts: [
 ]
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
-  [
-    "goblint-cil.2.0.1"
-    "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e"
-  ]
   [
     "apron.v0.9.13"
     "git+https://github.com/antoinemine/apron.git#1a8e91062c0d7d1e80333d19d5a432332bbbaec8"
