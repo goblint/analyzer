@@ -77,7 +77,11 @@ struct
               let item_typ_size_in_bytes = (bitsSizeOf item_typ) / 8 in
               let item_typ_size_in_bytes = intdom_of_int item_typ_size_in_bytes in
               begin match ctx.ask (Queries.EvalLength ptr) with
-                | `Lifted arr_len -> `Lifted (IntDomain.IntDomTuple.mul item_typ_size_in_bytes arr_len)
+                | `Lifted arr_len ->
+                  begin
+                    try `Lifted (IntDomain.IntDomTuple.mul item_typ_size_in_bytes arr_len)
+                    with IntDomain.ArithmeticOnIntegerBot _ -> VDQ.ID.bot ()
+                  end
                 | `Bot -> VDQ.ID.bot ()
                 | `Top -> VDQ.ID.top ()
               end
@@ -116,7 +120,10 @@ struct
     | `Lifted i ->
       (* The offset must be casted to ptrdiff_ikind in order to have matching ikinds for the multiplication below *)
       let casted_offset = IntDomain.IntDomTuple.cast_to (Cilfacade.ptrdiff_ikind ()) i in
-      `Lifted (IntDomain.IntDomTuple.mul casted_offset ptr_contents_typ_size_in_bytes)
+      begin
+        try `Lifted (IntDomain.IntDomTuple.mul casted_offset ptr_contents_typ_size_in_bytes)
+        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+      end
     | `Top -> `Top
     | `Bot -> `Bot
 
@@ -128,12 +135,18 @@ struct
       let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset in
       let bytes_offset = intdom_of_int (bits_offset / 8) in
       let remaining_offset = offs_to_idx field.ftype o in
-      IntDomain.IntDomTuple.add bytes_offset remaining_offset
+      begin
+        try IntDomain.IntDomTuple.add bytes_offset remaining_offset
+        with IntDomain.ArithmeticOnIntegerBot _ -> IntDomain.IntDomTuple.bot_of @@ Cilfacade.ptrdiff_ikind ()
+      end
     | `Index (x, o) ->
-      let typ_size_in_bytes = size_of_type_in_bytes typ in
-      let bytes_offset = IntDomain.IntDomTuple.mul typ_size_in_bytes x in
-      let remaining_offset = offs_to_idx typ o in
-      IntDomain.IntDomTuple.add bytes_offset remaining_offset
+      begin try
+          let typ_size_in_bytes = size_of_type_in_bytes typ in
+          let bytes_offset = IntDomain.IntDomTuple.mul typ_size_in_bytes x in
+          let remaining_offset = offs_to_idx typ o in
+          IntDomain.IntDomTuple.add bytes_offset remaining_offset
+        with IntDomain.ArithmeticOnIntegerBot _ -> IntDomain.IntDomTuple.bot_of @@ Cilfacade.ptrdiff_ikind ()
+      end
 
   let check_unknown_addr_deref ctx ptr =
     let may_contain_unknown_addr =
@@ -283,7 +296,11 @@ struct
           let offset_size = eval_ptr_offset_in_binop ctx e2 t in
           (* Make sure to add the address offset to the binop offset *)
           let offset_size_with_addr_size = match offset_size with
-            | `Lifted os -> `Lifted (IntDomain.IntDomTuple.add os addr_offs)
+            | `Lifted os ->
+              begin
+                try `Lifted (IntDomain.IntDomTuple.add os addr_offs)
+                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+              end
             | `Top -> `Top
             | `Bot -> `Bot
           in
