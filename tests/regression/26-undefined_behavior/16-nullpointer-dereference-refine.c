@@ -8,7 +8,7 @@ struct person {
 };
 
 int main(){
-    int r1, r2, p;
+    int r1, r2, r3, p;
     int *a = NULL; 
     int *b; 
     
@@ -35,11 +35,24 @@ int main(){
         }
         __goblint_check(p != NULL); // reachable
         break;
-    // TODO: case 5: nullpointer in if condition
-    // TODO: case 6: nullpointer as a function argument
+    case 5:
+        if (*a) { // WARN
+            p = 1;
+        } else {
+            p = 2;
+        }
+        __goblint_check(0); // NOWARN (unreachable)
+        break;
+    case 6:
+        p = id(*a); // WARN
+        __goblint_check(0); // TODO: NOWARN (unreachable)
+        break;
     default:
-        // code block
         break;
     }
     return 1;
+}
+
+int* id(int *x) {
+     return x;
 }
