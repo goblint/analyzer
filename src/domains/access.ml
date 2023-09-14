@@ -521,8 +521,7 @@ let print_accesses memo grouped_accs =
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h A.{conf; kind; node; exp; acc} =
-      let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty acc conf in
-      let doc = dprintf "%t  (exp: %a)" d_msg d_exp exp in
+      let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs
