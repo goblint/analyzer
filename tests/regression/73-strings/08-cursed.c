@@ -1,4 +1,4 @@
-// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval --enable ana.base.arrays.nullbytes
+// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval --enable ana.base.arrays.nullbytes --set ana.malloc.unique_address_count 1
 
 #include <goblint.h>
 #include <string.h>
@@ -23,10 +23,9 @@ int main() {
     int len3 = strlen(s6);
     __goblint_check(len3 == 5);
 
-    // Why does this not know the string length after the copy?
-    // This goes into the array/array case, so it seems unrelated to blob problems.
     strcpy(s5, "badabingbadaboom");
-    len2 = strlen(s5); // no must 0 bytes anywhere?
+    int len2 = strlen(s5);
+    __goblint_check(len2 == 16);
 
     return 0;
 }

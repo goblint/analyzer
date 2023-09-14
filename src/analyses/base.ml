@@ -1382,7 +1382,7 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val]
    * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
    * precise information about arrays. *)
-  let set (a: Q.ask) ~(ctx: _ ctx) ?(invariant=false) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+  let set (a: Q.ask) ~(ctx: _ ctx) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x t y z in (* refers to defintion that is outside of set *)
@@ -1415,7 +1415,7 @@ struct
       let update_offset old_value =
         (* Projection globals to highest Precision *)
         let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
-        let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
+        let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
         else if invariant then (
@@ -2099,11 +2099,11 @@ struct
           | Some lv_val -> eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
           | None -> s1_a, s1_typ in
         begin match (get (Analyses.ask_of_ctx ctx) gs st s1_a None), get (Analyses.ask_of_ctx ctx) gs st s2_a None with
-          | Array array_s1, Array array_s2 -> set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
+          | Array array_s1, Array array_s2 -> set ~ctx ~blob_destructive:true (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
           | Array array_s1, _ when s2_typ = charPtrType ->
             let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
             let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
-            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
+            set ~ctx ~blob_destructive:true (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
           | Bot, Array array_s2 ->
             (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
             let size = ctx.ask (Q.BlobSize s1) in

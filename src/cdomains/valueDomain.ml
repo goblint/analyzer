@@ -19,7 +19,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: VDQ.t -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
-  val update_offset: VDQ.t -> t -> offs -> t -> exp option -> lval -> typ -> t
+  val update_offset: ?blob_destructive:bool -> VDQ.t -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> VDQ.t -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
@@ -288,12 +288,12 @@ struct
             true
           else
             false
-        | Some min, None -> 
+        | Some min, None ->
           if Z.gt min Z.zero then
             true
           else
             false
-        | None, Some max -> 
+        | None, Some max ->
           if Z.lt max Z.zero then
             true
           else
@@ -953,7 +953,7 @@ struct
     in
     do_eval_offset ask f x offs exp l o v t
 
-  let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
+  let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
@@ -1001,9 +1001,11 @@ struct
               | (Var var, _) ->
                 let blob_size_opt = ID.to_int s in
                 not @@ ask.is_multiple var
-                && not @@ Cil.isVoidType t      (* Size of value is known *)
                 && Option.is_some blob_size_opt (* Size of blob is known *)
-                && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
+                && ((
+                    not @@ Cil.isVoidType t     (* Size of value is known *)
+                    && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
+                  ) || blob_destructive)
               | _ -> false
             end
           in
