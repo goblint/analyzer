@@ -30,7 +30,7 @@ int main() {
     __goblint_check(len == 4);
 
     len = strlen(s5);
-    __goblint_check(len == 5); // UNKNOWN
+    __goblint_check(len == 5);
 
     strcat(s1, s2);
     len = strlen(s1);

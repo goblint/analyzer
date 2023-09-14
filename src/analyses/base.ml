@@ -2065,7 +2065,7 @@ struct
           | Addr.Addr (v, o) -> Addr.Addr (v, lo o)
           | other -> other in
         AD.map rmLastOffset a
-      | _ -> raise (Failure "String function: not an address") 
+      | _ -> raise (Failure "String function: not an address")
     in
     let string_manipulation s1 s2 lv all op_addr op_array =
       let s1_v = eval_rv (Analyses.ask_of_ctx ctx) gs st s1 in
@@ -2075,6 +2075,7 @@ struct
       let s2_a = address_from_value s2_v in
       let s2_typ = AD.type_of s2_a in
       (* compute value in string literals domain if s1 and s2 are both string literals *)
+      (* TODO: comparing types structurally should not be done (use typSig instead!) *)
       if s1_typ = charPtrType && s2_typ = charPtrType then
         begin match lv, op_addr with
           | Some lv_val, Some f ->
@@ -2093,16 +2094,30 @@ struct
             set ~ctx (Analyses.ask_of_ctx ctx) gs st s1_a s1_typ (VD.top_value (unrollType s1_typ))
         end
       (* else compute value in array domain *)
-      else 
+      else
         let lv_a, lv_typ = match lv with
           | Some lv_val -> eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
           | None -> s1_a, s1_typ in
-        begin match get (Analyses.ask_of_ctx ctx) gs st s1_a None, get (Analyses.ask_of_ctx ctx) gs st s2_a None with
+        begin match (get (Analyses.ask_of_ctx ctx) gs st s1_a None), get (Analyses.ask_of_ctx ctx) gs st s2_a None with
           | Array array_s1, Array array_s2 -> set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
-          | Array array_s1, _ when s2_typ = charPtrType -> 
+          | Array array_s1, _ when s2_typ = charPtrType ->
             let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
             let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
             set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
+          | Bot, Array array_s2 ->
+            (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
+            let size = ctx.ask (Q.BlobSize s1) in
+            let s_id = ValueDomainQueries.ID.unlift (Fun.id) size in
+            let empty_array = CArrays.make (ID.cast_to (Cilfacade.ptrdiff_ikind ()) s_id) (Int (ID.top_of IChar)) in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array empty_array array_s2)
+          | Bot , _ when s2_typ = charPtrType ->
+            (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
+            let size = ctx.ask (Q.BlobSize s1) in
+            let s_id = ValueDomainQueries.ID.unlift (Fun.id) size in
+            let empty_array = CArrays.make (ID.cast_to (Cilfacade.ptrdiff_ikind ()) s_id) (Int (ID.top_of IChar)) in
+            let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
+            let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array empty_array array_s2)
           | _, Array array_s2 when s1_typ = charPtrType ->
             (* if s1 is string literal, str(n)cpy and str(n)cat are undefined *)
             if op_addr = None then
@@ -2113,7 +2128,8 @@ struct
               let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
               let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
               set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array array_s1 array_s2)
-          | _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+          | vals1, _ ->
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
     in
     let st = match desc.special args, f.vname with
@@ -2157,7 +2173,7 @@ struct
           let dest_typ = Cilfacade.typeOfLval lv_val in
           let v = eval_rv (Analyses.ask_of_ctx ctx) gs st s in
           let a = address_from_value v in
-          let value:value = 
+          let value:value =
             (* if s string literal, compute strlen in string literals domain *)
             if AD.type_of a = charPtrType then
               Int (AD.to_string_length a)
@@ -2181,7 +2197,7 @@ struct
               (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
                 | true, false -> Address (AD.null_ptr)
                 | false, true -> Address (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
-                | _ -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st 
+                | _ -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st
                                            (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
