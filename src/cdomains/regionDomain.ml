@@ -9,12 +9,10 @@ module B = Lattice.UnitConf (struct let name = "•" end)
 module RS = struct
   include SetDomain.Make (B)
   let single_bullet = singleton ()
-  let remove_bullet x = remove () x
-  let has_bullet x = not (is_empty x)
   let is_single_bullet rs =
     not (is_top rs) &&
     cardinal rs = 1 &&
-    has_bullet rs
+    not (is_empty rs)
 
 end
 
@@ -47,9 +45,7 @@ struct
       | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, `NoOffset)) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
       | CastE (typ, exp) -> eval_rval deref exp
-      | BinOp (MinusPI, p, i, typ)
-      | BinOp (PlusPI, p, i, typ)
-      | BinOp (IndexPI, p, i, typ) -> eval_rval deref p
+      | BinOp (_, p, i, typ) -> eval_rval deref p
       | _ -> None
     and eval_lval deref lval =
       match lval with
@@ -63,18 +59,10 @@ struct
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
-  let add_set (s:set) llist m: t =
-    if RS.has_bullet s then
-      let f key value (ys, x) =
-        if RS.has_bullet value then key::ys, RS.join value x else ys,x in
-      let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
-      let x = RS.remove_bullet x in
-      if RS.is_empty x then
-        RegMap.add_list_set llist RS.single_bullet m
-      else
-        RegMap.add_list_set ys x m
-    else
-      m
+  let add_set (s:set) llist (m:RegMap.t): t =
+    if not (RS.is_empty s)
+    then RegMap.add_list_set llist RS.single_bullet m
+    else m
 
   let assign (lval: lval) (rval: exp) reg: t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
@@ -84,21 +72,20 @@ struct
       (* TODO: should offs_x matter? *)
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
         if VF.equal x y then reg else
-          let m = reg in begin
-            match is_global x, deref_x, is_global y with
+          begin match is_global x, deref_x, is_global y with
             | false, false, true  ->
               reg
             | false, false, false ->
-              RegMap.add x (RegMap.find y m) m
+              RegMap.add x (RegMap.find y reg) reg
             (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
-              add_set (RegMap.find x m) [x] reg
+              add_set (RegMap.find x reg) [x] reg
             | false, true , false ->
-              add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] reg
+              add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
             | true , _    , true  ->
               add_set (RS.empty ()) [] reg
             | true , _    , false  ->
-              add_set (RegMap.find y m) [y] reg
+              add_set (RegMap.find y reg) [y] reg
           end
       | _ -> reg
     end else if isIntegralType t then begin
