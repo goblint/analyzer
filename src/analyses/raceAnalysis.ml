@@ -225,9 +225,9 @@ struct
     | _ ->
       ()
 
-  let side_access ctx Access.A.{conf; kind; node; exp; acc} ((memoroot, offset) as memo) =
+  let side_access ctx acc ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton {conf; kind; node; exp; acc}))));
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton acc))));
     side_vars ctx memo
 
   (** Side-effect empty access set for prefix-type_suffix race checking. *)
