@@ -94,25 +94,25 @@ struct
   (* Remove null values from state that are unreachable from exp.*)
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
-      let do_exp e =
+      let do_exp e a =
         match ask.f (Queries.ReachableFrom e) with
         | ad when not (Queries.AD.is_top ad) ->
-          let to_extra addr ads =
-            match addr with
-            | Queries.AD.Addr.Addr mval -> AD.of_mval mval :: ads
-            | _ -> ads
-          in
-          Queries.AD.fold to_extra ad []
+          ad
+          |> Queries.AD.filter (function
+              | Queries.AD.Addr.Addr _ -> true
+              | _ -> false)
+          |> Queries.AD.join a
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _ -> []
+        | _ -> AD.empty ()
       in
-      List.concat_map do_exp args
+      List.fold_right do_exp args (AD.empty ())
     in
-    let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
-      let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat_map to_addrs vars) many
+    let vars =
+      reachable
+      |> AD.to_var_may
+      |> List.concat_map to_addrs
+      |> AD.of_list
     in
-    let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st
     then D.top ()
     else D.filter (fun x -> AD.mem x vars) st

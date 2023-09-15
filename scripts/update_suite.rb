@@ -41,7 +41,7 @@ end
 
 $goblint = File.join(Dir.getwd,"goblint")
 goblintbyte = File.join(Dir.getwd,"goblint.byte")
-if File.exists?(goblintbyte) then
+if File.exist?(goblintbyte) then
   puts "Running the byte-code version! Continue? (y/n)"
   exit unless $stdin.gets()[0] == 'y'
   $goblint = goblintbyte
@@ -50,11 +50,11 @@ elsif not File.exist?($goblint) then
 end
 $vrsn = `#{$goblint} --version`
 
-if not File.exists? "linux-headers" then
+if not File.exist? "linux-headers" then
   puts "Missing linux-headers, will download now!"
   `make headers`
 end
-has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make headers failed (e.g. on opam-repository opam-ci where network is forbidden)
+has_linux_headers = File.exist? "linux-headers" # skip kernel tests if make headers failed (e.g. on opam-repository opam-ci where network is forbidden)
 
 #Command line parameters
 #Either only run a single test, or

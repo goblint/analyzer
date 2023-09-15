@@ -44,7 +44,7 @@
     (fileutils (>= 0.6.4))
     cpu
     arg-complete
-    yaml
+    (yaml (>= 3.0.0))
     uuidm
     catapult
     catapult-file

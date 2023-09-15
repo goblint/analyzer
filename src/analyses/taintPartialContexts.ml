@@ -110,7 +110,7 @@ module VS = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All" 
 
 (* Convert Lval set to (less precise) Varinfo set. *)
 let conv_varset (addr_set : Spec.D.t) : VS.t =
-  if Spec.D.is_top addr_set then 
+  if Spec.D.is_top addr_set then
     VS.top ()
-  else 
+  else
     VS.of_list (List.filter_map (fun addr -> Spec.D.Addr.to_var_may addr) (Spec.D.elements addr_set))

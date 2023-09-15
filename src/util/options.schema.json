@@ -1284,7 +1284,8 @@
               "goblint",
               "sv-comp",
               "ncurses",
-              "zstd"
+              "zstd",
+              "pcre"
             ]
           },
           "default": [

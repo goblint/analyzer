@@ -276,7 +276,7 @@ struct
   let reachable_from_args ctx args =
     let to_vs e =
       ctx.ask (ReachableFrom e)
-      |> LockDomain.MayLocksetNoRW.to_var_may
+      |> Queries.AD.to_var_may
       |> VS.of_list
     in
     List.fold (fun vs e -> VS.join vs (to_vs e)) (VS.empty ()) args
