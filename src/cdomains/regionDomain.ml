@@ -8,50 +8,47 @@ module B = Printable.UnitConf (struct let name = "•" end)
 
 module VFB =
 struct
-  include Printable.Either (VF) (B)
+  include Printable.Either (Printable.Empty) (B)
 
   let printXml f = function
     | `Right () ->
       BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
-    | `Left x ->
-      BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" VF.printXml x
+    | _ -> assert false
 
   let collapse (x:t) (y:t): bool =
     match x,y with
     | `Right (), `Right () -> true
     | `Right (), _ | _, `Right () -> false
-    | `Left x, `Left y -> VF.collapse x y
+    | _, _ -> assert false
 
   let leq x y =
     match x,y with
     | `Right (), `Right () -> true
     | `Right (), _ | _, `Right () -> false (* incomparable according to collapse *)
-    | `Left x, `Left y -> VF.leq x y
+    | _, _-> assert false
 
   let join (x:t) (y:t) :t =
     match x,y with
     | `Right (), `Right () -> `Right ()
     | `Right (), _ | _, `Right () -> raise Lattice.Uncomparable (* incomparable according to collapse *)
-    | `Left x, `Left y -> `Left (VF.join x y)
+    | _, _-> assert false
 
   let lift f y = match y with
-    | `Left y -> `Left (f y)
     | `Right () -> `Right ()
+    | _-> assert false
 
   let kill x (y:t): t = lift (VF.kill x) y
   let replace x exp y = lift (VF.replace x exp) y
 
   let is_bullet x = x = `Right ()
   let bullet = `Right ()
-  let of_vf vf = `Left vf
   let real_region (x:t): bool = match x with
-    | `Left (v,fd) -> F.real_region fd (v.vtype)
     | `Right () -> false
+    | _-> assert false
 end
 
 module RS = struct
   include PartitionDomain.Set (VFB)
-  let single_vf vf = singleton (VFB.of_vf vf)
   let single_bullet = singleton (VFB.bullet)
   let remove_bullet x = remove VFB.bullet x
   let has_bullet x = exists VFB.is_bullet x
@@ -59,14 +56,6 @@ module RS = struct
     not (is_top rs) &&
     cardinal rs = 1 &&
     has_bullet rs
-
-  let to_vf_list s =
-    let lst = elements s in
-    let f x acc = match x with
-      | `Left vf -> vf :: acc
-      | `Right () -> acc
-    in
-    List.fold_right f lst []
 
   let kill x s = map (VFB.kill x) s
   let replace x exp s = map (VFB.replace x exp) s
@@ -171,24 +160,24 @@ struct
         if VF.equal x y then st else
           let (p,m) = st in begin
             let append_offs_y = RS.map (function
-                | `Left (v, offs) -> `Left (v, F.add_offset offs offs_y)
                 | `Right () -> `Right ()
+                | _ -> assert false
               )
             in
             match is_global x, deref_x, is_global y with
             | false, false, true  ->
-              p, RegMap.add x (append_offs_y (RegPart.closure p (RS.single_vf y))) m
+              p, m
             | false, false, false ->
               p, RegMap.add x (append_offs_y (RegMap.find y m)) m
             (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
-              add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
+              add_set (RegMap.find x m) [x] st
             | false, true , false ->
               add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] st
             | true , _    , true  ->
-              add_set (RS.join (RS.single_vf x) (RS.single_vf y)) [] st
+              add_set (RS.empty ()) [] st
             | true , _    , false  ->
-              add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
+              add_set (RegMap.find y m) [y] st
           end
       | _ -> st
     end else if isIntegralType t then begin
@@ -206,19 +195,9 @@ struct
     | _ -> p,m
 
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
-    let add_o o2 (v,o) = (v, F.add_offset o o2) in
     match deref_vfd with
-    | Some (true, vfd, os) ->
-      let vfd_class =
-        if is_global vfd then
-          RegPart.find_class (VFB.of_vf vfd) p
-        else
-          RegMap.find vfd m
-      in
-      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
-      List.map (add_o os) (RS.to_vf_list vfd_class)
-    | Some (false, vfd, os) ->
-      if is_global vfd then [vfd] else []
+    | Some (true, vfd, os) -> []
+    | Some (false, vfd, os) -> if is_global vfd then [vfd] else []
     | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
 end
 
