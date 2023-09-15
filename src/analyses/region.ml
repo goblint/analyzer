@@ -7,7 +7,6 @@ open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
-module RegPart = RegionDomain.RegPart
 module Reg = RegionDomain.Reg
 
 module Spec =
@@ -103,7 +102,7 @@ struct
           Reg.assign (BS.return_lval ()) exp reg
         | None -> reg
       in
-      let reg = Reg.kill_vars locals (Reg.remove_vars locals reg) in
+      let reg = Reg.remove_vars locals reg in
       `Lifted reg
     | x -> x
 

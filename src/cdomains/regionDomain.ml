@@ -4,70 +4,24 @@ open GoblintCil
 open GobConfig
 open MusteqDomain
 
-module B = Printable.UnitConf (struct let name = "•" end)
+module B = Lattice.UnitConf (struct let name = "•" end)
 
 module VFB =
 struct
-  include Printable.Either (Printable.Empty) (B)
-
-  let printXml f = function
-    | `Right () ->
-      BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
-    | _ -> assert false
-
-  let collapse (x:t) (y:t): bool =
-    match x,y with
-    | `Right (), `Right () -> true
-    | `Right (), _ | _, `Right () -> false
-    | _, _ -> assert false
-
-  let leq x y =
-    match x,y with
-    | `Right (), `Right () -> true
-    | `Right (), _ | _, `Right () -> false (* incomparable according to collapse *)
-    | _, _-> assert false
-
-  let join (x:t) (y:t) :t =
-    match x,y with
-    | `Right (), `Right () -> `Right ()
-    | `Right (), _ | _, `Right () -> raise Lattice.Uncomparable (* incomparable according to collapse *)
-    | _, _-> assert false
-
-  let lift f y = match y with
-    | `Right () -> `Right ()
-    | _-> assert false
-
-  let kill x (y:t): t = lift (VF.kill x) y
-  let replace x exp y = lift (VF.replace x exp) y
-
-  let is_bullet x = x = `Right ()
-  let bullet = `Right ()
-  let real_region (x:t): bool = match x with
-    | `Right () -> false
-    | _-> assert false
+  include B
+  let collapse (x:t) (y:t): bool = true
 end
 
 module RS = struct
   include PartitionDomain.Set (VFB)
-  let single_bullet = singleton (VFB.bullet)
-  let remove_bullet x = remove VFB.bullet x
-  let has_bullet x = exists VFB.is_bullet x
+  let single_bullet = singleton ()
+  let remove_bullet x = remove () x
+  let has_bullet x = not (is_empty x)
   let is_single_bullet rs =
     not (is_top rs) &&
     cardinal rs = 1 &&
     has_bullet rs
 
-  let kill x s = map (VFB.kill x) s
-  let replace x exp s = map (VFB.replace x exp) s
-end
-
-module RegPart = struct
-  include PartitionDomain.Make  (RS)
-  let real_region r =
-    RS.cardinal r > 1 || try VFB.real_region (RS.choose r)
-    with Not_found -> false
-
-  let add r p = if real_region r then add r p else p
 end
 
 module RegMap =
@@ -85,18 +39,6 @@ struct
   let is_global (v,fd) = v.vglob
   let remove v m = RegMap.remove (v, `NoOffset) m
   let remove_vars (vs: varinfo list) (cp:t): t = List.fold_right remove vs cp
-  let kill x m: t = RegMap.map (RS.kill x) m
-  let kill_vars vars st = List.fold_right kill vars st
-  let replace x exp m: t = RegMap.map (RS.replace x exp) m
-
-  let update x rval st =
-    match rval with
-    | Lval (Var y, NoOffset) when V.equal x y -> st
-    | BinOp (PlusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y ->
-      replace x (BinOp (MinusA, Lval (Var y, NoOffset), c, typ)) st
-    | BinOp (MinusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y ->
-      replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
-    | _ -> kill x st
 
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t =
@@ -149,16 +91,11 @@ struct
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
         if VF.equal x y then reg else
           let m = reg in begin
-            let append_offs_y = RS.map (function
-                | `Right () -> `Right ()
-                | _ -> assert false
-              )
-            in
             match is_global x, deref_x, is_global y with
             | false, false, true  ->
               reg
             | false, false, false ->
-              RegMap.add x (append_offs_y (RegMap.find y m)) m
+              RegMap.add x (RegMap.find y m) m
             (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
               add_set (RegMap.find x m) [x] reg
@@ -172,7 +109,7 @@ struct
       | _ -> reg
     end else if isIntegralType t then begin
       match lval with
-      | Var x, NoOffset -> update x rval reg
+      | Var x, NoOffset -> reg
       | _ -> reg
     end else
       match eval_exp (Lval lval) with
