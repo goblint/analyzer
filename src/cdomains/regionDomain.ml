@@ -6,14 +6,8 @@ open MusteqDomain
 
 module B = Lattice.UnitConf (struct let name = "•" end)
 
-module VFB =
-struct
-  include B
-  let collapse (x:t) (y:t): bool = true
-end
-
 module RS = struct
-  include PartitionDomain.Set (VFB)
+  include SetDomain.Make (B)
   let single_bullet = singleton ()
   let remove_bullet x = remove () x
   let has_bullet x = not (is_empty x)
