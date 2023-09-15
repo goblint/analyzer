@@ -15,7 +15,7 @@ struct
   include Analyses.DefaultSpec
 
   module D = RegionDomain.RegionDom
-  module G = RegPart
+  module G = Lattice.Unit
   module C = D
   module V =
   struct
@@ -23,15 +23,15 @@ struct
     include StdV
   end
 
-  let regions exp part st : Mval.Exp.t list =
+  let regions exp st : Mval.Exp.t list =
     match st with
     | `Lifted reg ->
       let ev = Reg.eval_exp exp in
-      Reg.related_globals ev (part,reg)
+      Reg.related_globals ev
     | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
-  let is_bullet exp part st : bool =
+  let is_bullet exp st : bool =
     match st with
     | `Lifted reg ->
       begin match Reg.eval_exp exp with
@@ -42,19 +42,17 @@ struct
     | `Bot -> true
 
   let get_region ctx e =
-    let regpart = ctx.global () in
-    if is_bullet e regpart ctx.local then
+    if is_bullet e ctx.local then
       None
     else
-      Some (regions e regpart ctx.local)
+      Some (regions e ctx.local)
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.Regions e ->
-      let regpart = ctx.global () in
-      if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
-        let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
+      if is_bullet e ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
+        let ls = List.fold_right Queries.LS.add (regions e ctx.local) (Queries.LS.empty ()) in
         ls
     | _ -> Queries.Result.top q
 
@@ -88,34 +86,24 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     match ctx.local with
-    | `Lifted reg ->
-      let old_regpart = ctx.global () in
-      let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
-      `Lifted reg
+    | `Lifted reg -> `Lifted (Reg.assign lval rval reg)
     | x -> x
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+  let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
+  let body ctx (f:fundec) : D.t = ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let locals = f.sformals @ f.slocals in
     match ctx.local with
     | `Lifted reg ->
-      let old_regpart = ctx.global () in
-      let regpart, reg = match exp with
+      let reg = match exp with
         | Some exp ->
           let module BS = (val Base.get_main ()) in
-          Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
-        | None -> (old_regpart, reg)
+          Reg.assign (BS.return_lval ()) exp reg
+        | None -> reg
       in
-      let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
-      if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
+      let reg = Reg.kill_vars locals (Reg.remove_vars locals reg) in
       `Lifted reg
     | x -> x
 
@@ -129,10 +117,7 @@ struct
     match ctx.local with
     | `Lifted reg ->
       let f x r reg = Reg.assign (var x) r reg in
-      let old_regpart = ctx.global () in
-      let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
+      let reg = fold_right2 f fundec.sformals args reg in
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
@@ -142,16 +127,13 @@ struct
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
     | `Lifted reg -> begin
-      let old_regpart = ctx.global () in
-      let module BS = (val Base.get_main ()) in
-      let regpart, reg = match lval with
-        | None -> (old_regpart, reg)
-        | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
-      in
-      let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (regpart, reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
-      `Lifted reg
+        let module BS = (val Base.get_main ()) in
+        let reg = match lval with
+          | None -> reg
+          | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) reg
+        in
+        let reg = Reg.remove_vars [BS.return_varinfo ()] reg in
+        `Lifted reg
       end
     | _ -> au
 
@@ -161,28 +143,18 @@ struct
     | Malloc _ | Calloc _ | Realloc _ -> begin
         match ctx.local, lval with
         | `Lifted reg, Some lv ->
-          let old_regpart = ctx.global () in
           (* TODO: should realloc use arg region if failed/in-place? *)
-          let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
-          if not (RegPart.leq regpart old_regpart) then
-            ctx.sideg () regpart;
+          let reg = Reg.assign_bullet lv reg in
           `Lifted reg
         | _ -> ctx.local
       end
-    | _ ->
-      ctx.local
+    | _ -> ctx.local
 
-  let startstate v =
-    `Lifted (RegMap.bot ())
-
-  let threadenter ctx lval f args =
-    [`Lifted (RegMap.bot ())]
+  let startstate v = `Lifted (RegMap.bot ())
+  let threadenter ctx lval f args = [`Lifted (RegMap.bot ())]
   let threadspawn ctx lval f args fctx = ctx.local
-
   let exitstate v = `Lifted (RegMap.bot ())
-
   let name () = "region"
 end
 
-let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+let _ = MCP.register_analysis (module Spec : MCPSpec)

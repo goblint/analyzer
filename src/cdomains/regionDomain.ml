@@ -78,25 +78,16 @@ end
 
 module Reg =
 struct
-  include Lattice.Prod (RegPart) (RegMap)
+  include RegMap
   type set = RS.t
   type elt = VF.t
 
-  let closure p m = RegMap.map (RegPart.closure p) m
-
   let is_global (v,fd) = v.vglob
-
-  let remove v (p,m) = p, RegMap.remove (v, `NoOffset) m
-  let remove_vars (vs: varinfo list) (cp:t): t =
-    List.fold_right remove vs cp
-
-  let kill x (p,m:t): t =
-    p, RegMap.map (RS.kill x) m
-
+  let remove v m = RegMap.remove (v, `NoOffset) m
+  let remove_vars (vs: varinfo list) (cp:t): t = List.fold_right remove vs cp
+  let kill x m: t = RegMap.map (RS.kill x) m
   let kill_vars vars st = List.fold_right kill vars st
-
-  let replace x exp (p,m:t): t =
-    RegPart.map (RS.replace x exp) p, RegMap.map (RS.replace x exp) m
+  let replace x exp m: t = RegMap.map (RS.replace x exp) m
 
   let update x rval st =
     match rval with
@@ -136,29 +127,28 @@ struct
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
-  let add_set (s:set) llist (p,m:t): t =
+  let add_set (s:set) llist m: t =
     if RS.has_bullet s then
       let f key value (ys, x) =
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
       let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
       let x = RS.remove_bullet x in
       if RS.is_empty x then
-        p, RegMap.add_list_set llist RS.single_bullet m
+        RegMap.add_list_set llist RS.single_bullet m
       else
-        RegPart.add x p, RegMap.add_list_set ys x m
+        RegMap.add_list_set ys x m
     else
-      let p = RegPart.add s p in
-      p, closure p m
+      m
 
-  let assign (lval: lval) (rval: exp) (st: t): t =
+  let assign (lval: lval) (rval: exp) reg: t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     let t = Cilfacade.typeOf rval in
     if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
       (* TODO: should offs_x matter? *)
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
-        if VF.equal x y then st else
-          let (p,m) = st in begin
+        if VF.equal x y then reg else
+          let m = reg in begin
             let append_offs_y = RS.map (function
                 | `Right () -> `Right ()
                 | _ -> assert false
@@ -166,35 +156,35 @@ struct
             in
             match is_global x, deref_x, is_global y with
             | false, false, true  ->
-              p, m
+              reg
             | false, false, false ->
-              p, RegMap.add x (append_offs_y (RegMap.find y m)) m
+              RegMap.add x (append_offs_y (RegMap.find y m)) m
             (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
-              add_set (RegMap.find x m) [x] st
+              add_set (RegMap.find x m) [x] reg
             | false, true , false ->
-              add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] st
+              add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] reg
             | true , _    , true  ->
-              add_set (RS.empty ()) [] st
+              add_set (RS.empty ()) [] reg
             | true , _    , false  ->
-              add_set (RegMap.find y m) [y] st
+              add_set (RegMap.find y m) [y] reg
           end
-      | _ -> st
+      | _ -> reg
     end else if isIntegralType t then begin
       match lval with
-      | Var x, NoOffset -> update x rval st
-      | _ -> st
+      | Var x, NoOffset -> update x rval reg
+      | _ -> reg
     end else
       match eval_exp (Lval lval) with
-      | Some (false, (x,_),_) -> remove x st
-      | _ -> st
+      | Some (false, (x,_),_) -> remove x reg
+      | _ -> reg
 
-  let assign_bullet lval (p,m:t):t =
+  let assign_bullet lval m: t =
     match eval_exp (Lval lval) with
-    | Some (_,x,_) -> p, RegMap.add x RS.single_bullet m
-    | _ -> p,m
+    | Some (_,x,_) -> RegMap.add x RS.single_bullet m
+    | _ -> m
 
-  let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
+  let related_globals (deref_vfd: eval_t) : elt list =
     match deref_vfd with
     | Some (true, vfd, os) -> []
     | Some (false, vfd, os) -> if is_global vfd then [vfd] else []
