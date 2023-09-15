@@ -441,8 +441,7 @@ struct
         D.top ()
       else
         let taint_exp =
-          Queries.AD.elements tainted
-          |> List.filter_map Addr.to_mval
+          Queries.AD.to_mval tainted
           |> List.map Addr.Mval.to_cil_exp
           |> Queries.ES.of_list
         in

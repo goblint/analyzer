@@ -755,7 +755,7 @@ struct
       | _ ->
         (* Depends on base for query. *)
         let ad = ctx.ask (Queries.EvalFunvar e) in
-        List.filter_map (fun addr -> Queries.AD.Addr.to_var addr) (Queries.AD.elements ad)
+        Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
     let one_function f =
       match f.vtype with

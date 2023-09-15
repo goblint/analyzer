@@ -128,7 +128,7 @@ struct
       Lockset.empty ()
     else
       let ad = ask.f Queries.MustLockset in
-      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ())
+      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ()) (* TODO: use AD as Lockset *)
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
