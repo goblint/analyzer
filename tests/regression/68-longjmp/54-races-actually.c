@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
-#include <goblint.h>
 #include <pthread.h>
 
 jmp_buf env_buffer;
@@ -44,7 +43,7 @@ int main() {
    }
 
    global = 5; //RACE
-   
+
    if(n == 0) {
       pthread_mutex_unlock(&mutex1);
    }
