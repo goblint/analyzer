@@ -5,16 +5,7 @@ open GobConfig
 open MusteqDomain
 
 module B = Lattice.UnitConf (struct let name = "•" end)
-
-module RS = struct
-  include SetDomain.Make (B)
-  let single_bullet = singleton ()
-  let is_single_bullet rs =
-    not (is_top rs) &&
-    cardinal rs = 1 &&
-    not (is_empty rs)
-
-end
+module RS = SetDomain.Make (B)
 
 module RegMap =
 struct
@@ -61,7 +52,7 @@ struct
    * owner... *)
   let add_set (s:set) llist (m:RegMap.t): t =
     if not (RS.is_empty s)
-    then RegMap.add_list_set llist RS.single_bullet m
+    then RegMap.add_list_set llist (RS.singleton ()) m
     else m
 
   let assign (lval: lval) (rval: exp) reg: t =
@@ -73,7 +64,7 @@ struct
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
         if VF.equal x y then reg else
           begin match is_global x, deref_x, is_global y with
-            | false, false, true  ->
+            | false, false, true ->
               reg
             | false, false, false ->
               RegMap.add x (RegMap.find y reg) reg
@@ -84,7 +75,7 @@ struct
               add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
             | true , _    , true  ->
               add_set (RS.empty ()) [] reg
-            | true , _    , false  ->
+            | true , _    , false ->
               add_set (RegMap.find y reg) [y] reg
           end
       | _ -> reg
@@ -99,7 +90,7 @@ struct
 
   let assign_bullet lval m: t =
     match eval_exp (Lval lval) with
-    | Some (_,x,_) -> RegMap.add x RS.single_bullet m
+    | Some (_,x,_) -> RegMap.add x (RS.singleton ()) m
     | _ -> m
 
   let related_globals (deref_vfd: eval_t) : elt list =
