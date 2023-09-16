@@ -34,7 +34,7 @@ struct
     match st with
     | `Lifted reg ->
       begin match Reg.eval_exp exp with
-        | Some (_,v,_) -> (try not (RegionDomain.RS.is_empty (RegMap.find v reg)) with Not_found -> false)
+        | Some (_,v,_) -> RegMap.find v reg
         | _ -> false
       end
     | `Top -> false

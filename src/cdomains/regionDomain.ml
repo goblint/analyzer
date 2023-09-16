@@ -4,8 +4,7 @@ open GoblintCil
 open GobConfig
 open MusteqDomain
 
-module B = Lattice.UnitConf (struct let name = "•" end)
-module RS = SetDomain.Make (B)
+module RS = BoolDomain.MayBool
 
 module RegMap =
 struct
@@ -51,8 +50,8 @@ struct
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
   let add_set (s:set) llist (m:RegMap.t): t =
-    if not (RS.is_empty s)
-    then RegMap.add_list_set llist (RS.singleton ()) m
+    if s
+    then RegMap.add_list_set llist true m
     else m
 
   let assign (lval: lval) (rval: exp) reg: t =
@@ -74,7 +73,7 @@ struct
             | false, true , false ->
               add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
             | true , _    , true  ->
-              add_set (RS.empty ()) [] reg
+              add_set false [] reg
             | true , _    , false ->
               add_set (RegMap.find y reg) [y] reg
           end
@@ -90,7 +89,7 @@ struct
 
   let assign_bullet lval m: t =
     match eval_exp (Lval lval) with
-    | Some (_,x,_) -> RegMap.add x (RS.singleton ()) m
+    | Some (_,x,_) -> RegMap.add x true m
     | _ -> m
 
   let related_globals (deref_vfd: eval_t) : elt list =
