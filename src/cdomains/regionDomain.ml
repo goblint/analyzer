@@ -8,45 +8,33 @@ module B = Printable.UnitConf (struct let name = "•" end)
 
 module VFB =
 struct
-  include Printable.Either (VF) (B)
+  include Printable.Either (Printable.Unit) (B)
 
   let printXml f = function
     | `Right () ->
       BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
-    | `Left x ->
-      BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" VF.printXml x
+    | `Left () ->
+      BatPrintf.fprintf f "<value>\n<data>\n\n</data>\n</value>\n"
 
-  let collapse (x:t) (y:t): bool =
-    match x,y with
-    | `Right (), `Right () -> true
-    | `Right (), _ | _, `Right () -> false
-    | `Left x, `Left y -> VF.collapse x y
+  let collapse (x:t) (y:t): bool = equal x y
 
-  let leq x y =
-    match x,y with
-    | `Right (), `Right () -> true
-    | `Right (), _ | _, `Right () -> false (* incomparable according to collapse *)
-    | `Left x, `Left y -> VF.leq x y
+  let leq x y = equal x y
 
   let join (x:t) (y:t) :t =
     match x,y with
     | `Right (), `Right () -> `Right ()
     | `Right (), _ | _, `Right () -> raise Lattice.Uncomparable (* incomparable according to collapse *)
-    | `Left x, `Left y -> `Left (VF.join x y)
+    | `Left (), `Left () -> `Left ()
 
-  let lift f y = match y with
-    | `Left y -> `Left (f y)
-    | `Right () -> `Right ()
+  let lift f y = y
 
   let kill x (y:t): t = lift (VF.kill x) y
   let replace x exp y = lift (VF.replace x exp) y
 
   let is_bullet x = x = `Right ()
   let bullet = `Right ()
-  let of_vf vf = `Left vf
-  let real_region (x:t): bool = match x with
-    | `Left (v,fd) -> F.real_region fd (v.vtype)
-    | `Right () -> false
+  let of_vf vf = `Left ()
+  let real_region (x:t): bool = x = `Left ()
 end
 
 module RS = struct
@@ -63,7 +51,7 @@ module RS = struct
   let to_vf_list s =
     let lst = elements s in
     let f x acc = match x with
-      | `Left vf -> vf :: acc
+      | `Left () -> () :: acc
       | `Right () -> acc
     in
     List.fold_right f lst []
@@ -171,7 +159,7 @@ struct
         if VF.equal x y then st else
           let (p,m) = st in begin
             let append_offs_y = RS.map (function
-                | `Left (v, offs) -> `Left (v, F.add_offset offs offs_y)
+                | `Left () -> `Left ()
                 | `Right () -> `Right ()
               )
             in
@@ -182,13 +170,13 @@ struct
               p, RegMap.add x (append_offs_y (RegMap.find y m)) m
             (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
-              add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
+              add_set (RS.join (RegMap.find x m) (RS.single_vf ())) [x] st
             | false, true , false ->
               add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] st
             | true , _    , true  ->
-              add_set (RS.join (RS.single_vf x) (RS.single_vf y)) [] st
+              add_set (RS.join (RS.single_vf ()) (RS.single_vf ())) [] st
             | true , _    , false  ->
-              add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
+              add_set (RS.join (RS.single_vf ()) (RegMap.find y m)) [y] st
           end
       | _ -> st
     end else if isIntegralType t then begin
@@ -205,8 +193,7 @@ struct
     | Some (_,x,_) -> p, RegMap.add x RS.single_bullet m
     | _ -> p,m
 
-  let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
-    let add_o o2 (v,o) = (v, F.add_offset o o2) in
+  let related_globals (deref_vfd: eval_t) (p,m: t) =
     match deref_vfd with
     | Some (true, vfd, os) ->
       let vfd_class =
@@ -216,10 +203,10 @@ struct
           RegMap.find vfd m
       in
       (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
-      List.map (add_o os) (RS.to_vf_list vfd_class)
+      vfd_class
     | Some (false, vfd, os) ->
-      if is_global vfd then [vfd] else []
-    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
+      if is_global vfd then RegPart.find_class (VFB.of_vf vfd) p else RS.empty ()
+    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; RS.empty ()
 end
 
 (* TODO: remove Lift *)

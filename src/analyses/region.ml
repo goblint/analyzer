@@ -23,13 +23,13 @@ struct
     include StdV
   end
 
-  let regions exp part st : Mval.Exp.t list =
+  let regions exp part st =
     match st with
     | `Lifted reg ->
       let ev = Reg.eval_exp exp in
       Reg.related_globals ev (part,reg)
-    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
-    | `Bot -> []
+    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; RegionDomain.RS.empty ()
+    | `Bot -> RegionDomain.RS.empty ()
 
   let is_bullet exp part st : bool =
     match st with
@@ -54,8 +54,7 @@ struct
     | Queries.Regions e ->
       let regpart = ctx.global () in
       if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
-        let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
-        ls
+        regions e regpart ctx.local
     | _ -> Queries.Result.top q
 
   module Lvals = SetDomain.Make (Mval.Exp)
@@ -83,7 +82,7 @@ struct
       (* TODO: remove regions that cannot be reached from the var*)
       (* forget specific indices *)
       (* TODO: If indices are topped, could they not be collected in the first place? *)
-      Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region ctx e)
+      Some (Lvals.empty ())
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
