@@ -16,8 +16,8 @@ let is_ignorable_type (t: typ): bool =
   | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
   | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
     begin match Cilfacade.split_anoncomp_name cname with
-      | (true, ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
-      | (false, ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
+      | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
+      | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
       | _ -> false
     end
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true

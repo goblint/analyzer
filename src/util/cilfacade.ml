@@ -342,22 +342,23 @@ let makeBinOp binop e1 e2 =
   let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
   e
 
-let anoncomp_name_regexp = Str.regexp {|^__anon\(struct\|union\)_\(.+\)_\([0-9]+\)$|}
+let anoncomp_name_regexp = Str.regexp {|^__anon\(struct\|union\)\(_\(.+\)\)?_\([0-9]+\)$|}
 
 let split_anoncomp_name name =
   (* __anonunion_pthread_mutexattr_t_488594144 *)
+  (* __anonunion_50 *)
   if Str.string_match anoncomp_name_regexp name 0 then (
     let struct_ = match Str.matched_group 1 name with
       | "struct" -> true
       | "union" -> false
       | _ -> assert false
     in
-    let name' = Str.matched_group 2 name in
-    let id = int_of_string (Str.matched_group 3 name) in
+    let name' = try Some (Str.matched_group 3 name) with Not_found -> None in
+    let id = int_of_string (Str.matched_group 4 name) in
     (struct_, name', id)
   )
   else
-    invalid_arg "Cilfacade.split_anoncomp_name"
+    invalid_arg ("Cilfacade.split_anoncomp_name: " ^ name)
 
 (** Pretty-print typsig like typ, because
     {!d_typsig} prints with CIL constructors. *)
