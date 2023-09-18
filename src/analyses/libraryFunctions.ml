@@ -117,12 +117,14 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wcrtomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]; drop "wc" []; drop "ps" [r_deep; w_deep]]);
     ("wcstombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r]; drop "size" []]);
     ("wcsrtombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r_deep; w]; drop "size" []; drop "ps" [r_deep; w_deep]]);
+    ("mbstowcs", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("atexit", unknown [drop "function" [s]]);
   ]
 
 (** C POSIX library functions.
@@ -246,6 +248,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("timer_gettime", unknown [drop "timerid" []; drop "curr_value" [w_deep]]);
     ("timer_getoverrun", unknown [drop "timerid" []]);
     ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("fstat", unknown [drop "fd" []; drop "buf" [w]]);
+    ("fstatat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "buf" [w]; drop "flags" []]);
     ("getpwnam", unknown [drop "name" [r]]);
     ("chdir", unknown [drop "path" [r]]);
     ("closedir", unknown [drop "dirp" [r]]);
@@ -292,6 +296,23 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w]]); (* only write res non-deep because it doesn't write to existing fields of res *)
     ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
     ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
+    ("memccpy", special [__ "dest" [w]; __ "src" [r]; drop "c" []; drop "n" []] @@ fun dest src -> Memcpy {dest; src});
+    ("dprintf", unknown (drop "fd" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("mkdtemp", unknown [drop "template" [r; w]]);
+    ("mkstemp", unknown [drop "template" [r; w]]);
+    ("regcomp", unknown [drop "preg" [w_deep]; drop "regex" [r]; drop "cflags" []]);
+    ("regexec", unknown [drop "preg" [r_deep]; drop "string" [r]; drop "nmatch" []; drop "pmatch" [w_deep]; drop "eflags" []]);
+    ("regfree", unknown [drop "preg" [f_deep]]);
+    ("ffs", unknown [drop "i" []]);
+    ("_exit", special [drop "status" []] Abort);
+    ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
+    ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
+    ("readlink", unknown [drop "path" [r]; drop "buf" [w]; drop "bufsz" []]);
+    ("wcswidth", unknown [drop "s" [r]; drop "n" []]);
+    ("link", unknown [drop "oldpath" [r]; drop "newpath" [r]]);
+    ("renameat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]]);
+    ("posix_fadvise", unknown [drop "fd" []; drop "offset" []; drop "len" []; drop "advice" []]);
+    ("getppid", unknown []);
   ]
 
 (** Pthread functions. *)
@@ -454,6 +475,9 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fopencookie", unknown [drop "cookie" []; drop "mode" [r]; drop "io_funcs" [s_deep]]); (* doesn't access cookie but passes it to io_funcs *)
     ("mempcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___mempcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("rawmemchr", unknown [drop "s" [r]; drop "c" []]);
+    ("memrchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
+    ("memmem", unknown [drop "haystack" [r]; drop "haystacklen" []; drop "needle" [r]; drop "needlelen" [r]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -470,6 +494,12 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
     ("madvise", unknown [drop "addr" []; drop "length" []; drop "advice" []]);
+    ("inotify_init1", unknown [drop "flags" []]);
+    ("inotify_add_watch", unknown [drop "fd" []; drop "pathname" [r]; drop "mask" []]);
+    ("inotify_rm_watch", unknown [drop "fd" []; drop "wd" []]);
+    ("fts_open", unknown [drop "path_argv" [r_deep]; drop "options" []; drop "compar" [s]]); (* TODO: use Call instead of Spawn *)
+    ("fts_read", unknown [drop "ftsp" [r_deep; w_deep]]);
+    ("fts_close", unknown [drop "ftsp" [f_deep]]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -801,10 +831,14 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wattrset", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []]);
     ("endwin", unknown []);
     ("wgetch", unknown [drop "win" [r_deep; w_deep]]);
+    ("wget_wch", unknown [drop "win" [r_deep; w_deep]; drop "wch" [w]]);
+    ("unget_wch", unknown [drop "wch" []]);
     ("wmove", unknown [drop "win" [r_deep; w_deep]; drop "y" []; drop "x" []]);
     ("waddch", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
+    ("waddnstr", unknown [drop "win" [r_deep; w_deep]; drop "str" [r]; drop "n" []]);
     ("waddnwstr", unknown [drop "win" [r_deep; w_deep]; drop "wstr" [r]; drop "n" []]);
     ("wattr_on", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []; drop "opts" []]); (* opts argument currently not used *)
+    ("wattr_off", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []; drop "opts" []]); (* opts argument currently not used *)
     ("wrefresh", unknown [drop "win" [r_deep; w_deep]]);
     ("mvprintw", unknown (drop "win" [r_deep; w_deep] :: drop "y" [] :: drop "x" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("initscr", unknown []);
@@ -813,10 +847,19 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("start_color", unknown []);
     ("use_default_colors", unknown []);
     ("wclear", unknown [drop "win" [r_deep; w_deep]]);
+    ("wclrtoeol", unknown [drop "win" [r_deep; w_deep]]);
     ("can_change_color", unknown []);
     ("init_color", unknown [drop "color" []; drop "red" []; drop "green" []; drop "blue" []]);
     ("init_pair", unknown [drop "pair" []; drop "f" [r]; drop "b" [r]]);
     ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
+    ("keyname", unknown [drop "c" []]);
+    ("newterm", unknown [drop "type" [r]; drop "outfd" [r_deep; w_deep]; drop "infd" [r_deep; w_deep]]);
+    ("cbreak", unknown []);
+    ("nonl", unknown []);
+    ("keypad", unknown [drop "win" [r_deep; w_deep]; drop "bf" []]);
+    ("set_escdelay", unknown [drop "size" []]);
+    ("printw", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("werase", unknown [drop "win" [r_deep; w_deep]]);
   ]
 
 let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
