@@ -60,15 +60,10 @@ struct
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
-    let module VS = Set.Make (CilType.Varinfo) in
     Q.AD.fold (fun m acc ->
-        Q.AD.fold (fun l acc ->
-            match l with
-            | Q.AD.Addr.Addr (v,_) -> VS.add v acc (* always `NoOffset from mutex analysis *)
-            | _ -> acc
-          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
-      ) (ask.f Q.MustLockset) VS.empty
-    |> VS.elements
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+      ) (ask.f Q.MustLockset) (Q.VS.empty ())
+    |> Q.VS.elements
 end
 
 module MutexGlobals =

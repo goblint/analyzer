@@ -114,7 +114,7 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
-  | MustProtectedVars: mustprotectedvars -> AD.t t
+  | MustProtectedVars: mustprotectedvars -> VS.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -179,7 +179,7 @@ struct
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
-    | MustProtectedVars _ -> (module AD)
+    | MustProtectedVars _ -> (module VS)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
@@ -243,7 +243,7 @@ struct
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
-    | MustProtectedVars _ -> AD.top ()
+    | MustProtectedVars _ -> VS.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
