@@ -918,21 +918,6 @@ let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t 
 let reset_lazy () =
   ResettableLazy.reset activated_library_descs
 
-type categories = [
-  | `Malloc       of exp
-  | `Calloc       of exp * exp
-  | `Realloc      of exp * exp
-  | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
-  | `Unlock
-  | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
-  | `ThreadJoin   of exp * exp (* id * ret_var *)
-  | `Unknown      of string ]
-
-
-let classify fn exps: categories =
-  fn
-
-
 module Invalidate =
 struct
   [@@@warning "-unused-value-declaration"] (* some functions are not used below *)
@@ -1221,7 +1206,7 @@ let is_safe_uncalled fn_name =
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
 
 
-let unknown_desc ~f name = (* TODO: remove name argument, unknown function shouldn't have classify *)
+let unknown_desc f =
   let old_accesses (kind: AccessKind.t) args = match kind with
     | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
     | Write -> []
@@ -1239,16 +1224,10 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
     else
       []
   in
-  let classify_name args =
-    match classify name args with
-    | `Unknown _ as category ->
-      (* TODO: remove hack when all classify are migrated *)
-      if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then
-        M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname;
-      category
-    | category -> category
-  in
-  LibraryDesc.of_old ~attrs old_accesses classify_name
+  (* TODO: remove hack when all classify are migrated *)
+  if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then
+    M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname;
+  LibraryDesc.of_old ~attrs old_accesses
 
 let find f =
   let name = f.vname in
@@ -1257,9 +1236,9 @@ let find f =
   | None ->
     match get_invalidate_action name with
     | Some old_accesses ->
-      LibraryDesc.of_old old_accesses (classify name)
+      LibraryDesc.of_old old_accesses
     | None ->
-      unknown_desc ~f name
+      unknown_desc f
 
 
 let is_special fv =
