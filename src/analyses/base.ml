@@ -108,7 +108,7 @@ struct
         | (info,(value:VD.t))::xs ->
           match value with
           | Address t when hasAttribute "goblint_array_domain" info.vattr ->
-            let possibleVars = List.to_seq (PreValueDomain.AD.to_var_may t) in
+            let possibleVars = List.to_seq (AD.to_var_may t) in
             Seq.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ Seq.filter (fun info -> isArrayType info.vtype) possibleVars
           | _ -> pointedArrayMap xs
       in
@@ -345,7 +345,7 @@ struct
           if AD.is_definite x && AD.is_definite y then
             let ax = AD.choose x in
             let ay = AD.choose y in
-            let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
+            let handle_address_is_multiple addr = begin match Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
                 if M.tracing then M.tracel "addr" "IsMultiple %a\n" CilType.Varinfo.pretty v;
                 None
@@ -353,7 +353,7 @@ struct
                 Some true
             end
             in
-            match AD.Addr.semantic_equal ax ay with
+            match Addr.semantic_equal ax ay with
             | Some true ->
               if M.tracing then M.tracel "addr" "semantic_equal %a %a\n" AD.pretty x AD.pretty y;
               handle_address_is_multiple ax
@@ -593,7 +593,7 @@ struct
         | Struct n    -> Struct (ValueDomain.Structs.map replace_val n)
         | Union (f,v) -> Union (f,replace_val v)
         | Blob (n,s,o)  -> Blob (replace_val n,s,o)
-        | Address x -> Address (ValueDomain.AD.map ValueDomain.Addr.top_indices x)
+        | Address x -> Address (AD.map ValueDomain.Addr.top_indices x)
         | x -> x
       in
       CPA.map replace_val st
@@ -613,16 +613,6 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
 
-  (* TODO: Use AddressDomain for queries *)
-  let convertToQueryLval = function
-    | ValueDomain.AD.Addr.Addr (v,o) -> [v, Addr.Offs.to_exp o]
-    | _ -> []
-
-  let addrToLvalSet a =
-    let add x y = Q.LS.add y x in
-    try
-      AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Q.LS.empty ())
-    with SetDomain.Unsupported _ -> Q.LS.top ()
 
   let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =
     let module TS = Queries.TS in
@@ -1262,9 +1252,10 @@ struct
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
-          let s = addrToLvalSet a in
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          if ValueDomainQueries.LS.exists (fun (v, o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset) s then
+          if AD.exists (function
+              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset
+              | _ -> false) a then
             Queries.Result.bot q
           else (
             let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
@@ -1277,11 +1268,7 @@ struct
       end
     | Q.MayPointTo e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Address a ->
-          let s = addrToLvalSet a in
-          if AD.mem Addr.UnknownPtr a
-          then Q.LS.add (dummyFunDec.svar, `NoOffset) s
-          else s
+        | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -1298,14 +1285,10 @@ struct
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe *)
-          let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in
-          let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
-          if AD.mem Addr.UnknownPtr a then
-            Q.LS.add (dummyFunDec.svar, `NoOffset) addrs (* add unknown back *)
-          else
-            addrs
-        | _ -> Q.LS.empty ()
+          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
+          let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
+          List.fold_left (AD.join) (AD.empty ()) addrs
+        | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -1332,7 +1315,8 @@ struct
           (* ignore @@ printf "EvalStr Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
           begin match unrollType (Cilfacade.typeOf e) with
             | TPtr(TInt(IChar, _), _) ->
-              let lval = Mval.Exp.to_cil @@ Q.LS.choose @@ addrToLvalSet a in
+              let mval = List.hd (AD.to_mval a) in
+              let lval = Addr.Mval.to_cil mval in
               (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> Queries.Result.top q)
             | _ -> (* what about ISChar and IUChar? *)
@@ -2010,14 +1994,21 @@ struct
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
+    let has_non_heap_var = AD.exists (function
+        | Addr (v,_) -> not (ctx.ask (Q.IsHeapVar v))
+        | _ -> false)
+    in
+    let has_non_zero_offset = AD.exists (function
+        | Addr (_,o) -> Offs.cmp_zero_offset o <> `MustZero
+        | _ -> false)
+    in
     match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
-      let points_to_set = addrToLvalSet a in
-      if Q.LS.is_top points_to_set then
+      if AD.is_top a then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
-      else if (Q.LS.exists (fun (v, _) -> not (ctx.ask (Q.IsHeapVar v))) points_to_set) || (AD.mem Addr.UnknownPtr a) then
+      else if has_non_heap_var a then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
-      else if Q.LS.exists (fun (_, o) -> Offset.Exp.cmp_zero_offset o <> `MustZero) points_to_set then
+      else if has_non_zero_offset a then
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 

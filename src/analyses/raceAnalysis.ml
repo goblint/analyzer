@@ -302,12 +302,12 @@ struct
         ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
 
-  let event ctx exp octx =
-    match exp with
-    | Events.Access {exp; lvals; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+  let event ctx e octx =
+    match e with
+    | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
-      let module LS = Queries.LS in
+      let module AD = Queries.AD in
       let part_access (vo:varinfo option): MCPAccess.A.t =
         (*partitions & locks*)
         Obj.obj (octx.ask (PartAccess (Memory {exp; var_opt=vo; kind})))
@@ -324,24 +324,24 @@ struct
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
          -- this is the common case if we have a sound points-to set. *)
-      let on_lvals ls includes_uk =
-        let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+      let on_ad ad includes_uk =
         let conf = if reach then conf - 20 else conf in
         let conf = if includes_uk then conf - 10 else conf in
-        let f (var, offs) =
-          let coffs = Offset.Exp.to_cil offs in
-          if CilType.Varinfo.equal var dummyFunDec.svar then
-            add_access conf None
-          else
-            add_access conf (Some (var, coffs))
+        let f addr =
+          match addr with
+          | AD.Addr.Addr (g,o) when g.vglob || has_escaped g ->
+            let coffs = ValueDomain.Offs.to_cil o in
+            add_access conf (Some (g, coffs))
+          | UnknownPtr -> add_access conf None
+          | _ -> ()
         in
-        LS.iter f ls
+        AD.iter f ad
       in
-      begin match lvals with
-        | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+      begin match ad with
+        | ad when not (AD.is_top ad) ->
           (* the case where the points-to set is non top and does not contain unknown values *)
-          on_lvals ls false
-        | ls when not (LS.is_top ls) ->
+          on_ad ad false
+        | ad ->
           (* the case where the points-to set is non top and contains unknown values *)
           let includes_uk = ref false in
           (* now we need to access all fields that might be pointed to: is this correct? *)
@@ -358,9 +358,9 @@ struct
               in
               Queries.TS.iter f ts
           end;
-          on_lvals ls !includes_uk
-        | _ ->
-          add_access (conf - 60) None
+          on_ad ad !includes_uk
+          (* | _ ->
+             add_access (conf - 60) None *) (* TODO: what about this case? *)
       end;
       ctx.local
     | _ ->

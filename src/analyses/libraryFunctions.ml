@@ -289,6 +289,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
     ("ftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []]); (* TODO: use Call instead of Spawn *)
     ("nftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []; drop "flags" []]); (* TODO: use Call instead of Spawn *)
+    ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w]]); (* only write res non-deep because it doesn't write to existing fields of res *)
     ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
     ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
   ]

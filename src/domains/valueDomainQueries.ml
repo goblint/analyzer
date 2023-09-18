@@ -4,6 +4,7 @@ open GoblintCil
 open BoolDomain
 
 module LS = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
+module AD = PreValueDomain.AD
 
 module ID =
 struct
@@ -44,7 +45,7 @@ struct
 end
 
 type eval_int = exp -> ID.t
-type may_point_to = exp -> LS.t
+type may_point_to = exp -> AD.t
 type is_multiple = varinfo -> bool
 
 (** Subset of queries used by the valuedomain, using a simpler representation. *)
