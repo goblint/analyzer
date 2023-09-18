@@ -11,53 +11,27 @@ struct
   include Printable.Either (Printable.Unit) (B)
 
   let printXml f = function
-    | `Right () ->
-      BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
-    | `Left () ->
-      BatPrintf.fprintf f "<value>\n<data>\n\n</data>\n</value>\n"
+    | `Right () -> BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
+    | `Left () -> BatPrintf.fprintf f "<value>\n<data>\n\n</data>\n</value>\n"
 
-  let collapse (x:t) (y:t): bool = equal x y
-
+  let collapse x y = equal x y
   let leq x y = equal x y
-
-  let join (x:t) (y:t) :t =
-    match x,y with
-    | `Right (), `Right () -> `Right ()
-    | `Right (), _ | _, `Right () -> raise Lattice.Uncomparable (* incomparable according to collapse *)
-    | `Left (), `Left () -> `Left ()
-
-  let lift f y = y
-
-  let kill x (y:t): t = lift (VF.kill x) y
-  let replace x exp y = lift (VF.replace x exp) y
+  let join x y =
+    match x, y with
+    | x, y when equal x y -> x
+    | _, _-> raise Lattice.Uncomparable (* incomparable according to collapse *)
 
   let is_bullet x = x = `Right ()
-  let bullet = `Right ()
-  let of_vf vf = `Left ()
   let real_region (x:t): bool = x = `Left ()
 end
 
 module RS = struct
   include PartitionDomain.Set (VFB)
-  let single_vf vf = singleton (VFB.of_vf vf)
-  let single_bullet = singleton (VFB.bullet)
-  let remove_bullet x = remove VFB.bullet x
+  let single_vf vf = singleton (`Left ())
+  let single_bullet = singleton (`Right ())
+  let remove_bullet x = remove (`Right ()) x
   let has_bullet x = exists VFB.is_bullet x
-  let is_single_bullet rs =
-    not (is_top rs) &&
-    cardinal rs = 1 &&
-    has_bullet rs
-
-  let to_vf_list s =
-    let lst = elements s in
-    let f x acc = match x with
-      | `Left () -> () :: acc
-      | `Right () -> acc
-    in
-    List.fold_right f lst []
-
-  let kill x s = map (VFB.kill x) s
-  let replace x exp s = map (VFB.replace x exp) s
+  let is_single_bullet rs = cardinal rs = 1 && has_bullet rs
 end
 
 module RegPart = struct
@@ -83,19 +57,7 @@ struct
 
   let is_global (v,fd) = v.vglob
   let remove v m = RegMap.remove (v, `NoOffset) m
-  let remove_vars (vs: varinfo list) (cp:t): t = List.fold_right remove vs cp
-  let kill x m: t = RegMap.map (RS.kill x) m
-  let kill_vars vars st = List.fold_right kill vars st
-  let replace x exp m: t = RegMap.map (RS.replace x exp) m
-
-  let update x rval st =
-    match rval with
-    | Lval (Var y, NoOffset) when V.equal x y -> st
-    | BinOp (PlusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y ->
-      replace x (BinOp (MinusA, Lval (Var y, NoOffset), c, typ)) st
-    | BinOp (MinusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y ->
-      replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
-    | _ -> kill x st
+  let remove_vars vs cp = List.fold_right remove vs cp
 
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t =
@@ -126,7 +88,7 @@ struct
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
-  let add_set (s:set) llist m: t =
+  let add_set s llist m =
     if RS.has_bullet s then
       let f key value (ys, x) =
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
@@ -139,7 +101,7 @@ struct
     else
       m
 
-  let assign (lval: lval) (rval: exp) reg: t =
+  let assign lval rval reg =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     let t = Cilfacade.typeOf rval in
     if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
@@ -148,16 +110,11 @@ struct
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
         if VF.equal x y then reg else
           let m = reg in begin
-            let append_offs_y = RS.map (function
-                | `Left () -> `Left ()
-                | `Right () -> `Right ()
-              )
-            in
             match is_global x, deref_x, is_global y with
             | false, false, true  ->
-              RegMap.add x (append_offs_y (RS.single_vf y)) reg
+              RegMap.add x (RS.single_vf y) reg
             | false, false, false ->
-              RegMap.add x (append_offs_y (RegMap.find y m)) m
+              RegMap.add x (RegMap.find y m) m
             (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
               add_set (RS.join (RegMap.find x m) (RS.single_vf ())) [x] reg
@@ -169,11 +126,9 @@ struct
               add_set (RS.join (RS.single_vf ()) (RegMap.find y m)) [y] reg
           end
       | _ -> reg
-    end else if isIntegralType t then begin
-      match lval with
-      | Var x, NoOffset -> update x rval reg
-      | _ -> reg
-    end else
+    end 
+    else if isIntegralType t then reg
+    else
       match eval_exp (Lval lval) with
       | Some (false, (x,_),_) -> remove x reg
       | _ -> reg
