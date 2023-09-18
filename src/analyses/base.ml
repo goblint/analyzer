@@ -1097,20 +1097,15 @@ struct
     | Int x -> ValueDomain.ID.to_int x
     | _ -> None
 
-  let eval_funvar ctx fval: varinfo list =
-    let exception OnlyUnknown in
-    try
-      let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
-      if AD.mem Addr.UnknownPtr fp then begin
-        let others = AD.to_var_may fp in
-        if others = [] then raise OnlyUnknown;
-        M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
-        dummyFunDec.svar :: others
-      end else
-        AD.to_var_may fp
-    with SetDomain.Unsupported _ | OnlyUnknown ->
-      M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;
-      [dummyFunDec.svar]
+  let eval_funvar ctx fval: Queries.AD.t =
+    let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
+    if AD.is_top fp then begin
+      if AD.cardinal fp = 1 then
+        (M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;)
+      else
+        (M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;)
+    end;
+    fp
 
   (** Evaluate expression as address.
       Avoids expensive Apron EvalInt if the Int result would be useless to us anyway. *)
@@ -1204,10 +1199,7 @@ struct
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
-      begin
-        let fs = eval_funvar ctx e in
-        List.fold_left (fun ad v -> Q.AD.join (Q.AD.of_var v) ad) (Q.AD.empty ()) fs
-      end
+      eval_funvar ctx e
     | Q.EvalJumpBuf e ->
       begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address jmp_buf ->
