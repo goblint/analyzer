@@ -64,6 +64,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
+    ("calloc", special [__ "n" []; __ "size" []] @@ fun n size -> Calloc {count = n; size});
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("free", special [__ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
@@ -434,6 +435,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
+    ("__builtin_alloca", special [__ "size" []] @@ fun size -> Malloc size);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -561,6 +563,10 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__cmpxchg_wrong_size", special [] Abort);
     ("__xadd_wrong_size", special [] Abort);
     ("__put_user_bad", special [] Abort);
+    ("kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
+    ("__kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
+    ("kzalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Calloc {count = Cil.one; size});
+    ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc iso_packets); (* TODO: iso_packets is size in bytes? *)
   ]
 
 (** Goblint functions. *)
@@ -924,27 +930,7 @@ type categories = [
 
 
 let classify fn exps: categories =
-  let strange_arguments () =
-    M.warn ~category:Program "%s arguments are strange!" fn;
-    `Unknown fn
-  in
-  match fn with
-  | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
-    begin match exps with
-      | size::_ -> `Malloc size
-      | _ -> strange_arguments ()
-    end
-  | "kzalloc" ->
-    begin match exps with
-      | size::_ -> `Calloc (Cil.one, size)
-      | _ -> strange_arguments ()
-    end
-  | "calloc" ->
-    begin match exps with
-      | n::size::_ -> `Calloc (n, size)
-      | _ -> strange_arguments ()
-    end
-  | x -> `Unknown x
+  fn
 
 
 module Invalidate =
@@ -1075,7 +1061,6 @@ let invalidate_actions = [
     "sigaddset", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
-    "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
     "dlclose", readsAll;(*safe*)
