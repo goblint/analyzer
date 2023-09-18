@@ -319,6 +319,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+    ("pthread_join", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
     ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("__pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
@@ -928,11 +929,6 @@ let classify fn exps: categories =
     `Unknown fn
   in
   match fn with
-  | "pthread_join" ->
-    begin match exps with
-      | [id; ret_var] -> `ThreadJoin (id, ret_var)
-      | _ -> strange_arguments ()
-    end
   | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
