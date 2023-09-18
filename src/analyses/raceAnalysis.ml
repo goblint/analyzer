@@ -225,9 +225,9 @@ struct
     | _ ->
       ()
 
-  let side_access ctx (conf, w, loc, e, a) ((memoroot, offset) as memo) =
+  let side_access ctx acc ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton (conf, w, loc, e, a)))));
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton acc))));
     side_vars ctx memo
 
   (** Side-effect empty access set for prefix-type_suffix race checking. *)
@@ -304,22 +304,22 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp=e; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
       let module AD = Queries.AD in
       let part_access (vo:varinfo option): MCPAccess.A.t =
         (*partitions & locks*)
-        Obj.obj (octx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
+        Obj.obj (octx.ask (PartAccess (Memory {exp; var_opt=vo; kind})))
       in
-      let loc = Option.get !Node.current_node in
+      let node = Option.get !Node.current_node in
       let add_access conf voffs =
-        let a = part_access (Option.map fst voffs) in
-        Access.add ~side:(side_access octx (conf, kind, loc, e, a)) ~side_empty:(side_access_empty octx) e voffs;
+        let acc = part_access (Option.map fst voffs) in
+        Access.add ~side:(side_access octx {conf; kind; node; exp; acc}) ~side_empty:(side_access_empty octx) exp voffs;
       in
       let add_access_struct conf ci =
-        let a = part_access None in
-        Access.add_one ~side:(side_access octx (conf, kind, loc, e, a)) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
+        let acc = part_access None in
+        Access.add_one ~side:(side_access octx {conf; kind; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
@@ -345,7 +345,7 @@ struct
           (* the case where the points-to set is non top and contains unknown values *)
           let includes_uk = ref false in
           (* now we need to access all fields that might be pointed to: is this correct? *)
-          begin match octx.ask (ReachableUkTypes e) with
+          begin match octx.ask (ReachableUkTypes exp) with
             | ts when Queries.TS.is_top ts ->
               includes_uk := true
             | ts ->
@@ -370,12 +370,13 @@ struct
     (* perform shallow and deep invalidate according to Library descriptors *)
     let desc = LibraryFunctions.find f in
     if List.mem LibraryDesc.ThreadUnsafe desc.attrs then (
-      let e = Lval (Var f, NoOffset) in
+      let exp = Lval (Var f, NoOffset) in
       let conf = 110 in
-      let loc = Option.get !Node.current_node in
+      let kind = AccessKind.Call in
+      let node = Option.get !Node.current_node in
       let vo = Some f in
-      let a = Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind=Call}))) in
-      side_access ctx (conf, Call, loc, e, a) ((`Var f), `NoOffset) ;
+      let acc = Obj.obj (ctx.ask (PartAccess (Memory {exp; var_opt=vo; kind}))) in
+      side_access ctx {conf; kind; node; exp; acc} ((`Var f), `NoOffset) ;
     );
     ctx.local
 

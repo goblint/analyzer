@@ -16,8 +16,8 @@ let is_ignorable_type (t: typ): bool =
   | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
   | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
     begin match Cilfacade.split_anoncomp_name cname with
-      | (true, ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
-      | (false, ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
+      | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
+      | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
       | _ -> false
     end
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
@@ -329,12 +329,18 @@ and distribute_access_type f = function
 module A =
 struct
   include Printable.Std
-  type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
+  type t = {
+    conf : int;
+    kind : AccessKind.t;
+    node : Node.t;
+    exp : CilType.Exp.t;
+    acc : MCPAccess.A.t;
+  } [@@deriving eq, ord, hash]
 
   let name () = "access"
 
-  let pretty () (conf, kind, node, e, lp) =
-    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
+  let pretty () {conf; kind; node; exp; acc} =
+    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty exp MCPAccess.A.pretty acc
 
   include Printable.SimplePretty (
     struct
@@ -343,10 +349,8 @@ struct
     end
     )
 
-  let conf (conf, _, _, _, _) = conf
-
-  let relift (conf, kind, node, e, a) =
-    (conf, kind, node, e, MCPAccess.A.relift a)
+  let relift {conf; kind; node; exp; acc} =
+    {conf; kind; node; exp; acc = MCPAccess.A.relift acc}
 end
 
 module AS =
@@ -354,17 +358,17 @@ struct
   include SetDomain.Make (A)
 
   let max_conf accs =
-    accs |> elements |> List.map A.conf |> (List.max ~cmp:Int.compare)
+    accs |> elements |> List.map (fun {A.conf; _} -> conf) |> (List.max ~cmp:Int.compare)
 end
 
 
 (* Check if two accesses may race and if yes with which confidence *)
-let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),loc2,e2,a2) =
+let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
   if kind = Read && kind2 = Read then
     false (* two read/read accesses do not race *)
   else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
     false
-  else if not (MCPAccess.A.may_race a a2) then
+  else if not (MCPAccess.A.may_race acc acc2) then
     false (* analysis-specific information excludes race *)
   else
     true
@@ -487,7 +491,7 @@ let race_conf accs =
   if AS.cardinal accs = 1 then ( (* singleton component *)
     let acc = AS.choose accs in
     if may_race acc acc then (* self-race *)
-      Some (A.conf acc)
+      Some (acc.conf)
     else
       None
   )
@@ -516,9 +520,8 @@ let print_accesses memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let h (conf,kind,node,e,a) =
-      let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
-      let doc = dprintf "%t  (exp: %a)" d_msg d_exp e in
+    let h A.{conf; kind; node; exp; acc} =
+      let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs
