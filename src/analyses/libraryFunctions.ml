@@ -828,7 +828,7 @@ let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 
 let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
-    ("inflate", unknown [drop "strm" [r_deep]; drop "flush" []]);
+    ("inflate", unknown [drop "strm" [r_deep; w_deep]; drop "flush" []]);
     ("inflateInit2", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []]);
     ("inflateInit2_", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []; drop "version" [r]; drop "stream_size" []]);
     ("inflateEnd", unknown [drop "strm" [f_deep]]);
@@ -837,7 +837,7 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("lzma_code", unknown [drop "strm" [r_deep; w_deep]; drop "action" []]);
     ("lzma_auto_decoder", unknown [drop "strm" [r_deep; w_deep]; drop "memlimit" []; drop "flags" []]);
-    ("lzma_end", unknown [drop "strm" [r_deep; w_deep]]);
+    ("lzma_end", unknown [drop "strm" [r_deep; w_deep; f_deep]]);
   ]
 
 let libraries = Hashtbl.of_list [
