@@ -19,12 +19,12 @@ struct
 
   let assign_lval (ask: Queries.ask) lval local =
     match ask.f (MayPointTo (AddrOf lval)) with
-    | ls when Queries.LS.is_top ls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls ->
-      D.empty ()
-    | ls when Queries.LS.exists (fun (v, _) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)) ls ->
-      D.empty ()
-    | _ ->
-      local
+    | ad when Queries.AD.is_top ad -> D.empty ()
+    | ad when Queries.AD.exists (function
+        | Queries.AD.Addr.Addr (v,_) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)
+        | _ -> false
+      ) ad -> D.empty ()
+    | _ -> local
 
   let assign ctx lval rval =
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local

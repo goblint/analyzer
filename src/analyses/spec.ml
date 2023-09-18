@@ -203,15 +203,14 @@ struct
     match q with
     | _ -> Queries.Result.top q
 
-  let query_lv ask exp =
+  let query_addrs ask exp =
     match ask (Queries.MayPointTo exp) with
-    | l when not (Queries.LS.is_top l) ->
-      Queries.LS.elements l
+    | ad when not (Queries.AD.is_top ad) -> Queries.AD.elements ad
     | _ -> []
 
   let eval_fv ask exp: varinfo option =
-    match query_lv ask exp with
-    | [(v,_)] -> Some v
+    match query_addrs ask exp with
+    | [addr] -> Queries.AD.Addr.to_var_may addr
     | _ -> None
 
 

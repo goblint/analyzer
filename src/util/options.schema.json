@@ -1290,7 +1290,10 @@
               "goblint",
               "sv-comp",
               "ncurses",
-              "zstd"
+              "zstd",
+              "pcre",
+              "zlib",
+              "liblzma"
             ]
           },
           "default": [

@@ -3,9 +3,9 @@
 
 // (int)   (S)     (T)     (U)
 //    \   /   \   /   \   /
-//     >f<      s       t
+//     >f<     >s<      t
 //        \   /   \   /
-//         >f<      s
+//          f       s
 //            \   /
 //              f
 
@@ -35,6 +35,7 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  getT()->s.field = 2; // RACE!
+  struct S s1;
+  getT()->s = s1; // RACE!
   return 0;
 }
