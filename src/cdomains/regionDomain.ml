@@ -91,31 +91,26 @@ struct
       m
 
   let assign lval rval reg =
-    (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     let t = Cilfacade.typeOf rval in
-    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
+    if isPointerType t then (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
-      (* TODO: should offs_x matter? *)
-      | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
-        if VF.equal x y then reg else
-          let m = reg in begin
-            match is_global x, deref_x, is_global y with
-            | false, false, true  ->
-              RegMap.add x (RS.single_vf y) reg
-            | false, false, false ->
-              RegMap.add x (RegMap.find y m) m
-            (* TODO: use append_offs_y also in the following cases? *)
-            | false, true , true ->
-              add_set (RS.join (RegMap.find x m) (RS.single_vf ())) [x] reg
-            | false, true , false ->
-              add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] reg
-            | true , _    , true  ->
-              add_set (RS.join (RS.single_vf ()) (RS.single_vf ())) [] reg
-            | true , _    , false  ->
-              add_set (RS.join (RS.single_vf ()) (RegMap.find y m)) [y] reg
-          end
-      | _ -> reg
-    end 
+      | Some (_,x,_), Some (_,y,_) when VF.equal x y -> reg
+      | Some (deref_x,x,_), Some (deref_y,y,_) -> begin
+          match is_global x, deref_x, is_global y with
+          | false, false, true  ->
+            RegMap.add x (RS.single_vf y) reg
+          | false, false, false ->
+            RegMap.add x (RegMap.find y reg) reg
+          | false, true , true  ->
+            add_set (RS.join (RegMap.find x reg) (RS.single_vf ())) [x] reg
+          | false, true , false ->
+            add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
+          | true , _    , true  ->
+            add_set (RS.join (RS.single_vf ()) (RS.single_vf ())) [] reg
+          | true , _    , false ->
+            add_set (RS.join (RS.single_vf ()) (RegMap.find y reg)) [y] reg
+        end
+      | _ -> reg 
     else if isIntegralType t then reg
     else
       match eval_exp (Lval lval) with
