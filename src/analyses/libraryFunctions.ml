@@ -299,6 +299,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
     ("memccpy", special [__ "dest" [w]; __ "src" [r]; drop "c" []; drop "n" []] @@ fun dest src -> Memcpy {dest; src});
     ("dprintf", unknown (drop "fd" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("vdprintf", unknown [drop "fd" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mkdtemp", unknown [drop "template" [r; w]]);
     ("mkstemp", unknown [drop "template" [r; w]]);
     ("regcomp", unknown [drop "preg" [w_deep]; drop "regex" [r]; drop "cflags" []]);
@@ -314,6 +315,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("renameat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]]);
     ("posix_fadvise", unknown [drop "fd" []; drop "offset" []; drop "len" []; drop "advice" []]);
     ("getppid", unknown []);
+    ("lockf", unknown [drop "fd" []; drop "cmd" []; drop "len" []]);
   ]
 
 (** Pthread functions. *)
@@ -321,6 +323,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
     ("pthread_join", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
+    ("pthread_kill", unknown [drop "thread" []; drop "sig" []]);
     ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("__pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
@@ -481,6 +484,8 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("rawmemchr", unknown [drop "s" [r]; drop "c" []]);
     ("memrchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
     ("memmem", unknown [drop "haystack" [r]; drop "haystacklen" []; drop "needle" [r]; drop "needlelen" [r]]);
+    ("getifaddrs", unknown [drop "ifap" [w]]);
+    ("freeifaddrs", unknown [drop "ifa" [f_deep]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
