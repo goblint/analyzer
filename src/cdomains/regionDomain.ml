@@ -26,7 +26,7 @@ struct
 end
 
 module RS = struct
-  include PartitionDomain.Set (VFB)
+  include SetDomain.Make (VFB)
   let single_vf vf = singleton (`Left ())
   let single_bullet = singleton (`Right ())
   let remove_bullet x = remove (`Right ()) x
