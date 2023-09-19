@@ -1270,6 +1270,7 @@ struct
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
+        | Int i -> AD.of_int i
         | _ -> Queries.Result.top q
       end
     | Q.EvalThread e -> begin
@@ -1292,6 +1293,7 @@ struct
             AD.add UnknownPtr addrs' (* add unknown back *)
           else
             addrs'
+        | Int i -> AD.of_int i
         | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
