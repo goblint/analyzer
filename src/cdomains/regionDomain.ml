@@ -63,14 +63,12 @@ struct
       | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, `NoOffset)) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
       | CastE (typ, exp) -> eval_rval deref exp
-      | BinOp (MinusPI, p, i, typ)
-      | BinOp (PlusPI, p, i, typ)
-      | BinOp (IndexPI, p, i, typ) -> eval_rval deref p
+      | BinOp ((MinusPI | PlusPI | IndexPI), p, i, typ) -> eval_rval deref p
       | _ -> None
     and eval_lval deref lval =
       match lval with
       | (Var x, offs) -> Some (deref, (x, offsornot offs), `NoOffset)
-      | (Mem exp,offs) ->
+      | (Mem exp, offs) ->
         match eval_rval true exp with
         | Some (deref, v, _) -> Some (deref, v, offsornot offs)
         | x -> x
