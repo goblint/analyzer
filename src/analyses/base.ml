@@ -1293,7 +1293,12 @@ struct
             AD.add UnknownPtr addrs' (* add unknown back *)
           else
             addrs'
-        | Int i -> AD.of_int i
+        | Int i ->
+          begin match Cilfacade.typeOf e with
+            | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
+            | _
+            | exception Cilfacade.TypeOfError _ -> AD.empty () (* avoid unknown pointer result for non-pointer expression *)
+          end
         | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
