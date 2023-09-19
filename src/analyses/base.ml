@@ -1287,7 +1287,11 @@ struct
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
           let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
-          List.fold_left (AD.join) (AD.empty ()) addrs
+          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
+          if AD.may_be_unknown a then
+            AD.add UnknownPtr addrs' (* add unknown back *)
+          else
+            addrs'
         | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
