@@ -34,15 +34,6 @@ module RS = struct
   let is_single_bullet rs = cardinal rs = 1 && has_bullet rs
 end
 
-module RegPart = struct
-  include PartitionDomain.Make  (RS)
-  let real_region r =
-    RS.cardinal r > 1 || try VFB.real_region (RS.choose r)
-    with Not_found -> false
-
-  let add r p = if real_region r then add r p else p
-end
-
 module RegMap =
 struct
   include MapDomain.MapBot (VF) (RS)
