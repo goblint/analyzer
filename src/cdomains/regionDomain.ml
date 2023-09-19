@@ -26,12 +26,13 @@ struct
 end
 
 module RS = struct
-  include SetDomain.Make (VFB)
-  let single_vf vf = singleton (`Left ())
-  let single_bullet = singleton (`Right ())
-  let remove_bullet x = remove (`Right ()) x
-  let has_bullet x = mem (`Right ()) x
-  let is_single_bullet rs = cardinal rs = 1 && has_bullet rs
+  include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
+  let single_vf vf = (true, false)
+  let single_bullet = (false, true)
+  let remove_bullet (l, _) = (l, false)
+  let has_bullet (_, r) = r = true
+  let is_single_bullet (l, r) = l = false && r = true
+  let is_empty (l, r) = l = false && r = false
 end
 
 module RegMap =
