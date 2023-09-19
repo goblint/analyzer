@@ -30,7 +30,7 @@ module RS = struct
   let single_vf vf = singleton (`Left ())
   let single_bullet = singleton (`Right ())
   let remove_bullet x = remove (`Right ()) x
-  let has_bullet x = exists VFB.is_bullet x
+  let has_bullet x = mem (`Right ()) x
   let is_single_bullet rs = cardinal rs = 1 && has_bullet rs
 end
 
@@ -77,16 +77,14 @@ struct
     in
     eval_rval false exp
 
-  (* This is the main logic for dealing with the bullet and finding it an
-   * owner... *)
+  (* This is the main logic for dealing with the bullet and finding it an owner... *)
   let add_set s llist m =
     if RS.has_bullet s then
       let f key value (ys, x) =
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
       let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
-      let x = RS.remove_bullet x in
-      if RS.is_empty x then
-        RegMap.add_list_set llist RS.single_bullet m
+      if RS.is_single_bullet x then
+        RegMap.add_list_set llist x m
       else
         RegMap.add_list_set ys x m
     else
