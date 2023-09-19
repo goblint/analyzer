@@ -65,10 +65,7 @@ struct
       Some (Lvals.empty ())
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    match ctx.local with
-    | `Lifted reg -> `Lifted (Reg.assign lval rval reg)
-    | x -> x
+  let assign ctx (lval:lval) (rval:exp) : D.t = Reg.assign lval rval ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
 
@@ -76,16 +73,14 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let locals = f.sformals @ f.slocals in
-    match ctx.local with
-    | `Lifted reg ->
-      let reg = match exp with
-        | Some exp ->
-          let module BS = (val Base.get_main ()) in
-          Reg.assign (BS.return_lval ()) exp reg
-        | None -> reg
-      in
-      `Lifted (Reg.remove_vars locals reg)
-    | x -> x
+    let reg = ctx.local in
+    let reg = match exp with
+      | Some exp ->
+        let module BS = (val Base.get_main ()) in
+        Reg.assign (BS.return_lval ()) exp reg
+      | None -> reg
+    in
+    Reg.remove_vars locals reg
 
 
   let enter ctx (lval: lval option) (fundec:fundec) (args:exp list) : (D.t * D.t) list =
@@ -94,46 +89,32 @@ struct
       | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
       | _ -> r
     in
-    match ctx.local with
-    | `Lifted reg ->
-      let f x r reg = Reg.assign (var x) r reg in
-      let reg = fold_right2 f fundec.sformals args reg in
-      [ctx.local, `Lifted reg]
-    | x -> [x,x]
+    let f x r reg = Reg.assign (var x) r reg in
+    let reg = fold_right2 f fundec.sformals args ctx.local in
+    [ctx.local, reg]
 
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    match au with
-    | `Lifted reg -> begin
-        let module BS = (val Base.get_main ()) in
-        let reg = match lval with
-          | None -> reg
-          | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) reg
-        in
-        let reg = Reg.remove_vars [BS.return_varinfo ()] reg in
-        `Lifted reg
-      end
-    | _ -> au
+    let module BS = (val Base.get_main ()) in
+    let reg = match lval with
+      | None -> au
+      | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) au
+    in
+    Reg.remove_vars [BS.return_varinfo ()] reg
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
-    match desc.special arglist with
-    | Malloc _ | Calloc _ | Realloc _ -> begin
-        match ctx.local, lval with
-        | `Lifted reg, Some lv ->
-          (* TODO: should realloc use arg region if failed/in-place? *)
-          let reg = Reg.assign_bullet lv reg in
-          `Lifted reg
-        | _ -> ctx.local
-      end
-    | _ -> ctx.local
+    match desc.special arglist, lval with
+    (* TODO: should realloc use arg region if failed/in-place? *)
+    | (Malloc _ | Calloc _ | Realloc _), Some lv -> Reg.assign_bullet lv ctx.local   
+    | _, _ -> ctx.local
 
-  let startstate v = `Lifted (RegMap.bot ())
-  let threadenter ctx lval f args = [`Lifted (RegMap.bot ())]
+  let startstate v = RegMap.bot ()
+  let threadenter ctx lval f args = [RegMap.bot ()]
   let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate v = `Lifted (RegMap.bot ())
+  let exitstate v = RegMap.bot ()
   let name () = "region"
 end
 
