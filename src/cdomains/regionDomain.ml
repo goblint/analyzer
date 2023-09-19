@@ -4,27 +4,6 @@ open GoblintCil
 open GobConfig
 open MusteqDomain
 
-module B = Printable.UnitConf (struct let name = "•" end)
-
-module VFB =
-struct
-  include Printable.Either (Printable.Unit) (B)
-
-  let printXml f = function
-    | `Right () -> BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
-    | `Left () -> BatPrintf.fprintf f "<value>\n<data>\n\n</data>\n</value>\n"
-
-  let collapse x y = equal x y
-  let leq x y = equal x y
-  let join x y =
-    match x, y with
-    | x, y when equal x y -> x
-    | _, _-> raise Lattice.Uncomparable (* incomparable according to collapse *)
-
-  let is_bullet x = x = `Right ()
-  let real_region (x:t): bool = x = `Left ()
-end
-
 module RS = struct
   include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
   let single_vf vf = (true, false)
