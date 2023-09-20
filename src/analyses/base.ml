@@ -150,8 +150,8 @@ struct
 
   let longjmp_return = ref dummyFunDec.svar
 
-  let heap_var ctx =
-    let info = match (ctx.ask Q.HeapVar) with
+  let heap_var on_stack ctx =
+    let info = match (ctx.ask (Q.HeapVar {on_stack = on_stack})) with
       | `Lifted vinfo -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
@@ -1254,7 +1254,7 @@ struct
         | Address a ->
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           if AD.exists (function
-              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset
+              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || (ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsDynamicallyAlloced v)) || o <> `NoOffset
               | _ -> false) a then
             Queries.Result.bot q
           else (
@@ -1995,7 +1995,7 @@ struct
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
-        | Addr (v,_) -> not (ctx.ask (Q.IsHeapVar v))
+        | Addr (v,_) -> not (ctx.ask (Q.IsHeapVar v)) || (ctx.ask (Q.IsHeapVar v) && not @@ ctx.ask (Q.IsDynamicallyAlloced v))
         | _ -> false)
     in
     let has_non_zero_offset = AD.exists (function
@@ -2263,13 +2263,14 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
-    | Malloc size, _ -> begin
+    | Malloc size, fname -> begin
         match lv with
         | Some lv ->
+          let is_stack_alloc = fname = "alloc" || fname = "__builtin_alloca" in
           let heap_var =
             if (get_bool "sem.malloc.fail")
-            then AD.join (AD.of_var (heap_var ctx)) AD.null_ptr
-            else AD.of_var (heap_var ctx)
+            then AD.join (AD.of_var (heap_var is_stack_alloc ctx)) AD.null_ptr
+            else AD.of_var (heap_var is_stack_alloc ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
@@ -2279,7 +2280,7 @@ struct
     | Calloc { count = n; size }, _ ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = heap_var ctx in
+          let heap_var = heap_var false ctx in
           let add_null addr =
             if get_bool "sem.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
@@ -2322,7 +2323,7 @@ struct
           let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ask gs st size in
           let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
-          let heap_addr = AD.of_var (heap_var ctx) in
+          let heap_addr = AD.of_var (heap_var false ctx) in
           let heap_addr' =
             if get_bool "sem.malloc.fail" then
               AD.join heap_addr AD.null_ptr
@@ -2563,6 +2564,7 @@ struct
                 | MayBeThreadReturn
                 | PartAccess _
                 | IsHeapVar _
+                | IsDynamicallyAlloced _
                 | IsMultiple _
                 | CreatedThreads
                 | MustJoinedThreads ->
