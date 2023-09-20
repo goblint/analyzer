@@ -12,9 +12,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
-    ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
+    ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src }); (* TODO: use n *)
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("memccpy", special [__ "dest" [w]; __ "src" [r]; drop "c" []; drop "n" []] @@ fun dest src -> Memcpy {dest; src}); (* C23 *) (* TODO: use n and c *)
     ("memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memmove_chk", special [__ "dest" [w]; __ "src" [r]; drop "count" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
@@ -297,7 +298,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w]]); (* only write res non-deep because it doesn't write to existing fields of res *)
     ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
     ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
-    ("memccpy", special [__ "dest" [w]; __ "src" [r]; drop "c" []; drop "n" []] @@ fun dest src -> Memcpy {dest; src});
     ("dprintf", unknown (drop "fd" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("vdprintf", unknown [drop "fd" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mkdtemp", unknown [drop "template" [r; w]]);
