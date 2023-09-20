@@ -1,5 +1,6 @@
 // Thread pool dynamic array sequential joining.
-// Extracted from concrat/klib.
+// Extracted from concrat/klib, concrat/minimap2.
+// Thread pool from some common library?
 #include <stdlib.h>
 #include <pthread.h>
 #include <goblint.h>
