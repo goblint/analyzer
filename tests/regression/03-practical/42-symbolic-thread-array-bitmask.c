@@ -12,7 +12,7 @@ pthread_mutex_t threads_mask_mutex = PTHREAD_MUTEX_INITIALIZER;
 int *datas;
 
 void *thread(void *arg) {
-  int j = *((int*) arg);
+  int j = arg;
   datas[j] = __VERIFIER_nondet_int(); // NORACE
 
   pthread_mutex_lock(&threads_mask_mutex);

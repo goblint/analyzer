@@ -26,7 +26,7 @@ int data = 0;
 pthread_mutex_t data_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *thread(void *arg) {
-  int i = *((int*) arg);
+  int i = arg;
   pthread_mutex_lock(&data_mutex);
   data = __VERIFIER_nondet_int(); // NORACE
   pthread_mutex_unlock(&data_mutex);

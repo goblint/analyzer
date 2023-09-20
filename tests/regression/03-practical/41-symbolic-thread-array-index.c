@@ -7,7 +7,7 @@ extern int __VERIFIER_nondet_int();
 int *datas;
 
 void *thread(void *arg) {
-  int i = *((int*) arg);
+  int i = arg;
   datas[i] = __VERIFIER_nondet_int(); // NORACE
   return NULL;
 }
