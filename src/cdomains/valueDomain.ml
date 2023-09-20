@@ -73,7 +73,7 @@ struct
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 end
 
-module Threads = ConcDomain.ThreadSet
+module Threads = ConcDomain.ThreadSetMustJoined
 module JmpBufs = JmpBufDomain.JmpBufSetTaint
 
 module rec Compound: sig
@@ -146,7 +146,7 @@ struct
       let typAttr = typeAttrs ai in
       let len = array_length_idx (IndexDomain.bot ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
-    | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ())
+    | t when is_thread_type t -> Thread (true, ConcDomain.ThreadSet.empty ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.bot ())
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.Bufs.empty (), false)
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
@@ -958,7 +958,7 @@ struct
           | Thread t -> value (* if actually assigning thread, use value *)
           | _ ->
             if !AnalysisState.global_initialization then
-              Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+              Thread (true, ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
             else
               Top
         end

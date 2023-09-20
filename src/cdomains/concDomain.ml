@@ -2,6 +2,7 @@
 
 module ThreadSet = SetDomain.ToppedSet (ThreadIdDomain.Thread) (struct let topname = "All Threads" end)
 module MustThreadSet = SetDomain.Reverse(ThreadSet)
+module ThreadSetMustJoined = Lattice.Prod (BoolDomain.MustBool) (ThreadSet)
 
 module CreatedThreadSet = ThreadSet
 

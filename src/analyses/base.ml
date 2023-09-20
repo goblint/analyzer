@@ -1276,7 +1276,7 @@ struct
         let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
         match v with
-        | Thread a -> a
+        | Thread a -> snd a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -2251,9 +2251,14 @@ struct
         | Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | Thread a ->
-              let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
+              let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ConcDomain.ThreadSet.elements (snd a))) in
               (* TODO: is this type right? *)
-              set ~ctx (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
+              let res = set ~ctx (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v in
+              (match ConcDomain.ThreadSet.elements (snd a), id with
+              | _::_, Lval l ->
+                let lv = eval_lv (Analyses.ask_of_ctx ctx) gs st l in
+                set ~ctx (Analyses.ask_of_ctx ctx) gs res lv (Cilfacade.typeOf id) (Thread (true, snd a))
+              | _ -> res)
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
@@ -2677,7 +2682,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
+      set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (false, ConcDomain.ThreadSet.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
     | Events.Unassume {exp; uuids} ->
