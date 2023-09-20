@@ -1,4 +1,4 @@
-// Thread pool joining via threads alive counter.
+// Thread pool joining via threads alive counter incremented inside of thread.
 // Extracted from concrat/C-Thread-Pool.
 #include <stdbool.h>
 #include <pthread.h>
