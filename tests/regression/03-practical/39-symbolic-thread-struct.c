@@ -1,5 +1,5 @@
 // Per-thread structs passed via argument.
-// Extracted from concrat/C-Thread-Pool.
+// Extracted from concrat/C-Thread-Pool, concrat/snoopy.
 #include <stdlib.h>
 #include <pthread.h>
 #include <goblint.h>
