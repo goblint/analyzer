@@ -571,7 +571,7 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
     ("__kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
     ("kzalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Calloc {count = Cil.one; size});
-    ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc iso_packets); (* TODO: iso_packets is size in bytes? *)
+    ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
   ]
 
 (** Goblint functions. *)
