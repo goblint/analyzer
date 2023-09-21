@@ -84,10 +84,10 @@ struct
             add_set (RS.join (RegMap.find x reg) RS.single_vf) [x] reg
           | false, true , false ->
             add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
-          | true , _    , true  ->
-            add_set (RS.join RS.single_vf RS.single_vf) [] reg
           | true , _    , false ->
             add_set (RS.join RS.single_vf (RegMap.find y reg)) [y] reg
+          | true , _    , true  ->
+            reg
         end
       | _ -> reg 
     else if isIntegralType t then reg
