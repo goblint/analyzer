@@ -16,7 +16,6 @@ struct
   module D = RegionDomain.RegionDom
   module G = Lattice.Unit
   module C = D
-  module BS = (val Base.get_main ())
   module V =
   struct
     include Printable.UnitConf (struct let name = "partitions" end)
@@ -76,7 +75,9 @@ struct
     let locals = f.sformals @ f.slocals in
     let reg = ctx.local in
     let reg = match exp with
-      | Some exp -> Reg.assign (BS.return_lval ()) exp reg
+      | Some exp ->
+        let module BS = (val Base.get_main ()) in
+        Reg.assign (BS.return_lval ()) exp reg
       | None -> reg
     in
     Reg.remove_vars locals reg
@@ -96,6 +97,7 @@ struct
     ctx.local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    let module BS = (val Base.get_main ()) in
     let reg = match lval with
       | None -> au
       | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) au
