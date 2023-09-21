@@ -64,6 +64,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("alloca", special [__ "size" []] @@ fun size -> Alloca size);
+    ("__builtin_alloca", special [__ "size" []] @@ fun size -> Alloca size);
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("free", special [__ "ptr" [f]] @@ fun ptr -> Free ptr);
@@ -891,7 +892,7 @@ let classify fn exps: categories =
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
       | _ -> strange_arguments ()
     end
-  | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
+  | "kmalloc" | "__kmalloc" | "usb_alloc_urb" ->
     begin match exps with
       | size::_ -> `Malloc size
       | _ -> strange_arguments ()
