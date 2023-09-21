@@ -6,7 +6,7 @@ open MusteqDomain
 
 module RS = struct
   include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
-  let single_vf vf = (true, false)
+  let single_vf = (true, false)
   let single_bullet = (false, true)
   let remove_bullet (l, _) = (l, false)
   let empty () = (false, false)
@@ -77,17 +77,17 @@ struct
       | Some (deref_x,x,_), Some (deref_y,y,_) -> begin
           match is_global x, deref_x, is_global y with
           | false, false, true  ->
-            RegMap.add x (RS.single_vf y) reg
+            RegMap.add x RS.single_vf reg
           | false, false, false ->
             RegMap.add x (RegMap.find y reg) reg
           | false, true , true  ->
-            add_set (RS.join (RegMap.find x reg) (RS.single_vf ())) [x] reg
+            add_set (RS.join (RegMap.find x reg) RS.single_vf) [x] reg
           | false, true , false ->
             add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
           | true , _    , true  ->
-            add_set (RS.join (RS.single_vf ()) (RS.single_vf ())) [] reg
+            add_set (RS.join RS.single_vf RS.single_vf) [] reg
           | true , _    , false ->
-            add_set (RS.join (RS.single_vf ()) (RegMap.find y reg)) [y] reg
+            add_set (RS.join RS.single_vf (RegMap.find y reg)) [y] reg
         end
       | _ -> reg 
     else if isIntegralType t then reg
@@ -106,14 +106,14 @@ struct
     | Some (true, vfd, os) ->
       let vfd_class =
         if is_global vfd then
-          RS.single_vf ()
+          RS.single_vf
         else
           RegMap.find vfd m
       in
       (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
       vfd_class
     | Some (false, vfd, os) ->
-      if is_global vfd then RS.single_vf () else (false, false)
+      if is_global vfd then RS.single_vf else (false, false)
     | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; (false, false)
 end
 
