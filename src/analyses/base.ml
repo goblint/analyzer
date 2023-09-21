@@ -1254,7 +1254,7 @@ struct
         | Address a ->
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           if AD.exists (function
-              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || (ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsDynamicallyAlloced v)) || o <> `NoOffset
+              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsDynamicallyAlloced v)) || (ctx.ask (Queries.IsDynamicallyAlloced v) && not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset
               | _ -> false) a then
             Queries.Result.bot q
           else (
@@ -1383,7 +1383,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          if a.f (Q.IsHeapVar x) then
+          if a.f (Q.IsDynamicallyAlloced x) then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
             lval_type
@@ -1429,7 +1429,7 @@ struct
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
-        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) && offs = `NoOffset then begin
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsDynamicallyAlloced x)) && offs = `NoOffset then begin
             VD.bot_value ~varAttr:x.vattr lval_type
           end else
             Priv.read_global a priv_getg st x
@@ -1995,7 +1995,7 @@ struct
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
-        | Addr (v,_) -> not (ctx.ask (Q.IsHeapVar v)) || (ctx.ask (Q.IsHeapVar v) && not @@ ctx.ask (Q.IsDynamicallyAlloced v))
+        | Addr (v,_) -> not (ctx.ask (Q.IsDynamicallyAlloced v)) || (ctx.ask (Q.IsDynamicallyAlloced v) && not @@ ctx.ask (Q.IsHeapVar v))
         | _ -> false)
     in
     let has_non_zero_offset = AD.exists (function

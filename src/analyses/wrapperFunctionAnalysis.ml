@@ -144,9 +144,9 @@ module MallocWrapper : MCPSpec = struct
       if on_stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
       `Lifted var
     | Q.IsHeapVar v ->
-      NodeVarinfoMap.mem_varinfo v
-    | Q.IsDynamicallyAlloced v ->
       NodeVarinfoMap.mem_varinfo v && not @@ hasAttribute "stack_alloca" v.vattr
+    | Q.IsDynamicallyAlloced v ->
+      NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
       begin match NodeVarinfoMap.from_varinfo v with
         | Some (_, _, c) -> UniqueCount.is_top c || not (ctx.ask Q.MustBeUniqueThread)

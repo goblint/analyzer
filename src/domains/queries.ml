@@ -101,7 +101,7 @@ type _ t =
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
   | HeapVar: {on_stack: bool} -> VI.t t (* If on_stack is [true], then alloca() or a similar function was called *)
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | IsDynamicallyAlloced: varinfo -> MayBool.t t (* [true] if heap var represents dynamically alloced memory, [false] if it represents the result of an alloca() call *)
+  | IsDynamicallyAlloced: varinfo -> MayBool.t t (* [true] if heap var represents dynamically alloced memory *)
   | IsMultiple: varinfo -> MustBool.t t
   (* For locals: Is another copy of this local variable reachable via pointers? *)
   (* For dynamically allocated memory: Does this abstract variable corrrespond to a unique heap location? *)
