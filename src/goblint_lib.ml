@@ -80,7 +80,7 @@ module TmpSpecial = TmpSpecial
 
     Analyses related to the heap. *)
 
-module Region = Region
+module RegionNonEscape = RegionNonEscape
 module MallocFresh = MallocFresh
 module Malloc_null = Malloc_null
 module MemLeak = MemLeak
@@ -258,7 +258,7 @@ module Access = Access
 module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
-module RegionDomain = RegionDomain
+module RegionNonEscapeDomain = RegionNonEscapeDomain
 module FileDomain = FileDomain
 module StackDomain = StackDomain
 

@@ -6,14 +6,14 @@ open Batteries
 open GoblintCil
 open Analyses
 
-module RegMap = RegionDomain.RegMap
-module Reg = RegionDomain.Reg
+module RegMap = RegionNonEscapeDomain.RegMap
+module Reg = RegionNonEscapeDomain.Reg
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module D = RegionDomain.RegionDom
+  module D = RegionNonEscapeDomain.RegionDom
   module G = Lattice.Unit
   module C = D
   module V =
@@ -26,7 +26,7 @@ struct
     match st with
     | `Lifted reg ->
       begin match Reg.eval_exp exp with
-        | Some (_,v,_) -> (try RegionDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
+        | Some (_,v,_) -> (try RegionNonEscapeDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
         | _ -> false
       end
     | `Top -> false
@@ -41,7 +41,7 @@ struct
   module A =
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
-    let name () = "region"
+    let name () = "regionNonEscape"
     let may_race r1 r2 = match r1, r2 with
       | None, _
       | _, None -> false
@@ -115,7 +115,7 @@ struct
   let threadenter ctx lval f args = [RegMap.bot ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate v = RegMap.bot ()
-  let name () = "region"
+  let name () = "regionNonEscape"
 end
 
 let _ = MCP.register_analysis (module Spec : MCPSpec)
