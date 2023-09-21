@@ -43,6 +43,7 @@ type math =
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
 type special =
+  | Alloca of Cil.exp
   | Malloc of Cil.exp
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }

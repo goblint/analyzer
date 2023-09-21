@@ -63,8 +63,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r; w]; drop "delim" [r]]);
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
+    ("alloca", special [__ "size" []] @@ fun size -> Alloca size);
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
-    ("alloca", special [__ "size" []] @@ fun size -> Malloc size); (* TODO: Maybe define a new special type [Alloca], just like [Malloc]? *)
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("free", special [__ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
@@ -1037,6 +1037,7 @@ let invalidate_actions = [
     "sigaddset", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
+    "alloca", readsAll;(*safe*)
     "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)

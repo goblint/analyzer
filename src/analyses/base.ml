@@ -2263,14 +2263,22 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
-    | Malloc size, fname -> begin
+    | Alloca size, _ -> begin
         match lv with
         | Some lv ->
-          let is_stack_alloc = fname = "alloc" || fname = "__builtin_alloca" in
+          let heap_var = AD.of_var (heap_var true ctx) in
+          (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
+                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
+        | _ -> st
+      end
+    | Malloc size, _ -> begin
+        match lv with
+        | Some lv ->
           let heap_var =
             if (get_bool "sem.malloc.fail")
-            then AD.join (AD.of_var (heap_var is_stack_alloc ctx)) AD.null_ptr
-            else AD.of_var (heap_var is_stack_alloc ctx)
+            then AD.join (AD.of_var (heap_var false ctx)) AD.null_ptr
+            else AD.of_var (heap_var false ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
