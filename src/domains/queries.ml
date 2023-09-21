@@ -10,7 +10,6 @@ module LS = VDQ.LS
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
-module RS = RegionNonEscapeDomain.RS
 
 module NFL = WrapperFunctionAnalysis0.NodeFlatLattice
 module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
@@ -76,7 +75,7 @@ type _ t =
   | MayPointTo: exp -> AD.t t
   | ReachableFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
-  | Regions: exp -> RS.t t
+  | Regions: exp -> LS.t t
   | MayEscape: varinfo -> MayBool.t t
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
@@ -144,7 +143,7 @@ struct
     | CondVars _ -> (module ES)
     | MayPointTo _ -> (module AD)
     | ReachableFrom _ -> (module AD)
-    | Regions _ -> (module RS)
+    | Regions _ -> (module LS)
     | MustLockset -> (module LS)
     | EvalFunvar _ -> (module LS)
     | ReachableUkTypes _ -> (module TS)
@@ -208,7 +207,7 @@ struct
     | CondVars _ -> ES.top ()
     | MayPointTo _ -> AD.top ()
     | ReachableFrom _ -> AD.top ()
-    | Regions _ -> RS.top ()
+    | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
     | EvalFunvar _ -> LS.top ()
     | ReachableUkTypes _ -> TS.top ()

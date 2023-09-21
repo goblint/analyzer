@@ -182,10 +182,13 @@ struct
            -> Queries.ES.add e es
          | _ -> Queries.ES.singleton e)
         (match ctx.ask (Queries.Regions e) with
-         | rs when not (Queries.RS.is_top rs || Queries.RS.is_empty rs)
-           -> begin
-               try (Queries.ES.singleton e)
-               with Lattice.TopValue -> Queries.ES.top () end
+         | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
+           -> let add_exp x xs =
+                try Queries.ES.add (Mval.Exp.to_cil_exp x) xs
+                with Lattice.BotValue -> xs
+           in begin
+             try Queries.LS.fold add_exp ls (Queries.ES.singleton e)
+             with Lattice.TopValue -> Queries.ES.top () end
          | _ -> Queries.ES.singleton e)
     in
     Queries.ES.fold do_lockstep matching_exps
