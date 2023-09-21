@@ -9,6 +9,7 @@ module RS = struct
   let single_vf vf = (true, false)
   let single_bullet = (false, true)
   let remove_bullet (l, _) = (l, false)
+  let empty () = (false, false)
   let has_bullet (_, r) = r = true
   let is_single_bullet (l, r) = l = false && r = true
   let is_empty (l, r) = l = false && r = false
@@ -99,6 +100,21 @@ struct
     match eval_exp (Lval lval) with
     | Some (_,x,_) -> RegMap.add x RS.single_bullet m
     | _ -> m
+
+  let related_globals deref_vfd m =
+    match deref_vfd with
+    | Some (true, vfd, os) ->
+      let vfd_class =
+        if is_global vfd then
+          RS.single_vf ()
+        else
+          RegMap.find vfd m
+      in
+      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
+      vfd_class
+    | Some (false, vfd, os) ->
+      if is_global vfd then RS.single_vf () else (false, false)
+    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; (false, false)
 end
 
 module RegionDom = RegMap

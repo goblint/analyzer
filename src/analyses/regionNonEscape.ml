@@ -7,6 +7,7 @@ open GoblintCil
 open Analyses
 
 module RegMap = RegionNonEscapeDomain.RegMap
+module RegPart = RegionDomain.RegPart
 module Reg = RegionNonEscapeDomain.Reg
 
 module Spec =
@@ -22,47 +23,33 @@ struct
     include StdV
   end
 
-  let is_bullet exp st : bool =
-    match st with
-    | `Lifted reg ->
-      begin match Reg.eval_exp exp with
-        | Some (_,v,_) -> (try RegionNonEscapeDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
-        | _ -> false
-      end
-    | `Top -> false
-    | `Bot -> true
+  let regions exp reg = Reg.related_globals (Reg.eval_exp exp) reg
+
+  let is_bullet exp reg =
+    match Reg.eval_exp exp with
+    | Some (_,v,_) -> (try RegionNonEscapeDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
+    | _ -> false
+
+  let get_region ctx e =	
+    if is_bullet e ctx.local then	
+      None	
+    else	
+      Some (regions e ctx.local)
 
   (* queries *)
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | _ -> Queries.Result.top q
+  let query ctx (type a) (q: a Queries.t): a Queries.result = Queries.Result.top q
 
-  module Lvals = SetDomain.Make (Mval.Exp)
   module A =
   struct
-    include Printable.Option (Lvals) (struct let name = "no region" end)
+    include BoolDomain.Bool
     let name () = "regionNonEscape"
-    let may_race r1 r2 = match r1, r2 with
-      | None, _
-      | _, None -> false
-      (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)
-      | Some r1, _ when Lvals.is_empty r1 -> true
-      | _, Some r2 when Lvals.is_empty r2 -> true
-      | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
-      | _, _ -> true
-    let should_print r = match r with
-      | Some r when Lvals.is_empty r -> false
-      | _ -> true
+    let may_race f1 f2 = not (f1 || f2)
+    let should_print f = f
   end
   let access ctx (a: Queries.access) =
     match a with
-    | Point ->
-      Some (Lvals.empty ())
-    | Memory {exp = e; _} ->
-      (* TODO: remove regions that cannot be reached from the var*)
-      (* forget specific indices *)
-      (* TODO: If indices are topped, could they not be collected in the first place? *)
-      Some (Lvals.empty ())
+    | Memory {exp = e; _} -> Option.is_none (get_region ctx e)
+    | Point -> false
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = Reg.assign lval rval ctx.local
