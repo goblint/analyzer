@@ -103,17 +103,9 @@ struct
 
   let related_globals deref_vfd m =
     match deref_vfd with
-    | Some (true, vfd, os) ->
-      let vfd_class =
-        if is_global vfd then
-          RS.single_vf
-        else
-          RegMap.find vfd m
-      in
-      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
-      vfd_class
-    | Some (false, vfd, os) ->
-      if is_global vfd then RS.single_vf else (false, false)
+    | Some (_, vfd, _) when is_global vfd -> RS.single_vf
+    | Some (true, vfd, _) -> RegMap.find vfd m
+    | Some (false, vfd, _) -> (false, false)
     | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; (false, false)
 end
 
