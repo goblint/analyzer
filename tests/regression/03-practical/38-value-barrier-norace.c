@@ -8,17 +8,15 @@ extern int __VERIFIER_nondet_int();
 
 bool ready = false;
 pthread_mutex_t ready_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t ready_cond = PTHREAD_COND_INITIALIZER;
 
 int data = 0;
 
 void *thread(void *arg) {
   // wait for main thread to be ready
   pthread_mutex_lock(&ready_mutex);
-  while (!ready) { // NORACE
-    pthread_mutex_unlock(&ready_mutex);
-    // busy loop for simplicity
-    pthread_mutex_lock(&ready_mutex);
-  }
+  while (!ready) // NORACE
+    pthread_cond_wait(&ready_cond, &ready_mutex);
   pthread_mutex_unlock(&ready_mutex);
 
   int x = data; // NORACE (main thread wrote before ready)
@@ -41,6 +39,7 @@ int main() {
   // become ready
   pthread_mutex_lock(&ready_mutex);
   ready = true; // NORACE
+  pthread_cond_broadcast(&ready_cond);
   pthread_mutex_unlock(&ready_mutex);
 
   // join threads
