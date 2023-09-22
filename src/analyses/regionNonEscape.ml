@@ -27,7 +27,7 @@ struct
 
   let is_bullet exp reg =
     match Reg.eval_exp exp with
-    | Some (_,v,_) -> (try RegionNonEscapeDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
+    | Some (_, v) -> (try RegionNonEscapeDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
     | _ -> false
 
   let get_region ctx e =	

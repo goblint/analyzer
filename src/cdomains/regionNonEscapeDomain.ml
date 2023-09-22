@@ -31,8 +31,8 @@ struct
   let remove v m = RegMap.remove (v, `NoOffset) m
   let remove_vars vs cp = List.fold_right remove vs cp
 
-  type eval_t = (bool * elt * F.t) option
-  let eval_exp exp: eval_t =
+  type eval_t = (bool * elt) option
+  let eval_exp exp : eval_t =
     let offsornot offs = if (get_bool "exp.region-offsets") then F.of_cil offs else `NoOffset in
     (* The intuition for the offset computations is that we keep the static _suffix_ of an
      * access path. These can be used to partition accesses when fields do not overlap.
@@ -41,18 +41,15 @@ struct
      * unknown in the region. *)
     let rec eval_rval deref rval =
       match rval with
-      | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, `NoOffset)) (eval_lval deref lval)
+      | Lval lval
       | AddrOf lval -> eval_lval deref lval
-      | CastE (typ, exp) -> eval_rval deref exp
-      | BinOp ((MinusPI | PlusPI | IndexPI), p, i, typ) -> eval_rval deref p
+      | CastE (_, exp) -> eval_rval deref exp
+      | BinOp ((MinusPI | PlusPI | IndexPI), p, _, _) -> eval_rval deref p
       | _ -> None
     and eval_lval deref lval =
       match lval with
-      | (Var x, offs) -> Some (deref, (x, offsornot offs), `NoOffset)
-      | (Mem exp, offs) ->
-        match eval_rval true exp with
-        | Some (deref, v, _) -> Some (deref, v, offsornot offs)
-        | x -> x
+      | (Var x, offs) -> Some (deref, (x, offsornot offs))
+      | (Mem exp, _) -> eval_rval true exp
     in
     eval_rval false exp
 
@@ -73,8 +70,8 @@ struct
     let t = Cilfacade.typeOf rval in
     if isPointerType t then (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
-      | Some (_,x,_), Some (_,y,_) when VF.equal x y -> reg
-      | Some (deref_x,x,_), Some (deref_y,y,_) -> begin
+      | Some (_,x), Some (_,y) when VF.equal x y -> reg
+      | Some (deref_x,x), Some (deref_y,y) -> begin
           match is_global x, deref_x, is_global y with
           | false, false, true  ->
             RegMap.add x RS.single_vf reg
@@ -93,19 +90,19 @@ struct
     else if isIntegralType t then reg
     else
       match eval_exp (Lval lval) with
-      | Some (false, (x,_),_) -> remove x reg
+      | Some (false, (x, _)) -> remove x reg
       | _ -> reg
 
   let assign_bullet lval m: t =
     match eval_exp (Lval lval) with
-    | Some (_,x,_) -> RegMap.add x RS.single_bullet m
+    | Some (_, x) -> RegMap.add x RS.single_bullet m
     | _ -> m
 
   let related_globals deref_vfd m =
     match deref_vfd with
-    | Some (_, vfd, _) when is_global vfd -> RS.single_vf
-    | Some (true, vfd, _) -> RegMap.find vfd m
-    | Some (false, vfd, _) -> (false, false)
+    | Some (_, vfd) when is_global vfd -> RS.single_vf
+    | Some (true, vfd) -> RegMap.find vfd m
+    | Some (false, vfd) -> (false, false)
     | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; (false, false)
 end
 
