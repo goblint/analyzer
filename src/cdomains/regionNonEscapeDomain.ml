@@ -1,8 +1,6 @@
 (** Domains for disjoint heap regions. *)
 
 open GoblintCil
-open GobConfig
-open MusteqDomain
 
 module RS = struct
   include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
@@ -17,7 +15,7 @@ end
 
 module RegMap =
 struct
-  include MapDomain.MapBot (VF) (RS)
+  include MapDomain.MapBot (CilType.Varinfo) (RS)
   let name () = "regmap"
 end
 
@@ -25,20 +23,14 @@ module Reg =
 struct
   include RegMap
   type set = RS.t
-  type elt = VF.t
+  type elt = CilType.Varinfo.t
 
-  let is_global (v,fd) = v.vglob
-  let remove v m = RegMap.remove (v, `NoOffset) m
+  let is_global v = v.vglob
+  let remove v m = RegMap.remove v m
   let remove_vars vs cp = List.fold_right remove vs cp
 
   type eval_t = (bool * elt) option
   let eval_exp exp : eval_t =
-    let offsornot offs = if (get_bool "exp.region-offsets") then F.of_cil offs else `NoOffset in
-    (* The intuition for the offset computations is that we keep the static _suffix_ of an
-     * access path. These can be used to partition accesses when fields do not overlap.
-     * This means that for pointer dereferences and when obtaining the value from an lval
-     * (but not under AddrOf), we drop the offsets because we land somewhere
-     * unknown in the region. *)
     let rec eval_rval deref rval =
       match rval with
       | Lval lval
@@ -46,10 +38,10 @@ struct
       | CastE (_, exp) -> eval_rval deref exp
       | BinOp ((MinusPI | PlusPI | IndexPI), p, _, _) -> eval_rval deref p
       | _ -> None
-    and eval_lval deref lval =
-      match lval with
-      | (Var x, offs) -> Some (deref, (x, offsornot offs))
-      | (Mem exp, _) -> eval_rval true exp
+    and eval_lval deref (lhost, _) =
+      match lhost with
+      | Var x -> Some (deref, x)
+      | Mem exp -> eval_rval true exp
     in
     eval_rval false exp
 
@@ -70,7 +62,7 @@ struct
     let t = Cilfacade.typeOf rval in
     if isPointerType t then (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
-      | Some (_,x), Some (_,y) when VF.equal x y -> reg
+      | Some (_, x), Some (_, y) when CilType.Varinfo.equal x y -> reg
       | Some (deref_x,x), Some (deref_y,y) -> begin
           match is_global x, deref_x, is_global y with
           | false, false, true  ->
@@ -90,7 +82,7 @@ struct
     else if isIntegralType t then reg
     else
       match eval_exp (Lval lval) with
-      | Some (false, (x, _)) -> remove x reg
+      | Some (false, x) -> remove x reg
       | _ -> reg
 
   let assign_bullet lval m: t =
