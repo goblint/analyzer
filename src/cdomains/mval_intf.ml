@@ -5,7 +5,6 @@ sig
 
   type t = GoblintCil.varinfo * idx Offset.t
   include Printable.S with type t := t (** @closed *)
-  include MapDomain.Groupable with type t := t (** @closed *)
 
   val is_definite: t -> bool
   (** Whether offset of mvalue has only definite integer indexing (and fields). *)

@@ -713,11 +713,7 @@ module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (RD: Rela
 struct
   open CommonPerMutex(RD)
 
-  module VS =
-  struct
-    include Printable.Std
-    include SetDomain.Make (CilType.Varinfo)
-  end
+  module VS = SetDomain.Make (CilType.Varinfo)
   module LRD = MapDomain.MapBot (VS) (RD)
 
   let keep_only_protected_globals ask m octs =

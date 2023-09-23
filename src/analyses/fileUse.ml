@@ -27,19 +27,20 @@ struct
     | Queries.MayPointTo exp -> if M.tracing then M.tracel "file" "query MayPointTo: %a" d_plainexp exp; Queries.Result.top q
     | _ -> Queries.Result.top q
 
-  let query_lv (ask: Queries.ask) exp =
+  let query_ad (ask: Queries.ask) exp =
     match ask.f (Queries.MayPointTo exp) with
-    | l when not (Queries.LS.is_top l) ->
-      Queries.LS.elements l
+    | ad when not (Queries.AD.is_top ad) -> Queries.AD.elements ad
     | _ -> []
   let print_query_lv ?msg:(msg="") ask exp =
-    let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    let pretty_key k = Pretty.text (D.string_of_key k) in
-    if M.tracing then M.tracel "file" "%s MayPointTo %a = [%a]" msg d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs
+    let addrs = query_ad ask exp in (* MayPointTo -> LValSet *)
+    let pretty_key = function
+      | Queries.AD.Addr.Addr (v,o) -> Pretty.text (D.string_of_key (v, ValueDomain.Addr.Offs.to_exp o))
+      | _ -> Pretty.text "" in
+    if M.tracing then M.tracel "file" "%s MayPointTo %a = [%a]" msg d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) addrs
 
   let eval_fv ask exp: varinfo option =
-    match query_lv ask exp with
-    | [(v,_)] -> Some v
+    match query_ad ask exp with
+    | [addr] -> Queries.AD.Addr.to_var_may addr
     | _ -> None
 
 

@@ -203,15 +203,14 @@ struct
     match q with
     | _ -> Queries.Result.top q
 
-  let query_lv ask exp =
+  let query_addrs ask exp =
     match ask (Queries.MayPointTo exp) with
-    | l when not (Queries.LS.is_top l) ->
-      Queries.LS.elements l
+    | ad when not (Queries.AD.is_top ad) -> Queries.AD.elements ad
     | _ -> []
 
   let eval_fv ask exp: varinfo option =
-    match query_lv ask exp with
-    | [(v,_)] -> Some v
+    match query_addrs ask exp with
+    | [addr] -> Queries.AD.Addr.to_var_may addr
     | _ -> None
 
 
@@ -253,7 +252,7 @@ struct
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
       M.debug ~category:Analyzer "assign (only k2 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       let m = D.alias k1 k2 m in (* point k1 to k2 *)
-      if Basetype.Variables.to_group (fst k2) = Some Temp (* check if k2 is a temporary Lval introduced by CIL *)
+      if Basetype.Variables.to_group (fst k2) = Temp (* check if k2 is a temporary Lval introduced by CIL *)
       then D.remove' k2 m (* if yes we need to remove it from our map *)
       else m (* otherwise no change *)
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)

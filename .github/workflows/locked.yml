@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -101,7 +101,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -141,7 +141,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -174,5 +174,4 @@ jobs:
 
       - name: Test Gobview
         run: |
-          ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
           python3 scripts/test-gobview.py

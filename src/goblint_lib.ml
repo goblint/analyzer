@@ -74,6 +74,7 @@ module ApronAnalysis = ApronAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
+module TmpSpecial = TmpSpecial
 
 (** {2 Heap}
 
@@ -82,6 +83,8 @@ module CondVars = CondVars
 module Region = Region
 module MallocFresh = MallocFresh
 module Malloc_null = Malloc_null
+module MemLeak = MemLeak
+module UseAfterFree = UseAfterFree
 
 (** {2 Concurrency}
 
@@ -177,6 +180,7 @@ module Lattice = Lattice
 module BoolDomain = BoolDomain
 module SetDomain = SetDomain
 module MapDomain = MapDomain
+module TrieDomain = TrieDomain
 module DisjointDomain = DisjointDomain
 module HoareDomain = HoareDomain
 module PartitionDomain = PartitionDomain

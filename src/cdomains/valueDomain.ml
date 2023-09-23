@@ -10,7 +10,7 @@ module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
-module LS = VDQ.LS
+module AD = VDQ.AD
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -115,7 +115,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -545,9 +545,7 @@ struct
         | None -> AD.join y AD.top_ptr)
     | (Address x, Address y) -> Address (AD.join x y)
     | (Struct x, Struct y) -> Struct (Structs.join x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join x y) (* f = g *)
-        | x -> (x, Top)) (* f <> g *)
+    | (Union x, Union y) -> Union (Unions.join x y)
     | (Array x, Array y) -> Array (CArrays.join x y)
     | (Blob x, Blob y) -> Blob (Blobs.join x y)
     | Blob (x,s,o), y
@@ -566,7 +564,7 @@ struct
       warn_type "join" x y;
       Top
 
-  let rec widen x y =
+  let widen x y =
     match (x,y) with
     | (Top, _) -> Top
     | (_, Top) -> Top
@@ -582,11 +580,9 @@ struct
         | None -> AD.widen y (AD.join y AD.top_ptr))
     | (Address x, Address y) -> Address (AD.widen x y)
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> (`Lifted f, widen x y) (* f = g *)
-        | x -> (x, Top))
+    | (Union x, Union y) -> Union (Unions.widen x y)
     | (Array x, Array y) -> Array (CArrays.widen x y)
-    | (Blob x, Blob y) -> Blob (Blobs.widen x y)
+    | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
     | (Thread y, Int x) ->
@@ -605,9 +601,10 @@ struct
     let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.join_with_fct join_elem x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
-        | x -> (x, Top)) (* f <> g *)
+    | (Union (f,x), Union (g,y)) ->
+      let field = UnionDomain.Field.join f g in
+      let value = join_elem x y in
+      Union (field, value)
     | (Array x, Array y) -> Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | _ -> join x y  (* Others can not contain array -> normal join  *)
 
@@ -615,9 +612,10 @@ struct
     let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.widen_with_fct widen_elem x y)
-    | (Union (f,x), Union (g,y)) -> Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
-        | x -> x, Top) (* f <> g *)
+    | (Union (f,x), Union (g,y)) ->
+      let field = UnionDomain.Field.widen f g in
+      let value = widen_elem x y in
+      Union (field, value)
     | (Array x, Array y) -> Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | _ -> widen x y  (* Others can not contain array -> normal widen  *)
 
@@ -758,9 +756,9 @@ struct
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin match ask.may_point_to (Lval lval) with
-          | v when LS.cardinal v = 1 && not (LS.is_top v) ->
-            begin match LS.choose v with
-              | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
+          | v when AD.cardinal v = 1 && not (AD.is_top v) ->
+            begin match AD.choose v with
+              | AD.Addr.Addr (var,`Index (i,`NoOffset)) when ID.equal_to Z.zero i = `Eq && CilType.Varinfo.equal var arr_start_var ->
                 (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
                 add
               | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
@@ -965,16 +963,16 @@ struct
               Top
         end
         | JmpBuf _, _ ->
-        (* hack for jmp_buf variables *)
-        begin match value with
-          | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
-          | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
-          | _ ->
-            if !AnalysisState.global_initialization then
-              JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
-            else
-              Top
-        end
+          (* hack for jmp_buf variables *)
+          begin match value with
+            | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
+            | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
+            | _ ->
+              if !AnalysisState.global_initialization then
+                JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
+              else
+                Top
+          end
       | _ ->
       let result =
         match offs with

@@ -29,12 +29,15 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
-  (* TODO: Use AddressDomain for queries *)
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
-    | a when not (Queries.LS.is_top a) ->
-      let to_extra (v,o) xs = (v, Addr.Offs.of_exp o, write) :: xs  in
-      Queries.LS.fold to_extra a []
+    | ad when not (Queries.AD.is_top ad) ->
+      let to_extra addr xs =
+        match addr with
+        | Queries.AD.Addr.Addr (v,o) -> (v, o, write) :: xs
+        | _ -> xs
+      in
+      Queries.AD.fold to_extra ad []
     | _ ->
       M.info ~category:Unsound "Access to unknown address could be global"; []
 
@@ -165,9 +168,10 @@ struct
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
     match a.f (Queries.MayPointTo (AddrOf lv)) with
-    | a when Queries.LS.cardinal a = 1 ->  begin
-        let var, ofs = Queries.LS.choose a in
-        init_vo var (Addr.Offs.of_exp ofs)
+    | ad when Queries.AD.cardinal ad = 1 ->
+      begin match Queries.AD.Addr.to_mval (Queries.AD.choose ad) with
+        | Some (var, ofs) -> init_vo var ofs
+        | None -> st
       end
     | _ -> st
 
@@ -189,21 +193,25 @@ struct
 
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
-      let do_exp e =
+      let do_exp e a =
         match ask.f (Queries.ReachableFrom e) with
-        | a when not (Queries.LS.is_top a) ->
-          let to_extra (v,o) xs = AD.of_mval (v, Addr.Offs.of_exp o) :: xs  in
-          Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
+        | ad when not (Queries.AD.is_top ad) ->
+          ad
+          |> Queries.AD.filter (function
+              | Queries.AD.Addr.Addr _ -> true
+              | _ -> false)
+          |> Queries.AD.join a
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _ -> []
+        | _ -> AD.empty ()
       in
-      List.concat_map do_exp args
+      List.fold_right do_exp args (AD.empty ())
     in
-    let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
-      let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat_map to_addrs vars) many
+    let vars =
+      reachable
+      |> AD.to_var_may
+      |> List.concat_map to_addrs
+      |> AD.of_list
     in
-    let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st
     then D.top ()
     else D.filter (fun x -> AD.mem x vars) st

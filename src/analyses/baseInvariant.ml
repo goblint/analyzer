@@ -57,33 +57,30 @@ struct
     | Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | _ -> VD.is_bot_value x
 
-  let apply_invariant oldv newv =
-    match oldv, newv with
-    (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
-    (*   Address (AD.join o n) *)
-    (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) o -> Address n *)
-    (* | Address o, Address n when AD.mem (Addr.unknown_ptr ()) n -> Address o *)
-    | _ -> VD.meet oldv newv
+  let apply_invariant ~old_val ~new_val =
+    try
+      VD.meet old_val new_val
+    with Lattice.Uncomparable -> old_val
 
   let refine_lv_fallback ctx a gs st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
     let addr = eval_lv a gs st lval in
     if (AD.is_top addr) then st
     else
-      let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+      let old_val = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
       let t_lval = Cilfacade.typeOfLval lval in
-      let oldval = map_oldval oldval t_lval in
-      let oldval =
-        if is_some_bot oldval then (
+      let old_val = map_oldval old_val t_lval in
+      let old_val =
+        if is_some_bot old_val then (
           if M.tracing then M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval;
           VD.top ()
         )
         else
-          oldval
+          old_val
       in
       let state_with_excluded = set a gs st addr t_lval value ~ctx in
       let value =  get a gs state_with_excluded addr None in
-      let new_val = apply_invariant oldval value in
+      let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
       if is_some_bot new_val then (
@@ -99,14 +96,14 @@ struct
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-      let oldv = get_var a gs st var in
-      let oldv = map_oldval oldv var.vtype in
+      let old_val = get_var a gs st var in
+      let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset a gs st o in
-      let newv = VD.update_offset (Queries.to_value_domain_ask a) oldv offs c' (Some exp) x (var.vtype) in
-      let v = VD.meet oldv newv in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
+      let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
-        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" CilType.Varinfo.pretty var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" CilType.Varinfo.pretty var VD.pretty old_val VD.pretty v pretty c VD.pretty c';
         let r = set' (Var var,NoOffset) v st in
         if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
         r
@@ -114,12 +111,12 @@ struct
     | Var _, _
     | Mem _, _ ->
       (* For accesses via pointers, not yet *)
-      let oldv = eval_rv_lval_refine a gs st exp x in
-      let oldv = map_oldval oldv (Cilfacade.typeOfLval x) in
-      let v = VD.meet oldv c' in
+      let old_val = eval_rv_lval_refine a gs st exp x in
+      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+      let v = apply_invariant ~old_val ~new_val:c' in
       if is_some_bot v then contra st
       else (
-        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
         set' x v st
       )
 
@@ -413,6 +410,18 @@ struct
           meet_bin c c
         else
           a, b
+      | BAnd as op ->
+        (* we only attempt to refine a here *)
+        let a =
+          match ID.to_int b with
+          | Some x when BI.equal x BI.one ->
+            (match ID.to_bool c with
+             | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
+             | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
+             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a\n" d_binop op ID.pretty c; a)
+          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a\n" d_binop op ID.pretty b ID.pretty c; a
+        in
+        a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         a, b
@@ -548,6 +557,11 @@ struct
     in
     let eval e st = eval_rv a gs st e in
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
+    let unroll_fk_of_exp e =
+      match unrollType (Cilfacade.typeOf e) with
+      | TFloat (fk, _) -> fk
+      | _ -> failwith "value which was expected to be a float is of different type?!"
+    in
     let rec inv_exp c_typed exp (st:D.t): D.t =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if VD.is_bot_value c_typed then contra st
@@ -674,7 +688,7 @@ struct
                st''
              (* Mixed Float and Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
              | Int _, Float _ | Float _, Int _ -> failwith "ill-typed program";
-             (* | Address a, Address b -> ... *)
+               (* | Address a, Address b -> ... *)
              | a1, a2 -> fallback (GobPretty.sprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
             (* use closures to avoid unused casts *)
           in (match c_typed with
@@ -684,6 +698,7 @@ struct
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
           let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
           let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
+          if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a\n" d_lval x VD.pretty c_typed d_type t;
           begin match c_typed with
             | Int c ->
               let c' = match t with
@@ -693,7 +708,32 @@ struct
                 | TFloat (fk, _) -> Float (FD.of_int fk c)
                 | _ -> Int c
               in
-              update_lval c x c' ID.pretty
+              (* handle special calls *)
+              begin match t with
+                | TInt (ik, _) ->
+                  begin match x with
+                    | ((Var v), offs) ->
+                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
+                      let tv_opt = ID.to_bool c in
+                      begin match tv_opt with
+                        | Some tv ->
+                          begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                            | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
+                            | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
+                            (* should be correct according to C99 standard*)
+                            | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                            | _ -> update_lval c x c' ID.pretty
+                          end
+                        | None -> update_lval c x c' ID.pretty
+                      end
+                    | _ -> update_lval c x c' ID.pretty
+                  end
+                | _ -> update_lval c x c' ID.pretty
+              end
             | Float c ->
               let c' = match t with
                 (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
@@ -703,7 +743,27 @@ struct
                 | TFloat (fk, _) -> Float (FD.cast_to fk c)
                 | _ -> Float c
               in
-              update_lval c x c' FD.pretty
+              (* handle special calls *)
+              begin match t with
+                | TFloat (fk, _) ->
+                  begin match x with
+                    | ((Var v), offs) ->
+                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
+                      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                        | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
+                        | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
+                        | `Lifted (Fabs (ret_fk, xFloat)) ->
+                          let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
+                          if FD.is_bot inv then
+                            raise Analyses.Deadcode
+                          else
+                            inv_exp (Float inv) xFloat st
+                        | _ -> update_lval c x c' FD.pretty
+                      end
+                    | _ -> update_lval c x c' FD.pretty
+                  end
+                | _ -> update_lval c x c' FD.pretty
+              end
             | Address c ->
               let c' = c_typed in (* TODO: need any of the type-matching nonsense? *)
               update_lval c x c' AD.pretty

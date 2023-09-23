@@ -14,7 +14,7 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = get_bool "ana.sv-comp.enabled" || get_bool "exp.arg" in
+  let arg_enabled = (get_bool "ana.sv-comp.enabled" && get_bool "witness.enabled") || get_bool "exp.arg" in
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -165,7 +165,7 @@ struct
           ) xs []
       in
       let msgs = List.rev msgs in (* lines in ascending order *)
-      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
+      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs (* TODO: function location for group *)
     in
     let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "ana.dead-code.lines" then (
@@ -767,6 +767,8 @@ struct
         Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
+
+    Messages.finalize ();
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
 end
 

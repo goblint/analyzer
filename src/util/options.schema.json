@@ -522,20 +522,6 @@
           },
           "additionalProperties": false
         },
-        "mutex": {
-          "title": "ana.mutex",
-          "type": "object",
-          "properties": {
-            "disjoint_types": {
-              "title": "ana.mutex.disjoint_types",
-              "description":
-                "Do not propagate basic type writes to all struct fields",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
-        },
         "autotune": {
           "title": "ana.autotune",
           "type": "object",
@@ -989,6 +975,19 @@
               "description": "Number of unique thread IDs allocated for each pthread_create node.",
               "type": "integer",
               "default": 0
+            },
+            "context": {
+              "title": "ana.thread.context",
+              "type": "object",
+              "properties": {
+                "create-edges": {
+                  "title": "ana.thread.context.create-edges",
+                  "description": "threadID analysis: Encountered create edges in context.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -1000,6 +999,18 @@
             "free": {
               "title": "ana.race.free",
               "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            },
+            "direct-arithmetic": {
+              "title": "ana.race.direct-arithmetic",
+              "description": "Collect and distribute direct (i.e. not in a field) accesses to arithmetic types.",
+              "type": "boolean",
+              "default": false
+            },
+            "volatile" :{
+              "title": "ana.race.volatile",
+              "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
             }
@@ -1273,7 +1284,10 @@
               "goblint",
               "sv-comp",
               "ncurses",
-              "zstd"
+              "zstd",
+              "pcre",
+              "zlib",
+              "liblzma"
             ]
           },
           "default": [
@@ -1303,6 +1317,13 @@
               "title": "sem.unknown_function.spawn",
               "description":
                 "Unknown function call spawns reachable functions",
+              "type": "boolean",
+              "default": true
+            },
+            "call": {
+              "title": "sem.unknown_function.call",
+              "description":
+                "Unknown function call calls reachable functions",
               "type": "boolean",
               "default": true
             },
@@ -2125,6 +2146,12 @@
           "description": "Races with confidence at least threshold are warnings, lower are infos.",
           "type": "integer",
           "default": 0
+        },
+        "deterministic": {
+          "title": "warn.deterministic",
+          "description": "Output messages in deterministic order. Useful for cram testing.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
