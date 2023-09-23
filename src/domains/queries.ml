@@ -123,6 +123,11 @@ type _ t =
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | VarArraySize: varinfo -> ID.t t (* size of an array or blob only *)
+  | VarStringLength: varinfo -> ID.t t
+  | SubstringMayNullPtr: varinfo * varinfo -> MayBool.t t
+  | SubstringMustOffsetZero: varinfo * varinfo -> MustBool.t t
+  | StringComparison: varinfo * varinfo * int option -> ID.t t
 
 type 'a result = 'a
 
@@ -188,6 +193,11 @@ struct
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | TmpSpecial _ -> (module ML)
+    | VarArraySize _ -> (module ID)
+    | VarStringLength _ -> (module ID)
+    | SubstringMayNullPtr _ -> (module MayBool)
+    | SubstringMustOffsetZero _ -> (module MustBool)
+    | StringComparison _ -> (module ID)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -252,6 +262,11 @@ struct
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | TmpSpecial _ -> ML.top ()
+    | VarArraySize _ -> ID.top_of ILong
+    | VarStringLength _ -> ID.top_of !Cil.kindOfSizeOf
+    | SubstringMayNullPtr _ -> MayBool.top ()
+    | SubstringMustOffsetZero _ -> MustBool.top ()
+    | StringComparison _ -> ID.top_of IInt
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -313,6 +328,11 @@ struct
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
     | Any (TmpSpecial _) -> 53
+    | Any (VarArraySize _) -> 54
+    | Any (VarStringLength _) -> 55
+    | Any (SubstringMayNullPtr _) -> 56
+    | Any (SubstringMustOffsetZero _) -> 57
+    | Any (StringComparison _) -> 58
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -456,6 +476,12 @@ struct
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any (VarArraySize v) -> Pretty.dprintf "VarArraySize %a" CilType.Varinfo.pretty v
+    | Any (VarStringLength v) -> Pretty.dprintf "VarStringLength %a" CilType.Varinfo.pretty v
+    | Any (SubstringMayNullPtr (v1, v2)) -> Pretty.dprintf "SubstringMayNullPtr %a %a" CilType.Varinfo.pretty v1 CilType.Varinfo.pretty v2
+    | Any (SubstringMustOffsetZero (v1, v2)) -> Pretty.dprintf "SubstringMustOffsetZero %a %a" CilType.Varinfo.pretty v1 CilType.Varinfo.pretty v2
+    | Any (StringComparison (v1, v2, n)) when n = None -> Pretty.dprintf "StringComparison %a %a" CilType.Varinfo.pretty v1 CilType.Varinfo.pretty v2
+    | Any (StringComparison (v1, v2, n)) -> match n with Some n -> Pretty.dprintf "StringNComparison %a %a %d" CilType.Varinfo.pretty v1 CilType.Varinfo.pretty v2 n | _ -> failwith "unreachable"
 end
 
 let to_value_domain_ask (ask: ask) =
