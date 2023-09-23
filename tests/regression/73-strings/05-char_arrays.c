@@ -15,6 +15,11 @@ int main() {
     example8();
     example9();
     example10();
+    example11();
+    example12();
+    example13();
+    example14();
+    example15();
 
     return 0;
 }
@@ -230,4 +235,96 @@ void example10() {
 
     i = strncmp(s1, s2, 10); // WARN
     __goblint_check(i != 0); // UNKNOWN
+}
+
+void example11() {
+    size_t i;
+    if (rand())
+        i = 0;
+    else
+        i = 1;
+
+    char s1[50] = "goblint"; // must null at 7, may nulls starting from 7
+    __goblint_check(s1[i] != '\0');
+
+    char s2[6] = "\0\0\0\0\0"; // all must and may nulls
+    __goblint_check(s2[i] == '\0');
+
+    strcpy(s1, s2); // must null at 0 and 7, mays nulls at 0 and starting from 7
+    __goblint_check(s1[i] == '\0'); // UNKNOWN
+
+    s1[i] = 'a'; // must null at 7, mays nulls at 0 and starting from 7
+
+    size_t len = strlen(s1);
+    __goblint_check(len >= 0);
+    __goblint_check(len > 0); // UNKNOWN
+    __goblint_check(len <= 7);
+
+    s2[0] = 'a'; // all must and may null >= 1
+    __goblint_check(s2[i] == '\0'); // UNKNOWN
+}
+
+void example12() {
+    char s1[50];
+    for (size_t i = 0; i < 50; i++)
+        s1[i] = '\0';
+    __goblint_check(s1[0] == '\0'); // no must null, all may nulls
+    __goblint_check(s1[1] == '\0'); // known by trivial array domain
+
+    char s2[5];
+    s2[0] = 'a'; s2[1] = 'a'; s2[2] = 'a'; s2[3] = 'a'; s2[4] ='a';
+    __goblint_check(s2[10] != '\0'); // no must null and may nulls
+
+    strcpy(s1, s2); // WARN: no must nulls, may nulls >= 5
+    strcpy(s2, "definite buffer overflow"); // WARN
+
+    s2[4] = '\0'; // must and may null at 4
+
+    strncpy(s1, s2, 4); // WARN
+}
+
+void example13() {
+    char s1[10]; // no must null, all may nulls
+    char s2[10]; // no must null, all may nulls
+    strncpy(s1, s2, 4); // WARN: no must null, all may nulls
+    __goblint_check(s1[3] == '\0'); // UNKNOWN
+    
+    s1[0] = 'a';
+    s1[1] = 'b'; // no must null, may nulls >= 2
+
+    strcat(s1, s2); // WARN: no must null, may nulls >= 2
+    __goblint_check(s1[1] != '\0');
+    __goblint_check(s1[2] == '\0'); // UNKNOWN
+
+    int cmp = strncmp(s1, s2, 0);
+    __goblint_check(cmp == 0);
+}
+
+void example14() {
+    size_t size;
+    if (rand())
+        size = 15;
+    else
+        size = 20;
+
+    char* s = malloc(size);
+
+    strcpy(s, ""); // must null at 0, all may null
+
+    strcat(s, "123456789012345678"); // WARN
+}
+
+example15() {
+    char* s1 = malloc(8);
+    strcpy(s1, "goblint"); // must and may null at 7
+
+    char s2[42] = "static"; // must null at 6, may null >= 6
+
+    strcat(s2, s1); // must null at 13, may null >= 13
+    __goblint_check(s2[12] != '\0');
+    __goblint_check(s2[13] == '\0');
+    __goblint_check(s2[14] == '\0'); // UNKNOWN
+
+    char* s3 = strstr(s1, s2);
+    __goblint_check(s3 == NULL);
 }
