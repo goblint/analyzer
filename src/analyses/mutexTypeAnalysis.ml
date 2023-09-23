@@ -15,10 +15,10 @@ struct
   module C = Lattice.Unit
 
   (* Removing indexes here avoids complicated lookups and allows to have the LVals as vars here, at the price that different types of mutexes in arrays are not dinstinguished *)
-  module O = Lval.OffsetNoIdx
+  module O = Offset.Unit
 
   module V = struct
-    include Printable.Prod(CilType.Varinfo)(O)
+    include Printable.Prod(CilType.Varinfo)(O) (* TODO: use Mval.Unit *)
     let is_write_only _ = false
   end
 
@@ -56,7 +56,11 @@ struct
       let attr = ctx.ask (Queries.EvalMutexAttr attr) in
       let mutexes = ctx.ask (Queries.MayPointTo mutex) in
       (* It is correct to iter over these sets here, as mutexes need to be intialized before being used, and an analysis that detects usage before initialization is a different analysis. *)
-      Queries.LS.iter (function (v, o) -> ctx.sideg (v,O.of_offs o) attr) mutexes;
+      Queries.AD.iter (function addr ->
+        match addr with
+        | Queries.AD.Addr.Addr (v,o) -> ctx.sideg (v,O.of_offs o) attr
+        | _ -> ()
+        ) mutexes;
       ctx.local
     | _ -> ctx.local
 
@@ -70,6 +74,9 @@ struct
     | Queries.MutexType (v,o) -> (ctx.global (v,o):MutexAttrDomain.t)
     | _ -> Queries.Result.top q
 end
+
+let must_be_recursive ctx (v,o) =
+  ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) = `Lifted MutexAttrDomain.MutexKind.Recursive
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)

@@ -88,11 +88,16 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     }
     in
     [result]
-  | Group {group_text; pieces} ->
+  | Group {group_text; group_loc; pieces} ->
     (* each grouped piece becomes a separate result with the other locations as related *)
+    (* TODO: use group_loc instead of distributing? *)
+    let group_loc_text = match group_loc with
+      | None -> ""
+      | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
+    in
     let piece_locations = List.map piece_location pieces in
     List.map2i (fun i piece locations ->
-        let text = prefix ^ group_text ^ "\n" ^ piece.Messages.Piece.text in
+        let text = prefix ^ group_text ^ group_loc_text ^ "\n" ^ piece.Messages.Piece.text in
         let relatedLocations = List.unique ~eq:Location.equal (List.flatten (List.remove_at i piece_locations)) in
         let result: Result.t = {
           ruleId;

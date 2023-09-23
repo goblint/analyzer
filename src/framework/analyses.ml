@@ -75,6 +75,7 @@ end
 module GVarF (V: SpecSysVar) =
 struct
   include Printable.Either (V) (CilType.Fundec)
+  let name () = "FromSpec"
   let spec x = `Left x
   let contexts x = `Right x
 
@@ -217,8 +218,12 @@ struct
     in
     let one_w f (m: Messages.Message.t) = match m.multipiece with
       | Single piece  -> one_text f piece
-      | Group {group_text = n; pieces = e} ->
-        BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
+      | Group {group_text = n; pieces = e; group_loc} ->
+        let group_loc_text = match group_loc with
+          | None -> ""
+          | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
+        in
+        BatPrintf.fprintf f "<group name=\"%s%s\">%a</group>\n" n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
     List.iter (one_w f) !Messages.Table.messages_list

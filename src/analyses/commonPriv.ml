@@ -62,7 +62,7 @@ struct
   let protected_vars (ask: Q.ask): varinfo list =
     let module VS = Set.Make (CilType.Varinfo) in
     Q.LS.fold (fun (v, _) acc ->
-        let m = ValueDomain.Addr.from_var v in (* TODO: don't ignore offsets *)
+        let m = ValueDomain.Addr.of_var v in (* TODO: don't ignore offsets *)
         Q.LS.fold (fun l acc ->
             VS.add (fst l) acc (* always `NoOffset from mutex analysis *)
           ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
@@ -117,19 +117,9 @@ module Locksets =
 struct
   module Lock = LockDomain.Addr
 
-  module Lockset =
-  struct
-    include Printable.Std (* To make it Groupable *)
-    include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-  end
+  module Lockset = SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
 
   module MustLockset = SetDomain.Reverse (Lockset)
-
-  let rec conv_offset = function
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, conv_offset o)
-    (* TODO: better indices handling *)
-    | `Index (_, o) -> `Index (IdxDom.top (), conv_offset o)
 
   let current_lockset (ask: Q.ask): Lockset.t =
     (* TODO: remove this global_init workaround *)
@@ -138,7 +128,7 @@ struct
     else
       let ls = ask.f Queries.MustLockset in
       Q.LS.fold (fun (var, offs) acc ->
-          Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
+          Lockset.add (Lock.of_mval (var, Lock.Offs.of_exp offs)) acc
         ) ls (Lockset.empty ())
 
   (* TODO: reversed SetDomain.Hoare *)

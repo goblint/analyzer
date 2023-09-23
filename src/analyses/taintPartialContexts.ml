@@ -6,26 +6,30 @@
 open GoblintCil
 open Analyses
 
+module D = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
+
+let to_mvals ad =
+  (* TODO: should one handle ad with unknown pointers separately like in (all) other analyses? *)
+  Queries.AD.fold (fun addr mvals ->
+      match addr with
+      | Queries.AD.Addr.Addr (v,o) -> D.add (v, ValueDomain.Offs.to_exp o) mvals (* TODO: use unconverted addrs in domain? *)
+      | _ -> mvals
+    ) ad (D.empty ())
+
 module Spec =
 struct
   include Analyses.IdentitySpec
 
   let name () = "taintPartialContexts"
-  module D = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+  module D = D
   module C = Lattice.Unit
-
-  let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
-    match offs with
-    | NoOffset -> `NoOffset
-    | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))
-    | Index (i_exp, i_offs) -> `Index (i_exp, (resolve i_offs))
 
   (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =
     let d = ctx.local in
     (match lval with
-     | (Var v, offs) -> D.add (v, resolve offs) d
-     | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
+     | (Var v, offs) -> D.add (v, Offset.Exp.of_cil offs) d
+     | (Mem e, _) -> D.union (to_mvals (ctx.ask (Queries.MayPointTo e))) d
     )
 
   (* this analysis is context insensitive*)
@@ -90,9 +94,9 @@ struct
       else
         deep_addrs
     in
-    let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.MayPointTo addr))) d shallow_addrs
+    let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.MayPointTo addr)))) d shallow_addrs
     in
-    let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.ReachableFrom addr))) d deep_addrs
+    let d = List.fold_left (fun accD addr -> D.union accD (to_mvals (ctx.ask (Queries.ReachableFrom addr)))) d deep_addrs
     in
     d
 

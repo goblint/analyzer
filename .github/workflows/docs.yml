@@ -30,7 +30,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Check for undocumented modules
+        run: python scripts/goblint-lib-modules.py
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -52,7 +55,7 @@ jobs:
         run: opam exec -- dune build @doc
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v2
         with:
           path: _build/default/_doc/_html/
 

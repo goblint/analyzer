@@ -15,6 +15,7 @@ module NFL = WrapperFunctionAnalysis0.NodeFlatLattice
 module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
 
 module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
+module ML = LibraryDesc.MathLifted
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"
@@ -33,6 +34,7 @@ module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
 
 module SD = Basetype.Strings
 module VD = ValueDomain.Compound
+module AD = ValueDomain.AD
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
@@ -62,7 +64,7 @@ type access =
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
 type invariant_context = Invariant.context = {
   path: int option;
-  lvals: CilLval.Set.t;
+  lvals: Lval.Set.t;
 }
 [@@deriving ord, hash]
 
@@ -70,8 +72,8 @@ type invariant_context = Invariant.context = {
 (** GADT for queries with specific result type. *)
 type _ t =
   | EqualSet: exp -> ES.t t
-  | MayPointTo: exp -> LS.t t
-  | ReachableFrom: exp -> LS.t t
+  | MayPointTo: exp -> AD.t t
+  | ReachableFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
   | MayEscape: varinfo -> MayBool.t t
@@ -99,8 +101,11 @@ type _ t =
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
-  | MutexType: varinfo * Lval.OffsetNoIdx.t -> MutexAttrDomain.t t
+  | IsMultiple: varinfo -> MustBool.t t
+  (* For locals: Is another copy of this local variable reachable via pointers? *)
+  (* For dynamically allocated memory: Does this abstract variable corrrespond to a unique heap location? *)
+  (* For globals: Is it declared as thread-local? (https://github.com/goblint/analyzer/issues/1072) *)
+  | MutexType: Mval.Unit.t -> MutexAttrDomain.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalMutexAttr: exp -> MutexAttrDomain.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
@@ -108,6 +113,7 @@ type _ t =
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> LS.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -116,6 +122,7 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | TmpSpecial:  Mval.Exp.t -> ML.t t
 
 type 'a result = 'a
 
@@ -134,8 +141,8 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> (module ES)
     | CondVars _ -> (module ES)
-    | MayPointTo _ -> (module LS)
-    | ReachableFrom _ -> (module LS)
+    | MayPointTo _ -> (module AD)
+    | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LS)
     | EvalFunvar _ -> (module LS)
@@ -171,6 +178,7 @@ struct
     | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module LS)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
@@ -179,6 +187,7 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | TmpSpecial _ -> (module ML)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -196,8 +205,8 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> ES.top ()
     | CondVars _ -> ES.top ()
-    | MayPointTo _ -> LS.top ()
-    | ReachableFrom _ -> LS.top ()
+    | MayPointTo _ -> AD.top ()
+    | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
     | EvalFunvar _ -> LS.top ()
@@ -233,6 +242,7 @@ struct
     | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> LS.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
@@ -241,6 +251,7 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | TmpSpecial _ -> ML.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -300,6 +311,8 @@ struct
     | Any (MutexType _) -> 49
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
+    | Any ThreadsJoinedCleanly -> 52
+    | Any (TmpSpecial _) -> 53
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -341,10 +354,11 @@ struct
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
-      | Any (MutexType (v1,o1)), Any (MutexType (v2,o2)) -> [%ord: CilType.Varinfo.t * Lval.OffsetNoIdx.t] (v1,o1) (v2,o2)
+      | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
+      | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -378,11 +392,12 @@ struct
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
-    | Any (MutexType (v,o)) -> 31*CilType.Varinfo.hash v + Lval.OffsetNoIdx.hash o
+    | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
+    | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -428,6 +443,7 @@ struct
     | Any ValidLongJmp -> Pretty.dprintf "ValidLongJmp"
     | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
+    | Any ThreadsJoinedCleanly -> Pretty.dprintf "ThreadsJoinedCleanly"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
@@ -439,6 +455,7 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
 end
 
 let to_value_domain_ask (ask: ask) =

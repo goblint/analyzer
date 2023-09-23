@@ -7,7 +7,6 @@ open BatPervasives
 module type S =
 sig
   include Printable.S
-  include MapDomain.Groupable with type t := t
 
   val threadinit: varinfo -> multiple:bool -> t
   val is_main: t -> bool
@@ -36,7 +35,7 @@ sig
   val threadenter: t * D.t -> Node.t -> int option -> varinfo -> t list
   val threadspawn: D.t -> Node.t -> int option -> varinfo -> D.t
 
-  (** If it is possible to get a list of unique thread create thus far, get it *)
+  (** If it is possible to get a list of threads created thus far, get it *)
   val created: t -> D.t -> (t list) option
 end
 
@@ -124,11 +123,14 @@ struct
 
   let show x = GobPretty.sprint pretty x
 
-  module D =
-  struct
+  module D = Lattice.Prod (struct
+      include S
+      let name () = "created (once)"
+    end) (struct
     include S
-    let name () = "created"
-  end
+    let name () = "created (multiple times)"
+  end)
+
 
   let is_unique (_, s) =
     S.is_empty s
@@ -160,7 +162,7 @@ struct
     else
       ([base_tid], S.empty ())
 
-  let threadenter ((p, _ ) as current, cs) (n: Node.t) i v =
+  let threadenter ((p, _ ) as current, (cs,_)) (n: Node.t) i v =
     let ni = Base.threadenter n i v in
     let ((p', s') as composed) = compose current ni in
     if is_unique composed && S.mem ni cs then
@@ -168,12 +170,24 @@ struct
     else
       [composed]
 
-  let created current cs =
-    let els = D.elements cs in
-    Some (List.map (compose current) els)
+  let created ((p, _ ) as current) (cs, cms) =
+    let els = S.elements cs in
+    let map_one e =
+      let ((p', s') as composed) = compose current e in
+      if is_unique composed && S.mem e cms then
+        (* Also construct the non-unique version that was spawned as e was encountered multiple times *)
+        [(p, S.singleton e); composed]
+      else
+        [composed]
+    in
+    Some (List.concat_map map_one els)
 
-  let threadspawn cs l i v =
-    S.add (Base.threadenter l i v) cs
+  let threadspawn (cs,cms) l i v =
+    let e = Base.threadenter l i v in
+    if S.mem e cs then
+      (cs, S.add e cms)
+    else
+      (S.add e cs, cms)
 
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
@@ -197,7 +211,7 @@ struct
   (* Plain thread IDs *)
   module P = Unit(FunNode)
 
-  include GroupableFlagHelper(H)(P)(struct
+  include FlagHelper(H)(P)(struct
       let msg = "FlagConfiguredTID received a value where not exactly one component is set"
       let name = "FlagConfiguredTID"
     end)

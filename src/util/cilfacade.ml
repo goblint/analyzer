@@ -33,6 +33,10 @@ let rec isVLAType t =
     variable_len || isVLAType et
   | _ -> false
 
+let is_first_field x = match x.fcomp.cfields with
+  | [] -> false
+  | f :: _ -> CilType.Fieldinfo.equal f x
+
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
@@ -163,7 +167,7 @@ let getFuns fileAST : startfuns =
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
-    | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
+    | GFun ({svar={vstorage=NoStorage; vattr; _}; _} as def, _) when get_bool "nonstatic" && not (Cil.hasAttribute "goblint_stub" vattr) -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
     | _ -> acc
   in
@@ -337,6 +341,119 @@ let makeBinOp binop e1 e2 =
   let t2 = typeOf e2 in
   let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
   e
+
+let anoncomp_name_regexp = Str.regexp {|^__anon\(struct\|union\)\(_\(.+\)\)?_\([0-9]+\)$|}
+
+let split_anoncomp_name name =
+  (* __anonunion_pthread_mutexattr_t_488594144 *)
+  (* __anonunion_50 *)
+  if Str.string_match anoncomp_name_regexp name 0 then (
+    let struct_ = match Str.matched_group 1 name with
+      | "struct" -> true
+      | "union" -> false
+      | _ -> assert false
+    in
+    let name' = try Some (Str.matched_group 3 name) with Not_found -> None in
+    let id = int_of_string (Str.matched_group 4 name) in
+    (struct_, name', id)
+  )
+  else
+    invalid_arg ("Cilfacade.split_anoncomp_name: " ^ name)
+
+(** Pretty-print typsig like typ, because
+    {!d_typsig} prints with CIL constructors. *)
+let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
+  (* Copied & modified from Cil.defaultCilPrinterClass#pType. *)
+  let open Pretty in
+  let name = match nameOpt with None -> nil | Some d -> d in
+  let printAttributes (a: attributes) =
+    let pa = d_attrlist () a in
+    match nameOpt with
+    | None when not !print_CIL_Input ->
+      (* Cannot print the attributes in this case because gcc does not
+          like them here, except if we are printing for CIL. *)
+      if pa = nil then nil else
+        text "/*" ++ pa ++ text "*/"
+    | _ -> pa
+  in
+  match ts with
+  | TSBase t -> defaultCilPrinter#pType nameOpt () t
+  | TSComp (cstruct, cname, a) ->
+    let su = if cstruct then "struct" else "union" in
+    text (su ^ " " ^ cname ^ " ")
+    ++ d_attrlist () a
+    ++ name
+  | TSEnum (ename, a) ->
+    text ("enum " ^ ename ^ " ")
+    ++ d_attrlist () a
+    ++ name
+  | TSPtr (bt, a)  ->
+    (* Parenthesize the ( * attr name) if a pointer to a function or an
+        array. *)
+    let (paren: doc option), (bt': typsig) =
+      match bt with
+      | TSFun _ | TSArray _ -> Some (text "("), bt
+      | _ -> None, bt
+    in
+    let name' = text "*" ++ printAttributes a ++ name in
+    let name'' = (* Put the parenthesis *)
+      match paren with
+        Some p -> p ++ name' ++ text ")"
+      | _ -> name'
+    in
+    pretty_typsig_like_typ
+      (Some name'')
+      ()
+      bt'
+
+  | TSArray (elemt, lo, a) ->
+    (* ignore the const attribute for arrays *)
+    let a' = dropAttributes [ "pconst" ] a in
+    let name' =
+      if a' == [] then name else
+      if nameOpt == None then printAttributes a' else
+        text "(" ++ printAttributes a' ++ name ++ text ")"
+    in
+    pretty_typsig_like_typ
+      (Some (name'
+             ++ text "["
+             ++ (match lo with None -> nil | Some e -> text (Z.to_string e))
+             ++ text "]"))
+      ()
+      elemt
+
+  | TSFun (restyp, args, isvararg, a) ->
+    let name' =
+      if a == [] then name else
+      if nameOpt == None then printAttributes a else
+        text "(" ++ printAttributes a ++ name ++ text ")"
+    in
+    pretty_typsig_like_typ
+      (Some
+         (name'
+          ++ text "("
+          ++ (align
+              ++
+              (if args = Some [] && isvararg then
+                 text "..."
+               else
+                 (if args = None then nil
+                  else if args = Some [] then text "void"
+                  else
+                    let pArg atype =
+                      (pretty_typsig_like_typ None () atype)
+                    in
+                    (docList ~sep:(chr ',' ++ break) pArg) ()
+                      (match args with None -> [] | Some args -> args))
+                 ++ (if isvararg then break ++ text ", ..." else nil))
+              ++ unalign)
+          ++ text ")"))
+      ()
+      restyp
+
+(** Pretty-print typsig like typ, because
+    {!d_typsig} prints with CIL constructors. *)
+let pretty_typsig_like_typ = pretty_typsig_like_typ None
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200

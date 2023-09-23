@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-variants.4.14.0+options ocaml-option-flambda --locked
+  opam switch -y create . --deps-only --packages=ocaml-variants.4.14.0+options,ocaml-option-flambda --locked
 }
 
 rule() {
@@ -21,6 +21,11 @@ rule() {
     ;; nat*)
       eval $(opam config env)
       dune build $TARGET.exe &&
+      rm -f goblint &&
+      cp _build/default/$TARGET.exe goblint
+    ;; coverage)
+      eval $(opam config env)
+      dune build --instrument-with bisect_ppx $TARGET.exe &&
       rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
     ;; release)

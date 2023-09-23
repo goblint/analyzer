@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 // copy of 06/02 with additional index accesses (that are wrong)
 #include<pthread.h>
 #include<stdio.h>

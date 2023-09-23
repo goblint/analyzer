@@ -7,7 +7,7 @@ open Analyses
 
 module Domain = struct
   module V =  Queries.ES
-  include MapDomain.MapBot (Lval.CilLval) (V)
+  include MapDomain.MapBot (Mval.Exp) (V)
   let rec var_in_lval p (lh,offs) = var_in_offs p offs && match lh with
     | Var v -> p v
     | Mem e -> var_in_expr p e
@@ -45,7 +45,7 @@ module Domain = struct
     if mem k d && V.cardinal (find k d) = 1 then
       let s = find k d in
       match V.choose s with
-      | Lval (Var v, offs) -> get (v, Lval.CilLval.of_ciloffs offs) d (* transitive lookup *)
+      | Lval (Var v, offs) -> get (v, Offset.Exp.of_cil offs) d (* transitive lookup *)
       | _ -> Some s
     else None
   let get_elt k d = Option.map V.choose @@ get k d
@@ -64,18 +64,18 @@ struct
   let (>?) = Option.bind
 
   let mayPointTo ctx exp =
-    match ctx.ask (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
-      let top_elt = (dummyFunDec.svar, `NoOffset) in
-      let a' = if Queries.LS.mem top_elt a then (
-          M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
-          Queries.LS.remove top_elt a
-        ) else a
-      in
-      Queries.LS.elements a'
-    | _ -> []
+    let ad = ctx.ask (Queries.MayPointTo exp) in
+    let a' = if Queries.AD.mem UnknownPtr ad then (
+        M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
+        Queries.AD.remove UnknownPtr ad
+      ) else ad
+    in
+    List.filter_map (function
+        | ValueDomain.Addr.Addr (v,o) -> Some (v, ValueDomain.Addr.Offs.to_exp o) (* TODO: use unconverted addrs in domain? *)
+        | _ -> None
+      ) (Queries.AD.elements a')
 
-  let mustPointTo ctx exp = (* this is just to get CilLval *)
+  let mustPointTo ctx exp = (* this is just to get Mval.Exp *)
     match mayPointTo ctx exp with
     | [clval] -> Some clval
     | _ -> None
@@ -108,7 +108,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Lval.CilLval.pretty clval d_exp expr;
+        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Mval.Exp.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
