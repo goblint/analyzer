@@ -583,7 +583,7 @@ let do_gobview cilfile =
       let file_dir = Fpath.(run_dir / "files") in
       GobSys.mkdir_or_exists file_dir;
       let file_loc = Hashtbl.create 113 in
-      let copy (path,i) =
+      let copy (path, i) =
         let name, ext = Fpath.split_ext (Fpath.base path) in
         let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int i) name) in
         let dest = Fpath.(file_dir // unique_name) in
@@ -591,9 +591,11 @@ let do_gobview cilfile =
           | Some p -> Fpath.to_string p
           | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
         Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
-        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest) in
-      let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) |>  List.mapi (fun i e ->(e, i)) |> List.filter (fun (e,_) -> Fpath.is_file_path e) in
-      List.iter copy source_paths;
+        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest)
+      in
+      let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
+      let source_file_paths = List.filteri_map (fun i e -> if Fpath.is_file_path e then Some (e, i) else None) source_paths in
+      List.iter copy source_file_paths;
       Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
       (* marshal timing statistics *)
       let stats = Fpath.(run_dir / "stats.marshalled") in
