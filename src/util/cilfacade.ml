@@ -377,7 +377,7 @@ let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
     | _ -> pa
   in
   match ts with
-  | TSBase t -> dn_type () t
+  | TSBase t -> defaultCilPrinter#pType nameOpt () t
   | TSComp (cstruct, cname, a) ->
     let su = if cstruct then "struct" else "union" in
     text (su ^ " " ^ cname ^ " ")
