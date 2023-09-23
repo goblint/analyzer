@@ -2097,13 +2097,17 @@ struct
           | Bot, Array array_s2 ->
             (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
             let size = ctx.ask (Q.BlobSize s1) in
-            let s_id = ValueDomainQueries.ID.unlift (Fun.id) size in
+            let s_id = 
+              try ValueDomainQueries.ID.unlift (Fun.id) size 
+              with Failure _ -> ID.top_of ILong in
             let empty_array = CArrays.make (ID.cast_to (Cilfacade.ptrdiff_ikind ()) s_id) (Int (ID.top_of IChar)) in
             set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (op_array empty_array array_s2)
           | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
             (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
             let size = ctx.ask (Q.BlobSize s1) in
-            let s_id = ValueDomainQueries.ID.unlift (Fun.id) size in
+            let s_id = 
+              try ValueDomainQueries.ID.unlift (Fun.id) size 
+              with Failure _ -> ID.top_of ILong in
             let empty_array = CArrays.make (ID.cast_to (Cilfacade.ptrdiff_ikind ()) s_id) (Int (ID.top_of IChar)) in
             let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
             let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
