@@ -84,7 +84,7 @@ struct
     in
     emit_splits ctx d
 
-  let threadenter ctx lval f args = [ctx.local]
+  let threadenter ?(multiple=false) ctx lval f args = [ctx.local]
 
   let threadspawn ctx lval f args fctx =
     emit_splits_ctx ctx

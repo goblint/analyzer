@@ -155,7 +155,7 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+  let threadenter ?(multiple=false) ctx lval f args = [D.bot ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end

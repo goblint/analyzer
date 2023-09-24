@@ -58,7 +58,7 @@ struct
   let access ctx _ =
     is_currently_multi (Analyses.ask_of_ctx ctx)
 
-  let threadenter ctx lval f args =
+  let threadenter ?(multiple=false) ctx lval f args =
     if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     [create_tid f]

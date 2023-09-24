@@ -73,7 +73,7 @@ struct
     | _ -> ctx.local
 
   let startstate v = Signals.empty ()
-  let threadenter ctx lval f args = [ctx.local]
+  let threadenter ?(multiple=false) ctx lval f args = [ctx.local]
   let exitstate  v = Signals.empty ()
 end
 

@@ -87,7 +87,7 @@ struct
 
   let startstate v = D.bot ()
 
-  let threadenter ctx lval f args =
+  let threadenter ?(multiple=false) ctx lval f args =
     (* The new thread receives a fresh counter *)
     [D.bot ()]
 

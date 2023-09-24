@@ -342,7 +342,7 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; spawn    : lval option -> varinfo -> exp list -> unit
+  ; spawn    : ?multiple:bool -> lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
   }
@@ -444,7 +444,7 @@ sig
   val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
 
   (** Returns initial state for created thread. *)
-  val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
+  val threadenter : ?multiple:bool -> (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
@@ -696,7 +696,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     ctx.local
 
-  let threadenter ctx lval f args = [ctx.local]
+  let threadenter ?(multiple=false) ctx lval f args = [ctx.local]
   let threadspawn ctx lval f args fctx = ctx.local
 end
 

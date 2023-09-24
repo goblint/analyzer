@@ -18,7 +18,7 @@ struct
   module C = D
 
   let startstate v = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
+  let threadenter ?(multiple=false) ctx lval f args = [D.empty ()]
   let exitstate  v = D.empty ()
 end
 

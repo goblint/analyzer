@@ -56,9 +56,9 @@ struct
       Hashtbl.replace !tids tid ();
     (N.bot (), `Lifted (tid), (TD.bot (), TD.bot ()))
 
-  let create_tid (_, current, (td, _)) ((node, index): Node.t * int option) v =
+  let create_tid ?(multiple=false) (_, current, (td, _)) ((node, index): Node.t * int option) v =
     match current with
-    | `Lifted current ->
+    | `Lifted current when not multiple ->
       let+ tid = Thread.threadenter (current, td) node index v in
       if GobConfig.get_bool "dbg.print_tids" then
         Hashtbl.replace !tids tid ();
@@ -133,9 +133,9 @@ struct
     | `Lifted node, count -> node, Some count
     | (`Bot | `Top), _ -> ctx.prev_node, None
 
-  let threadenter ctx lval f args:D.t list =
+  let threadenter ?(multiple=false) ctx lval f args:D.t list =
     let n, i = indexed_node_for_ctx ctx in
-    let+ tid = create_tid ctx.local (n, i) f in
+    let+ tid = create_tid ~multiple ctx.local (n, i) f in
     (`Lifted (f, n, i), tid, (TD.bot (), TD.bot ()))
 
   let threadspawn ctx lval f args fctx =

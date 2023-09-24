@@ -140,9 +140,9 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
+  let do_spawns ctx (xs:(varinfo * (lval option * exp list * bool)) list) =
     let spawn_one v d =
-      List.iter (fun (lval, args) -> ctx.spawn lval v args) d
+      List.iter (fun (lval, args, multiple) -> ctx.spawn ~multiple lval v args) d
     in
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
@@ -322,8 +322,8 @@ struct
 
   and outer_ctx tfname ?spawns ?sides ?emits ctx =
     let spawn = match spawns with
-      | Some spawns -> (fun l v a  -> spawns := (v,(l,a)) :: !spawns)
-      | None -> (fun v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
+      | Some spawns -> (fun ?(multiple=false) l v a  -> spawns := (v,(l,a,multiple)) :: !spawns)
+      | None -> (fun ?(multiple=false) v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
       | Some sides -> (fun v g    -> sides  := (v, (!WideningTokens.side_tokens, g)) :: !sides)
@@ -565,13 +565,13 @@ struct
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
+  let threadenter ?(multiple=false) (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in
     let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadenter" ctx'' n d in
-      map (fun d -> (n, repr d)) @@ S.threadenter ctx' lval f a
+      map (fun d -> (n, repr d)) @@ (S.threadenter ~multiple) ctx' lval f a
     in
     let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;

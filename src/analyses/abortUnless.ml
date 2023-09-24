@@ -65,7 +65,7 @@ struct
     false
 
   let startstate v = false
-  let threadenter ctx lval f args = [false]
+  let threadenter ?(multiple=false) ctx lval f args = [false]
   let threadspawn ctx lval f args fctx = false
   let exitstate v = false
 end
