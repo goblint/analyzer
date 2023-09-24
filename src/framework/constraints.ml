@@ -584,7 +584,7 @@ struct
     and spawn ?(multiple=false) lval f args =
       (* TODO: adjust ctx node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
-      let ds = S.threadenter ctx lval f args in
+      let ds = S.threadenter ~multiple ctx lval f args in
       List.iter (fun d ->
           spawns := (lval, f, args, d) :: !spawns;
           match Cilfacade.find_varinfo_fundec f with
