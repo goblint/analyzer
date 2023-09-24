@@ -152,7 +152,7 @@ module HConsed (Base:S) =
 struct
   include Printable.HConsed (Base)
 
-  (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues *)
+  (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
   (* see https://github.com/goblint/analyzer/issues/1005 *)
   let int_refine_active = GobConfig.get_string "ana.int.refinement" <> "never"
 
