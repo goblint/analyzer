@@ -54,7 +54,7 @@ struct
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
-  let threadenter ?(multiple=false) ctx lval f args = [()]
+  let threadenter ctx ~multiple lval f args = [()]
   let exitstate  v = ()
   let context fd d = ()
 

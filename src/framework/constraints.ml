@@ -83,8 +83,8 @@ struct
   let combine_assign ctx r fe f args fc es f_ask =
     D.lift @@ S.combine_assign (conv ctx) r fe f args fc (D.unlift es) f_ask
 
-  let threadenter ?(multiple=false) ctx lval f args =
-    List.map D.lift @@ (S.threadenter ~multiple) (conv ctx) lval f args
+  let threadenter ctx ~multiple lval f args =
+    List.map D.lift @@ S.threadenter (conv ctx) ~multiple lval f args
 
   let threadspawn ctx lval f args fctx =
     D.lift @@ S.threadspawn (conv ctx) lval f args (conv fctx)
@@ -167,8 +167,8 @@ struct
   let combine_assign ctx r fe f args fc es f_ask =
     S.combine_assign (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
 
-  let threadenter ?(multiple=false) ctx lval f args =
-    S.threadenter ~multiple (conv ctx) lval f args
+  let threadenter ctx ~multiple lval f args =
+    S.threadenter (conv ctx) ~multiple lval f args
 
   let threadspawn ctx lval f args fctx =
     S.threadspawn (conv ctx) lval f args (conv fctx)
@@ -249,7 +249,7 @@ struct
   let combine_env' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
-  let threadenter ?(multiple=false) ctx lval f args = lift_fun ctx (List.map lift_start_level) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
+  let threadenter ctx ~multiple lval f args = lift_fun ctx (List.map lift_start_level) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let leq0 = function
@@ -394,7 +394,7 @@ struct
 
   let event ctx e octx = lift_fun ctx S.event ((|>) (conv octx) % (|>) e)
 
-  let threadenter ?(multiple=false) ctx lval f args = S.threadenter ~multiple (conv ctx) lval f args |> List.map (fun d -> (d, snd ctx.local))
+  let threadenter ctx ~multiple lval f args = S.threadenter (conv ctx) ~multiple lval f args |> List.map (fun d -> (d, snd ctx.local))
   let threadspawn ctx lval f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let enter ctx r f args =
@@ -485,7 +485,7 @@ struct
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
-  let threadenter ?(multiple=false) ctx lval f args = lift_fun ctx (List.map D.lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval) []
+  let threadenter ctx ~multiple lval f args = lift_fun ctx (List.map D.lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval) []
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
 
   let event (ctx:(D.t,G.t,C.t,V.t) ctx) (e:Events.t) (octx:(D.t,G.t,C.t,V.t) ctx):D.t = lift_fun ctx D.lift S.event ((|>) (conv octx) % (|>) e) `Bot
@@ -1262,7 +1262,7 @@ struct
     let fd1 = D.choose octx.local in
     map ctx Spec.event (fun h -> h e (conv octx fd1))
 
-  let threadenter ?(multiple=false) ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let g xs ys = (List.map (fun y -> D.singleton y) ys) @ xs in
     fold' ctx (Spec.threadenter ~multiple) (fun h -> h lval f args) g []
 
@@ -1449,7 +1449,7 @@ struct
   let combine_env ctx = S.combine_env (conv ctx)
   let combine_assign ctx = S.combine_assign (conv ctx)
   let special ctx = S.special (conv ctx)
-  let threadenter ?(multiple=false) ctx = S.threadenter ~multiple (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
@@ -1685,7 +1685,7 @@ struct
       List.iter handle_path (S.paths_as_set conv_ctx);
       S.D.bot ()
     | _ -> S.special conv_ctx lv f args
-  let threadenter ?(multiple=false) ctx = S.threadenter ~multiple (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)

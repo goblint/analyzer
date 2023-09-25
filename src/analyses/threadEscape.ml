@@ -150,7 +150,7 @@ struct
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()
 
-  let threadenter ?(multiple=false) ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.bot ()]
 
   let threadspawn ctx lval f args fctx =

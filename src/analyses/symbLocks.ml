@@ -29,7 +29,7 @@ struct
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let threadenter ?(multiple=false) ctx lval f args = [D.top ()]
+  let threadenter ctx ~multiple lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 

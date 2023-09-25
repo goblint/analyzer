@@ -133,7 +133,7 @@ struct
     | `Lifted node, count -> node, Some count
     | (`Bot | `Top), _ -> ctx.prev_node, None
 
-  let threadenter ?(multiple=false) ctx lval f args:D.t list =
+  let threadenter ctx ~multiple lval f args:D.t list =
     let n, i = indexed_node_for_ctx ctx in
     let+ tid = create_tid ~multiple ctx.local (n, i) f in
     (`Lifted (f, n, i), tid, (TD.bot (), TD.bot ()))

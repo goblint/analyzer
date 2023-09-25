@@ -199,7 +199,7 @@ struct
     let r = Dom.bindings a in
     List.map (fun (x,v) -> (Dom.singleton x v, b)) r
 
-  let threadenter ?(multiple=false) ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
           let yr = step ctx.prev_node (ctx.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)

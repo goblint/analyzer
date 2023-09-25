@@ -61,7 +61,7 @@ struct
     VS.join au ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ?(multiple=false) ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 
   let event ctx e octx =

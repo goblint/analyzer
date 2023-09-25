@@ -2503,7 +2503,7 @@ struct
     in
     combine_one ctx.local after
 
-  let threadenter ?(multiple=false) ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
+  let threadenter ctx ~multiple (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
       [make_entry ~thread:true ctx fd args]

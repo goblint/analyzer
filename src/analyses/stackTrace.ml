@@ -21,7 +21,7 @@ struct
     ctx.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = D.bot ()
-  let threadenter ?(multiple=false) ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 end
 
@@ -45,7 +45,7 @@ struct
   let startstate v = D.bot ()
   let exitstate  v = D.top ()
 
-  let threadenter ?(multiple=false) ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.push !Tracing.current_loc ctx.local]
 end
 

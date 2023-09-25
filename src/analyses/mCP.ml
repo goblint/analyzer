@@ -565,7 +565,7 @@ struct
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let threadenter ?(multiple=false) (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
+  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a =
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in

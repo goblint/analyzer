@@ -1238,7 +1238,7 @@ module Spec : Analyses.MCPSpec = struct
       (Ctx.top ())
 
 
-  let threadenter ?(multiple=false) ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let d : D.t = ctx.local in
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)

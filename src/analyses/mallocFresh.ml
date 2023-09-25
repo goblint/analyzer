@@ -52,7 +52,7 @@ struct
       | None -> ctx.local
       | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
-  let threadenter ?(multiple=false) ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.empty ()]
 
   let threadspawn ctx lval f args fctx =

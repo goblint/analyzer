@@ -423,7 +423,7 @@ struct
         }
       in
       (* TODO: don't hd *)
-      List.hd (Spec.threadenter ctx None v [])
+      List.hd (Spec.threadenter ctx ~multiple:false None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
