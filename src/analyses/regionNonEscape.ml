@@ -7,7 +7,6 @@ open GoblintCil
 open Analyses
 
 module RegMap = RegionNonEscapeDomain.RegMap
-module RegPart = RegionDomain.RegPart
 module Reg = RegionNonEscapeDomain.Reg
 module RS = RegionNonEscapeDomain.RS
 
