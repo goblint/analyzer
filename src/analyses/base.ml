@@ -1104,12 +1104,12 @@ struct
       if AD.mem Addr.UnknownPtr fp then begin
         let others = AD.to_var_may fp in
         if others = [] then raise OnlyUnknown;
-        M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
+        M.warn ~category:Imprecise ~tags:[Category Call] "Function pointer %a may contain unknown functions." d_exp fval;
         dummyFunDec.svar :: others
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ | OnlyUnknown ->
-      M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;
+      M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
   (** Evaluate expression as address.
@@ -1970,7 +1970,7 @@ struct
     end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise "Unknown function ptr called");
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called");
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in

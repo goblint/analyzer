@@ -776,16 +776,16 @@ struct
           end
         else begin
           let geq = if var_arg then ">=" else "" in
-          M.warn ~tags:[CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
+          M.warn ~category:Unsound ~tags:[Category Call; CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
           None
         end
       | _ ->
-        M.warn  ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
+        M.warn ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
         None
     in
     let funs = List.filter_map one_function functions in
     if [] = funs then begin
-      M.warn ~category:Unsound "No suitable function to be called at call site. Continuing with state before call.";
+      M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
     end else
       common_joins ctx funs !r !spawns
