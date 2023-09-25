@@ -70,15 +70,15 @@ struct
           | false, false, false ->
             RegMap.add x (RegMap.find y reg) reg
           | false, true , true  ->
-            add_set (RS.join (RegMap.find x reg) RS.single_vf) [x] reg
+            add_set (RS.join (RegMap.find x reg) RS.single_vf) [x] reg (* Variable escapes when it is assigned a value from a global variable *)
           | false, true , false ->
             add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
           | true , _    , false ->
-            add_set (RS.join RS.single_vf (RegMap.find y reg)) [y] reg
+            add_set (RS.join RS.single_vf (RegMap.find y reg)) [y] reg (* Variable escapes when assigned to global variable *)
           | true , _    , true  ->
             reg
         end
-      | _ -> reg 
+      | _ -> reg
     else if isIntegralType t then reg
     else
       match eval_exp (Lval lval) with
