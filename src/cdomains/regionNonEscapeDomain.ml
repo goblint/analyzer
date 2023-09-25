@@ -54,7 +54,7 @@ struct
       if RS.is_single_bullet x then
         RegMap.add_list_set llist x m
       else
-        RegMap.add_list_set ys x m
+        RegMap.add_list_set ys (RS.remove_bullet x) m
     else
       m
 
