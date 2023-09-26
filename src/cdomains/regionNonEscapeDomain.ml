@@ -4,20 +4,20 @@ open GoblintCil
 
 module RS : sig
   include Lattice.S
+  val empty : unit -> t
   val single_vf : t
   val single_bullet : t
-  val remove_bullet : t -> t
-  val empty : unit -> t
   val has_bullet : t -> bool
   val is_single_bullet : t -> bool
+  val remove_bullet : t -> t
 end = struct
   include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
-  let single_vf = (true, false)
-  let single_bullet = (false, true)
-  let remove_bullet (l, _) = (l, false)
   let empty () = (false, false)
+  let single_vf = (true, false) (* escaped *)
+  let single_bullet = (false, true) (* non-escaped *)
   let has_bullet (_, r) = r = true
   let is_single_bullet (l, r) = l = false && r = true
+  let remove_bullet (l, _) = (l, false)
 end
 
 module RegMap =
