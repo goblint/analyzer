@@ -5,16 +5,16 @@ open GoblintCil
 module RS : sig
   include Lattice.S
   val empty : unit -> t
-  val single_vf : t
-  val single_bullet : t
+  val single_vf : unit -> t
+  val single_bullet : unit -> t
   val has_bullet : t -> bool
   val is_single_bullet : t -> bool
   val remove_bullet : t -> t
 end = struct
   include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
   let empty () = (false, false)
-  let single_vf = (true, false) (* escaped *)
-  let single_bullet = (false, true) (* non-escaped *)
+  let single_vf () = (true, false) (* escaped *)
+  let single_bullet () = (false, true) (* non-escaped *)
   let has_bullet (_, r) = r = true
   let is_single_bullet (l, r) = l = false && r = true
   let remove_bullet (l, _) = (l, false)
@@ -73,15 +73,15 @@ struct
       | Some (deref_x,x), Some (deref_y,y) -> begin
           match is_global x, deref_x, is_global y with
           | false, false, true  ->
-            RegMap.add x RS.single_vf reg
+            RegMap.add x (RS.single_vf ()) reg
           | false, false, false ->
             RegMap.add x (RegMap.find y reg) reg
           | false, true , true  ->
-            add_set (RS.join (RegMap.find x reg) RS.single_vf) [x] reg (* Variable escapes when it is assigned a value from a global variable *)
+            add_set (RS.join (RegMap.find x reg) (RS.single_vf ())) [x] reg (* Variable escapes when it is assigned a value from a global variable *)
           | false, true , false ->
             add_set (RS.join (RegMap.find x reg) (RegMap.find y reg)) [x;y] reg
           | true , _    , false ->
-            add_set (RS.join RS.single_vf (RegMap.find y reg)) [y] reg (* Variable escapes when assigned to global variable *)
+            add_set (RS.join (RS.single_vf ()) (RegMap.find y reg)) [y] reg (* Variable escapes when assigned to global variable *)
           | true , _    , true  ->
             reg
         end
@@ -94,12 +94,12 @@ struct
 
   let assign_bullet lval m: t =
     match eval_exp (Lval lval) with
-    | Some (_, x) -> RegMap.add x RS.single_bullet m
+    | Some (_, x) -> RegMap.add x (RS.single_bullet ()) m
     | _ -> m
 
   let related_globals deref_vfd m =
     match deref_vfd with
-    | Some (_, vfd) when is_global vfd -> RS.single_vf
+    | Some (_, vfd) when is_global vfd -> RS.single_vf ()
     | Some (true, vfd) -> RegMap.find vfd m
     | Some (false, vfd) -> RS.empty ()
     | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; RS.empty ()

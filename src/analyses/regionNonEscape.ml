@@ -107,7 +107,7 @@ struct
       begin match Reg.eval_exp ptc_arg with
         | Some (deref_y, y) when not (Reg.is_global y) ->
           (* Variable escapes if used as an argument when spawning a new thread *)
-          Reg.add_set (RS.join RS.single_vf (RegMap.find y reg)) [y] reg
+          Reg.add_set (RS.join (RS.single_vf ()) (RegMap.find y reg)) [y] reg
         | _ -> reg
       end
     | _ -> reg
