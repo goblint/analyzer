@@ -10,7 +10,6 @@ module RS : sig
   val empty : unit -> t
   val has_bullet : t -> bool
   val is_single_bullet : t -> bool
-  val is_empty : t -> bool
 end = struct
   include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
   let single_vf = (true, false)
@@ -19,7 +18,6 @@ end = struct
   let empty () = (false, false)
   let has_bullet (_, r) = r = true
   let is_single_bullet (l, r) = l = false && r = true
-  let is_empty (l, r) = l = false && r = false
 end
 
 module RegMap =
