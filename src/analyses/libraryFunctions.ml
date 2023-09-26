@@ -102,6 +102,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("vprintf", unknown [drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vfprintf", unknown [drop "stream" [r_deep; w_deep]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vsprintf", unknown [drop "buffer" [w]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("vasprintf", unknown [drop "strp" [w]; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("vsnprintf", unknown [drop "str" [w]; drop "size" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mktime", unknown [drop "tm" [r;w]]);
     ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]);
@@ -289,6 +291,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("nftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []; drop "flags" []]); (* TODO: use Call instead of Spawn *)
     ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w]]); (* only write res non-deep because it doesn't write to existing fields of res *)
     ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
+    ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -825,6 +828,19 @@ let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pcre_version", unknown []);
   ]
 
+let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("inflate", unknown [drop "strm" [r_deep; w_deep]; drop "flush" []]);
+    ("inflateInit2", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []]);
+    ("inflateInit2_", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []; drop "version" [r]; drop "stream_size" []]);
+    ("inflateEnd", unknown [drop "strm" [f_deep]]);
+  ]
+
+let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("lzma_code", unknown [drop "strm" [r_deep; w_deep]; drop "action" []]);
+    ("lzma_auto_decoder", unknown [drop "strm" [r_deep; w_deep]; drop "memlimit" []; drop "flags" []]);
+    ("lzma_end", unknown [drop "strm" [r_deep; w_deep; f_deep]]);
+  ]
+
 let libraries = Hashtbl.of_list [
     ("c", c_descs_list @ math_descs_list);
     ("posix", posix_descs_list);
@@ -838,6 +854,8 @@ let libraries = Hashtbl.of_list [
     ("ncurses", ncurses_descs_list);
     ("zstd", zstd_descs_list);
     ("pcre", pcre_descs_list);
+    ("zlib", zlib_descs_list);
+    ("liblzma", liblzma_descs_list);
   ]
 
 let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
@@ -1072,7 +1090,6 @@ let invalidate_actions = [
     "usleep", readsAll;
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
-    "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "strcasecmp", readsAll; (*safe*)

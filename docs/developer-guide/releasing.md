@@ -45,13 +45,20 @@
     10. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
     11. Exit Docker container.
 
-12. Create a GitHub release with the git tag: `DUNE_RELEASE_DELEGATE=github-dune-release-delegate dune-release publish distrib`.
+12. Temporarily enable Zenodo GitHub webhook.
+
+    This is because we only want numbered version releases to automatically add a new version to our Zenodo artifact.
+    Other tags (like SV-COMP or paper artifacts) have manually created Zenodo artifacts anyway and thus shouldn't add new versions to the main Zenodo artifact.
+
+13. Create a GitHub release with the git tag: `DUNE_RELEASE_DELEGATE=github-dune-release-delegate dune-release publish distrib`.
 
     Explicitly specify `distrib` because we don't want to publish OCaml API docs.
     Environment variable workaround for the package having a Read the Docs `doc` URL (see <https://github.com/ocamllabs/dune-release/issues/154>).
 
-13. Create an opam package: `dune-release opam pkg`.
-14. Submit the opam package to opam-repository: `dune-release opam submit`.
+14. Re-disable Zenodo GitHub webhook.
+
+15. Create an opam package: `dune-release opam pkg`.
+16. Submit the opam package to opam-repository: `dune-release opam submit`.
 
 
 ## SV-COMP
@@ -104,15 +111,9 @@
 ### After all preruns
 
 1. Push git tag from last prerun: `git push origin svcompXY`.
-2. Temporarily disable Zenodo webhook.
-
-    This is because we don't want a new out-of-place version of Goblint in our Zenodo artifact.
-    A separate Zenodo artifact for the SV-COMP version can be created later if tool paper is submitted.
-
-3. Create GitHub release from the git tag and attach latest submitted archive as a download.
-4. Manually run `docker` workflow on `svcompXY` git tag and targeting `svcompXY` Docker tag.
+2. Create GitHub release from the git tag and attach latest submitted archive as a download.
+3. Manually run `docker` workflow on `svcompXY` git tag and targeting `svcompXY` Docker tag.
 
     This is because the usual `docker` workflow only handles semver releases.
 
-5. Re-enable Zenodo webhook.
-6. Release new semver version on opam. See above.
+4. Release new semver version on opam. See above.

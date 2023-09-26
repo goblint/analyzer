@@ -1285,7 +1285,9 @@
               "sv-comp",
               "ncurses",
               "zstd",
-              "pcre"
+              "pcre",
+              "zlib",
+              "liblzma"
             ]
           },
           "default": [

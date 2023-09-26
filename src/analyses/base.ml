@@ -1099,12 +1099,12 @@ struct
 
   let eval_funvar ctx fval: Queries.AD.t =
     let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
-    if AD.is_top fp then begin
+    if AD.is_top fp then (
       if AD.cardinal fp = 1 then
-        (M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;)
+        M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval
       else
-        (M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;)
-    end;
+        M.warn ~category:Imprecise ~tags:[Category Call] "Function pointer %a may contain unknown functions." d_exp fval
+    );
     fp
 
   (** Evaluate expression as address.
@@ -1962,7 +1962,7 @@ struct
     end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise "Unknown function ptr called");
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called");
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
