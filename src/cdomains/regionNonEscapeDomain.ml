@@ -2,7 +2,16 @@
 
 open GoblintCil
 
-module RS = struct
+module RS : sig
+  include Lattice.S
+  val single_vf : t
+  val single_bullet : t
+  val remove_bullet : t -> t
+  val empty : unit -> t
+  val has_bullet : t -> bool
+  val is_single_bullet : t -> bool
+  val is_empty : t -> bool
+end = struct
   include Lattice.Prod (BoolDomain.MayBool) (BoolDomain.MayBool)
   let single_vf = (true, false)
   let single_bullet = (false, true)
@@ -94,8 +103,8 @@ struct
     match deref_vfd with
     | Some (_, vfd) when is_global vfd -> RS.single_vf
     | Some (true, vfd) -> RegMap.find vfd m
-    | Some (false, vfd) -> (false, false)
-    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; (false, false)
+    | Some (false, vfd) -> RS.empty ()
+    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; RS.empty ()
 end
 
 module RegionDom = RegMap
