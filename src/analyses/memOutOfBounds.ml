@@ -177,12 +177,7 @@ struct
             | true ->
               M.warn "Pointer %a has an empty points-to-set" d_exp ptr;
               IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
-            | false -> 
-              (*
-                Offset should be the same for all elements in the points-to set.
-                Hence, we can just pick one element and obtain its offset
-              *)
-              let (_, o) = VDQ.LS.choose a in
+            | false ->
               let rec to_int_dom_offs = function
                 | `NoOffset -> `NoOffset
                 | `Field (f, o) -> `Field (f, to_int_dom_offs o)
@@ -194,6 +189,20 @@ struct
                   in
                   `Index (exp_as_int_dom, to_int_dom_offs o)
               in
+              let () =
+                if VDQ.LS.exists (fun (_, o) -> IntDomain.IntDomTuple.is_bot @@ offs_to_idx t (to_int_dom_offs o)) a then (
+                  (* TODO: Uncomment once staging-memsafety branch changes are applied *)
+                  (* set_mem_safety_flag InvalidDeref; *)
+                  M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
+                ) else if VDQ.LS.exists (fun (_, o) -> IntDomain.IntDomTuple.is_top @@ offs_to_idx t (to_int_dom_offs o)) a then (
+                  (* TODO: Uncomment once staging-memsafety branch changes are applied *)
+                  (* set_mem_safety_flag InvalidDeref; *)
+                  M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
+                )
+              in
+              (* Offset should be the same for all elements in the points-to set *)
+              (* Hence, we can just pick one element and obtain its offset *)
+              let (_, o) = VDQ.LS.choose a in
               offs_to_idx t (to_int_dom_offs o)
           end
         | None ->
