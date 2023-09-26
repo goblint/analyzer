@@ -327,7 +327,7 @@ module Base =
               else
                 box old eqd
           in
-          if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nNew value: %a\n" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty wpd;
+          if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nEqd: %a\nNew value: %a\n" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty eqd S.Dom.pretty wpd;
           if cache then (
             if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
             cache_sizes := HM.length l :: !cache_sizes;

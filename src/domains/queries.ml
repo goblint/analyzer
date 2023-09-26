@@ -34,6 +34,7 @@ module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
 
 module SD = Basetype.Strings
 module VD = ValueDomain.Compound
+module AD = ValueDomain.AD
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
@@ -71,8 +72,8 @@ type invariant_context = Invariant.context = {
 (** GADT for queries with specific result type. *)
 type _ t =
   | EqualSet: exp -> ES.t t
-  | MayPointTo: exp -> LS.t t
-  | ReachableFrom: exp -> LS.t t
+  | MayPointTo: exp -> AD.t t
+  | ReachableFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
   | MayEscape: varinfo -> MayBool.t t
@@ -142,8 +143,8 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> (module ES)
     | CondVars _ -> (module ES)
-    | MayPointTo _ -> (module LS)
-    | ReachableFrom _ -> (module LS)
+    | MayPointTo _ -> (module AD)
+    | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LS)
     | EvalFunvar _ -> (module LS)
@@ -206,8 +207,8 @@ struct
     (* Cannot group these GADTs... *)
     | EqualSet _ -> ES.top ()
     | CondVars _ -> ES.top ()
-    | MayPointTo _ -> LS.top ()
-    | ReachableFrom _ -> LS.top ()
+    | MayPointTo _ -> AD.top ()
+    | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
     | EvalFunvar _ -> LS.top ()
