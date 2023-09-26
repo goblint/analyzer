@@ -1219,8 +1219,10 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
     match classify name args with
     | `Unknown _ as category ->
       (* TODO: remove hack when all classify are migrated *)
-      if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then
-        M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname;
+      if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
+        M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
+        M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
+      );
       category
     | category -> category
   in
