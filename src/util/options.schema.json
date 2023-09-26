@@ -1284,10 +1284,10 @@
               "goblint",
               "sv-comp",
               "ncurses",
-              "zstd",
-              "pcre",
-              "zlib",
-              "liblzma"
+              "zstd", 
+              "pcre", 
+              "zlib", 
+              "liblzma" 
             ]
           },
           "default": [
@@ -2463,7 +2463,7 @@
                 "title": "witness.violation.filename",
                 "type": "string",
                 "description": "Violation witness output filename",
-                "default": "violation-witness.graphml"  
+                "default": "witness.graphml"  
               },
               "unreach-functions": {
                 "title": "witness.violation.unreach-functions",
@@ -2477,6 +2477,26 @@
         }
       },
       "additionalProperties": false
+    },
+    "local-traces": {
+      "title": "local-traces",
+      "type": "object",
+      "properties": {
+        "int-overflow": {
+            "title": "local-traces.int-overflow",
+            "type": "object",
+            "properties": {
+              "cast": {
+                "title": "local-traces.int-overflow.cast",  
+                "type": "boolean",
+                "description": "Throw int overflow on cast operations",
+                "default": false  
+              }
+            },
+            "additionalProperties": false        
+        }
+      },
+      "additionalProperties": false  
     }
   },
   "additionalProperties": false
