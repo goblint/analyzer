@@ -366,6 +366,8 @@ end
 let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
   if kind = Read && kind2 = Read then
     false (* two read/read accesses do not race *)
+  else if kind = Free && kind2 = Free then
+    false (* two free/free accesses do not race *)
   else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
     false
   else if not (MCPAccess.A.may_race acc acc2) then

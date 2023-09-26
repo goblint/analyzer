@@ -998,7 +998,7 @@
           "properties": {
             "free": {
               "title": "ana.race.free",
-              "description": "Consider memory free as racing write.",
+              "description": "Consider memory free as racing with read or write (but not another free).",
               "type": "boolean",
               "default": true
             },
