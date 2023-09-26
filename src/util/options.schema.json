@@ -1284,7 +1284,10 @@
               "goblint",
               "sv-comp",
               "ncurses",
-              "zstd"
+              "zstd",
+              "pcre",
+              "zlib",
+              "liblzma"
             ]
           },
           "default": [
@@ -1314,6 +1317,13 @@
               "title": "sem.unknown_function.spawn",
               "description":
                 "Unknown function call spawns reachable functions",
+              "type": "boolean",
+              "default": true
+            },
+            "call": {
+              "title": "sem.unknown_function.call",
+              "description":
+                "Unknown function call calls reachable functions",
               "type": "boolean",
               "default": true
             },

@@ -29,6 +29,17 @@ struct
     else
       Queries.LS.fold (fun (v, _) acc -> if is_relevant v then VS.add v acc else acc) ls (VS.empty ())
 
+  let relevants_from_ad ad =
+    (* TODO: what about AD with both known and unknown pointers? *)
+    if Queries.AD.is_top ad then
+      VS.top ()
+    else
+      Queries.AD.fold (fun addr vs ->
+          match addr with
+          | Queries.AD.Addr.Addr (v,_) -> if is_relevant v then VS.add v vs else vs
+          | _ -> vs
+        ) ad (VS.empty ())
+
   (* transfer functions *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
@@ -62,8 +73,8 @@ struct
 
   let event ctx (e: Events.t) octx =
     match e with
-    | Access {lvals; kind = Write; _} ->
-      add_to_all_defined (relevants_from_ls lvals) ctx.local
+    | Access {ad; kind = Write; _} ->
+      add_to_all_defined (relevants_from_ad ad) ctx.local
     | _ ->
       ctx.local
 end

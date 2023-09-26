@@ -108,7 +108,7 @@ struct
         | (info,(value:VD.t))::xs ->
           match value with
           | Address t when hasAttribute "goblint_array_domain" info.vattr ->
-            let possibleVars = List.to_seq (PreValueDomain.AD.to_var_may t) in
+            let possibleVars = List.to_seq (AD.to_var_may t) in
             Seq.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ Seq.filter (fun info -> isArrayType info.vtype) possibleVars
           | _ -> pointedArrayMap xs
       in
@@ -345,7 +345,7 @@ struct
           if AD.is_definite x && AD.is_definite y then
             let ax = AD.choose x in
             let ay = AD.choose y in
-            let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
+            let handle_address_is_multiple addr = begin match Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
                 if M.tracing then M.tracel "addr" "IsMultiple %a\n" CilType.Varinfo.pretty v;
                 None
@@ -353,7 +353,7 @@ struct
                 Some true
             end
             in
-            match AD.Addr.semantic_equal ax ay with
+            match Addr.semantic_equal ax ay with
             | Some true ->
               if M.tracing then M.tracel "addr" "semantic_equal %a %a\n" AD.pretty x AD.pretty y;
               handle_address_is_multiple ax
@@ -397,6 +397,8 @@ struct
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.zero else match eq p1 p2 with Some x when x -> ID.of_int ik BI.one | _ -> bool_top ik)
         | Ne ->
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.one else match eq p1 p2 with Some x when x -> ID.of_int ik BI.zero | _ -> bool_top ik)
+        | IndexPI when AD.to_string p2 = ["all_index"] ->
+          addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
         | _ -> VD.top ()
       end
     (* For other values, we just give up! *)
@@ -462,7 +464,7 @@ struct
         let var = get_var a gs st x in
         let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
-        if full then v else match v with
+        if full then var else match v with
           | Blob (c,s,_) -> c
           | x -> x
       in
@@ -591,7 +593,7 @@ struct
         | Struct n    -> Struct (ValueDomain.Structs.map replace_val n)
         | Union (f,v) -> Union (f,replace_val v)
         | Blob (n,s,o)  -> Blob (replace_val n,s,o)
-        | Address x -> Address (ValueDomain.AD.map ValueDomain.Addr.top_indices x)
+        | Address x -> Address (AD.map ValueDomain.Addr.top_indices x)
         | x -> x
       in
       CPA.map replace_val st
@@ -611,16 +613,6 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
 
-  (* TODO: Use AddressDomain for queries *)
-  let convertToQueryLval = function
-    | ValueDomain.AD.Addr.Addr (v,o) -> [v, Addr.Offs.to_exp o]
-    | _ -> []
-
-  let addrToLvalSet a =
-    let add x y = Q.LS.add y x in
-    try
-      AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Q.LS.empty ())
-    with SetDomain.Unsupported _ -> Q.LS.top ()
 
   let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =
     let module TS = Queries.TS in
@@ -1053,7 +1045,6 @@ struct
            else if AD.may_be_null adr
            then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
           AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
-        | Bot -> AD.bot ()
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
           AD.unknown_ptr
@@ -1113,12 +1104,12 @@ struct
       if AD.mem Addr.UnknownPtr fp then begin
         let others = AD.to_var_may fp in
         if others = [] then raise OnlyUnknown;
-        M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
+        M.warn ~category:Imprecise ~tags:[Category Call] "Function pointer %a may contain unknown functions." d_exp fval;
         dummyFunDec.svar :: others
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ | OnlyUnknown ->
-      M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;
+      M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
   (** Evaluate expression as address.
@@ -1261,20 +1252,23 @@ struct
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
-          let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
-          (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
-          (match r with
-           | Blob (_,s,_) -> `Lifted s
-           | _ -> Queries.Result.top q)
+          (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
+          if AD.exists (function
+              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset
+              | _ -> false) a then
+            Queries.Result.bot q
+          else (
+            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
+            (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
+            (match r with
+             | Blob (_,s,_) -> `Lifted s
+             | _ -> Queries.Result.top q)
+          )
         | _ -> Queries.Result.top q
       end
     | Q.MayPointTo e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Address a ->
-          let s = addrToLvalSet a in
-          if AD.mem Addr.UnknownPtr a
-          then Q.LS.add (dummyFunDec.svar, `NoOffset) s
-          else s
+        | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -1291,14 +1285,10 @@ struct
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe *)
-          let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in
-          let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
-          if AD.mem Addr.UnknownPtr a then
-            Q.LS.add (dummyFunDec.svar, `NoOffset) addrs (* add unknown back *)
-          else
-            addrs
-        | _ -> Q.LS.empty ()
+          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
+          let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
+          List.fold_left (AD.join) (AD.empty ()) addrs
+        | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -1325,7 +1315,8 @@ struct
           (* ignore @@ printf "EvalStr Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
           begin match unrollType (Cilfacade.typeOf e) with
             | TPtr(TInt(IChar, _), _) ->
-              let lval = Mval.Exp.to_cil @@ Q.LS.choose @@ addrToLvalSet a in
+              let mval = List.hd (AD.to_mval a) in
+              let lval = Addr.Mval.to_cil mval in
               (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> Queries.Result.top q)
             | _ -> (* what about ISChar and IUChar? *)
@@ -1411,9 +1402,13 @@ struct
         let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
-        else if invariant then
+        else if invariant then (
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
-          VD.meet old_value new_value
+          try
+            VD.meet old_value new_value
+          with Lattice.Uncomparable ->
+            new_value
+        )
         else
           new_value
       in
@@ -1975,7 +1970,7 @@ struct
     end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise "Unknown function ptr called");
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called");
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
@@ -1997,6 +1992,25 @@ struct
     (* invalidate arguments and non-static globals for unknown functions *)
     let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs in
     invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
+
+  let check_invalid_mem_dealloc ctx special_fn ptr =
+    let has_non_heap_var = AD.exists (function
+        | Addr (v,_) -> not (ctx.ask (Q.IsHeapVar v))
+        | _ -> false)
+    in
+    let has_non_zero_offset = AD.exists (function
+        | Addr (_,o) -> Offs.cmp_zero_offset o <> `MustZero
+        | _ -> false)
+    in
+    match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
+    | Address a ->
+      if AD.is_top a then
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
+      else if has_non_heap_var a then
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
+      else if has_non_zero_offset a then
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
+    | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
@@ -2271,13 +2285,27 @@ struct
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           let ik = Cilfacade.ptrdiff_ikind () in
-          let blobsize = ID.mul (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st size) (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st n) in
-          (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
-                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
+          let sizeval = eval_int (Analyses.ask_of_ctx ctx) gs st size in
+          let countval = eval_int (Analyses.ask_of_ctx ctx) gs st n in
+          if ID.to_int countval = Some Z.one then (
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
+              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
+              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
+            ]
+          )
+          else (
+            let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
+            (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
+              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
+              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
+            ]
+          )
         | _ -> st
       end
     | Realloc { ptr = p; size }, _ ->
+      (* Realloc shouldn't be passed non-dynamically allocated memory *)
+      check_invalid_mem_dealloc ctx f p;
       begin match lv with
         | Some lv ->
           let ask = Analyses.ask_of_ctx ctx in
@@ -2309,6 +2337,10 @@ struct
         | None ->
           st
       end
+    | Free ptr, _ ->
+      (* Free shouldn't be passed non-dynamically allocated memory *)
+      check_invalid_mem_dealloc ctx f ptr;
+      st
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
       let ask = Analyses.ask_of_ctx ctx in
