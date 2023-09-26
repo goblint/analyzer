@@ -264,6 +264,7 @@ let node_locator: Locator.t ResettableLazy.t =
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
+  Messages.(Table.MH.clear final_table);
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (

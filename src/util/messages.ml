@@ -248,12 +248,21 @@ let add m =
     Table.add m
   )
 
+let final_table: unit Table.MH.t = Table.MH.create 13
+
+let add_final m =
+  Table.MH.replace final_table m ()
+
 let finalize () =
   if get_bool "warn.deterministic" then (
     !Table.messages_list
     |> List.sort Message.compare
     |> List.iter print
-  )
+  );
+  Table.MH.iter (fun m () ->
+      print m;
+      Table.add m
+    ) final_table (* TODO: also deterministic case *)
 
 let current_context: ControlSpecC.t option ref = ref None
 
@@ -282,7 +291,7 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = GobPretty.show doc in
-      add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
+      add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}} (* TODO: why context? *)
     in
     Pretty.gprintf finish fmt
   )
@@ -315,5 +324,16 @@ let debug ?loc = msg Debug ?loc
 let debug_noloc ?tags = msg_noloc Debug ?tags
 let success ?loc = msg Success ?loc
 let success_noloc ?tags = msg_noloc Success ?tags
+
+let msg_final severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  if !AnalysisState.should_warn then (
+    let finish doc =
+      let text = GobPretty.show doc in
+      add_final {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}} (* TODO: why context? *)
+    in
+    Pretty.gprintf finish fmt
+  )
+  else
+    GobPretty.igprintf () fmt
 
 include Tracing
