@@ -102,6 +102,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("vprintf", unknown [drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vfprintf", unknown [drop "stream" [r_deep; w_deep]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vsprintf", unknown [drop "buffer" [w]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("vasprintf", unknown [drop "strp" [w]; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("vsnprintf", unknown [drop "str" [w]; drop "size" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mktime", unknown [drop "tm" [r;w]]);
     ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]);
@@ -111,7 +113,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
     ("system", unknown ~attrs:[ThreadUnsafe] [drop "command" [r]]);
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
+    ("wctomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]; drop "wc" []]);
     ("wcrtomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]; drop "wc" []; drop "ps" [r_deep; w_deep]]);
+    ("wcstombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r]; drop "size" []]);
+    ("wcsrtombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r_deep; w]; drop "size" []; drop "ps" [r_deep; w_deep]]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
@@ -142,9 +147,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
     ("drand48", unknown ~attrs:[ThreadUnsafe] []);
     ("encrypt", unknown ~attrs:[ThreadUnsafe] [drop "block" [r; w]; drop "edflag" []]);
+    ("setkey", unknown ~attrs:[ThreadUnsafe] [drop "key" [r]]);
     ("endgrent", unknown ~attrs:[ThreadUnsafe] []);
     ("endpwent", unknown ~attrs:[ThreadUnsafe] []);
     ("fcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigits" []; drop "decpt" [w]; drop "sign" [w]]);
+    ("ecvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigits" []; drop "decpt" [w]; drop "sign" [w]]);
     ("gcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigit" []; drop "buf" [w]]);
     ("getdate", unknown ~attrs:[ThreadUnsafe] [drop "string" [r]]);
     ("getenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
@@ -191,6 +198,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("unsetenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
     ("lseek", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
     ("fcntl", unknown (drop "fd" [] :: drop "cmd" [] :: VarArgs (drop' [r; w])));
+    ("__open_missing_mode", unknown []);
     ("fseeko", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "whence" []]);
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
@@ -279,6 +287,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
     ("sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env });
     ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("ftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []]); (* TODO: use Call instead of Spawn *)
+    ("nftw", unknown ~attrs:[ThreadUnsafe] [drop "dirpath" [r]; drop "fn" [s]; drop "nopenfd" []; drop "flags" []]); (* TODO: use Call instead of Spawn *)
+    ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w]]); (* only write res non-deep because it doesn't write to existing fields of res *)
+    ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
+    ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -344,6 +357,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
     ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
+    ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
+    ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
   ]
 
 (** GCC builtin functions.
@@ -454,6 +469,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sysinfo", unknown [drop "info" [w_deep]]);
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
+    ("madvise", unknown [drop "addr" []; drop "length" []; drop "advice" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -803,6 +819,28 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
   ]
 
+let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("pcre_compile", unknown [drop "pattern" [r]; drop "options" []; drop "errptr" [w]; drop "erroffset" [w]; drop "tableptr" [r]]);
+    ("pcre_compile2", unknown [drop "pattern" [r]; drop "options" []; drop "errorcodeptr" [w]; drop "errptr" [w]; drop "erroffset" [w]; drop "tableptr" [r]]);
+    ("pcre_config", unknown [drop "what" []; drop "where" [w]]);
+    ("pcre_exec", unknown [drop "code" [r_deep]; drop "extra" [r_deep]; drop "subject" [r]; drop "length" []; drop "startoffset" []; drop "options" []; drop "ovector" [w]; drop "ovecsize" []]);
+    ("pcre_study", unknown [drop "code" [r_deep]; drop "options" []; drop "errptr" [w]]);
+    ("pcre_version", unknown []);
+  ]
+
+let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("inflate", unknown [drop "strm" [r_deep; w_deep]; drop "flush" []]);
+    ("inflateInit2", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []]);
+    ("inflateInit2_", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []; drop "version" [r]; drop "stream_size" []]);
+    ("inflateEnd", unknown [drop "strm" [f_deep]]);
+  ]
+
+let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("lzma_code", unknown [drop "strm" [r_deep; w_deep]; drop "action" []]);
+    ("lzma_auto_decoder", unknown [drop "strm" [r_deep; w_deep]; drop "memlimit" []; drop "flags" []]);
+    ("lzma_end", unknown [drop "strm" [r_deep; w_deep; f_deep]]);
+  ]
+
 let libraries = Hashtbl.of_list [
     ("c", c_descs_list @ math_descs_list);
     ("posix", posix_descs_list);
@@ -815,6 +853,9 @@ let libraries = Hashtbl.of_list [
     ("sv-comp", svcomp_descs_list);
     ("ncurses", ncurses_descs_list);
     ("zstd", zstd_descs_list);
+    ("pcre", pcre_descs_list);
+    ("zlib", zlib_descs_list);
+    ("liblzma", liblzma_descs_list);
   ]
 
 let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
@@ -1049,7 +1090,6 @@ let invalidate_actions = [
     "usleep", readsAll;
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
-    "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "strcasecmp", readsAll; (*safe*)

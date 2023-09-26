@@ -514,7 +514,7 @@ module Size = struct (* size in bits as int, range as int64 *)
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
     if t = IBool then
-      (* C11 6.3.1.2 Boolean type *) 
+      (* C11 6.3.1.2 Boolean type *)
       if Z.equal x Z.zero then Z.zero else Z.one
     else
       let a,b = range t in
@@ -760,7 +760,7 @@ struct
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
     assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
@@ -826,7 +826,19 @@ struct
       | _              -> (top_of ik,{underflow=true; overflow=true})
 
   let bitxor = bit (fun _ik -> Ints_t.bitxor)
-  let bitand = bit (fun _ik -> Ints_t.bitand)
+
+  let bitand ik i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, true -> bot_of ik
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try of_int ik (Ints_t.bitand x y) |> fst with Division_by_zero -> top_of ik)
+      | _, Some y when Ints_t.equal y Ints_t.zero -> of_int ik Ints_t.zero |> fst
+      | _, Some y when Ints_t.equal y Ints_t.one -> of_interval ik (Ints_t.zero, Ints_t.one) |> fst
+      | _ -> top_of ik
+
   let bitor  = bit (fun _ik -> Ints_t.bitor)
 
   let bit1 f ik i1 =
@@ -1978,7 +1990,7 @@ struct
   let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
-      let r' = size ik in 
+      let r' = size ik in
         if R.leq r r' then (* upcast -> no change *)
           `Excluded (s, r)
         else if ik = IBool then (* downcast to bool *)
@@ -1986,7 +1998,7 @@ struct
             `Definite (BI.one)
           else
             `Excluded (S.empty(), r')
-        else 
+        else
           (* downcast: may overflow *)
           (* let s' = S.map (BigInt.cast_to ik) s in *)
           (* We want to filter out all i in s' where (t)x with x in r could be i. *)
@@ -2282,7 +2294,28 @@ struct
   let ge ik x y = le ik y x
 
   let bitnot = lift1 BigInt.bitnot
-  let bitand = lift2 BigInt.bitand
+
+  let bitand ik x y = norm ik (match x,y with
+      (* We don't bother with exclusion sets: *)
+      | `Excluded _, `Definite i ->
+        (* Except in two special cases *)
+        if BigInt.equal i BigInt.zero then
+          `Definite BigInt.zero
+        else if BigInt.equal i BigInt.one then
+          of_interval IBool (BigInt.zero, BigInt.one)
+        else
+          top ()
+      | `Definite _, `Excluded _
+      | `Excluded _, `Excluded _ -> top ()
+      (* The good case: *)
+      | `Definite x, `Definite y ->
+        (try `Definite (BigInt.bitand x y) with | Division_by_zero -> top ())
+      | `Bot, `Bot -> `Bot
+      | _ ->
+        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
+
+
   let bitor  = lift2 BigInt.bitor
   let bitxor = lift2 BigInt.bitxor
 
@@ -3134,7 +3167,7 @@ struct
 
   (** The implementation of the bit operations could be improved based on the master’s thesis
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
-      see: https://www.dsi.unive.it/~avp/domains.pdf *)
+      see: http://www.es.mdh.se/pdf_publications/948.pdf *)
   let bit2 f ik x y = match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
@@ -3144,7 +3177,19 @@ struct
 
   let bitor ik x y = bit2 Ints_t.bitor ik x y
 
-  let bitand ik x y = bit2 Ints_t.bitand ik x y
+  let bitand ik x y =  match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c, m), Some (c', m') ->
+      if (m =: Ints_t.zero && m' =: Ints_t.zero) then
+        (* both arguments constant *)
+        Some (Ints_t.bitand c c', Ints_t.zero)
+      else if m' =: Ints_t.zero && c' =: Ints_t.one && Ints_t.rem m (Ints_t.of_int 2) =: Ints_t.zero then
+        (* x & 1  and  x == c (mod 2*z) *)
+        (* Value is equal to LSB of c *)
+        Some (Ints_t.bitand c c', Ints_t.zero)
+      else
+        top ()
 
   let bitxor ik x y = bit2 Ints_t.bitxor ik x y
 
@@ -3154,8 +3199,8 @@ struct
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some(c2, m2) ->
       if m2 =: Ints_t.zero then
-        if (c2 |: m1) then
-          Some(c1 %: c2,Ints_t.zero)
+        if (c2 |: m1) && (c1 %: c2 =: Ints_t.zero || m1 =: Ints_t.zero || not (Cil.isSigned ik)) then
+          Some(c1 %: c2, Ints_t.zero)
         else
           normalize ik (Some(c1, (Ints_t.gcd m1 c2)))
       else
