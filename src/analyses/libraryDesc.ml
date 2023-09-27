@@ -62,7 +62,7 @@ type special =
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
-  | Memcpy of { dest: Cil.exp; src: Cil.exp }
+  | Memcpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strcpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
   | Strcat of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
   | Strlen of Cil.exp
