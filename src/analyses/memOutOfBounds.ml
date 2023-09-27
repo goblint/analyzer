@@ -92,8 +92,11 @@ struct
 
   let points_to_heap_only ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
-    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      Queries.LS.for_all (fun (v, _) -> ctx.ask (Queries.IsHeapVar v)) a
+    | a when not (Queries.AD.is_top a)->
+      Queries.AD.for_all (function
+          | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
+          | _ -> false
+        ) a
     | _ -> false
 
   let get_size_of_ptr_target ctx ptr =
@@ -102,21 +105,25 @@ struct
       ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
     else
       match ctx.ask (Queries.MayPointTo ptr) with
-      | a when not (Queries.LS.is_top a) ->
-        let pts_list = Queries.LS.elements a in
-        let pts_elems_to_sizes (v, _) =
-          begin match v.vtype with
-            | TArray (item_typ, _, _) ->
-              let item_typ_size_in_bytes = (bitsSizeOf item_typ) / 8 in
-              let item_typ_size_in_bytes = intdom_of_int item_typ_size_in_bytes in
-              begin match ctx.ask (Queries.EvalLength ptr) with
-                | `Lifted arr_len -> `Lifted (IntDomain.IntDomTuple.mul item_typ_size_in_bytes arr_len)
-                | `Bot -> VDQ.ID.bot ()
-                | `Top -> VDQ.ID.top ()
+      | a when not (Queries.AD.is_top a) ->
+        let pts_list = Queries.AD.elements a in
+        let pts_elems_to_sizes (addr: Queries.AD.elt) =
+          begin match addr with
+            | Addr (v, _) ->
+              begin match v.vtype with
+                | TArray (item_typ, _, _) ->
+                  let item_typ_size_in_bytes = (bitsSizeOf item_typ) / 8 in
+                  let item_typ_size_in_bytes = intdom_of_int item_typ_size_in_bytes in
+                  begin match ctx.ask (Queries.EvalLength ptr) with
+                    | `Lifted arr_len -> `Lifted (IntDomain.IntDomTuple.mul item_typ_size_in_bytes arr_len)
+                    | `Bot -> VDQ.ID.bot ()
+                    | `Top -> VDQ.ID.top ()
+                  end
+                | _ ->
+                  let type_size_in_bytes = (bitsSizeOf v.vtype) / 8 in
+                  `Lifted (intdom_of_int type_size_in_bytes)
               end
-            | _ ->
-              let type_size_in_bytes = (bitsSizeOf v.vtype) / 8 in
-              `Lifted (intdom_of_int type_size_in_bytes)
+            | _ -> VDQ.ID.top ()
           end
         in
         (* Map each points-to-set element to its size *)
@@ -169,41 +176,36 @@ struct
 
   let rec get_addr_offs ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
-    | a when not (VDQ.LS.is_top a) ->
+    | a when not (VDQ.AD.is_top a) ->
       let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
       begin match ptr_deref_type with
         | Some t ->
-          begin match VDQ.LS.is_empty a with
+          begin match VDQ.AD.is_empty a with
             | true ->
               M.warn "Pointer %a has an empty points-to-set" d_exp ptr;
               IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
             | false ->
-              let rec to_int_dom_offs = function
-                | `NoOffset -> `NoOffset
-                | `Field (f, o) -> `Field (f, to_int_dom_offs o)
-                | `Index (i, o) ->
-                  let exp_as_int_dom = match ctx.ask (Queries.EvalInt i) with
-                    | `Lifted i -> i
-                    | `Bot -> IntDomain.IntDomTuple.bot_of @@ Cilfacade.ptrdiff_ikind ()
-                    | `Top -> IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
-                  in
-                  `Index (exp_as_int_dom, to_int_dom_offs o)
-              in
-              let () =
-                if VDQ.LS.exists (fun (_, o) -> IntDomain.IntDomTuple.is_bot @@ offs_to_idx t (to_int_dom_offs o)) a then (
-                  (* TODO: Uncomment once staging-memsafety branch changes are applied *)
-                  (* set_mem_safety_flag InvalidDeref; *)
-                  M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
-                ) else if VDQ.LS.exists (fun (_, o) -> IntDomain.IntDomTuple.is_top @@ offs_to_idx t (to_int_dom_offs o)) a then (
-                  (* TODO: Uncomment once staging-memsafety branch changes are applied *)
-                  (* set_mem_safety_flag InvalidDeref; *)
-                  M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
-                )
-              in
+              if VDQ.AD.exists (function
+                  | Addr (_, o) -> IntDomain.IntDomTuple.is_bot @@ offs_to_idx t o
+                  | _ -> false
+                ) a then (
+                (* TODO: Uncomment once staging-memsafety branch changes are applied *)
+                (* set_mem_safety_flag InvalidDeref; *)
+                M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
+              ) else if VDQ.AD.exists (function
+                  | Addr (_, o) -> IntDomain.IntDomTuple.is_bot @@ offs_to_idx t o
+                  | _ -> false
+                ) a then (
+                (* TODO: Uncomment once staging-memsafety branch changes are applied *)
+                (* set_mem_safety_flag InvalidDeref; *)
+                M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
+              );
               (* Offset should be the same for all elements in the points-to set *)
               (* Hence, we can just pick one element and obtain its offset *)
-              let (_, o) = VDQ.LS.choose a in
-              offs_to_idx t (to_int_dom_offs o)
+              begin match VDQ.AD.choose a with
+                | Addr (_, o) -> offs_to_idx t o
+                | _ -> IntDomain.IntDomTuple.top_of @@ Cilfacade.ptrdiff_ikind ()
+              end
           end
         | None ->
           M.error "Expression %a doesn't have pointer type" d_exp ptr;

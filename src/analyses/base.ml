@@ -1261,10 +1261,9 @@ struct
           else (
             (* If we need the BlobSize from the base address, then remove any offsets *)
             let a =
-              if from_base_addr then
-                ValueDomainQueries.LS.elements s
-                |> List.map (fun (v, _) -> Addr.of_var v)
-                |> AD.of_list
+              if from_base_addr then AD.map (function
+                  | Addr (v, o) -> Addr (v, `NoOffset)
+                  | addr -> addr) a
               else
                 a
             in
