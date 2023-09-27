@@ -70,7 +70,7 @@ void *t_fun(void *arg) {
 
 #ifndef __APPLE__
   if (!pthread_spin_lock(&spin)) {
-    __goblint_check(1); // reachable
+    __goblint_check(1); // TODO reachable (TODO for OSX)
     g_spin++; // NORACE
     pthread_spin_unlock(&spin);
   }
@@ -79,12 +79,12 @@ void *t_fun(void *arg) {
   }
 
   if (!pthread_spin_trylock(&spin)) {
-    __goblint_check(1); // reachable
+    __goblint_check(1); // TODO reachable (TODO for OSX)
     g_spin++; // NORACE
     pthread_spin_unlock(&spin);
   }
   else {
-    __goblint_check(1); // reachable
+    __goblint_check(1); // TODO reachable (TODO for OSX)
   }
 #endif
 
