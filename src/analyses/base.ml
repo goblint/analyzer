@@ -570,6 +570,8 @@ struct
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
 
+  let reachable_vars ask args gs st = Timing.wrap "reachability" (reachable_vars ask args gs) st
+
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
       let rec replace_val = function
