@@ -665,7 +665,7 @@ struct
       (* TODO: do something like base? *)
       failwith "relation.threadenter: unknown function"
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     ctx.local
 
   let event ctx e octx =

@@ -209,9 +209,9 @@ struct
       ys' @ xs
     in
     fold' ctx (Spec.threadenter ~multiple) (fun h -> h lval f args) g []
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     let fd1 = Dom.choose_key (fst fctx.local) in
-    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
+    map ctx (Spec.threadspawn ~multiple) (fun h -> h lval f args (conv fctx fd1))
 
   let sync ctx reason =
     fold'' ctx Spec.sync (fun h -> h reason) (fun (a, async) x r a' ->

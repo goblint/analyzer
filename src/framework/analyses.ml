@@ -447,7 +447,7 @@ sig
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
-  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
@@ -697,7 +697,7 @@ struct
     ctx.local
 
   let threadenter ctx ~multiple lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 end
 
 

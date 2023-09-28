@@ -2513,7 +2513,7 @@ struct
       let st = special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) ctx.global st f args in
       [st]
 
-  let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
+  let threadspawn ctx ~multiple (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     begin match lval with
       | Some lval ->
         begin match ThreadId.get_current (Analyses.ask_of_ctx fctx) with

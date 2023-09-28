@@ -578,7 +578,7 @@ struct
     (* TODO: this do_emits is now different from everything else *)
     map (fun d -> do_emits ctx !emits d false) @@ map topo_sort_an @@ n_cartesian_product css
 
-  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
+  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a fctx =
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadspawn" ~sides ~emits ctx in
@@ -586,7 +586,7 @@ struct
     let f post_all (n,(module S:MCPSpec),(d,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all ctx'' n d in
       let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all fctx'' n fd in
-      n, repr @@ S.threadspawn ctx' lval f a fctx'
+      n, repr @@ S.threadspawn ~multiple ctx' lval f a fctx'
     in
     let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
     do_sideg ctx !sides;

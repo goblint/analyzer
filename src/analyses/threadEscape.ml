@@ -153,7 +153,7 @@ struct
   let threadenter ctx ~multiple lval f args =
     [D.bot ()]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     D.join ctx.local @@
     match args with
     | [ptc_arg] ->

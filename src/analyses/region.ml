@@ -177,7 +177,7 @@ struct
 
   let threadenter ctx ~multiple lval f args =
     [`Lifted (RegMap.bot ())]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let exitstate v = `Lifted (RegMap.bot ())
 

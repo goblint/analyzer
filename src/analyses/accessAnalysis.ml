@@ -121,7 +121,7 @@ struct
     ctx.local
 
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx  ~multiple lval f args fctx =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
       | None -> ()

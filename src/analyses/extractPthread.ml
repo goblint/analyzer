@@ -1254,7 +1254,7 @@ module Spec : Analyses.MCPSpec = struct
     [ { f_d with pred = d.pred } ]
 
 
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let exitstate v = D.top ()
 

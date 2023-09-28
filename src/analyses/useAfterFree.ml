@@ -197,7 +197,7 @@ struct
     | _ -> state
 
   let threadenter ctx ~multiple lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()

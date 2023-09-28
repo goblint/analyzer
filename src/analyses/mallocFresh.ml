@@ -55,7 +55,7 @@ struct
   let threadenter ctx ~multiple lval f args =
     [D.empty ()]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     D.empty ()
 
   module A =
