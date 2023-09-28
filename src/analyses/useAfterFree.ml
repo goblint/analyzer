@@ -216,7 +216,7 @@ struct
       List.mem arg read_shallow_args || List.mem arg read_deep_args || List.mem arg write_shallow_args || List.mem arg write_deep_args
     in
     Option.iter (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) ctx x) lval;
-    List.iter (fun arg -> warn_exp_might_contain_freed ~is_implicitly_derefed:(is_arg_implicitly_derefed arg) ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) ctx arg) arglist;
+    List.iter (fun arg -> warn_exp_might_contain_freed ~is_implicitly_derefed:(is_arg_implicitly_derefed arg) ~is_double_free:(match desc.special arglist with Free _ -> true | _ -> false) ("special: " ^ f.vname) ctx arg) arglist;
     match desc.special arglist with
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
