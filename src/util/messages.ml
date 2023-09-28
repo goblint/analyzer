@@ -259,10 +259,13 @@ let finalize () =
     |> List.sort Message.compare
     |> List.iter print
   );
-  Table.MH.iter (fun m () ->
+  Table.MH.to_seq_keys final_table
+  |> List.of_seq
+  |> List.sort Message.compare
+  |> List.iter (fun m ->
       print m;
       Table.add m
-    ) final_table (* TODO: also deterministic case *)
+    )
 
 let current_context: ControlSpecC.t option ref = ref None
 
