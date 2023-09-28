@@ -337,7 +337,12 @@ struct
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
-      | Any (BlobSize {exp = e1; _}), Any (BlobSize {exp = e2; _}) -> CilType.Exp.compare e1 e2
+      | Any (BlobSize {exp = e1; base_address = b1}), Any (BlobSize {exp = e2; base_address = b2}) ->
+        let r = CilType.Exp.compare e1 e2 in
+        if r <> 0 then
+          r
+        else
+          Stdlib.compare b1 b2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
