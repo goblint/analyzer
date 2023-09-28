@@ -15,12 +15,16 @@ struct
 
   let context _ _ = ()
 
-  let check_mval tainted ((v, offset): Queries.LS.elt) =
-    if not v.vglob && VS.mem v tainted then
-      M.warn ~category:(Behavior (Undefined Other)) "Reading poisonous variable %a" CilType.Varinfo.pretty v
+  let check_mval tainted (addr: Queries.AD.elt) =
+    match addr with
+    | Queries.AD.Addr.Addr (v,_) ->
+      if not v.vglob && VS.mem v tainted then
+        M.warn ~category:(Behavior (Undefined Other)) "Reading poisonous variable %a" CilType.Varinfo.pretty v
+    | _ -> ()
 
-  let rem_mval tainted ((v, offset): Queries.LS.elt) = match offset with
-    | `NoOffset -> VS.remove v tainted
+  let rem_mval tainted (addr: Queries.AD.elt) =
+    match addr with
+    | Queries.AD.Addr.Addr (v,`NoOffset) -> VS.remove v tainted
     | _ -> tainted (* If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
 
 
@@ -88,11 +92,8 @@ struct
         | ad when Queries.AD.is_top ad && not (VS.is_empty octx.local) ->
           M.warn ~category:(Behavior (Undefined Other)) "reading unknown memory location, may be tainted!"
         | ad ->
-          Queries.AD.iter (function
-              (* Use original access state instead of current with removed written vars. *)
-              | Queries.AD.Addr.Addr (v,o) -> check_mval octx.local (v, ValueDomain.Offs.to_exp o)
-              | _ -> ()
-            ) ad
+          (* Use original access state instead of current with removed written vars. *)
+          Queries.AD.iter (check_mval octx.local) ad
       end;
       ctx.local
     | Access {ad; kind = Write; _} ->
@@ -102,9 +103,7 @@ struct
           ctx.local
         | ad ->
           Queries.AD.fold (fun addr vs ->
-              match addr with
-              | Queries.AD.Addr.Addr (v,o) -> rem_mval vs (v, ValueDomain.Offs.to_exp o) (* TODO: use unconverted addrs in domain? *)
-              | _ -> vs
+              rem_mval vs addr
             ) ad ctx.local
       end
     | _ -> ctx.local
