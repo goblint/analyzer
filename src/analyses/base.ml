@@ -151,7 +151,7 @@ struct
   let longjmp_return = ref dummyFunDec.svar
 
   let heap_var on_stack ctx =
-    let info = match (ctx.ask (Q.HeapVar {on_stack = on_stack})) with
+    let info = match (ctx.ask (Q.HeapVar {on_stack})) with
       | `Lifted vinfo -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
