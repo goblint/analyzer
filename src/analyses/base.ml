@@ -1122,6 +1122,9 @@ struct
 
   (* interpreter end *)
 
+  let is_not_heap_alloc_var ctx v =
+    (not (ctx.ask (Queries.IsDynamicallyAlloced v))) || (ctx.ask (Queries.IsDynamicallyAlloced v) && not (ctx.ask (Queries.IsHeapVar v)))
+
   let query_invariant ctx context =
     let cpa = ctx.local.BaseDomain.cpa in
     let ask = Analyses.ask_of_ctx ctx in
@@ -1249,7 +1252,7 @@ struct
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsDynamicallyAlloced v)) || (ctx.ask (Queries.IsDynamicallyAlloced v) && not @@ ctx.ask (Queries.IsHeapVar v)) || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_heap_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
@@ -2009,7 +2012,7 @@ struct
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
-        | Addr (v,_) -> not (ctx.ask (Q.IsDynamicallyAlloced v)) || (ctx.ask (Q.IsDynamicallyAlloced v) && not @@ ctx.ask (Q.IsHeapVar v))
+        | Addr (v,_) -> is_not_heap_alloc_var ctx v
         | _ -> false)
     in
     let has_non_zero_offset = AD.exists (function
