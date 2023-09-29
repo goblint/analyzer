@@ -17,7 +17,8 @@ int main() {
     free(ptr1);
     free(ptr2);
 
-    f(ptr1, ptr2, ptr3); //WARN
+    // No deref happening in the function call, hence nothing to warn about
+    f(ptr1, ptr2, ptr3); //NOWARN
 
     free(ptr3); //WARN
 
