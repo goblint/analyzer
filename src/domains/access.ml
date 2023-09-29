@@ -68,12 +68,61 @@ let rec is_ignorable_type_offset (t: typ) (o: _ Offset.t): bool =
       end
   )
 
+let is_ignorable_typsig (ts: typsig): bool =
+  (* efficient pattern matching first *)
+  match ts with
+  | TSComp (_, ("__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE"), _) -> true
+  | TSComp (_, cname, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
+    begin match Cilfacade.split_anoncomp_name cname with
+      | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
+      | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
+      | _ -> false (* TODO: fall back to attrs case? *)
+    end
+  | TSComp (_, "lock_class_key", _) -> true (* kernel? *)
+  | TSFun _ -> true
+  | TSBase t -> is_ignorable_type t
+  | _ -> (* check attrs *)
+    let attrs = typeSigAttrs ts in (* only outer because we unroll TNamed ourselves *)
+    let is_ignorable_attr = function
+      | Attr ("volatile", _) when not (get_bool "ana.race.volatile") -> true (* volatile & races on volatiles should not be reported *)
+      | Attr ("atomic", _) -> true (* C11 _Atomic *)
+      | _ -> false
+    in
+    List.exists is_ignorable_attr attrs
+
+let rec is_ignorable_typsig_offset (ts: typsig) (o: _ Offset.t): bool =
+  (* similar to Cilfacade.typeOffset but we want to check types at all intermediate offsets as well *)
+  if is_ignorable_typsig ts then
+    true (* type at offset so far ignorable, no need to recurse *)
+  else (
+    let blendAttributes baseAttrs = (* copied from Cilfacade.typeOffset *)
+      let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
+      typeSigAddAttrs contageous
+    in
+    match o with
+    | `NoOffset -> false (* already checked t *)
+    | `Index (_, o') ->
+      begin match ts with
+        | TSArray (et, _, attrs) ->
+          let t' = blendAttributes attrs et in
+          is_ignorable_typsig_offset t' o'
+        | _ -> false (* index on non-array *)
+      end
+    | `Field (f, o') ->
+      begin match ts with
+        | TSComp (_, _, attrs) ->
+          let t' = blendAttributes attrs (typeSig f.ftype) in
+          is_ignorable_typsig_offset t' o'
+        | _ -> false (* field on non-compound *)
+      end
+  )
+
 let is_ignorable_mval = function
   | ({vaddrof = false; vattr; _}, _) when hasAttribute "thread" vattr -> true (* Thread-Local Storage *)
   | (v, o) -> is_ignorable_type_offset v.vtype o (* can't use Cilfacade.typeOffset because we want to check types at all intermediate offsets as well *)
 
 let is_ignorable_memo = function
-  | (`Type _, _) -> false (* TODO: do something *)
+  | (`Type ts, o) -> is_ignorable_typsig_offset ts o
   | (`Var v, o) -> is_ignorable_mval (v, o)
 
 module TSH = Hashtbl.Make (CilType.Typsig)
