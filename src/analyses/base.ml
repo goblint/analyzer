@@ -2026,8 +2026,8 @@ struct
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
-  (* Get the size of the smallest memory that dest points-to *)
-  let get_min_size_of_dest ctx dest =
+  (* Get the size of the memory that dest points-to *)
+  let get_size_of_dest ctx dest =
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
