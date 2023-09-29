@@ -121,7 +121,7 @@ struct
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr vars ->
                 match addr with
-                | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsHeapVar v) -> v :: vars
+                | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) -> v :: vars
                 | _ -> vars
               ) ad []
           in
