@@ -2041,8 +2041,7 @@ struct
       | _ -> false
     in
     if points_to_heap_only then
-      (* Ask for BlobSize from the base address (the second field set to true) in order to avoid BlobSize giving us bot *)
-      ctx.ask (Queries.BlobSize {exp = dest; base_address = true})
+      ctx.ask (Queries.BlobSize {exp = dest; base_address = false})
     else
       match ctx.ask (Queries.MayPointTo dest) with
       | a when not (Queries.AD.is_top a) ->
