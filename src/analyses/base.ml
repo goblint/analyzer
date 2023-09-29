@@ -2096,7 +2096,7 @@ struct
     | false, false ->
       if dest_size < eval_n then begin
         AnalysisState.svcomp_may_invalid_deref := true;
-        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" fun_name ValueDomainQueries.ID.pretty dest_size ValueDomainQueries.ID.pretty eval_n
+        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access may occur" fun_name ValueDomainQueries.ID.pretty dest_size ValueDomainQueries.ID.pretty eval_n
       end
 
 
