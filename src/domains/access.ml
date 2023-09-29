@@ -13,8 +13,8 @@ module M = Messages
 let rec is_ignorable_type (t: typ): bool =
   (* efficient pattern matching first *)
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag"; _ }, _) -> true
-  | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
+  | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE"; _}, _) -> true
   | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
     begin match Cilfacade.split_anoncomp_name cname with
       | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
