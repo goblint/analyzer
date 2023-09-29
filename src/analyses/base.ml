@@ -2026,6 +2026,80 @@ struct
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
+  (* Get the size of the smallest memory that dest points-to *)
+  let get_min_size_of_dest ctx dest =
+    let intdom_of_int x =
+      ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
+    in
+    let points_to_heap_only =
+      match ctx.ask (Queries.MayPointTo dest) with
+      | a when not (AD.is_top a) ->
+        AD.for_all (function
+            | Addr (v, _) -> ctx.ask (Queries.IsHeapVar v)
+            | _ -> false
+          ) a
+      | _ -> false
+    in
+    if points_to_heap_only then
+      (* Ask for BlobSize from the base address (the second field set to true) in order to avoid BlobSize giving us bot *)
+      ctx.ask (Queries.BlobSize {exp = dest; base_address = true})
+    else
+      match ctx.ask (Queries.MayPointTo dest) with
+      | a when not (Queries.AD.is_top a) ->
+        let pts_list = Queries.AD.elements a in
+        let pts_elems_to_sizes (addr: Queries.AD.elt) =
+          begin match addr with
+            | Addr (v, _) ->
+              begin match v.vtype with
+                | TArray (item_typ, _, _) ->
+                  let item_typ_size_in_bytes = (bitsSizeOf item_typ) / 8 in
+                  let item_typ_size_in_bytes = intdom_of_int item_typ_size_in_bytes in
+                  begin match ctx.ask (Queries.EvalLength dest) with
+                    | `Lifted arr_len -> `Lifted (ID.mul item_typ_size_in_bytes arr_len)
+                    | `Bot -> `Bot
+                    | `Top -> `Top
+                  end
+                | _ ->
+                  let type_size_in_bytes = (bitsSizeOf v.vtype) / 8 in
+                  `Lifted (intdom_of_int type_size_in_bytes)
+              end
+            | _ -> `Top
+          end
+        in
+        (* Map each points-to-set element to its size *)
+        let pts_sizes = List.map pts_elems_to_sizes pts_list in
+        (* Take the smallest of all sizes that ptr's contents may have *)
+        begin match pts_sizes with
+          | [] -> `Bot
+          | [x] -> x
+          | x::xs -> List.fold_left (fun acc elem ->
+              if ValueDomainQueries.ID.compare acc elem >= 0 then elem else acc
+            ) x xs
+        end
+      | _ ->
+        M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp dest;
+        `Top
+
+  (* Used for memset() and memcpy() out-of-bounds checks *)
+  let check_count ctx fun_name dest n =
+    let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
+    let cwe_number = 823 in
+    let dest_size = get_min_size_of_dest ctx dest in
+    let eval_n = ctx.ask (Queries.EvalInt n) in
+    match ValueDomainQueries.ID.is_top dest_size, ValueDomainQueries.ID.is_top eval_n with
+    | true, _ ->
+      AnalysisState.svcomp_may_invalid_deref := true;
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp dest fun_name
+    | _, true ->
+      AnalysisState.svcomp_may_invalid_deref := true;
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is unknown. Memory out-of-bounds access might occur" fun_name
+    | false, false ->
+      if dest_size < eval_n then begin
+        AnalysisState.svcomp_may_invalid_deref := true;
+        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" fun_name ValueDomainQueries.ID.pretty dest_size ValueDomainQueries.ID.pretty eval_n
+      end
+
+
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
       | Some lv ->
@@ -2093,7 +2167,8 @@ struct
     in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
-      (* TODO: check count *)
+      (* Check count *)
+      check_count ctx f.vname dest count;
       let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value =
@@ -2110,7 +2185,9 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Memcpy { dest = dst; src }, _ ->
+    | Memcpy { dest = dst; src; n; }, _ ->
+      (* Check n *)
+      check_count ctx f.vname dst n;
       memory_copying dst src
     (* strcpy(dest, src); *)
     | Strcpy { dest = dst; src; n = None }, _ ->
