@@ -2085,7 +2085,7 @@ struct
   let check_count ctx fun_name dest n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let dest_size = get_min_size_of_dest ctx dest in
+    let dest_size = get_size_of_dest ctx dest in
     let eval_n = ctx.ask (Queries.EvalInt n) in
     match dest_size, eval_n with
     | `Top, _ ->
