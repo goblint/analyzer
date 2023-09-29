@@ -127,6 +127,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
     ("atexit", unknown [drop "function" [s]]);
+    ("atomic_flag_clear", unknown [drop "obj" [w]]);
+    ("atomic_flag_clear_explicit", unknown [drop "obj" [w]; drop "order" []]);
+    ("atomic_flag_test_and_set", unknown [drop "obj" [r; w]]);
+    ("atomic_flag_test_and_set_explicit", unknown [drop "obj" [r; w]; drop "order" []]);
   ]
 
 (** C POSIX library functions.
@@ -435,6 +439,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_popcountll", unknown [drop "x" []]);
     ("__atomic_store_n", unknown [drop "ptr" [w]; drop "val" []; drop "memorder" []]);
     ("__atomic_load_n", unknown [drop "ptr" [r]; drop "memorder" []]);
+    ("__atomic_clear", unknown [drop "ptr" [w]; drop "memorder" []]);
+    ("__atomic_test_and_set", unknown [drop "ptr" [r; w]; drop "memorder" []]);
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
