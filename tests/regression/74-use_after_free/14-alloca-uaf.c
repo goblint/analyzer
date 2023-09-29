@@ -10,7 +10,7 @@ int *f() {
 int main(int argc, char const *argv[]) {
     int *ps = alloca(sizeof(int));
     int *c = f();
-    int a = *ps;
+    int a = *ps; //NOWARN
     int b = *c; //WARN
     return 0;
 }
