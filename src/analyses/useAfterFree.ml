@@ -4,7 +4,12 @@ open GoblintCil
 open Analyses
 open MessageCategory
 
-module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
+module AllocaVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All alloca() Variables" end)
+module HeapVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
+
+(* Heap vars created by alloca() and deallocated at function exit * Heap vars deallocated by free() *)
+module StackAndHeapVars = Lattice.Prod(AllocaVars)(HeapVars)
+
 module ThreadIdSet = SetDomain.Make(ThreadIdDomain.ThreadLifted)
 
 module Spec : Analyses.MCPSpec =
@@ -13,7 +18,7 @@ struct
 
   let name () = "useAfterFree"
 
-  module D = ToppedVarInfoSet
+  module D = StackAndHeapVars
   module C = Lattice.Unit
   module G = ThreadIdSet
   module V = VarinfoV
@@ -57,7 +62,7 @@ struct
           let any_equal_current threads = ThreadIdSet.exists (equal_current current) threads in
           if not current_is_unique && any_equal_current freeing_threads then
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a Use-After-Free might occur for heap variable %a" CilType.Varinfo.pretty heap_var
-          else if D.mem heap_var ctx.local then
+          else if HeapVars.mem heap_var (snd ctx.local) then
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Use-After-Free might occur in current unique thread %a for heap variable %a" ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
         end
       | `Top ->
@@ -85,7 +90,7 @@ struct
     match ctx.ask (Queries.MayPointTo lval_to_query) with
     | ad when not (Queries.AD.is_top ad) ->
       let warn_for_heap_var v =
-        if D.mem v state then
+        if HeapVars.mem v (snd state) then
           M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
       in
       let pointed_to_heap_vars =
@@ -129,7 +134,7 @@ struct
 
   let side_effect_mem_free ctx freed_heap_vars threadid =
     let threadid = G.singleton threadid in
-    D.iter (fun var -> ctx.sideg var threadid) freed_heap_vars
+    HeapVars.iter (fun var -> ctx.sideg var threadid) freed_heap_vars
 
 
   (* TRANSFER FUNCTIONS *)
@@ -153,7 +158,7 @@ struct
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" ctx arg) args;
-    if D.is_empty caller_state then
+    if AllocaVars.is_empty (fst caller_state) && HeapVars.is_empty (snd caller_state) then
       [caller_state, caller_state]
     else (
       let reachable_from_args = List.fold_left (fun ad arg -> Queries.AD.join ad (ctx.ask (ReachableFrom arg))) (Queries.AD.empty ()) args in
@@ -161,13 +166,18 @@ struct
         [caller_state, caller_state]
       else
         let reachable_vars = Queries.AD.to_var_may reachable_from_args in
-        let callee_state = D.filter (fun var -> List.mem var reachable_vars) caller_state in (* TODO: use AD.mem directly *)
+        let callee_state = (AllocaVars.empty (), HeapVars.filter (fun var -> List.mem var reachable_vars) (snd caller_state)) in (* TODO: use AD.mem directly *)
         [caller_state, callee_state]
     )
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
-    let caller_state = ctx.local in
-    D.join caller_state callee_local
+    let (caller_stack_state, caller_heap_state) = ctx.local in
+    let callee_stack_state = fst callee_local in
+    let callee_heap_state = snd callee_local in
+    (* Put all alloca()-vars together with all freed() vars in the caller's second component *)
+    (* Don't change caller's first component => caller hasn't exited yet *)
+    let callee_combined_state = HeapVars.join callee_stack_state callee_heap_state in
+    (caller_stack_state, HeapVars.join caller_heap_state callee_combined_state)
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     Option.iter (fun x -> warn_lval_might_contain_freed "enter" ctx x) lval;
@@ -185,13 +195,20 @@ struct
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr state ->
                 match addr with
-                | Queries.AD.Addr.Addr (var,_) when ctx.ask (Queries.IsDynamicallyAlloced var) -> D.add var state
+                | Queries.AD.Addr.Addr (var,_) when ctx.ask (Queries.IsDynamicallyAlloced var) && ctx.ask (Queries.IsHeapVar var) -> HeapVars.add var state
                 | _ -> state
-              ) ad (D.empty ())
+              ) ad (HeapVars.empty ())
           in
           (* Side-effect the tid that's freeing all the heap vars collected here *)
           side_effect_mem_free ctx pointed_to_heap_vars (get_current_threadid ctx);
-          D.join state (pointed_to_heap_vars) (* Add all heap vars, which ptr points to, to the state *)
+          (* Add all heap vars, which ptr points to, to the state *)
+          (fst state, HeapVars.join (snd state) pointed_to_heap_vars)
+        | _ -> state
+      end
+    | Alloca _ ->
+      (* Create fresh heap var for the alloca() call *)
+      begin match ctx.ask (Queries.HeapVar {on_stack = true}) with
+        | `Lifted v -> (AllocaVars.add v (fst state), snd state)
         | _ -> state
       end
     | _ -> state
