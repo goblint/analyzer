@@ -131,6 +131,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atomic_flag_clear_explicit", unknown [drop "obj" [w]; drop "order" []]);
     ("atomic_flag_test_and_set", unknown [drop "obj" [r; w]]);
     ("atomic_flag_test_and_set_explicit", unknown [drop "obj" [r; w]; drop "order" []]);
+    ("atomic_load", unknown [drop "obj" [r]]);
+    ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
   ]
 
 (** C POSIX library functions.
@@ -438,9 +440,20 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_popcountl", unknown [drop "x" []]);
     ("__builtin_popcountll", unknown [drop "x" []]);
     ("__atomic_store_n", unknown [drop "ptr" [w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_store", unknown [drop "ptr" [w]; drop "val" [r]; drop "memorder" []]);
     ("__atomic_load_n", unknown [drop "ptr" [r]; drop "memorder" []]);
+    ("__atomic_load", unknown [drop "ptr" [r]; drop "ret" [w]; drop "memorder" []]);
     ("__atomic_clear", unknown [drop "ptr" [w]; drop "memorder" []]);
+    ("__atomic_compare_exchange_n", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" []; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
+    ("__atomic_compare_exchange", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" [r]; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
+    ("__atomic_fetch_add", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_sub", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_and", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_xor", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_or", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_nand", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
     ("__atomic_test_and_set", unknown [drop "ptr" [r; w]; drop "memorder" []]);
+    ("__atomic_thread_fence", unknown [drop "memorder" []]);
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
