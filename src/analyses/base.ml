@@ -2072,9 +2072,7 @@ struct
         begin match pts_sizes with
           | [] -> `Bot
           | [x] -> x
-          | x::xs -> List.fold_left (fun acc elem ->
-              if ValueDomainQueries.ID.compare acc elem >= 0 then elem else acc
-            ) x xs
+          | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
         end
       | _ ->
         M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp dest;
