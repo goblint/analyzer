@@ -12,9 +12,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
-    ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
+    ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src }); (* TODO: use n *)
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("memccpy", special [__ "dest" [w]; __ "src" [r]; drop "c" []; drop "n" []] @@ fun dest src -> Memcpy {dest; src}); (* C23 *) (* TODO: use n and c *)
     ("memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memmove_chk", special [__ "dest" [w]; __ "src" [r]; drop "count" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
@@ -64,6 +65,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
+    ("calloc", special [__ "n" []; __ "size" []] @@ fun n size -> Calloc {count = n; size});
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("free", special [__ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
@@ -117,12 +119,14 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wcrtomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [w]; drop "wc" []; drop "ps" [r_deep; w_deep]]);
     ("wcstombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r]; drop "size" []]);
     ("wcsrtombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r_deep; w]; drop "size" []; drop "ps" [r_deep; w_deep]]);
+    ("mbstowcs", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("atexit", unknown [drop "function" [s]]);
   ]
 
 (** C POSIX library functions.
@@ -246,6 +250,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("timer_gettime", unknown [drop "timerid" []; drop "curr_value" [w_deep]]);
     ("timer_getoverrun", unknown [drop "timerid" []]);
     ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("fstat", unknown [drop "fd" []; drop "buf" [w]]);
+    ("fstatat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "buf" [w]; drop "flags" []]);
     ("getpwnam", unknown [drop "name" [r]]);
     ("chdir", unknown [drop "path" [r]]);
     ("closedir", unknown [drop "dirp" [r]]);
@@ -292,12 +298,32 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w]]); (* only write res non-deep because it doesn't write to existing fields of res *)
     ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
     ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
+    ("dprintf", unknown (drop "fd" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("vdprintf", unknown [drop "fd" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("mkdtemp", unknown [drop "template" [r; w]]);
+    ("mkstemp", unknown [drop "template" [r; w]]);
+    ("regcomp", unknown [drop "preg" [w_deep]; drop "regex" [r]; drop "cflags" []]);
+    ("regexec", unknown [drop "preg" [r_deep]; drop "string" [r]; drop "nmatch" []; drop "pmatch" [w_deep]; drop "eflags" []]);
+    ("regfree", unknown [drop "preg" [f_deep]]);
+    ("ffs", unknown [drop "i" []]);
+    ("_exit", special [drop "status" []] Abort);
+    ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
+    ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
+    ("readlink", unknown [drop "path" [r]; drop "buf" [w]; drop "bufsz" []]);
+    ("wcswidth", unknown [drop "s" [r]; drop "n" []]);
+    ("link", unknown [drop "oldpath" [r]; drop "newpath" [r]]);
+    ("renameat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]]);
+    ("posix_fadvise", unknown [drop "fd" []; drop "offset" []; drop "len" []; drop "advice" []]);
+    ("getppid", unknown []);
+    ("lockf", unknown [drop "fd" []; drop "cmd" []; drop "len" []]);
   ]
 
 (** Pthread functions. *)
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+    ("pthread_join", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
+    ("pthread_kill", unknown [drop "thread" []; drop "sig" []]);
     ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("__pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
@@ -322,16 +348,16 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_rwlock_init", unknown [drop "rwlock" [w]; drop "attr" [r]]);
     ("pthread_rwlock_destroy", unknown [drop "rwlock" [f]]);
-    ("pthread_rwlock_rdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = true});
-    ("pthread_rwlock_tryrdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = true});
-    ("pthread_rwlock_wrlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true});
+    ("pthread_rwlock_rdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = false});
+    ("pthread_rwlock_tryrdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = true; write = false; return_on_success = false});
+    ("pthread_rwlock_wrlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = false});
     ("pthread_rwlock_trywrlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = true; write = true; return_on_success = false});
     ("pthread_rwlock_unlock", special [__ "rwlock" []] @@ fun rwlock -> Unlock rwlock);
     ("pthread_rwlockattr_init", unknown [drop "attr" [w]]);
     ("pthread_rwlockattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_spin_init", unknown [drop "lock" [w]; drop "pshared" []]);
     ("pthread_spin_destroy", unknown [drop "lock" [f]]);
-    ("pthread_spin_lock", special [__ "lock" []] @@ fun lock -> Lock {lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true});
+    ("pthread_spin_lock", special [__ "lock" []] @@ fun lock -> Lock {lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = false});
     ("pthread_spin_trylock", special [__ "lock" []] @@ fun lock -> Lock {lock = lock; try_ = true; write = true; return_on_success = false});
     ("pthread_spin_unlock", special [__ "lock" []] @@ fun lock -> Unlock lock);
     ("pthread_attr_init", unknown [drop "attr" [w]]);
@@ -412,6 +438,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
+    ("__builtin_alloca", special [__ "size" []] @@ fun size -> Malloc size);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -454,6 +481,11 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fopencookie", unknown [drop "cookie" []; drop "mode" [r]; drop "io_funcs" [s_deep]]); (* doesn't access cookie but passes it to io_funcs *)
     ("mempcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___mempcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("rawmemchr", unknown [drop "s" [r]; drop "c" []]);
+    ("memrchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
+    ("memmem", unknown [drop "haystack" [r]; drop "haystacklen" []; drop "needle" [r]; drop "needlelen" [r]]);
+    ("getifaddrs", unknown [drop "ifap" [w]]);
+    ("freeifaddrs", unknown [drop "ifa" [f_deep]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -470,6 +502,12 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
     ("madvise", unknown [drop "addr" []; drop "length" []; drop "advice" []]);
+    ("inotify_init1", unknown [drop "flags" []]);
+    ("inotify_add_watch", unknown [drop "fd" []; drop "pathname" [r]; drop "mask" []]);
+    ("inotify_rm_watch", unknown [drop "fd" []; drop "wd" []]);
+    ("fts_open", unknown [drop "path_argv" [r_deep]; drop "options" []; drop "compar" [s]]); (* TODO: use Call instead of Spawn *)
+    ("fts_read", unknown [drop "ftsp" [r_deep; w_deep]]);
+    ("fts_close", unknown [drop "ftsp" [f_deep]]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -530,6 +568,10 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__cmpxchg_wrong_size", special [] Abort);
     ("__xadd_wrong_size", special [] Abort);
     ("__put_user_bad", special [] Abort);
+    ("kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
+    ("__kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
+    ("kzalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Calloc {count = Cil.one; size});
+    ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
   ]
 
 (** Goblint functions. *)
@@ -801,10 +843,14 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wattrset", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []]);
     ("endwin", unknown []);
     ("wgetch", unknown [drop "win" [r_deep; w_deep]]);
+    ("wget_wch", unknown [drop "win" [r_deep; w_deep]; drop "wch" [w]]);
+    ("unget_wch", unknown [drop "wch" []]);
     ("wmove", unknown [drop "win" [r_deep; w_deep]; drop "y" []; drop "x" []]);
     ("waddch", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
+    ("waddnstr", unknown [drop "win" [r_deep; w_deep]; drop "str" [r]; drop "n" []]);
     ("waddnwstr", unknown [drop "win" [r_deep; w_deep]; drop "wstr" [r]; drop "n" []]);
     ("wattr_on", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []; drop "opts" []]); (* opts argument currently not used *)
+    ("wattr_off", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []; drop "opts" []]); (* opts argument currently not used *)
     ("wrefresh", unknown [drop "win" [r_deep; w_deep]]);
     ("mvprintw", unknown (drop "win" [r_deep; w_deep] :: drop "y" [] :: drop "x" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("initscr", unknown []);
@@ -813,10 +859,19 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("start_color", unknown []);
     ("use_default_colors", unknown []);
     ("wclear", unknown [drop "win" [r_deep; w_deep]]);
+    ("wclrtoeol", unknown [drop "win" [r_deep; w_deep]]);
     ("can_change_color", unknown []);
     ("init_color", unknown [drop "color" []; drop "red" []; drop "green" []; drop "blue" []]);
     ("init_pair", unknown [drop "pair" []; drop "f" [r]; drop "b" [r]]);
     ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
+    ("keyname", unknown [drop "c" []]);
+    ("newterm", unknown [drop "type" [r]; drop "outfd" [r_deep; w_deep]; drop "infd" [r_deep; w_deep]]);
+    ("cbreak", unknown []);
+    ("nonl", unknown []);
+    ("keypad", unknown [drop "win" [r_deep; w_deep]; drop "bf" []]);
+    ("set_escdelay", unknown [drop "size" []]);
+    ("printw", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("werase", unknown [drop "win" [r_deep; w_deep]]);
   ]
 
 let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -867,46 +922,6 @@ let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t 
 
 let reset_lazy () =
   ResettableLazy.reset activated_library_descs
-
-type categories = [
-  | `Malloc       of exp
-  | `Calloc       of exp * exp
-  | `Realloc      of exp * exp
-  | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
-  | `Unlock
-  | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
-  | `ThreadJoin   of exp * exp (* id * ret_var *)
-  | `Unknown      of string ]
-
-
-let classify fn exps: categories =
-  let strange_arguments () =
-    M.warn ~category:Program "%s arguments are strange!" fn;
-    `Unknown fn
-  in
-  match fn with
-  | "pthread_join" ->
-    begin match exps with
-      | [id; ret_var] -> `ThreadJoin (id, ret_var)
-      | _ -> strange_arguments ()
-    end
-  | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
-    begin match exps with
-      | size::_ -> `Malloc size
-      | _ -> strange_arguments ()
-    end
-  | "kzalloc" ->
-    begin match exps with
-      | size::_ -> `Calloc (Cil.one, size)
-      | _ -> strange_arguments ()
-    end
-  | "calloc" ->
-    begin match exps with
-      | n::size::_ -> `Calloc (n, size)
-      | _ -> strange_arguments ()
-    end
-  | x -> `Unknown x
-
 
 module Invalidate =
 struct
@@ -1036,7 +1051,6 @@ let invalidate_actions = [
     "sigaddset", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
-    "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
     "dlclose", readsAll;(*safe*)
@@ -1197,7 +1211,7 @@ let is_safe_uncalled fn_name =
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
 
 
-let unknown_desc ~f name = (* TODO: remove name argument, unknown function shouldn't have classify *)
+let unknown_desc f =
   let old_accesses (kind: AccessKind.t) args = match kind with
     | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
     | Write -> []
@@ -1215,18 +1229,12 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
     else
       []
   in
-  let classify_name args =
-    match classify name args with
-    | `Unknown _ as category ->
-      (* TODO: remove hack when all classify are migrated *)
-      if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
-        M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
-        M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
-      );
-      category
-    | category -> category
-  in
-  LibraryDesc.of_old ~attrs old_accesses classify_name
+  (* TODO: remove hack when all classify are migrated *)
+  if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
+    M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
+    M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
+  );
+  LibraryDesc.of_old ~attrs old_accesses
 
 let find f =
   let name = f.vname in
@@ -1235,9 +1243,9 @@ let find f =
   | None ->
     match get_invalidate_action name with
     | Some old_accesses ->
-      LibraryDesc.of_old old_accesses (classify name)
+      LibraryDesc.of_old old_accesses
     | None ->
-      unknown_desc ~f name
+      unknown_desc f
 
 
 let is_special fv =

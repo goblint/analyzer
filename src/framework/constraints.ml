@@ -302,7 +302,7 @@ struct
     | Queries.EvalFunvar e ->
       let (d,l) = ctx.local in
       if leq0 l then
-        Queries.LS.empty ()
+        Queries.AD.empty ()
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
@@ -754,8 +754,8 @@ struct
         [v]
       | _ ->
         (* Depends on base for query. *)
-        let ls = ctx.ask (Queries.EvalFunvar e) in
-        Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
+        let ad = ctx.ask (Queries.EvalFunvar e) in
+        Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
     let one_function f =
       match f.vtype with

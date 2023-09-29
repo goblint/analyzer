@@ -7,7 +7,7 @@ module IdxDom = ValueDomain.IndexDomain
 
 open GoblintCil
 
-module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO HoareDomain? *)
+module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
 module Simple = Lattice.Reverse (Mutexes)
 module Priorities = IntDomain.Lifted
 
