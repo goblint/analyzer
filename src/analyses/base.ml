@@ -2086,17 +2086,27 @@ struct
     let cwe_number = 823 in
     let dest_size = get_min_size_of_dest ctx dest in
     let eval_n = ctx.ask (Queries.EvalInt n) in
-    match ValueDomainQueries.ID.is_top dest_size, ValueDomainQueries.ID.is_top eval_n with
-    | true, _ ->
+    match dest_size, eval_n with
+    | `Top, _ ->
       AnalysisState.svcomp_may_invalid_deref := true;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp dest fun_name
-    | _, true ->
+    | _, `Top ->
       AnalysisState.svcomp_may_invalid_deref := true;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is unknown. Memory out-of-bounds access might occur" fun_name
-    | false, false ->
-      if dest_size < eval_n then begin
-        AnalysisState.svcomp_may_invalid_deref := true;
-        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access may occur" fun_name ValueDomainQueries.ID.pretty dest_size ValueDomainQueries.ID.pretty eval_n
+    | `Bot, _ ->
+      AnalysisState.svcomp_may_invalid_deref := true;
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is bottom. Memory out-of-bounds access might occur" d_exp dest fun_name
+    | _, `Bot ->
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name
+    | `Lifted ds, `Lifted en ->
+      begin match ID.to_bool (ID.lt ds en) with
+        | Some true ->
+          AnalysisState.svcomp_may_invalid_deref := true;
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access may occur" fun_name ValueDomainQueries.ID.pretty dest_size ValueDomainQueries.ID.pretty eval_n
+        | Some false -> ()
+        | None ->
+          AnalysisState.svcomp_may_invalid_deref := true;
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of dest (%a) with count (%a) in function %s. Memory out-of-bounds access may occur" ID.pretty ds ID.pretty en fun_name
       end
 
 
