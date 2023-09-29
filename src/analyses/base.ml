@@ -2055,8 +2055,9 @@ struct
                   let item_typ_size_in_bytes = intdom_of_int item_typ_size_in_bytes in
                   begin match ctx.ask (Queries.EvalLength dest) with
                     | `Lifted arr_len ->
+                      let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
                       begin
-                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len)
+                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
                         with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
                       end
                     | `Bot -> `Bot
@@ -2100,9 +2101,11 @@ struct
     | _, `Bot ->
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name
     | `Lifted ds, `Lifted en ->
+      let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
+      let casted_en = ID.cast_to (Cilfacade.ptrdiff_ikind ()) en in
       let dest_size_lt_count =
         begin
-          try ID.lt ds en
+          try ID.lt casted_ds casted_en
           with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
         end
       in
