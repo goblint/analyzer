@@ -1249,7 +1249,7 @@ struct
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsDynamicallyAlloced v)) || (ctx.ask (Queries.IsDynamicallyAlloced v) && not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset
+              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsDynamicallyAlloced v)) || (ctx.ask (Queries.IsDynamicallyAlloced v) && not @@ ctx.ask (Queries.IsHeapVar v)) || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
