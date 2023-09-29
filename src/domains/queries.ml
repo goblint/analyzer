@@ -80,19 +80,21 @@ type _ t =
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
-  | MustLockset: LS.t t
+  | MustLockset: AD.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | ThreadCreateIndexedNode: ThreadNodeLattice.t t
   | MayBeThreadReturn: MayBool.t t
-  | EvalFunvar: exp -> LS.t t
+  | EvalFunvar: exp -> AD.t t
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
-  | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
+  | BlobSize: {exp: Cil.exp; base_address: bool} -> ID.t t
+  (* Size of a dynamically allocated `Blob pointed to by exp. *)
+  (* If the record's second field is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
@@ -114,13 +116,13 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
-  | MustProtectedVars: mustprotectedvars -> LS.t t
+  | MustProtectedVars: mustprotectedvars -> VS.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
-  | MayBeTainted: LS.t t
+  | MayBeTainted: AD.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
 
@@ -144,8 +146,8 @@ struct
     | MayPointTo _ -> (module AD)
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
-    | MustLockset -> (module LS)
-    | EvalFunvar _ -> (module LS)
+    | MustLockset -> (module AD)
+    | EvalFunvar _ -> (module AD)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
     | MayBePublic _ -> (module MayBool)
@@ -179,13 +181,13 @@ struct
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
-    | MustProtectedVars _ -> (module LS)
+    | MustProtectedVars _ -> (module VS)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
-    | MayBeTainted -> (module LS)
+    | MayBeTainted -> (module AD)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | TmpSpecial _ -> (module ML)
 
@@ -208,8 +210,8 @@ struct
     | MayPointTo _ -> AD.top ()
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
-    | MustLockset -> LS.top ()
-    | EvalFunvar _ -> LS.top ()
+    | MustLockset -> AD.top ()
+    | EvalFunvar _ -> AD.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
     | MayBePublic _ -> MayBool.top ()
@@ -243,13 +245,13 @@ struct
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
-    | MustProtectedVars _ -> LS.top ()
+    | MustProtectedVars _ -> VS.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
-    | MayBeTainted -> LS.top ()
+    | MayBeTainted -> AD.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | TmpSpecial _ -> ML.top ()
 end
@@ -335,7 +337,12 @@ struct
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
-      | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
+      | Any (BlobSize {exp = e1; base_address = b1}), Any (BlobSize {exp = e2; base_address = b2}) ->
+        let r = CilType.Exp.compare e1 e2 in
+        if r <> 0 then
+          r
+        else
+          Stdlib.compare b1 b2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
@@ -380,7 +387,7 @@ struct
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
     | Any (EvalValue e) -> CilType.Exp.hash e
-    | Any (BlobSize e) -> CilType.Exp.hash e
+    | Any (BlobSize {exp = e; base_address = b}) -> CilType.Exp.hash e + Hashtbl.hash b
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
@@ -428,7 +435,7 @@ struct
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
     | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
-    | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
+    | Any (BlobSize {exp = e; base_address = b}) -> Pretty.dprintf "BlobSize %a (base_address: %b)" CilType.Exp.pretty e b
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"

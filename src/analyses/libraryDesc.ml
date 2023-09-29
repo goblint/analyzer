@@ -126,31 +126,10 @@ type t = {
   attrs: attr list; (** Attributes of function. *)
 }
 
-let special_of_old classify_name = fun args ->
-  match classify_name args with
-  | `Malloc e -> Malloc e
-  | `Calloc (count, size) -> Calloc { count; size; }
-  | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Lock (try_, write, return_on_success) ->
-    begin match args with
-      | [lock] -> Lock { lock ; try_; write; return_on_success; }
-      | [] -> failwith "lock has no arguments"
-      | _ -> failwith "lock has multiple arguments"
-    end
-  | `Unlock ->
-    begin match args with
-      | [arg] -> Unlock arg
-      | [] -> failwith "unlock has no arguments"
-      | _ -> failwith "unlock has multiple arguments"
-    end
-  | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
-  | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
-  | `Unknown _ -> Unknown
-
-let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old) (classify_name): t = {
+let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old): t = {
   attrs;
   accs = Accesses.of_old old_accesses;
-  special = special_of_old classify_name;
+  special = fun _ -> Unknown;
 }
 
 module MathPrintable = struct

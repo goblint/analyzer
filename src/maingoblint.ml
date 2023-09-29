@@ -417,10 +417,9 @@ let parse_preprocessed preprocessed =
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
-    let transform_file (path_str, system_header) = match path_str with
-      | "<built-in>" | "<command-line>" ->
+    let transform_file (path_str, system_header) = if Str.string_match (Str.regexp "<.+>") path_str 0 then
         (path_str, system_header) (* ignore special "paths" *)
-      | _ ->
+      else
         let path = Fpath.v path_str in
         let path' = if get_bool "pre.transform-paths" then (
             let cwd_opt =
@@ -584,19 +583,19 @@ let do_gobview cilfile =
       let file_dir = Fpath.(run_dir / "files") in
       GobSys.mkdir_or_exists file_dir;
       let file_loc = Hashtbl.create 113 in
-      let counter = ref 0 in
-      let copy path =
+      let copy (path, i) =
         let name, ext = Fpath.split_ext (Fpath.base path) in
-        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int !counter) name) in
-        counter := !counter + 1;
+        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int i) name) in
         let dest = Fpath.(file_dir // unique_name) in
         let gobview_path = match Fpath.relativize ~root:run_dir dest with
           | Some p -> Fpath.to_string p
           | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
         Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
-        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest) in
+        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest)
+      in
       let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
-      List.iter copy source_paths;
+      let source_file_paths = List.filteri_map (fun i e -> if Fpath.is_file_path e then Some (e, i) else None) source_paths in
+      List.iter copy source_file_paths;
       Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
       (* marshal timing statistics *)
       let stats = Fpath.(run_dir / "stats.marshalled") in

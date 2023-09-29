@@ -570,6 +570,8 @@ struct
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
 
+  let reachable_vars ask args gs st = Timing.wrap "reachability" (reachable_vars ask args gs) st
+
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
       let rec replace_val = function
@@ -1097,20 +1099,15 @@ struct
     | Int x -> ValueDomain.ID.to_int x
     | _ -> None
 
-  let eval_funvar ctx fval: varinfo list =
-    let exception OnlyUnknown in
-    try
-      let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
-      if AD.mem Addr.UnknownPtr fp then begin
-        let others = AD.to_var_may fp in
-        if others = [] then raise OnlyUnknown;
-        M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
-        dummyFunDec.svar :: others
-      end else
-        AD.to_var_may fp
-    with SetDomain.Unsupported _ | OnlyUnknown ->
-      M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;
-      [dummyFunDec.svar]
+  let eval_funvar ctx fval: Queries.AD.t =
+    let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
+    if AD.is_top fp then (
+      if AD.cardinal fp = 1 then
+        M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval
+      else
+        M.warn ~category:Imprecise ~tags:[Category Call] "Function pointer %a may contain unknown functions." d_exp fval
+    );
+    fp
 
   (** Evaluate expression as address.
       Avoids expensive Apron EvalInt if the Int result would be useless to us anyway. *)
@@ -1204,10 +1201,7 @@ struct
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
-      begin
-        let fs = eval_funvar ctx e in
-        List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
-      end
+      eval_funvar ctx e
     | Q.EvalJumpBuf e ->
       begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address jmp_buf ->
@@ -1247,17 +1241,26 @@ struct
       end
     | Q.EvalValue e ->
       eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
-    | Q.BlobSize e -> begin
+    | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
         let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
+          (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || o <> `NoOffset
+              | Addr (v,o) -> (not @@ ctx.ask (Queries.IsHeapVar v)) || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
+            (* If we need the BlobSize from the base address, then remove any offsets *)
+            let a =
+              if from_base_addr then AD.map (function
+                  | Addr (v, o) -> Addr (v, `NoOffset)
+                  | addr -> addr) a
+              else
+                a
+            in
             let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
@@ -1270,6 +1273,7 @@ struct
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
+        | Int i -> AD.of_int i
         | _ -> Queries.Result.top q
       end
     | Q.EvalThread e -> begin
@@ -1287,7 +1291,17 @@ struct
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
           let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
-          List.fold_left (AD.join) (AD.empty ()) addrs
+          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
+          if AD.may_be_unknown a then
+            AD.add UnknownPtr addrs' (* add unknown back *)
+          else
+            addrs'
+        | Int i ->
+          begin match Cilfacade.typeOf e with
+            | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
+            | _
+            | exception Cilfacade.TypeOfError _ -> AD.empty () (* avoid unknown pointer result for non-pointer expression *)
+          end
         | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
@@ -1970,7 +1984,7 @@ struct
     end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise "Unknown function ptr called");
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called");
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
@@ -2400,34 +2414,38 @@ struct
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
-  let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : Q.LS.t) : store =
+  let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : AD.t) : store =
     let ask = (Analyses.ask_of_ctx ctx) in
-    Q.LS.fold (fun (v, o) st ->
-        if CPA.mem v fun_st.cpa then
-          let lval = Mval.Exp.to_cil (v,o) in
-          let address = eval_lv ask ctx.global st lval in
-          let lval_type = (AD.type_of address) in
-          if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Mval.Exp.pretty (v, o) d_type lval_type;
-          match (CPA.find_opt v (fun_st.cpa)), lval_type with
-          | None, _ -> st
-          (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
-          | Some (Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (Array a) st.cpa}
-          (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
-          | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
-          | _, _ -> begin
-              let new_val = get ask ctx.global fun_st address None in
-              if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
-              let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
-              let partDep = Dep.find_opt v fun_st.deps in
-              match partDep with
-              | None -> st'
-              (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
-              | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
-                                                                match val_opt with
-                                                                | None -> accCPA
-                                                                | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
-            end
-        else st) tainted_lvs local_st
+    AD.fold (fun addr st ->
+        match addr with
+        | Addr.Addr (v,o) ->
+          if CPA.mem v fun_st.cpa then
+            let lval = Addr.Mval.to_cil (v,o) in
+            let address = eval_lv ask ctx.global st lval in
+            let lval_type = Addr.type_of addr in
+            if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Addr.Mval.pretty (v,o) d_type lval_type;
+            match (CPA.find_opt v (fun_st.cpa)), lval_type with
+            | None, _ -> st
+            (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
+            | Some (Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (Array a) st.cpa}
+            (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
+            | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
+            | _, _ -> begin
+                let new_val = get ask ctx.global fun_st address None in
+                if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
+                let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
+                let partDep = Dep.find_opt v fun_st.deps in
+                match partDep with
+                | None -> st'
+                (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
+                | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
+                                                                  match val_opt with
+                                                                  | None -> accCPA
+                                                                  | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
+              end
+          else st
+        | _ -> st
+      ) tainted_lvs local_st
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let combine_one (st: D.t) (fun_st: D.t) =
@@ -2442,9 +2460,9 @@ struct
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
         let ask = (Analyses.ask_of_ctx ctx) in
         let tainted = f_ask.f Q.MayBeTainted in
-        if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
+        if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname AD.pretty tainted;
         if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-        if Q.LS.is_top tainted then
+        if AD.is_top tainted then
           let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
           let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
@@ -2459,7 +2477,10 @@ struct
           let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
           if M.tracing then M.trace "taintPC" "cpa_caller': %a\n" CPA.pretty cpa_caller';
           (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
-          let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
+          let tainted = AD.filter (function
+              | Addr.Addr (v,_) -> not (CPA.mem v cpa_new)
+              | _ -> false
+            ) tainted in
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
