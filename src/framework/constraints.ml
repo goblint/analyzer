@@ -785,6 +785,7 @@ struct
     in
     let funs = List.filter_map one_function functions in
     if [] = funs then begin
+      M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
       M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
     end else
@@ -1390,6 +1391,7 @@ struct
                 let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
                 M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
               | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                M.msg_final Error ~category:Analyzer ~tags:[Category Unsound] "Both branches dead";
                 M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
               | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
