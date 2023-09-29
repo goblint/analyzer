@@ -10,7 +10,7 @@ module M = Messages
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
-let is_ignorable_type (t: typ): bool =
+let rec is_ignorable_type (t: typ): bool =
   match t with
   | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
   | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
@@ -18,20 +18,59 @@ let is_ignorable_type (t: typ): bool =
     begin match Cilfacade.split_anoncomp_name cname with
       | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
       | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
-      | _ -> false
+      | _ -> false (* TODO: fall back to attrs case *)
     end
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
-  | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
-  | _ -> false
+  | TFun _ -> true
+  | _ ->
+    let attrs = typeAttrsOuter t in
+    let is_ignorable_attr = function
+      | Attr ("volatile", _) when not (get_bool "ana.race.volatile") -> true (* volatile & races on volatiles should not be reported *)
+      | Attr ("atomic", _) -> true (* C11 _Atomic *)
+      | _ -> false
+    in
+    if List.exists is_ignorable_attr attrs then
+      true
+    else (
+      match t with
+      | TNamed ({ttype; _}, attrs) -> is_ignorable_type (typeAddAttributes attrs ttype)
+      | _ -> false
+    )
 
-let is_ignorable = function
-  | None -> false
-  | Some (v,os) when hasAttribute "thread" v.vattr && not (v.vaddrof) -> true (* Thread-Local Storage *)
-  | Some (v,os) when BaseUtil.is_volatile v && not (get_bool "ana.race.volatile")  -> true (* volatile & races on volatiles should not be reported *)
-  | Some (v,os) ->
-    try isFunctionType v.vtype || is_ignorable_type v.vtype
-    with Not_found -> false
+let rec is_ignorable_type_offset (t: typ) (o: _ Offset.t): bool =
+  if is_ignorable_type t then
+    true
+  else (
+    let blendAttributes baseAttrs = (* copied from Cilfacade.typeOffset *)
+      let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
+      typeAddAttributes contageous
+    in
+    match o with
+    | `NoOffset -> false (* already checked t *)
+    | `Index (_, o') ->
+      begin match unrollType t with
+        | TArray (et, _, attrs) ->
+          let t' = blendAttributes attrs et in
+          is_ignorable_type_offset t' o'
+        | _ -> false (* index on non-array*)
+      end
+    | `Field (f, o') ->
+      begin match unrollType t with
+        | TComp (_, attrs) ->
+          let t' = blendAttributes attrs f.ftype in
+          is_ignorable_type_offset t' o'
+        | _ -> false (* field on non-compound *)
+      end
+  )
+
+let is_ignorable_mval = function
+  | ({vaddrof = false; vattr; _}, _) when hasAttribute "thread" vattr -> true (* Thread-Local Storage *)
+  | (v, o) -> is_ignorable_type_offset v.vtype o
+
+let is_ignorable_memo = function
+  | (`Type _, _) -> false (* TODO: do something *)
+  | (`Var v, o) -> is_ignorable_mval (v, o)
 
 module TSH = Hashtbl.Make (CilType.Typsig)
 
@@ -195,8 +234,7 @@ let get_val_type e: acc_typ =
 
 (** Add access to {!Memo} after distributing. *)
 let add_one ~side memo: unit =
-  let mv = Memo.to_mval memo in
-  let ignorable = is_ignorable mv in
+  let ignorable = is_ignorable_memo memo in
   if M.tracing then M.trace "access" "add_one %a (ignorable = %B)\n" Memo.pretty memo ignorable;
   if not ignorable then
     side memo
