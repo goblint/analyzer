@@ -101,9 +101,11 @@ type _ t =
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
-  | HeapVar: {on_stack: bool} -> VI.t t (* If on_stack is [true], then alloca() or a similar function was called *)
+  | AllocVar: {on_stack: bool} -> VI.t t
+  (* Create a variable representing a dynamic allocation-site *)
+  (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
+  | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | IsDynamicallyAlloced: varinfo -> MayBool.t t (* [true] if heap var represents dynamically alloced memory *)
   | IsMultiple: varinfo -> MustBool.t t
   (* For locals: Is another copy of this local variable reachable via pointers? *)
   (* For dynamically allocated memory: Does this abstract variable corrrespond to a unique heap location? *)
@@ -155,7 +157,7 @@ struct
     | MayBePublicWithout _ -> (module MayBool)
     | MayBeThreadReturn -> (module MayBool)
     | IsHeapVar _ -> (module MayBool)
-    | IsDynamicallyAlloced _ -> (module MayBool)
+    | IsAllocVar _ -> (module MayBool)
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
     | MustBeSingleThreaded _ -> (module MustBool)
@@ -167,7 +169,7 @@ struct
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
-    | HeapVar _ -> (module VI)
+    | AllocVar _ -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
@@ -220,7 +222,7 @@ struct
     | MayBePublicWithout _ -> MayBool.top ()
     | MayBeThreadReturn -> MayBool.top ()
     | IsHeapVar _ -> MayBool.top ()
-    | IsDynamicallyAlloced _ -> MayBool.top ()
+    | IsAllocVar _ -> MayBool.top ()
     | MutexType _ -> MutexAttrDomain.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
@@ -233,7 +235,7 @@ struct
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
-    | HeapVar _ -> VI.top ()
+    | AllocVar _ -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
@@ -293,7 +295,7 @@ struct
     | Any (PartAccess _) -> 23
     | Any (IterPrevVars _) -> 24
     | Any (IterVars _) -> 25
-    | Any (HeapVar _) -> 29
+    | Any (AllocVar _) -> 29
     | Any (IsHeapVar _) -> 30
     | Any (IsMultiple _) -> 31
     | Any (EvalThread _) -> 32
@@ -318,7 +320,7 @@ struct
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
     | Any (TmpSpecial _) -> 53
-    | Any (IsDynamicallyAlloced _) -> 54
+    | Any (IsAllocVar _) -> 54
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -358,7 +360,7 @@ struct
         else
           compare (Any q1) (Any q2)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
-      | Any (IsDynamicallyAlloced v1), Any (IsDynamicallyAlloced v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsAllocVar v1), Any (IsAllocVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
@@ -399,7 +401,7 @@ struct
     | Any (IterVars i) -> 0
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
-    | Any (IsDynamicallyAlloced v) -> CilType.Varinfo.hash v
+    | Any (IsAllocVar v) -> CilType.Varinfo.hash v
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
@@ -447,9 +449,9 @@ struct
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
-    | Any (HeapVar {on_stack = on_stack}) -> Pretty.dprintf "HeapVar %b" on_stack
+    | Any (AllocVar {on_stack = on_stack}) -> Pretty.dprintf "AllocVar %b" on_stack
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
-    | Any (IsDynamicallyAlloced v) -> Pretty.dprintf "IsDynamicallyAlloced %a" CilType.Varinfo.pretty v
+    | Any (IsAllocVar v) -> Pretty.dprintf "IsAllocVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
     | Any (EvalThread e) -> Pretty.dprintf "EvalThread %a" CilType.Exp.pretty e
     | Any (EvalJumpBuf e) -> Pretty.dprintf "EvalJumpBuf %a" CilType.Exp.pretty e

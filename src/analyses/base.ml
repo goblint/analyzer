@@ -151,7 +151,7 @@ struct
   let longjmp_return = ref dummyFunDec.svar
 
   let heap_var on_stack ctx =
-    let info = match (ctx.ask (Q.HeapVar {on_stack})) with
+    let info = match (ctx.ask (Q.AllocVar {on_stack})) with
       | `Lifted vinfo -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
@@ -1123,7 +1123,7 @@ struct
   (* interpreter end *)
 
   let is_not_heap_alloc_var ctx v =
-    (not (ctx.ask (Queries.IsDynamicallyAlloced v))) || (ctx.ask (Queries.IsDynamicallyAlloced v) && not (ctx.ask (Queries.IsHeapVar v)))
+    (not (ctx.ask (Queries.IsAllocVar v))) || (ctx.ask (Queries.IsAllocVar v) && not (ctx.ask (Queries.IsHeapVar v)))
 
   let query_invariant ctx context =
     let cpa = ctx.local.BaseDomain.cpa in
@@ -1400,7 +1400,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          if a.f (Q.IsDynamicallyAlloced x) then
+          if a.f (Q.IsAllocVar x) then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
             lval_type
@@ -1446,7 +1446,7 @@ struct
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
-        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsDynamicallyAlloced x)) && offs = `NoOffset then begin
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsAllocVar x)) && offs = `NoOffset then begin
             VD.bot_value ~varAttr:x.vattr lval_type
           end else
             Priv.read_global a priv_getg st x
@@ -2596,7 +2596,7 @@ struct
                 | MayBeThreadReturn
                 | PartAccess _
                 | IsHeapVar _
-                | IsDynamicallyAlloced _
+                | IsAllocVar _
                 | IsMultiple _
                 | CreatedThreads
                 | MustJoinedThreads ->

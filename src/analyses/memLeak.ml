@@ -44,7 +44,7 @@ struct
     | Realloc _ ->
       (* Warn about multi-threaded programs as soon as we encounter a dynamic memory allocation function *)
       warn_for_multi_threaded ctx;
-      begin match ctx.ask (Queries.HeapVar {on_stack = false}) with
+      begin match ctx.ask (Queries.AllocVar {on_stack = false}) with
         | `Lifted var -> D.add var state
         | _ -> state
       end
@@ -53,7 +53,7 @@ struct
         | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           begin match Queries.AD.choose ad with
-            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsDynamicallyAlloced v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.remove v state (* Unique pointed to heap vars *)
+            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.remove v state (* Unique pointed to heap vars *)
             | _ -> state
           end
         | _ -> state

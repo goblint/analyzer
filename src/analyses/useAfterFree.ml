@@ -96,7 +96,7 @@ struct
       let pointed_to_heap_vars =
         Queries.AD.fold (fun addr vars ->
             match addr with
-            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsDynamicallyAlloced v) -> v :: vars
+            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) -> v :: vars
             | _ -> vars
           ) ad []
       in
@@ -195,7 +195,7 @@ struct
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr state ->
                 match addr with
-                | Queries.AD.Addr.Addr (var,_) when ctx.ask (Queries.IsDynamicallyAlloced var) && ctx.ask (Queries.IsHeapVar var) -> HeapVars.add var state
+                | Queries.AD.Addr.Addr (var,_) when ctx.ask (Queries.IsAllocVar var) && ctx.ask (Queries.IsHeapVar var) -> HeapVars.add var state
                 | _ -> state
               ) ad (HeapVars.empty ())
           in
@@ -207,7 +207,7 @@ struct
       end
     | Alloca _ ->
       (* Create fresh heap var for the alloca() call *)
-      begin match ctx.ask (Queries.HeapVar {on_stack = true}) with
+      begin match ctx.ask (Queries.AllocVar {on_stack = true}) with
         | `Lifted v -> (AllocaVars.add v (fst state), snd state)
         | _ -> state
       end

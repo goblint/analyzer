@@ -43,7 +43,7 @@ struct
     | Malloc _
     | Calloc _
     | Realloc _ ->
-      begin match ctx.ask (HeapVar {on_stack = false}) with
+      begin match ctx.ask (AllocVar {on_stack = false}) with
         | `Lifted var -> D.add var ctx.local
         | _ -> ctx.local
       end
