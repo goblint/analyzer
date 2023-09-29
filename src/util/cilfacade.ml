@@ -322,6 +322,15 @@ and typeOffset basetyp =
     | t -> raise (TypeOfError (Field_NonCompound (fi, t)))
 
 
+let typeBlendAttributes baseAttrs = (* copied from Cilfacade.typeOffset *)
+  let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
+  typeAddAttributes contageous
+
+let typeSigBlendAttributes baseAttrs =
+  let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
+  typeSigAddAttrs contageous
+
+
 (** {!Cil.mkCast} using our {!typeOf}. *)
 let mkCast ~(e: exp) ~(newt: typ) =
   let oldt =

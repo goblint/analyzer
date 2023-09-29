@@ -52,28 +52,25 @@ let rec is_ignorable_type_offset (t: typ) (o: _ Offset.t): bool =
   if is_ignorable_type t then
     true (* type at offset so far ignorable, no need to recurse *)
   else (
-    let blendAttributes baseAttrs = (* copied from Cilfacade.typeOffset *)
-      let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
-      typeAddAttributes contageous
-    in
     match o with
     | `NoOffset -> false (* already checked t *)
     | `Index (_, o') ->
       begin match unrollType t with
         | TArray (et, _, attrs) ->
-          let t' = blendAttributes attrs et in
+          let t' = Cilfacade.typeBlendAttributes attrs et in
           is_ignorable_type_offset t' o'
         | _ -> false (* index on non-array *)
       end
     | `Field (f, o') ->
       begin match unrollType t with
         | TComp (_, attrs) ->
-          let t' = blendAttributes attrs f.ftype in
+          let t' = Cilfacade.typeBlendAttributes attrs f.ftype in
           is_ignorable_type_offset t' o'
         | _ -> false (* field on non-compound *)
       end
   )
 
+(** {!is_ignorable_type} for {!typsig}. *)
 let is_ignorable_typsig (ts: typsig): bool =
   (* efficient pattern matching first *)
   match ts with
@@ -82,29 +79,25 @@ let is_ignorable_typsig (ts: typsig): bool =
   | TSBase t -> is_ignorable_type t
   | _ -> is_ignorable_attrs (typeSigAttrs ts)
 
+(** {!is_ignorable_type_offset} for {!typsig}. *)
 let rec is_ignorable_typsig_offset (ts: typsig) (o: _ Offset.t): bool =
-  (* similar to Cilfacade.typeOffset but we want to check types at all intermediate offsets as well *)
   if is_ignorable_typsig ts then
     true (* type at offset so far ignorable, no need to recurse *)
   else (
-    let blendAttributes baseAttrs = (* copied from Cilfacade.typeOffset *)
-      let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
-      typeSigAddAttrs contageous
-    in
     match o with
     | `NoOffset -> false (* already checked t *)
     | `Index (_, o') ->
       begin match ts with
-        | TSArray (et, _, attrs) ->
-          let t' = blendAttributes attrs et in
-          is_ignorable_typsig_offset t' o'
+        | TSArray (ets, _, attrs) ->
+          let ts' = Cilfacade.typeSigBlendAttributes attrs ets in
+          is_ignorable_typsig_offset ts' o'
         | _ -> false (* index on non-array *)
       end
     | `Field (f, o') ->
       begin match ts with
         | TSComp (_, _, attrs) ->
-          let t' = blendAttributes attrs (typeSig f.ftype) in
-          is_ignorable_typsig_offset t' o'
+          let t' = Cilfacade.typeBlendAttributes attrs f.ftype in
+          is_ignorable_type_offset t' o' (* switch to type because it is more precise with TNamed *)
         | _ -> false (* field on non-compound *)
       end
   )
