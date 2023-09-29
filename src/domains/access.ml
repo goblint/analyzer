@@ -10,28 +10,34 @@ module M = Messages
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
+let is_ignorable_comp_name = function
+  | "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE" -> true
+  | cname when String.starts_with_stdlib ~prefix:"__anon" cname ->
+    begin match Cilfacade.split_anoncomp_name cname with
+      | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
+      | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
+      | _ -> false
+    end
+  | "lock_class_key" -> true (* kernel? *)
+  | _ -> false
+
+let is_ignorable_attrs attrs =
+  let is_ignorable_attr = function
+    | Attr ("volatile", _) when not (get_bool "ana.race.volatile") -> true (* volatile & races on volatiles should not be reported *)
+    | Attr ("atomic", _) -> true (* C11 _Atomic *)
+    | _ -> false
+  in
+  List.exists is_ignorable_attr attrs
+
 let rec is_ignorable_type (t: typ): bool =
   (* efficient pattern matching first *)
   match t with
   | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
-  | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE"; _}, _) -> true
-  | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
-    begin match Cilfacade.split_anoncomp_name cname with
-      | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
-      | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
-      | _ -> false (* TODO: fall back to attrs case? *)
-    end
-  | TComp ({ cname = "lock_class_key"; _ }, _) -> true (* kernel? *)
+  | TComp ({ cname; _}, _) when is_ignorable_comp_name cname -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true (* kernel? *)
   | TFun _ -> true
-  | _ -> (* check attrs *)
-    let attrs = typeAttrsOuter t in (* only outer because we unroll TNamed ourselves *)
-    let is_ignorable_attr = function
-      | Attr ("volatile", _) when not (get_bool "ana.race.volatile") -> true (* volatile & races on volatiles should not be reported *)
-      | Attr ("atomic", _) -> true (* C11 _Atomic *)
-      | _ -> false
-    in
-    if List.exists is_ignorable_attr attrs then
+  | _ ->
+    if is_ignorable_attrs (typeAttrsOuter t) then (* only outer because we unroll TNamed ourselves *)
       true
     else (
       (* unroll TNamed once *)
@@ -71,24 +77,10 @@ let rec is_ignorable_type_offset (t: typ) (o: _ Offset.t): bool =
 let is_ignorable_typsig (ts: typsig): bool =
   (* efficient pattern matching first *)
   match ts with
-  | TSComp (_, ("__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE"), _) -> true
-  | TSComp (_, cname, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
-    begin match Cilfacade.split_anoncomp_name cname with
-      | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
-      | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
-      | _ -> false (* TODO: fall back to attrs case? *)
-    end
-  | TSComp (_, "lock_class_key", _) -> true (* kernel? *)
+  | TSComp (_, cname, _) when is_ignorable_comp_name cname -> true
   | TSFun _ -> true
   | TSBase t -> is_ignorable_type t
-  | _ -> (* check attrs *)
-    let attrs = typeSigAttrs ts in (* only outer because we unroll TNamed ourselves *)
-    let is_ignorable_attr = function
-      | Attr ("volatile", _) when not (get_bool "ana.race.volatile") -> true (* volatile & races on volatiles should not be reported *)
-      | Attr ("atomic", _) -> true (* C11 _Atomic *)
-      | _ -> false
-    in
-    List.exists is_ignorable_attr attrs
+  | _ -> is_ignorable_attrs (typeSigAttrs ts)
 
 let rec is_ignorable_typsig_offset (ts: typsig) (o: _ Offset.t): bool =
   (* similar to Cilfacade.typeOffset but we want to check types at all intermediate offsets as well *)
