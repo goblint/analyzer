@@ -1231,8 +1231,10 @@ let unknown_desc f =
       []
   in
   (* TODO: remove hack when all classify are migrated *)
-  if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then
-    M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname;
+  if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
+    M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
+    M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
+  );
   LibraryDesc.of_old ~attrs old_accesses
 
 let find f =

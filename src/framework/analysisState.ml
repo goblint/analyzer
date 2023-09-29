@@ -7,8 +7,14 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
+(** Whether an invalid free happened *)
+let svcomp_may_invalid_free = ref false
+
 (** Whether an invalid pointer dereference happened *)
 let svcomp_may_invalid_deref = ref false
+
+(** Whether an invalid memtrack happened *)
+let svcomp_may_invalid_memtrack = ref false
 
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false

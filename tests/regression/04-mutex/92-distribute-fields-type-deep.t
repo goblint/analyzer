@@ -29,3 +29,4 @@
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (92-distribute-fields-type-deep.c:44:3-44:17)
   [Error][Imprecise][Unsound] Function definition missing for getS (92-distribute-fields-type-deep.c:36:3-36:20)
   [Error][Imprecise][Unsound] Function definition missing for getU (92-distribute-fields-type-deep.c:44:3-44:17)
+  [Error][Imprecise][Unsound] Function definition missing
