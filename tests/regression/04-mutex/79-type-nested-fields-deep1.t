@@ -27,3 +27,4 @@
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (79-type-nested-fields-deep1.c:43:3-43:24)
   [Error][Imprecise][Unsound] Function definition missing for getS (79-type-nested-fields-deep1.c:36:3-36:20)
   [Error][Imprecise][Unsound] Function definition missing for getU (79-type-nested-fields-deep1.c:43:3-43:24)
+  [Error][Imprecise][Unsound] Function definition missing
