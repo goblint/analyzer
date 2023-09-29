@@ -2054,7 +2054,11 @@ struct
                   let item_typ_size_in_bytes = (bitsSizeOf item_typ) / 8 in
                   let item_typ_size_in_bytes = intdom_of_int item_typ_size_in_bytes in
                   begin match ctx.ask (Queries.EvalLength dest) with
-                    | `Lifted arr_len -> `Lifted (ID.mul item_typ_size_in_bytes arr_len)
+                    | `Lifted arr_len ->
+                      begin
+                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len)
+                        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+                      end
                     | `Bot -> `Bot
                     | `Top -> `Top
                   end
@@ -2096,7 +2100,13 @@ struct
     | _, `Bot ->
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name
     | `Lifted ds, `Lifted en ->
-      begin match ID.to_bool (ID.lt ds en) with
+      let dest_size_lt_count =
+        begin
+          try ID.lt ds en
+          with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+        end
+      in
+      begin match ID.to_bool dest_size_lt_count with
         | Some true ->
           AnalysisState.svcomp_may_invalid_deref := true;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access may occur" fun_name ValueDomainQueries.ID.pretty dest_size ValueDomainQueries.ID.pretty eval_n
