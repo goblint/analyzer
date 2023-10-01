@@ -219,6 +219,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
     ("getopt", unknown ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r]]);
+    ("getopt_long", unknown  ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r]; drop "longopts" [r]; drop "longindex" [w]]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
     ("iconv_close", unknown [drop "cd" [f]]);
@@ -1090,7 +1091,6 @@ let invalidate_actions = [
     "__ctype_b_loc", readsAll;(*safe*)
     "__errno", readsAll;(*safe*)
     "__errno_location", readsAll;(*safe*)
-    "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
     "readdir_r", writesAll;(*unsafe*)
