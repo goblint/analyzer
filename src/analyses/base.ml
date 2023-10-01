@@ -2029,6 +2029,7 @@ struct
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
+
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
       | Some lv ->
@@ -2113,7 +2114,7 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Memcpy { dest = dst; src }, _ ->
+    | Memcpy { dest = dst; src; n; }, _ ->
       memory_copying dst src
     (* strcpy(dest, src); *)
     | Strcpy { dest = dst; src; n = None }, _ ->
