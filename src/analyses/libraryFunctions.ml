@@ -65,6 +65,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("strchr", unknown [drop "s" [r]; drop "c" []]);
+    ("__builtin_strchr", unknown [drop "s" [r]; drop "c" []]);
     ("strrchr", unknown [drop "s" [r]; drop "c" []]);
     ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
     ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
@@ -1071,7 +1072,6 @@ let invalidate_actions = [
     "dlclose", readsAll;(*safe*)
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-    "__builtin_strchr", readsAll;(*safe*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
     "memchr", readsAll;(*safe*)
