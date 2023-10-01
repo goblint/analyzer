@@ -344,6 +344,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getuid", unknown []);
     ("geteuid", unknown []);
     ("getpgrp", unknown []);
+    ("setrlimit", unknown [drop "resource" []; drop "rlim" [r]]);
+    ("getrlimit", unknown [drop "resource" []; drop "rlim" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -1157,8 +1159,6 @@ let invalidate_actions = [
     "recvfrom", writes [4;5]; (*keep [4;5]*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "setrlimit", readsAll; (*safe*)
-    "getrlimit", writes [2]; (*keep [2]*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
