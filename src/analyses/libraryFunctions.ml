@@ -338,6 +338,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("nanosleep", unknown [drop "req" [r]; drop "rem" [w]]);
     ("setpriority", unknown [drop "which" []; drop "who" []; drop "prio" []]);
     ("getpriority", unknown [drop "which" []; drop "who" []]);
+    ("sched_yield", unknown []);
   ]
 
 (** Pthread functions. *)
@@ -1096,7 +1097,6 @@ let invalidate_actions = [
     "umount", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "unlink", readsAll;(*safe*)
-    "sched_yield", readsAll;(*safe*)
     "sigdelset", readsAll;(*safe*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
     "bindtextdomain", readsAll;(*safe*)
