@@ -404,13 +404,12 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
-    ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
     ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
     ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
-    (* TODO: Remove w as soon as we have proper support for semaphores *)
-    ("sem_init", special [__ "sem" [w]; __ "pshared" []; __ "value" []] @@ fun sem pshared value -> SemInit {sem; pshared; value});
-    ("sem_wait", special [__ "sem" [w]] @@ fun sem -> SemWait {sem; try_ = false});
-    ("sem_trywait", special [__ "sem" [w]] @@ fun sem -> SemWait {sem; try_ = true});
+    ("sem_init", special [__ "sem" [r]; __ "pshared" []; __ "value" []] @@ fun sem pshared value -> SemInit {sem; pshared; value});
+    ("sem_wait", special [__ "sem" [r]] @@ fun sem -> SemWait {sem; try_ = false; timeout = None});
+    ("sem_trywait", special [__ "sem" [r]] @@ fun sem -> SemWait {sem; try_ = true; timeout = None});
+    ("sem_timedwait", special [__ "sem" [r]; __ "abs_timeout" [r]] @@ fun sem abs_timeout-> SemWait {sem; try_ = true; timeout = Some abs_timeout}); (* no write accesses to sem because sync primitive itself has no race *)
   ]
 
 (** GCC builtin functions.
