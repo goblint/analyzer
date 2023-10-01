@@ -348,6 +348,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getrlimit", unknown [drop "resource" []; drop "rlim" [w]]);
     ("setsid", unknown []);
     ("isatty", unknown [drop "fd" []]);
+    ("sigemptyset", unknown [drop "set" [w]]);
+    ("sigfillset", unknown [drop "set" [w]]);
+    ("sigaddset", unknown [drop "set" [w]; drop "signum" []]);
+    ("sigdelset", unknown [drop "set" [w]; drop "signum" []]);
+    ("sigismember", unknown [drop "set" [r]; drop "signum" []]);
   ]
 
 (** Pthread functions. *)
@@ -1072,7 +1077,6 @@ let invalidate_actions = [
     "__ctype_b_loc", readsAll;(*safe*)
     "__errno", readsAll;(*safe*)
     "__errno_location", readsAll;(*safe*)
-    "sigfillset", writesAll; (*unsafe*)
     "sigprocmask", writesAll; (*unsafe*)
     "uname", writesAll;(*unsafe*)
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
@@ -1084,8 +1088,6 @@ let invalidate_actions = [
     "pipe", writesAll;(*unsafe*)
     "close", writesAll;(*unsafe*)
     "strerror_r", writesAll;(*unsafe*)
-    "sigemptyset", writesAll;(*unsafe*)
-    "sigaddset", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
@@ -1104,7 +1106,6 @@ let invalidate_actions = [
     "umount", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "unlink", readsAll;(*safe*)
-    "sigdelset", readsAll;(*safe*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
     "bindtextdomain", readsAll;(*safe*)
     "textdomain", readsAll;(*safe*)
