@@ -354,6 +354,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sigdelset", unknown [drop "set" [w]; drop "signum" []]);
     ("sigismember", unknown [drop "set" [r]; drop "signum" []]);
     ("sigprocmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
+    ("fork", unknown []);
   ]
 
 (** Pthread functions. *)
@@ -1161,7 +1162,6 @@ let invalidate_actions = [
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
     "gethostname", writesAll; (*unsafe*)
-    "fork", readsAll; (*safe*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
