@@ -137,6 +137,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atoi", unknown [drop "nptr" [r]]);
     ("atol", unknown [drop "nptr" [r]]);
     ("atoll", unknown [drop "nptr" [r]]);
+    ("setlocale", unknown [drop "category" []; drop "locale" [r]]);
   ]
 
 (** C POSIX library functions.
@@ -332,7 +333,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ntohs", unknown [drop "netshort" []]);
     ("sleep", unknown [drop "seconds" []]);
     ("usleep", unknown [drop "usec" []]);
-    ("nanosleep", unknown [drop "req" [r]; drop "rem" [w]])
+    ("nanosleep", unknown [drop "req" [r]; drop "rem" [w]]);
+    ("setpriority", unknown [drop "which" []; drop "who" []; drop "prio" []]);
+    ("getpriority", unknown [drop "which" []; drop "who" []]);
   ]
 
 (** Pthread functions. *)
@@ -1089,7 +1092,6 @@ let invalidate_actions = [
     "sched_yield", readsAll;(*safe*)
     "sigdelset", readsAll;(*safe*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
-    "setlocale", readsAll;(*safe*)
     "bindtextdomain", readsAll;(*safe*)
     "textdomain", readsAll;(*safe*)
     "dcgettext", readsAll;(*safe*)
@@ -1171,8 +1173,6 @@ let invalidate_actions = [
     "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     (* no args, declare invalidate actions to prevent invalidating globals *)
     "isatty", readsAll;
-    "setpriority", readsAll;
-    "getpriority", readsAll;
     (* ddverify *)
     "sema_init", readsAll;
     "__goblint_assume_join", readsAll;
