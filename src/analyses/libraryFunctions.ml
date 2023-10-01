@@ -353,6 +353,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sigaddset", unknown [drop "set" [w]; drop "signum" []]);
     ("sigdelset", unknown [drop "set" [w]; drop "signum" []]);
     ("sigismember", unknown [drop "set" [r]; drop "signum" []]);
+    ("sigprocmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -1077,7 +1078,6 @@ let invalidate_actions = [
     "__ctype_b_loc", readsAll;(*safe*)
     "__errno", readsAll;(*safe*)
     "__errno_location", readsAll;(*safe*)
-    "sigprocmask", writesAll; (*unsafe*)
     "uname", writesAll;(*unsafe*)
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
