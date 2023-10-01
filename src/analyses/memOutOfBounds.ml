@@ -30,33 +30,6 @@ struct
   let intdom_of_int x =
     ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
 
-  let to_index ?typ offs =
-    let idx_of_int x =
-      ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (x / 8))
-    in
-    let rec offset_to_index_offset ?typ offs = match offs with
-      | `NoOffset -> idx_of_int 0
-      | `Field (field, o) ->
-        let field_as_offset = Field (field, NoOffset) in
-        let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
-        let bits_offset = idx_of_int bits_offset in
-        let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
-        ID.add bits_offset remaining_offset
-      | `Index (x, o) ->
-        let (item_typ, item_size_in_bits) =
-          match Option.map unrollType typ with
-          | Some TArray(item_typ, _, _) ->
-            let item_size_in_bits = bitsSizeOf item_typ in
-            (Some item_typ, idx_of_int item_size_in_bits)
-          | _ ->
-            (None, ID.top_of @@ Cilfacade.ptrdiff_ikind ())
-        in
-        let bits_offset = ID.mul item_size_in_bits x in
-        let remaining_offset = offset_to_index_offset ?typ:item_typ o in
-        ID.add bits_offset remaining_offset
-    in
-    offset_to_index_offset ?typ offs
-
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
     | Const _
