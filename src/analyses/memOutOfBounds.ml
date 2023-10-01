@@ -128,11 +128,14 @@ struct
 
   let eval_ptr_offset_in_binop ctx exp ptr_contents_typ =
     let eval_offset = ctx.ask (Queries.EvalInt exp) in
-    let eval_offset = Option.get @@ VDQ.ID.to_int eval_offset in
-    let eval_offset = VDQ.ID.of_int (Cilfacade.ptrdiff_ikind ()) eval_offset in
     let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
     match eval_offset with
-    | `Lifted i -> `Lifted (ID.mul i ptr_contents_typ_size_in_bytes)
+    | `Lifted eo ->
+      let casted_eo = ID.cast_to (Cilfacade.ptrdiff_ikind ()) eo in
+      begin
+        try `Lifted (ID.mul casted_eo ptr_contents_typ_size_in_bytes)
+        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+      end
     | `Top -> `Top
     | `Bot -> `Bot
 
@@ -144,12 +147,18 @@ struct
       let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset in
       let bytes_offset = intdom_of_int (bits_offset / 8) in
       let remaining_offset = offs_to_idx field.ftype o in
-      ID.add bytes_offset remaining_offset
+      begin
+        try ID.add bytes_offset remaining_offset
+        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+      end
     | `Index (x, o) ->
-      let typ_size_in_bytes = size_of_type_in_bytes typ in
-      let bytes_offset = ID.mul typ_size_in_bytes x in
-      let remaining_offset = offs_to_idx typ o in
-      ID.add bytes_offset remaining_offset
+      begin try
+          let typ_size_in_bytes = size_of_type_in_bytes typ in
+          let bytes_offset = ID.mul typ_size_in_bytes x in
+          let remaining_offset = offs_to_idx typ o in
+          ID.add bytes_offset remaining_offset
+        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+      end
 
   let rec get_addr_offs ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
@@ -291,7 +300,10 @@ struct
             | `Lifted os ->
               let casted_os = ID.cast_to (Cilfacade.ptrdiff_ikind ()) os in
               let casted_ao = ID.cast_to (Cilfacade.ptrdiff_ikind ()) addr_offs in
-              `Lifted (ID.add casted_os casted_ao)
+              begin
+                try `Lifted (ID.add casted_os casted_ao)
+                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+              end
             | `Top -> `Top
             | `Bot -> `Bot
           in
@@ -331,6 +343,7 @@ struct
       end
     | _ -> ()
 
+  (* For memset() and memcpy() *)
   let check_count ctx fun_name dest n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
