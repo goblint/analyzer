@@ -546,6 +546,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fts_open", unknown [drop "path_argv" [r_deep]; drop "options" []; drop "compar" [s]]); (* TODO: use Call instead of Spawn *)
     ("fts_read", unknown [drop "ftsp" [r_deep; w_deep]]);
     ("fts_close", unknown [drop "ftsp" [f_deep]]);
+    ("getdtablesize", unknown []);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -1112,7 +1113,6 @@ let invalidate_actions = [
     "__h_errno_location", readsAll;(*safe*)
     "__fxstat", readsAll;(*safe*)
     "openlog", readsAll;(*safe*)
-    "getdtablesize", readsAll;(*safe*)
     "umask", readsAll;(*safe*)
     "socket", readsAll;(*safe*)
     "clntudp_create", writesAllButFirst 3 readsAll;(*drop 3*)
