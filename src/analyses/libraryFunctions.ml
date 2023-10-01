@@ -323,6 +323,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("htons", unknown [drop "hostshort" []]);
     ("ntohl", unknown [drop "netlong" []]);
     ("ntohs", unknown [drop "netshort" []]);
+    ("sleep", unknown [drop "seconds" []]);
+    ("usleep", unknown [drop "usec" []]);
+    ("nanosleep", unknown [drop "req" [r]; drop "rem" [w]])
   ]
 
 (** Pthread functions. *)
@@ -1107,8 +1110,6 @@ let invalidate_actions = [
     "bind", readsAll;(*safe*)
     "svcudp_create", readsAll;(*safe*)
     "svc_register", writesAll;(*unsafe*)
-    "sleep", readsAll;(*safe*)
-    "usleep", readsAll;
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
