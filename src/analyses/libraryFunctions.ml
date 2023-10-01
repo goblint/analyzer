@@ -161,7 +161,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dbm_nextkey", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]]);
     ("dbm_open", unknown ~attrs:[ThreadUnsafe] [drop "file" [r; w]; drop "open_flags" []; drop "file_mode" []]);
     ("dbm_store", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]; drop "key" []; drop "content" []; drop "store_mode" []]);
-    ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
     ("drand48", unknown ~attrs:[ThreadUnsafe] []);
     ("encrypt", unknown ~attrs:[ThreadUnsafe] [drop "block" [r; w]; drop "edflag" []]);
     ("setkey", unknown ~attrs:[ThreadUnsafe] [drop "key" [r]]);
@@ -355,6 +354,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sigismember", unknown [drop "set" [r]; drop "signum" []]);
     ("sigprocmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
     ("fork", unknown []);
+    ("dlopen", unknown [drop "filename" [r]; drop "flag" []]);
+    ("dlerror", unknown ~attrs:[ThreadUnsafe] []); (* TODO: Why thread-unsafe? https://linux.die.net/man/3/dlopen *)
+    ("dlsym", unknown [drop "handle" [r]; drop "symbol" [r]]);
+    ("dlclose", unknown [drop "handle" [r]]);
   ]
 
 (** Pthread functions. *)
@@ -1091,9 +1094,6 @@ let invalidate_actions = [
     "strerror_r", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
-    "dlopen", readsAll;(*safe*)
-    "dlsym", readsAll;(*safe*)
-    "dlclose", readsAll;(*safe*)
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "umount2", readsAll;(*safe*)
