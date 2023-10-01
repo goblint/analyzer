@@ -15,7 +15,7 @@ module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "useAfterFree"
 
@@ -24,7 +24,6 @@ struct
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
 
-  (** TODO: Try out later in benchmarks to see how we perform with and without context-sensititivty *)
   let context _ _ = ()
 
 
@@ -176,9 +175,6 @@ struct
     warn_exp_might_contain_freed "branch" ctx exp;
     ctx.local
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     Option.iter (fun x -> warn_exp_might_contain_freed "return" ctx x) exp;
     ctx.local
@@ -247,9 +243,6 @@ struct
         | _ -> state
       end
     | _ -> state
-
-  let threadenter ctx lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
