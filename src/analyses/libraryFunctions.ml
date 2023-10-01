@@ -1086,7 +1086,6 @@ let invalidate_actions = [
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "unlink", readsAll;(*safe*)
     "sched_yield", readsAll;(*safe*)
-    "nanosleep", writesAllButFirst 1 readsAll;(*drop 1*)
     "sigdelset", readsAll;(*safe*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
     "setlocale", readsAll;(*safe*)
