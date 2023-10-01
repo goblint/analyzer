@@ -438,7 +438,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
-    ("__builtin_alloca", special [__ "size" []] @@ fun size -> Malloc size);
+    ("alloca", special [__ "size" []] @@ fun size -> Alloca size);
+    ("__builtin_alloca", special [__ "size" []] @@ fun size -> Alloca size);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
