@@ -375,7 +375,7 @@ struct
       begin match ID.to_bool dest_size_lt_count with
         | Some true ->
           AnalysisState.svcomp_may_invalid_deref := true;
-          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access may occur" fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en
         | Some false -> ()
         | None ->
           AnalysisState.svcomp_may_invalid_deref := true;
