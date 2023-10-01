@@ -138,6 +138,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atol", unknown [drop "nptr" [r]]);
     ("atoll", unknown [drop "nptr" [r]]);
     ("setlocale", unknown [drop "category" []; drop "locale" [r]]);
+    ("clock", unknown []);
   ]
 
 (** C POSIX library functions.
@@ -1161,7 +1162,6 @@ let invalidate_actions = [
     "assert_failed", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
-    "clock", readsAll;
     "__builtin_va_arg_pack_len", readsAll;
     "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
