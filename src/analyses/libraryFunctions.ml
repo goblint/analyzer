@@ -343,6 +343,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getppid", unknown []);
     ("getuid", unknown []);
     ("geteuid", unknown []);
+    ("getpgrp", unknown []);
   ]
 
 (** Pthread functions. *)
@@ -1087,7 +1088,6 @@ let invalidate_actions = [
     "dlclose", readsAll;(*safe*)
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-    "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
     "waitpid", readsAll;(*safe*)
     "statfs", writes [1;3;4];(*keep [1;3;4]*)
