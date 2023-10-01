@@ -31,6 +31,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("memcmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
     ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
     ("feof", unknown [drop "stream" [r_deep; w_deep]]);
@@ -1143,7 +1144,6 @@ let invalidate_actions = [
     "compress2", writes [3]; (*keep [3]*)
     "__toupper", readsAll; (*safe*)
     "BF_set_key", writes [3]; (*keep [3]*)
-    "memcmp", readsAll; (*safe*)
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
     "srand", readsAll; (*safe*)
