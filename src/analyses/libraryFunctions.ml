@@ -64,6 +64,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r; w]; drop "delim" [r]]);
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
+    ("strchr", unknown [drop "s" [r]; drop "c" []]);
+    ("strrchr", unknown [drop "s" [r]; drop "c" []]);
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("calloc", special [__ "n" []; __ "size" []] @@ fun n size -> Calloc {count = n; size});
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
@@ -497,6 +499,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getifaddrs", unknown [drop "ifap" [w]]);
     ("freeifaddrs", unknown [drop "ifa" [f_deep]]);
     ("atoq", unknown [drop "nptr" [r]]);
+    ("strchrnul", unknown [drop "s" [r]; drop "c" []]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -1078,7 +1081,6 @@ let invalidate_actions = [
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
     "umount", readsAll;(*safe*)
-    "strrchr", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "unlink", readsAll;(*safe*)
     "sched_yield", readsAll;(*safe*)
@@ -1115,7 +1117,6 @@ let invalidate_actions = [
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "strcasecmp", readsAll; (*safe*)
-    "strchr", readsAll; (*safe*)
     "__error", readsAll; (*safe*)
     "__maskrune", writesAll; (*unsafe*)
     "inet_addr", readsAll; (*safe*)
