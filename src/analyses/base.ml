@@ -2094,6 +2094,7 @@ struct
     in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
+      (* TODO: check count *)
       let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value =
