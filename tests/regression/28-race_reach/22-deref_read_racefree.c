@@ -17,7 +17,7 @@ int main() {
   create_threads(t);
   q = p;
   pthread_mutex_lock(&mutex);
-  assert_racefree(*q);  // TODO
+  assert_racefree(*q);
   pthread_mutex_unlock(&mutex);
   return 0;
 }

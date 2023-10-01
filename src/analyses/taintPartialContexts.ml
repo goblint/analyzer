@@ -6,21 +6,19 @@
 open GoblintCil
 open Analyses
 
+module AD = ValueDomain.AD
+
 module Spec =
 struct
   include Analyses.IdentitySpec
 
   let name () = "taintPartialContexts"
-  module D = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
+  module D = AD
   module C = Lattice.Unit
 
   (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =
-    let d = ctx.local in
-    (match lval with
-     | (Var v, offs) -> D.add (v, Offset.Exp.of_cil offs) d
-     | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
-    )
+    D.union (ctx.ask (Queries.MayPointTo (AddrOf lval))) ctx.local
 
   (* this analysis is context insensitive*)
   let context _ _ = ()
@@ -35,14 +33,12 @@ struct
     let d_return =
       if D.is_top d then
         d
-      else (
+      else
         let locals = f.sformals @ f.slocals in
-        D.filter (fun (v, _) ->
-            not (List.exists (fun local ->
-                CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))
-              ) locals)
+        D.filter (function
+            | AD.Addr.Addr (v,_) -> not (List.exists (fun local -> CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))) locals)
+            | _ -> false
           ) d
-      )
     in
     if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a\n" f.svar.vname D.pretty d D.pretty d_return;
     d_return
@@ -84,6 +80,7 @@ struct
       else
         deep_addrs
     in
+    (* TODO: should one handle ad with unknown pointers separately like in (all) other analyses? *)
     let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.MayPointTo addr))) d shallow_addrs
     in
     let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.ReachableFrom addr))) d deep_addrs
@@ -101,7 +98,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t) : a Queries.result =
     match q with
-    | MayBeTainted -> (ctx.local : Queries.LS.t)
+    | MayBeTainted -> (ctx.local : Queries.AD.t)
     | _ -> Queries.Result.top q
 
 end
@@ -112,5 +109,8 @@ let _ =
 module VS = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All" end)
 
 (* Convert Lval set to (less precise) Varinfo set. *)
-let conv_varset (lval_set : Spec.D.t) : VS.t =
-  if Spec.D.is_top lval_set then VS.top () else VS.of_list (List.map (fun (v, _) -> v) (Spec.D.elements lval_set))
+let conv_varset (addr_set : Spec.D.t) : VS.t =
+  if Spec.D.is_top addr_set then
+    VS.top ()
+  else
+    VS.of_list (Spec.D.to_var_may addr_set)

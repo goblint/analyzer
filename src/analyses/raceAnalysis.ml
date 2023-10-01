@@ -3,6 +3,128 @@
 open GoblintCil
 open Analyses
 
+(** Data race analysis with tries for offsets and type-based memory locations for open code.
+
+    Accesses are to memory locations ({{!Access.Memo} memos}) which consist of a root and offset.
+    {{!Access.MemoRoot} Root} can be:
+    + variable, if access is to known global variable or alloc-variable;
+    + type, if access is to unknown pointer.
+
+    Accesses are (now) collected to sets for each corresponding memo,
+    after points-to sets are resolved, during postsolving.
+
+    Race checking is performed per-memo,
+    except must additionally account for accesses to other memos (see diagram below):
+    + access to [s.f] can race with access to a prefix like [s], which writes an entire struct at once;
+    + access to [s.f] can race with type-based access like [(struct S).f];
+    + access to [(struct S).f] can race with type-based access to a suffix like [(int)].
+    + access to [(struct T).s.f] can race with type-based access like [(struct S)], which is a combination of the above.
+
+    These are accounted for lazily (unlike in the past).
+
+    Prefixes (a.k.a. inner distribution) are handled using a trie data structure enriched with lattice properties.
+    Race checking starts at the root and passes accesses to ancestor nodes down to children.
+
+    Type suffixes (a.k.a. outer distribution) are handled by computing successive immediate type suffixes transitively
+    and accessing corresponding offsets from corresponding root tries in the global invariant.
+
+    Type suffix prefixes (for the combination of the two) are handled by passing type suffix accesses down when traversing the prefix trie.
+
+    Race checking happens at each trie node with the above three access sets at hand using {!Access.group_may_race}.
+    All necessary combinations between the four classes are handled, but unnecessary repeated work is carefully avoided.
+    E.g. accesses which are pairwise checked at some prefix are not re-checked pairwise at a node.
+    Thus, races (with prefixes or type suffixes) are reported for most precise memos with actual accesses:
+    at the longest prefix and longest type suffix.
+
+    Additionally, accesses between prefix and type suffix intersecting at a node are checked.
+    These races are reported at the unique memo at the intersection of the prefix and the type suffix.
+    This requires an implementation hack to still eagerly do outer distribution, but only of empty access sets.
+    It ensures that corresponding trie nodes exist for traversal later. *)
+
+(** Given C declarations:
+    {@c[
+    struct S {
+      int f;
+    };
+
+    struct T {
+      struct S s;
+    };
+
+    struct T t;
+    ]}
+
+    Example structure of related memos for race checking:
+    {v
+     (int)   (S)     (T)
+        \   /   \   /   \
+          f       s       t
+            \   /   \   /
+              f       s
+                \   /
+                  f
+    v}
+    where:
+    - [(int)] is a type-based memo root for the primitive [int] type;
+    - [(S)] and [(T)] are short for [(struct S)] and [(struct T)], which are type-based memo roots;
+    - prefix relations are indicated by [/], so access paths run diagonally from top-right to bottom-left;
+    - type suffix relations are indicated by [\ ].
+
+    All same-node races:
+    - Race between [t.s.f] and [t.s.f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [t.s] is checked/reported at [t.s].
+    - Race between [t] and [t] is checked/reported at [t].
+    - Race between [(T).s.f] and [(T).s.f] is checked/reported at [(T).s.f].
+    - Race between [(T).s] and [(T).s] is checked/reported at [(T).s].
+    - Race between [(T)] and [(T)] is checked/reported at [(T)].
+    - Race between [(S).f] and [(S).f] is checked/reported at [(S).f].
+    - Race between [(S)] and [(S)] is checked/reported at [(S)].
+    - Race between [(int)] and [(int)] is checked/reported at [(int)].
+
+    All prefix races:
+    - Race between [t.s.f] and [t.s] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [t] is checked/reported at [t.s.f].
+    - Race between [t.s] and [t] is checked/reported at [t.s].
+    - Race between [(T).s.f] and [(T).s] is checked/reported at [(T).s.f].
+    - Race between [(T).s.f] and [(T)] is checked/reported at [(T).s.f].
+    - Race between [(T).s] and [(T)] is checked/reported at [(T).s].
+    - Race between [(S).f] and [(S)] is checked/reported at [(S).f].
+
+    All type suffix races:
+    - Race between [t.s.f] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(int)] is checked/reported at [t.s.f].
+    - Race between [(T).s.f] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [(T).s.f] and [(int)] is checked/reported at [(T).s.f].
+    - Race between [(S).f] and [(int)] is checked/reported at [(S).f].
+    - Race between [t.s] and [(T).s] is checked/reported at [t.s].
+    - Race between [t.s] and [(S)] is checked/reported at [t.s].
+    - Race between [(T).s] and [(S)] is checked/reported at [(T).s].
+    - Race between [t] and [(T)] is checked/reported at [t].
+
+    All type suffix prefix races:
+    - Race between [t.s.f] and [(T).s] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(T)] is checked/reported at [t.s.f].
+    - Race between [t.s.f] and [(S)] is checked/reported at [t.s.f].
+    - Race between [(T).s.f] and [(S)] is checked/reported at [(T).s.f].
+    - Race between [t.s] and [(T)] is checked/reported at [t.s].
+
+    All prefix-type suffix races:
+    - Race between [t.s] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t.s] and [(int)] is checked/reported at [t.s.f].
+    - Race between [t] and [(T).s.f] is checked/reported at [t.s.f].
+    - Race between [t] and [(S).f] is checked/reported at [t.s.f].
+    - Race between [t] and [(int)] is checked/reported at [t.s.f].
+    - Race between [t] and [(T).s] is checked/reported at [t.s].
+    - Race between [t] and [(S)] is checked/reported at [t.s].
+    - Race between [(T).s] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [(T).s] and [(int)] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(S).f] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(int)] is checked/reported at [(T).s.f].
+    - Race between [(T)] and [(S)] is checked/reported at [(T).s].
+    - Race between [(S)] and [(int)] is checked/reported at [(S).f]. *)
+
 
 (** Data race analyzer without base --- this is the new standard *)
 module Spec =
@@ -12,7 +134,7 @@ struct
   let name () = "race"
 
   (* Two global invariants:
-     1. memoroot -> (offset -> accesses)  --  used for warnings
+     1. memoroot -> (offset --trie--> accesses)  --  used for warnings
      2. varinfo -> set of memo  --  used for IterSysVars Global *)
 
   module V =
@@ -52,13 +174,22 @@ struct
 
   module OffsetTrie =
   struct
-    include TrieDomain.Make (OneOffset) (Access.AS)
+    (* LiftBot such that add_distribute_outer can side-effect empty set to indicate
+       all offsets that exist for prefix-type_suffix race checking.
+       Otherwise, there are no trie nodes to traverse to where this check must happen. *)
+    include TrieDomain.Make (OneOffset) (Lattice.LiftBot (Access.AS))
+
+    let rec find (offset : Offset.Unit.t) ((accs, children) : t) : value =
+      match offset with
+      | `NoOffset -> accs
+      | `Field (f, offset') -> find offset' (ChildMap.find (Field f) children)
+      | `Index ((), offset') -> find offset' (ChildMap.find Index children)
 
     let rec singleton (offset : Offset.Unit.t) (value : value) : t =
       match offset with
       | `NoOffset -> (value, ChildMap.empty ())
-      | `Field (f, offset') -> (Access.AS.empty (), ChildMap.singleton (Field f) (singleton offset' value))
-      | `Index ((), offset') -> (Access.AS.empty (), ChildMap.singleton Index (singleton offset' value))
+      | `Field (f, offset') -> (`Bot, ChildMap.singleton (Field f) (singleton offset' value))
+      | `Index ((), offset') -> (`Bot, ChildMap.singleton Index (singleton offset' value))
   end
 
   module G =
@@ -94,10 +225,43 @@ struct
     | _ ->
       ()
 
-  let side_access ctx (conf, w, loc, e, a) ((memoroot, offset) as memo) =
+  let side_access ctx acc ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton acc))));
     side_vars ctx memo
+
+  (** Side-effect empty access set for prefix-type_suffix race checking. *)
+  let side_access_empty ctx ((memoroot, offset) as memo) =
+    if !AnalysisState.should_warn then
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.empty ()))));
+    side_vars ctx memo
+
+  (** Get immediate type_suffix memo. *)
+  let type_suffix_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
+    (* No need to make ana.race.direct-arithmetic return None here,
+       because (int) is empty anyway since Access.add_distribute_outer isn't called. *)
+    match root, offset with
+    | `Var v, _ -> Some (`Type (Cil.typeSig v.vtype), offset) (* global.foo.bar -> (struct S).foo.bar *) (* TODO: Alloc variables void type *)
+    | _, `NoOffset -> None (* primitive type *)
+    | _, `Field (f, offset') -> Some (`Type (Cil.typeSig f.ftype), offset') (* (struct S).foo.bar -> (struct T).bar *)
+    | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset') (* (int[])[*] -> int *)
+    | _, `Index ((), offset') -> None (* TODO: why indexing on non-array? *)
+
+  let rec find_type_suffix' ctx ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
+    let trie = G.access (ctx.global (V.access root)) in
+    let accs =
+      match OffsetTrie.find offset trie with
+      | `Lifted accs -> accs
+      | `Bot -> Access.AS.empty ()
+    in
+    let type_suffix = find_type_suffix ctx memo in
+    Access.AS.union accs type_suffix
+
+  (** Find accesses from all type_suffixes transitively. *)
+  and find_type_suffix ctx (memo : Access.Memo.t) : Access.AS.t =
+    match type_suffix_memo memo with
+    | Some type_suffix_memo -> find_type_suffix' ctx type_suffix_memo
+    | None -> Access.AS.empty ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -108,18 +272,27 @@ struct
           (* ignore (Pretty.printf "WarnGlobal %a\n" Access.MemoRoot.pretty g'); *)
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
-          let rec distribute_inner offset (accs, children) ancestor_accs =
-            let ancestor_accs' = Access.AS.union ancestor_accs accs in
-            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
-                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ancestor_accs'
-              ) children;
-            if not (Access.AS.is_empty accs) then (
+          let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =
+            let accs =
+              match accs with
+              | `Lifted accs -> accs
+              | `Bot -> Access.AS.empty ()
+            in
+            let type_suffix = find_type_suffix ctx (g', offset) in
+            if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs
-            )
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {node=accs; prefix; type_suffix; type_suffix_prefix}) memo
+            );
+
+            (* Recurse to children. *)
+            let prefix' = Access.AS.union prefix accs in
+            let type_suffix_prefix' = Access.AS.union type_suffix_prefix type_suffix in
+            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
+                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ~prefix:prefix' ~type_suffix_prefix:type_suffix_prefix'
+              ) children;
           in
-          distribute_inner `NoOffset trie (Access.AS.empty ())
+          distribute_inner `NoOffset trie ~prefix:(Access.AS.empty ()) ~type_suffix_prefix:(Access.AS.empty ())
         | `Right _ -> (* vars *)
           ()
       end
@@ -131,48 +304,48 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp=e; lvals; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
-      let module LS = Queries.LS in
+      let module AD = Queries.AD in
       let part_access (vo:varinfo option): MCPAccess.A.t =
         (*partitions & locks*)
-        Obj.obj (octx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
+        Obj.obj (octx.ask (PartAccess (Memory {exp; var_opt=vo; kind})))
       in
-      let loc = Option.get !Node.current_node in
+      let node = Option.get !Node.current_node in
       let add_access conf voffs =
-        let a = part_access (Option.map fst voffs) in
-        Access.add (side_access octx (conf, kind, loc, e, a)) e voffs;
+        let acc = part_access (Option.map fst voffs) in
+        Access.add ~side:(side_access octx {conf; kind; node; exp; acc}) ~side_empty:(side_access_empty octx) exp voffs;
       in
       let add_access_struct conf ci =
-        let a = part_access None in
-        Access.add_one (side_access octx (conf, kind, loc, e, a)) (`Type (TComp (ci, [])), `NoOffset)
+        let acc = part_access None in
+        Access.add_one ~side:(side_access octx {conf; kind; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
          -- this is the common case if we have a sound points-to set. *)
-      let on_lvals ls includes_uk =
-        let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+      let on_ad ad includes_uk =
         let conf = if reach then conf - 20 else conf in
         let conf = if includes_uk then conf - 10 else conf in
-        let f (var, offs) =
-          let coffs = Offset.Exp.to_cil offs in
-          if CilType.Varinfo.equal var dummyFunDec.svar then
-            add_access conf None
-          else
-            add_access conf (Some (var, coffs))
+        let f addr =
+          match addr with
+          | AD.Addr.Addr (g,o) when g.vglob || has_escaped g ->
+            let coffs = ValueDomain.Offs.to_cil o in
+            add_access conf (Some (g, coffs))
+          | UnknownPtr -> add_access conf None
+          | _ -> ()
         in
-        LS.iter f ls
+        AD.iter f ad
       in
-      begin match lvals with
-        | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+      begin match ad with
+        | ad when not (AD.is_top ad) ->
           (* the case where the points-to set is non top and does not contain unknown values *)
-          on_lvals ls false
-        | ls when not (LS.is_top ls) ->
+          on_ad ad false
+        | ad ->
           (* the case where the points-to set is non top and contains unknown values *)
           let includes_uk = ref false in
           (* now we need to access all fields that might be pointed to: is this correct? *)
-          begin match octx.ask (ReachableUkTypes e) with
+          begin match octx.ask (ReachableUkTypes exp) with
             | ts when Queries.TS.is_top ts ->
               includes_uk := true
             | ts ->
@@ -185,9 +358,9 @@ struct
               in
               Queries.TS.iter f ts
           end;
-          on_lvals ls !includes_uk
-        | _ ->
-          add_access (conf - 60) None
+          on_ad ad !includes_uk
+          (* | _ ->
+             add_access (conf - 60) None *) (* TODO: what about this case? *)
       end;
       ctx.local
     | _ ->
@@ -197,12 +370,13 @@ struct
     (* perform shallow and deep invalidate according to Library descriptors *)
     let desc = LibraryFunctions.find f in
     if List.mem LibraryDesc.ThreadUnsafe desc.attrs then (
-      let e = Lval (Var f, NoOffset) in
+      let exp = Lval (Var f, NoOffset) in
       let conf = 110 in
-      let loc = Option.get !Node.current_node in
+      let kind = AccessKind.Call in
+      let node = Option.get !Node.current_node in
       let vo = Some f in
-      let a = Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind=Call}))) in
-      side_access ctx (conf, Call, loc, e, a) ((`Var f), `NoOffset) ;
+      let acc = Obj.obj (ctx.ask (PartAccess (Memory {exp; var_opt=vo; kind}))) in
+      side_access ctx {conf; kind; node; exp; acc} ((`Var f), `NoOffset) ;
     );
     ctx.local
 

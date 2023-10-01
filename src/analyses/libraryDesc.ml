@@ -43,6 +43,7 @@ type math =
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
 type special =
+  | Alloca of Cil.exp
   | Malloc of Cil.exp
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
@@ -62,7 +63,7 @@ type special =
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
-  | Memcpy of { dest: Cil.exp; src: Cil.exp }
+  | Memcpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strcpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
   | Strcat of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
   | Strlen of Cil.exp
@@ -126,31 +127,10 @@ type t = {
   attrs: attr list; (** Attributes of function. *)
 }
 
-let special_of_old classify_name = fun args ->
-  match classify_name args with
-  | `Malloc e -> Malloc e
-  | `Calloc (count, size) -> Calloc { count; size; }
-  | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Lock (try_, write, return_on_success) ->
-    begin match args with
-      | [lock] -> Lock { lock ; try_; write; return_on_success; }
-      | [] -> failwith "lock has no arguments"
-      | _ -> failwith "lock has multiple arguments"
-    end
-  | `Unlock ->
-    begin match args with
-      | [arg] -> Unlock arg
-      | [] -> failwith "unlock has no arguments"
-      | _ -> failwith "unlock has multiple arguments"
-    end
-  | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
-  | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
-  | `Unknown _ -> Unknown
-
-let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old) (classify_name): t = {
+let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old): t = {
   attrs;
   accs = Accesses.of_old old_accesses;
-  special = special_of_old classify_name;
+  special = fun _ -> Unknown;
 }
 
 module MathPrintable = struct

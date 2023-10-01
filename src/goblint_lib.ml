@@ -85,6 +85,7 @@ module MallocFresh = MallocFresh
 module Malloc_null = Malloc_null
 module MemLeak = MemLeak
 module UseAfterFree = UseAfterFree
+module MemOutOfBounds = MemOutOfBounds
 
 (** {2 Concurrency}
 

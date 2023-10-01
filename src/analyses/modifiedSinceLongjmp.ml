@@ -23,18 +23,23 @@ struct
     (* Only checks for v.vglob on purpose, acessing espaced locals after longjmp is UB like for any local *)
     not v.vglob (* *) && not (BaseUtil.is_volatile v) && v.vstorage <> Static
 
-  let relevants_from_ls ls =
-    if Queries.LS.is_top ls then
+  let relevants_from_ad ls =
+    (* TODO: what about AD with both known and unknown pointers? *)
+    if Queries.AD.is_top ls then
       VS.top ()
     else
-      Queries.LS.fold (fun (v, _) acc -> if is_relevant v then VS.add v acc else acc) ls (VS.empty ())
+      Queries.AD.fold (fun addr acc ->
+          match addr with
+          | Queries.AD.Addr.Addr (v, _) when is_relevant v -> VS.add v acc
+          | _ -> acc
+        ) ls (VS.empty ())
 
   (* transfer functions *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    let taintedcallee = relevants_from_ls (f_ask.f Queries.MayBeTainted) in
+    let taintedcallee = relevants_from_ad (f_ask.f Queries.MayBeTainted) in
     add_to_all_defined taintedcallee ctx.local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
@@ -62,8 +67,8 @@ struct
 
   let event ctx (e: Events.t) octx =
     match e with
-    | Access {lvals; kind = Write; _} ->
-      add_to_all_defined (relevants_from_ls lvals) ctx.local
+    | Access {ad; kind = Write; _} ->
+      add_to_all_defined (relevants_from_ad ad) ctx.local
     | _ ->
       ctx.local
 end

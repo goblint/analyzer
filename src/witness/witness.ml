@@ -306,35 +306,35 @@ struct
   let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
     let module Arg: BiArgInvariant =
       (val if GobConfig.get_bool "witness.enabled" then (
-          let module Arg = (val ArgTool.create entrystates) in
-          let module Arg =
-          struct
-            include Arg
+           let module Arg = (val ArgTool.create entrystates) in
+           let module Arg =
+           struct
+             include Arg
 
-            let find_invariant (n, c, i) =
-              let context = {Invariant.default_context with path = Some i} in
-              ask_local (n, c) (Invariant context)
-          end
-          in
-          (module Arg: BiArgInvariant)
-        )
-        else (
-          let module Arg =
-          struct
-            module Node = ArgTool.Node
-            module Edge = MyARG.InlineEdge
-            let next _ = []
-            let prev _ = []
-            let find_invariant _ = Invariant.none
-            let main_entry =
-              let lvar = WitnessUtil.find_main_entry entrystates in
-              (fst lvar, snd lvar, -1)
-            let iter_nodes f = f main_entry
-            let query _ q = Queries.Result.top q
-          end
-          in
-          (module Arg: BiArgInvariant)
-        )
+             let find_invariant (n, c, i) =
+               let context = {Invariant.default_context with path = Some i} in
+               ask_local (n, c) (Invariant context)
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+         else (
+           let module Arg =
+           struct
+             module Node = ArgTool.Node
+             module Edge = MyARG.InlineEdge
+             let next _ = []
+             let prev _ = []
+             let find_invariant _ = Invariant.none
+             let main_entry =
+               let lvar = WitnessUtil.find_main_entry entrystates in
+               (fst lvar, snd lvar, -1)
+             let iter_nodes f = f main_entry
+             let query _ q = Queries.Result.top q
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
       )
     in
 

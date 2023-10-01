@@ -32,13 +32,21 @@ struct
 
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in
-    let n = TS.cardinal parents in
-    (* A thread is not unique if it is
-      * a) repeatedly created,
-      * b) created in multiple threads, or
-      * c) created by a thread that is itself multiply created.
-      * Note that starting threads have empty ancestor sets! *)
-    rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
+    if rep then
+      true (* repeatedly created *)
+    else (
+      let n = TS.cardinal parents in
+      if n > 1 then
+        true (* created in multiple threads *)
+      else if n > 0 then (
+        (* created by single thread *)
+        let parent = TS.choose parents in
+        (* created by itself thread-recursively or by a thread that is itself multiply created *)
+        T.equal tid parent || is_not_unique ctx parent (* equal check needed to avoid infinte self-recursion *)
+      )
+      else
+        false (* no ancestors, starting thread *)
+    )
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in

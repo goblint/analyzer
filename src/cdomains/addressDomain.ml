@@ -440,4 +440,6 @@ struct
     let r = narrow x y in
     if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
     r
+
+  let filter f ad = fold (fun addr ad -> if f addr then add addr ad else ad) ad (empty ())
 end

@@ -6,9 +6,12 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex);
-  if (x == 0) {
+  pthread_mutex_lock(&__global_lock);
+  if (x == 0) { // NORACE
+    pthread_mutex_unlock(&__global_lock);
     pthread_mutex_unlock(&mutex);
   } else {
+    pthread_mutex_unlock(&__global_lock);
     pthread_mutex_unlock(&mutex);
     access(x);
   }
