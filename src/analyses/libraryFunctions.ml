@@ -127,6 +127,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
     ("atexit", unknown [drop "function" [s]]);
+    ("atoi", unknown [drop "nptr" [r]]);
+    ("atol", unknown [drop "nptr" [r]]);
+    ("atoll", unknown [drop "nptr" [r]]);
   ]
 
 (** C POSIX library functions.
@@ -486,6 +489,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memmem", unknown [drop "haystack" [r]; drop "haystacklen" []; drop "needle" [r]; drop "needlelen" [r]]);
     ("getifaddrs", unknown [drop "ifap" [w]]);
     ("freeifaddrs", unknown [drop "ifa" [f_deep]]);
+    ("atoq", unknown [drop "nptr" [r]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -1019,7 +1023,6 @@ open Invalidate
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = [
-    "atoi", readsAll;             (*safe*)
     "connect", readsAll;          (*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
