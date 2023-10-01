@@ -32,6 +32,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("memcmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("memchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
     ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
     ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
     ("feof", unknown [drop "stream" [r_deep; w_deep]]);
@@ -1075,7 +1076,6 @@ let invalidate_actions = [
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
-    "memchr", readsAll;(*safe*)
     "waitpid", readsAll;(*safe*)
     "statfs", writes [1;3;4];(*keep [1;3;4]*)
     "mount", readsAll;(*safe*)
