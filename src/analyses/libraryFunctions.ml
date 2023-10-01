@@ -319,6 +319,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("posix_fadvise", unknown [drop "fd" []; drop "offset" []; drop "len" []; drop "advice" []]);
     ("getppid", unknown []);
     ("lockf", unknown [drop "fd" []; drop "cmd" []; drop "len" []]);
+    ("htonl", unknown [drop "hostlong" []]);
+    ("htons", unknown [drop "hostshort" []]);
+    ("ntohl", unknown [drop "netlong" []]);
+    ("ntohs", unknown [drop "netshort" []]);
   ]
 
 (** Pthread functions. *)
@@ -1151,9 +1155,6 @@ let invalidate_actions = [
     "sem_post", readsAll; (*safe*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
-    "htonl", readsAll; (*safe*)
-    "htons", readsAll; (*safe*)
-    "ntohl", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
     "clock", readsAll;
