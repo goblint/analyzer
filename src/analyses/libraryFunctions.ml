@@ -319,6 +319,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ffs", unknown [drop "i" []]);
     ("_exit", special [drop "status" []] Abort);
     ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
+    ("execl", unknown (drop "path" [r] :: VarArgs (drop' [r])));
     ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
     ("readlink", unknown [drop "path" [r]; drop "buf" [w]; drop "bufsz" []]);
     ("wcswidth", unknown [drop "s" [r]; drop "n" []]);
@@ -1126,7 +1127,6 @@ let invalidate_actions = [
     "setsockopt", readsAll; (*safe*)
     "listen", readsAll; (*safe*)
     "getsockname", writes [1;3]; (*keep [1;3]*)
-    "execl", readsAll; (*safe*)
     "select", writes [1;5]; (*keep [1;5]*)
     "accept", writesAll; (*keep [1]*)
     "getpeername", writes [1]; (*keep [1]*)
