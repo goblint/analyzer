@@ -246,6 +246,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("inet_ntoa", unknown ~attrs:[ThreadUnsafe] [drop "in" []]);
     ("getsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [w]; drop "optlen" [w]]);
     ("setsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [r]; drop "optlen" []]);
+    ("getsockname", unknown [drop "sockfd" [r]; drop "addr" [w]; drop "addrlen" [r]]);
     ("gethostbyaddr", unknown ~attrs:[ThreadUnsafe] [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
     ("gethostbyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
@@ -1139,7 +1140,6 @@ let invalidate_actions = [
     "__error", readsAll; (*safe*)
     "__maskrune", writesAll; (*unsafe*)
     "listen", readsAll; (*safe*)
-    "getsockname", writes [1;3]; (*keep [1;3]*)
     "select", writes [1;5]; (*keep [1;5]*)
     "accept", writesAll; (*keep [1]*)
     "getpeername", writes [1]; (*keep [1]*)
