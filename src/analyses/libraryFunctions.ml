@@ -875,6 +875,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
+    ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
   ]
 
 let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -1172,7 +1173,6 @@ let invalidate_actions = [
     "kmem_cache_create", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
-    "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     (* ddverify *)
     "__goblint_assume_join", readsAll;
   ]
