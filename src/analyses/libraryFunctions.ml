@@ -347,6 +347,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setrlimit", unknown [drop "resource" []; drop "rlim" [r]]);
     ("getrlimit", unknown [drop "resource" []; drop "rlim" [w]]);
     ("setsid", unknown []);
+    ("isatty", unknown [drop "fd" []]);
   ]
 
 (** Pthread functions. *)
@@ -1172,8 +1173,6 @@ let invalidate_actions = [
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
     "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
-    (* no args, declare invalidate actions to prevent invalidating globals *)
-    "isatty", readsAll;
     (* ddverify *)
     "__goblint_assume_join", readsAll;
   ]
