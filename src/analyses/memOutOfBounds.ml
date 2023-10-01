@@ -30,6 +30,10 @@ struct
   let intdom_of_int x =
     ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
 
+  let size_of_type_in_bytes typ =
+    let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
+    intdom_of_int typ_size_in_bytes
+
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
     | Const _
@@ -86,8 +90,7 @@ struct
             | Addr (v, _) ->
               begin match v.vtype with
                 | TArray (item_typ, _, _) ->
-                  let item_typ_size_in_bytes = (bitsSizeOf item_typ) / 8 in
-                  let item_typ_size_in_bytes = intdom_of_int item_typ_size_in_bytes in
+                  let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match ctx.ask (Queries.EvalLength ptr) with
                     | `Lifted arr_len ->
                       let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
@@ -99,8 +102,8 @@ struct
                     | `Top -> `Top
                   end
                 | _ ->
-                  let type_size_in_bytes = (bitsSizeOf v.vtype) / 8 in
-                  `Lifted (intdom_of_int type_size_in_bytes)
+                  let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+                  `Lifted type_size_in_bytes
               end
             | _ -> `Top
           end
@@ -121,10 +124,6 @@ struct
     match ptr_typ with
     | TPtr (t, _) -> Some t
     | _ -> None
-
-  let size_of_type_in_bytes typ =
-    let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
-    intdom_of_int typ_size_in_bytes
 
   let eval_ptr_offset_in_binop ctx exp ptr_contents_typ =
     let eval_offset = ctx.ask (Queries.EvalInt exp) in
