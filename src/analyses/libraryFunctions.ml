@@ -364,7 +364,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dlerror", unknown ~attrs:[ThreadUnsafe] []); (* TODO: Why thread-unsafe? https://linux.die.net/man/3/dlopen *)
     ("dlsym", unknown [drop "handle" [r]; drop "symbol" [r]]);
     ("dlclose", unknown [drop "handle" [r]]);
-    ("inet_addr", unknown [drop "cp" [r]])
+    ("inet_addr", unknown [drop "cp" [r]]);
+    ("uname", unknown [drop "buf" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -1089,7 +1090,6 @@ let invalidate_actions = [
     "__ctype_b_loc", readsAll;(*safe*)
     "__errno", readsAll;(*safe*)
     "__errno_location", readsAll;(*safe*)
-    "uname", writesAll;(*unsafe*)
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
