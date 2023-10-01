@@ -407,7 +407,10 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
     ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
     ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
+    (* TODO: Remove w as soon as we have proper support for semaphores *)
     ("sem_init", special [__ "sem" [w]; __ "pshared" []; __ "value" []] @@ fun sem pshared value -> SemInit {sem; pshared; value});
+    ("sem_wait", special [__ "sem" [w]] @@ fun sem -> SemWait {sem; try_ = false});
+    ("sem_trywait", special [__ "sem" [w]] @@ fun sem -> SemWait {sem; try_ = true});
   ]
 
 (** GCC builtin functions.
@@ -1156,7 +1159,6 @@ let invalidate_actions = [
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_destroy", readsAll; (*safe*)
-    "sem_wait", readsAll; (*safe*)
     "sem_post", readsAll; (*safe*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
