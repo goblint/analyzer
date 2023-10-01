@@ -76,7 +76,7 @@ struct
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
           end
           else if HeapVars.mem heap_var (snd ctx.local) then begin
-            set_global_svcomp_var is_double_free;
+            if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
           end
         end
@@ -110,8 +110,10 @@ struct
       begin match ctx.ask (Queries.MayPointTo lval_to_query) with
         | ad when not (Queries.AD.is_top ad) ->
           let warn_for_heap_var v =
-            if HeapVars.mem v (snd state) then
+            if HeapVars.mem v (snd state) then begin
+              if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
+            end
           in
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr vars ->

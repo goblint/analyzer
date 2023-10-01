@@ -30,10 +30,10 @@ struct
     if not @@ D.is_empty state then
       match assert_exp_imprecise, exp with
       | true, Some exp ->
-        AnalysisStateUtil.set_mem_safety_flag InvalidMemTrack;
+        set_mem_safety_flag InvalidMemTrack;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
       | _ ->
-        AnalysisStateUtil.set_mem_safety_flag InvalidMemTrack;
+        set_mem_safety_flag InvalidMemTrack;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
 
   (* TRANSFER FUNCTIONS *)

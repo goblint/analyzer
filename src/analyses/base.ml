@@ -2027,12 +2027,16 @@ struct
     in
     match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
-      if AD.is_top a then
+      if AD.is_top a then (
+        AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
-      else if has_non_heap_var a then
+      ) else if has_non_heap_var a then (
+        AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
-      else if has_non_zero_offset a then
+      ) else if has_non_zero_offset a then (
+        AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
+      )
     | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
 
 
