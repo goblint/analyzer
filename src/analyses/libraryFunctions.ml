@@ -328,7 +328,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("link", unknown [drop "oldpath" [r]; drop "newpath" [r]]);
     ("renameat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]]);
     ("posix_fadvise", unknown [drop "fd" []; drop "offset" []; drop "len" []; drop "advice" []]);
-    ("getppid", unknown []);
     ("lockf", unknown [drop "fd" []; drop "cmd" []; drop "len" []]);
     ("htonl", unknown [drop "hostlong" []]);
     ("htons", unknown [drop "hostshort" []]);
@@ -340,6 +339,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setpriority", unknown [drop "which" []; drop "who" []; drop "prio" []]);
     ("getpriority", unknown [drop "which" []; drop "who" []]);
     ("sched_yield", unknown []);
+    ("getpid", unknown []);
+    ("getppid", unknown []);
   ]
 
 (** Pthread functions. *)
@@ -1071,7 +1072,6 @@ let invalidate_actions = [
     "geteuid", readsAll;(*safe*)
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
-    "getpid", readsAll;(*safe*)
     "_IO_getc", writesAll;(*unsafe*)
     "pipe", writesAll;(*unsafe*)
     "close", writesAll;(*unsafe*)
