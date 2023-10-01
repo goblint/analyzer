@@ -341,6 +341,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sched_yield", unknown []);
     ("getpid", unknown []);
     ("getppid", unknown []);
+    ("getuid", unknown []);
+    ("geteuid", unknown []);
   ]
 
 (** Pthread functions. *)
@@ -1069,7 +1071,6 @@ let invalidate_actions = [
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
-    "geteuid", readsAll;(*safe*)
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
     "_IO_getc", writesAll;(*unsafe*)
@@ -1108,7 +1109,6 @@ let invalidate_actions = [
     "gethostbyname_r", readsAll;(*safe*)
     "__h_errno_location", readsAll;(*safe*)
     "__fxstat", readsAll;(*safe*)
-    "getuid", readsAll;(*safe*)
     "openlog", readsAll;(*safe*)
     "getdtablesize", readsAll;(*safe*)
     "umask", readsAll;(*safe*)
