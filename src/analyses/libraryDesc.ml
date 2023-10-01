@@ -59,6 +59,7 @@ type special =
   | MutexInit of { mutex:Cil.exp; attr: Cil.exp; }
   | SemInit of { sem: Cil.exp; pshared: Cil.exp; value: Cil.exp; }
   | SemWait of { sem: Cil.exp; try_:bool; timeout: Cil.exp option;}
+  | SemPost of Cil.exp
   | Wait of { cond: Cil.exp; mutex: Cil.exp; }
   | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; (** Unused *) }
   | Math of { fun_args: math; }
