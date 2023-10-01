@@ -250,7 +250,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gethostbyaddr", unknown ~attrs:[ThreadUnsafe] [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
     ("gethostbyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
-    ("gethostbyname_r", unknown [drop "name" [r]; drop "result_buf" [w]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]])
+    ("gethostbyname_r", unknown [drop "name" [r]; drop "result_buf" [w]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
+    ("gethostname", unknown [drop "name" [w]; drop "len" []]);
     ("socket", unknown [drop "domain" []; drop "type" []; drop "protocol" []]);
     ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
     ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [w_deep]]);
@@ -1161,7 +1162,6 @@ let invalidate_actions = [
     "BF_set_key", writes [3]; (*keep [3]*)
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
-    "gethostname", writesAll; (*unsafe*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
