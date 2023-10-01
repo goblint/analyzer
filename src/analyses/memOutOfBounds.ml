@@ -238,12 +238,7 @@ struct
         | `Lifted ps, ao ->
           let casted_ps = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ps in
           let casted_ao = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ao in
-          let ptr_size_lt_offs =
-            begin
-              try ID.lt casted_ps casted_ao
-              with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-            end
-          in
+          let ptr_size_lt_offs = ID.lt casted_ps casted_ao in
           begin match ID.to_bool ptr_size_lt_offs with
             | Some true ->
               AnalysisState.svcomp_may_invalid_deref := true;
@@ -323,12 +318,7 @@ struct
             | `Lifted ps, `Lifted o ->
               let casted_ps = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ps in
               let casted_o = ID.cast_to (Cilfacade.ptrdiff_ikind ()) o in
-              let ptr_size_lt_offs =
-                begin
-                  try ID.lt casted_ps casted_o
-                  with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-                end
-              in
+              let ptr_size_lt_offs = ID.lt casted_ps casted_o in
               begin match ID.to_bool ptr_size_lt_offs with
                 | Some true ->
                   AS.svcomp_may_invalid_deref := true;
@@ -366,12 +356,7 @@ struct
       let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
       let casted_en = ID.cast_to (Cilfacade.ptrdiff_ikind ()) en in
       let casted_ao = ID.cast_to (Cilfacade.ptrdiff_ikind ()) addr_offs in
-      let dest_size_lt_count =
-        begin
-          try ID.lt casted_ds (ID.add casted_en casted_ao)
-          with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-        end
-      in
+      let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in
       begin match ID.to_bool dest_size_lt_count with
         | Some true ->
           AnalysisState.svcomp_may_invalid_deref := true;
