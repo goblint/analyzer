@@ -66,6 +66,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("strchr", unknown [drop "s" [r]; drop "c" []]);
     ("strrchr", unknown [drop "s" [r]; drop "c" []]);
+    ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
+    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("calloc", special [__ "n" []; __ "size" []] @@ fun n size -> Calloc {count = n; size});
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
@@ -1116,7 +1118,6 @@ let invalidate_actions = [
     "dup", readsAll; (*safe*)
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
-    "strcasecmp", readsAll; (*safe*)
     "__error", readsAll; (*safe*)
     "__maskrune", writesAll; (*unsafe*)
     "inet_addr", readsAll; (*safe*)
