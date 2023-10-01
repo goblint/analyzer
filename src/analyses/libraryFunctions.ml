@@ -93,6 +93,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getchar", unknown []);
     ("putchar", unknown [drop "ch" []]);
     ("puts", unknown [drop "s" [r]]);
+    ("srand", unknown [drop "seed" []]);
     ("rand", special ~attrs:[ThreadUnsafe] [] Rand);
     ("strerror", unknown ~attrs:[ThreadUnsafe] [drop "errnum" []]);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
@@ -1154,7 +1155,6 @@ let invalidate_actions = [
     "BF_set_key", writes [3]; (*keep [3]*)
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
-    "srand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
     "setrlimit", readsAll; (*safe*)
