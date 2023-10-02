@@ -128,9 +128,14 @@ conflicts: [
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
 ]
+# TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
     "goblint-cil.2.0.2"
     "git+https://github.com/goblint/cil.git#398dca3d94a06a9026b3737aabf100ee3498229f"
+  ]
+  [
+    "ppx_deriving.5.2.1"
+    "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
   ]
 ]
