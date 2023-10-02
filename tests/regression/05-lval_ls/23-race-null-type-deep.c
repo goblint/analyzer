@@ -1,9 +1,15 @@
+// PARAM: --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
 #include <pthread.h>
-#include <stdio.h>
+
+struct s {
+  int f;
+};
+
+extern void magic(struct s *p);
 
 void *t_fun(void *arg) {
   void *top;
-  fclose(top); // RACE
+  magic(top); // RACE
   return NULL;
 }
 
@@ -21,31 +27,31 @@ int main(void) {
   void *top;
   switch (r) {
     case 0:
-      feof(NULL); // NORACE
+      magic(NULL); // NORACE
       break;
     case 1:
-      feof(0); // NORACE
+      magic(0); // NORACE
       break;
     case 2:
-      feof(zero); // NORACE
+      magic(zero); // NORACE
       break;
     case 3:
-      feof(1); // RACE
+      magic(1); // RACE
       break;
     case 4:
-      feof(one); // RACE
+      magic(one); // RACE
       break;
     case 5:
-      feof(r); // RACE
+      magic(r); // RACE
       break;
     case 6:
-      feof(null); // NORACE
+      magic(null); // NORACE
       break;
     case 7:
-      feof(unknown); // RACE
+      magic(unknown); // RACE
       break;
     case 8:
-      feof(top); // RACE
+      magic(top); // RACE
       break;
     default:
       break;
