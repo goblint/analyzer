@@ -227,6 +227,7 @@ let focusOnSpecification () =
   | ValidDeref
   | ValidMemtrack -> ()
   | MemorySafety -> () (* TODO: This is here for now just to complete the pattern match *)
+  | ValidMemcleanup -> ()
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound

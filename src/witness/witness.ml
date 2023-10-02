@@ -625,6 +625,36 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
+    | ValidMemcleanup ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_memcleanup then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
 
 
   let write entrystates =

@@ -56,6 +56,7 @@ struct
         | ValidDeref -> "valid-deref"
         | ValidMemtrack -> "valid-memtrack"
         | MemorySafety -> "memory-safety" (* TODO: Currently here only to complete the pattern match *)
+        | ValidMemcleanup -> "valid-memcleanup"
       in
       "false(" ^ result_spec ^ ")"
     | Unknown -> "unknown"

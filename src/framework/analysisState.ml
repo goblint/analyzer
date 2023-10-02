@@ -16,6 +16,9 @@ let svcomp_may_invalid_deref = ref false
 (** Whether an invalid memtrack happened *)
 let svcomp_may_invalid_memtrack = ref false
 
+(** Whether an invalid memcleanup happened *)
+let svcomp_may_invalid_memcleanup = ref false
+
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false
 
