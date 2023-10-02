@@ -32,7 +32,8 @@ let of_string s =
     let global1 = Str.matched_group 1 s in
     let global2 = Str.matched_group 2 s in
     let global3 = Str.matched_group 3 s in
-    if global1 = "valid-free" && global2 = "valid-deref" && global3 = "valid-memtrack" then
+    let mem_safety_props = ["valid-free"; "valid-deref"; "valid-memtrack";] in
+    if (global1 <> global2 && global1 <> global3 && global2 <> global3) && List.for_all (fun x -> List.mem x mem_safety_props) [global1; global2; global3] then
       MemorySafety
       (* if global = "valid-free" then
       ValidFree
