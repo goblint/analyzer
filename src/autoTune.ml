@@ -223,11 +223,18 @@ let focusOnSpecification () =
     let uafAna = ["useAfterFree"] in
     print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
     enableAnalyses uafAna
-  (* TODO: Finish these two below later *)
-  | ValidDeref
-  | ValidMemtrack -> ()
-  | MemorySafety -> () (* TODO: This is here for now just to complete the pattern match *)
-  | ValidMemcleanup -> ()
+  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
+    let memOobAna = ["memOutOfBounds"] in
+    print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
+    enableAnalyses memOobAna
+  | ValidMemtrack
+  | ValidMemcleanup -> (* Enable the memLeak analysis *)
+    let memLeakAna = ["memLeak"] in
+    print_endline @@ "Specification: ValidDeref and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
+    enableAnalyses memLeakAna
+  | MemorySafety -> (* TODO: This is a temporary solution for the memory safety category *)
+    let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
+    enableAnalyses memSafetyAnas
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
