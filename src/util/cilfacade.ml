@@ -51,7 +51,9 @@ let init () =
   (* lineDirectiveStyle := None; *)
   RmUnused.keepUnused := true;
   print_CIL_Input := true;
-  Cabs2cil.allowDuplication := false
+  Cabs2cil.allowDuplication := false;
+  if get_bool "cil.addNestedScopeAttr" then
+    Cabs2cil.addNestedScopeAttr := true
 
 let current_file = ref dummyFile
 
