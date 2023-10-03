@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info --set sem.int.signed_overflow assume_none
 int main() {
 	int *p = malloc(1048 * sizeof(int));
 
