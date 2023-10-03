@@ -375,6 +375,14 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("uname", unknown [drop "buf" [w_deep]]);
     ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
     ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("connect", unknown [drop "sockfd" []; drop "sockaddr" [r_deep]; drop "addrlen" []]);
+    ("bind", unknown [drop "sockfd" []; drop "sockaddr" [r_deep]; drop "addrlen" []]);
+    ("listen", unknown [drop "sockfd" []; drop "backlog" []]);
+    ("select", unknown [drop "nfds" []; drop "readfds" [r]; drop "writefds" [r]; drop "exceptfds" [r]; drop "timeout" [r;w]]);
+    ("accept", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [r; w]]);
+    ("close", unknown [drop "fd" []]);
+    ("writev", unknown [drop "fd" []; drop "iov" [r_deep]; drop "iovcnt" []]);
+    ("readv", unknown [drop "fd" []; drop "iov" [w_deep]; drop "iovcnt" []]);
   ]
 
 (** Pthread functions. *)
@@ -1151,7 +1159,6 @@ let invalidate_actions = [
     "svctcp_create", readsAll;(*safe*)
     "clntudp_bufcreate", writesAll;(*unsafe*)
     "authunix_create_default", readsAll;(*safe*)
-    "writev", readsAll;(*safe*)
     "clnt_broadcast", writesAll;(*unsafe*)
     "clnt_sperrno", readsAll;(*safe*)
     "pmap_unset", writesAll;(*unsafe*)
