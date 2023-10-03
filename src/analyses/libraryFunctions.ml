@@ -217,7 +217,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
     ("getopt", unknown ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r]]);
-    ("getopt_long", unknown  ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r]; drop "longopts" [r]; drop "longindex" [w]]);
+    ("getopt_long", unknown  ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r_deep]; drop "longopts" [r]; drop "longindex" [w]]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
     ("iconv_close", unknown [drop "cd" [f]]);
@@ -245,13 +245,13 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("inet_ntoa", unknown ~attrs:[ThreadUnsafe] [drop "in" []]);
     ("getsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [w]; drop "optlen" [w]]);
     ("setsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [r]; drop "optlen" []]);
-    ("getsockname", unknown [drop "sockfd" [r]; drop "addr" [w]; drop "addrlen" [r]]);
+    ("getsockname", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [w]]);
     ("gethostbyaddr", unknown ~attrs:[ThreadUnsafe] [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
     ("gethostbyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
-    ("gethostbyname_r", unknown [drop "name" [r]; drop "result_buf" [w]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
+    ("gethostbyname_r", unknown [drop "name" [r]; drop "result_buf" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
     ("gethostname", unknown [drop "name" [w]; drop "len" []]);
-    ("getpeername", unknown [drop "sockfd" []; drop "addr" [w]; drop "addrlen" [r]]);
+    ("getpeername", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [r; w]]);
     ("socket", unknown [drop "domain" []; drop "type" []; drop "protocol" []]);
     ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
     ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [w_deep]]);
@@ -325,7 +325,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ffs", unknown [drop "i" []]);
     ("_exit", special [drop "status" []] Abort);
     ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
-    ("execl", unknown (drop "path" [r] :: VarArgs (drop' [r])));
+    ("execl", unknown (drop "path" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
     ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
     ("readlink", unknown [drop "path" [r]; drop "buf" [w]; drop "bufsz" []]);
     ("wcswidth", unknown [drop "s" [r]; drop "n" []]);
@@ -354,8 +354,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("isatty", unknown [drop "fd" []]);
     ("sigemptyset", unknown [drop "set" [w]]);
     ("sigfillset", unknown [drop "set" [w]]);
-    ("sigaddset", unknown [drop "set" [w]; drop "signum" []]);
-    ("sigdelset", unknown [drop "set" [w]; drop "signum" []]);
+    ("sigaddset", unknown [drop "set" [r; w]; drop "signum" []]);
+    ("sigdelset", unknown [drop "set" [r; w]; drop "signum" []]);
     ("sigismember", unknown [drop "set" [r]; drop "signum" []]);
     ("sigprocmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
     ("fork", unknown []);
@@ -364,7 +364,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dlsym", unknown [drop "handle" [r]; drop "symbol" [r]]);
     ("dlclose", unknown [drop "handle" [r]]);
     ("inet_addr", unknown [drop "cp" [r]]);
-    ("uname", unknown [drop "buf" [w]]);
+    ("uname", unknown [drop "buf" [w_deep]]);
     ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
     ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
   ]
