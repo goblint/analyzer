@@ -1176,6 +1176,7 @@ let invalidate_actions = [
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
     (* ddverify *)
+    "sema_init", readsAll;
     "__goblint_assume_join", readsAll;
   ]
 
