@@ -435,12 +435,13 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
     ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
     ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
-    ("sem_init", special [__ "sem" [r]; __ "pshared" []; __ "value" []] @@ fun sem pshared value -> SemInit {sem; pshared; value});
-    ("sem_wait", special [__ "sem" [r]] @@ fun sem -> SemWait {sem; try_ = false; timeout = None});
-    ("sem_trywait", special [__ "sem" [r]] @@ fun sem -> SemWait {sem; try_ = true; timeout = None});
-    ("sem_timedwait", special [__ "sem" [r]; __ "abs_timeout" [r]] @@ fun sem abs_timeout-> SemWait {sem; try_ = true; timeout = Some abs_timeout}); (* no write accesses to sem because sync primitive itself has no race *)
-    ("sem_post", special [__ "sem" [r]] @@ fun sem -> SemPost sem);
-    ("sem_destroy", special [__ "sem" [r]] @@ fun sem -> SemDestroy sem);
+    (* Not recording read accesses to sem as these are thread-safe anyway not to clutter messages (as for mutexes) **)
+    ("sem_init", special [__ "sem" []; __ "pshared" []; __ "value" []] @@ fun sem pshared value -> SemInit {sem; pshared; value});
+    ("sem_wait", special [__ "sem" []] @@ fun sem -> SemWait {sem; try_ = false; timeout = None});
+    ("sem_trywait", special [__ "sem" []] @@ fun sem -> SemWait {sem; try_ = true; timeout = None});
+    ("sem_timedwait", special [__ "sem" []; __ "abs_timeout" [r]] @@ fun sem abs_timeout-> SemWait {sem; try_ = true; timeout = Some abs_timeout}); (* no write accesses to sem because sync primitive itself has no race *)
+    ("sem_post", special [__ "sem" []] @@ fun sem -> SemPost sem);
+    ("sem_destroy", special [__ "sem" []] @@ fun sem -> SemDestroy sem);
   ]
 
 (** GCC builtin functions.
