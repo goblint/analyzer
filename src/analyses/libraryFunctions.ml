@@ -385,6 +385,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("readv", unknown [drop "fd" []; drop "iov" [w_deep]; drop "iovcnt" []]);
     ("unlink", unknown [drop "pathname" [r]]);
     ("popen", unknown [drop "command" [r]; drop "type" [r]]);
+    ("stat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("fstat", unknown [drop "fd" []; drop "statbuf" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -1182,7 +1184,6 @@ let invalidate_actions = [
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
     "uncompress", writes [3;4]; (*keep [3;4]*)
-    "stat", writes [2]; (*keep [1]*)
     "__xstat", writes [3]; (*keep [1]*)
     "__lxstat", writes [3]; (*keep [1]*)
     "remove", readsAll;
