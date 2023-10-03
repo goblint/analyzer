@@ -211,11 +211,16 @@ struct
                 set_mem_safety_flag InvalidDeref;
                 M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
               );
-              (* Offset should be the same for all elements in the points-to set *)
-              (* Hence, we can just pick one element and obtain its offset *)
-              begin match VDQ.AD.choose a with
-                | Addr (_, o) -> offs_to_idx t o
-                | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+              (* Get the address offsets of all points-to set elements *)
+              let addr_offsets =
+                VDQ.AD.filter (function Addr (v, o) -> true | _ -> false) a
+                |> VDQ.AD.to_mval
+                |> List.map (fun (_, o) -> offs_to_idx t o)
+              in
+              begin match addr_offsets with
+                | [] -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+                | [x] -> x
+                | x::xs -> List.fold_left ID.join x xs
               end
           end
         | None ->
