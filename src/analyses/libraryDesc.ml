@@ -43,6 +43,7 @@ type math =
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
 type special =
+  | Alloca of Cil.exp
   | Malloc of Cil.exp
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
@@ -67,7 +68,7 @@ type special =
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
-  | Memcpy of { dest: Cil.exp; src: Cil.exp }
+  | Memcpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strcpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
   | Strcat of { dest: Cil.exp; src: Cil.exp; n: Cil.exp option; }
   | Strlen of Cil.exp

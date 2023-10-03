@@ -12,13 +12,13 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
-    ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src }); (* TODO: use n *)
-    ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
-    ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
-    ("memccpy", special [__ "dest" [w]; __ "src" [r]; drop "c" []; drop "n" []] @@ fun dest src -> Memcpy {dest; src}); (* C23 *) (* TODO: use n and c *)
-    ("memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
-    ("__builtin_memmove", special [__ "dest" [w]; __ "src" [r]; drop "count" []] @@ fun dest src -> Memcpy { dest; src });
-    ("__builtin___memmove_chk", special [__ "dest" [w]; __ "src" [r]; drop "count" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("memcpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Memcpy { dest; src; n; });
+    ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Memcpy { dest; src; n; });
+    ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Memcpy { dest; src; n; });
+    ("memccpy", special [__ "dest" [w]; __ "src" [r]; drop "c" []; __ "n" []] @@ fun dest src n -> Memcpy {dest; src; n; }); (* C23 *) (* TODO: use c *)
+    ("memmove", special [__ "dest" [w]; __ "src" [r]; __ "count" []] @@ fun dest src count -> Memcpy { dest; src; n = count; });
+    ("__builtin_memmove", special [__ "dest" [w]; __ "src" [r]; __ "count" []] @@ fun dest src count -> Memcpy { dest; src; n = count; });
+    ("__builtin___memmove_chk", special [__ "dest" [w]; __ "src" [r]; __ "count" []; drop "os" []] @@ fun dest src count -> Memcpy { dest; src; n = count; });
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin_strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin___strcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcpy { dest; src; n = None; });
@@ -138,6 +138,12 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atoll", unknown [drop "nptr" [r]]);
     ("setlocale", unknown [drop "category" []; drop "locale" [r]]);
     ("clock", unknown []);
+    ("atomic_flag_clear", unknown [drop "obj" [w]]);
+    ("atomic_flag_clear_explicit", unknown [drop "obj" [w]; drop "order" []]);
+    ("atomic_flag_test_and_set", unknown [drop "obj" [r; w]]);
+    ("atomic_flag_test_and_set_explicit", unknown [drop "obj" [r; w]; drop "order" []]);
+    ("atomic_load", unknown [drop "obj" [r]]);
+    ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
   ]
 
 (** C POSIX library functions.
@@ -491,11 +497,25 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_popcountl", unknown [drop "x" []]);
     ("__builtin_popcountll", unknown [drop "x" []]);
     ("__atomic_store_n", unknown [drop "ptr" [w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_store", unknown [drop "ptr" [w]; drop "val" [r]; drop "memorder" []]);
     ("__atomic_load_n", unknown [drop "ptr" [r]; drop "memorder" []]);
+    ("__atomic_load", unknown [drop "ptr" [r]; drop "ret" [w]; drop "memorder" []]);
+    ("__atomic_clear", unknown [drop "ptr" [w]; drop "memorder" []]);
+    ("__atomic_compare_exchange_n", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" []; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
+    ("__atomic_compare_exchange", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" [r]; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
+    ("__atomic_fetch_add", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_sub", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_and", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_xor", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_or", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_nand", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_test_and_set", unknown [drop "ptr" [r; w]; drop "memorder" []]);
+    ("__atomic_thread_fence", unknown [drop "memorder" []]);
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
-    ("__builtin_alloca", special [__ "size" []] @@ fun size -> Malloc size);
+    ("alloca", special [__ "size" []] @@ fun size -> Alloca size);
+    ("__builtin_alloca", special [__ "size" []] @@ fun size -> Alloca size);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -536,8 +556,8 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
     ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
     ("fopencookie", unknown [drop "cookie" []; drop "mode" [r]; drop "io_funcs" [s_deep]]); (* doesn't access cookie but passes it to io_funcs *)
-    ("mempcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
-    ("__builtin___mempcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("mempcpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Memcpy { dest; src; n; });
+    ("__builtin___mempcpy_chk", special [__ "dest" [w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Memcpy { dest; src; n; });
     ("rawmemchr", unknown [drop "s" [r]; drop "c" []]);
     ("memrchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
     ("memmem", unknown [drop "haystack" [r]; drop "haystacklen" []; drop "needle" [r]; drop "needlelen" [r]]);

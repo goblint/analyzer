@@ -144,7 +144,9 @@ struct
     let spawn_one v d =
       List.iter (fun (lval, args) -> ctx.spawn lval v args) d
     in
-    if not (get_bool "exp.single-threaded") then
+    if get_bool "exp.single-threaded" then
+      M.msg_final Error ~category:Unsound "Thread not spawned"
+    else
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
   let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
