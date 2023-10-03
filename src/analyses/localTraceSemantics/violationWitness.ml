@@ -1,6 +1,3 @@
-(* 
-  Simplified node and edge structures or vilation witness generation on local traces   
-*)
 open GobConfig
 open GoblintCil
 open Graphml
@@ -75,17 +72,6 @@ let get_local_trace_edges graph =
   in
   let allEdges = LocalTrace.get_all_edges graph in
   (if entryMainPresent allEdges then skipTillMain allEdges else allEdges) |> buildPairs |> foldPairs |> gatherPairs;;
-  (*let rec build g = match g with 
-    | (v1, e, v2)::subG -> 
-        if e=skip_edge then 
-          let sub = build subG in 
-          match sub with 
-            | (subV1, subE, subV2)::rest -> (v1, subE, subV2)::rest
-            | [] -> []
-        else (v1, e, v2)::(build subG)    
-    | [] -> []        
-  in
-  build (LocalTrace.get_all_edges graph);; *)
 
   (* enhance and squeeze (for case of entry function and dependency mutex) list of edges 
       from 3-tuple (node-from, edge, node-to) 
