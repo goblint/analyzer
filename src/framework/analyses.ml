@@ -75,6 +75,7 @@ end
 module GVarF (V: SpecSysVar) =
 struct
   include Printable.Either (V) (CilType.Fundec)
+  let name () = "FromSpec"
   let spec x = `Left x
   let contexts x = `Right x
 
@@ -642,7 +643,8 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.info ~category:Unsound "ASM statement ignored.");
+    M.msg_final Info ~category:Unsound "ASM ignored";
+    M.info ~category:Unsound "ASM statement ignored.";
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)

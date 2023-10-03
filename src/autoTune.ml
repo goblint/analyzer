@@ -220,6 +220,13 @@ let focusOnSpecification () =
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
+  | ValidFree -> (* Enable the useAfterFree analysis *)
+    let uafAna = ["useAfterFree"] in
+    print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
+    enableAnalyses uafAna
+  (* TODO: Finish these two below later *)
+  | ValidDeref
+  | ValidMemtrack -> ()
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound

@@ -10,28 +10,105 @@ module M = Messages
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
-let is_ignorable_type (t: typ): bool =
-  match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
-  | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
-  | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
+let is_ignorable_comp_name = function
+  | "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE" -> true
+  | cname when String.starts_with_stdlib ~prefix:"__anon" cname ->
     begin match Cilfacade.split_anoncomp_name cname with
-      | (true, ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
-      | (false, ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
+      | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
+      | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
       | _ -> false
     end
-  | TComp ({ cname = "lock_class_key"; _ }, _) -> true
-  | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
-  | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
+  | "lock_class_key" -> true (* kernel? *)
   | _ -> false
 
-let is_ignorable = function
-  | None -> false
-  | Some (v,os) when hasAttribute "thread" v.vattr && not (v.vaddrof) -> true (* Thread-Local Storage *)
-  | Some (v,os) when BaseUtil.is_volatile v && not (get_bool "ana.race.volatile")  -> true (* volatile & races on volatiles should not be reported *)
-  | Some (v,os) ->
-    try isFunctionType v.vtype || is_ignorable_type v.vtype
-    with Not_found -> false
+let is_ignorable_attrs attrs =
+  let is_ignorable_attr = function
+    | Attr ("volatile", _) when not (get_bool "ana.race.volatile") -> true (* volatile & races on volatiles should not be reported *)
+    | Attr ("atomic", _) -> true (* C11 _Atomic *)
+    | _ -> false
+  in
+  List.exists is_ignorable_attr attrs
+
+let rec is_ignorable_type (t: typ): bool =
+  (* efficient pattern matching first *)
+  match t with
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
+  | TComp ({ cname; _}, _) when is_ignorable_comp_name cname -> true
+  | TInt (IInt, attr) when hasAttribute "mutex" attr -> true (* kernel? *)
+  | TFun _ -> true
+  | _ ->
+    if is_ignorable_attrs (typeAttrsOuter t) then (* only outer because we unroll TNamed ourselves *)
+      true
+    else (
+      (* unroll TNamed once *)
+      (* can't use unrollType because we want to check TNamed-s at all intermediate typedefs as well *)
+      match t with
+      | TNamed ({ttype; _}, attrs) -> is_ignorable_type (typeAddAttributes attrs ttype)
+      | _ -> false
+    )
+
+let rec is_ignorable_type_offset (t: typ) (o: _ Offset.t): bool =
+  (* similar to Cilfacade.typeOffset but we want to check types at all intermediate offsets as well *)
+  if is_ignorable_type t then
+    true (* type at offset so far ignorable, no need to recurse *)
+  else (
+    match o with
+    | `NoOffset -> false (* already checked t *)
+    | `Index (_, o') ->
+      begin match unrollType t with
+        | TArray (et, _, attrs) ->
+          let t' = Cilfacade.typeBlendAttributes attrs et in
+          is_ignorable_type_offset t' o'
+        | _ -> false (* index on non-array *)
+      end
+    | `Field (f, o') ->
+      begin match unrollType t with
+        | TComp (_, attrs) ->
+          let t' = Cilfacade.typeBlendAttributes attrs f.ftype in
+          is_ignorable_type_offset t' o'
+        | _ -> false (* field on non-compound *)
+      end
+  )
+
+(** {!is_ignorable_type} for {!typsig}. *)
+let is_ignorable_typsig (ts: typsig): bool =
+  (* efficient pattern matching first *)
+  match ts with
+  | TSComp (_, cname, _) when is_ignorable_comp_name cname -> true
+  | TSFun _ -> true
+  | TSBase t -> is_ignorable_type t
+  | _ -> is_ignorable_attrs (typeSigAttrs ts)
+
+(** {!is_ignorable_type_offset} for {!typsig}. *)
+let rec is_ignorable_typsig_offset (ts: typsig) (o: _ Offset.t): bool =
+  if is_ignorable_typsig ts then
+    true (* type at offset so far ignorable, no need to recurse *)
+  else (
+    match o with
+    | `NoOffset -> false (* already checked t *)
+    | `Index (_, o') ->
+      begin match ts with
+        | TSArray (ets, _, attrs) ->
+          let ts' = Cilfacade.typeSigBlendAttributes attrs ets in
+          is_ignorable_typsig_offset ts' o'
+        | _ -> false (* index on non-array *)
+      end
+    | `Field (f, o') ->
+      begin match ts with
+        | TSComp (_, _, attrs) ->
+          let t' = Cilfacade.typeBlendAttributes attrs f.ftype in
+          is_ignorable_type_offset t' o' (* switch to type because it is more precise with TNamed *)
+        | _ -> false (* field on non-compound *)
+      end
+  )
+
+let is_ignorable_mval = function
+  | ({vaddrof = false; vattr; _}, _) when hasAttribute "thread" vattr -> true (* Thread-Local Storage *)
+  | (v, o) -> is_ignorable_type_offset v.vtype o (* can't use Cilfacade.typeOffset because we want to check types at all intermediate offsets as well *)
+
+let is_ignorable_memo = function
+  | (`Type ts, o) -> is_ignorable_typsig_offset ts o
+  | (`Var v, o) -> is_ignorable_mval (v, o)
 
 module TSH = Hashtbl.Make (CilType.Typsig)
 
@@ -84,8 +161,7 @@ type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset
 module MemoRoot =
 struct
   include Printable.StdLeaf
-  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] [@@deriving eq, ord, hash]
-  (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
+  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typsig.t] [@@deriving eq, ord, hash]
 
   let name () = "memoroot"
 
@@ -93,8 +169,8 @@ struct
     (* Imitate old printing for now *)
     match vt with
     | `Var v -> CilType.Varinfo.pretty () v
-    | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)" c.cname
-    | `Type t -> Pretty.dprintf "(%a)" CilType.Typ.pretty t
+    | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)" name
+    | `Type t -> Pretty.dprintf "(%a)" Cilfacade.pretty_typsig_like_typ t
 
   include Printable.SimplePretty (
     struct
@@ -109,7 +185,6 @@ module Memo =
 struct
   include Printable.StdLeaf
   type t = MemoRoot.t * Offset.Unit.t [@@deriving eq, ord, hash]
-  (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
 
   let name () = "memo"
 
@@ -117,8 +192,8 @@ struct
     (* Imitate old printing for now *)
     match vt with
     | `Var v -> Pretty.dprintf "%a%a" CilType.Varinfo.pretty v Offset.Unit.pretty o
-    | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)%a" c.cname Offset.Unit.pretty o
-    | `Type t -> Pretty.dprintf "(%a)%a" CilType.Typ.pretty t Offset.Unit.pretty o
+    | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)%a" name Offset.Unit.pretty o
+    | `Type t -> Pretty.dprintf "(%a)%a" Cilfacade.pretty_typsig_like_typ t Offset.Unit.pretty o
 
   include Printable.SimplePretty (
     struct
@@ -129,23 +204,14 @@ struct
 
   let of_ty (ty: acc_typ): t =
     match ty with
-    | `Struct (c, o) -> (`Type (TComp (c, [])), o)
-    | `Type t -> (`Type t, `NoOffset)
+    | `Struct (c, o) -> (`Type (TSComp (c.cstruct, c.cname, [])), o)
+    | `Type t -> (`Type (Cil.typeSig t), `NoOffset)
 
   let to_mval: t -> Mval.Unit.t option = function
     | (`Var v, o) -> Some (v, o)
     | (`Type _, _) -> None
 
   let add_offset ((vt, o): t) o2: t = (vt, Offset.Unit.add_offset o o2)
-
-  let type_of_base ((vt, _): t): typ =
-    match vt with
-    | `Var v -> v.vtype
-    | `Type t -> t
-
-  (** @raise Offset.Type_of_error *)
-  let type_of ((vt, o) as memo: t): typ =
-    Offset.Unit.type_of ~base:(type_of_base memo) o
 end
 
 (* TODO: What is the logic for get_type? *)
@@ -205,42 +271,42 @@ let get_val_type e: acc_typ =
 
 
 (** Add access to {!Memo} after distributing. *)
-let add_one side memo: unit =
-  let mv = Memo.to_mval memo in
-  let ignorable = is_ignorable mv in
+let add_one ~side memo: unit =
+  let ignorable = is_ignorable_memo memo in
   if M.tracing then M.trace "access" "add_one %a (ignorable = %B)\n" Memo.pretty memo ignorable;
   if not ignorable then
     side memo
 
-(** Distribute type-based access to variables and containing fields. *)
-let rec add_distribute_outer side (t: typ) (o: Offset.Unit.t) =
-  let memo = (`Type t, o) in
+(** Distribute empty access set for type-based access to variables and containing fields.
+    Empty access sets are needed for prefix-type_suffix race checking. *)
+let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
+  let memo = (`Type ts, o) in
   if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
-  add_one side memo;
+  add_one ~side memo; (* Add actual access for non-recursive call, or empty access for recursive call when side is side_empty. *)
 
   (* distribute to variables of the type *)
-  let ts = typeSig t in
   let vars = TSH.find_all typeVar ts in
   List.iter (fun v ->
-      add_one side (`Var v, o) (* same offset, but on variable *)
+      (* same offset, but on variable *)
+      add_one ~side:side_empty (`Var v, o) (* Switch to side_empty. *)
     ) vars;
 
   (* recursively distribute to fields containing the type *)
   let fields = TSH.find_all typeIncl ts in
   List.iter (fun f ->
       (* prepend field and distribute to outer struct *)
-      add_distribute_outer side (TComp (f.fcomp, [])) (`Field (f, o))
+      add_distribute_outer ~side:side_empty ~side_empty (TSComp (f.fcomp.cstruct, f.fcomp.cname, [])) (`Field (f, o)) (* Switch to side_empty. *)
     ) fields;
 
   if M.tracing then M.traceu "access" "add_distribute_outer\n"
 
 (** Add access to known variable with offsets or unknown variable from expression. *)
-let add side e voffs =
+let add ~side ~side_empty e voffs =
   begin match voffs with
     | Some (v, o) -> (* known variable *)
       if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
       let memo = (`Var v, Offset.Unit.of_cil o) in
-      add_one side memo
+      add_one ~side memo
     | None -> (* unknown variable *)
       if M.tracing then M.traceli "access" "add type %a\n" CilType.Exp.pretty e;
       let ty = get_val_type e in (* extract old acc_typ from expression *)
@@ -250,7 +316,7 @@ let add side e voffs =
       in
       match o with
       | `NoOffset when not !collect_direct_arithmetic && isArithmeticType t -> ()
-      | _ -> add_distribute_outer side t o (* distribute to variables and outer offsets *)
+      | _ -> add_distribute_outer ~side ~side_empty (Cil.typeSig t) o (* distribute to variables and outer offsets *)
   end;
   if M.tracing then M.traceu "access" "add\n"
 
@@ -339,12 +405,18 @@ and distribute_access_type f = function
 module A =
 struct
   include Printable.Std
-  type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
+  type t = {
+    conf : int;
+    kind : AccessKind.t;
+    node : Node.t;
+    exp : CilType.Exp.t;
+    acc : MCPAccess.A.t;
+  } [@@deriving eq, ord, hash]
 
   let name () = "access"
 
-  let pretty () (conf, kind, node, e, lp) =
-    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
+  let pretty () {conf; kind; node; exp; acc} =
+    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty exp MCPAccess.A.pretty acc
 
   include Printable.SimplePretty (
     struct
@@ -353,10 +425,8 @@ struct
     end
     )
 
-  let conf (conf, _, _, _, _) = conf
-
-  let relift (conf, kind, node, e, a) =
-    (conf, kind, node, e, MCPAccess.A.relift a)
+  let relift {conf; kind; node; exp; acc} =
+    {conf; kind; node; exp; acc = MCPAccess.A.relift acc}
 end
 
 module AS =
@@ -364,25 +434,63 @@ struct
   include SetDomain.Make (A)
 
   let max_conf accs =
-    accs |> elements |> List.map A.conf |> (List.max ~cmp:Int.compare)
+    accs |> elements |> List.map (fun {A.conf; _} -> conf) |> (List.max ~cmp:Int.compare)
 end
 
 
 (* Check if two accesses may race and if yes with which confidence *)
-let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),loc2,e2,a2) =
+let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
   if kind = Read && kind2 = Read then
     false (* two read/read accesses do not race *)
   else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
     false
-  else if not (MCPAccess.A.may_race a a2) then
+  else if not (MCPAccess.A.may_race acc acc2) then
     false (* analysis-specific information excludes race *)
   else
     true
 
-let group_may_race ~ancestor_accs accs =
+(** Access sets for race detection and warnings. *)
+module WarnAccs =
+struct
+  type t = {
+    node: AS.t; (** Accesses for current memo. From accesses at trie node corresponding to memo offset. *)
+    prefix: AS.t; (** Accesses for all prefixes. From accesses to trie node ancestors. *)
+    type_suffix: AS.t; (** Accesses for all type suffixes. From offset suffixes in other tries. *)
+    type_suffix_prefix: AS.t; (** Accesses to all prefixes of all type suffixes. *)
+  }
+
+  let diff w1 w2 = {
+    node = AS.diff w1.node w2.node;
+    prefix = AS.diff w1.prefix w2.prefix;
+    type_suffix = AS.diff w1.type_suffix w2.type_suffix;
+    type_suffix_prefix = AS.diff w1.type_suffix_prefix w2.type_suffix_prefix;
+  }
+
+  let union_all w =
+    AS.union
+      (AS.union w.node w.prefix)
+      (AS.union w.type_suffix w.type_suffix_prefix)
+
+  let is_empty w =
+    AS.is_empty w.node && AS.is_empty w.prefix && AS.is_empty w.type_suffix && AS.is_empty w.type_suffix_prefix
+
+  let empty () =
+    {node=AS.empty (); prefix=AS.empty (); type_suffix=AS.empty (); type_suffix_prefix=AS.empty ()}
+
+  let pretty () w =
+    Pretty.dprintf "{node = %a; prefix = %a; type_suffix = %a; type_suffix_prefix = %a}"
+      AS.pretty w.node AS.pretty w.prefix AS.pretty w.type_suffix AS.pretty w.type_suffix_prefix
+end
+
+let group_may_race (warn_accs:WarnAccs.t) =
+  if M.tracing then M.tracei "access" "group_may_race %a\n" WarnAccs.pretty warn_accs;
   (* BFS to traverse one component with may_race edges *)
-  let rec bfs' ~ancestor_accs ~accs ~todo ~visited =
-    let may_race_accs ~accs ~todo =
+  let rec bfs' warn_accs ~todo ~visited =
+    let todo_all = WarnAccs.union_all todo in
+    let visited' = AS.union visited todo_all in (* Add all todo accesses to component. *)
+    let warn_accs' = WarnAccs.diff warn_accs todo in (* Todo accesses don't need to be considered as step targets, because they're already in the component. *)
+
+    let step_may_race ~todo ~accs = (* step from todo to accs if may_race *)
       AS.fold (fun acc todo' ->
           AS.fold (fun acc' todo' ->
               if may_race acc acc' then
@@ -392,37 +500,74 @@ let group_may_race ~ancestor_accs accs =
             ) accs todo'
         ) todo (AS.empty ())
     in
-    let accs' = AS.diff accs todo in
-    let ancestor_accs' = AS.diff ancestor_accs todo in
-    let todo_accs = may_race_accs ~accs:accs' ~todo in
-    let todo_ancestor_accs = may_race_accs ~accs:ancestor_accs' ~todo:(AS.diff todo ancestor_accs') in
-    let todo' = AS.union todo_accs todo_ancestor_accs in
-    let visited' = AS.union visited todo in
-    if AS.is_empty todo' then
-      (accs', visited')
+    (* Undirected graph of may_race checks:
+
+                type_suffix_prefix
+                        |
+                        |
+          type_suffix --+-- prefix
+                     \  |  /
+                      \ | /
+                       node
+                       / \
+                       \_/
+
+       Each undirected edge is handled by two opposite step_may_race-s.
+       All missing edges are checked at other nodes by other group_may_race calls. *)
+    let todo' : WarnAccs.t = {
+      node = step_may_race ~todo:todo_all ~accs:warn_accs'.node;
+      prefix = step_may_race ~todo:(AS.union todo.node todo.type_suffix) ~accs:warn_accs'.prefix;
+      type_suffix = step_may_race ~todo:(AS.union todo.node todo.prefix) ~accs:warn_accs'.type_suffix;
+      type_suffix_prefix = step_may_race ~todo:todo.node ~accs:warn_accs'.type_suffix_prefix
+    }
+    in
+
+    if WarnAccs.is_empty todo' then
+      (warn_accs', visited')
     else
-      (bfs' [@tailcall]) ~ancestor_accs:ancestor_accs' ~accs:accs' ~todo:todo' ~visited:visited'
+      (bfs' [@tailcall]) warn_accs' ~todo:todo' ~visited:visited'
   in
-  let bfs accs acc = bfs' ~ancestor_accs ~accs ~todo:(AS.singleton acc) ~visited:(AS.empty ()) in
-  (* repeat BFS to find all components *)
-  let rec components comps accs =
-    if AS.is_empty accs then
-      comps
+  let bfs warn_accs todo = bfs' warn_accs ~todo ~visited:(AS.empty ()) in
+  (* repeat BFS to find all components starting from node accesses *)
+  let rec components comps (warn_accs:WarnAccs.t) =
+    if AS.is_empty warn_accs.node then
+      (comps, warn_accs)
     else (
-      let acc = AS.choose accs in
-      let (accs', comp) = bfs accs acc in
+      let acc = AS.choose warn_accs.node in
+      let (warn_accs', comp) = bfs warn_accs {(WarnAccs.empty ()) with node=AS.singleton acc} in
       let comps' = comp :: comps in
-      components comps' accs'
+      components comps' warn_accs'
     )
   in
-  components [] accs
+  let (comps, warn_accs) = components [] warn_accs in
+  if M.tracing then M.trace "access" "components %a\n" WarnAccs.pretty warn_accs;
+  (* repeat BFS to find all prefix-type_suffix-only components starting from prefix accesses (symmetric) *)
+  let rec components_cross comps ~prefix ~type_suffix =
+    if AS.is_empty prefix then
+      comps
+    else (
+      let prefix_acc = AS.choose prefix in
+      let (warn_accs', comp) = bfs {(WarnAccs.empty ()) with prefix; type_suffix} {(WarnAccs.empty ()) with prefix=AS.singleton prefix_acc} in
+      if M.tracing then M.trace "access" "components_cross %a\n" WarnAccs.pretty warn_accs';
+      let comps' =
+        if AS.cardinal comp > 1 then
+          comp :: comps
+        else
+          comps (* ignore self-race prefix_acc component, self-race checked at prefix's level *)
+      in
+      components_cross comps' ~prefix:warn_accs'.prefix ~type_suffix:warn_accs'.type_suffix
+    )
+  in
+  let components_cross = components_cross comps ~prefix:warn_accs.prefix ~type_suffix:warn_accs.type_suffix in
+  if M.tracing then M.traceu "access" "group_may_race\n";
+  components_cross
 
 let race_conf accs =
   assert (not (AS.is_empty accs)); (* group_may_race should only construct non-empty components *)
   if AS.cardinal accs = 1 then ( (* singleton component *)
     let acc = AS.choose accs in
     if may_race acc acc then (* self-race *)
-      Some (A.conf acc)
+      Some (acc.conf)
     else
       None
   )
@@ -451,9 +596,8 @@ let print_accesses memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let h (conf,kind,node,e,a) =
-      let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
-      let doc = dprintf "%t  (exp: %a)" d_msg d_exp e in
+    let h A.{conf; kind; node; exp; acc} =
+      let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs
@@ -483,7 +627,7 @@ let print_accesses memo grouped_accs =
         M.msg_group Success ?loc:group_loc ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
     )
 
-let warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo accs =
-  let grouped_accs = group_may_race ~ancestor_accs accs in (* do expensive component finding only once *)
+let warn_global ~safe ~vulnerable ~unsafe warn_accs memo =
+  let grouped_accs = group_may_race warn_accs in (* do expensive component finding only once *)
   incr_summary ~safe ~vulnerable ~unsafe grouped_accs;
   print_accesses memo grouped_accs

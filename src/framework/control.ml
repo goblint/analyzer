@@ -14,7 +14,7 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = get_bool "ana.sv-comp.enabled" || get_bool "exp.arg" in
+  let arg_enabled = (get_bool "ana.sv-comp.enabled" && get_bool "witness.enabled") || get_bool "exp.arg" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
   let open Batteries in
   (* apply functor F on module X if opt is true *)
@@ -140,10 +140,10 @@ struct
     List.iter
     (fun x ->
       let ((l: location), (fd: fundec)) = x in (*unpack tuple for later use*)
-      let fname = fd.svar.vname in      
-      StringMap.iter 
+      let fname = fd.svar.vname in
+      StringMap.iter
         (fun fi _ ->
-          let fundec_live = live fi fname in 
+          let fundec_live = live fi fname in
           if ( not (BatISet.is_empty fundec_live)) then (
             AnalysisState.svcomp_may_not_terminate := true;
             let msgs =

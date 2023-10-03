@@ -34,8 +34,8 @@ struct
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
-    let ls = ctx.ask reach_or_mpt in
-    ctx.emit (Access {exp=e; lvals=ls; kind; reach})
+    let ad = ctx.ask reach_or_mpt in
+    ctx.emit (Access {exp=e; ad; kind; reach})
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
@@ -44,7 +44,7 @@ struct
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)\n" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
-      if deref then
+      if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
         do_access ctx kind reach exp;
       if M.tracing then M.tracei "access" "distribute_access_exp\n";
       Access.distribute_access_exp (do_access ctx Read false) exp;
@@ -137,25 +137,20 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
-      begin match lvals with
-        | ls when Queries.LS.is_top ls ->
-          let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
-          ctx.sideg ctx.node (G.singleton access)
-        | ls ->
-          let events = Queries.LS.fold (fun (var, offs) acc ->
-              let coffs = Offset.Exp.to_cil offs in
-              let access: AccessDomain.Event.t =
-                if CilType.Varinfo.equal var dummyFunDec.svar then
-                  {var_opt = None; offs_opt = (Some coffs); kind}
-                else
-                  {var_opt = (Some var); offs_opt = (Some coffs); kind}
-              in
-              G.add access acc
-            ) ls (G.empty ())
-          in
-          ctx.sideg ctx.node events
-      end
+    | Events.Access {ad; kind; _} when !collect_local && !AnalysisState.postsolving ->
+      let events = Queries.AD.fold (fun addr es ->
+          match addr with
+          | Queries.AD.Addr.Addr (var, offs) ->
+            let coffs = ValueDomain.Offs.to_cil offs in
+            let access: AccessDomain.Event.t = {var_opt = (Some var); offs_opt = (Some coffs); kind} in
+            G.add access es
+          | UnknownPtr ->
+            let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
+            G.add access es
+          | _ -> es
+        ) ad (G.empty ())
+      in
+      ctx.sideg ctx.node events
     | _ ->
       ctx.local
 end
