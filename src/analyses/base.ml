@@ -1129,7 +1129,8 @@ struct
   (* interpreter end *)
 
   let is_not_heap_alloc_var ctx v =
-    (not (ctx.ask (Queries.IsAllocVar v))) || (ctx.ask (Queries.IsAllocVar v) && not (ctx.ask (Queries.IsHeapVar v)))
+    let is_alloc = ctx.ask (Queries.IsAllocVar v) in
+    not is_alloc || (is_alloc && not (ctx.ask (Queries.IsHeapVar v)))
 
   let query_invariant ctx context =
     let cpa = ctx.local.BaseDomain.cpa in
@@ -2124,7 +2125,7 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Memcpy { dest = dst; src; n; }, _ ->
+    | Memcpy { dest = dst; src; n; }, _ -> (* TODO: use n *)
       memory_copying dst src
     (* strcpy(dest, src); *)
     | Strcpy { dest = dst; src; n = None }, _ ->
