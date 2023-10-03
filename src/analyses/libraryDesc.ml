@@ -57,7 +57,7 @@ type special =
   | Broadcast of Cil.exp
   | MutexAttrSetType of { attr:Cil.exp; typ: Cil.exp; }
   | MutexInit of { mutex:Cil.exp; attr: Cil.exp; }
-  (* All Sem specials  are not used yet-*)
+  (* All Sem specials  are not used yet. *)
   | SemInit of { sem: Cil.exp; pshared: Cil.exp; value: Cil.exp; }
   | SemWait of { sem: Cil.exp; try_:bool; timeout: Cil.exp option;}
   | SemPost of Cil.exp
