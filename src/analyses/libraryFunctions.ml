@@ -69,8 +69,6 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strchr", unknown [drop "s" [r]; drop "c" []]);
     ("__builtin_strchr", unknown [drop "s" [r]; drop "c" []]);
     ("strrchr", unknown [drop "s" [r]; drop "c" []]);
-    ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
-    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("calloc", special [__ "n" []; __ "size" []] @@ fun n size -> Calloc {count = n; size});
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
@@ -367,6 +365,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dlclose", unknown [drop "handle" [r]]);
     ("inet_addr", unknown [drop "cp" [r]]);
     ("uname", unknown [drop "buf" [w]]);
+    ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
+    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
   ]
 
 (** Pthread functions. *)
