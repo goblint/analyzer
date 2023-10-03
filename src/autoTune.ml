@@ -230,7 +230,7 @@ let focusOnSpecification () =
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the memLeak analysis *)
     let memLeakAna = ["memLeak"] in
-    print_endline @@ "Specification: ValidDeref and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
+    print_endline @@ "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
     enableAnalyses memLeakAna
   | MemorySafety -> (* TODO: This is a temporary solution for the memory safety category *)
     let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
