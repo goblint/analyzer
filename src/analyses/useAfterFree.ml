@@ -182,7 +182,7 @@ struct
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" ctx arg) args;
-    [(caller_state, caller_state)]
+    [caller_state, (AllocaVars.empty (), snd caller_state)]
   (* if AllocaVars.is_empty (fst caller_state) && HeapVars.is_empty (snd caller_state) then
       [caller_state, caller_state]
     else (
