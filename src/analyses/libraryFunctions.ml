@@ -387,6 +387,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("popen", unknown [drop "command" [r]; drop "type" [r]]);
     ("stat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
     ("fstat", unknown [drop "fd" []; drop "statbuf" [w]]);
+    ("statfs", unknown [drop "path" [r]; drop "buf" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -1140,7 +1141,6 @@ let invalidate_actions = [
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "umount2", readsAll;(*safe*)
     "waitpid", readsAll;(*safe*)
-    "statfs", writes [1;3;4];(*keep [1;3;4]*)
     "mount", readsAll;(*safe*)
     "__open_alias", readsAll;(*safe*)
     "__open_2", readsAll;(*safe*)
