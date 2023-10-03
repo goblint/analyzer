@@ -360,7 +360,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sigprocmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
     ("fork", unknown []);
     ("dlopen", unknown [drop "filename" [r]; drop "flag" []]);
-    ("dlerror", unknown ~attrs:[ThreadUnsafe] []); (* TODO: Why thread-unsafe? https://linux.die.net/man/3/dlopen *)
+    ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
     ("dlsym", unknown [drop "handle" [r]; drop "symbol" [r]]);
     ("dlclose", unknown [drop "handle" [r]]);
     ("inet_addr", unknown [drop "cp" [r]]);
