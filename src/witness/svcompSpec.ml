@@ -37,12 +37,6 @@ let of_string s =
     let mem_safety_props = ["valid-free"; "valid-deref"; "valid-memtrack";] in
     if (global1 <> global2 && global1 <> global3 && global2 <> global3) && List.for_all (fun x -> List.mem x mem_safety_props) [global1; global2; global3] then
       MemorySafety
-      (* if global = "valid-free" then
-      ValidFree
-    else if global = "valid-deref" then
-      ValidDeref
-    else if global = "valid-memtrack" then
-          ValidMemtrack *)
     else
       failwith "Svcomp.Specification.of_string: unknown global expression"
   else if Str.string_match regexp_single s 0 then
