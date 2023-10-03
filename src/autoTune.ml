@@ -239,8 +239,10 @@ let focusOnSpecification () =
     print_endline @@ "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
     enableAnalyses memLeakAna
   | MemorySafety -> (* TODO: This is a temporary solution for the memory safety category *)
-    let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
-    enableAnalyses memSafetyAnas
+    (print_endline "Setting \"cil.addNestedScopeAttr\" to true";
+     set_bool "cil.addNestedScopeAttr" true;
+     let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
+     enableAnalyses memSafetyAnas)
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
