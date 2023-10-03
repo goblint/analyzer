@@ -285,6 +285,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("read", unknown [drop "fd" []; drop "buf" [w]; drop "count" []]);
     ("write", unknown [drop "fd" []; drop "buf" [r]; drop "count" []]);
     ("recv", unknown [drop "sockfd" []; drop "buf" [w]; drop "len" []; drop "flags" []]);
+    ("recvfrom", unknown [drop "sockfd" []; drop "buf" [w]; drop "len" []; drop "flags" []; drop "src_addr" [w_deep]; drop "addrlen" [r; w]]);
     ("send", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []]);
     ("sendto", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []; drop "dest_addr" [r_deep]; drop "addrlen" []]);
     ("strdup", unknown [drop "s" [r]]);
@@ -1182,7 +1183,6 @@ let invalidate_actions = [
     "compress2", writes [3]; (*keep [3]*)
     "__toupper", readsAll; (*safe*)
     "BF_set_key", writes [3]; (*keep [3]*)
-    "recvfrom", writes [4;5]; (*keep [4;5]*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
