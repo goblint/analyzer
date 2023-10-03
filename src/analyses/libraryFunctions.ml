@@ -603,6 +603,9 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fts_open", unknown [drop "path_argv" [r_deep]; drop "options" []; drop "compar" [s]]); (* TODO: use Call instead of Spawn *)
     ("fts_read", unknown [drop "ftsp" [r_deep; w_deep]]);
     ("fts_close", unknown [drop "ftsp" [f_deep]]);
+    ("mount", unknown [drop "source" [r]; drop "target" [r]; drop "filesystemtype" [r]; drop "mountflags" []; drop "data" [r]]);
+    ("umount", unknown [drop "target" [r]]);
+    ("umount2", unknown [drop "target" [r]; drop "flags" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -1139,14 +1142,11 @@ let invalidate_actions = [
     "_strlen", readsAll;(*safe*)
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-    "umount2", readsAll;(*safe*)
     "waitpid", readsAll;(*safe*)
-    "mount", readsAll;(*safe*)
     "__open_alias", readsAll;(*safe*)
     "__open_2", readsAll;(*safe*)
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
-    "umount", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
     "bindtextdomain", readsAll;(*safe*)
