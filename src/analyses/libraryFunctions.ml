@@ -545,6 +545,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("freeifaddrs", unknown [drop "ifa" [f_deep]]);
     ("atoq", unknown [drop "nptr" [r]]);
     ("strchrnul", unknown [drop "s" [r]; drop "c" []]);
+    ("getdtablesize", unknown []);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -567,7 +568,6 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fts_open", unknown [drop "path_argv" [r_deep]; drop "options" []; drop "compar" [s]]); (* TODO: use Call instead of Spawn *)
     ("fts_read", unknown [drop "ftsp" [r_deep; w_deep]]);
     ("fts_close", unknown [drop "ftsp" [f_deep]]);
-    ("getdtablesize", unknown []);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
