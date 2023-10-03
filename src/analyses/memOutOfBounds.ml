@@ -205,7 +205,7 @@ struct
                 set_mem_safety_flag InvalidDeref;
                 M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
               ) else if VDQ.AD.exists (function
-                  | Addr (_, o) -> ID.is_bot @@ offs_to_idx t o
+                  | Addr (_, o) -> ID.is_top_of (Cilfacade.ptrdiff_ikind ()) (offs_to_idx t o)
                   | _ -> false
                 ) a then (
                 set_mem_safety_flag InvalidDeref;
