@@ -51,7 +51,8 @@ let init () =
   (* lineDirectiveStyle := None; *)
   RmUnused.keepUnused := true;
   print_CIL_Input := true;
-  Cabs2cil.allowDuplication := false
+  Cabs2cil.allowDuplication := false;
+  Cabs2cil.silenceLongDoubleWarning := true
 
 let current_file = ref dummyFile
 
@@ -320,6 +321,15 @@ and typeOffset basetyp =
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
     | t -> raise (TypeOfError (Field_NonCompound (fi, t)))
+
+
+let typeBlendAttributes baseAttrs = (* copied from Cilfacade.typeOffset *)
+  let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
+  typeAddAttributes contageous
+
+let typeSigBlendAttributes baseAttrs =
+  let (_, _, contageous) = partitionAttributes ~default:AttrName baseAttrs in
+  typeSigAddAttrs contageous
 
 
 (** {!Cil.mkCast} using our {!typeOf}. *)

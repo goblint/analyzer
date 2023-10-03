@@ -1,12 +1,11 @@
 # on `dune build` goblint.opam will be generated from goblint.opam.template and dune-project
 # also remember to generate/adjust goblint.opam.locked!
 available: os-distribution != "alpine" & arch != "arm64"
-# pin-depends: [
-  # published goblint-cil 2.0.2 is currently up-to-date, so no pin needed
-  # [ "goblint-cil.2.0.2" "git+https://github.com/goblint/cil.git#98598d94f796a63751e5a9d39c6b3a9fe1f32330" ]
+pin-depends: [
+  [ "goblint-cil.2.0.2" "git+https://github.com/goblint/cil.git#c7ffc37ad83216a84d90fdbf427cc02a68ea5331" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
-  # [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
-# ]
+  [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+]
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
 ]

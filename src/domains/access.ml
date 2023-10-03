@@ -10,28 +10,105 @@ module M = Messages
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
-let is_ignorable_type (t: typ): bool =
-  match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
-  | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
-  | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
+let is_ignorable_comp_name = function
+  | "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE" -> true
+  | cname when String.starts_with_stdlib ~prefix:"__anon" cname ->
     begin match Cilfacade.split_anoncomp_name cname with
       | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
       | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
       | _ -> false
     end
-  | TComp ({ cname = "lock_class_key"; _ }, _) -> true
-  | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
-  | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
+  | "lock_class_key" -> true (* kernel? *)
   | _ -> false
 
-let is_ignorable = function
-  | None -> false
-  | Some (v,os) when hasAttribute "thread" v.vattr && not (v.vaddrof) -> true (* Thread-Local Storage *)
-  | Some (v,os) when BaseUtil.is_volatile v && not (get_bool "ana.race.volatile")  -> true (* volatile & races on volatiles should not be reported *)
-  | Some (v,os) ->
-    try isFunctionType v.vtype || is_ignorable_type v.vtype
-    with Not_found -> false
+let is_ignorable_attrs attrs =
+  let is_ignorable_attr = function
+    | Attr ("volatile", _) when not (get_bool "ana.race.volatile") -> true (* volatile & races on volatiles should not be reported *)
+    | Attr ("atomic", _) -> true (* C11 _Atomic *)
+    | _ -> false
+  in
+  List.exists is_ignorable_attr attrs
+
+let rec is_ignorable_type (t: typ): bool =
+  (* efficient pattern matching first *)
+  match t with
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
+  | TComp ({ cname; _}, _) when is_ignorable_comp_name cname -> true
+  | TInt (IInt, attr) when hasAttribute "mutex" attr -> true (* kernel? *)
+  | TFun _ -> true
+  | _ ->
+    if is_ignorable_attrs (typeAttrsOuter t) then (* only outer because we unroll TNamed ourselves *)
+      true
+    else (
+      (* unroll TNamed once *)
+      (* can't use unrollType because we want to check TNamed-s at all intermediate typedefs as well *)
+      match t with
+      | TNamed ({ttype; _}, attrs) -> is_ignorable_type (typeAddAttributes attrs ttype)
+      | _ -> false
+    )
+
+let rec is_ignorable_type_offset (t: typ) (o: _ Offset.t): bool =
+  (* similar to Cilfacade.typeOffset but we want to check types at all intermediate offsets as well *)
+  if is_ignorable_type t then
+    true (* type at offset so far ignorable, no need to recurse *)
+  else (
+    match o with
+    | `NoOffset -> false (* already checked t *)
+    | `Index (_, o') ->
+      begin match unrollType t with
+        | TArray (et, _, attrs) ->
+          let t' = Cilfacade.typeBlendAttributes attrs et in
+          is_ignorable_type_offset t' o'
+        | _ -> false (* index on non-array *)
+      end
+    | `Field (f, o') ->
+      begin match unrollType t with
+        | TComp (_, attrs) ->
+          let t' = Cilfacade.typeBlendAttributes attrs f.ftype in
+          is_ignorable_type_offset t' o'
+        | _ -> false (* field on non-compound *)
+      end
+  )
+
+(** {!is_ignorable_type} for {!typsig}. *)
+let is_ignorable_typsig (ts: typsig): bool =
+  (* efficient pattern matching first *)
+  match ts with
+  | TSComp (_, cname, _) when is_ignorable_comp_name cname -> true
+  | TSFun _ -> true
+  | TSBase t -> is_ignorable_type t
+  | _ -> is_ignorable_attrs (typeSigAttrs ts)
+
+(** {!is_ignorable_type_offset} for {!typsig}. *)
+let rec is_ignorable_typsig_offset (ts: typsig) (o: _ Offset.t): bool =
+  if is_ignorable_typsig ts then
+    true (* type at offset so far ignorable, no need to recurse *)
+  else (
+    match o with
+    | `NoOffset -> false (* already checked t *)
+    | `Index (_, o') ->
+      begin match ts with
+        | TSArray (ets, _, attrs) ->
+          let ts' = Cilfacade.typeSigBlendAttributes attrs ets in
+          is_ignorable_typsig_offset ts' o'
+        | _ -> false (* index on non-array *)
+      end
+    | `Field (f, o') ->
+      begin match ts with
+        | TSComp (_, _, attrs) ->
+          let t' = Cilfacade.typeBlendAttributes attrs f.ftype in
+          is_ignorable_type_offset t' o' (* switch to type because it is more precise with TNamed *)
+        | _ -> false (* field on non-compound *)
+      end
+  )
+
+let is_ignorable_mval = function
+  | ({vaddrof = false; vattr; _}, _) when hasAttribute "thread" vattr -> true (* Thread-Local Storage *)
+  | (v, o) -> is_ignorable_type_offset v.vtype o (* can't use Cilfacade.typeOffset because we want to check types at all intermediate offsets as well *)
+
+let is_ignorable_memo = function
+  | (`Type ts, o) -> is_ignorable_typsig_offset ts o
+  | (`Var v, o) -> is_ignorable_mval (v, o)
 
 module TSH = Hashtbl.Make (CilType.Typsig)
 
@@ -195,8 +272,7 @@ let get_val_type e: acc_typ =
 
 (** Add access to {!Memo} after distributing. *)
 let add_one ~side memo: unit =
-  let mv = Memo.to_mval memo in
-  let ignorable = is_ignorable mv in
+  let ignorable = is_ignorable_memo memo in
   if M.tracing then M.trace "access" "add_one %a (ignorable = %B)\n" Memo.pretty memo ignorable;
   if not ignorable then
     side memo
