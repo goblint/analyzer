@@ -383,6 +383,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("close", unknown [drop "fd" []]);
     ("writev", unknown [drop "fd" []; drop "iov" [r_deep]; drop "iovcnt" []]);
     ("readv", unknown [drop "fd" []; drop "iov" [w_deep]; drop "iovcnt" []]);
+    ("unlink", unknown [drop "pathname" [r]]);
+    ("popen", unknown [drop "command" [r]; drop "type" [r]]);
   ]
 
 (** Pthread functions. *)
@@ -1144,7 +1146,6 @@ let invalidate_actions = [
     "fstat__extinline", writesAll;(*unsafe*)
     "umount", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
-    "unlink", readsAll;(*safe*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
     "bindtextdomain", readsAll;(*safe*)
     "textdomain", readsAll;(*safe*)
@@ -1178,7 +1179,6 @@ let invalidate_actions = [
     "timespec_get", writes [1];
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
-    "popen", readsAll; (*safe*)
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
     "uncompress", writes [3;4]; (*keep [3;4]*)
