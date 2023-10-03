@@ -225,6 +225,8 @@ let focusOnSpecification () =
     enableAnalyses uafAna
   | ValidDeref -> (* Enable the memOutOfBounds analysis *)
     let memOobAna = ["memOutOfBounds"] in
+    print_endline "Setting \"cil.addNestedScopeAttr\" to true";
+    set_bool "cil.addNestedScopeAttr" true;
     print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
     enableAnalyses memOobAna
   | ValidMemtrack
