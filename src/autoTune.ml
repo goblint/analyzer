@@ -241,6 +241,10 @@ let focusOnSpecification () =
   | MemorySafety -> (* TODO: This is a temporary solution for the memory safety category *)
     (print_endline "Setting \"cil.addNestedScopeAttr\" to true";
      set_bool "cil.addNestedScopeAttr" true;
+     if (get_int "ana.malloc.unique_address_count") < 1 then (
+       print_endline "Setting \"ana.malloc.unique_address_count\" to 1";
+       set_int "ana.malloc.unique_address_count" 1;
+     );
      let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
      enableAnalyses memSafetyAnas)
 
