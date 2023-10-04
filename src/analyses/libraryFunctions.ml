@@ -378,7 +378,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("connect", unknown [drop "sockfd" []; drop "sockaddr" [r_deep]; drop "addrlen" []]);
     ("bind", unknown [drop "sockfd" []; drop "sockaddr" [r_deep]; drop "addrlen" []]);
     ("listen", unknown [drop "sockfd" []; drop "backlog" []]);
-    ("select", unknown [drop "nfds" []; drop "readfds" [r]; drop "writefds" [r]; drop "exceptfds" [r]; drop "timeout" [r;w]]);
+    ("select", unknown [drop "nfds" []; drop "readfds" [r; w]; drop "writefds" [r; w]; drop "exceptfds" [r; w]; drop "timeout" [r; w]]);
     ("accept", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [r; w]]);
     ("close", unknown [drop "fd" []]);
     ("writev", unknown [drop "fd" []; drop "iov" [r_deep]; drop "iovcnt" []]);
