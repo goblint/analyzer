@@ -32,6 +32,14 @@
       "thread",
       "threadJoins"
     ],
+    "path_sens": [
+      "mutex",
+      "malloc_null",
+      "uninit",
+      "expsplit",
+      "activeSetjmp",
+      "threadid"
+    ],
     "context": {
       "widen": false
     },
