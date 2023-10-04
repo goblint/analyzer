@@ -210,15 +210,8 @@ let activateLongjmpAnalysesWhenRequired () =
     enableAnalyses longjmpAnalyses;
   )
 
-let focusOnSpecification () =
+let focusOnMemSafetySpecification () =
   match Svcomp.Specification.of_option () with
-  | UnreachCall s -> ()
-  | NoDataRace -> (*enable all thread analyses*)
-    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
-    enableAnalyses notNeccessaryThreadAnalyses;
-  | NoOverflow -> (*We focus on integer analysis*)
-    set_bool "ana.int.def_exc" true;
-    set_bool "ana.int.interval" true
   | ValidFree -> (* Enable the useAfterFree analysis *)
     let uafAna = ["useAfterFree"] in
     print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
@@ -247,6 +240,18 @@ let focusOnSpecification () =
      );
      let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
      enableAnalyses memSafetyAnas)
+  | _ -> ()
+
+let focusOnSpecification () =
+  match Svcomp.Specification.of_option () with
+  | UnreachCall s -> ()
+  | NoDataRace -> (*enable all thread analyses*)
+    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    enableAnalyses notNeccessaryThreadAnalyses;
+  | NoOverflow -> (*We focus on integer analysis*)
+    set_bool "ana.int.def_exc" true;
+    set_bool "ana.int.interval" true
+  | _ -> ()
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
