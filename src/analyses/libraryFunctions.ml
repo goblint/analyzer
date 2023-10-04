@@ -386,7 +386,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("unlink", unknown [drop "pathname" [r]]);
     ("popen", unknown [drop "command" [r]; drop "type" [r]]);
     ("stat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
-    ("fstat", unknown [drop "fd" []; drop "statbuf" [w]]);
     ("statfs", unknown [drop "path" [r]; drop "buf" [w]]);
   ]
 
