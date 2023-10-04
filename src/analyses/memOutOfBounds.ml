@@ -372,22 +372,22 @@ struct
     | _ -> ()
 
   (* For memset() and memcpy() *)
-  let check_count ctx fun_name dest n =
+  let check_count ctx fun_name ptr n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let dest_size = get_size_of_ptr_target ctx dest in
+    let ptr_size = get_size_of_ptr_target ctx ptr in
     let eval_n = ctx.ask (Queries.EvalInt n) in
-    let addr_offs = get_addr_offs ctx dest in
-    match dest_size, eval_n with
+    let addr_offs = get_addr_offs ctx ptr in
+    match ptr_size, eval_n with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp dest fun_name
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp ptr fun_name
     | _, `Top ->
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is unknown. Memory out-of-bounds access might occur" fun_name
     | `Bot, _ ->
       set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is bottom. Memory out-of-bounds access might occur" d_exp dest fun_name
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is bottom. Memory out-of-bounds access might occur" d_exp ptr fun_name
     | _, `Bot ->
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name
@@ -399,7 +399,7 @@ struct
       begin match ID.to_bool dest_size_lt_count with
         | Some true ->
           set_mem_safety_flag InvalidDeref;
-          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en
         | Some false -> ()
         | None ->
           set_mem_safety_flag InvalidDeref;
@@ -436,7 +436,9 @@ struct
     (* Check calls to memset and memcpy for out-of-bounds-accesses *)
     match desc.special arglist with
     | Memset { dest; ch; count; } -> check_count ctx f.vname dest count;
-    | Memcpy { dest; src; n = count; } -> check_count ctx f.vname dest count;
+    | Memcpy { dest; src; n = count; } ->
+      check_count ctx f.vname src count;
+      check_count ctx f.vname dest count;
     | _ -> ();
     ctx.local
 
