@@ -52,7 +52,8 @@
 
         "ldv_xmalloc",
         "ldv_xzalloc",
-        "ldv_calloc"
+        "ldv_calloc",
+        "ldv_kzalloc"
       ]
     },
     "base": {
