@@ -1117,7 +1117,6 @@ open Invalidate
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = [
-    "connect", readsAll;          (*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "__mutex_init", readsAll;(*safe*)
@@ -1135,7 +1134,6 @@ let invalidate_actions = [
     "atoi__extinline", readsAll;(*safe*)
     "_IO_getc", writesAll;(*unsafe*)
     "pipe", writesAll;(*unsafe*)
-    "close", writesAll;(*unsafe*)
     "strerror_r", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
@@ -1164,7 +1162,6 @@ let invalidate_actions = [
     "clnt_broadcast", writesAll;(*unsafe*)
     "clnt_sperrno", readsAll;(*safe*)
     "pmap_unset", writesAll;(*unsafe*)
-    "bind", readsAll;(*safe*)
     "svcudp_create", readsAll;(*safe*)
     "svc_register", writesAll;(*unsafe*)
     "svc_run", writesAll;(*unsafe*)
@@ -1173,9 +1170,6 @@ let invalidate_actions = [
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "__error", readsAll; (*safe*)
     "__maskrune", writesAll; (*unsafe*)
-    "listen", readsAll; (*safe*)
-    "select", writes [1;5]; (*keep [1;5]*)
-    "accept", writesAll; (*keep [1]*)
     "times", writesAll; (*unsafe*)
     "timespec_get", writes [1];
     "__tolower", readsAll; (*safe*)
