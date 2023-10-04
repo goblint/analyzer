@@ -2039,7 +2039,9 @@ struct
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
       )
-    | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
+    | _ ->
+      AnalysisStateUtil.set_mem_safety_flag InvalidFree;
+      M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
