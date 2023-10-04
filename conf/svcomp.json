@@ -61,6 +61,9 @@
         "domain": "partitioned"
       }
     },
+    "race": {
+      "free": false
+    },
     "autotune": {
       "enabled": true,
       "activated": [
