@@ -1,4 +1,4 @@
-Testing that there is warning about treating long double as double constant.
+Testing that there isn't a warning about treating long double as double constant.
   $ goblint 37-long-double.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 3
