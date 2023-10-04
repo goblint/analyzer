@@ -89,6 +89,10 @@ struct
         let pts_elems_to_sizes (addr: Queries.AD.elt) =
           begin match addr with
             | Addr (v, _) ->
+              if hasAttribute "goblint_cil_nested" v.vattr then (
+                set_mem_safety_flag InvalidDeref;
+                M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
+              );
               begin match v.vtype with
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
@@ -233,7 +237,6 @@ struct
       ID.top_of @@ Cilfacade.ptrdiff_ikind ()
 
   and check_lval_for_oob_access ctx ?(is_implicitly_derefed = false) lval =
-    check_lval_out_of_scope_access lval;
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
     if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr ctx (Lval lval) then ()
     else
@@ -251,15 +254,6 @@ struct
             check_exp_for_oob_access ctx ~is_implicitly_derefed e2
           | _ -> check_exp_for_oob_access ctx ~is_implicitly_derefed e
         end
-
-  and check_lval_out_of_scope_access lval =
-    match lval with
-    | (Var v, _) ->
-      if hasAttribute "goblint_cil_nested" v.vattr then (
-        set_mem_safety_flag InvalidDeref;
-        M.warn "Lvalue %a is potentially accessed out-of-scope. Invalid memory access may occur" d_lval lval
-      )
-    | _ -> ()
 
   and check_no_binop_deref ctx lval_exp =
     check_unknown_addr_deref ctx lval_exp;
