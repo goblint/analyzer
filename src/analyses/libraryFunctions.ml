@@ -31,6 +31,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("memcmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("memchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
     ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
     ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
     ("feof", unknown [drop "stream" [r_deep; w_deep]]);
@@ -64,6 +66,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r; w]; drop "delim" [r]]);
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
+    ("strchr", unknown [drop "s" [r]; drop "c" []]);
+    ("__builtin_strchr", unknown [drop "s" [r]; drop "c" []]);
+    ("strrchr", unknown [drop "s" [r]; drop "c" []]);
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("calloc", special [__ "n" []; __ "size" []] @@ fun n size -> Calloc {count = n; size});
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
@@ -86,6 +91,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getchar", unknown []);
     ("putchar", unknown [drop "ch" []]);
     ("puts", unknown [drop "s" [r]]);
+    ("srand", unknown [drop "seed" []]);
     ("rand", special ~attrs:[ThreadUnsafe] [] Rand);
     ("strerror", unknown ~attrs:[ThreadUnsafe] [drop "errnum" []]);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
@@ -127,6 +133,11 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
     ("atexit", unknown [drop "function" [s]]);
+    ("atoi", unknown [drop "nptr" [r]]);
+    ("atol", unknown [drop "nptr" [r]]);
+    ("atoll", unknown [drop "nptr" [r]]);
+    ("setlocale", unknown [drop "category" []; drop "locale" [r]]);
+    ("clock", unknown []);
     ("atomic_flag_clear", unknown [drop "obj" [w]]);
     ("atomic_flag_clear_explicit", unknown [drop "obj" [w]; drop "order" []]);
     ("atomic_flag_test_and_set", unknown [drop "obj" [r; w]]);
@@ -154,7 +165,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("dbm_nextkey", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]]);
     ("dbm_open", unknown ~attrs:[ThreadUnsafe] [drop "file" [r; w]; drop "open_flags" []; drop "file_mode" []]);
     ("dbm_store", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]; drop "key" []; drop "content" []; drop "store_mode" []]);
-    ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
     ("drand48", unknown ~attrs:[ThreadUnsafe] []);
     ("encrypt", unknown ~attrs:[ThreadUnsafe] [drop "block" [r; w]; drop "edflag" []]);
     ("setkey", unknown ~attrs:[ThreadUnsafe] [drop "key" [r]]);
@@ -213,6 +223,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
     ("getopt", unknown ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r]]);
+    ("getopt_long", unknown  ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r_deep]; drop "optstring" [r_deep]; drop "longopts" [r]; drop "longindex" [w]]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
     ("iconv_close", unknown [drop "cd" [f]]);
@@ -239,9 +250,15 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("hstrerror", unknown [drop "err" []]);
     ("inet_ntoa", unknown ~attrs:[ThreadUnsafe] [drop "in" []]);
     ("getsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [w]; drop "optlen" [w]]);
+    ("setsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [r]; drop "optlen" []]);
+    ("getsockname", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [w]]);
     ("gethostbyaddr", unknown ~attrs:[ThreadUnsafe] [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
     ("gethostbyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
+    ("gethostbyname_r", unknown [drop "name" [r]; drop "result_buf" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
+    ("gethostname", unknown [drop "name" [w]; drop "len" []]);
+    ("getpeername", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [r; w]]);
+    ("socket", unknown [drop "domain" []; drop "type" []; drop "protocol" []]);
     ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
     ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [w_deep]]);
     ("tcsetattr", unknown [drop "fd" []; drop "optional_actions" []; drop "termios_p" [r_deep]]);
@@ -314,14 +331,48 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ffs", unknown [drop "i" []]);
     ("_exit", special [drop "status" []] Abort);
     ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
+    ("execl", unknown (drop "path" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
     ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
     ("readlink", unknown [drop "path" [r]; drop "buf" [w]; drop "bufsz" []]);
     ("wcswidth", unknown [drop "s" [r]; drop "n" []]);
     ("link", unknown [drop "oldpath" [r]; drop "newpath" [r]]);
     ("renameat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]]);
     ("posix_fadvise", unknown [drop "fd" []; drop "offset" []; drop "len" []; drop "advice" []]);
-    ("getppid", unknown []);
     ("lockf", unknown [drop "fd" []; drop "cmd" []; drop "len" []]);
+    ("htonl", unknown [drop "hostlong" []]);
+    ("htons", unknown [drop "hostshort" []]);
+    ("ntohl", unknown [drop "netlong" []]);
+    ("ntohs", unknown [drop "netshort" []]);
+    ("sleep", unknown [drop "seconds" []]);
+    ("usleep", unknown [drop "usec" []]);
+    ("nanosleep", unknown [drop "req" [r]; drop "rem" [w]]);
+    ("setpriority", unknown [drop "which" []; drop "who" []; drop "prio" []]);
+    ("getpriority", unknown [drop "which" []; drop "who" []]);
+    ("sched_yield", unknown []);
+    ("getpid", unknown []);
+    ("getppid", unknown []);
+    ("getuid", unknown []);
+    ("geteuid", unknown []);
+    ("getpgrp", unknown []);
+    ("setrlimit", unknown [drop "resource" []; drop "rlim" [r]]);
+    ("getrlimit", unknown [drop "resource" []; drop "rlim" [w]]);
+    ("setsid", unknown []);
+    ("isatty", unknown [drop "fd" []]);
+    ("sigemptyset", unknown [drop "set" [w]]);
+    ("sigfillset", unknown [drop "set" [w]]);
+    ("sigaddset", unknown [drop "set" [r; w]; drop "signum" []]);
+    ("sigdelset", unknown [drop "set" [r; w]; drop "signum" []]);
+    ("sigismember", unknown [drop "set" [r]; drop "signum" []]);
+    ("sigprocmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
+    ("fork", unknown []);
+    ("dlopen", unknown [drop "filename" [r]; drop "flag" []]);
+    ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
+    ("dlsym", unknown [drop "handle" [r]; drop "symbol" [r]]);
+    ("dlclose", unknown [drop "handle" [r]]);
+    ("inet_addr", unknown [drop "cp" [r]]);
+    ("uname", unknown [drop "buf" [w_deep]]);
+    ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
+    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
   ]
 
 (** Pthread functions. *)
@@ -388,9 +439,15 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
-    ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
     ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
     ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
+    (* Not recording read accesses to sem as these are thread-safe anyway not to clutter messages (as for mutexes) **)
+    ("sem_init", special [__ "sem" []; __ "pshared" []; __ "value" []] @@ fun sem pshared value -> SemInit {sem; pshared; value});
+    ("sem_wait", special [__ "sem" []] @@ fun sem -> SemWait {sem; try_ = false; timeout = None});
+    ("sem_trywait", special [__ "sem" []] @@ fun sem -> SemWait {sem; try_ = true; timeout = None});
+    ("sem_timedwait", special [__ "sem" []; __ "abs_timeout" [r]] @@ fun sem abs_timeout-> SemWait {sem; try_ = true; timeout = Some abs_timeout}); (* no write accesses to sem because sync primitive itself has no race *)
+    ("sem_post", special [__ "sem" []] @@ fun sem -> SemPost sem);
+    ("sem_destroy", special [__ "sem" []] @@ fun sem -> SemDestroy sem);
   ]
 
 (** GCC builtin functions.
@@ -506,6 +563,9 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memmem", unknown [drop "haystack" [r]; drop "haystacklen" []; drop "needle" [r]; drop "needlelen" [r]]);
     ("getifaddrs", unknown [drop "ifap" [w]]);
     ("freeifaddrs", unknown [drop "ifa" [f_deep]]);
+    ("atoq", unknown [drop "nptr" [r]]);
+    ("strchrnul", unknown [drop "s" [r]; drop "c" []]);
+    ("getdtablesize", unknown []);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -855,6 +915,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
+    ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
   ]
 
 let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -1039,7 +1100,6 @@ open Invalidate
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = [
-    "atoi", readsAll;             (*safe*)
     "connect", readsAll;          (*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
@@ -1052,34 +1112,19 @@ let invalidate_actions = [
     "__ctype_b_loc", readsAll;(*safe*)
     "__errno", readsAll;(*safe*)
     "__errno_location", readsAll;(*safe*)
-    "sigfillset", writesAll; (*unsafe*)
-    "sigprocmask", writesAll; (*unsafe*)
-    "uname", writesAll;(*unsafe*)
-    "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
-    "geteuid", readsAll;(*safe*)
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
-    "getpid", readsAll;(*safe*)
     "_IO_getc", writesAll;(*unsafe*)
     "pipe", writesAll;(*unsafe*)
     "close", writesAll;(*unsafe*)
-    "setsid", readsAll;(*safe*)
     "strerror_r", writesAll;(*unsafe*)
-    "sigemptyset", writesAll;(*unsafe*)
-    "sigaddset", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
-    "dlopen", readsAll;(*safe*)
-    "dlsym", readsAll;(*safe*)
-    "dlclose", readsAll;(*safe*)
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-    "__builtin_strchr", readsAll;(*safe*)
-    "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
-    "memchr", readsAll;(*safe*)
     "waitpid", readsAll;(*safe*)
     "statfs", writes [1;3;4];(*keep [1;3;4]*)
     "mount", readsAll;(*safe*)
@@ -1088,27 +1133,18 @@ let invalidate_actions = [
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
     "umount", readsAll;(*safe*)
-    "strrchr", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "unlink", readsAll;(*safe*)
-    "sched_yield", readsAll;(*safe*)
-    "nanosleep", writesAllButFirst 1 readsAll;(*drop 1*)
-    "sigdelset", readsAll;(*safe*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
-    "setlocale", readsAll;(*safe*)
     "bindtextdomain", readsAll;(*safe*)
     "textdomain", readsAll;(*safe*)
     "dcgettext", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
     "__getdelim", writes [3];(*keep [3]*)
-    "gethostbyname_r", readsAll;(*safe*)
     "__h_errno_location", readsAll;(*safe*)
     "__fxstat", readsAll;(*safe*)
-    "getuid", readsAll;(*safe*)
     "openlog", readsAll;(*safe*)
-    "getdtablesize", readsAll;(*safe*)
     "umask", readsAll;(*safe*)
-    "socket", readsAll;(*safe*)
     "clntudp_create", writesAllButFirst 3 readsAll;(*drop 3*)
     "svctcp_create", readsAll;(*safe*)
     "clntudp_bufcreate", writesAll;(*unsafe*)
@@ -1120,24 +1156,15 @@ let invalidate_actions = [
     "bind", readsAll;(*safe*)
     "svcudp_create", readsAll;(*safe*)
     "svc_register", writesAll;(*unsafe*)
-    "sleep", readsAll;(*safe*)
-    "usleep", readsAll;
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
-    "strcasecmp", readsAll; (*safe*)
-    "strchr", readsAll; (*safe*)
     "__error", readsAll; (*safe*)
     "__maskrune", writesAll; (*unsafe*)
-    "inet_addr", readsAll; (*safe*)
-    "setsockopt", readsAll; (*safe*)
     "listen", readsAll; (*safe*)
-    "getsockname", writes [1;3]; (*keep [1;3]*)
-    "execl", readsAll; (*safe*)
     "select", writes [1;5]; (*keep [1;5]*)
     "accept", writesAll; (*keep [1]*)
-    "getpeername", writes [1]; (*keep [1]*)
     "times", writesAll; (*unsafe*)
     "timespec_get", writes [1];
     "__tolower", readsAll; (*safe*)
@@ -1154,26 +1181,12 @@ let invalidate_actions = [
     "compress2", writes [3]; (*keep [3]*)
     "__toupper", readsAll; (*safe*)
     "BF_set_key", writes [3]; (*keep [3]*)
-    "memcmp", readsAll; (*safe*)
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
-    "srand", readsAll; (*safe*)
-    "gethostname", writesAll; (*unsafe*)
-    "fork", readsAll; (*safe*)
-    "setrlimit", readsAll; (*safe*)
-    "getrlimit", writes [2]; (*keep [2]*)
-    "sem_init", readsAll; (*safe*)
-    "sem_destroy", readsAll; (*safe*)
-    "sem_wait", readsAll; (*safe*)
-    "sem_post", readsAll; (*safe*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
-    "htonl", readsAll; (*safe*)
-    "htons", readsAll; (*safe*)
-    "ntohl", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
-    "clock", readsAll;
     "__builtin_va_arg_pack_len", readsAll;
     "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
@@ -1182,11 +1195,6 @@ let invalidate_actions = [
     "kmem_cache_create", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
-    "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
-    (* no args, declare invalidate actions to prevent invalidating globals *)
-    "isatty", readsAll;
-    "setpriority", readsAll;
-    "getpriority", readsAll;
     (* ddverify *)
     "sema_init", readsAll;
     "__goblint_assume_join", readsAll;

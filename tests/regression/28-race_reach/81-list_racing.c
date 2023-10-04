@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'region'"
+// PARAM: --set ana.activated[+] "'region'"  --set lib.activated[+] sv-comp
 #include<stdlib.h>
 #include "racemacros.h"
 
