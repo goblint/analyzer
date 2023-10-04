@@ -40,7 +40,9 @@ let is_first_field x = match x.fcomp.cfields with
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
-  Cil.gnu89inline := get_bool "cil.gnu89inline"
+  Cil.gnu89inline := get_bool "cil.gnu89inline";
+  if get_bool "cil.addNestedScopeAttr" = true then
+    Cabs2cil.addNestedScopeAttr := true
 
 let init () =
   initCIL ();
@@ -51,9 +53,7 @@ let init () =
   (* lineDirectiveStyle := None; *)
   RmUnused.keepUnused := true;
   print_CIL_Input := true;
-  Cabs2cil.allowDuplication := false;
-  if get_bool "cil.addNestedScopeAttr" then
-    Cabs2cil.addNestedScopeAttr := true
+  Cabs2cil.allowDuplication := false
 
 let current_file = ref dummyFile
 
