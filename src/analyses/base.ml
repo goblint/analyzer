@@ -1055,7 +1055,7 @@ struct
             (* Warn if any of the addresses contains a non-local variable *)
             AD.iter (function
                 | AD.Addr.Addr (v,o) ->
-                  if not @@ CPA.mem v st.cpa then (
+                  if not (CPA.mem v st.cpa) && not (is_global a v) then (
                     (* TODO: Not the smartest move to set the global flag within an iter *)
                     (* TODO: We can resort to using AD.exists instead *)
                     AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
