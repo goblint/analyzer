@@ -1,0 +1,17 @@
+(include_subdirs no)
+
+(library
+ (name goblint_std)
+ (public_name goblint.std)
+ (libraries
+   batteries
+   zarith
+   goblint-cil
+   fpath
+   yojson
+   yaml)
+ (preprocess
+  (pps
+   ppx_deriving.std
+   ppx_deriving_hash
+   ppx_deriving_yojson)))

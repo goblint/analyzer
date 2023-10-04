@@ -7,7 +7,7 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (modules :standard \ goblint mainspec privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint.build-info goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils
+  (libraries goblint.sites goblint.build-info goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
@@ -56,6 +56,7 @@
       (-> violationZ3.no-z3.ml)
     )
   )
+  (flags :standard -open Goblint_std)
   (foreign_stubs (language c) (names stubs))
   (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
@@ -77,33 +78,33 @@
   (public_names goblint -)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint mainspec)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name apronPrecCompare)
   (modules apronPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name messagesCompare)
   (modules messagesCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (rule
