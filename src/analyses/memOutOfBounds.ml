@@ -122,9 +122,9 @@ struct
           | x::xs -> List.fold_left VDQ.ID.join x xs
         end
       | _ ->
-        set_mem_safety_flag InvalidDeref;
-        M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-        `Top
+        (set_mem_safety_flag InvalidDeref;
+         M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+         `Top)
 
   let get_ptr_deref_type ptr_typ =
     match ptr_typ with
@@ -162,6 +162,32 @@ struct
           let bytes_offset = ID.mul typ_size_in_bytes x in
           let remaining_offset = offs_to_idx typ o in
           ID.add bytes_offset remaining_offset
+        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+      end
+
+  let rec cil_offs_to_idx ctx typ offs =
+    match offs with
+    | NoOffset -> intdom_of_int 0
+    | Field (field, o) ->
+      let field_as_offset = Field (field, NoOffset) in
+      let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset in
+      let bytes_offset = intdom_of_int (bits_offset / 8) in
+      let remaining_offset = cil_offs_to_idx ctx field.ftype o in
+      begin
+        try ID.add bytes_offset remaining_offset
+        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+      end
+    | Index (x, o) ->
+      begin try
+          begin match ctx.ask (Queries.EvalInt x) with
+            | `Top -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+            | `Bot -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+            | `Lifted eval_x ->
+              let typ_size_in_bytes = size_of_type_in_bytes typ in
+              let bytes_offset = ID.mul typ_size_in_bytes eval_x in
+              let remaining_offset = cil_offs_to_idx ctx typ o in
+              ID.add bytes_offset remaining_offset
+          end
         with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
       end
 
@@ -245,7 +271,38 @@ struct
       match lval, is_implicitly_derefed with
       | (Var _, _), false -> ()
       | (Var v, _), true -> check_no_binop_deref ctx (Lval lval)
-      | (Mem e, _), _ ->
+      | (Mem e, o), _ ->
+        let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
+        let offs_intdom = begin match ptr_deref_type with
+          | Some t -> cil_offs_to_idx ctx t o
+          | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+        end in
+        let e_size = get_size_of_ptr_target ctx e in
+        let () = begin match e_size with
+          | `Top ->
+            (set_mem_safety_flag InvalidDeref;
+             M.warn "Size of lval dereference expression %a is top. Out-of-bounds memory access may occur" d_exp e)
+          | `Bot ->
+            (set_mem_safety_flag InvalidDeref;
+             M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e)
+          | `Lifted es ->
+            let casted_es = ID.cast_to (Cilfacade.ptrdiff_ikind ()) es in
+            let one = intdom_of_int 1 in
+            let casted_es = ID.sub casted_es one in
+            let casted_offs = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in
+            let ptr_size_lt_offs = ID.lt casted_es casted_offs in
+            let behavior = Undefined MemoryOutOfBoundsAccess in
+            let cwe_number = 823 in
+            begin match ID.to_bool ptr_size_lt_offs with
+              | Some true ->
+                (set_mem_safety_flag InvalidDeref;
+                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" ID.pretty casted_es ID.pretty casted_offs)
+              | Some false -> ()
+              | None ->
+                (set_mem_safety_flag InvalidDeref;
+                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_es ID.pretty casted_offs)
+            end
+        end in
         begin match e with
           | Lval (Var v, _) as lval_exp -> check_no_binop_deref ctx lval_exp
           | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI ->
