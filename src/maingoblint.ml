@@ -410,6 +410,10 @@ let preprocess_files () =
   );
   preprocessed
 
+(** Regex for special "paths" in cpp output:
+    <built-in>, <command-line>, but also translations! *)
+let special_path_regexp = Str.regexp "<.+>"
+
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
   (* get the AST *)
@@ -417,7 +421,8 @@ let parse_preprocessed preprocessed =
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
-    let transform_file (path_str, system_header) = if Str.string_match (Str.regexp "<.+>") path_str 0 then
+    let transform_file (path_str, system_header) =
+      if Str.string_match special_path_regexp path_str 0 then
         (path_str, system_header) (* ignore special "paths" *)
       else
         let path = Fpath.v path_str in

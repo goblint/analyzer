@@ -133,7 +133,7 @@ module MallocWrapper : MCPSpec = struct
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     let wrapper_node, counter = ctx.local in
     match q with
-    | Q.HeapVar ->
+    | Q.AllocVar {on_stack = on_stack} ->
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_ctx ctx
@@ -141,8 +141,11 @@ module MallocWrapper : MCPSpec = struct
       let count = UniqueCallCounter.find (`Lifted node) counter in
       let var = NodeVarinfoMap.to_varinfo (ctx.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
+      if on_stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
       `Lifted var
     | Q.IsHeapVar v ->
+      NodeVarinfoMap.mem_varinfo v && not @@ hasAttribute "stack_alloca" v.vattr
+    | Q.IsAllocVar v ->
       NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
       begin match NodeVarinfoMap.from_varinfo v with

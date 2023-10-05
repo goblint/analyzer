@@ -21,6 +21,7 @@
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:21:3-21:21)
+  [Error][Imprecise][Unsound] Function definition missing
 
   $ goblint --enable warn.deterministic --disable ana.race.direct-arithmetic --enable allglobs 49-type-invariants.c
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (49-type-invariants.c:21:3-21:21)
@@ -45,3 +46,4 @@
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:21:3-21:21)
+  [Error][Imprecise][Unsound] Function definition missing
