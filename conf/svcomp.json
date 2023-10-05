@@ -70,7 +70,8 @@
       }
     },
     "race": {
-      "free": false
+      "free": false,
+      "call": false
     },
     "autotune": {
       "enabled": true,
