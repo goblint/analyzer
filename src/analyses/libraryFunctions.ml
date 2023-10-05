@@ -374,6 +374,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_ctzl", unknown [drop "x" []]);
     ("__builtin_ctzll", unknown [drop "x" []]);
     ("__builtin_clz", unknown [drop "x" []]);
+    ("__builtin_clzl", unknown [drop "x" []]);
+    ("__builtin_clzll", unknown [drop "x" []]);
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
     ("__builtin_prefetch", unknown (drop "addr" [] :: VarArgs (drop' [])));
     ("__builtin_expect", special [__ "exp" []; drop' []] @@ fun exp -> Identity exp); (* Identity, because just compiler optimization annotation. *)
