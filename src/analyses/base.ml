@@ -2054,6 +2054,64 @@ struct
       AnalysisStateUtil.set_mem_safety_flag InvalidFree;
       M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
+  let points_to_heap_only ctx ptr =
+    match ctx.ask (Queries.MayPointTo ptr) with
+    | a when not (Queries.AD.is_top a)->
+      Queries.AD.for_all (function
+          | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
+          | _ -> false
+        ) a
+    | _ -> false
+
+  let get_size_of_ptr_target ctx ptr =
+    let intdom_of_int x =
+      ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
+    in
+    let size_of_type_in_bytes typ =
+      let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
+      intdom_of_int typ_size_in_bytes
+    in
+    if points_to_heap_only ctx ptr then
+      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+      ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
+    else
+      match ctx.ask (Queries.MayPointTo ptr) with
+      | a when not (Queries.AD.is_top a) ->
+        let pts_list = Queries.AD.elements a in
+        let pts_elems_to_sizes (addr: Queries.AD.elt) =
+          begin match addr with
+            | Addr (v, _) ->
+              begin match v.vtype with
+                | TArray (item_typ, _, _) ->
+                  let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+                  begin match ctx.ask (Queries.EvalLength ptr) with
+                    | `Lifted arr_len ->
+                      let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
+                      begin
+                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+                      end
+                    | `Bot -> `Bot
+                    | `Top -> `Top
+                  end
+                | _ ->
+                  let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+                  `Lifted type_size_in_bytes
+              end
+            | _ -> `Top
+          end
+        in
+        (* Map each points-to-set element to its size *)
+        let pts_sizes = List.map pts_elems_to_sizes pts_list in
+        (* Take the smallest of all sizes that ptr's contents may have *)
+        begin match pts_sizes with
+          | [] -> `Bot
+          | [x] -> x
+          | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
+        end
+      | _ ->
+        (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+         `Top)
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
@@ -2073,13 +2131,32 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     let desc = LF.find f in
-    let memory_copying dst src =
+    let memory_copying dst src n =
+      let dest_size = get_size_of_ptr_target ctx dst in
+      let n_intdom = match n with
+        | Some exp -> ctx.ask (Queries.EvalInt exp)
+        | None -> `Bot
+      in
+      let dest_size_equal_n =
+        match dest_size, n_intdom with
+        | `Top, `Top -> true
+        | `Bot, `Bot -> true
+        | `Lifted ds, `Lifted n ->
+          let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
+          let casted_n = ID.cast_to (Cilfacade.ptrdiff_ikind ()) n in
+          let ds_eq_n = ID.eq casted_ds casted_n in
+          begin match ID.to_bool ds_eq_n with
+            | Some b -> b
+            | None -> false
+          end
+        | _, _ -> false
+      in
       let dest_a, dest_typ = addr_type_of_exp dst in
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
       let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
                     |> AD.type_of in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
+      let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
         else
@@ -2140,13 +2217,13 @@ struct
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Memcpy { dest = dst; src; n; }, _ -> (* TODO: use n *)
-      memory_copying dst src
+      memory_copying dst src (Some n)
     (* strcpy(dest, src); *)
     | Strcpy { dest = dst; src; n = None }, _ ->
       let dest_a, dest_typ = addr_type_of_exp dst in
       (* when dest surely isn't a string literal, try copying src to dest *)
       if AD.string_writing_defined dest_a then
-        memory_copying dst src
+        memory_copying dst src None
       else
         (* else return top (after a warning was issued) *)
         set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ))
