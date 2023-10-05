@@ -184,7 +184,8 @@ struct
             | `Bot -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
             | `Lifted eval_x ->
               let typ_size_in_bytes = size_of_type_in_bytes typ in
-              let bytes_offset = ID.mul typ_size_in_bytes eval_x in
+              let casted_eval_x = ID.cast_to (Cilfacade.ptrdiff_ikind ()) eval_x in
+              let bytes_offset = ID.mul typ_size_in_bytes casted_eval_x in
               let remaining_offset = cil_offs_to_idx ctx typ o in
               ID.add bytes_offset remaining_offset
           end
@@ -290,7 +291,11 @@ struct
             let one = intdom_of_int 1 in
             let casted_es = ID.sub casted_es one in
             let casted_offs = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in
-            let ptr_size_lt_offs = ID.lt casted_es casted_offs in
+            let ptr_size_lt_offs =
+              begin try ID.lt casted_es casted_offs
+                with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+              end
+            in
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
             begin match ID.to_bool ptr_size_lt_offs with

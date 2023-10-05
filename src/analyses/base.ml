@@ -2144,7 +2144,11 @@ struct
         | `Lifted ds, `Lifted n ->
           let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
           let casted_n = ID.cast_to (Cilfacade.ptrdiff_ikind ()) n in
-          let ds_eq_n = ID.eq casted_ds casted_n in
+          let ds_eq_n =
+            begin try ID.eq casted_ds casted_n
+              with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+            end
+          in
           begin match ID.to_bool ds_eq_n with
             | Some b -> b
             | None -> false
