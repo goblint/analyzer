@@ -452,21 +452,6 @@ module PrivPrecCompareUtil = PrivPrecCompareUtil
 module RelationPrecCompareUtil = RelationPrecCompareUtil
 module ApronPrecCompareUtil = ApronPrecCompareUtil
 
-(** {2 Build info} *)
-
-(** OCaml compiler info. *)
-module ConfigOcaml = ConfigOcaml
-
-(** Dune profile info. *)
-module ConfigProfile = ConfigProfile
-
-(** Goblint version info. *)
-module Version = Version
-
-(** Goblint git version info. *)
-module ConfigVersion = ConfigVersion
-
-
 (** {1 Library extensions}
 
     OCaml library extensions which are completely independent of Goblint.

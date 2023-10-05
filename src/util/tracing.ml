@@ -10,7 +10,7 @@ open Pretty
 module Strs = Set.Make (String)
 
 
-let tracing = ConfigProfile.profile = "trace"
+let tracing = Goblint_build_info.dune_profile = "trace"
 
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown

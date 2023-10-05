@@ -17,7 +17,7 @@ struct
   (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
   let producer: Producer.t = {
     name = "Goblint";
-    version = Version.goblint;
+    version = Goblint_build_info.version;
     command_line = Some GobSys.command_line;
   }
 

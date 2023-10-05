@@ -108,22 +108,6 @@
 )
 
 (rule
-  (target configVersion.ml)
-  (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
-
-(rule
-  (target configProfile.ml)
-  (mode (promote (until-clean) (only configProfile.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
-
-(rule
-  (target configOcaml.ml)
-  (mode (promote (until-clean) (only configOcaml.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet flambda = \"%{ocaml-config:flambda}\"")))
-
-(rule
   (alias runtest)
   (deps ../goblint ../scripts/update_suite.rb ../Makefile ../make.sh (source_tree ../tests/regression) (source_tree ../includes) (source_tree ../linux-headers))
   (action (chdir .. (run ./make.sh test)))
