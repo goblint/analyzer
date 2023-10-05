@@ -7,6 +7,7 @@ let dummy_options: options = {
   allocated = false;
   count = false;
   tef = false;
+  tracy = false;
 }
 
 (** TEF process ID for the next {!Make}.
@@ -41,6 +42,7 @@ struct
     start_walltime: float; (** Wall time at the beginning of the frame. *)
     start_allocated: float; (** Allocated memory at the beginning of the frame. *)
     (* No need for count, because it always gets incremented by 1. *)
+    tracy_span: Tracy_client.span;
   }
 
   let current_cputime (): float =
@@ -60,6 +62,7 @@ struct
       start_cputime = if !options.cputime then current_cputime () else 0.0;
       start_walltime = if !options.walltime then current_walltime () else 0.0;
       start_allocated = if !options.allocated then current_allocated () else 0.0;
+      tracy_span = -1;
     }
 
   (** Stack of currently active timing frames. *)
@@ -108,7 +111,14 @@ struct
       in
       loop tree.children
     in
-    Stack.push (create_frame tree) current;
+    let frame = create_frame tree in
+    let frame =
+      if !options.tracy then
+        {frame with tracy_span = Tracy_client.enter ~__FILE__ ~__LINE__ name}
+      else
+        frame
+    in
+    Stack.push frame current;
     if !options.tef then
       Catapult.Tracing.begin' ~pid:tef_pid ?args name
 
@@ -134,7 +144,9 @@ struct
     assert (tree.name = name);
     add_frame_to_tree frame tree;
     if !options.tef then
-      Catapult.Tracing.exit' ~pid:tef_pid name
+      Catapult.Tracing.exit' ~pid:tef_pid name;
+    if !options.tracy then
+      Tracy_client.exit frame.tracy_span
 
   let wrap ?args name f x =
     enter ?args name;

@@ -12,6 +12,7 @@ type options = {
   allocated: bool; (** Measure allocated memory. *)
   count: bool; (** Count calls. *)
   tef: bool; (** Output a TEF track. *)
+  tracy: bool;
 }
 
 (** Timing tree node. *)

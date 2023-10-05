@@ -21,6 +21,7 @@ let main () =
         allocated = true;
         count = true;
         tef = true;
+        tracy = false;
       };
       Timing.Program.start {
         cputime = false;
@@ -28,6 +29,7 @@ let main () =
         allocated = false;
         count = false;
         tef = true;
+        tracy = true;
       }
     );
 
