@@ -619,11 +619,19 @@
               },
               "additionalProperties": false
             },
-            "limit-string-addresses": {
-              "title": "ana.base.limit-string-addresses",
-              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
-              "type": "boolean",
-              "default": true
+            "strings": {
+              "title": "ana.base.strings",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.strings.domain",
+                  "description": "Domain for string literals.",
+                  "type": "string",
+                  "enum": ["unit", "flat", "disjoint"],
+                  "default": "flat"
+                }
+              },
+              "additionalProperties": false
             },
             "partition-arrays": {
               "title": "ana.base.partition-arrays",

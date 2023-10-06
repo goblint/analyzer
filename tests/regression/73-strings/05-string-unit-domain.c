@@ -1,4 +1,4 @@
-// PARAM: --enable ana.base.limit-string-addresses
+// PARAM: --set ana.base.strings.domain unit
 #include <string.h>
 #include <goblint.h>
 

@@ -71,7 +71,7 @@ sig
       - Each {!Addr}, modulo precise index expressions in the offset, is a sublattice with ordering induced by {!Mval}.
       - {!NullPtr} is a singleton sublattice.
       - {!UnknownPtr} is a singleton sublattice.
-      - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
+      - If [ana.base.strings.domain] is disjoint, then each {!StrPtr} is a singleton sublattice. Otherwise, all {!StrPtr} are together in one sublattice with flat ordering. *)
   module AddressLattice (Mval: Mval.Lattice):
   sig
     include module type of AddressPrintable (Mval)

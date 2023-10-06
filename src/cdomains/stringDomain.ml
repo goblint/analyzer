@@ -1,10 +1,10 @@
 type t = string option [@@deriving eq, ord, hash]
 
 let hash x =
-  if GobConfig.get_bool "ana.base.limit-string-addresses" then
-    13859
-  else
+  if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
     hash x
+  else
+    13859
 
 let show = function
   | Some x -> "\"" ^ x ^ "\""
@@ -17,7 +17,11 @@ include Printable.SimpleShow (
   end
   )
 
-let of_string x = Some x
+let of_string x =
+  if GobConfig.get_string "ana.base.strings.domain" = "unit" then
+    None
+  else
+    Some x
 let to_string x = x
 
 (* only keep part before first null byte *)
@@ -66,10 +70,10 @@ let join x y =
   | _, None -> None
   | Some a, Some b when a = b -> Some a
   | Some a, Some b (* when a <> b *) ->
-    if GobConfig.get_bool "ana.base.limit-string-addresses" then
-      None
-    else
+    if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
       raise Lattice.Uncomparable
+    else
+      None
 
 let meet x y =
   match x, y with
@@ -77,13 +81,13 @@ let meet x y =
   | a, None -> a
   | Some a, Some b when a = b -> Some a
   | Some a, Some b (* when a <> b *) ->
-    if GobConfig.get_bool "ana.base.limit-string-addresses" then
-      raise Lattice.BotValue
-    else
+    if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
       raise Lattice.Uncomparable
+    else
+      raise Lattice.BotValue
 
 let repr x =
-  if GobConfig.get_bool "ana.base.limit-string-addresses" then
-    None (* all strings together if limited *)
-  else
+  if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
     x (* everything else is kept separate, including strings if not limited *)
+  else
+    None (* all strings together if limited *)
