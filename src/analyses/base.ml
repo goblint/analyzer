@@ -1052,17 +1052,14 @@ struct
               AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
               M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer"
             );
-            (* Warn if any of the addresses contains a non-local variable *)
-            AD.iter (function
-                | AD.Addr.Addr (v,o) ->
-                  if not (CPA.mem v st.cpa) && not (is_global a v) then (
-                    (* TODO: Not the smartest move to set the global flag within an iter *)
-                    (* TODO: We can resort to using AD.exists instead *)
-                    AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-                    M.warn "lval %a points to non-local variable %a. Invalid pointer dereference may occur" d_lval lval CilType.Varinfo.pretty v
-                  )
-                | _ -> ()
-              ) adr
+            (* Warn if any of the addresses contains a non-local and non-global variable *)
+            if AD.exists (function
+                | AD.Addr.Addr (v, _) -> not (CPA.mem v st.cpa) && not (is_global a v)
+                | _ -> false
+              ) adr then (
+              AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
+              M.warn "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
+            )
           );
           AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
         | _ ->
