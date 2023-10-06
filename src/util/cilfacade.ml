@@ -41,7 +41,7 @@ let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
   Cil.gnu89inline := get_bool "cil.gnu89inline";
-  Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
+  Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr"
 
 let init () =
   initCIL ();
