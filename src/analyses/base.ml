@@ -2133,10 +2133,7 @@ struct
     let desc = LF.find f in
     let memory_copying dst src n =
       let dest_size = get_size_of_ptr_target ctx dst in
-      let n_intdom = match n with
-        | Some exp -> ctx.ask (Queries.EvalInt exp)
-        | None -> `Bot
-      in
+      let n_intdom = Option.map_default (fun exp -> ctx.ask (Queries.EvalInt exp)) `Bot n in
       let dest_size_equal_n =
         match dest_size, n_intdom with
         | `Lifted ds, `Lifted n ->
