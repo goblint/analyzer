@@ -211,6 +211,7 @@ module FloatDomain = FloatDomain
 
 module Mval = Mval
 module Offset = Offset
+module StringDomain = StringDomain
 module AddressDomain = AddressDomain
 
 (** {5 Complex} *)

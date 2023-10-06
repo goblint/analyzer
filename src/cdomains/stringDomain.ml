@@ -1,3 +1,7 @@
+include Printable.StdLeaf
+
+let name () = "string"
+
 type t = string option [@@deriving eq, ord, hash]
 
 let hash x =
