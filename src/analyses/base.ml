@@ -2144,7 +2144,7 @@ struct
               with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
             end
           in
-          Option.value ~default:false ID.to_bool ds_eq_n
+          Option.default false (ID.to_bool ds_eq_n)
         | _ -> false
       in
       let dest_a, dest_typ = addr_type_of_exp dst in
