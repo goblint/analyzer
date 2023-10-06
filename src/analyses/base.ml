@@ -2058,7 +2058,7 @@ struct
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (Queries.AD.is_top a)->
       Queries.AD.for_all (function
-          | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
+          | Addr (v, _) -> ctx.ask (Queries.IsHeapVar v)
           | _ -> false
         ) a
     | _ -> false
