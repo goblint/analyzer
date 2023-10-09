@@ -12,7 +12,7 @@ int main() {
   if (!setjmp(buf)) {
     jmp_buf *buf_ptr;
     buf_ptr = pthread_getspecific(buf_key);
-    longjmp(*buf_ptr, 1); // TODO NO CRASH: problem?!
+    longjmp(*buf_ptr, 1); // NO CRASH: problem?!
   }
   else {
     __goblint_check(1); // reachable
