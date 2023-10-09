@@ -387,6 +387,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fdatasync", unknown [drop "fd" []]);
     ("getrusage", unknown [drop "who" []; drop "usage" [w]]);
     ("alphasort", unknown [drop "a" [r]; drop "b" [r]]);
+    ("gmtime_r", unknown [drop "timer" [r]; drop "result" [w]]);
+    ("rand_r", special [drop "seedp" [r; w]] Rand);
   ]
 
 (** Pthread functions. *)
@@ -447,6 +449,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_key_create", unknown [drop "key" [w]; drop "destructor" [s]]);
     ("pthread_key_delete", unknown [drop "key" [f]]);
     ("pthread_cancel", unknown [drop "thread" []]);
+    ("pthread_testcancel", unknown []);
+    ("pthread_setcancelstate", unknown [drop "state" []; drop "oldstate" [w]]);
     ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
     ("pthread_detach", unknown [drop "thread" []]);
     ("pthread_attr_setschedpolicy", unknown [drop "attr" [r; w]; drop "policy" []]);
