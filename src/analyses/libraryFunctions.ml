@@ -42,6 +42,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getc", unknown [drop "stream" [r_deep; w_deep]]);
     ("fgets", unknown [drop "str" [w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
+    ("freopen", unknown [drop "pathname" [r]; drop "mode" [r]; drop "stream" [r_deep; w_deep]]);
     ("printf", unknown (drop "format" [r] :: VarArgs (drop' [r])));
     ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("sprintf", unknown (drop "buffer" [w] :: drop "format" [r] :: VarArgs (drop' [r])));
@@ -382,6 +383,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("fsync", unknown [drop "fd" []]);
     ("fdatasync", unknown [drop "fd" []]);
+    ("getrusage", unknown [drop "who" []; drop "usage" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -987,6 +989,10 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("inflateInit2", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []]);
     ("inflateInit2_", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []; drop "version" [r]; drop "stream_size" []]);
     ("inflateEnd", unknown [drop "strm" [f_deep]]);
+    ("gzopen", unknown [drop "path" [r]; drop "mode" [r]]);
+    ("gzdopen", unknown [drop "fd" []; drop "mode" [r]]);
+    ("gzread", unknown [drop "file" [r_deep; w_deep]; drop "buf" [w]; drop "len" []]);
+    ("gzclose", unknown [drop "file" [f_deep]]);
   ]
 
 let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
