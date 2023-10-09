@@ -20,6 +20,9 @@ int main() {
     example13();
     example14();
     example15();
+    example16();
+    example17();
+    example18();
 
     return 0;
 }
@@ -327,4 +330,54 @@ example15() {
 
     char* s3 = strstr(s1, s2);
     __goblint_check(s3 == NULL);
+}
+
+example16() {
+    size_t i;
+    if (rand())
+        i = 3;
+    else
+        i = 1/0;
+    
+    char s[5] = "abab";
+    __goblint_check(s[i] != '\0'); // UNKNOWN
+
+    s[4] = 'a';
+    __goblint_check(s[i] != '\0');
+
+    s[4] = '\0';
+    s[i] = '\0';
+    __goblint_check(s[4] == '\0');
+    __goblint_check(s[3] == '\0'); // UNKNOWN
+
+    s[i] = 'a';
+    __goblint_check(s[4] == '\0'); // UNKNOWN
+}
+
+example17() {
+    char s1[20];
+    char s2[10];
+    strcat(s1, s2); // WARN
+    __goblint_check(s1[0] == '\0'); // UNKNOWN
+    __goblint_check(s1[5] == '\0'); // UNKNOWN
+    __goblint_check(s1[12] == '\0'); // UNKNOWN
+}
+
+example18() {
+    char s1[20] = "hello";
+    char s2[10] = "world";
+
+    size_t i;
+    if (rand())
+        i = 1;
+    else
+        i = 2;
+    s1[i] = '\0';
+
+    strcat(s1, s2);
+    __goblint_check(s1[1] != '\0');
+    __goblint_check(s1[6] == '\0'); // UNKNOWN
+    __goblint_check(s1[7] == '\0'); // UNKNOWN
+    __goblint_check(s1[8] != '\0'); // UNKNOWN because might still be uninitialized
+    __goblint_check(s1[10] == '\0'); // UNKNOWN
 }
