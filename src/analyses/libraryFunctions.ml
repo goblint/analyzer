@@ -285,7 +285,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("read", unknown [drop "fd" []; drop "buf" [w]; drop "count" []]);
     ("write", unknown [drop "fd" []; drop "buf" [r]; drop "count" []]);
     ("recv", unknown [drop "sockfd" []; drop "buf" [w]; drop "len" []; drop "flags" []]);
+    ("recvfrom", unknown [drop "sockfd" []; drop "buf" [w]; drop "len" []; drop "flags" []; drop "src_addr" [w_deep]; drop "addrlen" [r; w]]);
     ("send", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []]);
+    ("sendto", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []; drop "dest_addr" [r_deep]; drop "addrlen" []]);
     ("strdup", unknown [drop "s" [r]]);
     ("strndup", unknown [drop "s" [r]; drop "n" []]);
     ("syscall", unknown (drop "number" [] :: VarArgs (drop' [r; w])));
@@ -373,6 +375,18 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("uname", unknown [drop "buf" [w_deep]]);
     ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
     ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("connect", unknown [drop "sockfd" []; drop "sockaddr" [r_deep]; drop "addrlen" []]);
+    ("bind", unknown [drop "sockfd" []; drop "sockaddr" [r_deep]; drop "addrlen" []]);
+    ("listen", unknown [drop "sockfd" []; drop "backlog" []]);
+    ("select", unknown [drop "nfds" []; drop "readfds" [r; w]; drop "writefds" [r; w]; drop "exceptfds" [r; w]; drop "timeout" [r; w]]);
+    ("accept", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [r; w]]);
+    ("close", unknown [drop "fd" []]);
+    ("writev", unknown [drop "fd" []; drop "iov" [r_deep]; drop "iovcnt" []]);
+    ("readv", unknown [drop "fd" []; drop "iov" [w_deep]; drop "iovcnt" []]);
+    ("unlink", unknown [drop "pathname" [r]]);
+    ("popen", unknown [drop "command" [r]; drop "type" [r]]);
+    ("stat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("statfs", unknown [drop "path" [r]; drop "buf" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -588,6 +602,9 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fts_open", unknown [drop "path_argv" [r_deep]; drop "options" []; drop "compar" [s]]); (* TODO: use Call instead of Spawn *)
     ("fts_read", unknown [drop "ftsp" [r_deep; w_deep]]);
     ("fts_close", unknown [drop "ftsp" [f_deep]]);
+    ("mount", unknown [drop "source" [r]; drop "target" [r]; drop "filesystemtype" [r]; drop "mountflags" []; drop "data" [r]]);
+    ("umount", unknown [drop "target" [r]]);
+    ("umount2", unknown [drop "target" [r]; drop "flags" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -1100,7 +1117,6 @@ open Invalidate
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = [
-    "connect", readsAll;          (*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "__mutex_init", readsAll;(*safe*)
@@ -1118,23 +1134,17 @@ let invalidate_actions = [
     "atoi__extinline", readsAll;(*safe*)
     "_IO_getc", writesAll;(*unsafe*)
     "pipe", writesAll;(*unsafe*)
-    "close", writesAll;(*unsafe*)
     "strerror_r", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-    "umount2", readsAll;(*safe*)
     "waitpid", readsAll;(*safe*)
-    "statfs", writes [1;3;4];(*keep [1;3;4]*)
-    "mount", readsAll;(*safe*)
     "__open_alias", readsAll;(*safe*)
     "__open_2", readsAll;(*safe*)
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
-    "umount", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
-    "unlink", readsAll;(*safe*)
     "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
     "bindtextdomain", readsAll;(*safe*)
     "textdomain", readsAll;(*safe*)
@@ -1149,11 +1159,9 @@ let invalidate_actions = [
     "svctcp_create", readsAll;(*safe*)
     "clntudp_bufcreate", writesAll;(*unsafe*)
     "authunix_create_default", readsAll;(*safe*)
-    "writev", readsAll;(*safe*)
     "clnt_broadcast", writesAll;(*unsafe*)
     "clnt_sperrno", readsAll;(*safe*)
     "pmap_unset", writesAll;(*unsafe*)
-    "bind", readsAll;(*safe*)
     "svcudp_create", readsAll;(*safe*)
     "svc_register", writesAll;(*unsafe*)
     "svc_run", writesAll;(*unsafe*)
@@ -1162,18 +1170,13 @@ let invalidate_actions = [
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "__error", readsAll; (*safe*)
     "__maskrune", writesAll; (*unsafe*)
-    "listen", readsAll; (*safe*)
-    "select", writes [1;5]; (*keep [1;5]*)
-    "accept", writesAll; (*keep [1]*)
     "times", writesAll; (*unsafe*)
     "timespec_get", writes [1];
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
-    "popen", readsAll; (*safe*)
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
     "uncompress", writes [3;4]; (*keep [3;4]*)
-    "stat", writes [2]; (*keep [1]*)
     "__xstat", writes [3]; (*keep [1]*)
     "__lxstat", writes [3]; (*keep [1]*)
     "remove", readsAll;
@@ -1181,8 +1184,6 @@ let invalidate_actions = [
     "compress2", writes [3]; (*keep [3]*)
     "__toupper", readsAll; (*safe*)
     "BF_set_key", writes [3]; (*keep [3]*)
-    "sendto", writes [2;4]; (*keep [2;4]*)
-    "recvfrom", writes [4;5]; (*keep [4;5]*)
     "PL_NewHashTable", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
