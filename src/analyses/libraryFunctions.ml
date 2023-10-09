@@ -244,7 +244,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("symlink" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("ftruncate", unknown [drop "fd" []; drop "length" []]);
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
-    ("ntohs", unknown [drop "netshort" []]);
     ("alarm", unknown [drop "seconds" []]);
     ("pwrite", unknown [drop "fd" []; drop "buf" [r]; drop "count" []; drop "offset" []]);
     ("hstrerror", unknown [drop "err" []]);
@@ -275,7 +274,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
     ("fstat", unknown [drop "fd" []; drop "buf" [w]]);
     ("fstatat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "buf" [w]; drop "flags" []]);
-    ("getpwnam", unknown [drop "name" [r]]);
     ("chdir", unknown [drop "path" [r]]);
     ("closedir", unknown [drop "dirp" [r]]);
     ("mkdir", unknown [drop "pathname" [r]; drop "mode" []]);
@@ -295,7 +293,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("freeaddrinfo", unknown [drop "res" [f_deep]]);
     ("getgid", unknown []);
     ("pselect", unknown [drop "nfds" []; drop "readdfs" [r]; drop "writedfs" [r]; drop "exceptfds" [r]; drop "timeout" [r]; drop "sigmask" [r]]);
-    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("getnameinfo", unknown [drop "addr" [r_deep]; drop "addrlen" []; drop "host" [w]; drop "hostlen" []; drop "serv" [w]; drop "servlen" []; drop "flags" []]);
     ("strtok_r", unknown [drop "str" [r; w]; drop "delim" [r]; drop "saveptr" [r_deep; w_deep]]); (* deep accesses through saveptr if str is NULL: https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/string/strtok_r.c#L31-L40 *)
     ("kill", unknown [drop "pid" []; drop "sig" []]);
@@ -437,7 +434,6 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_attr_setschedpolicy", unknown [drop "attr" [r; w]; drop "policy" []]);
     ("pthread_condattr_init", unknown [drop "attr" [w]]);
     ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
-    ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
     ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
     ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
