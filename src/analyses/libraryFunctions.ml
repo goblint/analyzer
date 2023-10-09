@@ -111,6 +111,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("vprintf", unknown [drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vfprintf", unknown [drop "stream" [r_deep; w_deep]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vsprintf", unknown [drop "buffer" [w]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("asprintf", unknown (drop "strp" [w] :: drop "format" [r] :: VarArgs (drop' [r_deep]))); (* TODO: glibc section? *)
     ("vasprintf", unknown [drop "strp" [w]; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vsnprintf", unknown [drop "str" [w]; drop "size" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mktime", unknown [drop "tm" [r;w]]);
@@ -339,6 +340,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("execl", unknown (drop "path" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
     ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
     ("readlink", unknown [drop "path" [r]; drop "buf" [w]; drop "bufsz" []]);
+    ("wcwidth", unknown [drop "c" []]);
     ("wcswidth", unknown [drop "s" [r]; drop "n" []]);
     ("link", unknown [drop "oldpath" [r]; drop "newpath" [r]]);
     ("renameat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]]);
@@ -518,6 +520,12 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__atomic_clear", unknown [drop "ptr" [w]; drop "memorder" []]);
     ("__atomic_compare_exchange_n", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" []; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
     ("__atomic_compare_exchange", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" [r]; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
+    ("__atomic_add_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_sub_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_and_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_xor_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_or_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_nand_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
     ("__atomic_fetch_add", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
     ("__atomic_fetch_sub", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
     ("__atomic_fetch_and", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
@@ -608,6 +616,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fts_close", unknown [drop "ftsp" [f_deep]]);
     ("statfs", unknown [drop "path" [r]; drop "buf" [w]]);
     ("fstatfs", unknown [drop "fd" []; drop "buf" [w]]);
+    ("cfmakeraw", unknown [drop "termios" [r; w]]);
+    ("process_vm_readv", unknown [drop "pid" []; drop "local_iov" [w_deep]; drop "liovcnt" []; drop "remote_iov" []; drop "riovcnt" []; drop "flags" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
