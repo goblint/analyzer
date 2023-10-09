@@ -589,6 +589,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
     ("madvise", unknown [drop "addr" []; drop "length" []; drop "advice" []]);
+    ("mremap", unknown (drop "old_address" [] :: drop "old_size" [] :: drop "new_size" [] :: drop "flags" [] :: VarArgs (drop "new_address" [])));
     ("inotify_init1", unknown [drop "flags" []]);
     ("inotify_add_watch", unknown [drop "fd" []; drop "pathname" [r]; drop "mask" []]);
     ("inotify_rm_watch", unknown [drop "fd" []; drop "wd" []]);
