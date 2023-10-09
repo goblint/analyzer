@@ -395,6 +395,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
     ("pthread_join", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
     ("pthread_kill", unknown [drop "thread" []; drop "sig" []]);
+    ("pthread_equal", unknown [drop "t1" []; drop "t2" []]);
     ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("__pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
     ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
@@ -535,6 +536,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__atomic_fetch_nand", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
     ("__atomic_test_and_set", unknown [drop "ptr" [r; w]; drop "memorder" []]);
     ("__atomic_thread_fence", unknown [drop "memorder" []]);
+    ("__sync_bool_compare_and_swap", unknown [drop "ptr" [r; w]; drop "oldval" []; drop "newval" []]);
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
