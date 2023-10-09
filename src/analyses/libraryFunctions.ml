@@ -994,11 +994,43 @@ let libraries = Hashtbl.of_list [
     ("liblzma", liblzma_descs_list);
   ]
 
+let libraries =
+  Hashtbl.map (fun library descs_list ->
+      let descs_tbl = Hashtbl.create 113 in
+      List.iter (fun (name, desc) ->
+          Hashtbl.modify_opt name (function
+              | None -> Some desc
+              | Some _ -> failwith (Format.sprintf "Library function %s specified multiple times in library %s" name library)
+            ) descs_tbl
+        ) descs_list;
+      descs_tbl
+    ) libraries
+
+let all_library_descs: (string, LibraryDesc.t) Hashtbl.t =
+  Hashtbl.fold (fun _ descs_tbl acc ->
+      Hashtbl.merge (fun name desc1 desc2 ->
+          match desc1, desc2 with
+          | Some _, Some _ -> failwith (Format.sprintf "Library function %s specified in multiple libraries" name)
+          | (Some _ as desc), None
+          | None, (Some _ as desc) -> desc
+          | None, None -> assert false
+        ) acc descs_tbl
+    ) libraries (Hashtbl.create 0)
+
 let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
+  let union =
+    Hashtbl.merge (fun _ desc1 desc2 ->
+      match desc1, desc2 with
+      | (Some _ as desc), None
+      | None, (Some _ as desc) -> desc
+      | _, _ -> assert false
+    )
+  in
   ResettableLazy.from_fun (fun () ->
-      let activated = List.unique (GobConfig.get_string_list "lib.activated") in
-      let desc_list = List.concat_map (Hashtbl.find libraries) activated in
-      Hashtbl.of_list desc_list
+      GobConfig.get_string_list "lib.activated"
+      |> List.unique
+      |> List.map (Hashtbl.find libraries)
+      |> List.fold_left union (Hashtbl.create 0)
     )
 
 let reset_lazy () =
@@ -1201,7 +1233,7 @@ let invalidate_actions = [
   ]
 
 let () = List.iter (fun (x, _) ->
-    if Hashtbl.exists (fun _ b -> List.mem_assoc x b) libraries then
+    if Hashtbl.mem all_library_descs x then
       failwith ("You have added a function to invalidate_actions that already exists in libraries. Please undo this for function: " ^ x);
   ) invalidate_actions
 
