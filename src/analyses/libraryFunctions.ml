@@ -386,6 +386,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fsync", unknown [drop "fd" []]);
     ("fdatasync", unknown [drop "fd" []]);
     ("getrusage", unknown [drop "who" []; drop "usage" [w]]);
+    ("alphasort", unknown [drop "a" [r]; drop "b" [r]]);
   ]
 
 (** Pthread functions. *)
