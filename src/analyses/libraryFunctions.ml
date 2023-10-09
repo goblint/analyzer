@@ -1007,6 +1007,7 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("inflateInit2", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []]);
     ("inflateInit2_", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []; drop "version" [r]; drop "stream_size" []]);
     ("inflateEnd", unknown [drop "strm" [f_deep]]);
+    ("zError", unknown [drop "err" []]);
     ("gzopen", unknown [drop "path" [r]; drop "mode" [r]]);
     ("gzdopen", unknown [drop "fd" []; drop "mode" [r]]);
     ("gzread", unknown [drop "file" [r_deep; w_deep]; drop "buf" [w]; drop "len" []]);
