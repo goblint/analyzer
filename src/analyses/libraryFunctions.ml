@@ -246,6 +246,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
     ("ntohs", unknown [drop "netshort" []]);
     ("alarm", unknown [drop "seconds" []]);
+    ("pread", unknown [drop "fd" []; drop "buf" [w]; drop "count" []; drop "offset" []]);
     ("pwrite", unknown [drop "fd" []; drop "buf" [r]; drop "count" []; drop "offset" []]);
     ("hstrerror", unknown [drop "err" []]);
     ("inet_ntoa", unknown ~attrs:[ThreadUnsafe] [drop "in" []]);
@@ -379,6 +380,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("uname", unknown [drop "buf" [w_deep]]);
     ("strcasecmp", unknown [drop "s1" [r]; drop "s2" [r]]);
     ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("fsync", unknown [drop "fd" []]);
+    ("fdatasync", unknown [drop "fd" []]);
   ]
 
 (** Pthread functions. *)
@@ -443,6 +446,10 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_attr_setschedpolicy", unknown [drop "attr" [r; w]; drop "policy" []]);
     ("pthread_condattr_init", unknown [drop "attr" [w]]);
     ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
+    ("pthread_mutexattr_getpshared", unknown [drop "attr" [r]; drop "pshared" [w]]);
+    ("pthread_mutexattr_setpshared", unknown [drop "attr" [w]; drop "pshared" []]);
+    ("pthread_mutexattr_getrobust", unknown [drop "attr" [r]; drop "pshared" [w]]);
+    ("pthread_mutexattr_setrobust", unknown [drop "attr" [w]; drop "pshared" []]);
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
     ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
@@ -590,12 +597,15 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
     ("madvise", unknown [drop "addr" []; drop "length" []; drop "advice" []]);
     ("mremap", unknown (drop "old_address" [] :: drop "old_size" [] :: drop "new_size" [] :: drop "flags" [] :: VarArgs (drop "new_address" [])));
+    ("msync", unknown [drop "addr" []; drop "len" []; drop "flags" []]);
     ("inotify_init1", unknown [drop "flags" []]);
     ("inotify_add_watch", unknown [drop "fd" []; drop "pathname" [r]; drop "mask" []]);
     ("inotify_rm_watch", unknown [drop "fd" []; drop "wd" []]);
     ("fts_open", unknown [drop "path_argv" [r_deep]; drop "options" []; drop "compar" [s]]); (* TODO: use Call instead of Spawn *)
     ("fts_read", unknown [drop "ftsp" [r_deep; w_deep]]);
     ("fts_close", unknown [drop "ftsp" [f_deep]]);
+    ("statfs", unknown [drop "path" [r]; drop "buf" [w]]);
+    ("fstatfs", unknown [drop "fd" []; drop "buf" [w]]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -1134,7 +1144,6 @@ let invalidate_actions = [
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "umount2", readsAll;(*safe*)
     "waitpid", readsAll;(*safe*)
-    "statfs", writes [1;3;4];(*keep [1;3;4]*)
     "mount", readsAll;(*safe*)
     "__open_alias", readsAll;(*safe*)
     "__open_2", readsAll;(*safe*)
