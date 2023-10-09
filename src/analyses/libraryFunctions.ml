@@ -1228,32 +1228,16 @@ let invalidate_actions = [
     "__goblint_assume_join", readsAll;
   ]
 
-let () = List.iter (fun (x, _) ->
-    if Hashtbl.mem all_library_descs x then
-      failwith ("You have added a function to invalidate_actions that already exists in libraries. Please undo this for function: " ^ x);
-  ) invalidate_actions
-
-(* used by get_invalidate_action to make sure
- * that hash of invalidates is built only once
- *
- * Hashtable from strings to functions of type (exp list -> exp list)
-*)
-let processed_table = ref None
-
-let get_invalidate_action name =
-  let tbl = match !processed_table with
-    | None -> begin
-        let hash = Hashtbl.create 113 in
-        let f (k, v) = Hashtbl.add hash k v in
-        List.iter f invalidate_actions;
-        processed_table := (Some hash);
-        hash
-      end
-    | Some x -> x
-  in
-  if Hashtbl.mem tbl name
-  then Some (Hashtbl.find tbl name)
-  else None
+let invalidate_actions =
+  let tbl = Hashtbl.create 113 in
+  List.iter (fun (name, old_accesses) ->
+      Hashtbl.modify_opt name (function
+          | None when Hashtbl.mem all_library_descs name -> failwith (Format.sprintf "Library function %s specified both in libraries and invalidate actions" name)
+          | None -> Some old_accesses
+          | Some _ -> failwith (Format.sprintf "Library function %s specified multiple times in invalidate actions" name)
+        ) tbl
+    ) invalidate_actions;
+  tbl
 
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
@@ -1297,7 +1281,7 @@ let find f =
   match Hashtbl.find_option (ResettableLazy.force activated_library_descs) name with
   | Some desc -> desc
   | None ->
-    match get_invalidate_action name with
+    match Hashtbl.find_option invalidate_actions name with
     | Some old_accesses ->
       LibraryDesc.of_old old_accesses
     | None ->
