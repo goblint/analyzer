@@ -265,6 +265,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("access", unknown [drop "pathname" [r]; drop "mode" []]);
     ("ttyname", unknown ~attrs:[ThreadUnsafe] [drop "fd" []]);
     ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
+    ("shmget", unknown [drop "key" []; drop "size" []; drop "shmflag" []]);
+    ("shmat", unknown [drop "shmid" []; drop "shmaddr" []; drop "shmflag" []]) (* TODO: shmaddr? *);
+    ("shmdt", unknown [drop "shmaddr" []]) (* TODO: shmaddr? *);
     ("sched_get_priority_max", unknown [drop "policy" []]);
     ("mprotect", unknown [drop "addr" []; drop "len" []; drop "prot" []]);
     ("ftime", unknown [drop "tp" [w]]);
@@ -364,6 +367,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sigdelset", unknown [drop "set" [r; w]; drop "signum" []]);
     ("sigismember", unknown [drop "set" [r]; drop "signum" []]);
     ("sigprocmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
+    ("sigwait", unknown [drop "set" [r]; drop "sig" [w]]);
+    ("sigwaitinfo", unknown [drop "set" [r]; drop "info" [w]]);
+    ("sigtimedwait", unknown [drop "set" [r]; drop "info" [w]; drop "timeout" [r]]);
     ("fork", unknown []);
     ("dlopen", unknown [drop "filename" [r]; drop "flag" []]);
     ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
@@ -566,6 +572,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atoq", unknown [drop "nptr" [r]]);
     ("strchrnul", unknown [drop "s" [r]; drop "c" []]);
     ("getdtablesize", unknown []);
+    ("daemon", unknown [drop "nochdir" []; drop "noclose" []]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -1135,7 +1142,6 @@ let invalidate_actions = [
     "umount", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "unlink", readsAll;(*safe*)
-    "sigwait", writesAllButFirst 1 readsAll;(*drop 1*)
     "bindtextdomain", readsAll;(*safe*)
     "textdomain", readsAll;(*safe*)
     "dcgettext", readsAll;(*safe*)
