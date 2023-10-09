@@ -46,9 +46,6 @@ sig
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   (** Left fold (like List.fold_left) over the arrays elements *)
 
-  val content_to_top: t -> t
-  (** Maps the array's content to top of value, but keeps the type and the size if known *)
-
   val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> t
   val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool
@@ -75,8 +72,9 @@ sig
   include S0
 
   type ret = Null | NotNull | Top
+  type substr = IsNotSubstr | IsSubstrAtIndex0 | IsMaybeSubstr
 
-  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> ret
+  val get: VDQ.t -> t -> Basetype.CilExp.t option * idx -> ret
   (* overwrites get of module S *)
 
   val to_null_byte_domain: string -> t
@@ -94,11 +92,10 @@ sig
     * concatenation of the input abstract values [s1] and [s2], taking at most [n] bytes of
     * [s2] if present *)
 
-  val substring_extraction: t -> t -> bool * bool
-  (** [substring_extraction haystack needle] returns [is_null_ptr, is_offset_0], i.e. 
-    * [true, false] if the string represented by the abstract value [needle] surely isn't a 
-    * substring of [haystack], [false, true] if [needle] is the empty string, 
-    * else [false, false] *)
+  val substring_extraction: t -> t -> substr
+  (** [substring_extraction haystack needle] returns [IsNotSubstr] if the string represented by 
+    * the abstract value [needle] surely isn't a substring of [haystack], [IsSubstrAtIndex0] if 
+    * [needle] is the empty string, else [Unknown] *)
 
   val string_comparison: t -> t -> int option -> idx
   (** [string_comparison s1 s2 n] returns a negative / positive idx element if the string 
@@ -137,7 +134,7 @@ sig
   val is_null: t -> bool
   val is_not_null: t -> bool
 
-  val is_int_ikind: t -> Cil.ikind option
+  val get_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t
   val not_zero_of_ikind: Cil.ikind -> t
 end
@@ -170,10 +167,10 @@ module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): Str with type value =
   * for this domain. It additionally tracks the array size.
 *)
 
-module FlagHelperAttributeConfiguredArrayDomain (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
+module AttributeConfiguredArrayDomain (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
 
-module AttributeConfiguredArrayDomain (Val: LatticeWithNull) (Idx: IntDomain.Z): StrWithDomain with type value = Val.t and type idx = Idx.t
+module AttributeConfiguredAndNullByteArrayDomain (Val: LatticeWithNull) (Idx: IntDomain.Z): StrWithDomain with type value = Val.t and type idx = Idx.t
 (** Like FlagHelperAttributeConfiguredArrayDomain but additionally runs NullByte 
   * in parallel if flag "ana.base.arrays.nullbytes" is set. 
 *)

@@ -43,7 +43,7 @@ sig
   val is_null: t -> bool
   val is_not_null: t -> bool
 
-  val is_int_ikind: t -> Cil.ikind option
+  val get_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t
   val not_zero_of_ikind: Cil.ikind -> t
 
@@ -272,38 +272,19 @@ struct
   let is_top x = x = Top
   let top_name = "Unknown"
 
-  let null () = Int(ID.of_int IChar Z.zero)
+  let null () = Int (ID.of_int IChar Z.zero)
+
   let is_null = function
-    | Int n ->
-      begin match ID.to_int n with
-        | Some n -> Z.equal n Z.zero
-        | None -> false
-      end
+    | Int n -> GobOption.exists (Z.equal Z.zero) (ID.to_int n)
     | _ -> false
+
   let is_not_null = function
     | Int n ->
-      begin match ID.minimal n, ID.maximal n with
-        | Some min, Some max ->
-          if Z.gt min Z.zero || Z.lt max Z.zero then
-            true
-          else
-            false
-        | Some min, None ->
-          if Z.gt min Z.zero then
-            true
-          else
-            false
-        | None, Some max ->
-          if Z.lt max Z.zero then
-            true
-          else
-            false
-        | _ -> false
-      end
-    | Address a when AD.may_be_null a -> false
+      let zero_ik = ID.of_int (ID.ikind n) Z.zero in
+      ID.to_bool (ID.ne n zero_ik) = Some true
     | _ -> false (* we don't know anything *)
 
-  let is_int_ikind = function
+  let get_ikind = function
     | Int n -> Some (ID.ikind n)
     | _ -> None
   let zero_of_ikind ik = Int(ID.of_int ik Z.zero)
@@ -758,14 +739,14 @@ struct
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
-  let invalidate_abstract_value = function
+  let rec invalidate_abstract_value = function
     | Top -> Top
     | Int i -> Int (ID.top_of (ID.ikind i))
     | Float f -> Float (FD.top_of (FD.get_fkind f))
     | Address _ -> Address (AD.top_ptr)
-    | Struct _ -> Struct (Structs.top ())
-    | Union _ -> Union (Unions.top ())
-    | Array _ -> Array (CArrays.top ())
+    | Struct s -> Struct (Structs.map invalidate_abstract_value s)
+    | Union u -> Union (Unions.top ())
+    | Array a -> Array (CArrays.map invalidate_abstract_value a)
     | Blob _ -> Blob (Blobs.top ())
     | Thread _ -> Thread (Threads.top ())
     | JmpBuf _ -> JmpBuf (JmpBufs.top ())
@@ -1291,7 +1272,7 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
+and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
 

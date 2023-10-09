@@ -2047,7 +2047,7 @@ struct
     in
     let address_from_value (v:value) = match v with
       | Address a ->
-        let rec lo:'a Offset_intf.t -> 'a Offset_intf.t = function
+        let rec lo = function
           | `Index (i, `NoOffset) -> `NoOffset
           | `NoOffset -> `NoOffset
           | `Field (f, o) -> `Field (f, lo o)
@@ -2191,9 +2191,9 @@ struct
              if it surely isn't, assign a null_ptr *)
           string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address (AD.substring_extraction h_a n_a)))
               (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
-                | true, false -> Address (AD.null_ptr)
-                | false, true -> Address (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
-                | _ -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st
+                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
+                | CArrays.IsSubstrAtIndex0 -> Address (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
+                | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st
                                            (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
