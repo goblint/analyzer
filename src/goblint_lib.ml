@@ -49,7 +49,7 @@ module VarQuery = VarQuery
 (** {2 Configuration}
 
     Runtime configuration is represented as JSON.
-    Options are specified and documented by the JSON schema [src/util/options.schema.json]. *)
+    Options are specified and documented by the JSON schema [src/common/options.schema.json]. *)
 
 module GobConfig = GobConfig
 module AfterConfig = AfterConfig

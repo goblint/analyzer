@@ -1,4 +1,4 @@
-(** [src/util/options.schema.json] low-level access. *)
+(** [src/common/options.schema.json] low-level access. *)
 
 open Json_schema
 
