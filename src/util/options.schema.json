@@ -1002,6 +1002,12 @@
               "type": "boolean",
               "default": true
             },
+            "call": {
+              "title": "ana.race.call",
+              "description": "Report races for thread-unsafe function calls.",
+              "type": "boolean",
+              "default": true
+            },
             "direct-arithmetic": {
               "title": "ana.race.direct-arithmetic",
               "description": "Collect and distribute direct (i.e. not in a field) accesses to arithmetic types.",

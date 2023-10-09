@@ -444,6 +444,8 @@ let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
     false (* two read/read accesses do not race *)
   else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
     false
+  else if not (get_bool "ana.race.call") && (kind = Call || kind2 = Call) then
+    false
   else if not (MCPAccess.A.may_race acc acc2) then
     false (* analysis-specific information excludes race *)
   else

@@ -32,6 +32,14 @@
       "thread",
       "threadJoins"
     ],
+    "path_sens": [
+      "mutex",
+      "malloc_null",
+      "uninit",
+      "expsplit",
+      "activeSetjmp",
+      "threadid"
+    ],
     "context": {
       "widen": false
     },
@@ -52,13 +60,18 @@
 
         "ldv_xmalloc",
         "ldv_xzalloc",
-        "ldv_calloc"
+        "ldv_calloc",
+        "ldv_kzalloc"
       ]
     },
     "base": {
       "arrays": {
         "domain": "partitioned"
       }
+    },
+    "race": {
+      "free": false,
+      "call": false
     },
     "autotune": {
       "enabled": true,
