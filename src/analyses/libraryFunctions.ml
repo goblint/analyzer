@@ -1047,11 +1047,11 @@ let all_library_descs: (string, LibraryDesc.t) Hashtbl.t =
 let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
   let union =
     Hashtbl.merge (fun _ desc1 desc2 ->
-      match desc1, desc2 with
-      | (Some _ as desc), None
-      | None, (Some _ as desc) -> desc
-      | _, _ -> assert false
-    )
+        match desc1, desc2 with
+        | (Some _ as desc), None
+        | None, (Some _ as desc) -> desc
+        | _, _ -> assert false
+      )
   in
   ResettableLazy.from_fun (fun () ->
       GobConfig.get_string_list "lib.activated"
