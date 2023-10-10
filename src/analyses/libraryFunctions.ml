@@ -230,6 +230,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strnlen", unknown [drop "s" [r]; drop "maxlen" []]);
     ("chmod", unknown [drop "pathname" [r]; drop "mode" []]);
     ("fchmod", unknown [drop "fd" []; drop "mode" []]);
+    ("chown", unknown [drop "pathname" [r]; drop "owner" []; drop "group" []]);
     ("fchown", unknown [drop "fd" []; drop "owner" []; drop "group" []]);
     ("lchown", unknown [drop "pathname" [r]; drop "owner" []; drop "group" []]);
     ("clock_gettime", unknown [drop "clockid" []; drop "tp" [w]]);
@@ -475,6 +476,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_ctzl", unknown [drop "x" []]);
     ("__builtin_ctzll", unknown [drop "x" []]);
     ("__builtin_clz", unknown [drop "x" []]);
+    ("__builtin_clzl", unknown [drop "x" []]);
+    ("__builtin_clzll", unknown [drop "x" []]);
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
     ("__builtin_prefetch", unknown (drop "addr" [] :: VarArgs (drop' [])));
     ("__builtin_expect", special [__ "exp" []; drop' []] @@ fun exp -> Identity exp); (* Identity, because just compiler optimization annotation. *)
@@ -986,12 +989,23 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("inflateInit2", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []]);
     ("inflateInit2_", unknown [drop "strm" [r_deep; w_deep]; drop "windowBits" []; drop "version" [r]; drop "stream_size" []]);
     ("inflateEnd", unknown [drop "strm" [f_deep]]);
+    ("deflate", unknown [drop "strm" [r_deep; w_deep]; drop "flush" []]);
+    ("deflateInit2", unknown [drop "strm" [r_deep; w_deep]; drop "level" []; drop "method" []; drop "windowBits" []; drop "memLevel" []; drop "strategy" []]);
+    ("deflateInit2_", unknown [drop "strm" [r_deep; w_deep]; drop "level" []; drop "method" []; drop "windowBits" []; drop "memLevel" []; drop "strategy" []; drop "version" [r]; drop "stream_size" []]);
+    ("deflateEnd", unknown [drop "strm" [f_deep]]);
+    ("zlibVersion", unknown []);
   ]
 
 let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("lzma_code", unknown [drop "strm" [r_deep; w_deep]; drop "action" []]);
     ("lzma_auto_decoder", unknown [drop "strm" [r_deep; w_deep]; drop "memlimit" []; drop "flags" []]);
+    ("lzma_alone_decoder", unknown [drop "strm" [r_deep; w_deep]; drop "memlimit" []]);
+    ("lzma_stream_decoder", unknown [drop "strm" [r_deep; w_deep]; drop "memlimit" []; drop "flags" []]);
+    ("lzma_alone_encoder", unknown [drop "strm" [r_deep; w_deep]; drop "options" [r_deep]]);
+    ("lzma_easy_encoder", unknown [drop "strm" [r_deep; w_deep]; drop "preset" []; drop "check" []]);
     ("lzma_end", unknown [drop "strm" [r_deep; w_deep; f_deep]]);
+    ("lzma_version_string", unknown []);
+    ("lzma_lzma_preset", unknown [drop "options" [w_deep]; drop "preset" []]);
   ]
 
 let libraries = Hashtbl.of_list [
