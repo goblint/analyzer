@@ -389,6 +389,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("alphasort", unknown [drop "a" [r]; drop "b" [r]]);
     ("gmtime_r", unknown [drop "timer" [r]; drop "result" [w]]);
     ("rand_r", special [drop "seedp" [r; w]] Rand);
+    ("srandom", unknown [drop "seed" []]);
+    ("random", special [] Rand);
+    ("posix_memalign", unknown [drop "memptr" [w]; drop "alignment" []; drop "size" []]); (* TODO: Malloc *)
   ]
 
 (** Pthread functions. *)
