@@ -245,7 +245,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("symlink" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("ftruncate", unknown [drop "fd" []; drop "length" []]);
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
-    ("ntohs", unknown [drop "netshort" []]);
     ("alarm", unknown [drop "seconds" []]);
     ("pwrite", unknown [drop "fd" []; drop "buf" [r]; drop "count" []; drop "offset" []]);
     ("hstrerror", unknown [drop "err" []]);
@@ -276,7 +275,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
     ("fstat", unknown [drop "fd" []; drop "buf" [w]]);
     ("fstatat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "buf" [w]; drop "flags" []]);
-    ("getpwnam", unknown [drop "name" [r]]);
     ("chdir", unknown [drop "path" [r]]);
     ("closedir", unknown [drop "dirp" [r]]);
     ("mkdir", unknown [drop "pathname" [r]; drop "mode" []]);
@@ -298,7 +296,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("freeaddrinfo", unknown [drop "res" [f_deep]]);
     ("getgid", unknown []);
     ("pselect", unknown [drop "nfds" []; drop "readdfs" [r]; drop "writedfs" [r]; drop "exceptfds" [r]; drop "timeout" [r]; drop "sigmask" [r]]);
-    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("getnameinfo", unknown [drop "addr" [r_deep]; drop "addrlen" []; drop "host" [w]; drop "hostlen" []; drop "serv" [w]; drop "servlen" []; drop "flags" []]);
     ("strtok_r", unknown [drop "str" [r; w]; drop "delim" [r]; drop "saveptr" [r_deep; w_deep]]); (* deep accesses through saveptr if str is NULL: https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/string/strtok_r.c#L31-L40 *)
     ("kill", unknown [drop "pid" []; drop "sig" []]);
@@ -452,7 +449,6 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_attr_setschedpolicy", unknown [drop "attr" [r; w]; drop "policy" []]);
     ("pthread_condattr_init", unknown [drop "attr" [w]]);
     ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
-    ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
     ("pthread_setaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [r]]);
     ("pthread_getaffinity_np", unknown [drop "thread" []; drop "cpusetsize" []; drop "cpuset" [w]]);
@@ -1025,11 +1021,43 @@ let libraries = Hashtbl.of_list [
     ("liblzma", liblzma_descs_list);
   ]
 
+let libraries =
+  Hashtbl.map (fun library descs_list ->
+      let descs_tbl = Hashtbl.create 113 in
+      List.iter (fun (name, desc) ->
+          Hashtbl.modify_opt name (function
+              | None -> Some desc
+              | Some _ -> failwith (Format.sprintf "Library function %s specified multiple times in library %s" name library)
+            ) descs_tbl
+        ) descs_list;
+      descs_tbl
+    ) libraries
+
+let all_library_descs: (string, LibraryDesc.t) Hashtbl.t =
+  Hashtbl.fold (fun _ descs_tbl acc ->
+      Hashtbl.merge (fun name desc1 desc2 ->
+          match desc1, desc2 with
+          | Some _, Some _ -> failwith (Format.sprintf "Library function %s specified in multiple libraries" name)
+          | (Some _ as desc), None
+          | None, (Some _ as desc) -> desc
+          | None, None -> assert false
+        ) acc descs_tbl
+    ) libraries (Hashtbl.create 0)
+
 let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
+  let union =
+    Hashtbl.merge (fun _ desc1 desc2 ->
+      match desc1, desc2 with
+      | (Some _ as desc), None
+      | None, (Some _ as desc) -> desc
+      | _, _ -> assert false
+    )
+  in
   ResettableLazy.from_fun (fun () ->
-      let activated = List.unique (GobConfig.get_string_list "lib.activated") in
-      let desc_list = List.concat_map (Hashtbl.find libraries) activated in
-      Hashtbl.of_list desc_list
+      GobConfig.get_string_list "lib.activated"
+      |> List.unique
+      |> List.map (Hashtbl.find libraries)
+      |> List.fold_left union (Hashtbl.create 0)
     )
 
 let reset_lazy () =
@@ -1215,32 +1243,16 @@ let invalidate_actions = [
     "__goblint_assume_join", readsAll;
   ]
 
-let () = List.iter (fun (x, _) ->
-    if Hashtbl.exists (fun _ b -> List.mem_assoc x b) libraries then
-      failwith ("You have added a function to invalidate_actions that already exists in libraries. Please undo this for function: " ^ x);
-  ) invalidate_actions
-
-(* used by get_invalidate_action to make sure
- * that hash of invalidates is built only once
- *
- * Hashtable from strings to functions of type (exp list -> exp list)
-*)
-let processed_table = ref None
-
-let get_invalidate_action name =
-  let tbl = match !processed_table with
-    | None -> begin
-        let hash = Hashtbl.create 113 in
-        let f (k, v) = Hashtbl.add hash k v in
-        List.iter f invalidate_actions;
-        processed_table := (Some hash);
-        hash
-      end
-    | Some x -> x
-  in
-  if Hashtbl.mem tbl name
-  then Some (Hashtbl.find tbl name)
-  else None
+let invalidate_actions =
+  let tbl = Hashtbl.create 113 in
+  List.iter (fun (name, old_accesses) ->
+      Hashtbl.modify_opt name (function
+          | None when Hashtbl.mem all_library_descs name -> failwith (Format.sprintf "Library function %s specified both in libraries and invalidate actions" name)
+          | None -> Some old_accesses
+          | Some _ -> failwith (Format.sprintf "Library function %s specified multiple times in invalidate actions" name)
+        ) tbl
+    ) invalidate_actions;
+  tbl
 
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
@@ -1284,7 +1296,7 @@ let find f =
   match Hashtbl.find_option (ResettableLazy.force activated_library_descs) name with
   | Some desc -> desc
   | None ->
-    match get_invalidate_action name with
+    match Hashtbl.find_option invalidate_actions name with
     | Some old_accesses ->
       LibraryDesc.of_old old_accesses
     | None ->
