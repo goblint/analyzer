@@ -370,12 +370,19 @@ struct
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
 
-  let pretty_diff () (x,y) =
-    let f a n (module S : Lattice.S) x y =
-      if S.leq (obj x) (obj y) then a
-      else a ++ S.pretty_diff () (obj x, obj y) ++ text ". "
+  let pretty_diff () (xs, ys) =
+    let pretty_one a n (module S: Lattice.S) x y =
+      if S.leq (obj x) (obj y) then
+        a
+      else (
+        let doc = Pretty.dprintf "%s:%a" (find_spec_name n) S.pretty_diff (obj x, obj y) in
+        match a with
+        | None -> Some doc
+        | Some a -> Some (a ++ text "," ++ line ++ doc)
+      )
     in
-    binop_fold f nil x y
+    let doc = Option.default Pretty.nil (binop_fold pretty_one None xs ys) in
+    Pretty.dprintf "[@[%a@]]" Pretty.insert doc
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
