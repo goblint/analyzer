@@ -1,4 +1,4 @@
-(include_subdirs no)
+(include_subdirs unqualified)
 
 (library
  (name goblint_common)
@@ -24,5 +24,5 @@
     ppx_deriving_hash
     ppx_deriving_yojson
     ppx_blob))
- (preprocessor_deps (file options.schema.json)))
+ (preprocessor_deps (file util/options.schema.json)))
 
