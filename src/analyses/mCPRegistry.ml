@@ -149,20 +149,21 @@ struct
   let unop_map f x =
     List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
 
-  let pretty () x =
-    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
-    let xs = unop_fold f [] x in
-    match xs with
-    | [] -> text "[]"
-    | x :: [] -> x
-    | x :: y ->
-      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+  let pretty () xs =
+    let pretty_one a n (module S: Printable.S) x =
+      let doc = Pretty.dprintf "%s:%a" (find_spec_name n) S.pretty (obj x) in
+      match a with
+      | None -> Some doc
+      | Some a -> Some (a ++ text "," ++ line ++ doc)
+    in
+    let doc = Option.default Pretty.nil (unop_fold pretty_one None xs) in
+    Pretty.dprintf "[@[%a@]]" Pretty.insert doc
 
   let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
         let analysis_name = find_spec_name n in
-        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a
+      ) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
