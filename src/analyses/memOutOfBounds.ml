@@ -165,32 +165,23 @@ struct
         with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
       end
 
-  let rec cil_offs_to_idx ctx typ offs =
-    match offs with
-    | NoOffset -> intdom_of_int 0
-    | Field (field, o) ->
-      let field_as_offset = Field (field, NoOffset) in
-      let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset in
-      let bytes_offset = intdom_of_int (bits_offset / 8) in
-      let remaining_offset = cil_offs_to_idx ctx field.ftype o in
-      begin
-        try ID.add bytes_offset remaining_offset
-        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-      end
-    | Index (x, o) ->
-      begin try
-          begin match ctx.ask (Queries.EvalInt x) with
-            | `Top -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
-            | `Bot -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-            | `Lifted eval_x ->
-              let typ_size_in_bytes = size_of_type_in_bytes typ in
-              let casted_eval_x = ID.cast_to (Cilfacade.ptrdiff_ikind ()) eval_x in
-              let bytes_offset = ID.mul typ_size_in_bytes casted_eval_x in
-              let remaining_offset = cil_offs_to_idx ctx typ o in
-              ID.add bytes_offset remaining_offset
-          end
-        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-      end
+  let cil_offs_to_idx ctx typ offs =
+    (* TODO: Some duplication with convert_offset in base.ml, unclear how to immediately get more reuse *)
+    let rec convert_offset (ofs: offset) =
+      match ofs with
+      | NoOffset -> `NoOffset
+      | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
+      | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
+        `Index (ID.top (), convert_offset ofs)
+      | Index (exp, ofs) ->
+        let i = match ctx.ask (Queries.EvalInt exp) with
+          | `Lifted x -> x
+          | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+        in
+        `Index (i, convert_offset ofs)
+    in
+    PreValueDomain.Offs.to_index (convert_offset offs)
+
 
   let check_unknown_addr_deref ctx ptr =
     let may_contain_unknown_addr =
