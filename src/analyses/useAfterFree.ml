@@ -182,18 +182,10 @@ struct
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" ctx arg) args;
+    (* TODO: The 2nd component of the callee state needs to contain only the heap vars from the caller state which are reachable from: *)
+    (* * Global program variables *)
+    (* * The callee arguments *)
     [caller_state, (AllocaVars.empty (), snd caller_state)]
-  (* if AllocaVars.is_empty (fst caller_state) && HeapVars.is_empty (snd caller_state) then
-      [caller_state, caller_state]
-    else (
-      let reachable_from_args = List.fold_left (fun ad arg -> Queries.AD.join ad (ctx.ask (ReachableFrom arg))) (Queries.AD.empty ()) args in
-      if Queries.AD.is_top reachable_from_args || D.is_top caller_state then
-        [caller_state, caller_state]
-      else
-        let reachable_vars = Queries.AD.to_var_may reachable_from_args in
-        let callee_state = (AllocaVars.empty (), HeapVars.filter (fun var -> List.mem var reachable_vars) (snd caller_state)) in (* TODO: use AD.mem directly *)
-        [caller_state, callee_state]
-        ) *)
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
     let (caller_stack_state, caller_heap_state) = ctx.local in
