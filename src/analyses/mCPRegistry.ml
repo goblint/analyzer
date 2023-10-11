@@ -318,6 +318,7 @@ struct
   open Obj
 
   include DomListPrintable (PrintableOfRepresentativeSpec (DLSpec))
+  let name () = "MCP.P"
 
   type elt = (int * unknown) list
 
@@ -344,6 +345,7 @@ struct
   open Obj
 
   include DomListPrintable (PrintableOfLatticeSpec (DLSpec))
+  let name () = "MCP.D"
 
   let binop_fold f a (x:t) (y:t) =
     GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
