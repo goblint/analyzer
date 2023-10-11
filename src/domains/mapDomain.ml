@@ -68,11 +68,14 @@ end
 module Print (D: Printable.S) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
 struct
   let pretty () map =
-    let pretty_bindings () = M.fold (fun k v acc ->
-        acc ++ dprintf "%a ->@?  @[%a@]\n" D.pretty k R.pretty v
+    let doc = M.fold (fun k v acc ->
+        acc ++ dprintf "%a ->@?@[%a@]\n" D.pretty k R.pretty v
       ) map nil
     in
-    dprintf "@[{\n  @[%t@]}@]" pretty_bindings
+    if doc = Pretty.nil then
+      text "{}"
+    else
+      dprintf "@[{\n  @[%a@]}@]" Pretty.insert doc
 
   let show map = GobPretty.sprint pretty map
 
