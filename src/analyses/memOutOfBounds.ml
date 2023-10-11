@@ -490,10 +490,9 @@ struct
     match desc.special arglist with
     | Memset { dest; ch; count; } -> check_count ctx f.vname dest count;
     | Memcpy { dest; src; n = count; } ->
-      check_count ctx f.vname src count;
-      check_count ctx f.vname dest count;
-    | _ -> ();
-    ctx.local
+      (check_count ctx f.vname src count;
+       check_count ctx f.vname dest count;)
+    | _ -> ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     List.iter (fun arg -> check_exp_for_oob_access ctx arg) args;
