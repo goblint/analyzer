@@ -1,7 +1,5 @@
-//PARAM: --set ana.activated[+] useAfterFree --set ana.activated[+] threadJoins
+//PARAM: --set ana.activated[+] useAfterFree
 #include <stdlib.h>
-#include <stdio.h>
-#include <pthread.h>
 
 int *global;
 
