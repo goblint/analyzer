@@ -26,3 +26,4 @@
     ppx_blob))
  (preprocessor_deps (file util/options.schema.json)))
 
+(documentation)

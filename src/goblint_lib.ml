@@ -1,3 +1,4 @@
+(** Main library. *)
 
 (** {1 Framework} *)
 

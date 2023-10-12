@@ -125,3 +125,5 @@
     (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )
+
+(documentation)
