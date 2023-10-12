@@ -1764,35 +1764,33 @@ struct
       sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_spec g));
     }
 
-  let cycleDetection ctx v v' =
+  let cycleDetection ctx call =
     let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
     let global_visited_calls = LH.create 100 in
 
     (* DFS *)
-    let rec iter_call (path_visited_calls: LS.t) (call:Printable.Prod (CilType.Fundec) (S.C).t) =
-      let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
+    let rec iter_call (path_visited_calls: LS.t) ((fundec, _) as call) =
       if LS.mem call path_visited_calls then (
         AnalysisState.svcomp_may_not_terminate := true; (*set the indicator for a non-terminating program for the sv comp*)
         (*Cycle found*)
         let msgs =
           [
-            (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)" CilType.Fundec.pretty fundec_e, Some (M.Location.CilLocation fundec_e.svar.vdecl));
+            (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)" CilType.Fundec.pretty fundec, Some (M.Location.CilLocation fundec.svar.vdecl));
           ] in
         M.msg_group Warning ~category:NonTerminating "Recursion cycle" msgs) (* output a warning for non-termination*)
       else if not (LH.mem global_visited_calls call) then begin
         LH.replace global_visited_calls call ();
         let new_path_visited_calls = LS.add call path_visited_calls in
-        let gvar = V.call (fundec_e, context_e) in
+        let gvar = V.call call in
         let callers = G.callers (ctx.global gvar) in
         CallerSet.iter (fun to_call ->
             iter_call new_path_visited_calls to_call
           ) callers;
       end
     in
-    let callers = G.callers (ctx.global v) in
-    CallerSet.iter (iter_call LS.empty) callers
+    iter_call LS.empty call
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -1804,7 +1802,7 @@ struct
       begin match v with
         | `Left v' ->
           S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right v' -> cycleDetection ctx v v' (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
+        | `Right call -> cycleDetection ctx call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
       end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in
