@@ -4,7 +4,7 @@
  (name goblint_std)
  (public_name goblint.std)
  (libraries
-   batteries
+   batteries.unthreaded
    zarith
    goblint-cil
    fpath
