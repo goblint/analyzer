@@ -167,7 +167,7 @@ jobs:
         run: ./make.sh nat
 
       - name: Build Gobview
-        run: opam exec -- dune build gobview
+        run: ./make.sh view
 
       - name: Install selenium
         run: pip3 install selenium webdriver-manager
