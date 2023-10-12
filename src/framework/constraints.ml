@@ -1684,6 +1684,15 @@ struct
       )
       in
       List.iter handle_path (S.paths_as_set conv_ctx);
+      if !AnalysisState.should_warn && List.mem "termination" @@ get_string_list "ana.activated" then (
+        AnalysisState.svcomp_may_not_terminate := true;
+        let msgs =
+          [(Pretty.dprintf
+              "The program might not terminate! (Longjmp)",
+            None
+           );] in
+        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs
+      );
       S.D.bot ()
     | _ -> S.special conv_ctx lv f args
   let threadenter ctx = S.threadenter (conv ctx)
