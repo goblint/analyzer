@@ -9,11 +9,11 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %s\n" Version.goblint;
+  printf "Goblint version: %s\n" Goblint_build_info.version;
   printf "Cil version:     %s\n" Cil.cilVersion;
-  printf "Dune profile:    %s\n" ConfigProfile.profile;
+  printf "Dune profile:    %s\n" Goblint_build_info.dune_profile;
   printf "OCaml version:   %s\n" Sys.ocaml_version;
-  printf "OCaml flambda:   %s\n" ConfigOcaml.flambda;
+  printf "OCaml flambda:   %s\n" Goblint_build_info.ocaml_flambda;
   if get_bool "dbg.verbose" then (
     printf "Library versions:\n";
     List.iter (fun (name, version) ->
@@ -415,6 +415,10 @@ let preprocess_files () =
   );
   preprocessed
 
+(** Regex for special "paths" in cpp output:
+    <built-in>, <command-line>, but also translations! *)
+let special_path_regexp = Str.regexp "<.+>"
+
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
   (* get the AST *)
@@ -422,7 +426,8 @@ let parse_preprocessed preprocessed =
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
-    let transform_file (path_str, system_header) = if Str.string_match (Str.regexp "<.+>") path_str 0 then
+    let transform_file (path_str, system_header) =
+      if Str.string_match special_path_regexp path_str 0 then
         (path_str, system_header) (* ignore special "paths" *)
       else
         let path = Fpath.v path_str in

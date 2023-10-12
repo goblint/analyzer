@@ -5,10 +5,10 @@
    Node -> CilType -> Printable -> Goblintutil -> GobConfig -> Tracing -> Node *)
 
 module Make (M : sig
-  type t
-  type result
-  val eval : t -> result
-end) : sig
+    type t
+    type result
+    val eval : t -> result
+  end) : sig
   type t
   val make : M.t -> t
   val force : t -> M.result
@@ -20,8 +20,8 @@ end = struct
   let force l =
     match l.value with
     | `Closure arg ->
-        let v = M.eval arg in
-        l.value <- `Computed v;
-        v
+      let v = M.eval arg in
+      l.value <- `Computed v;
+      v
     | `Computed v -> v
 end
