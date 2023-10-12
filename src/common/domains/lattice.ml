@@ -4,12 +4,12 @@
 module Pretty = GoblintCil.Pretty
 
 (* module type Rel =
-sig
-  type t
-  type relation = Less | Equal | Greater | Uncomparable
-  val rel : t -> t -> relation
-  val in_rel : t -> relation -> t -> bool
-end *)
+   sig
+     type t
+     type relation = Less | Equal | Greater | Uncomparable
+     val rel : t -> t -> relation
+     val in_rel : t -> relation -> t -> bool
+   end *)
 
 (* partial order: elements might not be comparable and no bot/top -> join etc. might fail with exception Uncomparable *)
 exception Uncomparable
@@ -324,14 +324,14 @@ struct
     match (x,y) with
     | (`Lifted x, `Lifted y) ->
       (try `Lifted (Base.widen x y)
-      with Uncomparable -> `Top)
+       with Uncomparable -> `Top)
     | _ -> y
 
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) ->
       (try `Lifted (Base.narrow x y)
-      with Uncomparable -> `Bot)
+       with Uncomparable -> `Bot)
     | _ -> x
 end
 
