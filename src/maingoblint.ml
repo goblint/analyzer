@@ -9,11 +9,11 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %s\n" Version.goblint;
+  printf "Goblint version: %s\n" Goblint_build_info.version;
   printf "Cil version:     %s\n" Cil.cilVersion;
-  printf "Dune profile:    %s\n" ConfigProfile.profile;
+  printf "Dune profile:    %s\n" Goblint_build_info.dune_profile;
   printf "OCaml version:   %s\n" Sys.ocaml_version;
-  printf "OCaml flambda:   %s\n" ConfigOcaml.flambda;
+  printf "OCaml flambda:   %s\n" Goblint_build_info.ocaml_flambda;
   if get_bool "dbg.verbose" then (
     printf "Library versions:\n";
     List.iter (fun (name, version) ->
