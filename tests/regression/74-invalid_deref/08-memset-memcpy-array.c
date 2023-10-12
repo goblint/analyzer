@@ -6,13 +6,14 @@
 int main(int argc, char const *argv[]) {
     int arr[42]; // Size should be 168 bytes (with 4 byte ints)
     int *b = arr;
-    
+    int random;
+
 
     memset(b, 0, 168); //NOWARN
     memset(b, 0, sizeof(arr)); //NOWARN
     memset(b, 0, 169); //WARN
     memset(b, 0, sizeof(arr) + 1); //WARN
-    
+
     int *c = malloc(sizeof(arr)); // Size should be 168 bytes (with 4 byte ints)
     memcpy(b, c, 168); //NOWARN
     memcpy(b, c, sizeof(arr)); //NOWARN
@@ -26,7 +27,7 @@ int main(int argc, char const *argv[]) {
         memset(b, 0, 168); //WARN
         memcpy(b, c, 168); //WARN
     } else if (*(argv + 5)) {
-        int random = rand();
+        random = rand();
         b = &random;
         memset(b, 0, 168); //WARN
         memcpy(b, c, 168); //WARN
