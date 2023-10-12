@@ -147,6 +147,9 @@ struct
     end
 
     let add ctx (l:Mutexes.elt*bool) =
+      let (m, b) = l in
+      let m = Addr.top_indices m in
+      let l = (m, b) in
       let s,m = ctx.local in
       let s' = Lockset.add l s in
       match Addr.to_mval (fst l) with
