@@ -9,6 +9,15 @@ module B = Printable.UnitConf (struct let name = "•" end)
 module VFB =
 struct
   include Printable.Either (VF) (B)
+  let name () = "region"
+
+  let pretty () = function
+    | `Right () -> Pretty.text "•"
+    | `Left x -> VF.pretty () x
+
+  let show = function
+    | `Right () -> "•"
+    | `Left x -> VF.show x
 
   let printXml f = function
     | `Right () ->
@@ -51,6 +60,7 @@ end
 
 module RS = struct
   include PartitionDomain.Set (VFB)
+  let name () = "regions"
   let single_vf vf = singleton (VFB.of_vf vf)
   let single_bullet = singleton (VFB.bullet)
   let remove_bullet x = remove VFB.bullet x
