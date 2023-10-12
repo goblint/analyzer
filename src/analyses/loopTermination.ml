@@ -72,9 +72,7 @@ struct
              M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
            ()
          with Not_found ->
-           (* This should not happen as long as __goblint_bounded is only used
-            * for this analysis. *)
-           ())
+           failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable.")
       | _ -> ()
     else ()
 
