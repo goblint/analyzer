@@ -21,7 +21,7 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  __goblint_check(myglobal == 5); // TODO
+  __goblint_check(myglobal == 5);
   __VERIFIER_atomic_begin();
   __goblint_check(myglobal == 5);
   __VERIFIER_atomic_end();

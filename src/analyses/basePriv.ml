@@ -687,22 +687,27 @@ struct
 
   let startstate () = P.empty ()
 
-  let read_global ask getg (st: BaseComponents (D).t) x =
+  let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
     if P.mem x st.priv then
       CPA.find x st.cpa
+    else if ask.f MustBeAtomic then
+      VD.join (CPA.find x st.cpa) (getg (V.unprotected x))
     else if is_unprotected ask x then
       getg (V.unprotected x) (* CPA unnecessary because all values in GUnprot anyway *)
     else
       VD.join (CPA.find x st.cpa) (getg (V.protected x))
 
-  let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
+  let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     if not invariant then (
-      sideg (V.unprotected x) v;
+      if not (ask.f MustBeAtomic) then
+        sideg (V.unprotected x) v;
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
         sideg (V.protected x) v
         (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
     );
-    if is_unprotected ask x then
+    if ask.f MustBeAtomic then
+      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
+    else if is_unprotected ask x then
       st
     else
       {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
@@ -710,6 +715,7 @@ struct
   let lock ask getg st m = st
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    let atomic = LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_protected_by ask m x then ( (* is_in_Gm *)
@@ -718,6 +724,8 @@ struct
              then inner unlock shouldn't yet publish. *)
           if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
             sideg (V.protected x) v;
+          if atomic then
+            sideg (V.unprotected x) v;
 
           if is_unprotected_without ask x m then (* is_in_V' *)
             {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
