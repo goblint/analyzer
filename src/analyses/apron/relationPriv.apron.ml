@@ -483,47 +483,69 @@ struct
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
     RD.join get_mutex_global_g get_mutex_inits'
 
-  let read_global ask getg (st: relation_components_t) g x: RD.t =
+  let read_global (ask: Q.ask) getg (st: relation_components_t) g x: RD.t =
+    let atomic = ask.f MustBeAtomic in
     let rel = st.rel in
     (* lock *)
-    let rel = RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let rel =
+      if atomic && RD.mem_var rel (AV.global g) then
+        rel
+      else
+        RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
+    in
     (* read *)
     let g_var = AV.global g in
     let x_var = AV.local x in
     let rel_local = RD.add_vars rel [g_var] in
     let rel_local = RD.assign_var rel_local x_var g_var in
     (* unlock *)
-    let rel_local' =
-      if is_unprotected ask g then
-        RD.remove_vars rel_local [g_var]
-      else
-        rel_local
-    in
-    rel_local'
+    if not atomic then (
+      let rel_local' =
+        if is_unprotected ask g then
+          RD.remove_vars rel_local [g_var]
+        else
+          rel_local
+      in
+      rel_local'
+    )
+    else
+      rel_local
 
-  let write_global ?(invariant=false) ask getg sideg (st: relation_components_t) g x: relation_components_t =
+  let write_global ?(invariant=false) (ask: Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
+    let atomic = ask.f MustBeAtomic in
     let rel = st.rel in
     (* lock *)
-    let rel = RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let rel =
+      if atomic && RD.mem_var rel (AV.global g) then
+        rel
+      else
+        RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
+    in
     (* write *)
     let g_var = AV.global g in
     let x_var = AV.local x in
     let rel_local = RD.add_vars rel [g_var] in
     let rel_local = RD.assign_var rel_local g_var x_var in
     (* unlock *)
+    if not (ask.f MustBeAtomic) then (
     let rel_side = RD.keep_vars rel_local [g_var] in
-    sideg (V.global g) rel_side;
-    let rel_local' =
-      if is_unprotected ask g then
-        RD.remove_vars rel_local [g_var]
-      else
-        rel_local
-    in
-    {st with rel = rel_local'}
+      sideg (V.global g) rel_side;
+      let rel_local' =
+        if is_unprotected ask g then
+          RD.remove_vars rel_local [g_var]
+        else
+          rel_local
+      in
+      {st with rel = rel_local'}
+    )
+    else
+      {st with rel = rel_local}
+
 
   let lock ask getg (st: relation_components_t) m =
+    let atomic = LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: somehow actually unneeded here? *)
-    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let get_m = get_m_with_mutex_inits ask getg m in
       (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
@@ -535,11 +557,29 @@ struct
       st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
+    let atomic = LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
     let rel = st.rel in
-    let rel_side = keep_only_protected_globals ask m rel in
-    sideg (V.mutex m) rel_side;
-    let rel_local = remove_globals_unprotected_after_unlock ask m rel in
-    {st with rel = rel_local}
+    if not atomic then (
+      let rel_side = keep_only_protected_globals ask m rel in
+      sideg (V.mutex m) rel_side;
+      let rel_local = remove_globals_unprotected_after_unlock ask m rel in
+      {st with rel = rel_local}
+    )
+    else (
+      List.iter (fun var ->
+          match AV.find_metadata var with
+          | Some (Global g) -> sideg (V.global g) (RD.keep_vars rel [AV.global g])
+          | _ -> ()
+        ) (RD.vars rel);
+      let rel_local =
+        let newly_unprot var = match AV.find_metadata var with
+          | Some (Global g) -> is_unprotected ask g
+          | _ -> false
+        in
+        RD.remove_filter rel newly_unprot
+      in
+      {st with rel = rel_local}
+    )
 
   let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
