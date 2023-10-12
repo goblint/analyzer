@@ -1723,36 +1723,35 @@ module RecursionTermLifter (S: Spec)
 struct
   include S
 
-  (* contains all the callee fundecs*)
-  module V = GVarF(S.V)
+  (* contains all the callee fundecs and contexts *)
+  module V = GVarFC(S.V)(S.C)
 
-  (* Tuple containing the fundec and context of the caller *)
-  module CallGraphTuple = Printable.Prod (CilType.Fundec) (S.C)
+  (* Tuple containing the fundec and context of a caller *)
+  module Call = Printable.Prod (CilType.Fundec) (S.C)
 
   (* Set containing multiple caller tuples *)
-  module CallGraphSet = SetDomain.Make (CallGraphTuple)
-
-  (* Mapping from the callee context to the set of all caller tuples*)
-  module CallGraphMap = MapDomain.MapBot (S.C) (CallGraphSet)
+  module CallerSet = SetDomain.Make (Call)
 
   module G =
   struct
-    include Lattice.Lift2 (G) (CallGraphMap) (Printable.DefaultNames)
+    include Lattice.Lift2 (G) (CallerSet) (Printable.DefaultNames)
 
     let spec = function
       | `Bot -> G.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "RecursionTermLifter.spec"
-    let callGraph = function
-      | `Bot -> CallGraphMap.bot ()
+
+    let callers = function
+      | `Bot -> CallerSet.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "RecursionTermLifter.callGraph"
+
     let create_spec spec = `Lifted1 spec
-    let create_callGraph callGraph = `Lifted2 callGraph
+    let create_singleton_caller caller = `Lifted2 (CallerSet.singleton caller)
 
     let printXml f = function
       | `Lifted1 x -> G.printXml f x
-      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CallGraphMap.printXml x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CallerSet.printXml x
       | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
 
   end
@@ -1785,19 +1784,15 @@ struct
       else if not (LH.mem global_visited_calls call) then begin
         LH.replace global_visited_calls call ();
         let new_path_visited_calls = LS.add call path_visited_calls in
-        let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
-        let gmap = G.callGraph (ctx.global (fundec_e_typeV)) in
-        let callers: CallGraphSet.t = CallGraphMap.find (context_e) gmap in
-        CallGraphSet.iter (fun to_call ->
+        let gvar = V.call (fundec_e, context_e) in
+        let callers = G.callers (ctx.global gvar) in
+        CallerSet.iter (fun to_call ->
             iter_call new_path_visited_calls to_call
           ) callers;
       end
     in
-    let gmap = G.callGraph (ctx.global (v)) in
-    CallGraphMap.iter(fun key value ->
-        let call = (v', key) in
-        iter_call LS.empty call
-      ) gmap (* try all fundec + context pairs that are in the map *)
+    let callers = G.callers (ctx.global v) in
+    CallerSet.iter (iter_call LS.empty) callers
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -1825,30 +1820,27 @@ struct
   let assign ctx = S.assign (conv ctx)
   let vdecl ctx = S.vdecl (conv ctx)
 
-  (* c = context
-     t = set of tuples (fundec * context)
-  *)
-  let side_context sideg f c t =
-    if !AnalysisState.postsolving then
-      sideg (V.contexts f) (G.create_callGraph (CallGraphMap.singleton (c) (t)))
+
+  let record_call sideg callee caller =
+    sideg (V.call callee) (G.create_singleton_caller caller)
 
   let enter ctx  = S.enter (conv ctx)
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
   let combine_env ctx r fe f args fc es f_ask =
-    if !AnalysisState.postsolving then
-      let c_r: S.C.t = ctx.context () in (*Caller context*)
+    if !AnalysisState.postsolving then (
+      let c_r: S.C.t = ctx.context () in (* Caller context *)
       let nodeF = ctx.node in
-      let fd_r : fundec = Node.find_fundec nodeF in (*Caller fundec*)
-      let c_e: S.C.t = Option.get fc in (*Callee context*)
-      let fd_e : fundec = f in (*Callee fundec*)
-      let tup: (fundec * S.C.t) = (fd_r, c_r) in
-      let t = CallGraphSet.singleton (tup) in
-      side_context ctx.sideg fd_e (c_e) t;
-      S.combine_env (conv ctx) r fe f args fc es f_ask
-    else
-      S.combine_env (conv ctx) r fe f args fc es f_ask
+      let fd_r : fundec = Node.find_fundec nodeF in (* Caller fundec *)
+      let caller: (fundec * S.C.t) = (fd_r, c_r) in
+      let c_e: S.C.t = Option.get fc in (* Callee context *)
+      let fd_e : fundec = f in (* Callee fundec *)
+      let callee = (fd_e, c_e) in
+      record_call ctx.sideg callee caller
+    );
+    S.combine_env (conv ctx) r fe f args fc es f_ask
+
   let combine_assign ctx = S.combine_assign (conv ctx)
   let special ctx = S.special (conv ctx)
   let threadenter ctx = S.threadenter (conv ctx)
