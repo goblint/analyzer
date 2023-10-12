@@ -1,4 +1,5 @@
-//integer overflow
+// PARAM: --set ana.activated[+] "localTraces"
+//error in casting if --set local-traces.int-overflow.cast true
 
 void main() {
     unsigned short x = 1;
