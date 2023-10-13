@@ -470,6 +470,8 @@ struct
 
   let startstate () = ()
 
+  let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
+
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
     let get_mutex_inits = getg V.mutex_inits in
@@ -477,11 +479,17 @@ struct
     RD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
-    let get_mutex_global_g = getg (V.global g) in
+    let get_mutex_global_g = getg (V.mutex atomic_mutex) in
     let get_mutex_inits = getg V.mutex_inits in
     let g_var = AV.global g in
+    let get_mutex_global_g' = RD.keep_vars get_mutex_global_g [g_var] in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
-    RD.join get_mutex_global_g get_mutex_inits'
+    RD.join get_mutex_global_g' get_mutex_inits'
+
+  let get_mutex_global_g_with_mutex_inits' ask getg =
+    let get_mutex_global_g = getg (V.mutex atomic_mutex) in
+    let get_mutex_inits = getg V.mutex_inits in
+    RD.join get_mutex_global_g get_mutex_inits
 
   let read_global (ask: Q.ask) getg (st: relation_components_t) g x: RD.t =
     let atomic = ask.f MustBeAtomic in
@@ -490,6 +498,8 @@ struct
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
         rel
+      else if atomic then
+        RD.meet rel (get_mutex_global_g_with_mutex_inits' ask getg)
       else
         RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
     in
@@ -518,6 +528,8 @@ struct
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
         rel
+      else if atomic then
+        RD.meet rel (get_mutex_global_g_with_mutex_inits' ask getg)
       else
         RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
     in
@@ -527,9 +539,9 @@ struct
     let rel_local = RD.add_vars rel [g_var] in
     let rel_local = RD.assign_var rel_local g_var x_var in
     (* unlock *)
-    if not (ask.f MustBeAtomic) then (
-    let rel_side = RD.keep_vars rel_local [g_var] in
-      sideg (V.global g) rel_side;
+    if not atomic then (
+      let rel_side = RD.keep_vars rel_local [g_var] in
+      sideg (V.mutex atomic_mutex) rel_side;
       let rel_local' =
         if is_unprotected ask g then
           RD.remove_vars rel_local [g_var]
@@ -543,7 +555,7 @@ struct
 
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
+    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
     (* TODO: somehow actually unneeded here? *)
     if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
@@ -557,7 +569,7 @@ struct
       st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
+    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
     let rel = st.rel in
     if not atomic then (
       let rel_side = keep_only_protected_globals ask m rel in
@@ -566,11 +578,18 @@ struct
       {st with rel = rel_local}
     )
     else (
-      List.iter (fun var ->
+      (* List.iter (fun var ->
           match AV.find_metadata var with
-          | Some (Global g) -> sideg (V.global g) (RD.keep_vars rel [AV.global g])
+          | Some (Global g) -> sideg (V.mutex atomic_mutex) (RD.keep_vars rel [AV.global g])
           | _ -> ()
-        ) (RD.vars rel);
+        ) (RD.vars rel); *)
+      let rel_side = RD.keep_filter rel (fun var ->
+          match AV.find_metadata var with
+          | Some (Global g) -> true
+          | _ -> false
+        )
+      in
+      sideg (V.mutex atomic_mutex) rel_side;
       let rel_local =
         let newly_unprot var = match AV.find_metadata var with
           | Some (Global g) -> is_unprotected ask g
