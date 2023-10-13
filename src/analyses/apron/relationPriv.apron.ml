@@ -592,7 +592,7 @@ struct
       sideg (V.mutex atomic_mutex) rel_side;
       let rel_local =
         let newly_unprot var = match AV.find_metadata var with
-          | Some (Global g) -> is_unprotected ask g
+          | Some (Global g) -> is_unprotected_without ask g atomic_mutex
           | _ -> false
         in
         RD.remove_filter rel newly_unprot
