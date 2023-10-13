@@ -26,7 +26,7 @@ int main(void) {
   __VERIFIER_atomic_begin();
   // pthread_mutex_lock(&m);
   __goblint_check(g == h);
-  __VERIFIER_atomic_end(); // TODO: remove g, h from local state; currently remain because protected by __VERIFIER_atomic
+  __VERIFIER_atomic_end();
   // pthread_mutex_unlock(&m);
   pthread_join (id, NULL);
   return 0;
