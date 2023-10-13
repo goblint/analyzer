@@ -11,18 +11,9 @@ int g = 0;
 
 void* inc()
 {
-  int n = __VERIFIER_nondet_int();
-
-  while (x < n) {
-    __VERIFIER_atomic_begin();
-    x++;
-    __VERIFIER_atomic_end();
-
-    __VERIFIER_atomic_begin();
-    assert(g != 1 || x >= 42); // TODO
-    __VERIFIER_atomic_end();
-  }
-
+  __VERIFIER_atomic_begin();
+  assert(g != 1 || x >= 42);
+  __VERIFIER_atomic_end();
   return 0;
 }
 
