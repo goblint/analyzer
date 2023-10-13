@@ -10,6 +10,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module AD = ApronDomain.D2 (Man) in
     let diff_box = GobConfig.get_bool "ana.apron.invariant.diff-box" in
     let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): ApronDomain.S3) else (module AD)) in
+    let module AD = ApronDomain.Hoare (AD) in
     let module RD: RelationDomain.RD =
     struct
       module Var = ApronDomain.Var

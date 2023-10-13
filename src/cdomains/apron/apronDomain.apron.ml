@@ -232,6 +232,37 @@ sig
   include AOpsPure with type t := t
 end
 
+module AOpsImperativeOfPure (AOpsPure: AOpsPure): AOpsImperative with type t = AOpsPure.t ref =
+struct
+  open AOpsPure
+  type nonrec t = t ref
+
+  let add_vars_with d vs =
+    d := add_vars !d vs
+  let remove_vars_with d vs =
+    d := remove_vars !d vs
+  let remove_filter_with d f =
+    d := remove_filter !d f
+  let keep_vars_with d vs =
+    d := keep_vars !d vs
+  let keep_filter_with d f =
+    d := keep_filter !d f
+  let forget_vars_with d vs =
+    d := forget_vars !d vs
+  let assign_exp_with d v e no_ov =
+    d := assign_exp !d v e no_ov
+  let assign_var_with d v v' =
+    d := assign_var !d v v'
+  let substitute_exp_with d v e no_ov =
+    d := substitute_exp !d v e no_ov
+
+  let assign_exp_parallel_with d _ _ = failwith "TODO"
+  let assign_var_parallel_with d _ = failwith "TODO"
+  let substitute_exp_parallel_with d _ _ = failwith "TODO"
+  (* let substitute_var_parallel_with d _ = failwith "TODO" *)
+  let substitute_var_with d _ = failwith "TODO"
+end
+
 
 (** Convenience operations on A. *)
 module AOps0 (Tracked: Tracked) (Man: Manager) =
@@ -954,4 +985,97 @@ struct
   module Tracked = SharedFunctions.Tracked
   include BP0
   include AOpsPureOfImperative (BP0)
+end
+
+module Hoare0 (D: S3) =
+struct
+  include HoareDomain.SetEM (D)
+
+  let top_env env = singleton (D.top_env env)
+  let bot_env env = singleton (D.bot_env env)
+  let is_top_env s = D.is_top_env (choose s)
+  let is_bot_env s = D.is_bot_env (choose s)
+
+  let add_vars s vs = map (fun d -> D.add_vars d vs) s
+  let remove_vars s vs = map (fun d -> D.remove_vars d vs) s
+  let remove_filter s f = map (fun d -> D.remove_filter d f) s
+  let keep_vars s vs = map (fun d -> D.keep_vars d vs) s
+  let keep_filter s f = map (fun d -> D.keep_filter d f) s
+  let forget_vars s vs = map (fun d -> D.forget_vars d vs) s
+  let assign_exp s v e no_ov = map (fun d -> D.assign_exp d v e no_ov) s
+  let assign_var s v v' = map (fun d -> D.assign_var d v v') s
+  let substitute_exp s v e no_ov = map (fun d -> D.substitute_exp d v e no_ov) s
+end
+
+module Hoare (D: S3): S3 =
+struct
+  module H0 = Hoare0 (D)
+  module Tracked = SharedFunctions.Tracked
+  include H0
+
+  let top_env env = ref (top_env env)
+  let bot_env env = ref (bot_env env)
+  let is_top_env s = is_top_env !s
+  let is_bot_env s = is_bot_env !s
+  let equal s1 s2 = equal !s1 !s2
+  let hash s = hash !s
+  let compare s1 s2 = compare !s1 !s2
+  let show s = show !s
+  let pretty () s = pretty () !s
+  let printXml f s = printXml f !s
+  let to_yojson s = to_yojson !s
+  let tag s = tag !s
+  let arbitrary _ = failwith "TODO"
+  let relift s = ref (relift !s)
+  let leq s1 s2 = leq !s1 !s2
+  let join s1 s2 = ref (join !s1 !s2)
+  let meet s1 s2 = ref (meet !s1 !s2)
+  let widen s1 s2 = ref (widen !s1 !s2)
+  let narrow s1 s2 = ref (narrow !s1 !s2)
+  let pretty_diff () _ = failwith "TODO"
+  let bot () = ref (singleton (D.bot ()))
+  let top () = ref (singleton (D.top ()))
+  let is_bot s = is_bot !s
+  let is_top s = is_top !s
+
+
+  let add_vars s vs = ref (add_vars !s vs)
+  let remove_vars s vs = ref (remove_vars !s vs)
+  let remove_filter s f = ref (remove_filter !s f)
+  let keep_vars s vs = ref (keep_vars !s vs)
+  let keep_filter s f = ref (keep_filter !s f)
+  let forget_vars s vs = ref (forget_vars !s vs)
+  let assign_exp s v e no_ov = ref (assign_exp !s v e no_ov)
+  let assign_var s v v' = ref (assign_var !s v v')
+  let substitute_exp s v e no_ov = ref (substitute_exp !s v e no_ov)
+
+
+  include AOpsImperativeOfPure (H0)
+
+  let assign_var_parallel_with s vv's =
+    let ds = elements !s in
+    List.iter (fun d -> D.assign_var_parallel_with d vv's) ds;
+    s := of_list ds
+
+  let unify = meet
+
+  let copy s = ref !s
+  let vars_as_array _ = failwith "TODO"
+  let vars s = D.vars (choose !s)
+
+  type marshal = unit
+  let unmarshal _ = failwith "TODO"
+  let marshal _ = failwith "TODO"
+
+  let mem_var s v = D.mem_var (choose !s) v
+  let assign_var_parallel' _ _ _ = failwith "TODO"
+  let meet_tcons _ _ _ = failwith "TODO"
+  let to_lincons_array _ = failwith "TODO"
+  let of_lincons_array _ = failwith "TODO"
+  let cil_exp_of_lincons1 _ = failwith "TODO"
+  let invariant _ = failwith "TODO"
+  let assert_inv s e tv no_ov =
+    ref (map (fun d -> D.assert_inv d e tv no_ov) !s)
+  let eval_int s e no_ov =
+    fold (fun d acc -> Queries.ID.join (D.eval_int d e no_ov) acc) !s (Queries.ID.bot ())
 end
