@@ -13,8 +13,11 @@ let svcomp_may_invalid_free = ref false
 (** Whether an invalid pointer dereference happened *)
 let svcomp_may_invalid_deref = ref false
 
-(** Whether an invalid memtrack happened *)
+(** Whether a memory leak occurred and there's no reference to the leaked memory *)
 let svcomp_may_invalid_memtrack = ref false
+
+(** Whether a memory leak occurred *)
+let svcomp_may_invalid_memcleanup = ref false
 
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false

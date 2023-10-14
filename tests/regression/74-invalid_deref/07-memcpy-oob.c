@@ -31,13 +31,13 @@ int main(int argc, char const *argv[]) {
     memcpy(a, b, 40); //WARN
     memcpy(a, b, sizeof(a)); //WARN
 
-    memcpy(b, a, 60); //NOWARN
+    memcpy(b, a, 60); //WARN
     b += 1;
     memcpy(b, a, 60); //WARN
 
 
     s *s_ptr = malloc(sizeof(s));
-    memcpy(s_ptr, a, sizeof(s)); //NOWARN
+    memcpy(s_ptr, a, sizeof(s)); //WARN
     memcpy(s_ptr->a, 0, sizeof(s)); //WARN
     memcpy(s_ptr->b, 0, sizeof(s)); //WARN
 
