@@ -92,6 +92,6 @@ let to_string spec =
     | ValidMemtrack -> G, "valid-memtrack", false
     | MemorySafety -> G, "memory-safety", false (* TODO: That's false, it's currently here just to complete the pattern match *)
     | ValidMemcleanup -> G, "valid-memcleanup", false
-    | Termination -> F, "termination", false
+    | Termination -> F, "end", false
   in
   print_output prop spec_str is_neg
