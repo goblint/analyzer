@@ -18,6 +18,20 @@ let local_traces_specific_prefix = "__goblint__traces__"
 let local_traces_specific_prefix_regexp = Str.regexp_string local_traces_specific_prefix
 let local_traces_pthread_func_prefix = "pthread_mutex_"
 
+class witness_settings =
+  object(self)
+    val mutable xmlCreated : bool = false
+    
+    method setXmlCreated () =
+      xmlCreated <- true;
+
+    method getXmlCreated () =
+      xmlCreated;
+
+  end
+
+let witnessSettings = new witness_settings;;
+
 
 (* Get all edges with avoiding Skip and making connections avoiding some edges like Skip and custom mutex lock/unlock for global variables *)
 let get_local_trace_edges graph =
@@ -132,145 +146,176 @@ let get_local_trace_edges graph =
   let check_function_for_unreachable funcName = 
     Option.is_some (List.find_opt (fun fName -> fName=funcName) (get_unreach_functions ()))
   ;;
+
+  let is_sv_comp_specification_set () = 
+    (*get_bool "ana.sv-comp.enabled" && *)
+    get_string "ana.specification" <> ""
+  ;;
+
+  
 let create_witness graph violation_type = 
-    (*Violation witness header*)
-    let module GML = XmlGraphMlWriter in
-    let defParamFileName = try get_string violation_filename_parameter with Failure _ -> "" in
-    let out = open_out (if defParamFileName=="" then default_violation_filename else defParamFileName) in
-    let g = GML.start out in
+    (* Create witness only once to not overwrite file by possible other branches *)
+    if not (witnessSettings#getXmlCreated ())
+    then
+      let svCompPresent = is_sv_comp_specification_set() in
+      let svCompSpecification = if svCompPresent then Svcomp.Specification.of_option () else violation_type in
+      let are_spec_equal spec1 spec2 =
+        match (spec1, spec2) with
+        | (SvcompSpec.UnreachCall str1, SvcompSpec.UnreachCall str2) -> String.equal str1 str2
+        | (SvcompSpec.NoOverflow, SvcompSpec.NoOverflow) -> true
+        | _ -> false
+      in
+      let violationShouldBeSaved = if svCompPresent then are_spec_equal svCompSpecification violation_type else true in
+      (
+        witnessSettings#setXmlCreated(); 
+        if svCompPresent then (
+          print_endline ("SV-COMP specification: " ^ (Svcomp.Specification.to_string svCompSpecification)); 
+          let svcomp_result = if are_spec_equal svCompSpecification violation_type then Svcomp.Result.False (Some violation_type) else Svcomp.Result.Unknown in
+          print_endline ("SV-COMP result: " ^ Svcomp.Result.to_string svcomp_result);
+        );
+        if violationShouldBeSaved  then 
+        (
 
-    (*parameters*)
-    GML.write_key g "graph" "witness-type" "string" None;
-    GML.write_key g "graph" "sourcecodelang" "string" None;
-    GML.write_key g "graph" "producer" "string" None;
-    GML.write_key g "graph" "specification" "string" None;
-    GML.write_key g "graph" "programfile" "string" None;
-    GML.write_key g "graph" "programhash" "string" None;
-    GML.write_key g "graph" "architecture" "string" None;
-    GML.write_key g "graph" "creationtime" "string" None;
-    GML.write_key g "node" "entry" "boolean" (Some "false");
-    GML.write_key g "node" "sink" "boolean" (Some "false");
-    GML.write_key g "node" "violation" "boolean" (Some "false");
-    GML.write_key g "node" "violatedProperty" "string" None;
-    GML.write_key g "edge" "assumption" "string" None;
-    GML.write_key g "edge" "assumption.scope" "string" None;
-    GML.write_key g "edge" "assumption.resultfunction" "string" None;
-    GML.write_key g "edge" "control" "string" None;
-    GML.write_key g "edge" "startline" "int" None;
-    GML.write_key g "edge" "endline" "int" None;
-    GML.write_key g "edge" "startoffset" "int" None;
-    GML.write_key g "edge" "endoffset" "int" None;
-    GML.write_key g "edge" "enterLoopHead" "boolean" (Some "false");
-    GML.write_key g "edge" "enterFunction" "string" None;
-    GML.write_key g "edge" "returnFromFunction" "string" None;
-    GML.write_key g "edge" "threadId" "string" None;
-    GML.write_key g "edge" "createThread" "string" None;
+          (*Violation witness header*)
+          let module GML = XmlGraphMlWriter in
+          let defParamFileName = try get_string violation_filename_parameter with Failure _ -> "" in
+          let out = open_out (if defParamFileName=="" then default_violation_filename else defParamFileName) in
+          let g = GML.start out in
 
-    (*start graph*)
-    GML.start_graph g;
+          (*parameters*)
+          GML.write_key g "graph" "witness-type" "string" None;
+          GML.write_key g "graph" "sourcecodelang" "string" None;
+          GML.write_key g "graph" "producer" "string" None;
+          GML.write_key g "graph" "specification" "string" None;
+          GML.write_key g "graph" "programfile" "string" None;
+          GML.write_key g "graph" "programhash" "string" None;
+          GML.write_key g "graph" "architecture" "string" None;
+          GML.write_key g "graph" "creationtime" "string" None;
+          GML.write_key g "node" "entry" "boolean" (Some "false");
+          GML.write_key g "node" "sink" "boolean" (Some "false");
+          GML.write_key g "node" "violation" "boolean" (Some "false");
+          GML.write_key g "node" "violatedProperty" "string" None;
+          GML.write_key g "edge" "assumption" "string" None;
+          GML.write_key g "edge" "assumption.scope" "string" None;
+          GML.write_key g "edge" "assumption.resultfunction" "string" None;
+          GML.write_key g "edge" "control" "string" None;
+          GML.write_key g "edge" "startline" "int" None;
+          GML.write_key g "edge" "endline" "int" None;
+          GML.write_key g "edge" "startoffset" "int" None;
+          GML.write_key g "edge" "endoffset" "int" None;
+          GML.write_key g "edge" "enterLoopHead" "boolean" (Some "false");
+          GML.write_key g "edge" "enterFunction" "string" None;
+          GML.write_key g "edge" "returnFromFunction" "string" None;
+          GML.write_key g "edge" "threadId" "string" None;
+          GML.write_key g "edge" "createThread" "string" None;
 
-    GML.write_metadata g "witness-type" "violation_witness";
-    GML.write_metadata g "sourcecodelang" "C";
-    GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
-    GML.write_metadata g "specification" (Svcomp.Specification.to_string violation_type);
-    let lastNotErrorNode = get_last_not_error_node graph in 
-    let programfile = if (Option.is_none lastNotErrorNode) 
-                      then "-UNKNONN-FILE-"  
-                      else (Node.location (Option.get lastNotErrorNode).programPoint).file 
-    in
-    GML.write_metadata g "programfile" programfile;
-    let programhash = if (Option.is_none lastNotErrorNode) then "" else Sha256.(to_hex (file programfile)) in
-    GML.write_metadata g "programhash" programhash;
-    GML.write_metadata g "architecture" (get_string "exp.architecture");
-    GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
+          (*start graph*)
+          GML.start_graph g;
 
-    (*nodes and edges*)
-    let getId node = "N" ^ (string_of_int node.id) 
-    in
-    let make_assumption testExp conditionRes = 
-        let logicalExp = 
-          match testExp with
-            | BinOp(op, _, _, typ) -> 
-              (match op with |Lt |Gt |Le |Ge |Eq |Ne |LAnd |LOr -> true | _ -> false)
-            | _ -> false 
-        in
-        let strExp = Str.global_replace local_traces_specific_prefix_regexp "" (CilType.Exp.show testExp) in
-        if logicalExp 
-          then if conditionRes then strExp else  "!("^strExp^")"
-          else if conditionRes then "("^strExp^")!=0" else "("^strExp^")==0"      
-    in  
-    let write_node ?(violation=false) ?(entry=false) node = 
-      GML.write_node g (getId node) 
-                      (List.concat [
-                        begin if entry then [("entry", "true")] else [] end;
-                        begin if violation 
-                              then [("violation", "true"); 
-                                    ("violatedProperty", (get_violation_description violation_type node)) (*add line of violation*)
-                                   ] 
-                              else [] 
-                        end;
-                      ]); 
-    in 
-    let write_edge edge contextFunc entryFunc = match edge 
-          with (v1, ed, v2) -> 
-            let e:(CustomEdge.t) = ed in
-            let unsqueezeEntry, entryFunction = match e with | Entry (f) -> (true, f.svar.vname) | _ -> (false, entryFunc) in 
-            let returnFunction = match e with | Ret (_, f) -> f.svar.vname | _ -> "" in 
-            let testCondition, testExp, conditionRes = match e with | Test (exp, cond) -> (true, exp, cond) | _ -> (false, Const(CChr 'a'), false) in 
-            let isEntry = (String.length entryFunction)>0 in 
-            let isReturn = (String.length returnFunction)>0 in 
-            let isContextFunc = (String.length contextFunc)>0 in
-            GML.write_edge g (getId v1) (getId v2) 
-                          (List.concat [
-                            begin let loc = Node.location v1.programPoint in
-                              (* exclude line numbers from sv-comp.c and unknown line numbers *)
-                              if loc.file = programfile && loc.line <> -1 then
-                                [ ("startline", string_of_int loc.line); 
-                                  ("endline", string_of_int loc.line) ]
-                              else
-                                []
-                            end;
-                            [("local-trace-line", EdgeImpl.show e)];
-                            begin if ((not unsqueezeEntry) && (* not isEntry && *) not isReturn)
-                                  then [("assumption", 
-                                          if (testCondition) 
-                                            then make_assumption testExp conditionRes
-                                            else "1")
-                                       ]
-                                  else []
-                            end;      
-                            begin if (testCondition)
-                                  then [("control", if (conditionRes) then "condition-true" else "condition-false")]
-                                  else []  
-                            end;
-                            begin if (isContextFunc && (* not isEntry && *) not isReturn)
-                                  then ["assumption.scope", contextFunc] 
-                                  else [] 
-                            end;
-                            begin if isEntry then ["enterFunction", entryFunction] else [] 
-                            end;
-                            begin if isReturn then ["returnFromFunction", returnFunction] else [] 
-                            end;
-                          ]); 
-    in
-    let traceEdges = add_stack_to_edges (get_local_trace_edges graph) in
-    let entryNode = match traceEdges with 
-                      | (v1, _, _, _, _)::_ -> Some v1
-                      | [] -> None
-    in                  
-    List.iter 
-      (fun edge -> 
-        match edge with (v1, ed, v2, funcs, entryFunc) ->
-            let violation = v2.programPoint==LocalTrace.error_node in
-            let entry = if Option.is_some entryNode then (Option.get entryNode)==v1 else false in
-              write_node v1 ~entry:entry;
-              write_edge (v1, ed, v2) (if funcs==[] then "" else (List.hd funcs)) entryFunc;
-              if violation then 
-                (write_node v2 ~violation:true);   
-      ) 
-      traceEdges;
-    
-    GML.stop g;
-    close_out_noerr out;;
+          GML.write_metadata g "witness-type" "violation_witness";
+          GML.write_metadata g "sourcecodelang" "C";
+          GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
+          GML.write_metadata g "specification" (Svcomp.Specification.to_string violation_type);
+          let lastNotErrorNode = get_last_not_error_node graph in 
+          let programfile = if (Option.is_none lastNotErrorNode) 
+                            then "-UNKNONN-FILE-"  
+                            else (Node.location (Option.get lastNotErrorNode).programPoint).file 
+          in
+          GML.write_metadata g "programfile" programfile;
+          let programhash = if (Option.is_none lastNotErrorNode) then "" else Sha256.(to_hex (file programfile)) in
+          GML.write_metadata g "programhash" programhash;
+          GML.write_metadata g "architecture" (get_string "exp.architecture");
+          GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
+
+          (*nodes and edges*)
+          let getId node = "N" ^ (string_of_int node.id) 
+          in
+          let make_assumption testExp conditionRes = 
+              let logicalExp = 
+                match testExp with
+                  | BinOp(op, _, _, typ) -> 
+                    (match op with |Lt |Gt |Le |Ge |Eq |Ne |LAnd |LOr -> true | _ -> false)
+                  | _ -> false 
+              in
+              let strExp = Str.global_replace local_traces_specific_prefix_regexp "" (CilType.Exp.show testExp) in
+              if logicalExp 
+                then if conditionRes then strExp else  "!("^strExp^")"
+                else if conditionRes then "("^strExp^")!=0" else "("^strExp^")==0"      
+          in  
+          let write_node ?(violation=false) ?(entry=false) node = 
+            GML.write_node g (getId node) 
+                            (List.concat [
+                              begin if entry then [("entry", "true")] else [] end;
+                              begin if violation 
+                                    then [("violation", "true"); 
+                                          ("violatedProperty", (get_violation_description violation_type node)) (*add line of violation*)
+                                        ] 
+                                    else [] 
+                              end;
+                            ]); 
+          in 
+          let write_edge edge contextFunc entryFunc = match edge 
+                with (v1, ed, v2) -> 
+                  let e:(CustomEdge.t) = ed in
+                  let unsqueezeEntry, entryFunction = match e with | Entry (f) -> (true, f.svar.vname) | _ -> (false, entryFunc) in 
+                  let returnFunction = match e with | Ret (_, f) -> f.svar.vname | _ -> "" in 
+                  let testCondition, testExp, conditionRes = match e with | Test (exp, cond) -> (true, exp, cond) | _ -> (false, Const(CChr 'a'), false) in 
+                  let isEntry = (String.length entryFunction)>0 in 
+                  let isReturn = (String.length returnFunction)>0 in 
+                  let isContextFunc = (String.length contextFunc)>0 in
+                  GML.write_edge g (getId v1) (getId v2) 
+                                (List.concat [
+                                  begin let loc = Node.location v1.programPoint in
+                                    (* exclude line numbers from sv-comp.c and unknown line numbers *)
+                                    if loc.file = programfile && loc.line <> -1 then
+                                      [ ("startline", string_of_int loc.line); 
+                                        ("endline", string_of_int loc.line) ]
+                                    else
+                                      []
+                                  end;
+                                  [("local-trace-line", EdgeImpl.show e)];
+                                  begin if ((not unsqueezeEntry) && (* not isEntry && *) not isReturn)
+                                        then [("assumption", 
+                                                if (testCondition) 
+                                                  then make_assumption testExp conditionRes
+                                                  else "1")
+                                            ]
+                                        else []
+                                  end;      
+                                  begin if (testCondition)
+                                        then [("control", if (conditionRes) then "condition-true" else "condition-false")]
+                                        else []  
+                                  end;
+                                  begin if (isContextFunc && (* not isEntry && *) not isReturn)
+                                        then ["assumption.scope", contextFunc] 
+                                        else [] 
+                                  end;
+                                  begin if isEntry then ["enterFunction", entryFunction] else [] 
+                                  end;
+                                  begin if isReturn then ["returnFromFunction", returnFunction] else [] 
+                                  end;
+                                ]); 
+          in
+          let traceEdges = add_stack_to_edges (get_local_trace_edges graph) in
+          let entryNode = match traceEdges with 
+                            | (v1, _, _, _, _)::_ -> Some v1
+                            | [] -> None
+          in                  
+          List.iter 
+            (fun edge -> 
+              match edge with (v1, ed, v2, funcs, entryFunc) ->
+                  let violation = v2.programPoint==LocalTrace.error_node in
+                  let entry = if Option.is_some entryNode then (Option.get entryNode)==v1 else false in
+                    write_node v1 ~entry:entry;
+                    write_edge (v1, ed, v2) (if funcs==[] then "" else (List.hd funcs)) entryFunc;
+                    if violation then 
+                      (write_node v2 ~violation:true);   
+            ) 
+            traceEdges;
+          
+          GML.stop g;
+          close_out_noerr out;
+        )
+      );;
 
 end

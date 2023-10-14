@@ -13,6 +13,11 @@ Enable casting overflow for signed types:
 
 --set local-traces.int-overflow.cast true
 
+Run the analysis with specification:
+```bash
+./goblint --enable warn.debug tests/witness/14-reach-error-loop.c  --set "ana.activated[+]" localTraces --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )"  --set solver "WLLocTrac" --set warn_at "early" --set verify false --html > tmp.txt
+```
+
 Visualize with
 ```bash
 python3 -m http.server --directory result 8080
