@@ -18,14 +18,13 @@ let of_string s =
   let regexp_multiple = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )\nCHECK( init(main()), LTL(G \\(.*\\)) )\nCHECK( init(main()), LTL(G \\(.*\\)) )" in
   let regexp_single = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )" in
   let regexp_negated = Str.regexp "CHECK( init(main()), LTL(G ! \\(.*\\)) )" in
+  let regexp_finally = Str.regexp "CHECK( init(main()), LTL(F \\(.*\\)) )" in
   if Str.string_match regexp_negated s 0 then
     let global_not = Str.matched_group 1 s in
     if global_not = "data-race" then
       NoDataRace
     else if global_not = "overflow" then
       NoOverflow
-    else if global_not = "no-termination" then
-      Termination
     else
       let call_regex = Str.regexp "call(\\(.*\\)())" in
       if Str.string_match call_regex global_not 0 then
@@ -48,6 +47,12 @@ let of_string s =
       ValidMemcleanup
     else
       failwith "Svcomp.Specification.of_string: unknown global expression"
+  else if Str.string_match regexp_finally s 0 then
+    let finally = Str.matched_group 1 s in
+    if finally = "end" then
+      Termination
+    else
+      failwith "Svcomp.Specification.of_string: unknown finally expression"
   else
     failwith "Svcomp.Specification.of_string: unknown expression"
 
@@ -63,21 +68,30 @@ let of_option () =
     of_string s
 
 let to_string spec =
-  let print_output spec_str is_neg =
+  let module Prop = struct 
+    type prop = F | G
+    let string_of_prop = function
+      | F -> "F"
+      | G -> "G"
+  end 
+  in
+  let open Prop in
+  let print_output prop spec_str is_neg =
+    let prop = string_of_prop prop in
     if is_neg then
-      Printf.sprintf "CHECK( init(main()), LTL(G ! %s) )" spec_str
+      Printf.sprintf "CHECK( init(main()), LTL(%s ! %s) )" prop spec_str
     else
-      Printf.sprintf "CHECK( init(main()), LTL(G %s) )" spec_str
+      Printf.sprintf "CHECK( init(main()), LTL(%s %s) )" prop spec_str
   in
-  let spec_str, is_neg = match spec with
-    | UnreachCall f -> "call(" ^ f ^ "())", true
-    | NoDataRace -> "data-race", true
-    | NoOverflow -> "overflow", true
-    | ValidFree -> "valid-free", false
-    | ValidDeref -> "valid-deref", false
-    | ValidMemtrack -> "valid-memtrack", false
-    | Termination -> "no-termination", true
-    | MemorySafety -> "memory-safety", false (* TODO: That's false, it's currently here just to complete the pattern match *)
-    | ValidMemcleanup -> "valid-memcleanup", false
+  let prop, spec_str, is_neg = match spec with
+    | UnreachCall f -> G, "call(" ^ f ^ "())", true
+    | NoDataRace -> G, "data-race", true
+    | NoOverflow -> G, "overflow", true
+    | ValidFree -> G, "valid-free", false
+    | ValidDeref -> G, "valid-deref", false
+    | ValidMemtrack -> G, "valid-memtrack", false
+    | MemorySafety -> G, "memory-safety", false (* TODO: That's false, it's currently here just to complete the pattern match *)
+    | ValidMemcleanup -> G, "valid-memcleanup", false
+    | Termination -> F, "termination", false
   in
-  print_output spec_str is_neg
+  print_output prop spec_str is_neg
