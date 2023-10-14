@@ -23,6 +23,7 @@ module CfgTools = CfgTools
 module Analyses = Analyses
 module Constraints = Constraints
 module AnalysisState = AnalysisState
+module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
 
 (** Master control program (MCP) is the analysis specification for the dynamic product of activated analyses. *)
