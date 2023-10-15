@@ -94,6 +94,7 @@ struct
        let unlockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_unlock" in
        let rvalGlobals = get_all_globals rval VarinfoSet.empty in 
        print_string ("in assign, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
+       print_string ("in assign, lval: "^(CilType.Lval.show lval)^", and rval: "^ (CilType.Exp.show rval)^"\n");
        let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx in
        let resultList = List.fold (
            fun resultList_outter graph_outter ->
@@ -159,6 +160,8 @@ struct
                     ) [] sigmaList))@resultList_outter
          ) [] someTmp in
        resultList
+                   | (Mem Lval(Var(x), _), _) ->  
+                    Printf.printf "The assignment to dereference variable is in developing\n"; exit 0                   
                    | _ -> Printf.printf "This type of assignment is not supported in assign_on_node\n"; exit 0
 
     )
@@ -319,6 +322,7 @@ struct
                                               if (witnessCreated#getFlag ()) then (
                                                 let specification = witnessCreated#getSpecification () in
                                                 let _ = ViolationWitness.create_witness result_graph_with_error specification in
+                                                let _ = omitPostSolving#setFlag () in
                                                 exit 0
                                             ) else (
                                                 exit 0

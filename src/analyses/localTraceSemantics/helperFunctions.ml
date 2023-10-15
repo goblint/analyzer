@@ -185,7 +185,7 @@ let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma
   loop (graphSet_to_list candidates) []
 
 (* evaluates global variables *)
-let rec eval_global var graph node  =
+let rec eval_global var graph node =
   let result_node, result_edge = LocalTrace.find_globvar_assign_node var graph node in
   (match result_edge with
      (Assign(_, edgeExp)) -> (
@@ -339,7 +339,8 @@ and
 
 
      (* The only case where I need to evaluate a global *)
-     | Lval(Var(var), NoOffset) -> if var.vglob = true
+     | Lval(Var(var), NoOffset) -> 
+      if var.vglob = true
        then (
          let localGlobalVinfo = (customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name var) var.vtype) in
          if SigmaMap.mem localGlobalVinfo sigOld then
@@ -383,9 +384,47 @@ and
                    Lval(Var(var), NoOffset)
                   )))
 
-     (* | AddrOf (Var(v), NoOffset) ->  if v.vglob
-        then (Address(v), true, currentSigEnhanced, [], AddrOf (Var(customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name v) v.vtype), NoOffset))
-        else (Address(v), true, currentSigEnhanced, [], AddrOf (Var(v), NoOffset)) *)
+     | Lval(Mem(memExp), NoOffset) ->
+      (
+        let findOptVarDomain var sigEnhanced = 
+            let optVarDomainOld = SigmaMap.find_opt var sigOld in
+            if (optVarDomainOld==None) then (SigmaMap.find_opt var sigEnhanced) else optVarDomainOld   
+        in
+        let (memDomain, memSuccess, memSigEnhanced, memOtherValues, memNewExp) = eval_helper memExp currentSigEnhanced in
+        match memNewExp with 
+          | Lval(Var(var), NoOffset) ->
+            ( 
+            let optVarDomain = findOptVarDomain var memSigEnhanced in   
+            match optVarDomain with
+              | Some(Address(refV)) ->
+                (
+                  let optRefDomain = findOptVarDomain refV memSigEnhanced in
+                  match optRefDomain with 
+                    | None -> 
+                      print_string ("Variable value was not found in dereference operator: " ^ (CilType.Varinfo.show refV)^ "\n");
+                      nopVal currentSigEnhanced subexp 
+                    | Some vd ->
+                      (vd, memSuccess, NodeImpl.destruct_add_sigma currentSigEnhanced memSigEnhanced, memOtherValues, Lval(Mem(memNewExp), NoOffset))  
+                )
+              | Some(varDomain) ->
+                print_string ("Variable domain is not address of other variable for dereference operator: " ^ (show_varDomain varDomain)^ "\n");
+                nopVal currentSigEnhanced subexp  
+              | None -> 
+                  print_string ("Variable value was not found in dereference operator: " ^ (CilType.Varinfo.show var)^ "\n");
+                  nopVal currentSigEnhanced subexp
+            )    
+          | _ -> print_string ("For now supported only simple dereference operator over variable, but not for expression: " ^ (CilType.Exp.show memExp)^ "\n");
+                nopVal currentSigEnhanced subexp
+      )
+     (* | StartOf (Var(v), _) -> 
+        (print_string ("Start of operation over variable " ^ (CilType.Varinfo.show v)); exit 0) *)
+     
+     | AddrOf (Var(v), offset) ->  
+        (match eval_helper (Lval(Var(v), offset)) currentSigEnhanced with
+          | (varDomain, success, sigEnhanced, otherValues, newSubExp) ->
+              (Address(v), success, NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, AddrOf (Var(v), NoOffset))
+          | _ -> (Printf.printf "This should not happens \n"; nopVal currentSigEnhanced subexp) 
+        )
 
      (* unop expressions *)
      (* for type Integer *)
