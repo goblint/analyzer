@@ -158,22 +158,22 @@ let create_witness graph violation_type =
     if not (witnessSettings#getXmlCreated ())
     then
       let svCompPresent = is_sv_comp_specification_set() in
-      let svCompSpecification = if svCompPresent then Svcomp.Specification.of_option () else violation_type in
+      let svCompSpecification = if svCompPresent then Svcomp.Specification.of_option () else violation_type in 
       let are_spec_equal spec1 spec2 =
         match (spec1, spec2) with
         | (SvcompSpec.UnreachCall str1, SvcompSpec.UnreachCall str2) -> String.equal str1 str2
         | (SvcompSpec.NoOverflow, SvcompSpec.NoOverflow) -> true
         | _ -> false
       in
-      let violationShouldBeSaved = if svCompPresent then are_spec_equal svCompSpecification violation_type else true in
+      let svCompEqualWithViolation = if svCompPresent then are_spec_equal svCompSpecification violation_type else true in
       (
         witnessSettings#setXmlCreated(); 
         if svCompPresent then (
           print_endline ("SV-COMP specification: " ^ (Svcomp.Specification.to_string svCompSpecification)); 
-          let svcomp_result = if are_spec_equal svCompSpecification violation_type then Svcomp.Result.False (Some violation_type) else Svcomp.Result.Unknown in
+          let svcomp_result = if svCompEqualWithViolation then Svcomp.Result.False (Some violation_type) else Svcomp.Result.Unknown in
           print_endline ("SV-COMP result: " ^ Svcomp.Result.to_string svcomp_result);
         );
-        if violationShouldBeSaved  then 
+        if svCompEqualWithViolation  then 
         (
 
           (*Violation witness header*)
@@ -274,6 +274,11 @@ let create_witness graph violation_type =
                                       []
                                   end;
                                   [("local-trace-line", EdgeImpl.show e)];
+                                  begin
+                                    if v2.tid>0 then
+                                      [ "threadId", string_of_int v2.tid]
+                                    else []  
+                                  end;  
                                   begin if ((not unsqueezeEntry) && (* not isEntry && *) not isReturn)
                                         then [("assumption", 
                                                 if (testCondition) 
