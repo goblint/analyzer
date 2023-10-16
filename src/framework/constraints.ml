@@ -1663,7 +1663,8 @@ struct
         if M.tracing then Messages.tracel "longjmp" "Jumping to %a\n" JmpBufDomain.JmpBufSet.pretty targets;
         let handle_target target = match target with
           | JmpBufDomain.BufferEntryOrTop.AllTargets ->
-            M.warn ~category:Imprecise "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env
+            M.warn ~category:Imprecise "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env;
+            M.msg_final Error ~category:Unsound ~tags:[Category Imprecise; Category Call] "Longjmp to unknown target ignored"
           | Target (target_node, target_context) ->
             let target_fundec = Node.find_fundec target_node in
             if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
