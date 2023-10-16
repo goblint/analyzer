@@ -15,7 +15,7 @@ int main() {
     longjmp(*buf_ptr, 1); // NO CRASH: problem?!
   }
   else {
-    __goblint_check(1); // reachable
+    __goblint_check(1); // TODO reachable: https://github.com/goblint/analyzer/pull/1210#discussion_r1350021903
   }
   return 0;
 }
