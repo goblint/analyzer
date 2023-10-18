@@ -3,6 +3,7 @@
 open GoblintCil
 open Analyses
 open MessageCategory
+open AnalysisStateUtil
 
 module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
 
@@ -19,15 +20,24 @@ struct
 
   (* HELPER FUNCTIONS *)
   let warn_for_multi_threaded ctx =
-    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then
+    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then (
+      set_mem_safety_flag InvalidMemTrack;
+      set_mem_safety_flag InvalidMemcleanup;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program isn't running in single-threaded mode. A memory leak might occur due to multi-threading"
+    )
 
   let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
     let state = ctx.local in
     if not @@ D.is_empty state then
       match assert_exp_imprecise, exp with
-      | true, Some exp -> M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
-      | _ -> M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
+      | true, Some exp ->
+        set_mem_safety_flag InvalidMemTrack;
+        set_mem_safety_flag InvalidMemcleanup;
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
+      | _ ->
+        set_mem_safety_flag InvalidMemTrack;
+        set_mem_safety_flag InvalidMemcleanup;
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
 
   (* TRANSFER FUNCTIONS *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -44,7 +54,7 @@ struct
     | Realloc _ ->
       (* Warn about multi-threaded programs as soon as we encounter a dynamic memory allocation function *)
       warn_for_multi_threaded ctx;
-      begin match ctx.ask Queries.HeapVar with
+      begin match ctx.ask (Queries.AllocVar {on_stack = false}) with
         | `Lifted var -> D.add var state
         | _ -> state
       end
@@ -53,7 +63,7 @@ struct
         | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           begin match Queries.AD.choose ad with
-            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.remove v state (* Unique pointed to heap vars *)
+            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.remove v state (* Unique pointed to heap vars *)
             | _ -> state
           end
         | _ -> state
