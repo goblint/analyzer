@@ -28,6 +28,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (not arg_enabled) (module PathSensitive2)
             |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
+            |> lift true (module ContextGasLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
