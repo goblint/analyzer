@@ -508,22 +508,22 @@ struct
   module C = 
     struct 
       include Printable.Option (S.C) (struct let name = "context gas" end)
+      let context_gas = ref 100
     end
   module V = S.V
   module P = S.P
 
   let name () = S.name ()^" with context gas"
 
-  let context fd d = None (* TODO*)
+  let context fd d = if !C.context_gas == 0 then None else Some (S.context fd d) (* TODO*)
 
   let unlift c =
     match c with
   | Some x -> x
   | None -> ctx_failwith "context gas" (*TODO*)
 
-
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx =
-    {ctx with context = (fun () -> unlift (ctx.context ())) }
+    {ctx with context = (fun () -> unlift (ctx.context ())) } (*TODO eleganter?*)
   
   let convOpt c =
     match c with
@@ -533,6 +533,11 @@ struct
   (*let lift_fun ctx g h b =
     try h (g (conv ctx))
     with Ctx_failure _ -> b*)
+    
+  let enter ctx r f args = 
+    try C.context_gas := !C.context_gas - 1; 
+        S.enter (conv ctx) r f args 
+    with Ctx_failure _ -> []
 
   let sync ctx reason = try S.sync (conv ctx) reason with Ctx_failure _ -> S.D.bot ()
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -545,7 +550,6 @@ struct
   let asm ctx         = try S.asm (conv ctx) with Ctx_failure _ -> S.D.bot ()
   let skip ctx        = try S.skip (conv ctx) with Ctx_failure _ -> S.D.bot ()
   let special ctx r f args = try S.special (conv ctx) r f args with Ctx_failure _ -> S.D.bot ()
-  let enter ctx r f args = try S.enter (conv ctx) r f args with Ctx_failure _ -> []
   let combine_env ctx r fe f args fc es f_ask = 
     try S.combine_env (conv ctx) r fe f args (convOpt fc) es f_ask with Ctx_failure _ -> S.D.bot ()
   let combine_assign ctx r fe f args fc es f_ask =
