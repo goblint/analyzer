@@ -463,7 +463,7 @@ struct
     with Deadcode -> b
 
   let sync ctx reason = lift_fun ctx D.lift   S.sync   ((|>) reason)      `Bot
-
+  
   let enter ctx r f args =
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
@@ -489,6 +489,67 @@ struct
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
 
   let event (ctx:(D.t,G.t,C.t,V.t) ctx) (e:Events.t) (octx:(D.t,G.t,C.t,V.t) ctx):D.t = lift_fun ctx D.lift S.event ((|>) (conv octx) % (|>) e) `Bot
+end
+
+(** Lifts a [Spec] with the context gas variable. TODO *)
+module ContextGasLifter (S:Spec)
+  : Spec with module D = S.D
+          and module G = S.G
+=
+struct
+  include S
+  module D = S.D
+  module G = S.G
+  module C = 
+    struct 
+      include Printable.Option (S.C) (struct let name = "context gas" end)
+    end
+  module V = S.V
+  module P = S.P
+
+  let name () = S.name ()^" with context gas"
+
+  let context fd d = None (* TODO*)
+
+  let unlift c =
+    match c with
+  | Some x -> x
+  | None -> ctx_failwith "context gas" (*TODO*)
+
+
+  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx =
+    {ctx with context = (fun () -> unlift (ctx.context ())) }
+  
+  let convOpt c =
+    match c with
+  | Some x -> Some (unlift x)
+  | None -> None
+
+  (*let lift_fun ctx g h b =
+    try h (g (conv ctx))
+    with Ctx_failure _ -> b*)
+
+  let sync ctx reason = try S.sync (conv ctx) reason with Ctx_failure _ -> S.D.bot ()
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+                        try S.query (conv ctx) q with Ctx_failure _ -> Queries.Result.bot q
+  let assign ctx lval expr = try S.assign (conv ctx) lval expr with Ctx_failure _ -> S.D.bot ()
+  let vdecl ctx v     = try S.vdecl (conv ctx) v with Ctx_failure _ -> S.D.bot ()
+  let body ctx fundec = try S.body (conv ctx) fundec with Ctx_failure _ -> S.D.bot ()
+  let branch ctx e tv = try S.branch (conv ctx) e tv with Ctx_failure _ -> S.D.bot ()
+  let return ctx r f  = try S.return (conv ctx) r f with Ctx_failure _ -> S.D.bot ()
+  let asm ctx         = try S.asm (conv ctx) with Ctx_failure _ -> S.D.bot ()
+  let skip ctx        = try S.skip (conv ctx) with Ctx_failure _ -> S.D.bot ()
+  let special ctx r f args = try S.special (conv ctx) r f args with Ctx_failure _ -> S.D.bot ()
+  let enter ctx r f args = try S.enter (conv ctx) r f args with Ctx_failure _ -> []
+  let combine_env ctx r fe f args fc es f_ask = 
+    try S.combine_env (conv ctx) r fe f args (convOpt fc) es f_ask with Ctx_failure _ -> S.D.bot ()
+  let combine_assign ctx r fe f args fc es f_ask =
+    try S.combine_assign (conv ctx) r fe f args (convOpt fc) es f_ask with Ctx_failure _ -> S.D.bot ()
+  let paths_as_set ctx = try S.paths_as_set (conv ctx) with Ctx_failure _ -> []
+  let threadenter ctx lval f args = try S.threadenter (conv ctx) lval f args with Ctx_failure _ -> []
+  let threadspawn ctx lval f args fctx = try S.threadspawn (conv ctx) lval f args (conv fctx) with Ctx_failure _ -> S.D.bot ()
+  let event ctx e octx = try S.event (conv ctx) e (conv octx) with Ctx_failure _ -> S.D.bot ()
+
 end
 
 module type Increment =
