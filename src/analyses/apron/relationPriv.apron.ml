@@ -950,8 +950,10 @@ struct
     if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
     r
 
+  let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
+
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
       if not inits then
@@ -965,60 +967,95 @@ struct
     if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
     r
 
-  let read_global ask getg (st: relation_components_t) g x: RD.t =
+  let get_mutex_global_g_with_mutex_inits' inits ask getg =
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
+    if not inits then
+      get_mutex_global_g
+    else
+      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+      LRD.join get_mutex_global_g get_mutex_inits
+
+  let read_global (ask: Q.ask) getg (st: relation_components_t) g x: RD.t =
+    let atomic = ask.f MustBeAtomic in
     let _,lmust,l = st.priv in
     let rel = st.rel in
     let lm = LLock.global g in
     (* lock *)
-    let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g in
     let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let rel = Cluster.lock rel local_m tmp in
+    let rel =
+      if atomic && RD.mem_var rel (AV.global g) then
+        rel
+      else if atomic then
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg)
+      else
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
+    in
     (* read *)
     let g_var = AV.global g in
     let x_var = AV.local x in
     let rel_local = RD.add_vars rel [g_var] in
     let rel_local = RD.assign_var rel_local x_var g_var in
     (* unlock *)
-    let rel_local' =
-      if is_unprotected ask g then
-        RD.remove_vars rel_local [g_var]
-      else
-        rel_local
-    in
-    rel_local'
+    if not atomic then (
+      let rel_local' =
+        if is_unprotected ask g then
+          RD.remove_vars rel_local [g_var]
+        else
+          rel_local
+      in
+      rel_local'
+    )
+    else
+      rel_local
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
+    let atomic = ask.f MustBeAtomic in
     let w,lmust,l = st.priv in
     let lm = LLock.global g in
     let rel = st.rel in
     (* lock *)
-    let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g in
     let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let rel = Cluster.lock rel local_m tmp in
+    let rel =
+      if atomic && RD.mem_var rel (AV.global g) then
+        rel
+      else if atomic then
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg)
+      else
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
+    in
     (* write *)
     let g_var = AV.global g in
     let x_var = AV.local x in
     let rel_local = RD.add_vars rel [g_var] in
     let rel_local = RD.assign_var rel_local g_var x_var in
     (* unlock *)
-    let rel_side = RD.keep_vars rel_local [g_var] in
-    let rel_side = Cluster.unlock (W.singleton g) rel_side in
-    let tid = ThreadId.get_current ask in
-    let sidev = GMutex.singleton tid rel_side in
-    sideg (V.global g) (G.create_global sidev);
-    let l' = L.add lm rel_side l in
-    let rel_local' =
-      if is_unprotected ask g then
-        RD.remove_vars rel_local [g_var]
-      else
-        rel_local
-    in
-    {rel = rel_local'; priv = (W.add g w,LMust.add lm lmust,l')}
+    if not atomic then (
+      let rel_side = RD.keep_vars rel_local [g_var] in
+      let rel_side = Cluster.unlock (W.singleton g) rel_side in
+      let tid = ThreadId.get_current ask in
+      let sidev = GMutex.singleton tid rel_side in
+      sideg (V.mutex atomic_mutex) (G.create_global sidev);
+      let l' = L.add lm rel_side l in
+      let rel_local' =
+        if is_unprotected ask g then
+          RD.remove_vars rel_local [g_var]
+        else
+          rel_local
+      in
+      {rel = rel_local'; priv = (W.add g w,LMust.add lm lmust,l')}
+    )
+    else (
+      (* let rel_side = RD.keep_vars rel_local [g_var] in
+      let rel_side = Cluster.unlock (W.singleton g) rel_side in
+      let l' = L.add lm rel_side l in *)
+      {rel = rel_local; priv = (W.add g w,LMust.add lm lmust,l)}
+    )
 
   let lock ask getg (st: relation_components_t) m =
-    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
+    if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in
@@ -1032,23 +1069,45 @@ struct
     else
       st (* sound w.r.t. recursive lock *)
 
+  let keep_only_globals ask m oct =
+    let protected var = match AV.find_metadata var with
+      | Some (Global g) -> true
+      | _ -> false
+    in
+    RD.keep_filter oct protected
+
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
+    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
     let rel = st.rel in
     let w,lmust,l = st.priv in
-    let rel_local = remove_globals_unprotected_after_unlock ask m rel in
-    let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
-    let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
-    if not side_needed then
-      {rel = rel_local; priv = (w',lmust,l)}
-    else
-      let rel_side = keep_only_protected_globals ask m rel in
+    if not atomic then (
+      let rel_local = remove_globals_unprotected_after_unlock ask m rel in
+      let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
+      let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
+      if not side_needed then
+        {rel = rel_local; priv = (w',lmust,l)}
+      else
+        let rel_side = keep_only_protected_globals ask m rel in
+        let rel_side = Cluster.unlock w rel_side in
+        let tid = ThreadId.get_current ask in
+        let sidev = GMutex.singleton tid rel_side in
+        sideg (V.mutex m) (G.create_mutex sidev);
+        let lm = LLock.mutex m in
+        let l' = L.add lm rel_side l in
+        {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
+    )
+    else (
+      let rel_local = remove_globals_unprotected_after_unlock ask m rel in
+      let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
+      let rel_side = keep_only_globals ask m rel in
       let rel_side = Cluster.unlock w rel_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid rel_side in
-      sideg (V.mutex m) (G.create_mutex sidev);
+      sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm rel_side l in
       {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
+    )
 
   let thread_join ?(force=false) (ask:Q.ask) getg exp (st: relation_components_t) =
     let w,lmust,l = st.priv in
