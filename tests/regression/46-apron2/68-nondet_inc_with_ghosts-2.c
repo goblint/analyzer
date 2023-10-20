@@ -1,4 +1,4 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet --set sem.int.signed_overflow assume_none
+// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet --set sem.int.signed_overflow assume_none --enable ana.apron.threshold_widening
 #include <pthread.h>
 #include <assert.h>
 
@@ -16,7 +16,7 @@ void* inc()
   __VERIFIER_atomic_end();
 
   __VERIFIER_atomic_begin();
-  assert(x >= g); // TODO
+  assert(x >= g);
   __VERIFIER_atomic_end();
   return 0;
 }
