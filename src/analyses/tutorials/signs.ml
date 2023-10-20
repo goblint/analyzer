@@ -23,12 +23,12 @@ struct
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =
-    if Z.compare i Z.zero < 0 then Zero
-    else if Z.compare i Z.zero > 0 then Zero
+    if Z.compare i Z.zero < 0 then Neg
+    else if Z.compare i Z.zero > 0 then Pos
     else Zero
 
   let lt x y = match x, y with
-    | Neg, Pos | Neg, Zero -> true (* TODO: Maybe something missing? *)
+    | Neg, Pos | Neg, Zero | Pos, Zero -> true (* TODO: Maybe something missing? *)
     | _ -> false
 end
 
@@ -59,7 +59,7 @@ struct
 
   (* This should now evaluate expressions. *)
   let eval (d: D.t) (exp: exp): SL.t = match exp with
-    | Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
+    | Const (CInt (i, _, _)) -> SL.of_int i (* TODO: Fix me! *)
     | Lval (Var x, NoOffset) -> D.find x d
     | _ -> SL.top ()
 
