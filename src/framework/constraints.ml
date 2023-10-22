@@ -1532,6 +1532,7 @@ struct
   module V =
   struct
     include Printable.Either (S.V) (Printable.Either (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C)))
+    let name () = "longjmp"
     let s x = `Left x
     let longjmpto x = `Right (`Left x)
     let longjmpret x = `Right (`Right x)
