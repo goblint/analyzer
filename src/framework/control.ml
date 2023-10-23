@@ -34,7 +34,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
             (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
-               Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
+                Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
             |> lift true (module LongjmpLifter)
             |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
@@ -322,10 +322,10 @@ struct
         | MyCFG.Assign (lval,exp) ->
           if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
           (match lval, exp with
-            | (Var v,o), (AddrOf (Var f,NoOffset))
-              when v.vstorage <> Static && isFunctionType f.vtype ->
-              (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
-            | _ -> ()
+           | (Var v,o), (AddrOf (Var f,NoOffset))
+             when v.vstorage <> Static && isFunctionType f.vtype ->
+             (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
+           | _ -> ()
           );
           let res = Spec.assign {ctx with local = st} lval exp in
           (* Needed for privatizations (e.g. None) that do not side immediately *)
@@ -549,9 +549,9 @@ struct
             GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
             let module Meta = struct
-                type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GobSys.command_line; version = Goblint_build_info.version; timestamp = Unix.time (); localtime = GobUnix.localtime () }
-              end
+              type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
+              let json = to_yojson { command = GobSys.command_line; version = Goblint_build_info.version; timestamp = Unix.time (); localtime = GobUnix.localtime () }
+            end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
             Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
@@ -603,10 +603,10 @@ struct
       in
       let print_and_calculate_uncalled = function
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-            let cnt = Cilfacade.countLoc fn in
-            uncalled_dead := !uncalled_dead + cnt;
-            if get_bool "ana.dead-code.functions" then
-              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function '%a' is uncalled: %d LLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
+          let cnt = Cilfacade.countLoc fn in
+          uncalled_dead := !uncalled_dead + cnt;
+          if get_bool "ana.dead-code.functions" then
+            M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function '%a' is uncalled: %d LLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
@@ -638,35 +638,35 @@ struct
                NodeH.modify_opt node join by_node;
              );
            by_loc, by_node
-        in
+         in
 
-        let ask ?(node = MyCFG.dummy_node) loc =
-          let f (type a) (q : a Queries.t) : a =
-            match Hashtbl.find_option joined_by_loc loc with
-            | None -> Queries.Result.bot q
-            | Some local -> Query.ask_local_node gh node local q
-          in
-          ({ f } : Queries.ask)
-        in
+         let ask ?(node = MyCFG.dummy_node) loc =
+           let f (type a) (q : a Queries.t) : a =
+             match Hashtbl.find_option joined_by_loc loc with
+             | None -> Queries.Result.bot q
+             | Some local -> Query.ask_local_node gh node local q
+           in
+           ({ f } : Queries.ask)
+         in
 
-        (* A node is dead when its abstract value is bottom in all contexts;
-           it holds that: bottom in all contexts iff. bottom in the join of all contexts.
-           Therefore, we just answer whether the (stored) join is bottom. *)
-        let must_be_dead node =
-          NodeH.find_option joined_by_node node
-          (* nodes that didn't make it into the result are definitely dead (hence for_all) *)
-          |> GobOption.for_all Spec.D.is_bot
-        in
+         (* A node is dead when its abstract value is bottom in all contexts;
+            it holds that: bottom in all contexts iff. bottom in the join of all contexts.
+            Therefore, we just answer whether the (stored) join is bottom. *)
+         let must_be_dead node =
+           NodeH.find_option joined_by_node node
+           (* nodes that didn't make it into the result are definitely dead (hence for_all) *)
+           |> GobOption.for_all Spec.D.is_bot
+         in
 
-        let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
+         let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
 
-        let skipped_statements from_node edge to_node =
-          CfgTools.CfgEdgeH.find_default skippedByEdge (from_node, edge, to_node) []
-        in
+         let skipped_statements from_node edge to_node =
+           CfgTools.CfgEdgeH.find_default skippedByEdge (from_node, edge, to_node) []
+         in
 
-        Transform.run_transformations file active_transformations
-          { ask ; must_be_dead ; must_be_uncalled ;
-            cfg_forward = Cfg.next ; cfg_backward = Cfg.prev ; skipped_statements };
+         Transform.run_transformations file active_transformations
+           { ask ; must_be_dead ; must_be_uncalled ;
+             cfg_forward = Cfg.next ; cfg_backward = Cfg.prev ; skipped_statements };
       );
 
       lh, gh
