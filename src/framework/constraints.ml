@@ -520,20 +520,10 @@ struct
     | None -> ctx_failwith "context gas" (*TODO*)
 
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx =
-    (*if C.context_gas == 0 
-      then
-      {ctx with context = (fun () -> ) }
+    (*if !C.context_gas == 0 
+      then {ctx with context = (fun () -> )}
       else*)
     {ctx with context = (fun () -> Option.get (ctx.context ())) } (*TODO Raises Invalid_argument if o is None.?*)
-
-  (*let convOpt c =
-    match c with
-    | Some x -> Some (unlift x)
-    | None -> None*)
-
-  (*let lift_fun ctx g h b =
-    try h (g (conv ctx))
-    with Ctx_failure _ -> b*)
 
   let rec showExprList args = 
     match args with
