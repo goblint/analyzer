@@ -214,7 +214,7 @@ let create_witness graph violation_type =
 
           GML.write_metadata g "witness-type" "violation_witness";
           GML.write_metadata g "sourcecodelang" "C";
-          GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
+          GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Goblint_build_info.version);
           GML.write_metadata g "specification" (Svcomp.Specification.to_string violation_type);
           let lastNotErrorNode = get_last_not_error_node graph in 
           let programfile = if (Option.is_none lastNotErrorNode) 

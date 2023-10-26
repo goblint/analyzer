@@ -33,6 +33,9 @@ let shortUModule = Big_int_Z.big_int_of_int 65536
 let intUModule = Big_int_Z.big_int_of_string "4294967296" 
 let longlongUModule = Big_int_Z.big_int_of_string "18446744073709551616" 
 
+let bigIntOne = Big_int_Z.big_int_of_int 1
+let bigIntZero = Big_int_Z.zero_big_int
+
 let getIntMax ik = match ik with  
         | IInt -> intMax 
         | IUInt -> intUMax 
@@ -56,7 +59,11 @@ let getIntMin ik = match ik with
     | IChar | ISChar -> charMin
     | ILongLong -> longlongMin
     | _ -> Big_int_Z.zero_big_int
-  
+
+let isIntUnsigned ik = match ik with 
+  | IUChar | IUShort | IUInt | IULong | IULongLong -> true
+  | _ -> false
+
 let calculateIntOverflow v ik = match ik with 
     | IUInt | IUShort | IUChar | IULong | IULongLong -> Big_int_Z.(mod_big_int v (getIntUModule ik)) 
     | IChar | ISChar | IShort | IInt | ILong | ILongLong ->
@@ -77,6 +84,13 @@ let calculateIntBitwiseInversion v ik =
   let uV = calculateIntOverflow v uIk in
   let vuMax = Big_int_Z.(sub_big_int (getIntUModule uIk) (big_int_of_int 1)) in
   calculateIntOverflow (Big_int_Z.xor_big_int uV vuMax) ik
+
+let getVarIntKind vinfo = 
+    let vtyp = vinfo.vtype in
+    (match vtyp with 
+      | TInt(ik, _) -> ik
+      | _ -> IInt
+    )
 
 let isCastIntOverflowSupported = lazy ( 
      try GobConfig.get_bool "local-traces.int-overflow.cast" with Failure _ -> false
@@ -269,10 +283,10 @@ and
          in
          fun x1 x2 -> (match (x1,x2) with
              | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((checkSupportedInt ik1) && (checkSupportedInt ik2)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
-               (if positivFunc l1 u1 l2 u2 then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) )
+               (if positivFunc l1 u1 l2 u2 then (Int(bigIntOne, bigIntOne, ik) )
                 else 
-                  if negativFunc l1 u1 l2 u2 then (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik))
-                  else (print_string "Overlapping Lt is not supported\n"; exit 1)
+                  if negativFunc l1 u1 l2 u2 then (Int(bigIntZero, bigIntZero, ik))
+                  else (print_string "Overlapping intervals of binary operations is not supported\n"; exit 1)
                )
 
              | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0)
@@ -280,16 +294,16 @@ and
        | LAnd ->
           fun x1 x2 -> (match (x1,x2) with
             | (Int(l1,u1,ik1)), (Int(l2,u2,ik2)) -> 
-                let lAnd = if (l1<>Big_int_Z.zero_big_int && l2<>Big_int_Z.zero_big_int) then (Big_int_Z.big_int_of_int 1) else Big_int_Z.zero_big_int in
-                let uAnd = if (u1<>Big_int_Z.zero_big_int && u2<>Big_int_Z.zero_big_int) then (Big_int_Z.big_int_of_int 1) else Big_int_Z.zero_big_int in
+                let lAnd = if (l1<>bigIntZero && l2<>bigIntZero) then bigIntOne else bigIntZero in
+                let uAnd = if (u1<>bigIntZero && u2<>bigIntZero) then bigIntOne else bigIntZero in
                 Int(lAnd, uAnd, ik)
             | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
         | LOr ->
           fun x1 x2 -> (match (x1,x2) with
             | (Int(l1,u1,ik1)), (Int(l2,u2,ik2)) -> 
-                let lOr = if (l1<>Big_int_Z.zero_big_int || l2<>Big_int_Z.zero_big_int) then (Big_int_Z.big_int_of_int 1) else Big_int_Z.zero_big_int in
-                let uOr = if (u1<>Big_int_Z.zero_big_int || u2<>Big_int_Z.zero_big_int) then (Big_int_Z.big_int_of_int 1) else Big_int_Z.zero_big_int in
+                let lOr = if (l1<>bigIntZero || l2<>bigIntZero) then bigIntOne else bigIntZero in
+                let uOr = if (u1<>bigIntZero || u2<>bigIntZero) then bigIntOne else bigIntZero in
               Int(lOr, uOr, ik)
             | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
@@ -370,17 +384,20 @@ and
             | rest -> (rest, true,currentSigEnhanced,[], Lval(Var(var), NoOffset))
           )
           else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nThis means we choose a value for this trace\n");
+                let varIk = getVarIntKind var in
                 if not tv then (
-                  (Int(Big_int_Z.zero_big_int, Big_int_Z.zero_big_int, IInt), true, SigmaMap.add var (Int(Big_int_Z.zero_big_int, Big_int_Z.zero_big_int, IInt)) currentSigEnhanced,
+                  (Int(Big_int_Z.zero_big_int, Big_int_Z.zero_big_int, varIk), true, SigmaMap.add var (Int(Big_int_Z.zero_big_int, Big_int_Z.zero_big_int, varIk)) currentSigEnhanced,
                    [], Lval(Var(var), NoOffset))
                 )
                 else
-                  let randomNr = randomIntGenerator#getRandomValue (LocalTrace.hash graph) var in
-                  let randomVd = Int((Big_int_Z.big_int_of_int (randomNr)), (Big_int_Z.big_int_of_int (randomNr)),IInt) in
-                  (randomVd, true, SigmaMap.add var randomVd (currentSigEnhanced), [(var, (Int((Big_int_Z.big_int_of_int (randomNr+1)), (Big_int_Z.big_int_of_int (randomNr+1)),IInt)));
-                                                                                    (var, (Int((Big_int_Z.big_int_of_int (randomNr+2)), (Big_int_Z.big_int_of_int (randomNr+2)),IInt)));
-                                                                                    (var, (Int((Big_int_Z.big_int_of_int (randomNr+3)), (Big_int_Z.big_int_of_int (randomNr+3)),IInt)))
-                                                                                   ],
+                  let makeRandomVarVal nr = calculateIntOverflow (Big_int_Z.big_int_of_int (nr)) varIk in
+                  let randomNr = randomIntGenerator#getRandomValue (LocalTrace.hash graph) var (isIntUnsigned varIk) in
+                  let randomVd = Int(makeRandomVarVal randomNr, makeRandomVarVal randomNr, varIk) in
+                  (randomVd, true, SigmaMap.add var randomVd (currentSigEnhanced), 
+                  [ (var, (Int(makeRandomVarVal (randomNr+1), makeRandomVarVal (randomNr+1), varIk)));
+                    (var, (Int(makeRandomVarVal (randomNr+2), makeRandomVarVal (randomNr+2), varIk)));
+                    (var, (Int(makeRandomVarVal (randomNr+3), makeRandomVarVal (randomNr+3), varIk)))
+                  ],
                    Lval(Var(var), NoOffset)
                   )))
 
@@ -503,6 +520,68 @@ and
         in  
         if op = Lt || op = Gt || op = Le || op = Ge || op = Eq || op = Ne || op = LAnd || op = LOr || op = BAnd || op = BOr || op = BXor 
           then
+            let oppositeOperation oper = match oper with
+                | Lt -> Ge
+                | Gt -> Le
+                | Le -> Gt
+                | Ge -> Lt
+                | Eq -> Ne
+                | Ne -> Eq
+                | _ -> oper
+            in
+            let swapOperation oper = match oper with
+                | Lt -> Gt
+                | Gt -> Lt
+                | Le -> Ge
+                | Ge -> Le
+                | _ -> oper
+            in  
+            (* optimize process - only need variant with left known and right unknown *)
+            let makeBoolResult res = if res then bigIntOne else bigIntZero in  
+            let compareOneUnknownVar oper varRight lLeft uLeft ikLeft sigToAdd = 
+              let maxVal = getIntMax ikLeft in
+              let minVal = getIntMin ikLeft in
+              let firstNext = Big_int_Z.add_int_big_int 1 uLeft in
+              let firstBelow = Big_int_Z.add_int_big_int (-1) lLeft in
+              let nextExist = firstNext<=maxVal in
+              let belowExist = firstBelow>=minVal in
+              let nextOrBelow = 
+                    if nextExist then Int(firstNext, maxVal, ikLeft) else 
+                      if belowExist then Int(minVal, firstBelow, ikLeft) else Int(bigIntOne, bigIntZero, ikLeft) in
+              let leftIsTrue = lLeft<>bigIntZero && uLeft<>bigIntZero in 
+              let fullInterval = Int(minVal, maxVal, ikLeft) in
+              let trueInterval = Int(bigIntOne, maxVal, ikLeft) in
+              match oper with
+              | Lt ->
+                (makeBoolResult nextExist, true, if nextExist then (SigmaMap.add varRight (Int(firstNext ,maxVal, ikLeft)) sigToAdd) else sigToAdd)
+              | Le ->
+                (bigIntOne, true, SigmaMap.add varRight (Int(uLeft ,maxVal, ikLeft)) sigToAdd)
+              | Gt ->
+                (makeBoolResult belowExist, true, if belowExist then (SigmaMap.add varRight (Int(minVal ,firstBelow, ikLeft)) sigToAdd) else sigToAdd)
+              | Ge ->
+                (bigIntOne, true, SigmaMap.add varRight (Int(minVal, lLeft, ikLeft)) sigToAdd)
+              | Eq ->  
+                (bigIntOne, true, SigmaMap.add varRight (Int(lLeft, uLeft, ikLeft)) sigToAdd)
+              | Ne ->  
+                (makeBoolResult (nextExist||belowExist), true, if (nextExist||belowExist) then (SigmaMap.add varRight nextOrBelow sigToAdd) else sigToAdd)
+              | LOr -> 
+                (bigIntOne, true, SigmaMap.add varRight (if leftIsTrue then fullInterval else trueInterval) sigToAdd)
+              | LAnd ->  
+                (makeBoolResult leftIsTrue, true, SigmaMap.add varRight (if leftIsTrue then trueInterval else fullInterval) sigToAdd)
+              | _ -> (
+                  (print_string "Not all binary operation with one unknown variable is supported!\n");
+                  (bigIntZero, false, currentSigEnhanced)    
+              )
+            in
+            let processOneUnknownVar oper varRight lLeft uLeft ikLeft sigToAdd otherValues newExpr = 
+              if tv then 
+                let res, success, sigma = compareOneUnknownVar oper varRight lLeft uLeft ikLeft sigToAdd in
+                 (Int(res, res, ikLeft), success, sigma, otherValues, newExpr)
+              else 
+                let res, success, sigma  = compareOneUnknownVar (oppositeOperation oper) varRight lLeft uLeft ikLeft sigToAdd in
+                let invertRes = if res==bigIntZero then bigIntOne else bigIntZero in
+                 (Int(invertRes, invertRes, ikLeft), success, sigma, otherValues, newExpr)
+            in
             (* here is binary base comparison operations *) 
             match (binopExp1, binopExp2) with 
 
@@ -513,60 +592,146 @@ and
                 let newExpr = BinOp(op, Lval(Var(newVar1), NoOffset),Lval(Var(newVar2), NoOffset),TInt(biopIk, attr)) in
                 (* If one of var is global and the corresponding newVar is not in sigma, then this is not intended *)
                 if ((var1.vglob) && (not (SigmaMap.mem newVar1 sigOld))) || ((var2.vglob) && (not (SigmaMap.mem newVar2 sigOld)))
-                then (print_string ("Error: there is a global in expression 'var1 < var2' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0)
+                then (print_string ("Error: there is a global in expression 'var1 <binary-operation> var2' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0)
                 else if ((SigmaMap.mem newVar1 sigOld))&&((SigmaMap.mem newVar2 sigOld))
-                then (
-                  let vd1 = (SigmaMap.find newVar1 sigOld) in
-                  let vd2 = (SigmaMap.find newVar2 sigOld) in
-                  match vd1,vd2 with
-                  | (Int(l1,u1,k1)), (Int(l2,u2,k2)) ->
-                    if not (checkIntCanBinOp k1 k2) then (Printf.printf "This type of assignment is not supported in eval_helper in BinOp(var, var)\n"; exit 0);
-                    if (u1 <= l2) || (u2 <= l1) then ((get_binop_int op biopIk) (Int(l1, u1, k1)) (Int(l2, u2, k2)), true , currentSigEnhanced,[], newExpr)
-                    else
-                      (* overlap split *)
-                      (print_string "Overlapping intervals are not supported."; exit 0)
-                  | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, var)\n"; exit 0
-                )
-                else if SigmaMap.mem newVar1 sigOld then
-                  (print_string "nopVal created at binop Lt of two variables. second is unknown\n";
-                   match SigmaMap.find newVar1 sigOld with
-                   | Int(l1,u1,k1) -> if tv then (
-                       (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true, SigmaMap.add newVar2 (Int(Big_int_Z.add_int_big_int 1 u1,getIntMax k1, k1)) currentSigEnhanced, [], newExpr)
-                     )
-                     else (
-                       (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k1), true, SigmaMap.add newVar2 (Int(getIntMin k1,l1, k1)) currentSigEnhanced, [], newExpr)
-                     )
-                   | _ -> print_string "In expresion v1 <,>,.. v2, v1 has unexpected type"; exit 0
+                  then (
+                    let vd1 = (SigmaMap.find newVar1 sigOld) in
+                    let vd2 = (SigmaMap.find newVar2 sigOld) in
+                    match vd1,vd2 with
+                    | (Int(l1,u1,k1)), (Int(l2,u2,k2)) ->
+                      if not (checkIntCanBinOp k1 k2) then (Printf.printf "This type of assignment is not supported in eval_helper in BinOp(var, var)\n"; exit 0);
+                      if (u1 <= l2) || (u2 <= l1) then ((get_binop_int op biopIk) (Int(l1, u1, k1)) (Int(l2, u2, k2)), true , currentSigEnhanced,[], newExpr)
+                      else
+                        (* overlap split *)
+                        (print_string "Overlapping intervals are not supported."; exit 0)
+                    | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, var)\n"; exit 0
                   )
-                else if SigmaMap.mem newVar2 sigOld then
-                  (print_string "nopVal created at binop <Lt,Gt..> of two variables. first is unknown\n";
-                   match SigmaMap.find newVar2 sigOld with
-                   | Int(l2,u2,k2) -> if tv then (
-                       (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k2), true, SigmaMap.add newVar1 (Int(getIntMin k2,Big_int_Z.sub_big_int l2 (Big_int_Z.big_int_of_int 1), k2)) currentSigEnhanced, [], newExpr)
-                     )
-                     else (
-                       (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k2), true, SigmaMap.add newVar1 (Int(u2,getIntMax k2, k2)) currentSigEnhanced, [], newExpr)
-                     )
-                   | _ -> print_string "In expresion v1 <,>,.. v2, v1 has unexpected type"; exit 0
-                  )
-                else
-                  (print_string "nopVal created at binop Lt,Gt,.. of two variables. both are unknown\n";
-                   if tv then (
-                     let newOtherValues = [(newVar1, Int(intMin,Big_int_Z.big_int_of_int (-1), IInt));
-                                           (newVar1, Int(intMin,Big_int_Z.big_int_of_int (-2), IInt));
-                                           (newVar1, Int(intMin,Big_int_Z.big_int_of_int 1, IInt));
-                                           (newVar1, Int(intMin,Big_int_Z.big_int_of_int 2, IInt))
-                                          ] in
-                     (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, IInt), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int 1,intMax, IInt)) (SigmaMap.add newVar1 (Int(intMin,Big_int_Z.big_int_of_int 0, IInt)) currentSigEnhanced), newOtherValues, newExpr)
-                   )
-                   else(
-                     let newOtherValues = [(newVar2, Int(intMin,Big_int_Z.big_int_of_int (-1), IInt));
-                                           (newVar2, Int(intMin,Big_int_Z.big_int_of_int (-2), IInt));
-                                           (newVar2, Int(intMin,Big_int_Z.big_int_of_int 1, IInt));
-                                           (newVar2, Int(intMin,Big_int_Z.big_int_of_int 2, IInt))
-                                          ] in
-                     (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, IInt), true, SigmaMap.add newVar2 (Int(intMin,Big_int_Z.big_int_of_int 0, IInt)) (SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int 0,intMax, IInt)) currentSigEnhanced), newOtherValues, newExpr)
-                   )
+                  else if SigmaMap.mem newVar1 sigOld then
+                    (print_string "nopVal created at binop <Lt,Gt...> of two variables. second is unknown\n";
+                    match SigmaMap.find newVar1 sigOld with
+                    | Int(l1,u1,k1) -> processOneUnknownVar op newVar2 l1 u1 k1 currentSigEnhanced [] newExpr
+                    | _ -> print_string "In expresion v1 <,>,.. v2, v1 has unexpected type"; exit 0
+                    )
+                  else if SigmaMap.mem newVar2 sigOld then
+                    (print_string "nopVal created at binop <Lt,Gt..> of two variables. first is unknown\n";
+                    match SigmaMap.find newVar2 sigOld with
+                    | Int(l2,u2,k2) -> processOneUnknownVar (swapOperation op) newVar1 l2 u2 k2 currentSigEnhanced [] newExpr
+                    | _ -> print_string "In expresion v1 <,>,.. v2, v1 has unexpected type"; exit 0
+                    )
+                  else
+                    (* Here is improved  intervals building for each operation *)
+                    (print_string "nopVal created at binop Lt,Gt,.. of two variables. both are unknown\n";
+                    let varIk = getVarIntKind newVar1 in
+                    let varMin = getIntMin varIk in
+                    let varMax = getIntMax varIk in
+                    let pointOfSplit = if isIntUnsigned varIk then Big_int_Z.shift_right_towards_zero_big_int varMax 1 else bigIntZero in 
+                    let nextPointOfSplit = Big_int_Z.add_int_big_int 1 pointOfSplit in
+                    let makeInterval point isLeft = if isLeft then Int(varMin, point, varIk) else Int(point, varMax, varIk) in
+                    let makeSigma var1Interval var2Interval = SigmaMap.add newVar2 var2Interval (SigmaMap.add newVar1 var1Interval currentSigEnhanced) in
+                    let rec makeOtherValues var point isLeft count = 
+                        if count<=0 then [] 
+                        else 
+                          let nextPoint = if isLeft then Big_int_Z.add_int_big_int (-1) point else Big_int_Z.add_int_big_int 1 point in
+                          let interval = if isLeft then Int(varMin, nextPoint, varIk) else Int(nextPoint, varMax, varIk) in
+                          (var, interval)::(makeOtherValues var nextPoint isLeft (count-1))
+                    in
+                    let getRandomVal () = calculateIntOverflow (Big_int_Z.big_int_of_int (randomIntGenerator#getRandomValue (LocalTrace.hash graph) newVar1 (isIntUnsigned varIk))) varIk in  
+
+                    match op with 
+                      | Lt -> 
+                        if tv then 
+                          ( Int(bigIntOne, bigIntOne, varIk), 
+                            true,
+                            makeSigma (makeInterval pointOfSplit true) (makeInterval nextPointOfSplit false),
+                            makeOtherValues newVar1 pointOfSplit true 2,
+                            newExpr
+                          )
+                        else
+                          ( Int(bigIntZero, bigIntZero, varIk), 
+                            true,
+                            makeSigma (makeInterval nextPointOfSplit false) (makeInterval pointOfSplit true),
+                            makeOtherValues newVar2 pointOfSplit true 2,
+                            newExpr
+                          )   
+                      | Le -> 
+                        if tv then
+                        ( Int(bigIntOne, bigIntOne, varIk), 
+                          true,
+                          makeSigma (makeInterval pointOfSplit true) (makeInterval pointOfSplit false),
+                          makeOtherValues newVar1 pointOfSplit true 2,
+                          newExpr
+                        )
+                        else 
+                          ( Int(bigIntZero, bigIntZero, varIk), 
+                            true,
+                            makeSigma (makeInterval pointOfSplit false) (makeInterval pointOfSplit true),
+                            makeOtherValues newVar2 pointOfSplit true 2,
+                            newExpr
+                          )
+                      | Gt -> 
+                        if tv then
+                          ( Int(bigIntOne, bigIntOne, varIk), 
+                            true,
+                            makeSigma (makeInterval nextPointOfSplit false) (makeInterval pointOfSplit true),
+                            makeOtherValues newVar1 nextPointOfSplit false 2,
+                            newExpr
+                          )
+                        else
+                          ( Int(bigIntZero, bigIntZero, varIk), 
+                            true,
+                            makeSigma (makeInterval pointOfSplit true) (makeInterval nextPointOfSplit false),
+                            makeOtherValues newVar2 nextPointOfSplit false 2,
+                            newExpr
+                          )   
+                      | Ge -> 
+                        if tv then
+                        ( Int(bigIntOne, bigIntOne, varIk), 
+                          true,
+                          makeSigma (makeInterval pointOfSplit false) (makeInterval pointOfSplit true),
+                          makeOtherValues newVar1 nextPointOfSplit false 2,
+                          newExpr
+                        )
+                        else 
+                        ( Int(bigIntZero, bigIntZero, varIk), 
+                          true,
+                          makeSigma (makeInterval pointOfSplit false) (makeInterval pointOfSplit true),
+                          makeOtherValues newVar2 pointOfSplit true 2,
+                          newExpr
+                        ) 
+                      | Eq ->
+                        if tv then  
+                          let randomVal = getRandomVal () in
+                          ( Int(bigIntOne, bigIntOne, varIk), 
+                          true,
+                          makeSigma (Int(randomVal, randomVal, varIk)) (Int(randomVal, randomVal, varIk)),
+                          [],
+                          newExpr
+                          )
+                        else
+                          ( Int(bigIntZero, bigIntZero, varIk), 
+                          true,
+                          makeSigma (makeInterval pointOfSplit true) (makeInterval nextPointOfSplit false),
+                          makeOtherValues newVar2 nextPointOfSplit false 2,
+                          newExpr
+                          )
+                      | Ne ->
+                        if tv then  
+                          ( Int(bigIntOne, bigIntOne, varIk), 
+                          true,
+                          makeSigma (makeInterval pointOfSplit true) (makeInterval nextPointOfSplit false),
+                          makeOtherValues newVar1 pointOfSplit true 2,
+                          newExpr
+                          )
+                        else
+                          let randomVal = getRandomVal () in
+                          ( Int(bigIntZero, bigIntZero, varIk), 
+                          true,
+                          makeSigma (Int(randomVal, randomVal, varIk)) (Int(randomVal, randomVal, varIk)),
+                          [],
+                          newExpr
+                          )
+                        | _ -> (print_string "Not all binary operation with both unknown variable's values are supported!\n");
+                              (Int(bigIntZero, bigIntZero, varIk), false, currentSigEnhanced, [], newExpr)             
                   )
                 )
 
@@ -594,14 +759,10 @@ and
                                                             | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
                     else (
                       if var.vglob then (print_string("Error: there is a global in expression 'exp <,>,.. var' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
-                      if tv then
-                        let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), getIntMax k, k)) (SigmaMap.empty)) in 
-                        (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
-                      else
-                        let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(getIntMin k, l, k)) (SigmaMap.empty)) in 
-                        (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
-                    )
+                      processOneUnknownVar op newVar l u k (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) otherValues newExpr
+
                   )
+                )
                 | (_,false, sigEnhanced,_, newBinOpExp1) -> nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) newBinOpExp1
                 | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0
               )
@@ -629,12 +790,7 @@ and
                                                             | other -> print_string ("This type of assignment is not supported in eval_helper BinOp(var, exp), var="^(CilType.Varinfo.show newVar)^" is not an Integer in sigOld:"^(show_varDomain other)^"\n"); exit 0)
                     else (
                       if var.vglob then (print_string("Error: there is a global in expression 'var <,>,.. exp' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
-                      if tv then
-                        let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(getIntMin k, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty)) in 
-                        (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
-                      else
-                        let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(u, getIntMax k, k )) (SigmaMap.empty)) in 
-                        (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
+                      processOneUnknownVar (swapOperation op) newVar l u k (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) otherValues newExpr  
                     ))
                 | (_,false, sigEnhanced, _, newExp) -> nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) newExp
                 | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp), exp does not evaluate properly\n"; exit 0
@@ -863,7 +1019,7 @@ let rec get_all_globals (expr:exp) (acc:VarinfoSet.t) =
         | _ -> acc)
   | _ -> acc
 
-(* Reoves all custom locals for globals from the sigma *)
+(* Removes all custom locals for globals from the sigma *)
 let rec remove_global_locals_sigma sigma globalList =
   match globalList with x::xs -> remove_global_locals_sigma (SigmaMap.remove (customVinfoStore#getGlobalVarinfo (make_custom_local_varinfo_name x)) sigma) xs
                       | [] -> sigma

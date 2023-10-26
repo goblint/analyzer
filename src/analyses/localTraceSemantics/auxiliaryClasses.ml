@@ -32,7 +32,7 @@ class random_int_generator =
     val mutable traceVarList:((int * varinfo * int) list) = []
     val mutable seed:int = 5
 
-    method getRandomValue (hash:int) (var:varinfo) =
+    method getRandomValue (hash:int) (var:varinfo) onlyPositive =
       if List.is_empty traceVarList then Random.init 100;
       print_string ("random_int_generator#getRandomValue was invoked with hash="^(string_of_int hash)^", var="^(CilType.Varinfo.show var)^";
      \nwith current traceVarList="^(List.fold (fun acc (int_fold, vinfo_fold, value_fold) -> acc^"; ("^(string_of_int int_fold)^","^(CilType.Varinfo.show vinfo_fold)^","^(string_of_int value_fold)^")") "" traceVarList)^"\n");
@@ -42,7 +42,7 @@ class random_int_generator =
             randomValue)
       else
         ( print_string "new random value is generated\n";
-          let randomValue = if(Random.int 2) = 0 then (*negative*) (Random.int seed) * (-1)
+          let  randomValue = if (not onlyPositive) && (Random.int 2) = 0 then (*negative*) (Random.int seed) * (-1)
             else (*positive*) (Random.int seed) in
           traceVarList <- (hash, var, randomValue)::traceVarList;
           randomValue)
