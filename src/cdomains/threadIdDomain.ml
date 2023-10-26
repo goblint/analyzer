@@ -279,13 +279,15 @@ struct
   let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
 end
 
-module Thread : Stateful =
+type thread =
+  | Thread of FlagConfiguredTID.t
+  | UnknownThread
+[@@deriving eq, ord, hash]
+
+module Thread : Stateful with type t = thread =
 struct
   include Printable.Std
-  type t =
-    | Thread of FlagConfiguredTID.t
-    | UnknownThread
-  [@@deriving eq, ord, hash]
+  type t = thread [@@deriving eq, ord, hash]
 
   let name () = "Thread id"
   let pretty () t =
