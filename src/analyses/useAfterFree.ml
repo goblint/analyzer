@@ -76,7 +76,7 @@ struct
           end
           else if HeapVars.mem heap_var (snd ctx.local) then begin
             if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
-            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.Thread.pretty current CilType.Varinfo.pretty heap_var
           end
         end
       | `Top ->
