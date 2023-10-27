@@ -708,7 +708,7 @@ struct
       let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
       Array (CArrays.set ask n (array_idx_top) v)
     |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
-    |                 _ , Thread _     -> state (* TODO: no top thread ID set! *)
+    |                 _ , Thread tid   -> Thread (Threads.join (Threads.top ()) tid)
     |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
