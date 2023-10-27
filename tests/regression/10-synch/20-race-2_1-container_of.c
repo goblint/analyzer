@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] thread --set ana.path_sens[+] threadflag
+// PARAM: --set ana.activated[+] thread --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,7 +60,7 @@ int my_drv_probe(struct my_data *data) {
 	ldv_assert(data->shared.a==0); // NORACE
 	ldv_assert(data->shared.b==0); // NORACE
 
-	int res = __VERIFIER_nondet_int();
+	int res = magic();
 	if(res)
 		goto exit;
 	//register callback
