@@ -54,15 +54,16 @@ struct
     | ThreadJoin { thread = id; ret_var } ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
       (let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
+       let tids = ctx.ask (Queries.EvalThread id) in
        let join_thread s tid =
          if has_clean_exit tid && not (is_not_unique ctx tid) then
            D.remove tid s
          else
            s
        in
-       match TS.elements (ctx.ask (Queries.EvalThread id)) with
-       | threads -> List.fold_left join_thread ctx.local threads
-       | exception SetDomain.Unsupported _ -> ctx.local)
+       if TS.is_top tids
+        then ctx.local
+        else List.fold_left join_thread ctx.local (TS.elements tids))
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
