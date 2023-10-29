@@ -583,11 +583,9 @@ struct
     | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
-    | (Thread y, Int x) ->
-      Thread y (* TODO: ignores int! *)
+    | (Thread y, Int x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
     | (Address x, Thread y)
-    | (Thread y, Address x) ->
-      Thread y (* TODO: ignores address! *)
+    | (Thread y, Address x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
     | (Mutex, Mutex) -> Mutex
     | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.widen x y)
     | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.widen x y)
