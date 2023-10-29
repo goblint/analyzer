@@ -552,11 +552,9 @@ struct
     | y, Blob (x,s,o) -> Blob (join (x:t) y, s, o)
     | (Thread x, Thread y) -> Thread (Threads.join x y)
     | (Int x, Thread y)
-    | (Thread y, Int x) ->
-      Thread y (* TODO: ignores int! *)
+    | (Thread y, Int x) -> Thread (Threads.join y (Threads.top ()))
     | (Address x, Thread y)
-    | (Thread y, Address x) ->
-      Thread y (* TODO: ignores address! *)
+    | (Thread y, Address x) -> Thread (Threads.join y (Threads.top ()))
     | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.join x y)
     | (Mutex, Mutex) -> Mutex
     | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.join x y)
