@@ -60,7 +60,7 @@ int my_drv_probe(struct my_data *data) {
 	ldv_assert(data->shared.a==0); // NORACE
 	ldv_assert(data->shared.b==0); // NORACE
 
-	int res = magic();
+	int res = __VERIFIER_nondet_int();
 	if(res)
 		goto exit;
 	//register callback
