@@ -90,7 +90,9 @@
     }
   },
   "witness": {
-    "id": "enumerate",
-    "unknown": false
+    "graphml": {
+      "id": "enumerate",
+      "unknown": false
+    }
   }
 }

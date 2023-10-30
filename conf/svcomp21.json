@@ -64,6 +64,8 @@
     }
   },
   "witness": {
-    "id": "enumerate"
+    "graphml": {
+      "id": "enumerate"
+    }
   }
 }
