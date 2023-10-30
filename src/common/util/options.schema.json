@@ -2365,7 +2365,7 @@
               "title": "witness.invariant.accessed",
               "description": "Only emit invariants for locally accessed variables",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "full": {
               "title": "witness.invariant.full",
