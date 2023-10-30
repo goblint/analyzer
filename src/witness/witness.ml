@@ -572,13 +572,13 @@ struct
 
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Timing.wrap "determine" (determine_result entrystates) (module Task))) in
+    let module TaskResult = (val (Timing.wrap "sv-comp result" (determine_result entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
 
     if get_bool "witness.graphml.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.graphml.unknown") then (
       let witness_path = get_string "witness.graphml.path" in
-      Timing.wrap "write" (write_file witness_path (module Task)) (module TaskResult)
+      Timing.wrap "graphml witness" (write_file witness_path (module Task)) (module TaskResult)
     )
 
   let write entrystates =
@@ -595,7 +595,4 @@ struct
       )
       else
         write entrystates
-
-  let write entrystates =
-    Timing.wrap "witness" write entrystates
 end
