@@ -2287,7 +2287,7 @@
               "title": "witness.graphml.enabled",
               "description": "Output GraphML witness",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "path": {
               "title": "witness.graphml.path",
