@@ -16,12 +16,16 @@ end
 let task: (module Task) option ref = ref None
 
 
-let is_error_function f =
+let is_error_function' f spec =
   let module Task = (val (Option.get !task)) in
   List.exists (function
       | Specification.UnreachCall f_spec -> f.vname = f_spec
       | _ -> false
-    ) Task.specification
+    ) spec
+
+let is_error_function f =
+  let module Task = (val (Option.get !task)) in
+  is_error_function' f Task.specification
 
 (* TODO: unused, but should be used? *)
 let is_special_function f =
@@ -29,12 +33,7 @@ let is_special_function f =
   let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
   let is_verifier = match f.vname with
     | fname when String.starts_with fname "__VERIFIER" -> true
-    | fname ->
-      let module Task = (val (Option.get !task)) in
-      List.exists (function
-          | Specification.UnreachCall f_spec -> fname = f_spec
-          | _ -> false
-        ) Task.specification
+    | fname -> is_error_function f
   in
   is_svcomp && is_verifier
 
