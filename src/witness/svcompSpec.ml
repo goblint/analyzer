@@ -12,6 +12,8 @@ type t =
   | MemorySafety (* Internal property for use in Goblint; serves as a summary for ValidFree, ValidDeref and ValidMemtrack *)
   | ValidMemcleanup
 
+type multi = t list
+
 let of_string s =
   let s = String.strip s in
   let regexp_multiple = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )\nCHECK( init(main()), LTL(G \\(.*\\)) )\nCHECK( init(main()), LTL(G \\(.*\\)) )" in
@@ -48,6 +50,8 @@ let of_string s =
   else
     failwith "Svcomp.Specification.of_string: unknown expression"
 
+let of_string s: multi = [of_string s]
+
 let of_file path =
   let s = BatFile.with_file_in path BatIO.read_all in
   of_string s
@@ -77,3 +81,8 @@ let to_string spec =
     | ValidMemcleanup -> "valid-memcleanup", false
   in
   print_output spec_str is_neg
+
+let to_string spec =
+  match spec with
+  | [spec] -> to_string spec
+  | _ -> assert false (* TODO: aggregate *)

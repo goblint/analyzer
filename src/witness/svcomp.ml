@@ -8,7 +8,7 @@ module Specification = SvcompSpec
 module type Task =
 sig
   val file: Cil.file
-  val specification: Specification.t
+  val specification: Specification.multi
 
   module Cfg: MyCFG.CfgBidir
 end
@@ -18,9 +18,10 @@ let task: (module Task) option ref = ref None
 
 let is_error_function f =
   let module Task = (val (Option.get !task)) in
-  match Task.specification with
-  | UnreachCall f_spec -> f.vname = f_spec
-  | _ -> false
+  List.exists (function
+      | Specification.UnreachCall f_spec -> f.vname = f_spec
+      | _ -> false
+    ) Task.specification
 
 (* TODO: unused, but should be used? *)
 let is_special_function f =
@@ -30,9 +31,10 @@ let is_special_function f =
     | fname when String.starts_with fname "__VERIFIER" -> true
     | fname ->
       let module Task = (val (Option.get !task)) in
-      match Task.specification with
-      | UnreachCall f_spec -> fname = f_spec
-      | _ -> false
+      List.exists (function
+          | Specification.UnreachCall f_spec -> fname = f_spec
+          | _ -> false
+        ) Task.specification
   in
   is_svcomp && is_verifier
 

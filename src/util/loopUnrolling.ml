@@ -324,9 +324,10 @@ class loopUnrollingCallVisitor = object
           raise Found;
         | _ ->
           if List.mem "specification" @@ get_string_list "ana.autotune.activated" && get_string "ana.specification" <> "" then (
-            match SvcompSpec.of_option () with
-            | UnreachCall s -> if info.vname = s then raise Found
-            | _ -> ()
+            List.iter (function
+                | SvcompSpec.UnreachCall s -> if info.vname = s then raise Found
+                | _ -> ()
+              ) (SvcompSpec.of_option ())
           );
           DoChildren
       )

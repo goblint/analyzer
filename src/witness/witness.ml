@@ -303,7 +303,7 @@ struct
     val find_invariant: Node.t -> Invariant.t
   end
 
-  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
+  let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): (module WitnessTaskResult) =
     let module Arg: BiArgInvariant =
       (val if GobConfig.get_bool "witness.enabled" then (
            let module Arg = (val ArgTool.create entrystates) in
@@ -338,7 +338,7 @@ struct
       )
     in
 
-    match Task.specification with
+    match spec with
     | UnreachCall _ ->
       (* error function name is globally known through Svcomp.task *)
       let is_unreach_call =
@@ -410,7 +410,7 @@ struct
             let module TaskResult =
             struct
               module Arg = PathArg
-              let result = Result.False (Some Task.specification)
+              let result = Result.False (Some spec)
               let invariant _ = Invariant.none
               let is_violation = is_violation
               let is_sink _ = false
@@ -569,6 +569,10 @@ struct
         (module TaskResult:WitnessTaskResult)
       )
 
+  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
+    match Task.specification with
+    | [spec] -> determine_result entrystates (module Task) spec
+    | _ -> assert false (* TODO: aggregate *)
 
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in

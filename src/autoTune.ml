@@ -210,8 +210,8 @@ let activateLongjmpAnalysesWhenRequired () =
     enableAnalyses longjmpAnalyses;
   )
 
-let focusOnMemSafetySpecification () =
-  match Svcomp.Specification.of_option () with
+let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
+  match spec with
   | ValidFree -> (* Enable the useAfterFree analysis *)
     let uafAna = ["useAfterFree"] in
     print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
@@ -244,8 +244,11 @@ let focusOnMemSafetySpecification () =
      enableAnalyses memSafetyAnas)
   | _ -> ()
 
-let focusOnSpecification () =
-  match Svcomp.Specification.of_option () with
+let focusOnMemSafetySpecification () =
+  List.iter focusOnMemSafetySpecification (Svcomp.Specification.of_option ())
+
+let focusOnSpecification (spec: Svcomp.Specification.t) =
+  match spec with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
@@ -254,6 +257,9 @@ let focusOnSpecification () =
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
   | _ -> ()
+
+let focusOnSpecification () =
+  List.iter focusOnSpecification (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -411,9 +417,10 @@ let congruenceOption factors file =
 let apronOctagonOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
-      match Svcomp.Specification.of_option () with
-      | NoOverflow -> 12
-      | _ -> 8
+      if List.mem Svcomp.Specification.NoOverflow (Svcomp.Specification.of_option ()) then
+        12
+      else
+        8
     else 8
   in let globals = 2 in
   let selectedLocals =
