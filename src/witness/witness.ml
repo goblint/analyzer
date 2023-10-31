@@ -507,8 +507,7 @@ struct
       )
     | ValidFree
     | ValidDeref
-    | ValidMemtrack
-    | MemorySafety ->
+    | ValidMemtrack ->
       let module TrivialArg =
       struct
         include Arg
@@ -570,9 +569,27 @@ struct
       )
 
   let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
-    match Task.specification with
-    | [spec] -> determine_result entrystates (module Task) spec
-    | _ -> assert false (* TODO: aggregate *)
+    Task.specification
+    |> List.fold_left (fun acc spec ->
+        let module TaskResult = (val determine_result entrystates (module Task) spec) in
+        match acc with
+        | None -> Some (module TaskResult: WitnessTaskResult)
+        | Some (module Acc: WitnessTaskResult) ->
+          match Acc.result, TaskResult.result with
+          (* keep old violation/unknown *)
+          | False _, True
+          | False _, Unknown
+          | Unknown, True -> Some (module Acc: WitnessTaskResult)
+          (* use new violation/unknown *)
+          | True, False _
+          | Unknown, False _
+          | True, Unknown -> Some (module TaskResult: WitnessTaskResult)
+          (* both same, arbitrarily keep old *)
+          | True, True -> Some (module Acc: WitnessTaskResult)
+          | Unknown, Unknown -> Some (module Acc: WitnessTaskResult)
+          | False _, False _ -> failwith "multiple violations"
+      ) None
+    |> Option.get
 
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in

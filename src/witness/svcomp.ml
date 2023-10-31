@@ -45,6 +45,7 @@ struct
     | True
     | False of Specification.t option
     | Unknown
+  [@@deriving ord]
 
   let to_string = function
     | True -> "true"
@@ -57,7 +58,6 @@ struct
         | ValidFree -> "valid-free"
         | ValidDeref -> "valid-deref"
         | ValidMemtrack -> "valid-memtrack"
-        | MemorySafety -> "memory-safety" (* TODO: Currently here only to complete the pattern match *)
         | ValidMemcleanup -> "valid-memcleanup"
       in
       "false(" ^ result_spec ^ ")"

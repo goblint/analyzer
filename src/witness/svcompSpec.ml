@@ -9,14 +9,13 @@ type t =
   | ValidFree
   | ValidDeref
   | ValidMemtrack
-  | MemorySafety (* Internal property for use in Goblint; serves as a summary for ValidFree, ValidDeref and ValidMemtrack *)
   | ValidMemcleanup
+[@@deriving ord]
 
 type multi = t list
 
 let of_string s =
   let s = String.strip s in
-  let regexp_multiple = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )\nCHECK( init(main()), LTL(G \\(.*\\)) )\nCHECK( init(main()), LTL(G \\(.*\\)) )" in
   let regexp_single = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )" in
   let regexp_negated = Str.regexp "CHECK( init(main()), LTL(G ! \\(.*\\)) )" in
   if Str.string_match regexp_negated s 0 then
@@ -32,25 +31,29 @@ let of_string s =
         UnreachCall f
       else
         failwith "Svcomp.Specification.of_string: unknown global not expression"
-  else if Str.string_match regexp_multiple s 0 then
-    let global1 = Str.matched_group 1 s in
-    let global2 = Str.matched_group 2 s in
-    let global3 = Str.matched_group 3 s in
-    let mem_safety_props = ["valid-free"; "valid-deref"; "valid-memtrack";] in
-    if (global1 <> global2 && global1 <> global3 && global2 <> global3) && List.for_all (fun x -> List.mem x mem_safety_props) [global1; global2; global3] then
-      MemorySafety
-    else
-      failwith "Svcomp.Specification.of_string: unknown global expression"
   else if Str.string_match regexp_single s 0 then
     let global = Str.matched_group 1 s in
-    if global = "valid-memcleanup" then
+    if global = "valid-free" then
+      ValidFree
+    else if global = "valid-deref" then
+      ValidDeref
+    else if global = "valid-memtrack" then
+      ValidMemtrack
+    else if global = "valid-memcleanup" then
       ValidMemcleanup
     else
       failwith "Svcomp.Specification.of_string: unknown global expression"
   else
     failwith "Svcomp.Specification.of_string: unknown expression"
 
-let of_string s: multi = [of_string s]
+let of_string s: multi =
+  List.filter_map (fun line ->
+      let line = String.strip line in
+      if line = "" then
+        None
+      else
+        Some (of_string line)
+    ) (String.split_on_char '\n' s)
 
 let of_file path =
   let s = BatFile.with_file_in path BatIO.read_all in
@@ -77,12 +80,9 @@ let to_string spec =
     | ValidFree -> "valid-free", false
     | ValidDeref -> "valid-deref", false
     | ValidMemtrack -> "valid-memtrack", false
-    | MemorySafety -> "memory-safety", false (* TODO: That's false, it's currently here just to complete the pattern match *)
     | ValidMemcleanup -> "valid-memcleanup", false
   in
   print_output spec_str is_neg
 
 let to_string spec =
-  match spec with
-  | [spec] -> to_string spec
-  | _ -> assert false (* TODO: aggregate *)
+  String.concat "\n" (List.map to_string spec)

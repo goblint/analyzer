@@ -232,16 +232,6 @@ let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
     );
     print_endline @@ "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
     enableAnalyses memLeakAna
-  | MemorySafety -> (* TODO: This is a temporary solution for the memory safety category *)
-    set_bool "ana.arrayoob" true;
-    (print_endline "Setting \"cil.addNestedScopeAttr\" to true";
-     set_bool "cil.addNestedScopeAttr" true;
-     if (get_int "ana.malloc.unique_address_count") < 1 then (
-       print_endline "Setting \"ana.malloc.unique_address_count\" to 1";
-       set_int "ana.malloc.unique_address_count" 1;
-     );
-     let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
-     enableAnalyses memSafetyAnas)
   | _ -> ()
 
 let focusOnMemSafetySpecification () =
