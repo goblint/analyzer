@@ -13,7 +13,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module Invariant = WitnessUtil.Invariant (Task) in
 
   let module TaskResult =
-    (val if get_bool "witness.stack" then
+    (val if get_bool "witness.graphml.stack" then
         (module StackTaskResult (Task.Cfg) (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
@@ -24,7 +24,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   struct
     (* type node = N.t
     type edge = TaskResult.Arg.Edge.t *)
-    let minwitness = get_bool "witness.minimize"
+    let minwitness = get_bool "witness.graphml.minimize"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
@@ -58,12 +58,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module N = Arg.Node in
   let module GML = XmlGraphMlWriter in
   let module GML =
-    (val match get_string "witness.id" with
+    (val match get_string "witness.graphml.id" with
       | "node" ->
         (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
       | "enumerate" ->
         (module EnumerateNodeGraphMlWriter (N) (GML))
-      | _ -> failwith "witness.id: illegal value"
+      | _ -> failwith "witness.graphml.id: illegal value"
     )
   in
   let module GML = DeDupGraphMlWriter (N) (GML) in
@@ -305,7 +305,7 @@ struct
 
   let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
     let module Arg: BiArgInvariant =
-      (val if GobConfig.get_bool "witness.enabled" then (
+      (val if GobConfig.get_bool "witness.graphml.enabled" then (
            let module Arg = (val ArgTool.create entrystates) in
            let module Arg =
            struct
@@ -572,13 +572,13 @@ struct
 
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Timing.wrap "determine" (determine_result entrystates) (module Task))) in
+    let module TaskResult = (val (Timing.wrap "sv-comp result" (determine_result entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
 
-    if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
-      let witness_path = get_string "witness.path" in
-      Timing.wrap "write" (write_file witness_path (module Task)) (module TaskResult)
+    if get_bool "witness.graphml.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.graphml.unknown") then (
+      let witness_path = get_string "witness.graphml.path" in
+      Timing.wrap "graphml witness" (write_file witness_path (module Task)) (module TaskResult)
     )
 
   let write entrystates =
@@ -595,7 +595,4 @@ struct
       )
       else
         write entrystates
-
-  let write entrystates =
-    Timing.wrap "witness" write entrystates
 end
