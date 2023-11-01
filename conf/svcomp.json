@@ -38,7 +38,7 @@
       "uninit",
       "expsplit",
       "activeSetjmp",
-      "threadid"
+      "threadflag"
     ],
     "context": {
       "widen": false
