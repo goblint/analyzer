@@ -64,12 +64,8 @@ struct
            ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
            (* In case the loop is not bounded, a warning is created. *)
            if not (is_bounded) then (
-             let msgs =
-               [(Pretty.dprintf
-                   "The program might not terminate! (Loop analysis)",
-                 Some (M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement))
-                );] in
-             M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
+             M.warn ~loc:(M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)) ~category:NonTerminating "The program might not terminate! (Loop analysis)"
+           );
            ()
          with Not_found ->
            failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable.")

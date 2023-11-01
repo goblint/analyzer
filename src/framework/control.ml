@@ -146,12 +146,7 @@ struct
           let fundec_live = live fi fname in
           if ( not (BatISet.is_empty fundec_live)) then (
             AnalysisState.svcomp_may_not_terminate := true;
-            let msgs =
-              [(Pretty.dprintf
-                  "The program might not terminate! (Upjumping Goto)",
-                Some (M.Location.CilLocation l)
-              );] in
-            M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
+            M.warn ~loc:(M.Location.CilLocation l) ~category:NonTerminating "The program might not terminate! (Upjumping Goto)");
           )
         (!live_lines))
     (!Cilfacade.upjumping_gotos);

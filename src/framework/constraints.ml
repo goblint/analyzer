@@ -1688,12 +1688,7 @@ struct
       List.iter handle_path (S.paths_as_set conv_ctx);
       if !AnalysisState.should_warn && List.mem "termination" @@ get_string_list "ana.activated" then (
         AnalysisState.svcomp_may_not_terminate := true;
-        let msgs =
-          [(Pretty.dprintf
-              "The program might not terminate! (Longjmp)",
-            None
-           );] in
-        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs
+        M.warn ~category:NonTerminating "The program might not terminate! (Longjmp)"
       );
       S.D.bot ()
     | _ -> S.special conv_ctx lv f args
@@ -1777,11 +1772,8 @@ struct
       if LS.mem call path_visited_calls then (
         AnalysisState.svcomp_may_not_terminate := true; (*set the indicator for a non-terminating program for the sv comp*)
         (*Cycle found*)
-        let msgs =
-          [
-            (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)" CilType.Fundec.pretty fundec, Some (M.Location.CilLocation fundec.svar.vdecl));
-          ] in
-        M.msg_group Warning ~category:NonTerminating "Recursion cycle" msgs) (* output a warning for non-termination*)
+        let loc = M.Location.CilLocation fundec.svar.vdecl in
+        M.warn ~loc ~category:NonTerminating "The program might not terminate! (Fundec %a is contained in a call graph cycle)" CilType.Fundec.pretty fundec) (* output a warning for non-termination*)
       else if not (LH.mem global_visited_calls call) then begin
         LH.replace global_visited_calls call ();
         let new_path_visited_calls = LS.add call path_visited_calls in
