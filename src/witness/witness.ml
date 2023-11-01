@@ -303,7 +303,7 @@ struct
     val find_invariant: Node.t -> Invariant.t
   end
 
-  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
+  let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): (module WitnessTaskResult) =
     let module Arg: BiArgInvariant =
       (val if GobConfig.get_bool "witness.graphml.enabled" then (
            let module Arg = (val ArgTool.create entrystates) in
@@ -338,7 +338,7 @@ struct
       )
     in
 
-    match Task.specification with
+    match spec with
     | UnreachCall _ ->
       (* error function name is globally known through Svcomp.task *)
       let is_unreach_call =
@@ -410,7 +410,7 @@ struct
             let module TaskResult =
             struct
               module Arg = PathArg
-              let result = Result.False (Some Task.specification)
+              let result = Result.False (Some spec)
               let invariant _ = Invariant.none
               let is_violation = is_violation
               let is_sink _ = false
@@ -505,17 +505,74 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
-    | ValidFree
-    | ValidDeref
-    | ValidMemtrack
-    | MemorySafety ->
+    | ValidFree ->
       let module TrivialArg =
       struct
         include Arg
         let next _ = []
       end
       in
-      if not !AnalysisState.svcomp_may_invalid_free && not !AnalysisState.svcomp_may_invalid_deref && not !AnalysisState.svcomp_may_invalid_memtrack then (
+      if not !AnalysisState.svcomp_may_invalid_free then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+    | ValidDeref ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_deref then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+    | ValidMemtrack ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_memtrack then (
         let module TaskResult =
         struct
           module Arg = Arg
@@ -569,6 +626,28 @@ struct
         (module TaskResult:WitnessTaskResult)
       )
 
+  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
+    Task.specification
+    |> List.fold_left (fun acc spec ->
+        let module TaskResult = (val determine_result entrystates (module Task) spec) in
+        match acc with
+        | None -> Some (module TaskResult: WitnessTaskResult)
+        | Some (module Acc: WitnessTaskResult) ->
+          match Acc.result, TaskResult.result with
+          (* keep old violation/unknown *)
+          | False _, True
+          | False _, Unknown
+          | Unknown, True -> Some (module Acc: WitnessTaskResult)
+          (* use new violation/unknown *)
+          | True, False _
+          | Unknown, False _
+          | True, Unknown -> Some (module TaskResult: WitnessTaskResult)
+          (* both same, arbitrarily keep old *)
+          | True, True -> Some (module Acc: WitnessTaskResult)
+          | Unknown, Unknown -> Some (module Acc: WitnessTaskResult)
+          | False _, False _ -> failwith "multiple violations"
+      ) None
+    |> Option.get
 
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in
