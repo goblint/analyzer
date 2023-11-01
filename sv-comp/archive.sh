@@ -18,7 +18,7 @@ cp _opam/share/apron/lib/libapron.so lib/
 cp _opam/share/apron/lib/liboctD.so lib/
 cp _opam/share/apron/lib/libboxD.so lib/
 cp _opam/share/apron/lib/libpolkaMPQ.so lib/
-cp _opam/.opam-switch/sources/apron/COPYING lib/LICENSE.APRON
+wget -O lib/LICENSE.APRON https://raw.githubusercontent.com/antoinemine/apron/master/COPYING
 
 # done outside to ensure archive contains goblint/ directory
 cd ..
