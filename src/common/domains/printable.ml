@@ -366,9 +366,17 @@ struct
   let pretty () (x,y) =
     if expand_fst || expand_snd then
       text "("
+      ++ text (Base1.name ())
+      ++ text ":"
+      ++ align
       ++ (if expand_fst then Base1.pretty () x else text (Base1.show x))
+      ++ unalign
       ++ text ", "
+      ++ text (Base2.name ())
+      ++ text ":"
+      ++ align
       ++ (if expand_snd then Base2.pretty () y else text (Base2.show y))
+      ++ unalign
       ++ text ")"
     else
       text (show (x,y))
@@ -403,12 +411,24 @@ struct
     "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
   let pretty () (x,y,z) =
-    text "(" ++
-    Base1.pretty () x
-    ++ text ", " ++
-    Base2.pretty () y
-    ++ text ", " ++
-    Base3.pretty () z
+    text "("
+    ++ text (Base1.name ())
+    ++ text ":"
+    ++ align
+    ++ Base1.pretty () x
+    ++ unalign
+    ++ text ", "
+    ++ text (Base2.name ())
+    ++ text ":"
+    ++ align
+    ++ Base2.pretty () y
+    ++ unalign
+    ++ text ", "
+    ++ text (Base3.name ())
+    ++ text ":"
+    ++ align
+    ++ Base3.pretty () z
+    ++ unalign
     ++ text ")"
 
   let printXml f (x,y,z) =

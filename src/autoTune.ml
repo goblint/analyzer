@@ -210,6 +210,40 @@ let activateLongjmpAnalysesWhenRequired () =
     enableAnalyses longjmpAnalyses;
   )
 
+let focusOnMemSafetySpecification () =
+  match Svcomp.Specification.of_option () with
+  | ValidFree -> (* Enable the useAfterFree analysis *)
+    let uafAna = ["useAfterFree"] in
+    print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
+    enableAnalyses uafAna
+  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
+    let memOobAna = ["memOutOfBounds"] in
+    set_bool "ana.arrayoob" true;
+    print_endline "Setting \"cil.addNestedScopeAttr\" to true";
+    set_bool "cil.addNestedScopeAttr" true;
+    print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
+    enableAnalyses memOobAna
+  | ValidMemtrack
+  | ValidMemcleanup -> (* Enable the memLeak analysis *)
+    let memLeakAna = ["memLeak"] in
+    if (get_int "ana.malloc.unique_address_count") < 1 then (
+      print_endline "Setting \"ana.malloc.unique_address_count\" to 1";
+      set_int "ana.malloc.unique_address_count" 1;
+    );
+    print_endline @@ "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
+    enableAnalyses memLeakAna
+  | MemorySafety -> (* TODO: This is a temporary solution for the memory safety category *)
+    set_bool "ana.arrayoob" true;
+    (print_endline "Setting \"cil.addNestedScopeAttr\" to true";
+     set_bool "cil.addNestedScopeAttr" true;
+     if (get_int "ana.malloc.unique_address_count") < 1 then (
+       print_endline "Setting \"ana.malloc.unique_address_count\" to 1";
+       set_int "ana.malloc.unique_address_count" 1;
+     );
+     let memSafetyAnas = ["memOutOfBounds"; "memLeak"; "useAfterFree";] in
+     enableAnalyses memSafetyAnas)
+  | _ -> ()
+
 let focusOnSpecification () =
   match Svcomp.Specification.of_option () with
   | UnreachCall s -> ()
@@ -219,13 +253,7 @@ let focusOnSpecification () =
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
-  | ValidFree -> (* Enable the useAfterFree analysis *)
-    let uafAna = ["useAfterFree"] in
-    print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
-    enableAnalyses uafAna
-  (* TODO: Finish these two below later *)
-  | ValidDeref
-  | ValidMemtrack -> ()
+  | _ -> ()
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound

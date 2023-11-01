@@ -288,6 +288,12 @@
           "type": "boolean",
           "description": "Indicates whether gnu89 semantic should be used for inline functions.",
           "default": false
+        },
+        "addNestedScopeAttr": {
+          "title": "cil.addNestedScopeAttr",
+          "type": "boolean",
+          "description": "Indicates whether variables that CIL pulls out of their scope should be marked.",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -538,7 +544,7 @@
               "type": "array",
               "items": { "type": "string" },
               "default": [
-                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds"
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds", "memsafetySpecification"
               ]
             }
           },
