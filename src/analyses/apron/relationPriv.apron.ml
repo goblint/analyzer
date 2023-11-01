@@ -1011,17 +1011,17 @@ struct
       )
     )
     else (
-      if ConcDomain.ThreadSet.is_top tids
-        then st
-        else
-          match ConcDomain.ThreadSet.elements tids with
-          | [tid] ->
-            let lmust',l' = G.thread (getg (V.thread tid)) in
-            {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-          | _ ->
-            (* To match the paper more closely, one would have to join in the non-definite case too *)
-            (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
-            st
+      if ConcDomain.ThreadSet.is_top tids then
+        st
+      else
+        match ConcDomain.ThreadSet.elements tids with
+        | [tid] ->
+          let lmust',l' = G.thread (getg (V.thread tid)) in
+          {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+        | _ ->
+          (* To match the paper more closely, one would have to join in the non-definite case too *)
+          (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+          st
     )
 
   let thread_return ask getg sideg tid (st: relation_components_t) =
