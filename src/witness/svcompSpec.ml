@@ -68,12 +68,12 @@ let of_option () =
     of_string s
 
 let to_string spec =
-  let module Prop = struct 
+  let module Prop = struct
     type prop = F | G
     let string_of_prop = function
       | F -> "F"
       | G -> "G"
-  end 
+  end
   in
   let open Prop in
   let print_output prop spec_str is_neg =

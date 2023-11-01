@@ -399,6 +399,8 @@ struct
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.one else match eq p1 p2 with Some x when x -> ID.of_int ik BI.zero | _ -> bool_top ik)
         | IndexPI when AD.to_string p2 = ["all_index"] ->
           addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
+        | IndexPI | PlusPI ->
+          addToAddrOp p1 (AD.to_int p2) (* sometimes index is AD for some reason... *)
         | _ -> VD.top ()
       end
     (* For other values, we just give up! *)
@@ -1231,9 +1233,16 @@ struct
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
               x
-            | y -> failwith (GobPretty.sprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local)
+            | Top
+            | Bot ->
+              JmpBufDomain.JmpBufSet.top ()
+            | y ->
+              M.debug ~category:Imprecise "EvalJmpBuf %a is %a, not JmpBuf." CilType.Exp.pretty e VD.pretty y;
+              JmpBufDomain.JmpBufSet.top ()
           end
-        | _ -> failwith "problem?!"
+        | _ ->
+          M.debug ~category:Imprecise "EvalJmpBuf is not Address";
+          JmpBufDomain.JmpBufSet.top ()
       end
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e

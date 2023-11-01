@@ -151,10 +151,15 @@ end
 module HConsed (Base:S) =
 struct
   include Printable.HConsed (Base)
+
+  (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
+  (* see https://github.com/goblint/analyzer/issues/1005 *)
+  let int_refine_active = GobConfig.get_string "ana.int.refinement" <> "never"
+
   let lift_f2 f x y = f (unlift x) (unlift y)
-  let narrow x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.narrow x y)
+  let narrow x y = if (not int_refine_active) && x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.narrow x y)
   let widen x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.widen x y)
-  let meet x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.meet x y)
+  let meet x y = if (not int_refine_active) && x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.meet x y)
   let join x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.join x y)
   let leq x y = (x.BatHashcons.tag == y.BatHashcons.tag) || lift_f2 Base.leq x y
   let is_top = lift_f Base.is_top

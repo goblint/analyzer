@@ -3274,6 +3274,7 @@ struct
 
   let invariant_ikind e ik x =
     match x with
+    | x when is_top x -> Invariant.top ()
     | Some (c, m) when m =: Ints_t.zero ->
       if get_bool "witness.invariant.exact" then
         let c = Ints_t.to_bigint c in
