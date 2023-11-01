@@ -503,140 +503,50 @@ struct
   module G = S.G
   module C = 
   struct 
-    include Printable.Option (S.C) (struct let name = "context gas" end)
+    include Printable.Option (S.C) (struct let name = "contextGas" end)
     let context_gas = ref 10
   end
   module V = S.V
   module P = S.P
 
-  let name () = S.name ()^" with context gas"
-
-  let context fd d = (*printf "context";*)
-    if !C.context_gas == 0 then (printf "gas=0\n"; None) else Some (S.context fd d) (* TODO*)
-
-  let unlift c =
-    match c with
-    | Some x -> x
-    | None -> ctx_failwith "context gas" (*TODO*)
-
-  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx =
-    (*if !C.context_gas == 0 
-      then {ctx with context = (fun () -> )}
-      else*)
-    {ctx with context = (fun () -> Option.get (ctx.context ())) } (*TODO Raises Invalid_argument if o is None.?*)
-
-  let rec showExprList args = 
+  let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
     | a::t -> (CilType.Exp.show a) ^ (showExprList t)
 
+  let name () = S.name ()^" with context gas"
+
+  let context fd d = 
+    if (not !AnalysisState.postsolving) && (!C.context_gas <= 0) then (printf "gas=0\n"; None) else Some (S.context fd d) (* TODO*)
+
+  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx = (* TODO*)
+    if (not !AnalysisState.postsolving) && (!C.context_gas <= 0) 
+    then {ctx with context = (fun () -> ctx_failwith "contextGas") } 
+    else {ctx with context = (fun () -> Option.get (ctx.context ())) } (*TODO Raises Invalid_argument if o is None.?*)
+
   let enter ctx r f args = 
-    (*printf "enter";*)
-    if !C.context_gas <> 0 then 
-      try ( 
-        if not !AnalysisState.postsolving
-        then 
-          (C.context_gas := !C.context_gas - 1; 
-           printf "enterContextGas %i in %s with %s \n" !C.context_gas (CilType.Fundec.show f) (showExprList args))
-        else printf " ";
-        S.enter (conv ctx) r f args )
-      with Ctx_failure _ -> []
-    else []
+    if (not !AnalysisState.postsolving) && (!C.context_gas > 0)
+    then 
+      (C.context_gas := !C.context_gas - 1; 
+       printf "enterContextGas %i in %s with %s \n" !C.context_gas (CilType.Fundec.show f) (showExprList args));
+    S.enter (conv ctx) r f args
 
-  let sync ctx reason = 
-    (*printf "sync";*)
-    if !C.context_gas <> 0 then
-      try S.sync (conv ctx) reason with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let query ctx (type a) (q: a Queries.t): a Queries.result = 
-    (*printf "query";*)                       
-    if !C.context_gas <> 0 then
-      try query (conv ctx) q with Ctx_failure _ -> Queries.Result.bot q
-    else Queries.Result.bot q
-
-  let assign ctx lval expr = 
-    (*printf "assign";*)
-    if !C.context_gas <> 0 then
-      try S.assign (conv ctx) lval expr with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let vdecl ctx v     = 
-    (*printf "vdecl";*)
-    if !C.context_gas <> 0 then
-      try S.vdecl (conv ctx) v with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-  let body ctx fundec = 
-    (*printf "body";*)
-    if !C.context_gas <> 0 then
-      try S.body (conv ctx) fundec with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let branch ctx e tv = 
-    (*printf "branch";*)
-    if !C.context_gas <> 0 then
-      try S.branch (conv ctx) e tv with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let return ctx r f  = 
-    (*printf "return";*)
-    if !C.context_gas <> 0 then
-      try S.return (conv ctx) r f with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let asm ctx         = 
-    (*printf "asm";*)
-    if !C.context_gas <> 0 then
-      try S.asm (conv ctx) with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let skip ctx        = 
-    (*printf "skip";*)
-    if !C.context_gas <> 0 then
-      try S.skip (conv ctx) with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let special ctx r f args = 
-    (*printf "special";*)
-    if !C.context_gas <> 0 then
-      try S.special (conv ctx) r f args with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let combine_env ctx r fe f args fc es f_ask =     
-    (*printf "combine_env";*)
-    if !C.context_gas <> 0 then
-      try S.combine_env (conv ctx) r fe f args (Option.map unlift fc) es f_ask with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let combine_assign ctx r fe f args fc es f_ask =
-    (*printf "combine_assign";*)
-    if !C.context_gas <> 0 then
-      try S.combine_assign (conv ctx) r fe f args (Option.map unlift fc) es f_ask with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let paths_as_set ctx = 
-    (*printf "paths_as_set";*)
-    if !C.context_gas <> 0 then
-      try S.paths_as_set (conv ctx) with Ctx_failure _ -> [S.D.bot ()]
-    else [S.D.bot ()]
-
-  let threadenter ctx lval f args = 
-    (*printf "threadenter";*)
-    if !C.context_gas <> 0 then
-      try S.threadenter (conv ctx) lval f args with Ctx_failure _ -> []
-    else []
-
-  let threadspawn ctx lval f args fctx = 
-    (*printf "threadspawn";*)
-    if !C.context_gas <> 0 then
-      try S.threadspawn (conv ctx) lval f args (conv fctx) with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
-
-  let event ctx e octx = 
-    (*printf "event";*)
-    if !C.context_gas <> 0 then
-      try S.event (conv ctx) e (conv octx) with Ctx_failure _ -> S.D.bot ()
-    else S.D.bot ()
+  let sync ctx reason                             = S.sync (conv ctx) reason
+  let query ctx q                                 = S.query (conv ctx) q
+  let assign ctx lval expr                        = S.assign (conv ctx) lval expr 
+  let vdecl ctx v                                 = S.vdecl (conv ctx) v 
+  let body ctx fundec                             = S.body (conv ctx) fundec 
+  let branch ctx e tv                             = S.branch (conv ctx) e tv
+  let return ctx r f                              = S.return (conv ctx) r f
+  let asm ctx                                     = S.asm (conv ctx) 
+  let skip ctx                                    = S.skip (conv ctx)
+  let special ctx r f args                        = S.special (conv ctx) r f args 
+  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> x)) es f_ask 
+  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> x)) es f_ask
+  let paths_as_set ctx                            = S.paths_as_set (conv ctx) 
+  let threadenter ctx lval f args                 = S.threadenter (conv ctx) lval f args (*TODO*)
+  let threadspawn ctx lval f args fctx            = S.threadspawn (conv ctx) lval f args (conv fctx) (*TODO*)
+  let event ctx e octx                            = S.event (conv ctx) e (conv octx) 
 
 end
 
