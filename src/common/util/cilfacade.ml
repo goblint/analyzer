@@ -93,12 +93,13 @@ let register_preprocess_cil name visitor_fun =
   visitors_cil := !visitors_cil @ [name, visitor_fun]
 
 let do_preprocess_cil ast =
-  let f fd (name, visitor_fun) =
-    (* this has to be done here, since the settings aren't available when register_preprocess is called *)
-    if List.mem name (get_string_list "ana.activated") then
-      ignore @@ visitCilFunction (visitor_fun fd) fd
-  in
-  iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors_cil | _ -> ())
+  (* this has to be done here, since the settings aren't available when register_preprocess is called *)
+  let active_visitors = List.filter_map (fun (name, visitor_fun) -> if List.mem name (get_string_list "ana.activated") then Some visitor_fun else None) !visitors_cil in
+  let f fd visitor_fun = ignore @@ visitCilFunction (visitor_fun fd) fd in
+  if active_visitors <> [] then
+    iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) active_visitors | _ -> ())
+  else
+    ()
 
 (** @raise GoblintCil.FrontC.ParseError
     @raise GoblintCil.Errormsg.Error *)
