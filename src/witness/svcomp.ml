@@ -52,6 +52,11 @@ struct
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
+        | ValidFree -> "valid-free"
+        | ValidDeref -> "valid-deref"
+        | ValidMemtrack -> "valid-memtrack"
+        | MemorySafety -> "memory-safety" (* TODO: Currently here only to complete the pattern match *)
+        | ValidMemcleanup -> "valid-memcleanup"
       in
       "false(" ^ result_spec ^ ")"
     | Unknown -> "unknown"

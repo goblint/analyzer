@@ -62,14 +62,10 @@ struct
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
-    let module VS = Set.Make (CilType.Varinfo) in
-    Q.LS.fold (fun (v, _) acc ->
-        let m = ValueDomain.Addr.of_var v in (* TODO: don't ignore offsets *)
-        Q.LS.fold (fun l acc ->
-            VS.add (fst l) acc (* always `NoOffset from mutex analysis *)
-          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
-      ) (ask.f Q.MustLockset) VS.empty
-    |> VS.elements
+    Q.AD.fold (fun m acc ->
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+      ) (ask.f Q.MustLockset) (Q.VS.empty ())
+    |> Q.VS.elements
 end
 
 module MutexGlobals =
@@ -90,7 +86,7 @@ struct
   module V =
   struct
     (* TODO: Either3? *)
-    include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    include Printable.Either (struct include Printable.Either (VMutex) (VMutexInits) let name () = "mutex" end) (VGlobal)
     let name () = "MutexGlobals"
     let mutex x: t = `Left (`Left x)
     let mutex_inits: t = `Left (`Right ())
@@ -128,10 +124,8 @@ struct
     if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
-      let ls = ask.f Queries.MustLockset in
-      Q.LS.fold (fun (var, offs) acc ->
-          Lockset.add (Lock.of_mval (var, Lock.Offs.of_exp offs)) acc
-        ) ls (Lockset.empty ())
+      let ad = ask.f Queries.MustLockset in
+      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ()) (* TODO: use AD as Lockset *)
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)

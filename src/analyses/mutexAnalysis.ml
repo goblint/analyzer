@@ -30,6 +30,8 @@ struct
 
       include MapDomain.MapTop_LiftBot (ValueDomain.Addr) (Count)
 
+      let name () = "multiplicity"
+
       let increment v x =
         let current = find v x in
         if current = max_count () then
@@ -233,21 +235,15 @@ struct
       Mutexes.leq mutex_lockset protecting
     | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
-      let ls = Mutexes.fold (fun addr ls ->
-          match Addr.to_mval addr with
-          | Some (var, offs) -> Queries.LS.add (var, Addr.Offs.to_exp offs) ls
-          | None -> ls
-        ) held_locks (Queries.LS.empty ())
-      in
-      ls
+      Mutexes.fold (fun addr ls -> Queries.AD.add addr ls) held_locks (Queries.AD.empty ())
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       Mutexes.mem (LockDomain.Addr.of_var LF.verifier_atomic_var) held_locks
     | Queries.MustProtectedVars {mutex = m; write} ->
       let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
-          Queries.LS.add (v, `NoOffset) acc
-        ) protected (Queries.LS.empty ())
+          Queries.VS.add v acc
+        ) protected (Queries.VS.empty ())
     | Queries.IterSysVars (Global g, f) ->
       f (Obj.repr (V.protecting g)) (* TODO: something about V.protected? *)
     | WarnGlobal g ->

@@ -29,11 +29,30 @@ module Spec =
 struct
   include Analyses.IdentitySpec
 
-  module N = Lattice.Flat (VNI) (struct let bot_name = "unknown node" let top_name = "unknown node" end)
+  module N =
+  struct
+    include Lattice.Flat (VNI) (struct let bot_name = "unknown node" let top_name = "unknown node" end)
+    let name () = "wrapper call"
+  end
   module TD = Thread.D
+  module Created =
+  struct
+    module Current =
+    struct
+      include TD
+      let name () = "current function"
+    end
+    module Callees =
+    struct
+      include TD
+      let name () = "callees"
+    end
+    include Lattice.Prod (Current) (Callees)
+    let name () = "created"
+  end
 
   (** Uniqueness Counter * TID * (All thread creates of current thread * All thread creates of the current function and its callees) *)
-  module D = Lattice.Prod3 (N) (ThreadLifted) (Lattice.Prod(TD)(TD))
+  module D = Lattice.Prod3 (N) (ThreadLifted) (Created)
   module C = D
   module P = IdentityP (D)
 

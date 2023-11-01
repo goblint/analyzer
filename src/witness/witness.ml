@@ -118,7 +118,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       | Result.Unknown -> "unknown_witness"
     );
   GML.write_metadata g "sourcecodelang" "C";
-  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
+  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Goblint_build_info.version);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
   let programfile = (Node.location (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
@@ -494,6 +494,69 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+    | ValidFree
+    | ValidDeref
+    | ValidMemtrack
+    | MemorySafety ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_free && not !AnalysisState.svcomp_may_invalid_deref && not !AnalysisState.svcomp_may_invalid_memtrack then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+    | ValidMemcleanup ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_memcleanup then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
         let module TaskResult =
         struct
           module Arg = TrivialArg

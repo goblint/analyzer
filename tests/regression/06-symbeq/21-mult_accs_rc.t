@@ -15,6 +15,7 @@ Disable info messages because race summary contains (safe) memory location count
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:13:3-13:14)
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:15:3-15:14)
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:27:3-27:14)
+  [Error][Imprecise][Unsound] Function definition missing
 
   $ goblint --enable warn.deterministic --disable warn.info --disable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs 21-mult_accs_rc.c
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:14:3-14:32)
@@ -30,3 +31,4 @@ Disable info messages because race summary contains (safe) memory location count
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:13:3-13:14)
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:15:3-15:14)
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:27:3-27:14)
+  [Error][Imprecise][Unsound] Function definition missing
