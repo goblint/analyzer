@@ -2,28 +2,21 @@
 #include<stdio.h>
 #include <goblint.h>
 
-int a = 0;
 int main(void)
 {
-    f(50);
-    
-    __goblint_check (a<20);
-    __goblint_check (a<15);
-    __goblint_check (a<10);
-    __goblint_check (a<5);
-    __goblint_check (a==0);
+    int res = f(10);
+    __goblint_check (res==100);
 }
 
+// gets either even or odd i values
 int f(int i)
 {
-    
-
+    if (i == 0){
+        return 100;
+    }
     if (i > 0){
         i--;
-        a = i;
         f(i);
     }
-
+    return 0;
 }
-
-
