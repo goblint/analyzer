@@ -475,7 +475,7 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
-    | Termination -> (* TODO: implement this properly*)
+    | Termination ->
       let module TrivialArg =
       struct
         include Arg
