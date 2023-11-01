@@ -149,7 +149,6 @@ module UnitAnalysis = UnitAnalysis
 module Assert = Assert
 module FileUse = FileUse
 module Uninit = Uninit
-module Termination = Termination
 module Expsplit = Expsplit
 module StackTrace = StackTrace
 module Spec = Spec
