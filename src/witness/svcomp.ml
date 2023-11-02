@@ -44,7 +44,6 @@ struct
     | True
     | False of Specification.t option
     | Unknown
-  [@@deriving ord]
 
   let to_string = function
     | True -> "true"
