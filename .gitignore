@@ -85,6 +85,7 @@ dune-workspace
 # gobview
 run/
 gobview_out/*
+gobview_dist/*
 
 # witnesses
 witness.yml
