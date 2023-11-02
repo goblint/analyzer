@@ -2,28 +2,21 @@
 #include<stdio.h>
 #include <goblint.h>
 
-int a = 0;
+int a = 5;
 int main(void)
 {
-    f(50);
+    f(5);
     
-    __goblint_check (a<20);
-    __goblint_check (a<15);
-    __goblint_check (a<10);
-    __goblint_check (a<5);
-    __goblint_check (a==0);
+    __goblint_check (a==0); // FAIL
 }
 
 int f(int i)
 {
-    
-
     if (i > 0){
         i--;
         a = i;
         f(i);
     }
-
 }
 
 
