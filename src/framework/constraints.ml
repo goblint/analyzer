@@ -517,18 +517,18 @@ struct
   let name () = S.name ()^" with context gas"
 
   let context fd d = 
-    if (not !AnalysisState.postsolving) && (!C.context_gas <= 0) then ((*printf "gas=0\n";*) None) else Some (S.context fd d) (* TODO*)
+    if (!C.context_gas <= 0) then (printf "gas=0\n"; None) else Some (S.context fd d) (* TODO*)
 
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx = (* TODO*)
-    if (not !AnalysisState.postsolving) && (!C.context_gas <= 0) 
+    if (!C.context_gas <= 0) 
     then {ctx with context = (fun () -> ctx_failwith "contextGas") } 
     else {ctx with context = (fun () -> Option.get (ctx.context ())) } (*TODO Raises Invalid_argument if o is None.?*)
 
   let enter ctx r f args = 
-    if (not !AnalysisState.postsolving) && (!C.context_gas > 0)
+    if (!C.context_gas > 0)
     then 
       (C.context_gas := !C.context_gas - 1;
-       (*printf "enterContextGas %i in %s with %s \n" !C.context_gas (CilType.Fundec.show f) (showExprList args)*));
+       printf "enterContextGas %i in %s with %s \n" !C.context_gas (CilType.Fundec.show f) (showExprList args));
     S.enter (conv ctx) r f args
 
   let sync ctx reason                             = S.sync (conv ctx) reason
