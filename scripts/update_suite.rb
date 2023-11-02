@@ -160,13 +160,13 @@ class Tests
                   when /invariant confirmed/                             then "success"
                   when /invariant unconfirmed/                           then "unknown"
                   when /invariant refuted/                               then "fail"
+                  when /(Upjumping Goto)/                                then "goto"
+                  when /(Fundec \w+ is contained in a call graph cycle)/ then "fundec"
+                  when /(Loop analysis)/                                 then "loop"
                   when /^\[Warning\]/                                    then "warn"
                   when /^\[Error\]/                                      then "warn"
                   when /^\[Info\]/                                       then "warn"
                   when /^\[Success\]/                                    then "success"
-                  when /(Upjumping Goto)/                                then "goto"
-                  when /(Fundec \w+ is contained in a call graph cycle)/ then "fundec"
-                  when /(Loop analysis)/                                 then "loop"
                   when /\[Debug\]/                                       then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                   when /^  on line \d+ $/                                then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                   when /^  on lines \d+..\d+ $/                          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
