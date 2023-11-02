@@ -85,8 +85,14 @@ struct
     | _ -> Queries.Result.top q
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx =
+
+  let threadenter ctx ~multiple lval f args =
+    if multiple then
+      (let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx ctx) in
+       ctx.sideg tid (true, TS.bot (), false));
+    [D.bot ()]
+
+  let threadspawn ctx ~multiple lval f args fctx =
     let creator = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx fctx) in
     let repeated = D.mem tid ctx.local in
