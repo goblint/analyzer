@@ -506,34 +506,54 @@ struct
   include S
   module D = S.D
   module G = S.G
+
+  module PrintableInt =  (*TODO*)
+  struct
+    type t = int [@@deriving eq, ord, hash]
+
+    include  Printable.Std
+
+    let name () = "Integer"
+    let show x = string_of_int x
+    let pretty () x = Pretty.dprintf "Integer: %i" x
+    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (string_of_int x)
+    let to_yojson x = `String (string_of_int x)
+
+    let arbitrary () = QCheck.int_range 0 (10000 - 1)
+    let relift x = x
+  end 
+
   module C = 
   struct 
-    include Printable.Option (S.C) (struct let name = "contextGas" end)
-    let context_gas = ref 10
+    include Printable.Prod (Printable.Option (S.C) (struct let name = "contextGas" end)) (PrintableInt)
   end
   module V = S.V
   module P = S.P
 
-  let rec showExprList args = (*TODO: delete, just here for printing*)
+
+  (*let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
-    | a::t -> (CilType.Exp.show a) ^ (showExprList t)
+    | a::t -> (CilType.Exp.show a) ^ (showExprList t)*)
 
   let name () = S.name ()^" with context gas"
 
   let context fd d = 
-    if (!C.context_gas <= 0) then (printf "gas=0\n"; None) else Some (S.context fd d) (* TODO*)
+    (*if (!C.context_gas <= 0) then (printf "gas=0\n"; None) else Some (S.context fd d) (* TODO*)*)
+    ((Some (S.context fd d)), 2 )
 
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx = (* TODO*)
-    if (!C.context_gas <= 0) 
+    (*if (!C.context_gas <= 0) 
     then {ctx with context = (fun () -> ctx_failwith "contextGas") } 
-    else {ctx with context = (fun () -> Option.get (ctx.context ())) } (*TODO Raises Invalid_argument if o is None.?*)
+    else*) 
+    {ctx with context = (fun () -> Option.get ( fst (ctx.context ()))) } (*TODO Raises Invalid_argument if o is None.?*)
 
   let enter ctx r f args = 
-    if (!C.context_gas > 0)
-    then 
+    (*if (!C.context_gas > 0)
+      then 
       (C.context_gas := !C.context_gas - 1;
        printf "enterContextGas %i in %s with %s \n" !C.context_gas (CilType.Fundec.show f) (showExprList args));
+      S.enter (conv ctx) r f args*)
     S.enter (conv ctx) r f args
 
   let sync ctx reason                             = S.sync (conv ctx) reason
@@ -546,11 +566,11 @@ struct
   let asm ctx                                     = S.asm (conv ctx) 
   let skip ctx                                    = S.skip (conv ctx)
   let special ctx r f args                        = S.special (conv ctx) r f args 
-  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> x)) es f_ask 
-  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> x)) es f_ask
+  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) es f_ask 
+  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) es f_ask
   let paths_as_set ctx                            = S.paths_as_set (conv ctx) 
-  let threadenter ctx lval f args                 = S.threadenter (conv ctx) lval f args (*TODO*)
-  let threadspawn ctx lval f args fctx            = S.threadspawn (conv ctx) lval f args (conv fctx) (*TODO*)
+  let threadenter ctx lval f args                 = S.threadenter (conv ctx) lval f args (*TODO: it's possible to decrease the counter also here*)
+  let threadspawn ctx lval f args fctx            = S.threadspawn (conv ctx) lval f args (conv fctx) 
   let event ctx e octx                            = S.event (conv ctx) e (conv octx) 
 
 end
