@@ -25,7 +25,7 @@ struct
   let exitstate = startstate
 
   (** Sets the global invariant to true when a thread is spawned *)
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     ctx.sideg () true;
     ()
 

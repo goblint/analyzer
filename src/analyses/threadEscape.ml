@@ -150,10 +150,10 @@ struct
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.bot ()]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     D.join ctx.local @@
     match args with
     | [ptc_arg] ->
