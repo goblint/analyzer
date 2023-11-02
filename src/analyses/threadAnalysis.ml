@@ -61,7 +61,8 @@ struct
            s
        in
        match TS.elements (ctx.ask (Queries.EvalThread id)) with
-       | threads -> List.fold_left join_thread ctx.local threads
+       | [t] -> join_thread ctx.local t (* single thread *)
+       | _ -> ctx.local (* if several possible threads are may-joined, none are must-joined *)
        | exception SetDomain.Unsupported _ -> ctx.local)
     | _ -> ctx.local
 
