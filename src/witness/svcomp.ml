@@ -8,7 +8,7 @@ module Specification = SvcompSpec
 module type Task =
 sig
   val file: Cil.file
-  val specification: Specification.t
+  val specification: Specification.multi
 
   module Cfg: MyCFG.CfgBidir
 end
@@ -16,11 +16,16 @@ end
 let task: (module Task) option ref = ref None
 
 
+let is_error_function' f spec =
+  let module Task = (val (Option.get !task)) in
+  List.exists (function
+      | Specification.UnreachCall f_spec -> f.vname = f_spec
+      | _ -> false
+    ) spec
+
 let is_error_function f =
   let module Task = (val (Option.get !task)) in
-  match Task.specification with
-  | UnreachCall f_spec -> f.vname = f_spec
-  | _ -> false
+  is_error_function' f Task.specification
 
 (* TODO: unused, but should be used? *)
 let is_special_function f =
@@ -28,11 +33,7 @@ let is_special_function f =
   let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
   let is_verifier = match f.vname with
     | fname when String.starts_with fname "__VERIFIER" -> true
-    | fname ->
-      let module Task = (val (Option.get !task)) in
-      match Task.specification with
-      | UnreachCall f_spec -> fname = f_spec
-      | _ -> false
+    | fname -> is_error_function f
   in
   is_svcomp && is_verifier
 
@@ -55,6 +56,7 @@ struct
         | ValidFree -> "valid-free"
         | ValidDeref -> "valid-deref"
         | ValidMemtrack -> "valid-memtrack"
+        | ValidMemcleanup -> "valid-memcleanup"
       in
       "false(" ^ result_spec ^ ")"
     | Unknown -> "unknown"

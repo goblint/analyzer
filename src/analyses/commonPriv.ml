@@ -19,12 +19,14 @@ struct
       if not mutex_active then failwith "Privatization (to be useful) requires the 'mutex' analysis to be enabled (it is currently disabled)"
   end
 
-  module RequireMutexPathSensInit =
+  module RequireMutexPathSensOneMainInit =
   struct
     let init () =
       RequireMutexActivatedInit.init ();
       let mutex_path_sens = List.mem "mutex" (GobConfig.get_string_list "ana.path_sens") in
       if not mutex_path_sens then failwith "The activated privatization requires the 'mutex' analysis to be enabled & path sensitive (it is currently enabled, but not path sensitive)";
+      let mainfuns = List.length @@ GobConfig.get_list "mainfun" in
+      if not (mainfuns = 1) then failwith "The activated privatization requires exactly one main function to be specified";
       ()
   end
 
@@ -84,7 +86,7 @@ struct
   module V =
   struct
     (* TODO: Either3? *)
-    include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    include Printable.Either (struct include Printable.Either (VMutex) (VMutexInits) let name () = "mutex" end) (VGlobal)
     let name () = "MutexGlobals"
     let mutex x: t = `Left (`Left x)
     let mutex_inits: t = `Left (`Right ())

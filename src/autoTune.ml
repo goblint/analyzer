@@ -210,8 +210,35 @@ let activateLongjmpAnalysesWhenRequired () =
     enableAnalyses longjmpAnalyses;
   )
 
-let focusOnSpecification () =
-  match Svcomp.Specification.of_option () with
+let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
+  match spec with
+  | ValidFree -> (* Enable the useAfterFree analysis *)
+    let uafAna = ["useAfterFree"] in
+    print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
+    enableAnalyses uafAna
+  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
+    let memOobAna = ["memOutOfBounds"] in
+    set_bool "ana.arrayoob" true;
+    print_endline "Setting \"cil.addNestedScopeAttr\" to true";
+    set_bool "cil.addNestedScopeAttr" true;
+    print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
+    enableAnalyses memOobAna
+  | ValidMemtrack
+  | ValidMemcleanup -> (* Enable the memLeak analysis *)
+    let memLeakAna = ["memLeak"] in
+    if (get_int "ana.malloc.unique_address_count") < 1 then (
+      print_endline "Setting \"ana.malloc.unique_address_count\" to 1";
+      set_int "ana.malloc.unique_address_count" 1;
+    );
+    print_endline @@ "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
+    enableAnalyses memLeakAna
+  | _ -> ()
+
+let focusOnMemSafetySpecification () =
+  List.iter focusOnMemSafetySpecification (Svcomp.Specification.of_option ())
+
+let focusOnSpecification (spec: Svcomp.Specification.t) =
+  match spec with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
@@ -219,13 +246,10 @@ let focusOnSpecification () =
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
-  | ValidFree -> (* Enable the useAfterFree analysis *)
-    let uafAna = ["useAfterFree"] in
-    print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
-    enableAnalyses uafAna
-  (* TODO: Finish these two below later *)
-  | ValidDeref
-  | ValidMemtrack -> ()
+  | _ -> ()
+
+let focusOnSpecification () =
+  List.iter focusOnSpecification (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -383,9 +407,10 @@ let congruenceOption factors file =
 let apronOctagonOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
-      match Svcomp.Specification.of_option () with
-      | NoOverflow -> 12
-      | _ -> 8
+      if List.mem Svcomp.Specification.NoOverflow (Svcomp.Specification.of_option ()) then
+        12
+      else
+        8
     else 8
   in let globals = 2 in
   let selectedLocals =

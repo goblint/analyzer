@@ -83,7 +83,8 @@
         "congruence",
         "octagon",
         "wideningThresholds",
-        "loopUnrollHeuristic"
+        "loopUnrollHeuristic",
+        "memsafetySpecification"
       ]
     }
   },
@@ -103,8 +104,11 @@
     }
   },
   "witness": {
-    "id": "enumerate",
-    "unknown": false
+    "graphml": {
+      "enabled": true,
+      "id": "enumerate",
+      "unknown": false
+    }
   },
   "pre": {
     "enabled": false

@@ -260,8 +260,8 @@ let categoryName = function
 
   | Behavior x -> behaviorName x
   | Integer x -> (match x with
-    | Overflow -> "Overflow";
-    | DivByZero -> "DivByZero")
+      | Overflow -> "Overflow";
+      | DivByZero -> "DivByZero")
   | Float -> "Float"
 
 

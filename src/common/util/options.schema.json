@@ -288,6 +288,12 @@
           "type": "boolean",
           "description": "Indicates whether gnu89 semantic should be used for inline functions.",
           "default": false
+        },
+        "addNestedScopeAttr": {
+          "title": "cil.addNestedScopeAttr",
+          "type": "boolean",
+          "description": "Indicates whether variables that CIL pulls out of their scope should be marked.",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -538,7 +544,7 @@
               "type": "array",
               "items": { "type": "string" },
               "default": [
-                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds"
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds", "memsafetySpecification"
               ]
             }
           },
@@ -2279,24 +2285,56 @@
       "title": "witness",
       "type": "object",
       "properties": {
-        "enabled": {
-          "title": "witness.enabled",
-          "description": "Output witness",
-          "type": "boolean",
-          "default": true
-        },
-        "path": {
-          "title": "witness.path",
-          "description": "Witness output path",
-          "type": "string",
-          "default": "witness.graphml"
-        },
-        "id": {
-          "title": "witness.id",
-          "description": "Which witness node IDs to use? node/enumerate",
-          "type": "string",
-          "enum": ["node", "enumerate"],
-          "default": "node"
+        "graphml": {
+          "title": "witness.graphml",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "witness.graphml.enabled",
+              "description": "Output GraphML witness",
+              "type": "boolean",
+              "default": false
+            },
+            "path": {
+              "title": "witness.graphml.path",
+              "description": "GraphML witness output path",
+              "type": "string",
+              "default": "witness.graphml"
+            },
+            "id": {
+              "title": "witness.graphml.id",
+              "description": "Which witness node IDs to use? node/enumerate",
+              "type": "string",
+              "enum": ["node", "enumerate"],
+              "default": "node"
+            },
+            "minimize": {
+              "title": "witness.graphml.minimize",
+              "description": "Try to minimize the witness",
+              "type": "boolean",
+              "default": false
+            },
+            "uncil": {
+              "title": "witness.graphml.uncil",
+              "description":
+                "Try to undo CIL control flow transformations in witness",
+              "type": "boolean",
+              "default": false
+            },
+            "stack": {
+              "title": "witness.graphml.stack",
+              "description": "Construct stacktrace-based witness nodes",
+              "type": "boolean",
+              "default": true
+            },
+            "unknown": {
+              "title": "witness.graphml.unknown",
+              "description": "Output witness for unknown result",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         },
         "invariant": {
           "title": "witness.invariant",
@@ -2333,7 +2371,7 @@
               "title": "witness.invariant.accessed",
               "description": "Only emit invariants for locally accessed variables",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "full": {
               "title": "witness.invariant.full",
@@ -2375,31 +2413,6 @@
             }
           },
           "additionalProperties": false
-        },
-        "minimize": {
-          "title": "witness.minimize",
-          "description": "Try to minimize the witness",
-          "type": "boolean",
-          "default": false
-        },
-        "uncil": {
-          "title": "witness.uncil",
-          "description":
-            "Try to undo CIL control flow transformations in witness",
-          "type": "boolean",
-          "default": false
-        },
-        "stack": {
-          "title": "witness.stack",
-          "description": "Construct stacktrace-based witness nodes",
-          "type": "boolean",
-          "default": true
-        },
-        "unknown": {
-          "title": "witness.unknown",
-          "description": "Output witness for unknown result",
-          "type": "boolean",
-          "default": true
         },
         "yaml": {
           "title": "witness.yaml",

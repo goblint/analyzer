@@ -9,10 +9,13 @@ type t =
   | ValidFree
   | ValidDeref
   | ValidMemtrack
+  | ValidMemcleanup
+
+type multi = t list
 
 let of_string s =
   let s = String.strip s in
-  let regexp = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )" in
+  let regexp_single = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )" in
   let regexp_negated = Str.regexp "CHECK( init(main()), LTL(G ! \\(.*\\)) )" in
   if Str.string_match regexp_negated s 0 then
     let global_not = Str.matched_group 1 s in
@@ -27,7 +30,7 @@ let of_string s =
         UnreachCall f
       else
         failwith "Svcomp.Specification.of_string: unknown global not expression"
-  else if Str.string_match regexp s 0 then
+  else if Str.string_match regexp_single s 0 then
     let global = Str.matched_group 1 s in
     if global = "valid-free" then
       ValidFree
@@ -35,10 +38,21 @@ let of_string s =
       ValidDeref
     else if global = "valid-memtrack" then
       ValidMemtrack
+    else if global = "valid-memcleanup" then
+      ValidMemcleanup
     else
       failwith "Svcomp.Specification.of_string: unknown global expression"
   else
     failwith "Svcomp.Specification.of_string: unknown expression"
+
+let of_string s: multi =
+  List.filter_map (fun line ->
+      let line = String.strip line in
+      if line = "" then
+        None
+      else
+        Some (of_string line)
+    ) (String.split_on_char '\n' s)
 
 let of_file path =
   let s = BatFile.with_file_in path BatIO.read_all in
@@ -65,5 +79,9 @@ let to_string spec =
     | ValidFree -> "valid-free", false
     | ValidDeref -> "valid-deref", false
     | ValidMemtrack -> "valid-memtrack", false
+    | ValidMemcleanup -> "valid-memcleanup", false
   in
   print_output spec_str is_neg
+
+let to_string spec =
+  String.concat "\n" (List.map to_string spec)
