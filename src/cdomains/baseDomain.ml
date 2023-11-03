@@ -4,6 +4,9 @@ open GoblintCil
 module VD = ValueDomain.Compound
 module BI = IntOps.BigIntOps
 
+module NH = BatHashtbl.Make (Node)
+let widen_vars = NH.create 113
+
 module CPA =
 struct
   module M0 = MapDomain.MapBot (Basetype.Variables) (VD)
@@ -11,6 +14,22 @@ struct
   struct
     include M0
     include MapDomain.PrintGroupable (Basetype.Variables) (VD) (M0)
+
+    let widen_with_fct f m1 m2 =
+      let f' k v1 v2 =
+        match v1, v2 with
+        | Some v1, Some v2 ->
+          let v' = f v1 v2 in
+          if not (VD.equal v2 v') then (
+            ignore (Pretty.printf "widen %a at %a\n" Basetype.Variables.pretty k (Pretty.docOpt (Node.pretty_plain_short ())) !Node.current_node);
+            NH.add widen_vars (Option.get !Node.current_node) k;
+          );
+          Some v'
+        | Some _, _ -> v1
+        | _, Some _ -> v2
+        | _ -> None
+      in
+      merge f' m1 m2
   end
   include MapDomain.LiftTop (VD) (MapDomain.HashCached (M))
   let name () = "value domain"
