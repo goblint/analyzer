@@ -243,7 +243,8 @@ struct
         NH.fold (fun n local acc ->
             let loc = Node.location n in
             if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
-              match R.ask_local_node n ~local (Invariant Invariant.default_context) with
+              let lvals = local_lvals n local in
+              match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
               | `Lifted inv ->
                 let invs = WitnessUtil.InvariantExp.process_exp inv in
                 List.fold_left (fun acc inv ->
