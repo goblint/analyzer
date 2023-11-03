@@ -199,8 +199,12 @@ struct
           in
           lvals
       )
-      else
-        Lval.Set.top ()
+      else (
+        let vars = BaseDomain.NH.find_all BaseDomain.widen_vars n in
+        List.fold_left (fun acc var ->
+            Lval.Set.add (Var var, NoOffset) acc
+          ) (Lval.Set.empty ()) vars
+      )
     in
 
     let entries = [] in
