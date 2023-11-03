@@ -566,7 +566,15 @@ struct
       r
     | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
       let scope = Node.find_fundec ctx.node in
-      D.invariant ~scope ctx.local
+      if Lval.Set.is_top context.lvals then
+        D.invariant ~scope ctx.local
+      else (
+        Lval.Set.fold (fun lval acc ->
+            match D.find_class (Lval lval) ctx.local with
+            | None -> acc
+            | Some c -> Invariant.(acc && D.invariant ~scope (D.singleton c))
+          ) context.lvals (Invariant.top ())
+      )
     | _ -> Queries.Result.top x
 
   let event ctx e octx =
