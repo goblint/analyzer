@@ -141,7 +141,7 @@ struct
   let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
-module Stack (Cfg:CfgForward) (Arg: S):
+module Stack (Cfg:CfgForward) (Arg: S with module Edge = InlineEdge):
   S with module Node = StackNode (Arg.Node) and module Edge = Arg.Edge =
 struct
   module Node = StackNode (Arg.Node)

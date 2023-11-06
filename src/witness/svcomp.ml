@@ -76,7 +76,7 @@ sig
   val is_sink: Arg.Node.t -> bool
 end
 
-module StackTaskResult (Cfg:MyCFG.CfgForward) (TaskResult: TaskResult) =
+module StackTaskResult (Cfg:MyCFG.CfgForward) (TaskResult: TaskResult with module Arg.Edge = MyARG.InlineEdge) =
 struct
   module Arg = MyARG.Stack (Cfg) (TaskResult.Arg)
 
