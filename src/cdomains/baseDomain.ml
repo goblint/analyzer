@@ -14,22 +14,6 @@ struct
   struct
     include M0
     include MapDomain.PrintGroupable (Basetype.Variables) (VD) (M0)
-
-    let widen_with_fct f m1 m2 =
-      let f' k v1 v2 =
-        match v1, v2 with
-        | Some v1, Some v2 ->
-          let v' = f v1 v2 in
-          if not (VD.equal v2 v') then (
-            ignore (Pretty.printf "widen %a at %a\n" Basetype.Variables.pretty k (Pretty.docOpt (Node.pretty_plain_short ())) !Node.current_node);
-            NH.add widen_vars (Option.get !Node.current_node) k;
-          );
-          Some v'
-        | Some _, _ -> v1
-        | _, Some _ -> v2
-        | _ -> None
-      in
-      merge f' m1 m2
   end
   include MapDomain.LiftTop (VD) (MapDomain.HashCached (M))
   let name () = "value domain"
@@ -62,7 +46,27 @@ struct
   let merge f (m1, _) (m2, _) = (CPA.merge f m1 m2, Vars.empty ())
   let leq_with_fct f (m1, _) (m2, _) = CPA.leq_with_fct f m1 m2
   let join_with_fct f (m1, _) (m2, _) = (CPA.join_with_fct f m1 m2, Vars.empty ())
-  let widen_with_fct f (m1, _) (m2, _) = (CPA.widen_with_fct f m1 m2, Vars.empty ())
+  let widen_with_fct f (m1, v1) (m2, _) =
+    let vs = ref v1 in
+    let f' k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 ->
+        let v' = f v1 v2 in
+        if not (VD.equal v2 v') then (
+          ignore (Pretty.printf "widen %a at %a\n" Basetype.Variables.pretty k (Pretty.docOpt (Node.pretty_plain_short ())) !Node.current_node);
+          NH.add widen_vars (Option.get !Node.current_node) k; (* TODO: remove *)
+          vs := Vars.add k !vs;
+        );
+        Some v'
+      | Some _, _ -> v1
+      | _, Some _ -> v2
+      | _ -> None
+    in
+    let m' = CPA0.merge f' m1 m2 in
+    ignore (Pretty.printf "widen vars %a -> %a at %a\n" Vars.pretty v1 Vars.pretty !vs (Pretty.docOpt (Node.pretty_plain_short ())) !Node.current_node);
+    (m', !vs)
+  let narrow (m1, v1) (m2, _) =
+    (CPA.narrow m1 m2, v1)
   let cardinal (m, _) = CPA.cardinal m
   let choose (m, _) = CPA.choose m
   let singleton k v = (CPA.singleton k v, Vars.empty ())
