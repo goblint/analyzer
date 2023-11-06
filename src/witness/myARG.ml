@@ -165,28 +165,21 @@ struct
               Arg.next call_n
               (* filter because infinite loops starting with function call
                  will have another Neg(1) edge from the head *)
-              |> List.filter (fun (edge, to_n) ->
+              |> List.filter_map (fun (edge, to_n) ->
                   match edge with
-                  | InlinedEdge _ -> true
-                  | _ -> false
+                  | InlinedEdge _ -> Some to_n
+                  | _ -> None
                 )
             in
-            begin match call_next with
-              | [] -> failwith "StackArg.next: call next empty" (* TODO: Is it possible to have a calling node without a returning node? *)
-              | [(_, return_n)] ->
-                (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
-                Arg.next n
-                |> List.filter (fun (edge, to_n) ->
-                    (* let to_cfgnode = Arg.Node.cfgnode to_n in
-                    MyCFG.Node.equal to_cfgnode return_node *)
-                    Arg.Node.equal_node_context to_n return_n
-                  )
-                |> List.map (fun (edge, to_n) ->
-                    let to_n' = to_n :: call_stack in
-                    (edge, to_n')
-                  )
-              | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
-            end
+            Arg.next n
+            |> List.filter_map (fun (edge, to_n) ->
+                if BatList.mem_cmp Arg.Node.compare to_n call_next then (
+                  let to_n' = to_n :: call_stack in
+                  Some (edge, to_n')
+                )
+                else
+                  None
+              )
         end
       | _ ->
         let+ (edge, to_n) = Arg.next n in
