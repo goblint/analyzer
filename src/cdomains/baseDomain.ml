@@ -46,7 +46,7 @@ struct
   let filter f (m, _) = (CPA.filter f m, Vars.empty ())
   let merge f (m1, _) (m2, _) = (CPA.merge f m1 m2, Vars.empty ())
   let leq_with_fct f (m1, _) (m2, _) = CPA.leq_with_fct f m1 m2
-  let join_with_fct f (m1, _) (m2, _) = (CPA.join_with_fct f m1 m2, Vars.empty ())
+  let join_with_fct f (m1, v1) (m2, v2) = (CPA.join_with_fct f m1 m2, Vars.join v1 v2)
   let widen_with_fct f (m1, v1) (m2, _) =
     let vs = ref v1 in
     let f' k v1 v2 =
