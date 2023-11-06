@@ -161,38 +161,30 @@ struct
           (* | [] -> failwith "StackArg.next: return stack empty" *)
           | [] -> [] (* main return *)
           | call_n :: call_stack ->
-            let call_cfgnode = Arg.Node.cfgnode call_n in
             let call_next =
-              Cfg.next call_cfgnode
+              Arg.next call_n
               (* filter because infinite loops starting with function call
                  will have another Neg(1) edge from the head *)
-              |> List.filter (fun (locedges, to_node) ->
-                  List.exists (function
-                      | (_, Proc _) -> true
-                      | (_, _) -> false
-                    ) locedges
+              |> List.filter (fun (edge, to_n) ->
+                  match edge with
+                  | InlinedEdge _ -> true
+                  | _ -> false
                 )
             in
             begin match call_next with
-              | [] -> failwith "StackArg.next: call next empty"
-              | [(_, return_node)] ->
-                begin match Arg.Node.move_opt call_n return_node with
-                  (* TODO: Is it possible to have a calling node without a returning node? *)
-                  (* | None -> [] *)
-                  | None -> failwith "StackArg.next: no return node"
-                  | Some return_n ->
-                    (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
-                    Arg.next n
-                    |> List.filter (fun (edge, to_n) ->
-                        (* let to_cfgnode = Arg.Node.cfgnode to_n in
-                        MyCFG.Node.equal to_cfgnode return_node *)
-                        Arg.Node.equal_node_context to_n return_n
-                      )
-                    |> List.map (fun (edge, to_n) ->
-                        let to_n' = to_n :: call_stack in
-                        (edge, to_n')
-                      )
-                end
+              | [] -> failwith "StackArg.next: call next empty" (* TODO: Is it possible to have a calling node without a returning node? *)
+              | [(_, return_n)] ->
+                (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
+                Arg.next n
+                |> List.filter (fun (edge, to_n) ->
+                    (* let to_cfgnode = Arg.Node.cfgnode to_n in
+                    MyCFG.Node.equal to_cfgnode return_node *)
+                    Arg.Node.equal_node_context to_n return_n
+                  )
+                |> List.map (fun (edge, to_n) ->
+                    let to_n' = to_n :: call_stack in
+                    (edge, to_n')
+                  )
               | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
             end
         end
