@@ -19,10 +19,11 @@ struct
   let name () = "value domain"
 end
 
-module CPA: MapDomain.S with type key = Basetype.Variables.t and type value = VD.t =
+module Vars = Queries.VS
+
+module CPA (* : MapDomain.S with type key = Basetype.Variables.t and type value = VD.t *) =
 struct
   module CPA = CPA0
-  module Vars = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "Top" end)
   include Lattice.Prod (CPA) (Vars)
 
   type key = CPA.key

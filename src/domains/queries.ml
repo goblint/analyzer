@@ -128,6 +128,7 @@ type _ t =
   | MayBeTainted: AD.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | WidenedVars: VS.t t
 
 type 'a result = 'a
 
@@ -194,6 +195,7 @@ struct
     | MayBeTainted -> (module AD)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | TmpSpecial _ -> (module ML)
+    | WidenedVars -> (module VS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -259,6 +261,7 @@ struct
     | MayBeTainted -> AD.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | TmpSpecial _ -> ML.top ()
+    | WidenedVars -> VS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -321,6 +324,7 @@ struct
     | Any ThreadsJoinedCleanly -> 52
     | Any (TmpSpecial _) -> 53
     | Any (IsAllocVar _) -> 54
+    | Any WidenedVars -> 55
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -472,6 +476,7 @@ struct
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any WidenedVars -> Pretty.dprintf "WidenedVars"
 end
 
 let to_value_domain_ask (ask: ask) =

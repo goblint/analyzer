@@ -200,10 +200,15 @@ struct
           lvals
       )
       else (
-        let vars = BaseDomain.NH.find_all BaseDomain.widen_vars n in
-        List.fold_left (fun acc var ->
-            Lval.Set.add (Var var, NoOffset) acc
-          ) (Lval.Set.empty ()) vars
+        let vars = R.ask_local_node n ~local WidenedVars in
+        ignore (Pretty.printf "yaml widened vars %a at %a\n" Queries.VS.pretty vars Node.pretty_plain_short n);
+        if Queries.VS.is_top vars then
+          Lval.Set.top ()
+        else (
+          Queries.VS.fold (fun var acc ->
+              Lval.Set.add (Var var, NoOffset) acc
+            ) vars (Lval.Set.empty ())
+        )
       )
     in
 

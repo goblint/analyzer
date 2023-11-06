@@ -1378,6 +1378,8 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
+    | Q.WidenedVars ->
+      snd ctx.local.cpa
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
