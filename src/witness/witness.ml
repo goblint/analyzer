@@ -14,7 +14,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
   let module TaskResult =
     (val if get_bool "witness.graphml.stack" then
-        (module StackTaskResult (Task.Cfg) (TaskResult) : WitnessTaskResult)
+        (module StackTaskResult (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
     )
