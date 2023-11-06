@@ -7,7 +7,7 @@ module BI = IntOps.BigIntOps
 module NH = BatHashtbl.Make (Node)
 let widen_vars = NH.create 113
 
-module CPA =
+module CPA0 =
 struct
   module M0 = MapDomain.MapBot (Basetype.Variables) (VD)
   module M =
@@ -33,6 +33,44 @@ struct
   end
   include MapDomain.LiftTop (VD) (MapDomain.HashCached (M))
   let name () = "value domain"
+end
+
+module CPA: MapDomain.S with type key = Basetype.Variables.t and type value = VD.t =
+struct
+  module CPA = CPA0
+  module Vars = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "Top" end)
+  include Lattice.Prod (CPA) (Vars)
+
+  type key = CPA.key
+  type value = CPA.value
+
+  let add k v (m, _) = (CPA.add k v m, Vars.empty ())
+  let remove k (m, _) = (CPA.remove k m, Vars.empty ())
+  let find k (m, _) = CPA.find k m
+  let find_opt k (m, _) = CPA.find_opt k m
+  let mem k (m, _) = CPA.mem k m
+  let map f (m, _) = (CPA.map f m, Vars.empty ())
+  let add_list xs (m, _) = (CPA.add_list xs m, Vars.empty ())
+  let add_list_set ks v (m, _) = (CPA.add_list_set ks v m, Vars.empty ())
+  let add_list_fun ks f (m, _) = (CPA.add_list_fun ks f m, Vars.empty ())
+  let map2 f (m1, _) (m2, _) = (CPA.map2 f m1 m2, Vars.empty ())
+  let long_map2 f (m1, _) (m2, _) = (CPA.long_map2 f m1 m2, Vars.empty ())
+  let for_all f (m, _) = CPA.for_all f m
+  let iter f (m, _) = CPA.iter f m
+  let fold f (m, _) a = CPA.fold f m a
+  let filter f (m, _) = (CPA.filter f m, Vars.empty ())
+  let merge f (m1, _) (m2, _) = (CPA.merge f m1 m2, Vars.empty ())
+  let leq_with_fct f (m1, _) (m2, _) = CPA.leq_with_fct f m1 m2
+  let join_with_fct f (m1, _) (m2, _) = (CPA.join_with_fct f m1 m2, Vars.empty ())
+  let widen_with_fct f (m1, _) (m2, _) = (CPA.widen_with_fct f m1 m2, Vars.empty ())
+  let cardinal (m, _) = CPA.cardinal m
+  let choose (m, _) = CPA.choose m
+  let singleton k v = (CPA.singleton k v, Vars.empty ())
+  let empty () = (CPA.empty (), Vars.empty ())
+  let is_empty (m, _) = CPA.is_empty m
+  let exists f (m, _) = CPA.exists f m
+  let bindings (m, _) = CPA.bindings m
+  let mapi f (m, _) = (CPA.mapi f m, Vars.empty ())
 end
 
 (* Keeps track of which arrays are potentially partitioned according to an expression containing a specific variable *)
