@@ -141,7 +141,7 @@ struct
   let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
-module Stack (Cfg:CfgForward) (Arg: S with module Edge = InlineEdge):
+module Stack (Arg: S with module Edge = InlineEdge):
   S with module Node = StackNode (Arg.Node) and module Edge = Arg.Edge =
 struct
   module Node = StackNode (Arg.Node)
@@ -156,7 +156,7 @@ struct
     | n :: stack ->
       let cfgnode = Arg.Node.cfgnode n in
       match cfgnode with
-      | Function _ -> (* TODO: can this be done without Cfg? *)
+      | Function _ -> (* TODO: can this be done without cfgnode? *)
         begin match stack with
           (* | [] -> failwith "StackArg.next: return stack empty" *)
           | [] -> [] (* main return *)
