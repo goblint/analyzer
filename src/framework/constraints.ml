@@ -499,13 +499,10 @@ end
 
 (** Lifts a [Spec] with the context gas variable. TODO *)
 module ContextGasLifter (S:Spec)
-  : Spec with module D = S.D
-          and module G = S.G
+  : Spec with module G = S.G
 =
 struct
   include S
-  module D = S.D
-  module G = S.G
 
   module PrintableInt =  (*TODO*)
   struct
@@ -518,60 +515,111 @@ struct
     let pretty () x = Pretty.dprintf "Integer: %i" x
     let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (string_of_int x)
     let to_yojson x = `String (string_of_int x)
-
-    let arbitrary () = QCheck.int_range 0 (10000 - 1)
     let relift x = x
   end 
 
-  module C = 
-  struct 
-    include Printable.Prod (Printable.Option (S.C) (struct let name = "contextGas" end)) (PrintableInt)
-  end
-  module V = S.V
-  module P = S.P
+  module LatticeInt =  (*TODO*)
+  struct    
+    include PrintableInt
 
+    let leq x y = x <= y
+    let join x y = max x y
+    let widen = join
+    let meet x y = min x y
+
+    let narrow = meet
+    let top () = 10000
+    let is_top a = match a with
+      | 10000 -> true
+      | _ -> false
+    let bot () = 0
+    let is_bot a = match a with
+      | 0 -> true
+      | _ -> false
+
+    let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+      Pretty.dprintf "%a not leq %a" pretty x pretty y
+
+  end 
+
+  module D = Lattice.Prod (S.D) (LatticeInt)
+  module G = S.G
+
+  module C = Printable.Prod (Printable.Option (S.C) (struct let name = "contextGas" end)) (PrintableInt)
+  module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt (x, _) = of_elt x
+  end
 
   (*let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
     | a::t -> (CilType.Exp.show a) ^ (showExprList t)*)
 
+  let context_gas_start = 20
+
   let name () = S.name ()^" with context gas"
+  let startstate v = S.startstate v, context_gas_start
+  let exitstate v = S.exitstate v, 0 (* TODO*)
+  let morphstate v (d,i) = S.morphstate v d, i (* TODO*)
 
-  let context fd d = 
-    (*if (!C.context_gas <= 0) then (printf "gas=0\n"; None) else Some (S.context fd d) (* TODO*)*)
-    ((Some (S.context fd d)), 2 )
+  let context_gas_value ctx = 
+    snd ctx.local
 
-  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,S.C.t,V.t)ctx = (* TODO*)
-    (*if (!C.context_gas <= 0) 
-    then {ctx with context = (fun () -> ctx_failwith "contextGas") } 
-    else*) 
-    {ctx with context = (fun () -> Option.get ( fst (ctx.context ()))) } (*TODO Raises Invalid_argument if o is None.?*)
+  let context fd (d,i) = 
+    if (i <= 0) then (printf "gas=0\n"; (None, 0)) else ((Some (S.context fd d)), i)
+
+  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx = (* TODO*)
+    if (context_gas_value ctx <= 0) 
+    then {
+      ctx with context = (fun () -> ctx_failwith "contextGas") 
+             ; local = fst ctx.local
+             ; split = (fun d es -> ctx.split (d, context_gas_value ctx) es ) (*TODO*)
+    } else {
+      ctx with context = (fun () -> Option.get (fst (ctx.context ()))) 
+             ; local = fst ctx.local
+             ; split = (fun d es -> ctx.split (d, context_gas_value ctx) es )
+    } (*TODO Raises Invalid_argument if o is None.?*)
+
+  let dec_context_gas (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,C.t,V.t)ctx  = (* TODO*)
+    (*printf "context_gas_value = %i \n" (context_gas_value ctx);*)
+    if (context_gas_value ctx <= 1) (* because 1 is decreased to 0, which is already conntext insensitive*)
+    then {
+      ctx with context = (fun () -> (None, 0) )
+             ; local = (fst ctx.local, 0)
+    } else {
+      ctx with context = (fun () -> (fst (ctx.context ()) , context_gas_value ctx - 1))
+             ; local = (fst ctx.local, context_gas_value ctx - 1) 
+    } 
 
   let enter ctx r f args = 
-    (*if (!C.context_gas > 0)
-      then 
-      (C.context_gas := !C.context_gas - 1;
-       printf "enterContextGas %i in %s with %s \n" !C.context_gas (CilType.Fundec.show f) (showExprList args));
-      S.enter (conv ctx) r f args*)
-    S.enter (conv ctx) r f args
+    let ctx_dec = dec_context_gas ctx in 
+    (*printf "enterContextGas %i in %s with %s \n" !C.context_gas (CilType.Fundec.show f) (showExprList args));*)
+    printf "enterContextGas %i in %s with \n" (context_gas_value ctx_dec) (CilType.Fundec.show f) ;    
+    let ctx_conv = conv ctx_dec in 
+    let liftmap_tup = List.map (fun (x,y) -> (x, context_gas_value ctx_dec), (y, context_gas_value ctx_dec)) in
+    liftmap_tup (S.enter ctx_conv r f args)
 
-  let sync ctx reason                             = S.sync (conv ctx) reason
+  let liftmap f ctx = List.map (fun (x) -> (x, context_gas_value ctx)) f
+
+  let sync ctx reason                             = S.sync (conv ctx) reason, context_gas_value ctx
   let query ctx q                                 = S.query (conv ctx) q
-  let assign ctx lval expr                        = S.assign (conv ctx) lval expr 
-  let vdecl ctx v                                 = S.vdecl (conv ctx) v 
-  let body ctx fundec                             = S.body (conv ctx) fundec 
-  let branch ctx e tv                             = S.branch (conv ctx) e tv
-  let return ctx r f                              = S.return (conv ctx) r f
-  let asm ctx                                     = S.asm (conv ctx) 
-  let skip ctx                                    = S.skip (conv ctx)
-  let special ctx r f args                        = S.special (conv ctx) r f args 
-  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) es f_ask 
-  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) es f_ask
-  let paths_as_set ctx                            = S.paths_as_set (conv ctx) 
-  let threadenter ctx lval f args                 = S.threadenter (conv ctx) lval f args (*TODO: it's possible to decrease the counter also here*)
-  let threadspawn ctx lval f args fctx            = S.threadspawn (conv ctx) lval f args (conv fctx) 
-  let event ctx e octx                            = S.event (conv ctx) e (conv octx) 
+  let assign ctx lval expr                        = S.assign (conv ctx) lval expr, context_gas_value ctx
+  let vdecl ctx v                                 = S.vdecl (conv ctx) v, context_gas_value ctx
+  let body ctx fundec                             = S.body (conv ctx) fundec, context_gas_value ctx
+  let branch ctx e tv                             = S.branch (conv ctx) e tv, context_gas_value ctx
+  let return ctx r f                              = S.return (conv ctx) r f, context_gas_value ctx
+  let asm ctx                                     = S.asm (conv ctx), context_gas_value ctx
+  let skip ctx                                    = S.skip (conv ctx), context_gas_value ctx
+  let special ctx r f args                        = S.special (conv ctx) r f args, context_gas_value ctx
+  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) (fst es) f_ask, context_gas_value ctx
+  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) (fst es) f_ask, context_gas_value ctx
+  let paths_as_set ctx                            = liftmap (S.paths_as_set (conv ctx)) ctx 
+  let threadenter ctx lval f args                 = liftmap (S.threadenter (conv ctx) lval f args) ctx (*TODO: it's possible to decrease the counter also here*)
+  let threadspawn ctx lval f args fctx            = S.threadspawn (conv ctx) lval f args (conv fctx), context_gas_value ctx
+  let event ctx e octx                            = S.event (conv ctx) e (conv octx), context_gas_value ctx
 
 end
 
