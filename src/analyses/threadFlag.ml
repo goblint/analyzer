@@ -58,12 +58,12 @@ struct
   let access ctx _ =
     is_currently_multi (Analyses.ask_of_ctx ctx)
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     [create_tid f]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     D.join ctx.local (Flag.get_main ())
