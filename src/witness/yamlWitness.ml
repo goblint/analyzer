@@ -471,6 +471,7 @@ struct
             invariants
         in
 
+        let invariants = List.rev invariants in
         let entry = Entry.invariant_set ~task ~invariants in
         entry :: entries
       )
