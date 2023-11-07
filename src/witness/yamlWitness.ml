@@ -732,6 +732,48 @@ struct
           None
       in
 
+      let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
+
+        let validate_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
+          let loc = loc_of_location location_invariant.location in
+          let inv = location_invariant.value in
+
+          match Locator.find_opt locator loc with
+          | Some lvars ->
+            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+          | None ->
+            incr cnt_error;
+            M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
+        in
+
+        let validate_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
+          let loc = loc_of_location loop_invariant.location in
+          let inv = loop_invariant.value in
+
+          match Locator.find_opt loop_locator loc with
+          | Some lvars ->
+            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+          | None ->
+            incr cnt_error;
+            M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
+        in
+
+        let validate_invariant (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
+          match invariant_type_enabled target_type, invariant.invariant_type with
+          | true, LocationInvariant x ->
+            validate_location_invariant x
+          | true, LoopInvariant x ->
+            validate_loop_invariant x
+          | false, (LocationInvariant _ | LoopInvariant _) ->
+            incr cnt_disabled;
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type;
+        in
+
+        List.iter validate_invariant invariant_set.content;
+        None
+      in
+
       match entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         validate_location_invariant x
@@ -739,7 +781,9 @@ struct
         validate_loop_invariant x
       | true, PreconditionLoopInvariant x ->
         validate_precondition_loop_invariant x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _) ->
+      | true, InvariantSet x ->
+        validate_invariant_set x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
         None
