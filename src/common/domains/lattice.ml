@@ -649,3 +649,24 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
+
+(* Integer of type Lattice*)
+module LInt =  
+struct    
+  include Printable.PInt
+
+  let leq x y = x <= y
+  let join x y = max x y
+  let widen = join
+  let meet x y = min x y
+  let narrow = meet
+
+  let top () = max_int
+  let is_top a = a >= top ()
+  let bot () = 0
+  let is_bot a = a <= bot ()
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
+
+end 
