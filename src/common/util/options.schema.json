@@ -2430,7 +2430,8 @@
                   "flow_insensitive_invariant",
                   "precondition_loop_invariant",
                   "loop_invariant_certificate",
-                  "precondition_loop_invariant_certificate"
+                  "precondition_loop_invariant_certificate",
+                  "invariant_set"
                 ]
               },
               "default": [
@@ -2438,7 +2439,24 @@
                 "loop_invariant",
                 "flow_insensitive_invariant",
                 "loop_invariant_certificate",
-                "precondition_loop_invariant_certificate"
+                "precondition_loop_invariant_certificate",
+                "invariant_set"
+              ]
+            },
+            "invariant-types": {
+              "title": "witness.yaml.invariant-types",
+              "description": "YAML witness invariant types to output/input.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "location_invariant",
+                  "loop_invariant"
+                ]
+              },
+              "default": [
+                "location_invariant",
+                "loop_invariant"
               ]
             },
             "path": {
