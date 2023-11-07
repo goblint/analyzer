@@ -25,8 +25,8 @@ struct
   let name () = "uninit"
 
   let startstate v : D.t = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.empty ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
   let access_address (ask: Queries.ask) write lv =

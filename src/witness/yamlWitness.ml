@@ -392,6 +392,9 @@ struct
     ];
 
     yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+
+  let write () =
+    Timing.wrap "yaml witness" write ()
 end
 
 
