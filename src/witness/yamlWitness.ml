@@ -91,6 +91,29 @@ struct
     metadata = metadata ~task ();
   }
 
+  let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+    invariant_type = LocationInvariant {
+        location;
+        value = invariant;
+        format = "c_expression";
+      };
+  }
+
+  let loop_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+    invariant_type = LoopInvariant {
+        location;
+        value = invariant;
+        format = "c_expression";
+      };
+  }
+
+  let invariant_set ~task ~(invariants): Entry.t = {
+    entry_type = InvariantSet {
+        content = invariants;
+      };
+    metadata = metadata ~task ();
+  }
+
   let target ~uuid ~type_ ~(file_name): Target.t = {
     uuid;
     type_;
@@ -133,6 +156,9 @@ let yaml_entries_to_file yaml_entries file =
 
 let entry_type_enabled entry_type =
   List.mem entry_type (GobConfig.get_string_list "witness.yaml.entry-types")
+
+let invariant_type_enabled invariant_type =
+  List.mem invariant_type (GobConfig.get_string_list "witness.yaml.invariant-types")
 
 module Make (R: ResultQuery.SpecSysSol2) =
 struct
@@ -380,6 +406,73 @@ struct
             else
               acc
           ) lh entries
+      )
+      else
+        entries
+    in
+
+    (* Generate invariant set *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
+        let invariants = [] in
+
+        (* Generate location invariants *)
+        let invariants =
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
+            NH.fold (fun n local acc ->
+                let loc = Node.location n in
+                if is_invariant_node n then (
+                  let lvals = local_lvals n local in
+                  match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
+                  | `Lifted inv ->
+                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    List.fold_left (fun acc inv ->
+                        let location_function = (Node.find_fundec n).svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        let invariant = CilType.Exp.show inv in
+                        let invariant = Entry.location_invariant' ~location ~invariant in
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force nh) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate loop invariants *)
+        let invariants =
+          if entry_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
+            NH.fold (fun n local acc ->
+                let loc = Node.location n in
+                if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
+                  match R.ask_local_node n ~local (Invariant Invariant.default_context) with
+                  | `Lifted inv ->
+                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    List.fold_left (fun acc inv ->
+                        let location_function = (Node.find_fundec n).svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        let invariant = CilType.Exp.show inv in
+                        let invariant = Entry.loop_invariant' ~location ~invariant in
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force nh) invariants
+          )
+          else
+            invariants
+        in
+
+        let entry = Entry.invariant_set ~task ~invariants in
+        entry :: entries
       )
       else
         entries
