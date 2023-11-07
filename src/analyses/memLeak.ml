@@ -19,6 +19,22 @@ struct
   let context _ _ = ()
 
   (* HELPER FUNCTIONS *)
+  let get_global_vars () =
+    (* Filtering by GVar seems to account for declarations, as well as definitions of global vars *)
+    List.filter_map (function GVar (v, _, _) -> Some v | _ -> None) !Cilfacade.current_file.globals
+
+  let get_reachable_mem_from_globals (global_vars:varinfo list) ctx =
+    global_vars
+    |> List.map (fun v -> Lval (Var v, NoOffset))
+    |> List.filter_map (fun exp ->
+        match ctx.ask (Queries.MayPointTo exp) with
+        | a when not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1  ->
+          begin match List.hd @@ Queries.AD.elements a with
+            | Queries.AD.Addr.Addr (v, _) when (ctx.ask (Queries.IsHeapVar v)) && not (ctx.ask (Queries.IsMultiple v)) -> Some v
+            | _ -> None
+          end
+        | _ -> None)
+
   let warn_for_multi_threaded ctx =
     if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) then (
       set_mem_safety_flag InvalidMemTrack;
@@ -27,17 +43,25 @@ struct
     )
 
   let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
-    let state = ctx.local in
-    if not @@ D.is_empty state then
+    let allocated_mem = ctx.local in
+    if not (D.is_empty allocated_mem) then
+      let reachable_mem = D.of_list (get_reachable_mem_from_globals (get_global_vars ()) ctx) in
+      (* Check and warn if there's unreachable allocated memory at program exit *)
+      let allocated_and_unreachable_mem = D.diff allocated_mem reachable_mem in
+      if not (D.is_empty allocated_and_unreachable_mem) then (
+        set_mem_safety_flag InvalidMemTrack;
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "There is unreachable allocated heap memory at program exit. A memory leak might occur for the alloc vars %a\n" (Pretty.d_list ", " CilType.Varinfo.pretty) (D.elements allocated_and_unreachable_mem)
+      );
+      (* Check and warn if some of the allocated memory is not deallocated at program exit *)
       match assert_exp_imprecise, exp with
       | true, Some exp ->
         set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
-        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty allocated_mem
       | _ ->
         set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
-        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty state
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty allocated_mem
 
   (* TRANSFER FUNCTIONS *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
