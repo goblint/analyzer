@@ -332,7 +332,7 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let+ content = y |> list >>= list_map Invariant.of_yaml in
+    let+ content = y |> find "content" >>= list >>= list_map Invariant.of_yaml in
     {content}
 end
 
