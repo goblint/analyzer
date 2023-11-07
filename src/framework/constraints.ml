@@ -570,8 +570,8 @@ struct
   let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) (fst es) f_ask, cg_val ctx
   let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) (fst es) f_ask, cg_val ctx
   let paths_as_set ctx                            = liftmap (S.paths_as_set (conv ctx)) ctx 
-  let threadenter ctx lval f args                 = liftmap (S.threadenter (conv ctx) lval f args) ctx (*TODO: it's possible to decrease the counter also here*)
-  let threadspawn ctx lval f args fctx            = S.threadspawn (conv ctx) lval f args (conv fctx), cg_val ctx
+  let threadenter ctx ~multiple lval f args       = liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx (*TODO: it's possible to decrease the counter also here*)
+  let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
   let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx
 
 end
