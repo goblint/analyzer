@@ -55,7 +55,6 @@ struct
       (* Check and warn if some of the allocated memory is not deallocated at program exit *)
       match assert_exp_imprecise, exp with
       | true, Some exp ->
-        set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty allocated_mem
       | _ ->
