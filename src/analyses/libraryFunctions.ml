@@ -52,6 +52,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("putc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
     ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep]]);
     ("fread", unknown [drop "buffer" [w]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("fread_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "buffer" [w]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fseek", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "origin" []]);
     ("ftell", unknown [drop "stream" [r_deep]]);
     ("fwrite", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
@@ -578,6 +579,9 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fgets_chk", unknown [drop "__s" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__fread_alias", unknown [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__fread_chk", unknown [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_unlocked_alias", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_unlocked_chk", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_unlocked_chk_warn", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__read_chk", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []; drop "__buflen" []]);
     ("__read_alias", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []]);
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
