@@ -340,7 +340,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("regexec", unknown [drop "preg" [r_deep]; drop "string" [r]; drop "nmatch" []; drop "pmatch" [w_deep]; drop "eflags" []]);
     ("regfree", unknown [drop "preg" [f_deep]]);
     ("ffs", unknown [drop "i" []]);
-    ("_exit", special [drop "status" []] Abort);
     ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
     ("execl", unknown (drop "path" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
     ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
