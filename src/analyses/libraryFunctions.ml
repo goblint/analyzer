@@ -510,6 +510,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* MacOS's built-in assert *)
     ("__assert_fail", special [drop "assertion" [r]; drop "file" [r]; drop "line" []; drop "function" [r]] @@ Abort); (* gcc's built-in assert *)
+    ("__assert", special [drop "assertion" [r]; drop "file" [r]; drop "line" []] @@ Abort); (* header says: The following is not at all used here but needed for standard compliance. *)
     ("__builtin_return_address", unknown [drop "level" []]);
     ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
