@@ -149,6 +149,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atomic_flag_test_and_set_explicit", unknown [drop "obj" [r; w]; drop "order" []]);
     ("atomic_load", unknown [drop "obj" [r]]);
     ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
+    ("_Exit", special [drop "status" []] @@ Abort);
+    ("_exit", special [drop "status" []] @@ Abort);
   ]
 
 (** C POSIX library functions.
