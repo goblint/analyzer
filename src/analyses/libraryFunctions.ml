@@ -63,6 +63,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("localeconv", unknown ~attrs:[ThreadUnsafe] []);
     ("localtime", unknown ~attrs:[ThreadUnsafe] [drop "time" [r]]);
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
+    ("__builtin_strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r; w]; drop "delim" [r]]);
