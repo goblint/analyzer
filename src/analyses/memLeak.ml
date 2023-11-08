@@ -58,7 +58,6 @@ struct
         set_mem_safety_flag InvalidMemcleanup;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty allocated_mem
       | _ ->
-        set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables: %a" D.pretty allocated_mem
 
