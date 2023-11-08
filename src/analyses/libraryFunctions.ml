@@ -972,6 +972,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
+    ("__VERIFIER_nondet_size_t ", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
   ]
 
 let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
