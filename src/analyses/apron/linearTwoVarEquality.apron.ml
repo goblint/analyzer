@@ -21,7 +21,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module Spec =
     struct
       include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)
-      let name () = "affeq"
+      let name () = "lin2vareq"
     end
     in
     (module Spec)
