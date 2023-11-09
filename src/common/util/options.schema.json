@@ -352,7 +352,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp","memLeak" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
