@@ -12,10 +12,6 @@
     "float": {
       "interval": true
     },
-    "apron": {
-      "domain": "polyhedra",
-      "strengthening": true
-    },
     "activated": [
       "base",
       "threadid",
@@ -35,8 +31,7 @@
       "region",
       "thread",
       "threadJoins",
-      "unassume",
-      "apron"
+      "unassume"
     ],
     "path_sens": [
       "mutex",
