@@ -2418,6 +2418,16 @@
               "type": "boolean",
               "default": false
             },
+            "format-version": {
+              "title": "witness.yaml.format-version",
+              "description": "YAML witness format version",
+              "type": "string",
+              "enum": [
+                "0.1",
+                "2.0"
+              ],
+              "default": "0.1"
+            },
             "entry-types": {
               "title": "witness.yaml.entry-types",
               "description": "YAML witness entry types to output/input.",

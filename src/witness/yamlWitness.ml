@@ -25,7 +25,7 @@ struct
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let creation_time = TimeUtil.iso8601_now () in
     {
-      format_version = "0.1";
+      format_version = GobConfig.get_string "witness.yaml.format-version";
       uuid = Uuidm.to_string uuid;
       creation_time;
       producer;
