@@ -10,7 +10,6 @@ type t =
   | ValidDeref
   | ValidMemtrack
   | ValidMemcleanup
-[@@deriving ord]
 
 type multi = t list
 

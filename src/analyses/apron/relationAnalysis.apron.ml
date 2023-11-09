@@ -647,7 +647,7 @@ struct
 
   (* Thread transfer functions. *)
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let st = ctx.local in
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
@@ -665,7 +665,7 @@ struct
       (* TODO: do something like base? *)
       failwith "relation.threadenter: unknown function"
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     ctx.local
 
   let event ctx e octx =

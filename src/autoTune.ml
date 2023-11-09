@@ -227,8 +227,8 @@ let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   | ValidMemcleanup -> (* Enable the memLeak analysis *)
     let memLeakAna = ["memLeak"] in
     if (get_int "ana.malloc.unique_address_count") < 1 then (
-      print_endline "Setting \"ana.malloc.unique_address_count\" to 1";
-      set_int "ana.malloc.unique_address_count" 1;
+      print_endline "Setting \"ana.malloc.unique_address_count\" to 5";
+      set_int "ana.malloc.unique_address_count" 5;
     );
     print_endline @@ "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
     enableAnalyses memLeakAna

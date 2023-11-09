@@ -44,7 +44,6 @@ struct
     | True
     | False of Specification.t option
     | Unknown
-  [@@deriving ord]
 
   let to_string = function
     | True -> "true"
@@ -77,9 +76,9 @@ sig
   val is_sink: Arg.Node.t -> bool
 end
 
-module StackTaskResult (Cfg:MyCFG.CfgForward) (TaskResult: TaskResult) =
+module StackTaskResult (TaskResult: TaskResult with module Arg.Edge = MyARG.InlineEdge) =
 struct
-  module Arg = MyARG.Stack (Cfg) (TaskResult.Arg)
+  module Arg = MyARG.Stack (TaskResult.Arg)
 
   let result = TaskResult.result
 

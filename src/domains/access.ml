@@ -438,18 +438,15 @@ struct
 end
 
 
-(* Check if two accesses may race and if yes with which confidence *)
+(** Check if two accesses may race. *)
 let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
-  if kind = Read && kind2 = Read then
-    false (* two read/read accesses do not race *)
-  else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
-    false
-  else if not (get_bool "ana.race.call") && (kind = Call || kind2 = Call) then
-    false
-  else if not (MCPAccess.A.may_race acc acc2) then
-    false (* analysis-specific information excludes race *)
-  else
-    true
+  match kind, kind2 with
+  | Read, Read -> false (* two read/read accesses do not race *)
+  | Free, _
+  | _, Free when not (get_bool "ana.race.free") -> false
+  | Call, _
+  | _, Call when not (get_bool "ana.race.call") -> false
+  | _, _ -> MCPAccess.A.may_race acc acc2 (* analysis-specific information excludes race *)
 
 (** Access sets for race detection and warnings. *)
 module WarnAccs =
