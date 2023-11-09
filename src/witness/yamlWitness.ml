@@ -446,7 +446,7 @@ struct
 
         (* Generate loop invariants *)
         let invariants =
-          if entry_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
             NH.fold (fun n local acc ->
                 let loc = Node.location n in
                 if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
