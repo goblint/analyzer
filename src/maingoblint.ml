@@ -160,7 +160,8 @@ let check_arguments () =
         ^ String.concat " and " @@ List.map (fun s -> "'" ^ s ^ "'") imprecise_options)
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
-  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'"
+  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =

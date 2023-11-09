@@ -14,7 +14,7 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = (get_bool "ana.sv-comp.enabled" && get_bool "witness.enabled") || get_bool "exp.arg" in
+  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg" in
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -280,7 +280,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
+        ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -385,7 +385,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -417,13 +417,13 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
       in
       (* TODO: don't hd *)
-      List.hd (Spec.threadenter ctx None v [])
+      List.hd (Spec.threadenter ctx ~multiple:false None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
