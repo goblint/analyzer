@@ -38,6 +38,7 @@
       "uninit",
       "expsplit",
       "activeSetjmp",
+      "memLeak",
       "threadflag"
     ],
     "context": {
