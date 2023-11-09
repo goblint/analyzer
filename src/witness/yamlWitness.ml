@@ -143,12 +143,12 @@ struct
   }
 end
 
-let yaml_entries_to_file yaml_entries file =
+let yaml_entries_to_file ?(invariants=0) yaml_entries file =
   let yaml = `A yaml_entries in
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
   (* estimate how big it should be + extra in case empty *)
-  let text = match Yaml.to_string ~len:(List.length yaml_entries * 4096 + 2048) yaml with
+  let text = match Yaml.to_string ~len:((List.length yaml_entries + invariants) * 4096 + 2048) yaml with
     | Ok text -> text
     | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
   in
@@ -412,7 +412,7 @@ struct
     in
 
     (* Generate invariant set *)
-    let entries =
+    let (entries, invariants) =
       if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
         let invariants = [] in
 
@@ -473,10 +473,10 @@ struct
 
         let invariants = List.rev invariants in
         let entry = Entry.invariant_set ~task ~invariants in
-        entry :: entries
+        (entry :: entries, List.length invariants)
       )
       else
-        entries
+        (entries, 0)
     in
 
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
@@ -485,7 +485,7 @@ struct
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 
-    yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+    yaml_entries_to_file ~invariants yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 
   let write () =
     Timing.wrap "yaml witness" write ()
