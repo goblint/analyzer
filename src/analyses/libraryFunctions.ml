@@ -150,7 +150,6 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atomic_load", unknown [drop "obj" [r]]);
     ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
     ("_Exit", special [drop "status" []] @@ Abort);
-    ("_exit", special [drop "status" []] @@ Abort);
   ]
 
 (** C POSIX library functions.
@@ -340,6 +339,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("regexec", unknown [drop "preg" [r_deep]; drop "string" [r]; drop "nmatch" []; drop "pmatch" [w_deep]; drop "eflags" []]);
     ("regfree", unknown [drop "preg" [f_deep]]);
     ("ffs", unknown [drop "i" []]);
+    ("_exit", special [drop "status" []] @@ Abort);
     ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
     ("execl", unknown (drop "path" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
     ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
