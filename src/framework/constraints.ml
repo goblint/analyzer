@@ -544,15 +544,16 @@ struct
     else {ctx with context = (fun () -> (fst (ctx.context ()), cg_val ctx - 1)) (* context sensitive *)
                  ; local = (fst ctx.local, cg_val ctx - 1)} 
 
-  let rec showExprList args = (*TODO: delete, just here for printing*)
+  (*let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
-    | a::t -> (CilType.Exp.show a) ^ (showExprList t)
+    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)*)
 
   let enter ctx r f args = 
+    (*printf "enter\n";*)
     let ctx_dec = dec_context_gas ctx in 
-    if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);    
-    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx_dec), (y, cg_val ctx_dec)) in
+    (*if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args); *)  
+    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
     liftmap_tup (S.enter (conv ctx_dec) r f args)
 
   let liftmap f ctx = List.map (fun (x) -> (x, cg_val ctx)) f
