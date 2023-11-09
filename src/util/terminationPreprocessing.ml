@@ -2,6 +2,11 @@ open GoblintCil
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
+let counter_ikind = IInt
+let counter_typ = TInt (counter_ikind, [])
+let min_int_exp = Const(CInt(Cilint.zero_cilint, counter_ikind, None))
+let min_int_exp = Const(CInt(Cilint.shift_left_cilint Cilint.mone_cilint ((bytesSizeOfInt counter_ikind)*8-1), IInt, None))
+
 class loopCounterVisitor lc (fd : fundec) = object(self)
   inherit nopCilVisitor
 
@@ -15,7 +20,7 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
   method! vstmt s =
 
     let specialFunction name =
-      { svar  = makeGlobalVar name (TFun(voidType, Some [("exp", intType, [])], false,[]));
+      { svar  = makeGlobalVar name (TFun(voidType, Some [("exp", counter_typ, [])], false,[]));
         smaxid = 0;
         slocals = [];
         sformals = [];
@@ -24,7 +29,12 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         sallstmts = [];
       } in
 
-    let min_int_exp = Const(CInt(Cilint.shift_left_cilint Cilint.mone_cilint ((bytesSizeOfInt IInt)*8-1), IInt, None)) in
+
+    let increment_expression lval =
+      let et = typeOf lval in
+      let bop = PlusA in
+      let one = Const (CInt (Cilint.one_cilint, counter_ikind, None)) in
+      constFold false (BinOp(bop, lval, one, et))  in
 
     let f_bounded  = Lval (var (specialFunction "__goblint_bounded").svar) in
 
@@ -32,11 +42,12 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
       | Loop (b, loc, eloc, _, _) ->
         let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "-id" ^ (string_of_int !vcounter) in
         incr vcounter;
-        let v = Cil.makeLocalVar fd vname Cil.intType in (*Not tested for incremental mode*)
+        let v = Cil.makeLocalVar fd vname counter_typ in (*Not tested for incremental mode*)
+        let lval = Lval (Var v, NoOffset) in
         let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
-        let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
-        let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
-        let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [Lval (var v)], loc, locUnknown) in
+        let inc_stmt = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
+        let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
+        let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [lval], loc, locUnknown) in
         (match b.bstmts with
          | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
            b.bstmts <- exit_stmt :: inc_stmt :: s :: inc_stmt2 :: ss;
