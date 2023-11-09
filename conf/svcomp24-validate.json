@@ -119,7 +119,13 @@
     },
     "yaml": {
       "enabled": false,
+      "format-version": "2.0",
       "entry-types": [
+        "location_invariant",
+        "loop_invariant",
+        "invariant_set"
+      ],
+      "invariant-types": [
         "location_invariant",
         "loop_invariant"
       ]

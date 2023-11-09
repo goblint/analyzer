@@ -112,7 +112,11 @@
     },
     "yaml": {
       "enabled": true,
+      "format-version": "2.0",
       "entry-types": [
+        "invariant_set"
+      ],
+      "invariant-types": [
         "loop_invariant"
       ]
     },
