@@ -4,10 +4,6 @@ open Analyses
 open GoblintCil
 open TerminationPreprocessing
 
-(** Stores the result of the query whether the program is single threaded or not
-    since finalize does not have access to ctx. *)
-let single_thread : bool ref = ref false
-
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 
@@ -35,22 +31,11 @@ struct
 
   module D = Lattice.Unit
   module C = D
-  module V =
-  struct
-    include Printable.Unit
-    let is_write_only _ = true
-  end
+  module V = UnitV
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
   let startstate _ = ()
   let exitstate = startstate
-
-  (** Warnings for detected possible non-termination *)
-  let finalize () =
-    (* Multithreaded *)
-    if not (!single_thread) then (
-      M.warn ~category:Termination "The program might not terminate! (Multithreaded)\n"
-    )
 
   (** Recognizes a call of [__goblint_bounded] to check the EvalInt of the
    * respective loop counter variable at that position. *)
@@ -72,28 +57,21 @@ struct
       | _ -> ()
     else ()
 
-  (* Checks whether the program always remains single-threaded.
-     If the program does not remain single-threaded, we assume non-termination (see query function). *)
-  let must_always_be_single_threaded ctx =
-    let single_threaded = not (ctx.ask Queries.IsEverMultiThreaded) in
-    single_thread := single_threaded;
-    single_threaded
-
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustTermLoop loop_statement ->
-      must_always_be_single_threaded ctx
+      let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
+      (not multithreaded)
       && (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
             Some b -> b
           | None -> false)
     | Queries.MustTermAllLoops ->
-      let always_single_threaded = must_always_be_single_threaded ctx in
-      (* Must be the first to be evaluated! This has the side effect that
-       * single_thread is set. In case of another order and due to lazy
-       * evaluation, the correct value of single_thread can not be guaranteed!
-       * Therefore, we use a let-in clause here. *)
-      always_single_threaded
-      && G.for_all (fun _ term_info -> term_info) (ctx.global ())
+      let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
+      if multithreaded then ( 
+        M.warn ~category:Termination "The program might not terminate! (Multithreaded)\n";
+        false)
+      else
+        G.for_all (fun _ term_info -> term_info) (ctx.global ())
     | _ -> Queries.Result.top q
 
 end
