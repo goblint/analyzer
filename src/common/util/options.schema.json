@@ -2105,9 +2105,9 @@
           "type": "boolean",
           "default": true
         },
-        "nonTerminating": {
-          "title": "warn.nonTerminating",
-          "description": "Non Termination warning",
+        "termination": {
+          "title": "warn.termination",
+          "description": "Non-Termination warning",
           "type": "boolean",
           "default": true
         },

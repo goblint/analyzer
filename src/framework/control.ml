@@ -146,7 +146,7 @@ struct
           let fundec_live = live fi fname in
           if ( not (BatISet.is_empty fundec_live)) then (
             AnalysisState.svcomp_may_not_terminate := true;
-            M.warn ~loc:(M.Location.CilLocation l) ~category:NonTerminating "The program might not terminate! (Upjumping Goto)");
+            M.warn ~loc:(M.Location.CilLocation l) ~category:Termination "The program might not terminate! (Upjumping Goto)");
           )
         (!live_lines))
     (!Cilfacade.upjumping_gotos);

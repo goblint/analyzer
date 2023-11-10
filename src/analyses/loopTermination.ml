@@ -49,7 +49,7 @@ struct
   let finalize () =
     (* Multithreaded *)
     if not (!single_thread) then (
-      M.warn ~category:NonTerminating "The program might not terminate! (Multithreaded)\n"
+      M.warn ~category:Termination "The program might not terminate! (Multithreaded)\n"
     )
 
   (** Recognizes a call of [__goblint_bounded] to check the EvalInt of the
@@ -64,7 +64,7 @@ struct
            ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
            (* In case the loop is not bounded, a warning is created. *)
            if not (is_bounded) then (
-             M.warn ~loc:(M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)) ~category:NonTerminating "The program might not terminate! (Loop analysis)"
+             M.warn ~loc:(M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)) ~category:Termination "The program might not terminate! (Loop analysis)"
            );
            ()
          with Not_found ->
