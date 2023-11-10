@@ -180,7 +180,7 @@ let enableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[+]") anas
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
-(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> isEverMultiThreaded *)
+(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
@@ -244,7 +244,7 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     enableAnalyses notNeccessaryThreadAnalyses;
   | Termination -> 
-    let terminationAnas = ["termination"; "isEverMultiThreaded"; "apron"] in
+    let terminationAnas = ["termination"; "threadflag"; "apron"] in
     print_endline @@ "Specification: Termination -> enabling termination analyses \"" ^ (String.concat ", " terminationAnas) ^ "\"";
     enableAnalyses terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";

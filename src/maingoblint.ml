@@ -162,9 +162,9 @@ let check_arguments () =
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
   if List.mem "termination" @@ get_string_list "ana.activated" then (
-    set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("evermultithreaded")]);
+    set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
     set_string "sem.int.signed_overflow" "assume_none";
-    warn "termination analysis implicitly activates evermultithreaded analysis and set sem.int.signed_overflow to assume_none"
+    warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none"
   );
   if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
 

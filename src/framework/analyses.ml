@@ -612,6 +612,12 @@ struct
   let is_write_only _ = false
 end
 
+module UnitV =
+struct
+  include Printable.Unit
+  include StdV
+end
+
 module VarinfoV =
 struct
   include CilType.Varinfo (* TODO: or Basetype.Variables? *)
