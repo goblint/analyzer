@@ -331,19 +331,13 @@ class Project
       end
     end
     case lines[0]
-    when /TODO/
-      case lines[0]
-      when /NONTERM/
-        tests[-1] = "nonterm"
-        todo << -1
-      when /TERM/
-        tests[-1] = "term"
-        todo << -1
-      end
     when /NONTERM/
       tests[-1] = "nonterm"
     when /TERM/
       tests[-1] = "term"
+    end
+    if lines[0] =~ /TODO/ then
+      todo << -1
     end
     Tests.new(self, tests, tests_line, todo)
   end
