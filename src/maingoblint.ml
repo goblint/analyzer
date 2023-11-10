@@ -162,6 +162,7 @@ let check_arguments () =
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
   if List.mem "termination" @@ get_string_list "ana.activated" then (
+    if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
     set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
     set_string "sem.int.signed_overflow" "assume_none";
     warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none"
