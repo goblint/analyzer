@@ -493,7 +493,7 @@ let merge_parsed parsed =
 
   Cilfacade.current_file := merged_AST; (* Set before createCFG, so Cilfacade maps can be computed for loop unrolling. *)
   CilCfg.createCFG merged_AST; (* Create CIL CFG from CIL AST. *)
-  Cilfacade.reset_lazy (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling. *)
+  Cilfacade.reset_lazy ~keepupjumpinggotos:true (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling but keep gotos. *)
   merged_AST
 
 let preprocess_parse_merge () =

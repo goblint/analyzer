@@ -50,9 +50,15 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
       | Goto (sref, l) ->
         let goto_jmp_stmt = sref.contents.skind in
         let loc_stmt = Cil.get_stmtLoc goto_jmp_stmt in
-        if CilType.Location.compare l loc_stmt >= 0 (*is pos if first loc is greater -> below the second loc*)
-        then
-          Cilfacade.upjumping_gotos := List.append !Cilfacade.upjumping_gotos ([(l, fd)] : (location * fundec) list); (*problem: the program might not terminate!*)
+        if CilType.Location.compare l loc_stmt >= 0 then (
+          (* is pos if first loc is greater -> below the second loc *)
+          (* problem: the program might not terminate! *)
+          let open Cilfacade in
+          let current = FunLocH.find_opt funs_with_upjumping_gotos fd in
+          let current = BatOption.default (LocSet.create 13) current in
+          LocSet.replace current l ();
+          FunLocH.replace funs_with_upjumping_gotos fd current;
+        );
         s
       | _ -> s
     in ChangeDoChildrenPost (s, action);

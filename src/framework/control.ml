@@ -105,6 +105,8 @@ struct
     let module StringMap = BatMap.Make (String) in
     let live_lines = ref StringMap.empty in
     let dead_lines = ref StringMap.empty in
+    let module FunSet = Hashtbl.Make (CilType.Fundec) in
+    let live_funs: unit FunSet.t = FunSet.create 13 in
     let add_one n v =
       match n with
       | Statement s when Cilfacade.(StmtH.mem pseudo_return_to_fun s) ->
@@ -115,6 +117,7 @@ struct
            See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
         let l = UpdateCil.getLoc n in
         let f = Node.find_fundec n in
+        FunSet.replace live_funs f ();
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
         let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
@@ -136,20 +139,21 @@ struct
       try StringMap.find fn (StringMap.find file !live_lines)
       with Not_found -> BatISet.empty
     in
-    (*check if we have upjumping gotos*)
-    List.iter
-    (fun x ->
-      let ((l: location), (fd: fundec)) = x in (*unpack tuple for later use*)
-      let fname = fd.svar.vname in
-      StringMap.iter
-        (fun fi _ ->
-          let fundec_live = live fi fname in
-          if ( not (BatISet.is_empty fundec_live)) then (
-            AnalysisState.svcomp_may_not_terminate := true;
-            M.warn ~loc:(M.Location.CilLocation l) ~category:Termination "The program might not terminate! (Upjumping Goto)");
-          )
-        (!live_lines))
-    (!Cilfacade.upjumping_gotos);
+    if List.mem "termination" @@ get_string_list "ana.activated" then (
+      (* check if we have upjumping gotos *)
+      let open Cilfacade in
+      let warn_for_upjumps fundec gotos = 
+        if FunSet.mem live_funs fundec then (
+          (* set nortermiantion flag *)
+          AnalysisState.svcomp_may_not_terminate := true;
+          (* iterate through locations to produce warnings *)
+          LocSet.iter (fun l _ -> 
+              M.warn ~loc:(M.Location.CilLocation l) ~category:Termination "The program might not terminate! (Upjumping Goto)"
+            ) gotos
+        )
+      in
+      FunLocH.iter warn_for_upjumps funs_with_upjumping_gotos
+    );
     dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
     dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
     dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
