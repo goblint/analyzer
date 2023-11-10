@@ -2,21 +2,15 @@ open GoblintCil
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
-let extract_file_name s =                    (*There still may be a need to filter more chars*)
-  let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
-  let ls = List.rev ls in
-  let s' = List.nth ls 0 in
-  let ls = String.split_on_char '.' s' in
-  let s' = List.nth ls 0 in
-  let without_spaces = String.split_on_char ' ' s' in
-  let s' = String.concat "" without_spaces in
-  s'
-
-let show_location_id l =
-  string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
-
 class loopCounterVisitor lc (fd : fundec) = object(self)
   inherit nopCilVisitor
+
+  (* Counter of variables inserted for termination *)
+  val mutable vcounter = ref 0
+
+  method! vfunc _ =
+    vcounter := 0;
+    DoChildren
 
   method! vstmt s =
 
@@ -36,9 +30,9 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
 
     let action s = match s.skind with
       | Loop (b, loc, eloc, _, _) ->
-        let name = "term"^show_location_id loc in
-        let typ = Cil.intType in
-        let v = (Cil.makeLocalVar fd name typ) in (*Not tested for incremental mode*)
+        let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "-id" ^ (string_of_int !vcounter) in
+        incr vcounter;
+        let v = Cil.makeLocalVar fd vname Cil.intType in (*Not tested for incremental mode*)
         let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
         let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
         let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
