@@ -667,6 +667,10 @@ let find_stmt_sid sid =
   with Not_found -> IntH.find (ResettableLazy.force stmt_sids) sid
 
 
+(** Contains the locations of the upjumping gotos and the respective functions
+ * they are being called in. *)
+let upjumping_gotos : (location * fundec) list ref = ref []
+
 let reset_lazy () =
   StmtH.clear pseudo_return_to_fun;
   ResettableLazy.reset stmt_fundecs;
@@ -674,7 +678,8 @@ let reset_lazy () =
   ResettableLazy.reset name_fundecs;
   ResettableLazy.reset varinfo_roles;
   ResettableLazy.reset original_names;
-  ResettableLazy.reset stmt_sids
+  ResettableLazy.reset stmt_sids;
+  upjumping_gotos := []
 
 
 let stmt_pretty_short () x =
@@ -700,7 +705,3 @@ let add_function_declarations (file: Cil.file): unit =
   let fun_decls = List.filter_map declaration_from_GFun functions in
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
-
-(** Contains the locations of the upjumping gotos and the respective functions
- * they are being called in. *)
-let upjumping_gotos : (location * fundec) list ref = ref []
