@@ -243,7 +243,14 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     enableAnalyses notNeccessaryThreadAnalyses;
-  | Termination -> ()
+  | Termination -> 
+    let terminationAnas = ["termination"; "isEverMultiThreaded"; "apron"] in
+    print_endline @@ "Specification: Termination -> enabling termination analyses \"" ^ (String.concat ", " terminationAnas) ^ "\"";
+    enableAnalyses terminationAnas;
+    set_string "sem.int.signed_overflow" "assume_none";
+    set_bool "ana.int.interval" true;
+    set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
+    ()
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
