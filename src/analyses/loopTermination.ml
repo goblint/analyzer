@@ -99,5 +99,5 @@ struct
 end
 
 let () =
-  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loop_counters);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopCounterVisitor loop_counters);
   MCP.register_analysis (module Spec : MCPSpec)

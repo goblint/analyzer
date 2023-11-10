@@ -74,27 +74,13 @@ let print (fileAST: file) =
 let rmTemps fileAST =
   RmUnused.removeUnused fileAST
 
-
 let visitors = ref []
 let register_preprocess name visitor_fun =
   visitors := !visitors @ [name, visitor_fun]
 
 let do_preprocess ast =
-  let f fd (name, visitor_fun) =
-    (* this has to be done here, since the settings aren't available when register_preprocess is called *)
-    if List.mem name (get_string_list "ana.activated") then
-      ignore @@ visitCilFunction (visitor_fun fd) fd
-  in
-  iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
-
-let visitors_cil = ref []
-(* does exactly the same as register_preprocess but it is executed earlier, before the CFG is created*)
-let register_preprocess_cil name visitor_fun =
-  visitors_cil := !visitors_cil @ [name, visitor_fun]
-
-let do_preprocess_cil ast =
   (* this has to be done here, since the settings aren't available when register_preprocess is called *)
-  let active_visitors = List.filter_map (fun (name, visitor_fun) -> if List.mem name (get_string_list "ana.activated") then Some visitor_fun else None) !visitors_cil in
+  let active_visitors = List.filter_map (fun (name, visitor_fun) -> if List.mem name (get_string_list "ana.activated") then Some visitor_fun else None) !visitors in
   let f fd visitor_fun = ignore @@ visitCilFunction (visitor_fun fd) fd in
   if active_visitors <> [] then
     iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) active_visitors | _ -> ())
