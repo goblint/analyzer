@@ -31,7 +31,10 @@ struct
 
   module D = Lattice.Unit
   module C = D
-  module V = UnitV
+  module V = struct 
+    include UnitV
+    let is_write_only _ = true
+  end
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
   let startstate _ = ()
