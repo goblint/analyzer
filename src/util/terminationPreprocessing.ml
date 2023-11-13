@@ -38,7 +38,7 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
 
     let action s = match s.skind with
       | Loop (b, loc, eloc, _, _) ->
-        let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "-id" ^ (string_of_int !vcounter) in
+        let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "_id" ^ (string_of_int !vcounter) in
         incr vcounter;
         let v = Cil.makeLocalVar fd vname counter_typ in (*Not tested for incremental mode*)
         let lval = Lval (Var v, NoOffset) in
