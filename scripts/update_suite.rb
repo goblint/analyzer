@@ -171,7 +171,7 @@ class Tests
                     when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                     when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                     else "other"
-                end
+                  end
       oldwarn = warnings[i]
       if oldwarn.nil? then
         warnings[i] = thiswarn
