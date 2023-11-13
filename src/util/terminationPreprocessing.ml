@@ -1,4 +1,5 @@
 open GoblintCil
+(* module Z = Big_int_Z *)
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
@@ -7,9 +8,9 @@ let counter_typ = TInt (counter_ikind, [])
 let min_int_exp =
   (* Currently only tested for IInt type, which is signed *)
   if Cil.isSigned counter_ikind then
-    Const(CInt(Cilint.shift_left_cilint Cilint.mone_cilint ((bytesSizeOfInt counter_ikind)*8-1), IInt, None))
+    Const(CInt(Z.shift_left Cilint.mone_cilint ((bytesSizeOfInt counter_ikind)*8-1), IInt, None))
   else
-    Const(CInt(Cilint.zero_cilint, counter_ikind, None))
+    Const(CInt(Z.zero, counter_ikind, None))
 
 class loopCounterVisitor lc (fd : fundec) = object(self)
   inherit nopCilVisitor
