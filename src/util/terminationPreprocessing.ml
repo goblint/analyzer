@@ -52,14 +52,8 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         let lval = Lval (Var v, NoOffset) in
         let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
         let inc_stmt = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
-        let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
         let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [lval], loc, locUnknown) in
-        (match b.bstmts with
-         | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
-           b.bstmts <- exit_stmt :: inc_stmt :: s :: inc_stmt2 :: ss;
-         | ss ->
-           b.bstmts <- exit_stmt :: inc_stmt :: ss;
-        );
+        b.bstmts <- exit_stmt :: inc_stmt :: b.bstmts;
         lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
         let nb = mkBlock [init_stmt; mkStmt s.skind] in
         s.skind <- Block nb;

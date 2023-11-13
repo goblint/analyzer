@@ -164,8 +164,7 @@ let check_arguments () =
   if List.mem "termination" @@ get_string_list "ana.activated" then (
     if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
     set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
-    set_string "sem.int.signed_overflow" "assume_none";
-    warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none"
+    warn "termination analysis implicitly activates threadflag analysis."
   );
   if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
 
