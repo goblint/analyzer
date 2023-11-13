@@ -4,8 +4,12 @@ module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter va
 
 let counter_ikind = IInt
 let counter_typ = TInt (counter_ikind, [])
-let min_int_exp = Const(CInt(Cilint.zero_cilint, counter_ikind, None))
-let min_int_exp = Const(CInt(Cilint.shift_left_cilint Cilint.mone_cilint ((bytesSizeOfInt counter_ikind)*8-1), IInt, None))
+let min_int_exp =
+  (* Currently only tested for IInt type, which is signed *)
+  if Cil.isSigned counter_ikind then
+    Const(CInt(Cilint.shift_left_cilint Cilint.mone_cilint ((bytesSizeOfInt counter_ikind)*8-1), IInt, None))
+  else
+    Const(CInt(Cilint.zero_cilint, counter_ikind, None))
 
 class loopCounterVisitor lc (fd : fundec) = object(self)
   inherit nopCilVisitor
@@ -29,13 +33,6 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         sallstmts = [];
       } in
 
-
-    let increment_expression lval =
-      let et = typeOf lval in
-      let bop = PlusA in
-      let one = Const (CInt (Cilint.one_cilint, counter_ikind, None)) in
-      constFold false (BinOp(bop, lval, one, et))  in
-
     let f_bounded  = Lval (var (specialFunction "__goblint_bounded").svar) in
 
     let action s = match s.skind with
@@ -45,8 +42,8 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         let v = Cil.makeLocalVar fd vname counter_typ in (*Not tested for incremental mode*)
         let lval = Lval (Var v, NoOffset) in
         let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
-        let inc_stmt = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
-        let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
+        let inc_stmt = mkStmtOneInstr @@ Set (var v, increm lval 1, loc, eloc) in
+        let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm lval 1, loc, eloc) in
         let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [lval], loc, locUnknown) in
         (match b.bstmts with
          | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
