@@ -20,6 +20,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 = (val
                     (module MCP.MCP2 : Spec)     
+                    |> lift true (module ContextGasLifter) 
                     |> lift true (module WidenContextLifterSide) (* option checked in functor *)
                     (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
                     |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
@@ -35,7 +36,6 @@ let spec_module: (module Spec) Lazy.t = lazy (
                     (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
                        Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
                     |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
-                    |> lift true (module ContextGasLifter) 
                     |> lift true (module LongjmpLifter)    
                   ) in
   GobConfig.building_spec := false;
