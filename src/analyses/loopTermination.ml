@@ -48,10 +48,10 @@ struct
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
     if !AnalysisState.postsolving then
       match f.vname, arglist with
-        "__goblint_bounded", [Lval (Var x, NoOffset)] ->
+        "__goblint_bounded", [Lval (Var loop_counter, NoOffset)] ->
         (try
-           let loop_statement = find_loop ~loop_counter:x in
-           let is_bounded = check_bounded ctx x in
+           let loop_statement = find_loop ~loop_counter in
+           let is_bounded = check_bounded ctx loop_counter in
            ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
            (* In case the loop is not bounded, a warning is created. *)
            if not (is_bounded) then (
