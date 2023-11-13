@@ -124,6 +124,7 @@ module RelationPriv = RelationPriv
 module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
 module ExtractPthread = ExtractPthread
+module LoopTermination = LoopTermination
 
 (** {2 Longjmp}
 
@@ -338,6 +339,7 @@ module Tracing = Tracing
 module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
+module TerminationPreprocessing = TerminationPreprocessing
 
 (** {2 Witnesses}
 
