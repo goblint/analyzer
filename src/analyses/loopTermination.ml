@@ -31,7 +31,7 @@ struct
 
   module D = Lattice.Unit
   module C = D
-  module V = struct 
+  module V = struct
     include UnitV
     let is_write_only _ = true
   end
@@ -40,6 +40,9 @@ struct
   let startstate _ = ()
   let exitstate = startstate
 
+  let find_loop ~loop_counter =
+    VarToStmt.find loop_counter !loop_counters
+
   (** Recognizes a call of [__goblint_bounded] to check the EvalInt of the
    * respective loop counter variable at that position. *)
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
@@ -47,7 +50,7 @@ struct
       match f.vname, arglist with
         "__goblint_bounded", [Lval (Var x, NoOffset)] ->
         (try
-           let loop_statement = VarToStmt.find x !loop_counters in
+           let loop_statement = find_loop ~loop_counter:x in
            let is_bounded = check_bounded ctx x in
            ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
            (* In case the loop is not bounded, a warning is created. *)
@@ -70,7 +73,7 @@ struct
           | None -> false)
     | Queries.MustTermAllLoops ->
       let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
-      if multithreaded then ( 
+      if multithreaded then (
         M.warn ~category:Termination "The program might not terminate! (Multithreaded)\n";
         false)
       else
