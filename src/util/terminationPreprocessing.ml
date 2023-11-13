@@ -36,6 +36,14 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
 
     let f_bounded  = Lval (var (specialFunction "__goblint_bounded").svar) in
 
+    (* Yields increment expression e + 1 where the added "1" that has the same type as the expression [e].
+       Using Cil.increm instead does not work for non-[IInt] ikinds. *)
+    let increment_expression e =
+      let et = typeOf e in
+      let bop = PlusA in
+      let one = Const (CInt (Cilint.one_cilint, counter_ikind, None)) in
+      constFold false (BinOp(bop, e, one, et)) in
+
     let action s = match s.skind with
       | Loop (b, loc, eloc, _, _) ->
         let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "_id" ^ (string_of_int !vcounter) in
@@ -43,8 +51,8 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         let v = Cil.makeLocalVar fd vname counter_typ in (*Not tested for incremental mode*)
         let lval = Lval (Var v, NoOffset) in
         let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
-        let inc_stmt = mkStmtOneInstr @@ Set (var v, increm lval 1, loc, eloc) in
-        let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increm lval 1, loc, eloc) in
+        let inc_stmt = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
+        let inc_stmt2 = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
         let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [lval], loc, locUnknown) in
         (match b.bstmts with
          | s :: ss ->   (*duplicate increment statement here to fix inconsistencies in nested loops*)
