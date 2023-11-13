@@ -3,7 +3,7 @@ open GoblintCil
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
-let counter_ikind = IInt
+let counter_ikind = IULongLong
 let counter_typ = TInt (counter_ikind, [])
 let min_int_exp =
   (* Currently only tested for IInt type, which is signed *)
