@@ -20,7 +20,8 @@ let spec_module: (module Spec) Lazy.t = lazy (
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 = (val
-            (module MCP.MCP2 : Spec)     
+            (module MCP.MCP2 : Spec)    
+            |> lift true (module ContextGasLifter)  
             |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
             |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
@@ -37,8 +38,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
                 Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
             |> lift true (module LongjmpLifter)
-            |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
-            |> lift true (module ContextGasLifter)       
+            |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)     
           ) in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
