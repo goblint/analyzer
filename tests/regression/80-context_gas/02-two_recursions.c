@@ -1,7 +1,7 @@
 // PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set
 #include <stdio.h>
 
-int num_iterat = 10;
+int num_iterat = 5;
 
 int f(int i)
 {
