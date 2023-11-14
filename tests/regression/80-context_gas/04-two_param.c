@@ -1,5 +1,5 @@
-
-int num_iterat = 5;
+// PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set
+int num_iterat = 10;
 
 int f(int x, int y)
 {
