@@ -2,6 +2,9 @@
 
 include Printable.S
 
+val reset_lazy: unit -> unit
+(** Reset the cached configuration of the string domain. *)
+
 val of_string: string -> t
 (** Convert from string. *)
 

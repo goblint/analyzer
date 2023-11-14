@@ -2,10 +2,27 @@ include Printable.StdLeaf
 
 let name () = "string"
 
+type string_domain = Unit | Disjoint | Flat
+let string_domain = ref None
+let string_domain_config = "ana.base.strings.domain"
+let parse config = match config with
+  | "unit" -> Unit
+  | "disjoint" -> Disjoint
+  | "flat" -> Flat
+  | _ -> raise @@ GobConfig.ConfigError ("Invalid option for " ^ string_domain_config)
+
+let get_string_domain () =
+  if !string_domain = None then
+    string_domain := Some (parse (GobConfig.get_string string_domain_config));
+  Option.get !string_domain
+
+let reset_lazy () =
+  string_domain := None
+
 type t = string option [@@deriving eq, ord, hash]
 
 let hash x =
-  if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
+  if get_string_domain () = Disjoint then
     hash x
   else
     13859
@@ -22,7 +39,7 @@ include Printable.SimpleShow (
   )
 
 let of_string x =
-  if GobConfig.get_string "ana.base.strings.domain" = "unit" then
+  if get_string_domain () = Unit then
     None
   else
     Some x
@@ -74,7 +91,7 @@ let join x y =
   | _, None -> None
   | Some a, Some b when a = b -> Some a
   | Some a, Some b (* when a <> b *) ->
-    if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
+    if get_string_domain () = Disjoint then
       raise Lattice.Uncomparable
     else
       None
@@ -85,13 +102,13 @@ let meet x y =
   | a, None -> a
   | Some a, Some b when a = b -> Some a
   | Some a, Some b (* when a <> b *) ->
-    if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
+    if get_string_domain () = Disjoint then
       raise Lattice.Uncomparable
     else
       raise Lattice.BotValue
 
 let repr x =
-  if GobConfig.get_string "ana.base.strings.domain" = "disjoint" then
+  if get_string_domain () = Disjoint then
     x (* everything else is kept separate, including strings if not limited *)
   else
     None (* all strings together if limited *)
