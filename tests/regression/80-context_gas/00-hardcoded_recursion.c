@@ -1,6 +1,7 @@
-// PARAM: --enable ana.int.interval_set --enable ana.int.def_exc --enable ana.int.enums
+// PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set
 #include <stdio.h>
 
+int num_iterat = 5;
 int a = 20;
 
 int f(int i)
@@ -30,11 +31,15 @@ int f(int i)
         a = 0;
         f(0);
     }
+    if (i == 0)
+    {
+        return 0;
+    }
 }
 
 int main(void)
 {
-    f(5);
+    f(num_iterat);
 
     // if the analysis runs fully context sensitive, "a" should be equal 0
     __goblint_check(a == 0);
