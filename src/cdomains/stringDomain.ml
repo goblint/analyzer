@@ -3,8 +3,11 @@ include Printable.StdLeaf
 let name () = "string"
 
 type string_domain = Unit | Disjoint | Flat
+
 let string_domain = ref None
+
 let string_domain_config = "ana.base.strings.domain"
+
 let parse config = match config with
   | "unit" -> Unit
   | "disjoint" -> Disjoint
