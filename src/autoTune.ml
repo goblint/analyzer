@@ -243,7 +243,7 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     enableAnalyses notNeccessaryThreadAnalyses;
-  | Termination -> 
+  | Termination ->
     let terminationAnas = ["termination"; "threadflag"; "apron"] in
     print_endline @@ "Specification: Termination -> enabling termination analyses \"" ^ (String.concat ", " terminationAnas) ^ "\"";
     enableAnalyses terminationAnas;
@@ -466,6 +466,11 @@ let wideningOption factors file =
       print_endline "Enabled widening thresholds";
   }
 
+let activateTerminationAnalysis () =
+  enableAnalyses ["termination"; "apron"];
+  set_string "sem.int.signed_overflow" "assume_none";
+  set_string "ana.apron.domain" "polyhedra";
+  set_bool "ana.int.interval_threshold_widening" true
 
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
@@ -494,6 +499,8 @@ let chooseFromOptions costTarget options =
   takeFitting costTarget @@ List.sort compareRatio options
 
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
+
+let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
 
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
@@ -528,10 +535,14 @@ let chooseConfig file =
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
-  let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
+
+  (* Termination analysis uses apron in a different configuration. *)
+  let options = if isActivated "octagon" && not (isTerminationTask ()) then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
-  List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options
+  List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options;
 
+  if isActivated "termination" && isTerminationTask () then
+    activateTerminationAnalysis ()
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps

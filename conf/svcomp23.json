@@ -70,7 +70,8 @@
         "congruence",
         "octagon",
         "wideningThresholds",
-        "loopUnrollHeuristic"
+        "loopUnrollHeuristic",
+        "termination"
       ]
     }
   },
