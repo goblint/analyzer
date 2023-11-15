@@ -96,7 +96,7 @@ struct
             | Queries.VD.Struct s ->
               let struct_fields = ValueDomain.Structs.keys s in
               let ptr_struct_fields = List.filter (fun f -> isPointerType f.ftype) struct_fields in
-              if List.length ptr_struct_fields = 0 then None else Some (s, ptr_struct_fields)
+              if ptr_struct_fields = [] then None else Some (s, ptr_struct_fields)
             | _ -> None
           end
         | _ -> None
