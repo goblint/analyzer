@@ -467,11 +467,11 @@ let wideningOption factors file =
   }
 
 let activateTerminationAnalysis () =
-  print_endline "Enabling termination analysis";
   enableAnalyses ["termination"; "apron"];
   set_string "sem.int.signed_overflow" "assume_none";
   set_string "ana.apron.domain" "polyhedra";
-  set_bool "ana.int.interval_threshold_widening" true
+  set_bool "ana.int.interval_threshold_widening" true;
+  print_endline "Enabled termination analysis"
 
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
