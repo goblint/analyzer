@@ -467,6 +467,7 @@ let wideningOption factors file =
   }
 
 let activateTerminationAnalysis () =
+  print_endline "Enabling termination analysis";
   enableAnalyses ["termination"; "apron"];
   set_string "sem.int.signed_overflow" "assume_none";
   set_string "ana.apron.domain" "polyhedra";
