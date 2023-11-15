@@ -14,9 +14,10 @@ struct
   let name () = "memLeak"
 
   module D = ToppedVarInfoSet
-  module C = Lattice.Unit
+  module C = D
+  module P = IdentityP (D)
 
-  let context _ _ = ()
+  let context _ d = d
 
   (* HELPER FUNCTIONS *)
   let get_global_vars () =
