@@ -124,7 +124,6 @@ module RelationPriv = RelationPriv
 module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
 module ExtractPthread = ExtractPthread
-module LoopTermination = LoopTermination
 
 (** {2 Longjmp}
 
@@ -149,6 +148,7 @@ module UnitAnalysis = UnitAnalysis
 
 module Assert = Assert
 module FileUse = FileUse
+module LoopTermination = LoopTermination
 module Uninit = Uninit
 module Expsplit = Expsplit
 module StackTrace = StackTrace
