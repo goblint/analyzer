@@ -2,6 +2,49 @@
 // Apron is not precise enough for some nested loops
 #include <stdio.h>
 
+int nested_while_loop_with_break(){
+  int m;
+
+  // Nested while loop with a break statement
+  int n = 1;
+  while (n <= 5)
+  {
+    printf("Outer While loop iteration: %d\n", n);
+    m = 1;
+    while (1)
+    {
+      printf("Inner While loop iteration: %d\n", m);
+      m++;
+      if (m == 4)
+      {
+        break;
+      }
+    }
+    n++;
+  }
+  return 0;
+}
+
+int nested_loop_with_conditions(){
+  // Loop with nested conditions
+  for (int v = 1; v <= 10; v++)
+  {
+    printf("Loop with Nested Conditions: %d - ", v);
+    if (v < 5)
+    {
+      printf("Less than 5\n");
+    }
+    else if (v > 5)
+    {
+      printf("Greater than 5\n");
+    }
+    else
+    {
+      printf("Equal to 5\n");
+    }
+  }
+}
+
 int main()
 {
   // Non-nested loops
@@ -67,44 +110,9 @@ int main()
     p++;
   } while (p <= 5);
 
-  // Additional loops
-  int m;
-
-  // Nested while loop with a break statement
-  int n = 1;
-  while (n <= 5)
-  {
-    printf("Outer While loop iteration: %d\n", n);
-    m = 1;
-    while (1)
-    {
-      printf("Inner While loop iteration: %d\n", m);
-      m++;
-      if (m == 4)
-      {
-        break;
-      }
-    }
-    n++;
-  }
-
-  // Loop with nested conditions
-  for (int v = 1; v <= 10; v++)
-  {
-    printf("Loop with Nested Conditions: %d - ", v);
-    if (v < 5)
-    {
-      printf("Less than 5\n");
-    }
-    else if (v > 5)
-    {
-      printf("Greater than 5\n");
-    }
-    else
-    {
-      printf("Equal to 5\n");
-    }
-  }
+  // Additional nested loops
+  nested_while_loop_with_break();
+  nested_loop_with_conditions();
 
   return 0;
 }
