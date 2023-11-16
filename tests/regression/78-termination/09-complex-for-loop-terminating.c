@@ -2,8 +2,7 @@
 // Apron is not precise enough for some nested loops
 #include <stdio.h>
 
-int main()
-{
+int loops0(){
   int i, j, k;
 
   // Outer loop
@@ -33,6 +32,11 @@ int main()
     }
     printf("\n");
   }
+  return 0;
+}
+
+int loops1(){
+  int i, j, k;
 
   // Loop with conditions
   for (i = 1; i <= 10; i++)
@@ -82,6 +86,13 @@ int main()
   {
     printf("%d %d %d\n", a, b, c);
   }
+  return 0;
+}
+
+int main()
+{
+  loops0();
+  loops1();
 
   return 0;
 }
