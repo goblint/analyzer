@@ -2328,6 +2328,23 @@ struct
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
+      let apply_abs ik x =
+        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        begin match eval_x with
+          | Int int_x ->
+            let xcast = ID.cast_to ik int_x in
+            (* TODO cover case where x is the MIN value -> undefined *)
+            (match ID.le xcast (ID.of_int ik Z.zero) with
+             | d when d = ID.of_int ik Z.zero -> xcast (* x positive *)
+             | d when d = ID.of_int ik Z.one -> ID.neg xcast (* x negative *)
+             | _ -> (* both possible *)
+               let x1 = ID.neg (ID.meet (ID.ending ik Z.zero) xcast) in
+               let x2 = ID.meet (ID.starting ik Z.zero) xcast in
+               ID.join x1 x2
+            )
+          | _ -> failwith ("non-integer argument in call to function "^f.vname)
+        end
+      in
       let result:value =
         begin match fun_args with
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
@@ -2357,6 +2374,7 @@ struct
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
           | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
+          | Abs x -> Int (ID.cast_to IInt (apply_abs IInt x))
         end
       in
       begin match lv with

@@ -130,7 +130,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wcstombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r]; drop "size" []]);
     ("wcsrtombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r_deep; w]; drop "size" []; drop "ps" [r_deep; w_deep]]);
     ("mbstowcs", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []]);
-    ("abs", unknown [drop "j" []]);
+    ("abs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs j) });
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
