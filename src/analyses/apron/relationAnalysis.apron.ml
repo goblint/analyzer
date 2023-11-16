@@ -196,7 +196,7 @@ struct
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
-    | ik -> (* don't add type bounds for signed when assume_none *)
+    | ik ->
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
