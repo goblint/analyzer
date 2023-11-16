@@ -27,7 +27,7 @@ end
 
 module Array = struct
   include Array
-  let zero = (0, Mpqf.zero)
+  let zero = (0, Z.zero)
   let hash : 'a array -> int = (fun x -> 31 + x.(0)) (* TODO **)
   let add_element m n = 
     let num_vars = Array.length m in
@@ -83,7 +83,7 @@ struct
   module Vector = Array
 
   type t = {
-    mutable d : (int * Mpqf.t) Array.t option;
+    mutable d : (int * Z.t) Array.t option;
     mutable env : Environment.t
   }
   [@@deriving eq, ord] (*TODO add hash**)
