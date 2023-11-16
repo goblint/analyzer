@@ -38,7 +38,8 @@ type math =
   | Atan2 of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
   | Cos of (CilType.Fkind.t * Basetype.CilExp.t)
   | Sin of (CilType.Fkind.t * Basetype.CilExp.t)
-  | Tan of (CilType.Fkind.t * Basetype.CilExp.t) [@@deriving eq, ord, hash]
+  | Tan of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Sqrt of (CilType.Fkind.t * Basetype.CilExp.t) [@@deriving eq, ord, hash]
 
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
@@ -170,6 +171,7 @@ module MathPrintable = struct
     | Cos (fk, exp) -> Pretty.dprintf "(%a )cos(%a)" d_fkind fk d_exp exp
     | Sin (fk, exp) -> Pretty.dprintf "(%a )sin(%a)" d_fkind fk d_exp exp
     | Tan (fk, exp) -> Pretty.dprintf "(%a )tan(%a)" d_fkind fk d_exp exp
+    | Sqrt (fk, exp) -> Pretty.dprintf "(%a )sqrt(%a)" d_fkind fk d_exp exp
 
   include Printable.SimplePretty (
     struct

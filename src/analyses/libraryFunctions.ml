@@ -944,9 +944,9 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("scalbln", unknown [drop "arg" []; drop "exp" []]);
     ("scalblnf", unknown [drop "arg" []; drop "exp" []]);
     ("scalblnl", unknown [drop "arg" []; drop "exp" []]);
-    ("sqrt", unknown [drop "x" []]);
-    ("sqrtf", unknown [drop "x" []]);
-    ("sqrtl", unknown [drop "x" []]);
+    ("sqrt", special [__ "x" []] @@ fun x -> Math { fun_args = (Sqrt (FDouble, x)) });
+    ("sqrtf", special [__ "x" []] @@ fun x -> Math { fun_args = (Sqrt (FFloat, x)) });
+    ("sqrtl", special [__ "x" []] @@ fun x -> Math { fun_args = (Sqrt (FLongDouble, x)) });
     ("tgamma", unknown [drop "x" []]);
     ("tgammaf", unknown [drop "x" []]);
     ("tgammal", unknown [drop "x" []]);

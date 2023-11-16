@@ -2356,6 +2356,7 @@ struct
           | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
+          | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
         end
       in
       begin match lv with
