@@ -455,6 +455,8 @@ let parse_preprocessed preprocessed =
       Cilfacade.getAST preprocessed_file
     with
     | Frontc.ParseError s ->
+      if !E.hadErrors then
+        E.s (E.error "There were parsing errors in %s" fileName_str);
       raise (FrontendError (Format.sprintf "Frontc.ParseError: %s" s))
     | Errormsg.Error ->
       raise (FrontendError "Errormsg.Error")

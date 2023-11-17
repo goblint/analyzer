@@ -483,13 +483,14 @@ class countFnVisitor = object
     | Switch (_,_,_,loc,_)
     | Loop (_,loc,_,_,_)
       -> Hashtbl.replace locs loc.line (); DoChildren
+    | Asm (_,_,_,_,_,_,loc)
+      -> Hashtbl.replace locs loc.line (); SkipChildren
     | _ ->
       DoChildren
 
   method! vinst = function
     | Set (_,_,loc,_)
     | Call (_,_,_,loc,_)
-    | Asm (_,_,_,_,_,loc)
       -> Hashtbl.replace locs loc.line (); SkipChildren
     | _ -> SkipChildren
 
