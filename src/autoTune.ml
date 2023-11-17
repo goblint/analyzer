@@ -496,6 +496,9 @@ let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_
 
 let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
 
+let specificationIsActivated () =
+  isActivated "specification" && get_string "ana.specification" <> ""
+
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
@@ -515,8 +518,8 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "specification" && get_string "ana.specification" <> "" then
-    focusOnSpecification ();
+  (* if specificationIsActivated () then
+     focusOnSpecification (); *)
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
