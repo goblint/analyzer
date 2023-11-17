@@ -466,13 +466,6 @@ let wideningOption factors file =
       print_endline "Enabled widening thresholds";
   }
 
-let activateTerminationAnalysis () =
-  enableAnalyses ["termination"; "apron"];
-  set_string "sem.int.signed_overflow" "assume_none";
-  set_string "ana.apron.domain" "polyhedra";
-  set_bool "ana.int.interval_threshold_widening" true;
-  print_endline "Enabled termination analysis"
-
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
   let operationEstimate = factors.instructions + (factors.expressions / 60) in
@@ -536,14 +529,10 @@ let chooseConfig file =
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
-
   (* Termination analysis uses apron in a different configuration. *)
   let options = if isActivated "octagon" && not (isTerminationTask ()) then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
-  List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options;
-
-  if isActivated "termination" && isTerminationTask () then
-    activateTerminationAnalysis ()
+  List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps
