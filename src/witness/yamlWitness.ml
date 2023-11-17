@@ -148,7 +148,7 @@ let yaml_entries_to_file ?(invariants=0) yaml_entries file =
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
   (* estimate how big it should be + extra in case empty *)
-  let text = match Yaml.to_string ~len:((List.length yaml_entries + invariants) * 4096 + 2048) yaml with
+  let text = match Yaml.to_string ~len:((List.length yaml_entries + invariants) * 8192 + 2048) yaml with
     | Ok text -> text
     | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
   in
