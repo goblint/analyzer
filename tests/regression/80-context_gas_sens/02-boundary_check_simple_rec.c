@@ -1,7 +1,8 @@
-// PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set 
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set 
+// Basic example + boundary check for simple recursion
 #include <stdio.h>
 
-int num_iterat = 5;
+int num_iterat = 8; // should be context gas value - 2
 int a = 20;
 
 int f(int i)
@@ -17,7 +18,5 @@ int f(int i)
 int main(void)
 {
     f(num_iterat);
-
-    // if the analysis runs fully context sensitive, "a" should be equal 0
     __goblint_check(a == 0);
 }

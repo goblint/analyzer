@@ -1,7 +1,7 @@
-// PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
 #include <stdio.h>
 
-int num_iterat = 5;
+int num_iterat = 9; // should be context gas value - 1
 
 int h(int i)
 {
@@ -50,5 +50,5 @@ int main(void)
 {
     int result = f(num_iterat);
 
-    __goblint_check(result == 1); // context sensitive
+    __goblint_check(result == 1); // UNKNOWN
 }

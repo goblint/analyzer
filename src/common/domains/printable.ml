@@ -721,18 +721,3 @@ struct
 
   let to_yojson x = x (* override SimplePretty *)
 end
-
-(* Integer of type Printable*)
-module PInt =
-struct
-  type t = int [@@deriving eq, ord, hash]
-
-  include Std
-
-  let name () = "Integer"
-  let show x = string_of_int x
-  let pretty () x = Pretty.dprintf "Integer: %i" x
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (string_of_int x)
-  let to_yojson x = `String (string_of_int x)
-  let relift x = x
-end 

@@ -498,13 +498,6 @@
                 "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags).",
               "type": "boolean",
               "default": true
-            },
-            "ctx_gas": {
-              "title": "ana.opt.ctx_gas",
-              "description":
-                "If enabled, the first x recursions are analyzed context sensitively, the remaining context insensitively. x is refered to as the context gas",
-              "type": "boolean",
-              "default": false
             }
           },
           "additionalProperties": false
@@ -962,6 +955,13 @@
               "title": "ana.context.widen",
               "description":
                 "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls.",
+              "type": "boolean",
+              "default": false
+            },            
+            "ctx_gas": {
+              "title": "ana.context.ctx_gas",
+              "description":
+                "If enabled, the first x recursions are analyzed context sensitively, the remaining context insensitively. x is refered to as the context gas",
               "type": "boolean",
               "default": false
             }

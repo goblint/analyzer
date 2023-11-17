@@ -498,20 +498,32 @@ struct
 end
 
 module CGName = struct let name = "contextGas" end
+module IntConf = 
+  struct
+    let n () = max_int (* TODO: Shouldn't matter if this value is bigger than cg_init_val*)
+    let names x = Format.asprintf "%d" x
+  end
 
-(** Lifts a [Spec] with the context gas variable. TODO *)
+(** Lifts a [Spec] with the context gas variable. For every function call the context gas is reduced. 
+    If the context gas is 0, the remaining function calls are analyzed context insensitively (before the analysis is context sensitive)*)
 module ContextGasLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.LInt) 
-          and module C = Printable.Prod (Printable.Option (S.C) (CGName)) (Printable.PInt)
+  : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf)) 
+          and module C = Printable.Prod (Printable.Option (S.C) (CGName)) (Printable.Chain (IntConf))
           and module G = S.G
 =
 struct
   include S
 
-  module D = Lattice.Prod (S.D) (Lattice.LInt)
-  module G = S.G
+  module Context_Gas_Prod (Base1: Printable.S) (Base2: Printable.S) = 
+  struct 
+    include Printable.Prod (Base1) (Base2)
+    let printXml f (x,y) =
+      BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nContext Gas Value\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x Base2.printXml y
+  end
 
-  module C = Printable.Prod (Printable.Option (S.C) (CGName)) (Printable.PInt)
+  module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf))
+  module G = S.G
+  module C = Context_Gas_Prod (Printable.Option (S.C) (CGName)) (Lattice.Chain (IntConf))
   module V = S.V
   module P =
   struct
@@ -527,8 +539,8 @@ struct
 
   let name () = S.name ()^" with context gas"
   let startstate v = S.startstate v, cg_init_val
-  let exitstate v = S.exitstate v, 0 (* TODO*)
-  let morphstate v (d,i) = S.morphstate v d, i (* TODO*)
+  let exitstate v = S.exitstate v, 0 (* TODO: probably doesn't matter*)
+  let morphstate v (d,i) = S.morphstate v d, i
 
   let context fd (d,i) = 
     if i <= 0 then (None, 0) else ((Some (S.context fd d)), i)
@@ -536,10 +548,10 @@ struct
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =
     (* D.t -> S.D.t *)
     let ctx' = {ctx with local = fst ctx.local
-                       ; split = (fun d es -> ctx.split (d, cg_val ctx) es )} in 
+                       ; split = (fun d es -> ctx.split (d, cg_val ctx) es)} in 
     (* C.t -> S.C.t *)
     if (cg_val ctx <= 0) 
-    then {ctx' with context = (fun () -> ctx_failwith "contextGas")} 
+    then {ctx' with context = (fun () -> ctx_failwith "no context (contextGas = 0)")} 
     else {ctx' with context = (fun () -> Option.get (fst (ctx'.context ())))}
 
   let dec_context_gas (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,C.t,V.t)ctx =
@@ -549,14 +561,14 @@ struct
     else {ctx with context = (fun () -> (fst (ctx.context ()), cg_val ctx - 1)) (* context sensitive *)
                  ; local = (fst ctx.local, cg_val ctx - 1)} 
 
-  (*let rec showExprList args = (*TODO: delete, just here for printing*)
+  let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
-    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)*)
+    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)
 
   let enter ctx r f args = 
     let ctx_dec = dec_context_gas ctx in 
-    (*if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);   *)
+    if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
     liftmap_tup (S.enter (conv ctx_dec) r f args)
 
