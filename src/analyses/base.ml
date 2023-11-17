@@ -2333,14 +2333,19 @@ struct
         begin match eval_x with
           | Int int_x ->
             let xcast = ID.cast_to ik int_x in
-            (* TODO cover case where x is the MIN value -> undefined *)
-            (match ID.le xcast (ID.of_int ik Z.zero) with
-             | d when d = ID.of_int ik Z.zero -> xcast (* x positive *)
-             | d when d = ID.of_int ik Z.one -> ID.neg xcast (* x negative *)
-             | _ -> (* both possible *)
-               let x1 = ID.neg (ID.meet (ID.ending ik Z.zero) xcast) in
-               let x2 = ID.meet (ID.starting ik Z.zero) xcast in
-               ID.join x1 x2
+            (* the absolute value of the most-negative value is out of range for 2'complement types *)
+            (match (ID.minimal xcast), (ID.minimal (ID.top_of ik)) with
+             | _, None
+             | None, _ -> ID.top_of ik
+             | Some mx, Some mm when Z.equal mx mm -> ID.top_of ik
+             | _, _ ->
+               match ID.le xcast (ID.of_int ik Z.zero) with
+               | d when d = ID.of_int ik Z.zero -> xcast (* x positive *)
+               | d when d = ID.of_int ik Z.one -> ID.neg xcast (* x negative *)
+               | _ -> (* both possible *)
+                 let x1 = ID.neg (ID.meet (ID.ending ik Z.zero) xcast) in
+                 let x2 = ID.meet (ID.starting ik Z.zero) xcast in
+                 ID.join x1 x2
             )
           | _ -> failwith ("non-integer argument in call to function "^f.vname)
         end
