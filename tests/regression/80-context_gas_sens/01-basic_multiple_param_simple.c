@@ -1,4 +1,5 @@
-// PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// Basic example
 int num_iterat = 5;
 
 int f(int x, int y)

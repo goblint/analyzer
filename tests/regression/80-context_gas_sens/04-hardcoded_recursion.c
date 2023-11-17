@@ -1,7 +1,8 @@
-// PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// Interesting if the context gas is reduced too much, due to the (not needed) function calls f(4) and f(3)
 #include <stdio.h>
 
-int num_iterat = 5;
+int num_iterat = 2;
 int a = 20;
 
 int f(int i)

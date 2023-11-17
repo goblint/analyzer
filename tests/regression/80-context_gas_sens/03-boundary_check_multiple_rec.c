@@ -1,7 +1,8 @@
-// PARAM: --enable ana.opt.ctx_gas --enable ana.int.interval_set
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// Interesting if multiple recursions are handled properly + boundary check for multiple recursions
 #include <stdio.h>
 
-int num_iterat = 5;
+int num_iterat = 8; // should be context gas value - 2
 
 int f(int i)
 {
@@ -50,7 +51,9 @@ int main(void)
     int res1 = f(num_iterat);
     int res2 = g(num_iterat);
     int res3 = h(num_iterat);
-    int result = res1 + res2 + res3;
+    int res4 = h(num_iterat);
+    int res5 = h(num_iterat);
+    int result = res1 + res2 + res3 + res4 + res5;
 
-    __goblint_check(result == 3); // context sensitive
+    __goblint_check(result == 5); 
 }
