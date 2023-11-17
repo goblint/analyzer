@@ -445,7 +445,7 @@ struct
                       let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                       let lvals = local_lvals n local in
                       Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-                  ) (Invariant.bot ()) ns
+                    ) (Invariant.bot ()) ns
                   in
                   match inv with
                   | `Lifted inv ->
