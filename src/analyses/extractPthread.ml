@@ -1,6 +1,8 @@
-(** Tracking of pthread lib code. Output to promela. *)
+(** Promela extraction analysis for Pthread programs ([extract-pthread]). *)
 
-open Prelude.Ana
+open GoblintCil
+open Pretty
+open GobPretty
 open Analyses
 open Cil
 open BatteriesExceptionless
@@ -242,7 +244,7 @@ let fun_ctx ctx f =
   f.vname ^ "_" ^ ctx_hash
 
 
-module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (PthreadDomain.D))
+module Tasks = SetDomain.Make (Lattice.Prod (Queries.AD) (PthreadDomain.D))
 module rec Env : sig
   type t
 
@@ -387,8 +389,7 @@ module Variables = struct
   let get_globals () =
     Hashtbl.values !table
     |> List.of_enum
-    |> List.map Set.elements
-    |> List.flatten
+    |> List.concat_map Set.elements
     |> List.filter_map (function
         | Var v when Variable.is_global v ->
           Some v
@@ -572,7 +573,7 @@ module Codegen = struct
 
   module Writer = struct
     let write desc ext content =
-      let dir = Goblintutil.create_dir (Fpath.v "pml-result") in
+      let dir = GobSys.mkdir_or_exists_absolute (Fpath.v "pml-result") in
       let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("pthread." ^ ext)) in
       output_file ~filename:path ~text:content ;
       print_endline @@ "saved " ^ desc ^ " as " ^ path
@@ -748,7 +749,7 @@ module Codegen = struct
       |> List.of_enum
       |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
       |> List.unique
-      |> List.sort (compareBy PmlResTbl.get)
+      |> List.sort (BatOrd.map_comp PmlResTbl.get compare)
       |> List.concat_map process_def
     in
     let fun_ret_defs =
@@ -768,7 +769,7 @@ module Codegen = struct
           escape body
       in
       Tbls.FunCallTbl.to_list ()
-      |> List.group (compareBy (fst % fst))
+      |> List.group (BatOrd.map_comp (fst % fst) compare)
       |> List.concat_map fun_map
     in
     let globals = List.map Variable.show_def @@ Variables.get_globals () in
@@ -842,8 +843,7 @@ module Codegen = struct
         Hashtbl.keys Edges.table
         |> List.of_enum
         |> List.unique
-        |> List.map dot_thread
-        |> List.concat
+        |> List.concat_map dot_thread
       in
       String.concat "\n  " ("digraph file {" :: lines) ^ "}"
     in
@@ -869,32 +869,17 @@ module Spec : Analyses.MCPSpec = struct
   module C = D
 
   (** Set of created tasks to spawn when going multithreaded *)
-  module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D))
-
   module G = Tasks
 
   let tasks_var =
-    Goblintutil.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
+    Cilfacade.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
 
 
   module ExprEval = struct
     let eval_ptr ctx exp =
-      let mayPointTo ctx exp =
-        let a = ctx.ask (Queries.MayPointTo exp) in
-        if (not (Queries.LS.is_top a)) && Queries.LS.cardinal a > 0 then
-          let top_elt = (dummyFunDec.svar, `NoOffset) in
-          let a' =
-            if Queries.LS.mem top_elt a
-            then (* UNSOUND *)
-              Queries.LS.remove top_elt a
-            else a
-          in
-          Queries.LS.elements a'
-        else
-          []
-      in
-      List.map fst @@ mayPointTo ctx exp
-
+      ctx.ask (Queries.MayPointTo exp)
+      |> Queries.AD.remove UnknownPtr (* UNSOUND *)
+      |> Queries.AD.to_var_may
 
     let eval_var ctx exp =
       match exp with
@@ -967,7 +952,7 @@ module Spec : Analyses.MCPSpec = struct
       in
       let var_str = Variable.show % Option.get % Variable.make_from_lhost in
       let pred_str op lhs rhs =
-        let cond_str = lhs ^ " " ^ sprint d_binop op ^ " " ^ rhs in
+        let cond_str = lhs ^ " " ^ CilType.Binop.show op ^ " " ^ rhs in
         if tv then cond_str else "!(" ^ cond_str ^ ")"
       in
 
@@ -1034,7 +1019,7 @@ module Spec : Analyses.MCPSpec = struct
 
   let body ctx (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
-    let context_hash = Int64.of_int (if not !Goblintutil.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
+    let context_hash = Int64.of_int (if not !AnalysisState.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
 
@@ -1056,15 +1041,10 @@ module Spec : Analyses.MCPSpec = struct
     (* set predecessor set to start node of function *)
     [ (d_caller, d_callee) ]
 
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
 
-  let combine
-      ctx
-      (lval : lval option)
-      fexp
-      (f : fundec)
-      (args : exp list)
-      fc
-      (au : D.t) : D.t =
+  let combine_assign ctx (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
     if D.any_is_bot ctx.local || D.any_is_bot au
     then ctx.local
     else
@@ -1129,18 +1109,17 @@ module Spec : Analyses.MCPSpec = struct
       let arglist' = List.map (stripCasts % constFold false) arglist in
       match (LibraryFunctions.find f).special arglist', f.vname, arglist with
       | ThreadCreate { thread; start_routine = func; _ }, _, _ ->
-        let funs_ls =
-          let ls = ctx.ask (Queries.ReachableFrom func) in
-          Queries.LS.filter
-            (fun (v, o) ->
-               let lval = (Var v, Lval.CilLval.to_ciloffs o) in
-               isFunctionType (typeOfLval lval))
-            ls
+        let funs_ad =
+          let ad = ctx.ask (Queries.ReachableFrom func) in
+          Queries.AD.filter
+            (function
+              | Queries.AD.Addr.Addr mval ->
+                isFunctionType (ValueDomain.Mval.type_of mval)
+              | _ -> false)
+            ad
         in
         let thread_fun =
-          funs_ls
-          |> Queries.LS.elements
-          |> List.map fst
+          Queries.AD.to_var_may funs_ad
           |> List.unique ~eq:(fun a b -> a.vid = b.vid)
           |> List.hd
         in
@@ -1153,7 +1132,7 @@ module Spec : Analyses.MCPSpec = struct
               ; ctx = Ctx.top ()
               }
             in
-            Tasks.singleton (funs_ls, f_d)
+            Tasks.singleton (funs_ad, f_d)
           in
           ctx.sideg tasks_var tasks ;
         in
@@ -1259,20 +1238,23 @@ module Spec : Analyses.MCPSpec = struct
       (Ctx.top ())
 
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let d : D.t = ctx.local in
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)
     let tasks_f =
-      Tasks.filter
-        (fun (fs, f_d) -> Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs)
-        tasks
+      let var_in_ad ad f = Queries.AD.exists (function
+          | Queries.AD.Addr.Addr (ls_f,_) -> CilType.Varinfo.equal ls_f f
+          | _ -> false
+        ) ad
+      in
+      Tasks.filter (fun (ad,_) -> var_in_ad ad f) tasks
     in
     let f_d = snd (Tasks.choose tasks_f) in
     [ { f_d with pred = d.pred } ]
 
 
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let exitstate v = D.top ()
 

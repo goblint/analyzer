@@ -1,4 +1,6 @@
-open Prelude
+(** Domains for extraction of Pthread programs. *)
+
+open Batteries
 
 (** Thread ID *)
 module Tid = IntDomain.Flattened
@@ -21,6 +23,8 @@ module Pred = struct
 end
 
 module D = struct
+  include Printable.StdLeaf
+
   type domain = { tid : Tid.t; pred : Pred.t; ctx : Ctx.t } [@@deriving to_yojson]
   type t = domain
 
@@ -70,10 +74,6 @@ module D = struct
   let widen = join
   let meet = op_scheme Tid.meet Pred.meet Ctx.meet
   let narrow = meet
-
-  let arbitrary () = failwith "no arbitrary"
-  let tag x = failwith "no tag"
-  let relift x = x
 
   let pretty_diff () (x,y) =
     if not (Tid.leq x.tid y.tid) then

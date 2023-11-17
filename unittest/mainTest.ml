@@ -8,8 +8,10 @@ let all_tests = ("" >:::
     LvalTest.test ();
     CompilationDatabaseTest.tests;
     LibraryDslTest.tests;
+    CilfacadeTest.tests;
     (* etc *)
-    "domaintest" >::: QCheck_ounit.to_ounit2_test_list Maindomaintest.all_testsuite
+    "domaintest" >::: QCheck_ounit.to_ounit2_test_list Maindomaintest.all_testsuite;
+    IntOpsTest.tests;
   ])
 
 let () = run_test_tt_main all_tests

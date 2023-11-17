@@ -1,6 +1,11 @@
-(** Analysis by specification file. *)
+(** Analysis using finite automaton specification file ([spec]).
 
-open Prelude.Ana
+    @author Ralf Vogler
+
+    @see <https://www2.in.tum.de/hp/file?fid=1323> Vogler, R. Verifying Regular Safety Properties of C Programs Using the Static Analyzer Goblint. Section 4. *)
+
+open Batteries
+open GoblintCil
 open Analyses
 
 module SC = SpecCore
@@ -14,8 +19,8 @@ struct
   module C = SpecDomain.Dom
 
   (* special variables *)
-  let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let global_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
+  let return_var    = Cilfacade.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let global_var    = Cilfacade.create_var @@ Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
 
   (* spec data *)
   let nodes = ref []
@@ -177,7 +182,7 @@ struct
                 let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
                 let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in (* TODO what should be used to specify the key? *)
                 (* TODO this somehow also prints the expression!? why?? *)
-                let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
+                let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_cil_exp var))] in (* use Fl for Lval instead? *)
                 (* TODO encode key in exp somehow *)
                 (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
                 ctx.split new_m [Events.SplitBranch (c_exp, true)];
@@ -198,15 +203,14 @@ struct
     match q with
     | _ -> Queries.Result.top q
 
-  let query_lv ask exp =
+  let query_addrs ask exp =
     match ask (Queries.MayPointTo exp) with
-    | l when not (Queries.LS.is_top l) ->
-      Queries.LS.elements l
+    | ad when not (Queries.AD.is_top ad) -> Queries.AD.elements ad
     | _ -> []
 
   let eval_fv ask exp: varinfo option =
-    match query_lv ask exp with
-    | [(v,_)] -> Some v
+    match query_addrs ask exp with
+    | [addr] -> Queries.AD.Addr.to_var_may addr
     | _ -> None
 
 
@@ -234,7 +238,7 @@ struct
     in
     let m = SpecCheck.check ctx get_key matches in
     let key_from_exp = function
-      | Lval (Var v,o) -> Some (v, Lval.CilLval.of_ciloffs o)
+      | Lval (Var v,o) -> Some (v, Offset.Exp.of_cil o)
       | _ -> None
     in
     match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* TODO for now we just care about Lval assignments -> should use Queries.MayPointTo *)
@@ -248,7 +252,7 @@ struct
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
       M.debug ~category:Analyzer "assign (only k2 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       let m = D.alias k1 k2 m in (* point k1 to k2 *)
-      if Lval.CilLval.class_tag k2 = `Temp (* check if k2 is a temporary Lval introduced by CIL *)
+      if Basetype.Variables.to_group (fst k2) = Temp (* check if k2 is a temporary Lval introduced by CIL *)
       then D.remove' k2 m (* if yes we need to remove it from our map *)
       else m (* otherwise no change *)
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
@@ -291,7 +295,7 @@ struct
         let binop = BinOp (Eq, Lval lval, Const (CInt(i, kind, str)), Cil.intType) in
         let key = D.key_from_lval lval in
         let value = D.find key m in
-        if Cilint.is_zero_cilint i && tv then (
+        if Z.equal i Z.zero && tv then (
           M.debug ~category:Analyzer "error-branch";
           (* D.remove key m *)
         )else(
@@ -311,8 +315,8 @@ struct
             (* c_exp=exp *) (* leads to Out_of_memory *)
             match SC.branch_exp c with
             | Some (c_exp,c_tv) ->
-              (* let exp_str = sprint d_exp exp in *) (* contains too many casts, so that matching fails *)
-              let exp_str = sprint d_exp binop in
+              (* let exp_str = CilType.Exp.show exp in *) (* contains too many casts, so that matching fails *)
+              let exp_str = CilType.Exp.show binop in
               let c_str = SC.exp_to_string c_exp in
               let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in
               (* ignore(printf "branch_exp_eq: '%s' '%s' -> %B\n" c_str exp_str (c_str=exp_str)); *)
@@ -414,32 +418,35 @@ struct
         D.edit_callstack (BatList.cons (Option.get !Node.current_node)) ctx.local
       else ctx.local in [m, m]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
     (* M.debug ~category:Analyzer @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
+    (* remove special return var *)
+    D.remove' return_var au
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
       let k = D.key_from_lval lval in
-      (* remove special return var and handle potential overwrites *)
-      let au = D.remove' return_var au (* |> check_overwrite_open k *) in
+      (* handle potential overwrites *)
+      (* |> check_overwrite_open k *)
       (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
       (* TODO what if there is a local with the same name as the global? *)
       if D.V.is_top v then (* returned a local that was top -> just add k as top *)
-        D.add' k v au
+        D.add' k v ctx.local
       else (* v is now a local which is not top or a global which is aliased *)
         let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
         if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
           (* let _ = M.debug ~category:Analyzer @@ vvar.vname^" was a global -> alias" in *)
-          D.alias k vvar au
+          D.alias k vvar ctx.local
         else (* returned variable was a local *)
           let v = D.V.set_key k v in (* adjust var-field to lval *)
           (* M.debug ~category:Analyzer @@ vvar.vname^" was a local -> rebind"; *)
-          D.add' k v au
-    | _ -> au
+          D.add' k v ctx.local
+    | _ -> ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    (* let _ = GobConfig.set_bool "dbg.debug" false in *)
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let get_key c = match SC.get_key_variant c with
       | `Lval s ->
@@ -480,8 +487,8 @@ struct
 
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 

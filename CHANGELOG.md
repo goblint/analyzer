@@ -1,3 +1,27 @@
+## v2.2.1
+* Bump batteries lower bound to 3.5.0.
+* Fix flaky dead code elimination transformation test.
+
+## v2.2.0
+* Add `setjmp`/`longjmp` analysis (#887, #970, #1015, #1019).
+* Refactor race analysis to lazy distribution (#1084, #1089, #1136, #1016).
+* Add thread-unsafe library function call analysis (#723, #1082).
+* Add mutex type analysis and mutex API analysis (#800, #839, #1073).
+* Add interval set domain and string literals domain (#901, #966, #994, #1048).
+* Add affine equalities analysis (#592).
+* Add use-after-free analysis (#1050, #1114).
+* Add dead code elimination transformation (#850, #979).
+* Add taint analysis for partial contexts (#553, #952).
+* Add YAML witness validation via unassume (#796, #977, #1044, #1045, #1124).
+* Add incremental analysis rename detection (#774, #777).
+* Fix address sets unsoundness (#822, #967, #564, #1032, #998, #1031).
+* Fix thread escape analysis unsoundness (#939, #984, #1074, #1078).
+* Fix many incremental analysis issues (#627, #836, #835, #841, #932, #678, #942, #949, #950, #957, #955, #954, #960, #959, #1004, #558, #1010, #1091).
+* Fix server mode for abstract debugging (#983, #990, #997, #1000, #1001, #1013, #1018, #1017, #1026, #1027).
+* Add documentation for configuration JSON schema and OCaml API (#999, #1054, #1055, #1053).
+* Add many library function specifications (#962, #996, #1028, #1079, #1121, #1135, #1138).
+* Add OCaml 5.0 support (#1003, #945, #1162).
+
 ## v2.1.0
 Functionally equivalent to Goblint in SV-COMP 2023.
 

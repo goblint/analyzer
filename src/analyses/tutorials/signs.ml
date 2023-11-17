@@ -1,12 +1,13 @@
-(** An analysis specification for didactic purposes. *)
+(** Simple intraprocedural integer signs analysis template ([signs]).
 
-open Prelude.Ana
+    @see <https://goblint.readthedocs.io/en/latest/developer-guide/firstanalysis/> *)
+
+open GoblintCil
 open Analyses
-open Cilint
 
 module Signs =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
 
   type t = Neg | Zero | Pos [@@deriving eq, ord, hash, to_yojson]
   let name () = "signs"
@@ -22,14 +23,13 @@ struct
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =
-    if compare_cilint i zero_cilint < 0 then Zero
-    else if compare_cilint i zero_cilint > 0 then Zero
+    if Z.compare i Z.zero < 0 then Zero
+    else if Z.compare i Z.zero > 0 then Zero
     else Zero
 
   let lt x y = match x, y with
     | Neg, Pos | Neg, Zero -> true (* TODO: Maybe something missing? *)
     | _ -> false
-
 end
 
 (* Now we turn this into a lattice by adding Top and Bottom elements.

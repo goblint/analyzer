@@ -1,3 +1,5 @@
+(** ARG path feasibility checking using weakest precondition and {!Z3}. *)
+
 open Violation
 
 module WP (Node: MyARG.Node): Feasibility with module Node = Node =
@@ -76,10 +78,10 @@ struct
     | UnOp (LNot, e, TInt _) ->
       bool_to_int (Boolean.mk_not ctx (int_to_bool (exp_to_expr env e)))
     | e ->
-      failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
+      failwith @@ GobPretty.sprintf "exp_to_expr: %a" Cil.d_exp e
 
-  let get_arg_vname i = Goblintutil.create_var (Cil.makeVarinfo false ("_arg" ^ string_of_int i) Cil.intType) (* TODO: correct type in general *)
-  let return_vname = Goblintutil.create_var (Cil.makeVarinfo false "_return" Cil.intType) (* TODO: correct type in general *)
+  let get_arg_vname i = Cilfacade.create_var (Cil.makeVarinfo false ("_arg" ^ string_of_int i) Cil.intType) (* TODO: correct type in general *)
+  let return_vname = Cilfacade.create_var (Cil.makeVarinfo false "_return" Cil.intType) (* TODO: correct type in general *)
 
   let wp_assert env (from_node, (edge: MyARG.inline_edge), _) = match edge with
     | MyARG.CFGEdge (MyCFG.Assign ((Var v, NoOffset), e)) ->
@@ -100,7 +102,7 @@ struct
         ) fd.sformals
       in
       (env', eqs)
-    | MyARG.InlineEntry args ->
+    | MyARG.InlineEntry (_, _, args) ->
       let env' = BatList.fold_lefti (fun acc i arg ->
           let arg_vname = get_arg_vname i in
           Env.freshen acc arg_vname
@@ -117,14 +119,14 @@ struct
     | MyARG.CFGEdge (MyCFG.Ret (Some e, fd)) ->
       let env' = Env.freshen env return_vname in
       (env', [Boolean.mk_eq ctx (Env.get_const env return_vname) (exp_to_expr env' e)])
-    | MyARG.InlineReturn None ->
+    | MyARG.InlineReturn (None, _, _) ->
       (env, [])
-    | MyARG.InlineReturn (Some (Var v, NoOffset)) ->
+    | MyARG.InlineReturn (Some (Var v, NoOffset), _, _) ->
       let env' = Env.freshen env v in
       (env', [Boolean.mk_eq ctx (Env.get_const env v) (Env.get_const env' return_vname)])
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
-      failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
+      failwith @@ GobPretty.sprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
 
   let const_get_symbol (expr: Expr.expr): Symbol.symbol =
     assert (Expr.is_const expr);

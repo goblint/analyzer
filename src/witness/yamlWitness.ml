@@ -1,3 +1,5 @@
+(** YAML witness generation and validation. *)
+
 open Analyses
 open GoblintCil
 
@@ -15,8 +17,8 @@ struct
   (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
   let producer: Producer.t = {
     name = "Goblint";
-    version = Version.goblint;
-    command_line = Goblintutil.command_line;
+    version = Goblint_build_info.version;
+    command_line = Some GobSys.command_line;
   }
 
   let metadata ?task (): Metadata.t =
@@ -169,15 +171,15 @@ struct
       if GobConfig.get_bool "witness.invariant.accessed" then (
         match R.ask_local_node n ~local MayAccessed with
         | `Top ->
-          CilLval.Set.top ()
+          Lval.Set.top ()
         | (`Lifted _) as es ->
           let lvals = AccessDomain.EventSet.fold (fun e lvals ->
               match e with
               | {var_opt = Some var; offs_opt = Some offs; kind = Write} ->
-                CilLval.Set.add (Var var, offs) lvals
+                Lval.Set.add (Var var, offs) lvals
               | _ ->
                 lvals
-            ) es (CilLval.Set.empty ())
+            ) es (Lval.Set.empty ())
           in
           let lvals =
             FileCfg.Cfg.next n
@@ -190,7 +192,7 @@ struct
             |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
                 match e with
                 | {var_opt = Some var; offs_opt = Some offs; kind = Read} ->
-                  CilLval.Set.add (Var var, offs) lvals
+                  Lval.Set.add (Var var, offs) lvals
                 | _ ->
                   lvals
               ) es lvals
@@ -198,7 +200,7 @@ struct
           lvals
       )
       else
-        CilLval.Set.top ()
+        Lval.Set.top ()
     in
 
     let entries = [] in
@@ -357,7 +359,7 @@ struct
                   | None
                   | Some [] -> acc
                   | Some (x::xs) ->
-                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with (* bisect_ppx cannot handle redefined (||) *)
                       | `Lifted inv ->
                         let invs = WitnessUtil.InvariantExp.process_exp inv in
                         let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
@@ -390,6 +392,9 @@ struct
     ];
 
     yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+
+  let write () =
+    Timing.wrap "yaml witness" write ()
 end
 
 
@@ -447,7 +452,12 @@ struct
     let loop_locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        if not loc.synthetic then
+        (* TODO: filter synthetic?
+
+           Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
+           Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
+           I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
+        if WitnessInvariant.is_invariant_node n then
           Locator.add locator loc lvar;
         if WitnessUtil.NH.mem WitnessInvariant.loop_heads n then
           Locator.add loop_locator loc lvar

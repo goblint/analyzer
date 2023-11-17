@@ -1,6 +1,6 @@
 # Configuring
 
-On top of passing options via the command line, Goblint can be configured with `json` files following the schema outlined in `/src/util/options.schema.json`
+On top of passing options via the command line, Goblint can be configured with `json` files following the schema outlined in [the Options reference](../../jsfh/options.schema.html) (also on the sidebar)
 or using one of the default configurations we provide.
 
 # Example Configurations for Goblint
@@ -24,7 +24,7 @@ In `.vscode/settings.json` add the following:
                 "/conf/*.json",
                 "/tests/incremental/*/*.json"
             ],
-            "url": "/src/util/options.schema.json"
+            "url": "/src/common/util/options.schema.json"
         }
     ]
 }

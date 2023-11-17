@@ -12,6 +12,10 @@
     "float": {
       "interval": true
     },
+    "apron": {
+      "domain": "polyhedra",
+      "strengthening": true
+    },
     "activated": [
       "base",
       "threadid",
@@ -31,6 +35,7 @@
       "region",
       "thread",
       "threadJoins",
+      "apron",
       "unassume"
     ],
     "context": {
@@ -68,16 +73,11 @@
       "tokens": true
     }
   },
+  "pre": {
+    "transform-paths": false
+  },
   "exp": {
     "region-offsets": true
-  },
-  "witness": {
-    "enabled": false,
-    "invariant": {
-      "loop-head": true,
-      "after-lock": false,
-      "other": false
-    }
   },
   "solver": "td3",
   "sem": {

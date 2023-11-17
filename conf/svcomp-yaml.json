@@ -12,6 +12,10 @@
     "float": {
       "interval": true
     },
+    "apron": {
+      "domain": "polyhedra",
+      "strengthening": true
+    },
     "activated": [
       "base",
       "threadid",
@@ -30,7 +34,8 @@
       "symb_locks",
       "region",
       "thread",
-      "threadJoins"
+      "threadJoins",
+      "apron"
     ],
     "context": {
       "widen": false
@@ -64,15 +69,23 @@
       "enabled": false
     }
   },
+  "pre": {
+    "transform-paths": false
+  },
   "exp": {
     "region-offsets": true
   },
   "witness": {
-    "enabled": false,
+    "graphml": {
+      "enabled": false
+    },
     "yaml": {
       "enabled": true
     },
     "invariant": {
+      "loop-head": true,
+      "other": false,
+      "accessed": false,
       "exact": false,
       "exclude-vars": [
         "tmp\\(___[0-9]+\\)?",

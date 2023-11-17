@@ -1,3 +1,5 @@
+(** Perform {{!Queries.t} queries} on the constraint system solution. *)
+
 open Analyses
 
 module Query (SpecSys: SpecSys) =
@@ -16,7 +18,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local  = local
       ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* see 29/29 on why fallback is needed *)
-      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+      ; spawn  = (fun ?(multiple=false) v d    -> failwith "Cannot \"spawn\" in witness context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
       }
@@ -35,7 +37,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local  = local
       ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
-      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+      ; spawn  = (fun ?(multiple=false) v d    -> failwith "Cannot \"spawn\" in witness context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
       }
@@ -55,7 +57,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local  = Spec.startstate GoblintCil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *) (* TODO: is this startstate bad? *)
       ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) (* TODO: how can be missing? *)
-      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; spawn  = (fun ?(multiple=false) v d   -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
       }

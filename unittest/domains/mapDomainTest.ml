@@ -3,12 +3,12 @@ open OUnit2
 
 module Pretty = GoblintCil.Pretty
 
-module GroupableDriver : MapDomain.Groupable with type t = string  =
+module PrintableDriver : Printable.S with type t = string  =
 struct
   include Printable.Strings
 end
 
-module LatticeDriver = Lattice.Fake (GroupableDriver)
+module LatticeDriver = Lattice.Fake (PrintableDriver)
 
 
 module TestMap (M:MapDomain.S with type key = string and type value = string) =
@@ -162,8 +162,8 @@ struct
 end
 
 
-module Mbot = MapDomain.MapBot (GroupableDriver) (LatticeDriver)
-module Mtop = MapDomain.MapTop (GroupableDriver) (LatticeDriver)
+module Mbot = MapDomain.MapBot (PrintableDriver) (LatticeDriver)
+module Mtop = MapDomain.MapTop (PrintableDriver) (LatticeDriver)
 
 module Tbot = TestMap (Mbot)
 module Ttop = TestMap (Mtop)
@@ -171,7 +171,7 @@ module Ttop = TestMap (Mtop)
 
 let test_Mbot_join_meet _ =
   let assert_eq =
-    let printer a = Pretty.sprint ~width:80 (Mbot.pretty () a) in
+    let printer a = Pretty.sprint ~width:max_int (Mbot.pretty () a) in
     let cmp = Mbot.equal in
     assert_equal ~cmp:(cmp) ~printer:(printer)
   in
@@ -207,7 +207,7 @@ let test_Mbot_join_meet _ =
 
 let test_Mtop_join_meet _ =
   let assert_eq =
-    let printer a = Pretty.sprint ~width:80 (Mtop.pretty () a) in
+    let printer a = Pretty.sprint ~width:max_int (Mtop.pretty () a) in
     let cmp = Mtop.equal in
     assert_equal ~cmp:(cmp) ~printer:(printer)
   in

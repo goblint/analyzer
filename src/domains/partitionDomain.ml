@@ -27,6 +27,9 @@ struct
       let (s1', res) = fold f s2 (s1, empty ()) in
       union s1' res
 
+  (* TODO: inter-based meet is unsound? *)
+  let meet _ _ = failwith "PartitonDomain.Set.meet: unsound"
+
   let collapse (s1:t) (s2:t): bool =
     let f vf2 res =
       res || exists (fun vf1 -> S.collapse vf1 vf2) s1
@@ -112,18 +115,23 @@ struct
       for_all (fun p -> exists (B.leq p) y) x
 
   let pretty_diff () (y, x) =
-    (* based on DisjointDomain.PairwiseSet *)
-    let x_not_leq = filter (fun p ->
-        not (exists (fun q -> B.leq p q) y)
-      ) x
-    in
-    let p_not_leq = choose x_not_leq in
-    GoblintCil.Pretty.(
-      dprintf "%a:\n" B.pretty p_not_leq
-      ++
-      fold (fun q acc ->
-          dprintf "not leq %a because %a\n" B.pretty q B.pretty_diff (p_not_leq, q) ++ acc
-        ) y nil
+    if E.is_top x then (
+      GoblintCil.Pretty.(dprintf "%a not leq bot" pretty y)
+    )
+    else (
+      (* based on DisjointDomain.PairwiseSet *)
+      let x_not_leq = filter (fun p ->
+          not (exists (fun q -> B.leq p q) y)
+        ) x
+      in
+      let p_not_leq = choose x_not_leq in
+      GoblintCil.Pretty.(
+        dprintf "%a:\n" B.pretty p_not_leq
+        ++
+        fold (fun q acc ->
+            dprintf "not leq %a because %a\n" B.pretty q B.pretty_diff (p_not_leq, q) ++ acc
+          ) y nil
+      )
     )
 
   let meet xs ys = if is_bot xs || is_bot ys then bot () else

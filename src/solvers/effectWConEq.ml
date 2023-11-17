@@ -1,4 +1,6 @@
-open Prelude
+(** ([effectWConEq]). *)
+
+open Batteries
 open Analyses
 open Constraints
 

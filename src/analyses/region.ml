@@ -1,6 +1,9 @@
-(** Assigning static regions to dynamic memory. *)
+(** Analysis of disjoint heap regions for dynamically allocated memory ([region]).
 
-open Prelude.Ana
+    @see <https://doi.org/10.1007/978-3-642-03237-0_13> Seidl, H., Vojdani, V. Region Analysis for Race Detection. *)
+
+open Batteries
+open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
@@ -20,13 +23,12 @@ struct
     include StdV
   end
 
-  let regions ctx exp part : Lval.CilLval.t list =
+  let regions ctx exp part : Mval.Exp.t list =
     match ctx.local with
     | `Lifted reg ->
       let ask = Analyses.ask_of_ctx ctx in
       let ev = Reg.eval_exp ask exp in
-      let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
-      List.map to_exp (Reg.related_globals ask ev (part,reg))
+      Reg.related_globals ask ev (part,reg)
     | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
@@ -57,7 +59,7 @@ struct
         ls
     | _ -> Queries.Result.top q
 
-  module Lvals = SetDomain.Make (Lval.CilLval)
+  module Lvals = SetDomain.Make (Mval.Exp)
   module A =
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
@@ -67,7 +69,7 @@ struct
       | None, _
       | _, None -> false
       (* The following cases are needed if RegMap has empty values, due to bugs.
-         When not handling escape, 09-regions/34-escape_rc would fail without this: 
+         When not handling escape, 09-regions/34-escape_rc would fail without this:
          | Some r1, _ when Lvals.is_empty r1 -> true
          | _, Some r2 when Lvals.is_empty r2 -> true *)
       | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
@@ -82,12 +84,9 @@ struct
       Some (Lvals.empty ())
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
-      let rec unknown_index = function
-        | `NoOffset -> `NoOffset
-        | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
-      in
-      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
+      (* forget specific indices *)
+      (* TODO: If indices are topped, could they not be collected in the first place? *)
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -140,9 +139,12 @@ struct
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
-    | `Lifted reg -> 
+    | `Lifted reg ->
       let old_regpart = ctx.global () in
       let module BS = (val Base.get_main ()) in
       let regpart, reg = match lval with
@@ -170,27 +172,20 @@ struct
         | _ -> ctx.local
       end
     | _ ->
-      let t, _, _, _ = splitFunctionTypeVI  f in
-      match unrollType t with
-      | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
-          | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
+      ctx.local
 
   let startstate v =
     `Lifted (RegMap.bot ())
 
-  let threadenter ctx lval f args: D.t list =
+  let threadenter ctx ~multiple lval f args: D.t list =
     let fd = Cilfacade.find_varinfo_fundec f in
     match args, fd.sformals with
-    | [exp], [param] -> 
+    | [exp], [param] ->
       (* The parameter may not have escaped here (for the first thread). *)
       let reg = Reg.assign ~thread_arg:true (Analyses.ask_of_ctx ctx) (var param) exp (ctx.global (), RegMap.bot ()) in
-      [`Lifted (snd reg)] 
+      [`Lifted (snd reg)]
     | _ -> [`Lifted (RegMap.bot ())]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let exitstate v = `Lifted (RegMap.bot ())
 

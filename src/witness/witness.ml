@@ -1,7 +1,11 @@
+(** Output of ARG as GraphML. *)
+
 open MyCFG
 open Graphml
 open Svcomp
 open GobConfig
+
+module M = Messages
 
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
@@ -9,8 +13,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module Invariant = WitnessUtil.Invariant (Task) in
 
   let module TaskResult =
-    (val if get_bool "witness.stack" then
-        (module StackTaskResult (Task.Cfg) (TaskResult) : WitnessTaskResult)
+    (val if get_bool "witness.graphml.stack" then
+        (module StackTaskResult (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
     )
@@ -20,7 +24,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   struct
     (* type node = N.t
     type edge = TaskResult.Arg.Edge.t *)
-    let minwitness = get_bool "witness.minimize"
+    let minwitness = get_bool "witness.graphml.minimize"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
@@ -54,12 +58,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module N = Arg.Node in
   let module GML = XmlGraphMlWriter in
   let module GML =
-    (val match get_string "witness.id" with
+    (val match get_string "witness.graphml.id" with
       | "node" ->
         (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
       | "enumerate" ->
         (module EnumerateNodeGraphMlWriter (N) (GML))
-      | _ -> failwith "witness.id: illegal value"
+      | _ -> failwith "witness.graphml.id: illegal value"
     )
   in
   let module GML = DeDupGraphMlWriter (N) (GML) in
@@ -114,7 +118,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       | Result.Unknown -> "unknown_witness"
     );
   GML.write_metadata g "sourcecodelang" "C";
-  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
+  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Goblint_build_info.version);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
   let programfile = (Node.location (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
@@ -147,7 +151,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         (* begin match cfgnode with
           | Statement s ->
-            [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
+            [("sourcecode", GobPretty.sprint Basetype.CilStmt.pretty s)] (* TODO: sourcecode not official? especially on node? *)
           | _ -> []
         end; *)
         (* violation actually only allowed in violation witness *)
@@ -225,19 +229,38 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       NH.add itered_nodes node ();
       write_node node;
       let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
+      if M.tracing then M.tracei "witness" "iter_node %s\n" (N.to_string node);
       if not is_sink then begin
         let edge_to_nodes =
           Arg.next node
           (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
+          |> List.filter_map (fun ((edge, to_node) as edge_to_node) ->
+              match edge with
+              | MyARG.CFGEdge _ ->
+                Some edge_to_node
+              | InlineEntry (_, f, args) ->
+                Some (InlineEntry (None, f, args), to_node) (* remove lval to avoid duplicate edges in witness *)
+              | InlineReturn (lval, f, _) ->
+                Some (InlineReturn (lval, f, []), to_node) (* remove args to avoid duplicate edges in witness *)
+              | InlinedEdge _
+              | ThreadEntry _ ->
+                None
+            )
+          (* deduplicate after removed lvals/args *)
+          |> BatList.unique_cmp ~cmp:[%ord: MyARG.inline_edge * N.t]
         in
         List.iter (fun (edge, to_node) ->
+            if M.tracing then M.tracec "witness" "edge %a to_node %s\n" MyARG.pretty_inline_edge edge (N.to_string to_node);
             write_node to_node;
             write_edge node edge to_node
           ) edge_to_nodes;
+        if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
         List.iter (fun (edge, to_node) ->
             iter_node to_node
           ) edge_to_nodes
       end
+      else
+      if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
     end
   in
 
@@ -271,107 +294,51 @@ struct
   open Svcomp
 
   module Query = ResultQuery.Query (SpecSys)
+  module ArgTool = ArgTools.Make (R)
+  module NHT = ArgTool.NHT
 
-  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
-    let get: node * Spec.C.t -> Spec.D.t =
-      fun nc -> LHT.find_default lh nc (Spec.D.bot ())
-    in
-    let ask_indices lvar =
-      let indices = ref [] in
-      ignore (ask_local lvar (Queries.IterVars (fun i ->
-          indices := i :: !indices
-        )));
-      !indices
-    in
+  module type BiArgInvariant =
+  sig
+    include ArgTools.BiArg
+    val find_invariant: Node.t -> Invariant.t
+  end
 
-    let module CfgNode = Node in
+  let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): (module WitnessTaskResult) =
+    let module Arg: BiArgInvariant =
+      (val if GobConfig.get_bool "witness.graphml.enabled" then (
+           let module Arg = (val ArgTool.create entrystates) in
+           let module Arg =
+           struct
+             include Arg
 
-    let module Node =
-    struct
-      type t = MyCFG.node * Spec.C.t * int
-
-      let equal (n1, c1, i1) (n2, c2, i2) =
-        EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
-
-      let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
-
-      let cfgnode (n, c, i) = n
-
-      let to_string (n, c, i) =
-        (* copied from NodeCtxStackGraphMlWriter *)
-        let c_tag = Spec.C.tag c in
-        let i_str = string_of_int i in
-        match n with
-        | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
-        | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
-        | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
-
-      (* TODO: less hacky way (without ask_indices) to move node *)
-      let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
-      let move_opt (n, c, i) to_n =
-        match ask_indices (to_n, c) with
-        | [] -> None
-        | [to_i] ->
-          let to_node = (to_n, c, to_i) in
-          BatOption.filter is_live (Some to_node)
-        | _ :: _ :: _ ->
-          failwith "Node.move_opt: ambiguous moved index"
-      let equal_node_context (n1, c1, i1) (n2, c2, i2) =
-        EQSys.LVar.equal (n1, c1) (n2, c2)
-    end
+             let find_invariant (n, c, i) =
+               let context = {Invariant.default_context with path = Some i} in
+               ask_local (n, c) (Invariant context)
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+         else (
+           let module Arg =
+           struct
+             module Node = ArgTool.Node
+             module Edge = MyARG.InlineEdge
+             let next _ = []
+             let prev _ = []
+             let find_invariant _ = Invariant.none
+             let main_entry =
+               let lvar = WitnessUtil.find_main_entry entrystates in
+               (fst lvar, snd lvar, -1)
+             let iter_nodes f = f main_entry
+             let query _ q = Queries.Result.top q
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+      )
     in
 
-    let module NHT = BatHashtbl.Make (Node) in
-
-    let (witness_prev_map, witness_prev, witness_next) =
-      let prev = NHT.create 100 in
-      let next = NHT.create 100 in
-      LHT.iter (fun lvar local ->
-          ignore (ask_local lvar ~local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
-              let lvar' = (fst lvar, snd lvar, i) in
-              let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
-              NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
-              NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
-            )))
-        ) lh;
-
-      (prev,
-        (fun n ->
-          NHT.find_default prev n []), (* main entry is not in prev at all *)
-        (fun n ->
-          NHT.find_default next n [])) (* main return is not in next at all *)
-    in
-    let witness_main =
-      let lvar = WitnessUtil.find_main_entry entrystates in
-      let main_indices = ask_indices lvar in
-      (* TODO: get rid of this hack for getting index of entry state *)
-      assert (List.compare_length_with main_indices 1 = 0);
-      let main_index = List.hd main_indices in
-      (fst lvar, snd lvar, main_index)
-    in
-
-    let module Arg =
-    struct
-      module Node = Node
-      module Edge = MyARG.InlineEdge
-      let main_entry = witness_main
-      let next = witness_next
-    end
-    in
-    let module Arg =
-    struct
-      open MyARG
-      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))
-      include Intra (ArgIntra) (Arg)
-    end
-    in
-
-    let find_invariant (n, c, i) =
-      let context = {Invariant.default_context with path = Some i} in
-      ask_local (n, c) (Invariant context)
-    in
-
-    match Task.specification with
+    match spec with
     | UnreachCall _ ->
       (* error function name is globally known through Svcomp.task *)
       let is_unreach_call =
@@ -390,7 +357,7 @@ struct
         struct
           module Arg = Arg
           let result = Result.True
-          let invariant = find_invariant
+          let invariant = Arg.find_invariant
           let is_violation _ = false
           let is_sink _ = false
         end
@@ -398,27 +365,27 @@ struct
         (module TaskResult:WitnessTaskResult)
       ) else (
         let is_violation = function
-          | FunctionEntry f, _, _ when Svcomp.is_error_function f.svar -> true
-          | _, _, _ -> false
+          | FunctionEntry f when Svcomp.is_error_function f.svar -> true
+          | _ -> false
         in
         (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
         let is_violation n =
           Arg.next n
-          |> List.exists (fun (_, to_n) -> is_violation to_n)
+          |> List.exists (fun (_, to_n) -> is_violation (Arg.Node.cfgnode to_n))
         in
         let violations =
-          NHT.fold (fun lvar _ acc ->
+          (* TODO: fold_nodes?s *)
+          let acc = ref [] in
+          Arg.iter_nodes (fun lvar ->
               if is_violation lvar then
-                lvar :: acc
-              else
-                acc
-            ) witness_prev_map []
+                acc := lvar :: !acc
+            );
+          !acc
         in
         let module ViolationArg =
         struct
           include Arg
 
-          let prev = witness_prev
           let violations = violations
         end
         in
@@ -429,7 +396,7 @@ struct
           struct
             module Arg = Arg
             let result = Result.Unknown
-            let invariant = find_invariant
+            let invariant = Arg.find_invariant
             let is_violation = is_violation
             let is_sink = is_sink
           end
@@ -443,7 +410,7 @@ struct
             let module TaskResult =
             struct
               module Arg = PathArg
-              let result = Result.False (Some Task.specification)
+              let result = Result.False (Some spec)
               let invariant _ = Invariant.none
               let is_violation = is_violation
               let is_sink _ = false
@@ -515,12 +482,12 @@ struct
         let next _ = []
       end
       in
-      if not !Goblintutil.svcomp_may_overflow then
+      if not !AnalysisState.svcomp_may_overflow then
         let module TaskResult =
         struct
           module Arg = Arg
           let result = Result.True
-          let invariant = find_invariant
+          let invariant = Arg.find_invariant
           let is_violation _ = false
           let is_sink _ = false
         end
@@ -538,22 +505,163 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
+    | ValidFree ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_free then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+    | ValidDeref ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_deref then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+    | ValidMemtrack ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_memtrack then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+    | ValidMemcleanup ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_invalid_memcleanup then (
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
 
+  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
+    Task.specification
+    |> List.fold_left (fun acc spec ->
+        let module TaskResult = (val determine_result entrystates (module Task) spec) in
+        match acc with
+        | None -> Some (module TaskResult: WitnessTaskResult)
+        | Some (module Acc: WitnessTaskResult) ->
+          match Acc.result, TaskResult.result with
+          (* keep old violation/unknown *)
+          | False _, True
+          | False _, Unknown
+          | Unknown, True -> Some (module Acc: WitnessTaskResult)
+          (* use new violation/unknown *)
+          | True, False _
+          | Unknown, False _
+          | True, Unknown -> Some (module TaskResult: WitnessTaskResult)
+          (* both same, arbitrarily keep old *)
+          | True, True -> Some (module Acc: WitnessTaskResult)
+          | Unknown, Unknown -> Some (module Acc: WitnessTaskResult)
+          | False _, False _ -> failwith "multiple violations"
+      ) None
+    |> Option.get
 
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Timing.wrap "determine" (determine_result entrystates) (module Task))) in
+    let module TaskResult = (val (Timing.wrap "sv-comp result" (determine_result entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
 
-    (* TODO: use witness.enabled elsewhere as well *)
-    if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
-      let witness_path = get_string "witness.path" in
-      Timing.wrap "write" (write_file witness_path (module Task)) (module TaskResult)
+    if get_bool "witness.graphml.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.graphml.unknown") then (
+      let witness_path = get_string "witness.graphml.path" in
+      Timing.wrap "graphml witness" (write_file witness_path (module Task)) (module TaskResult)
     )
 
   let write entrystates =
-    match !Goblintutil.verified with
+    match !AnalysisState.verified with
     | Some false -> print_svcomp_result "ERROR (verify)"
     | _ ->
       if get_string "witness.yaml.validate" <> "" then (
@@ -566,7 +674,4 @@ struct
       )
       else
         write entrystates
-
-  let write entrystates =
-    Timing.wrap "witness" write entrystates
 end

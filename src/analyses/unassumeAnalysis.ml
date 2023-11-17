@@ -1,6 +1,7 @@
-(** Unassume analysis.
+(** Unassume analysis ([unassume]).
 
     Emits unassume events for other analyses based on YAML witness invariants. *)
+
 open Analyses
 
 module Cil = GoblintCil.Cil
@@ -23,7 +24,6 @@ struct
   let exitstate _ = D.empty ()
 
   let context _ _ = ()
-  let should_join _ _ = false
 
   module Locator = WitnessUtil.Locator (Node)
 
@@ -55,7 +55,8 @@ struct
     let rec iter_node node =
       if not (NH.mem reachable node) then begin
         NH.replace reachable node ();
-        (* TODO: filter synthetic like in Validator *)
+        (* TODO: filter synthetic?
+           See YamlWitness. *)
         if WitnessInvariant.is_invariant_node node then
           Locator.add locator (Node.location node) node;
         if WitnessUtil.NH.mem WitnessInvariant.loop_heads node then
@@ -110,7 +111,7 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                 NH.add invs n {exp = inv_exp; uuid}
@@ -156,12 +157,12 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc pre_cabs with
               | Ok pre_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located precondition to %a: %a" CilType.Fundec.pretty fundec Cil.d_exp pre_exp;
                 FH.add fun_pres fundec pre_exp;
 
-                begin match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                begin match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
                   | Ok inv_exp ->
                     M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
@@ -229,8 +230,8 @@ struct
     match es with
     | x :: xs ->
       let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
-      (* M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e; *)
-      if not !Goblintutil.postsolving then (
+      M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e;
+      if not !AnalysisState.postsolving then (
         if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (ctx.ask (EvalInt e)) = Some false) then (
           let uuids = x.uuid :: List.map (fun {uuid; _} -> uuid) xs in
           ctx.emit (Unassume {exp = e; uuids});
@@ -273,7 +274,10 @@ struct
   let enter ctx lv f args =
     [(ctx.local, D.empty ())]
 
-  let combine ctx lv fe f args fc fd =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local (* not here because isn't final transfer function on edge *)
+
+  let combine_assign ctx lv fe f args fc fd f_ask =
     emit_unassume ctx
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)

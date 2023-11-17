@@ -1,9 +1,9 @@
-open Prelude
+(** Deprecated top-down solver ([topdown_deprecated]). *)
+
+open Batteries
 open Analyses
 open Constraints
 open Messages
-
-module GU = Goblintutil
 
 exception SolverCannotDoGlobals
 

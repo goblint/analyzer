@@ -1,5 +1,7 @@
-(* Ref: Affine Relationships Among Variables of a Program, Michael Karr 1976
-    https://link.springer.com/content/pdf/10.1007/BF00268497.pdf *)
+(** {{!RelationAnalysis} Relational integer value analysis} using an OCaml implementation of the affine equalities domain ([affeq]).
+
+    @see <https://doi.org/10.1007/BF00268497> Karr, M. Affine relationships among variables of a program. *)
+
 open Analyses
 
 include RelationAnalysis

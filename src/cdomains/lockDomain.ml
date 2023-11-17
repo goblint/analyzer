@@ -1,20 +1,15 @@
+(** Lockset domains. *)
+
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
-module Equ = MusteqDomain.Equ
 module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
 
 open GoblintCil
 
-module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO HoareDomain? *)
+module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
 module Simple = Lattice.Reverse (Mutexes)
 module Priorities = IntDomain.Lifted
-
-module Glob =
-struct
-  module Var = Basetype.Variables
-  module Val = Simple
-end
 
 module Lockset =
 struct
@@ -41,48 +36,31 @@ struct
       )
   end
 
-  (* TODO: use SetDomain.Reverse *)
-  module ReverseAddrSet = SetDomain.ToppedSet (Lock)
-      (struct let topname = "All mutexes" end)
+  include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
+  let name () = "lockset"
 
-  module AddrSet = Lattice.Reverse (ReverseAddrSet)
-
-  include AddrSet
-
-  let rec may_be_same_offset of1 of2 =
-    match of1, of2 with
-    | `NoOffset , `NoOffset -> true
-    | `Field (x1,y1) , `Field (x2,y2) -> CilType.Compinfo.equal x1.fcomp x2.fcomp && may_be_same_offset y1 y2 (* TODO: why not fieldinfo equal? *)
-    | `Index (x1,y1) , `Index (x2,y2)
-      -> ((IdxDom.to_int x1 = None) || (IdxDom.to_int x2 = None))
-         || IdxDom.equal x1 x2 && may_be_same_offset y1 y2
-    | _ -> false
+  let may_be_same_offset of1 of2 =
+    (* Only reached with definite of2 and indefinite of1. *)
+    (* TODO: Currently useless, because MayPointTo query doesn't return index offset ranges, so not enough information to ever return false. *)
+    (* TODO: Use Addr.Offs.semantic_equal. *)
+    true
 
   let add (addr,rw) set =
-    match (Addr.to_var_offset addr) with
-    | Some (_,x) when Offs.is_definite x -> ReverseAddrSet.add (addr,rw) set
+    match (Addr.to_mval addr) with
+    | Some (_,x) when Offs.is_definite x -> add (addr,rw) set
     | _ -> set
 
   let remove (addr,rw) set =
     let collect_diff_varinfo_with (vi,os) (addr,rw) =
-      match (Addr.to_var_offset addr) with
+      match (Addr.to_mval addr) with
       | Some (v,o) when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
       | Some (v,o) -> true
       | None -> false
     in
-    match (Addr.to_var_offset addr) with
-    | Some (_,x) when Offs.is_definite x -> ReverseAddrSet.remove (addr,rw) set
-    | Some x -> ReverseAddrSet.filter (collect_diff_varinfo_with x) set
-    | _   -> AddrSet.top ()
-
-  let empty = ReverseAddrSet.empty
-  let is_empty = ReverseAddrSet.is_empty
-
-  let filter = ReverseAddrSet.filter
-  let fold = ReverseAddrSet.fold
-  let singleton = ReverseAddrSet.singleton
-  let mem = ReverseAddrSet.mem
-  let exists = ReverseAddrSet.exists
+    match (Addr.to_mval addr) with
+    | Some (_,x) when Offs.is_definite x -> remove (addr,rw) set
+    | Some x -> filter (collect_diff_varinfo_with x) set
+    | _   -> top ()
 
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in
@@ -97,6 +75,11 @@ struct
   let meet = Lockset.join
   let top = Lockset.bot
   let bot = Lockset.top
+end
+
+module MayLocksetNoRW =
+struct
+  include PreValueDomain.AD
 end
 
 module Symbolic =

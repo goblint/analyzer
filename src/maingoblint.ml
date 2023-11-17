@@ -1,20 +1,19 @@
-(** This is the main program! *)
+(** Main external executable functionality: command-line, front-end and analysis execution. *)
 
-open Prelude
+open Batteries
 open GobConfig
 open Printf
-open Goblintutil
 open GoblintCil
 
 let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %s\n" Version.goblint;
+  printf "Goblint version: %s\n" Goblint_build_info.version;
   printf "Cil version:     %s\n" Cil.cilVersion;
-  printf "Dune profile:    %s\n" ConfigProfile.profile;
+  printf "Dune profile:    %s\n" Goblint_build_info.dune_profile;
   printf "OCaml version:   %s\n" Sys.ocaml_version;
-  printf "OCaml flambda:   %s\n" ConfigOcaml.flambda;
+  printf "OCaml flambda:   %s\n" Goblint_build_info.ocaml_flambda;
   if get_bool "dbg.verbose" then (
     printf "Library versions:\n";
     List.iter (fun (name, version) ->
@@ -55,13 +54,13 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
     if Messages.tracing then Tracing.addsystem sys
-    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
+    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" (Fpath.to_string exe_dir);
+      set_string "exp.g2html_path" (Fpath.to_string GobSys.exe_dir);
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
     set_string "result" "fast_xml"
@@ -126,16 +125,17 @@ and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_c
 and complete args =
   Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
   |> List.iter print_endline;
-  raise Exit
+  raise Stdlib.Exit
 
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
 let check_arguments () =
-  let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in(* unused now, but might be useful for future checks here *)
+  let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
+  if List.mem "memOutOfBounds" @@ get_string_list "ana.activated" && not @@ get_bool "cil.addNestedScopeAttr" then (set_bool "cil.addNestedScopeAttr" true; warn "The memOutOfBounds analysis enables cil.addNestedScopeAttr.");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
@@ -143,8 +143,25 @@ let check_arguments () =
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
+  if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
+    (* 'assert' transform happens before 'remove_dead_code' transform *)
+    ignore @@ List.fold_left
+      (fun deadcodeTransOccurred t ->
+         if deadcodeTransOccurred && t = "assert" then
+           fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
+         deadcodeTransOccurred || t = "remove_dead_code")
+      false (get_string_list "trans.activated");
+    (* compressing basic blocks or minimizing CFG makes dead code transformation much less
+       precise, since liveness information is then effectively only stored per-block *)
+    let imprecise_options = List.filter get_bool ["exp.basic-blocks"; "exp.mincfg"] in
+    if imprecise_options <> [] then
+      warn (
+        "trans.activated: to increase the precision of 'remove_dead_code' transform, disable "
+        ^ String.concat " and " @@ List.map (fun s -> "'" ^ s ^ "'") imprecise_options)
+  );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
-  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'"
+  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -154,19 +171,24 @@ let handle_flags () =
     Errormsg.verboseFlag := true
   );
 
-  if get_bool "dbg.debug" then
-    set_bool "warn.debug" true;
+  if get_bool "ana.sv-comp.functions" then
+    set_auto "lib.activated[+]" "sv-comp";
+
+  if get_bool "kernel" then
+    set_auto "lib.activated[+]" "linux-kernel";
 
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
-    Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
+    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
     set_string "outfile" ""
 
 let handle_options () =
   check_arguments ();
   AfterConfig.run ();
-  Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+  Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+  if AutoTune.isActivated "memsafetySpecification" && get_string "ana.specification" <> "" then
+    AutoTune.focusOnMemSafetySpecification ();
   Cilfacade.init_options ();
   handle_flags ()
 
@@ -180,37 +202,51 @@ let parse_arguments () =
   begin match !writeconffile with
     | Some writeconffile ->
       GobConfig.write_file writeconffile;
-      raise Exit
+      raise Stdlib.Exit
     | None -> ()
   end;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
     prerr_endline "Try `goblint --help' for more information.";
-    raise Exit
+    raise Stdlib.Exit
   )
+
+
+exception FrontendError of string
 
 let basic_preprocess_counts = Preprocessor.FpathH.create 3
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let basic_preprocess ~all_cppflags fname =
-  (* The actual filename of the preprocessed sourcefile *)
-  let basename = Fpath.rem_ext (Fpath.base fname) in
-  (* generate unique preprocessed filename in case multiple basic files have same basename (from different directories), happens in ddverify *)
-  let count = Preprocessor.FpathH.find_default basic_preprocess_counts basename 0 in
-  let unique_name =
-    if count = 0 then
-      basename
-    else
-      Fpath.add_ext (string_of_int count) basename
+let basic_preprocess ?preprocess ~all_cppflags fname =
+  let preprocess = match preprocess with
+    | Some b -> b (* Explicitly forced *)
+    | None when not (GobConfig.get_bool "pre.enabled") -> false (* Globally disabled *)
+    | None ->
+      let ext = Fpath.get_ext fname in
+      ext <> ".i"
   in
-  Preprocessor.FpathH.replace basic_preprocess_counts basename (count + 1);
-  let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
-  (* Preprocess using cpp. *)
-  let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
-  let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
-  if get_bool "dbg.verbose" then print_endline command;
-  (nname, Some {ProcessPool.command; cwd = None})
+  if preprocess then (
+    (* The actual filename of the preprocessed sourcefile *)
+    let basename = Fpath.rem_ext (Fpath.base fname) in
+    (* generate unique preprocessed filename in case multiple basic files have same basename (from different directories), happens in ddverify *)
+    let count = Preprocessor.FpathH.find_default basic_preprocess_counts basename 0 in
+    let unique_name =
+      if count = 0 then
+        basename
+      else
+        Fpath.add_ext (string_of_int count) basename
+    in
+    Preprocessor.FpathH.replace basic_preprocess_counts basename (count + 1);
+    (* Preprocess using cpp. *)
+    let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
+    let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
+    let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
+    if get_bool "dbg.verbose" then print_endline command;
+    (nname, Some {ProcessPool.command; cwd = None})
+  )
+  else
+    (fname, None)
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -223,7 +259,7 @@ let preprocess_files () =
   (* the base include directory *)
   (* TODO: any better way? dune executable promotion doesn't add _build sites *)
   let source_lib_dirs =
-    let source_lib = Fpath.(exe_dir / "lib") in
+    let source_lib = Fpath.(GobSys.exe_dir / "lib") in
     if Sys.file_exists (Fpath.to_string source_lib) && Sys.is_directory (Fpath.to_string source_lib) then (
       Sys.readdir Fpath.(to_string source_lib)
       |> Array.to_list
@@ -254,13 +290,17 @@ let preprocess_files () =
     print_endline "Warning, cannot find goblint's custom include files.";
 
   let find_custom_include subpath =
-    List.find_map (fun custom_include_dir ->
+    let custom_include_opt = List.find_map_opt (fun custom_include_dir ->
         let path = Fpath.append custom_include_dir subpath in
         if Sys.file_exists (Fpath.to_string path) then
           Some path
         else
           None
       ) custom_include_dirs
+    in
+    match custom_include_opt with
+    | Some custom_include -> custom_include
+    | None -> raise (FrontendError (Format.asprintf "custom include %a not found" Fpath.pp subpath))
   in
 
   (* include flags*)
@@ -282,7 +322,7 @@ let preprocess_files () =
         else
           []
       end @ [
-        Fpath.(exe_dir / "linux-headers");
+        Fpath.(GobSys.exe_dir / "linux-headers");
         (* linux-headers not installed with goblint package *)
       ]
     in
@@ -290,8 +330,7 @@ let preprocess_files () =
       try
         List.find (Sys.file_exists % Fpath.to_string) kernel_roots
       with Not_found ->
-        prerr_endline "Root directory for kernel include files not found!";
-        raise Exit
+        raise (FrontendError "root directory for kernel include files not found")
     in
 
     let kernel_dir = Fpath.(kernel_root / "include") in
@@ -321,48 +360,63 @@ let preprocess_files () =
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
 
-  let rec preprocess_arg_file = function
+  let rec preprocess_arg_file ?preprocess = function
+    | filename when not (Sys.file_exists (Fpath.to_string filename)) ->
+      raise (FrontendError (Format.asprintf "file argument %a not found" Fpath.pp filename))
+
     | filename when Fpath.filename filename = "Makefile" ->
       let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
-      [basic_preprocess ~all_cppflags comb_file]
+      [basic_preprocess ?preprocess ~all_cppflags comb_file] (* TODO: isn't combined file already preprocessed? *)
 
     | filename when Fpath.filename filename = CompilationDatabase.basename ->
-      CompilationDatabase.load_and_preprocess ~all_cppflags filename
+      CompilationDatabase.load_and_preprocess ~all_cppflags filename (* TODO: pass ?preprocess? *)
 
     | filename when Sys.is_directory (Fpath.to_string filename) ->
       let dir_files = Sys.readdir (Fpath.to_string filename) in
       if Array.mem CompilationDatabase.basename dir_files then (* prefer compilation database to Makefile in case both exist, because compilation database is more robust *)
-        preprocess_arg_file (Fpath.add_seg filename CompilationDatabase.basename)
+        preprocess_arg_file ?preprocess (Fpath.add_seg filename CompilationDatabase.basename)
       else if Array.mem "Makefile" dir_files then
-        preprocess_arg_file (Fpath.add_seg filename "Makefile")
+        preprocess_arg_file ?preprocess (Fpath.add_seg filename "Makefile")
       else
         [] (* don't recurse for anything else *)
 
     | filename when Fpath.get_ext filename = ".json" ->
-      Format.eprintf "Unexpected JSON file argument (possibly missing --conf): %a\n" Fpath.pp filename;
-      raise Exit
+      raise (FrontendError (Format.asprintf "unexpected JSON file argument %a (possibly missing --conf)" Fpath.pp filename))
 
     | filename ->
-      [basic_preprocess ~all_cppflags filename]
+      [basic_preprocess ?preprocess ~all_cppflags filename]
   in
 
   let extra_files = ref [] in
 
-  extra_files := find_custom_include (Fpath.v "stdlib.c") :: find_custom_include (Fpath.v "pthread.c") :: !extra_files;
+  if List.mem "c" (get_string_list "lib.activated") then
+    extra_files := find_custom_include (Fpath.v "stdlib.c") :: !extra_files;
 
-  if get_bool "ana.sv-comp.functions" then
+  if List.mem "pthread" (get_string_list "lib.activated") then
+    extra_files := find_custom_include (Fpath.v "pthread.c") :: !extra_files;
+
+  if List.mem "sv-comp" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
 
-  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map Fpath.v (get_string_list "files")) in
+  let preprocessed =
+    List.concat_map preprocess_arg_file (List.map Fpath.v (get_string_list "files"))
+    @
+    List.concat_map (preprocess_arg_file ~preprocess:true) !extra_files
+  in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
-    let terminated task = function
+    let terminated (task: ProcessPool.task) = function
       | Unix.WEXITED 0 -> ()
-      | process_status -> failwith (GobUnix.string_of_process_status process_status)
+      | process_status ->
+        raise (FrontendError (Format.sprintf "preprocessor %s: %s" (GobUnix.string_of_process_status process_status) task.command))
     in
-    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated) preprocess_tasks
+    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(GobConfig.jobs ()) ~terminated) preprocess_tasks
   );
   preprocessed
+
+(** Regex for special "paths" in cpp output:
+    <built-in>, <command-line>, but also translations! *)
+let special_path_regexp = Str.regexp "<.+>"
 
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
@@ -371,14 +425,24 @@ let parse_preprocessed preprocessed =
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
-    let transform_file (path_str, system_header) = match path_str with
-      | "<built-in>" | "<command-line>" ->
+    let transform_file (path_str, system_header) =
+      if Str.string_match special_path_regexp path_str 0 then
         (path_str, system_header) (* ignore special "paths" *)
-      | _ ->
+      else
         let path = Fpath.v path_str in
-        let dir = (Option.get task_opt).ProcessPool.cwd |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
-        let path' = Fpath.normalize @@ Fpath.append dir path in
-        let path' = Fpath.rem_prefix goblint_cwd path' |? path' in (* remove goblint cwd prefix (if has one) for readability *)
+        let path' = if get_bool "pre.transform-paths" then (
+            let cwd_opt =
+              let open GobOption.Syntax in
+              let* task = task_opt in
+              task.ProcessPool.cwd
+            in
+            let dir = cwd_opt |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
+            let path' = Fpath.normalize @@ Fpath.append dir path in
+            Fpath.rem_prefix goblint_cwd path' |? path' (* remove goblint cwd prefix (if has one) for readability *)
+          )
+          else
+            path
+        in
         Preprocessor.FpathH.modify_def Fpath.Map.empty preprocessed_file (Fpath.Map.add path' system_header) Preprocessor.dependencies; (* record dependency *)
         (Fpath.to_string path', system_header)
     in
@@ -388,7 +452,13 @@ let parse_preprocessed preprocessed =
     in
     Errormsg.transformLocation := transformLocation;
 
-    Cilfacade.getAST preprocessed_file
+    try
+      Cilfacade.getAST preprocessed_file
+    with
+    | Frontc.ParseError s ->
+      raise (FrontendError (Format.sprintf "Frontc.ParseError: %s" s))
+    | Errormsg.Error ->
+      raise (FrontendError "Errormsg.Error")
   in
   List.map get_ast_and_record_deps preprocessed
 
@@ -405,9 +475,12 @@ let merge_parsed parsed =
     match parsed with
     | [one] -> Cilfacade.callConstructors one
     | [] ->
-      prerr_endline "No files to analyze!";
-      raise Exit
-    | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
+      raise (FrontendError "no files to analyze")
+    | xs ->
+      try
+        Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
+      with Errormsg.Error ->
+        raise (FrontendError "Errormsg.Error")
   in
 
   Cilfacade.rmTemps merged_AST;
@@ -425,17 +498,15 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
+    SolverStats.print ();
     print_newline ();
     print_string "Timings:\n";
-    Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 
 let reset_stats () =
-  Goblintutil.vars := 0;
-  Goblintutil.evals := 0;
-  Goblintutil.narrow_reuses := 0;
+  SolverStats.reset ();
   Timing.Default.reset ();
   Timing.Program.reset ()
 
@@ -443,9 +514,9 @@ let reset_stats () =
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
   if not (get_bool "g2html" || get_string "outfile" = "") then (
-    if !Goblintutil.out <> Legacy.stdout then
-      Legacy.close_out !Goblintutil.out;
-    Goblintutil.out := Legacy.open_out (get_string "outfile"));
+    if !Messages.out <> Legacy.stdout then
+      Legacy.close_out !Messages.out;
+    Messages.out := Legacy.open_out (get_string "outfile"));
 
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
@@ -455,7 +526,7 @@ let do_analyze change_info merged_AST =
     (* we first find the functions to analyze: *)
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
-    if stf@exf@otf = [] then failwith "No suitable function to start from.";
+    if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
     if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
                                              L.pretty stf L.pretty exf L.pretty otf);
     (* and here we run the analysis! *)
@@ -470,14 +541,14 @@ let do_analyze change_info merged_AST =
       try Control.analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
-        Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
+        AnalysisState.should_warn := true; (* such that the `about to crash` message gets printed *)
         let pretty_mark () = match Goblint_backtrace.find_marks e with
           | m :: _ -> Pretty.dprintf " at mark %s" (Goblint_backtrace.mark_to_string m)
           | [] -> Pretty.nil
         in
         Messages.error ~category:Analyzer "About to crash%t!" pretty_mark;
         (* trigger Generic.SolverStats...print_stats *)
-        Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+        GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
         do_stats ();
         print_newline ();
         Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
@@ -488,48 +559,69 @@ let do_analyze change_info merged_AST =
   )
 
 let do_html_output () =
-  (* TODO: Fpath *)
-  let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
-    if Sys.file_exists jar then (
-      let command = "java -jar "^ jar ^" --num-threads " ^ (string_of_int (jobs ())) ^ " --dot-timeout 0 --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
-      try match Timing.wrap "g2html" Unix.system command with
-        | Unix.WEXITED 0 -> ()
-        | _ -> eprintf "HTML generation failed! Command: %s\n" command
-      with Unix.Unix_error (e, f, a) ->
+    let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
+    if Sys.file_exists (Fpath.to_string jar) then (
+      let command = Filename.quote_command "java" [
+          "-jar"; Fpath.to_string jar;
+          "--num-threads"; string_of_int (jobs ());
+          "--dot-timeout"; "0";
+          "--result-dir"; get_string "outfile";
+          !Messages.xml_file_name
+        ]
+      in
+      match Timing.wrap "g2html" Unix.system command with
+      | Unix.WEXITED 0 -> ()
+      | _ -> eprintf "HTML generation failed! Command: %s\n" command
+      | exception Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
     ) else
-      eprintf "Warning: jar file %s not found.\n" jar
+      Format.eprintf "Warning: jar file %a not found.\n" Fpath.pp jar
   )
 
-let do_gobview () =
-  (* TODO: Fpath *)
-  let create_symlink target link =
-    if not (Sys.file_exists link) then Unix.symlink target link
-  in
+let do_gobview cilfile =
   let gobview = GobConfig.get_bool "gobview" in
-  let goblint_root =
-    Filename.concat (Unix.getcwd ()) (Filename.dirname Sys.argv.(0))
-  in
-  let dist_dir = Filename.concat goblint_root "_build/default/gobview/dist" in
-  let js_file = Filename.concat dist_dir "main.js" in
+  let goblint_root = GobFpath.cwd_append (fst (Fpath.split_base (Fpath.v Sys.argv.(0)))) in
+  let dist_dir = Fpath.(goblint_root // (Fpath.v "_build/default/gobview/dist")) in
+  let js_file = Fpath.(dist_dir / "main.js") in
   if gobview then (
-    if Sys.file_exists js_file then (
+    if Sys.file_exists (Fpath.to_string js_file) then (
       let save_run = GobConfig.get_string "save_run" in
-      let run_dir = if save_run <> "" then save_run else "run" in
+      let run_dir = Fpath.v(if save_run <> "" then save_run else "run") in
+      (* copy relevant c files to gobview directory *)
+      let file_dir = Fpath.(run_dir / "files") in
+      GobSys.mkdir_or_exists file_dir;
+      let file_loc = Hashtbl.create 113 in
+      let copy (path, i) =
+        let name, ext = Fpath.split_ext (Fpath.base path) in
+        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int i) name) in
+        let dest = Fpath.(file_dir // unique_name) in
+        let gobview_path = match Fpath.relativize ~root:run_dir dest with
+          | Some p -> Fpath.to_string p
+          | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
+        Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
+        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest)
+      in
+      let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
+      let source_file_paths = List.filteri_map (fun i e -> if Fpath.is_file_path e then Some (e, i) else None) source_paths in
+      List.iter copy source_file_paths;
+      Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
+      (* marshal timing statistics *)
+      let stats = Fpath.(run_dir / "stats.marshalled") in
+      Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
       let dist_files =
-        Sys.files_of dist_dir
+        Sys.files_of (Fpath.to_string dist_dir)
         |> Enum.filter (fun n -> n <> "dune")
         |> List.of_enum
       in
       List.iter (fun n ->
-          create_symlink
-            (Filename.concat dist_dir n)
-            (Filename.concat run_dir n)
+          FileUtil.cp
+            [Fpath.to_string (Fpath.(dist_dir / n))]
+            (Fpath.to_string (Fpath.(run_dir / n)))
         ) dist_files
     )
     else
-      eprintf "Warning: Cannot locate Gobview.\n"
+      eprintf "Warning: Cannot locate GobView.\n"
   )
 
 let handle_extraspecials () =
@@ -584,4 +676,4 @@ let () = (* signal for printing backtrace; other signals in Generic.SolverStats 
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
   catch_break true;
-  set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
+  set_signal (GobSys.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)

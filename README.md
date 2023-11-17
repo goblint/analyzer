@@ -1,16 +1,19 @@
 # Goblint
-[![locked workflow status](https://github.com/goblint/analyzer/actions/workflows/locked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/locked.yml)
-[![unlocked workflow status](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml)
-[![docker workflow status](https://github.com/goblint/analyzer/actions/workflows/docker.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/docker.yml)
-[![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)  
 [![GitHub release status](https://img.shields.io/github/v/release/goblint/analyzer)](https://github.com/goblint/analyzer/releases)
 [![opam package status](https://badgen.net/opam/v/goblint)](https://opam.ocaml.org/packages/goblint)
 [![Zenodo DOI](https://zenodo.org/badge/2066905.svg)](https://zenodo.org/badge/latestdoi/2066905)
+
+[![locked workflow status](https://github.com/goblint/analyzer/actions/workflows/locked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/locked.yml)
+[![unlocked workflow status](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml)
+[![Coverage Status](https://coveralls.io/repos/github/goblint/analyzer/badge.svg?branch=master)](https://coveralls.io/github/goblint/analyzer?branch=master)
+[![docker workflow status](https://github.com/goblint/analyzer/actions/workflows/docker.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/docker.yml)
+[![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
 
 Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
 
 ## Installing
 Both for using an up-to-date version of Goblint or developing it, the best way is to install from source by cloning this repository.
+For benchmarking Goblint, please follow the [Benchmarking guide on Read the Docs](https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/).
 
 ### Linux
 1. Install [opam](https://opam.ocaml.org/doc/Install.html).
@@ -18,6 +21,7 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 3. Run `make setup` to install OCaml and dependencies via opam.
 4. Run `make` to build Goblint itself.
 5. Run `make install` to install Goblint into the opam switch for usage via switch's `PATH`.
+6. _Optional:_ See [`scripts/bash-completion.sh`](./scripts/bash-completion.sh) for setting up bash completion for Goblint arguments.
 
 ### MacOS
 1. Install GCC with `brew install gcc` (first run `xcode-select --install` if you don't want to build it from source). Goblint requires GCC while macOS's default `cpp` is Clang, which will not work.

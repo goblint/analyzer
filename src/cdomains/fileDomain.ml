@@ -1,6 +1,8 @@
-open Prelude
+(** Domains for file handles. *)
 
-module D = LvalMapDomain
+open Batteries
+
+module D = MvalMapDomain
 
 
 module Val =
