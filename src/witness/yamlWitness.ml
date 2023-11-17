@@ -251,7 +251,7 @@ struct
                   fundec := Some (Node.find_fundec n); (* TODO: fix location hack *)
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                   let lvals = local_lvals n local in
-                  Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}))
+                  Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                 )
                 else
                   acc
@@ -284,7 +284,7 @@ struct
                 if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
                   fundec := Some (Node.find_fundec n); (* TODO: fix location hack *)
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
-                  Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context))
+                  Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                 )
                 else
                   acc
@@ -448,7 +448,7 @@ struct
                       fundec := Some (Node.find_fundec n); (* TODO: fix location hack *)
                       let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                       let lvals = local_lvals n local in
-                      Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}))
+                      Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                     )
                     else
                       acc
@@ -481,7 +481,7 @@ struct
                     if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
                       fundec := Some (Node.find_fundec n); (* TODO: fix location hack *)
                       let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
-                      Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context))
+                      Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                     )
                     else
                       acc
