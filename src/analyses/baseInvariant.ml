@@ -726,6 +726,8 @@ struct
                             | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                            | `Lifted (Abs xInt) ->
+                              inv_exp (Int (ID.of_bool ik tv)) (BinOp (LAnd, (BinOp (Le, xInt, Lval x, TInt (IInt,[]))), (BinOp (Le, (UnOp (Neg, Lval x, (typeOf xInt))), xInt, TInt (IInt,[]))), (TInt (IInt, [])))) st
                             | _ -> update_lval c x c' ID.pretty
                           end
                         | None -> update_lval c x c' ID.pretty
