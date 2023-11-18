@@ -6,7 +6,16 @@ int main() {
     {
         if (abs(data) < 100)
         {
-            int result = data * data;
+            __goblint_check(data < 100);
+            __goblint_check(-100 < data);
+            int result = data * data; //NOWARN
+        }
+
+        if(abs(data) <= 100)
+        {
+            __goblint_check(data <= 100);
+            __goblint_check(-100 <= data);
+            int result = data * data; //NOWARN
         }
     }
     return 8;
