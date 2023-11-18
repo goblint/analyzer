@@ -562,7 +562,7 @@ struct
       | TFloat (fk, _) -> fk
       | _ -> failwith "value which was expected to be a float is of different type?!"
     in
-    let rec inv_exp c_typed exp (st:D.t): D.t =
+    let rec inv_exp ?(query_special=true) c_typed exp (st:D.t) : D.t =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if VD.is_bot_value c_typed then contra st
       else
@@ -578,12 +578,12 @@ struct
             | Some false -> ID.of_bool ikind false
             | _ -> ID.top_of ikind
           in
-          inv_exp (Int c') e st
-        | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
-        | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
+          inv_exp ~query_special (Int c') e st
+        | UnOp (Neg, e, _), Float c -> inv_exp ~query_special (Float (unop_FD Neg c)) e st
+        | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp ~query_special (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)
         | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
-          inv_exp (Int c) (BinOp (op, e1, e2, t)) st
+          inv_exp ~query_special (Int c) (BinOp (op, e1, e2, t)) st
         | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
           (* copied & modified from eval_rv_base... *)
           let (let*) = Option.bind in
@@ -631,7 +631,7 @@ struct
               in
               let definite_ad = to_definite_ad vs in
               let c' = VD.Address definite_ad in
-              Some (inv_exp c' e st)
+              Some (inv_exp ~query_special c' e st)
             | Int i ->
               let ik = ID.ikind i in
               let module BISet = IntDomain.BISet in
@@ -648,20 +648,20 @@ struct
               in
               let int_id = to_int_id vs in
               let c' = VD.Int int_id in
-              Some (inv_exp c' e st)
+              Some (inv_exp ~query_special c' e st)
             | _ ->
               None
           in
           begin match eqs_st with
             | Some st -> st
             | None when ID.to_bool c = Some true ->
-              begin match inv_exp (Int c) arg1 st with
+              begin match inv_exp ~query_special (Int c) arg1 st with
                 | st1 ->
-                  begin match inv_exp (Int c) arg2 st with
+                  begin match inv_exp ~query_special (Int c) arg2 st with
                     | st2 -> D.join st1 st2
                     | exception Analyses.Deadcode -> st1
                   end
-                | exception Analyses.Deadcode -> inv_exp (Int c) arg2 st (* Deadcode falls through *)
+                | exception Analyses.Deadcode -> inv_exp ~query_special (Int c) arg2 st (* Deadcode falls through *)
               end
             | None ->
               st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
@@ -676,15 +676,15 @@ struct
                let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
                let a', b' = inv_bin_int (a, b) ikind (c_int ikres) op in
                if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
-               let st' = inv_exp (Int a') e1 st in
-               let st'' = inv_exp (Int b') e2 st' in
+               let st' = inv_exp ~query_special (Int a') e1 st in
+               let st'' = inv_exp ~query_special (Int b') e2 st' in
                st''
              | Float a, Float b ->
                let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
                let a', b' = inv_bin_float (a, b) (c_float fkind) op in
                if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e FD.pretty (c_float fkind) FD.pretty a' FD.pretty b';
-               let st' = inv_exp (Float a') e1 st in
-               let st'' = inv_exp (Float b') e2 st' in
+               let st' = inv_exp ~query_special (Float a') e1 st in
+               let st'' = inv_exp ~query_special (Float b') e2 st' in
                st''
              (* Mixed Float and Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
              | Int _, Float _ | Float _, Int _ -> failwith "ill-typed program";
@@ -712,22 +712,22 @@ struct
               begin match t with
                 | TInt (ik, _) ->
                   begin match x with
-                    | ((Var v), offs) ->
+                    | ((Var v), offs) when query_special ->
                       if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
                       let tv_opt = ID.to_bool c in
                       begin match tv_opt with
                         | Some tv ->
                           begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
-                            | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
-                            | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
+                            | `Lifted (Isfinite xFloat) when tv -> inv_exp ~query_special:false (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
+                            | `Lifted (Isnan xFloat) when tv -> inv_exp ~query_special:false (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
                             (* should be correct according to C99 standard*)
-                            | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                            | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp ~query_special:false (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp ~query_special:false (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Isless (xFloat, yFloat)) -> inv_exp ~query_special:false (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp ~query_special:false (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp ~query_special:false (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
                             | `Lifted (Abs xInt) ->
-                              inv_exp (Int (ID.of_bool ik tv)) (BinOp (LAnd, (BinOp (Le, xInt, Lval x, TInt (IInt,[]))), (BinOp (Le, (UnOp (Neg, Lval x, (typeOf xInt))), xInt, TInt (IInt,[]))), (TInt (IInt, [])))) st
+                              inv_exp ~query_special:false (Int (ID.of_bool ik tv)) (BinOp (LAnd, (BinOp (Le, xInt, Lval x, TInt (IInt,[]))), (BinOp (Le, (UnOp (Neg, Lval x, (typeOf xInt))), xInt, TInt (IInt,[]))), (TInt (IInt, [])))) st
                             | _ -> update_lval c x c' ID.pretty
                           end
                         | None -> update_lval c x c' ID.pretty
@@ -749,17 +749,17 @@ struct
               begin match t with
                 | TFloat (fk, _) ->
                   begin match x with
-                    | ((Var v), offs) ->
+                    | ((Var v), offs) when query_special ->
                       if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
                       begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
-                        | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
-                        | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
+                        | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp ~query_special:false (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
+                        | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp ~query_special:false (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
                         | `Lifted (Fabs (ret_fk, xFloat)) ->
                           let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
                           if FD.is_bot inv then
                             raise Analyses.Deadcode
                           else
-                            inv_exp (Float inv) xFloat st
+                            inv_exp ~query_special:false (Float inv) xFloat st
                         | _ -> update_lval c x c' FD.pretty
                       end
                     | _ -> update_lval c x c' FD.pretty
@@ -779,7 +779,7 @@ struct
            | TFloat (FLongDouble as fk, _), FDouble
            | TFloat (fk, _), FLongDouble
            | TFloat (FDouble as fk, _), FDouble
-           | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
+           | TFloat (FFloat as fk, _), FFloat -> inv_exp ~query_special (Float (FD.cast_to fk c)) e st
            | _ -> fallback ("CastE: incompatible types") st)
         | CastE ((TInt (ik, _)) as t, e), Int c
         | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
@@ -792,7 +792,20 @@ struct
                  (* let c' = ID.cast_to ik_e c in *)
                  let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
                  if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-                 inv_exp (Int c') e st
+                 inv_exp ~query_special (Int c') e st
+               | x -> fallback (GobPretty.sprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
+             else
+               fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+           | Float i ->
+             let i = FD.to_int ik i in
+             if ID.leq i (ID.cast_to ik i) then
+               match unrollType (Cilfacade.typeOf e) with
+               | TInt(ik_e, _)
+               | TEnum ({ekind = ik_e; _ }, _) ->
+                 (* let c' = ID.cast_to ik_e c in *)
+                 let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                 inv_exp ~query_special (Int c') e st
                | x -> fallback (GobPretty.sprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
              else
                fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
