@@ -58,7 +58,7 @@ struct
             List.fold_left (fun acc f ->
                 if isPointerType f.ftype then
                   begin match ValueDomain.Structs.get s f with
-                    | Queries.VD.Address a ->
+                    | Queries.VD.Address a when not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1 ->
                       let reachable_from_addr_set =
                         Queries.AD.fold (fun addr acc ->
                             match addr with
