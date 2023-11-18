@@ -1764,30 +1764,26 @@ struct
           invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
         | _ -> res
       in
+      (* bodge for abs(...); To be removed once we have a clean solution *)
+      let refineAbs absargexp valexp =
+        (* e.g. |arg| < 40 *)
+        (* arg <= e  (arg <= 40) *)
+        let le = BinOp (Le, absargexp, valexp, intType) in
+        (* arg >= -e  (arg >= -40) *)
+        let gt = BinOp(Ge, absargexp, UnOp (Neg, valexp, Cilfacade.typeOf valexp), intType) in
+        let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
+        invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
+      in
       match exp with
-      | BinOp (Lt, CastE(t,Lval (Var v, NoOffset)), e,_) when tv ->
+      | BinOp (Lt, CastE(t, Lval (Var v, NoOffset)), e,_) when tv ->
         (match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with 
         | `Lifted (Abs arg) -> 
-          (* e.g. |arg| < 40 *)
-          let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-          (* arg <= e  (arg <= 40) *)
-          let le = BinOp (Le, CastE(t,arg), e, intType) in
-          (* arg >= -e  (arg >= -40) *)
-          let gt = BinOp(Ge, CastE(t,arg), UnOp (Neg, e, Cilfacade.typeOf e), intType) in
-          let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
-          invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
+          refineAbs (CastE (t, arg)) e
         | _ -> refine0)
       | BinOp (Lt, Lval (Var v, NoOffset), e, _) when tv ->
         (match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with 
         | `Lifted (Abs arg) -> 
-          (* e.g. |arg| < 40 *)
-          let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-          (* arg <= e  (arg <= 40) *)
-          let le = BinOp (Le, arg, e, intType) in
-          (* arg >= -e  (arg >= -40) *)
-          let gt = BinOp(Ge, arg, UnOp (Neg, e, Cilfacade.typeOf e), intType) in
-          let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
-          invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
+          refineAbs arg e
         | _ -> refine0)
       | _ -> refine0
     in
