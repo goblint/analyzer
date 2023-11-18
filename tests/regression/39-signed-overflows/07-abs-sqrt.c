@@ -4,7 +4,7 @@ int main() {
     int data;
     if (data > (-0x7fffffff - 1) && abs(data) < (long)sqrt((double)0x7fffffff))
     {
-        int result = data * data;
+        int result = data * data; //NOWARN
     }
     return 8;
 }
