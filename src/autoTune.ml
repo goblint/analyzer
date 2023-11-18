@@ -180,7 +180,7 @@ let enableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[+]") anas
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
-(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
+(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
@@ -243,6 +243,14 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     enableAnalyses notNeccessaryThreadAnalyses;
+  | Termination ->
+    let terminationAnas = ["termination"; "threadflag"; "apron"] in
+    print_endline @@ "Specification: Termination -> enabling termination analyses \"" ^ (String.concat ", " terminationAnas) ^ "\"";
+    enableAnalyses terminationAnas;
+    set_string "sem.int.signed_overflow" "assume_none";
+    set_bool "ana.int.interval" true;
+    set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
+    ()
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
@@ -458,7 +466,6 @@ let wideningOption factors file =
       print_endline "Enabled widening thresholds";
   }
 
-
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
   let operationEstimate = factors.instructions + (factors.expressions / 60) in
@@ -487,6 +494,11 @@ let chooseFromOptions costTarget options =
 
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
 
+let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
+
+let specificationIsActivated () =
+  isActivated "specification" && get_string "ana.specification" <> ""
+
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
@@ -506,8 +518,8 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "specification" && get_string "ana.specification" <> "" then
-    focusOnSpecification ();
+  (* if specificationIsActivated () then
+     focusOnSpecification (); *)
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
@@ -520,10 +532,10 @@ let chooseConfig file =
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
-  let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
+  (* Termination analysis uses apron in a different configuration. *)
+  let options = if isActivated "octagon" && not (isTerminationTask ()) then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
   List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options
-
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps

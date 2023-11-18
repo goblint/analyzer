@@ -2105,6 +2105,12 @@
           "type": "boolean",
           "default": true
         },
+        "termination": {
+          "title": "warn.termination",
+          "description": "Non-Termination warning",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",

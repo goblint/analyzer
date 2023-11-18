@@ -88,6 +88,22 @@ struct
     | `Right _ -> true
 end
 
+module GVarFC (V:SpecSysVar) (C:Printable.S) =
+struct
+  include Printable.Either (V) (Printable.Prod (CilType.Fundec) (C))
+  let name () = "FromSpec"
+  let spec x = `Left x
+  let call (x, c) = `Right (x, c)
+
+  (* from Basetype.Variables *)
+  let var_id = show
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> true
+end
+
 module GVarG (G: Lattice.S) (C: Printable.S) =
 struct
   module CSet =
@@ -594,6 +610,12 @@ end
 module StdV =
 struct
   let is_write_only _ = false
+end
+
+module UnitV =
+struct
+  include Printable.Unit
+  include StdV
 end
 
 module VarinfoV =

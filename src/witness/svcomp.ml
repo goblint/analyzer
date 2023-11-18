@@ -53,6 +53,7 @@ struct
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
+        | Termination -> "termination"
         | ValidFree -> "valid-free"
         | ValidDeref -> "valid-deref"
         | ValidMemtrack -> "valid-memtrack"

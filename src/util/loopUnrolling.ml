@@ -320,6 +320,7 @@ class loopUnrollingCallVisitor = object
         | Unlock _
         | ThreadCreate _
         | Assert _
+        | Bounded _
         | ThreadJoin _ ->
           raise Found;
         | _ ->

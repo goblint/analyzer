@@ -127,6 +127,9 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: AD.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | MustTermLoop: stmt -> MustBool.t t
+  | MustTermAllLoops: MustBool.t t
+  | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
 
 type 'a result = 'a
@@ -193,6 +196,9 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module AD)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | MustTermLoop _ -> (module MustBool)
+    | MustTermAllLoops -> (module MustBool)
+    | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
 
   (** Get bottom result for query. *)
@@ -258,6 +264,9 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> AD.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | MustTermLoop _ -> MustBool.top ()
+    | MustTermAllLoops -> MustBool.top ()
+    | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
 end
 
@@ -319,6 +328,9 @@ struct
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
+    | Any (MustTermLoop _) -> 53
+    | Any MustTermAllLoops -> 54
+    | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 53
     | Any (IsAllocVar _) -> 54
 
@@ -362,6 +374,7 @@ struct
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsAllocVar v1), Any (IsAllocVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
+      | Any (MustTermLoop s1), Any (MustTermLoop s2) -> CilType.Stmt.compare s1 s2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
@@ -401,6 +414,7 @@ struct
     | Any (IterVars i) -> 0
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
+    | Any (MustTermLoop s) -> CilType.Stmt.hash s
     | Any (IsAllocVar v) -> CilType.Varinfo.hash v
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
@@ -471,6 +485,9 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any (MustTermLoop s) -> Pretty.dprintf "MustTermLoop %a" CilType.Stmt.pretty s
+    | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
+    | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
 end
 
