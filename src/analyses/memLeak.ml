@@ -21,15 +21,20 @@ struct
 
   (* HELPER FUNCTIONS *)
   let get_global_vars () =
-    (* Filtering by GVar seems to account for declarations, as well as definitions of global vars *)
-    List.filter_map (function GVar (v, _, _) -> Some v | _ -> None) !Cilfacade.current_file.globals
+    List.filter_map (function GVar (v, _, _) | GVarDecl (v, _) -> Some v | _ -> None) !Cilfacade.current_file.globals
 
   let get_global_struct_ptr_vars () =
-    List.filter_map (function GVar (v, _, _) -> Some v | _ -> None) !Cilfacade.current_file.globals
-    |> List.filter (fun v -> match v.vtype with TPtr (TComp _, _) | TPtr ((TNamed ({ttype = TComp _; _}, _)), _) -> true | _ -> false)
+    get_global_vars ()
+    |> List.filter (fun v ->
+        match unrollType v.vtype with
+        | TPtr (TComp _, _)
+        | TPtr ((TNamed ({ttype = TComp _; _}, _)), _) -> true
+        | TComp (_, _)
+        | (TNamed ({ttype = TComp _; _}, _)) -> false
+        | _ -> false)
 
   let get_global_struct_non_ptr_vars () =
-    List.filter_map (function GVar (v, _, _) -> Some v | _ -> None) !Cilfacade.current_file.globals
+    get_global_vars ()
     |> List.filter (fun v -> match v.vtype with TComp (_, _) | (TNamed ({ttype = TComp _; _}, _)) -> true | _ -> false)
 
   let get_reachable_mem_from_globals (global_vars:varinfo list) ctx =
@@ -55,12 +60,13 @@ struct
                   begin match ValueDomain.Structs.get s f with
                     | Queries.VD.Address a ->
                       let reachable_from_addr_set =
-                        List.fold_left (fun acc addr ->
+                        Queries.AD.fold (fun addr acc ->
                             match addr with
-                            | Queries.AD.Addr.Addr (v, _) -> List.append acc (v :: get_reachable_mem_from_str_ptr_globals [v] ctx)
+                            | Queries.AD.Addr.Addr (v, _) -> (v :: get_reachable_mem_from_str_ptr_globals [v] ctx) @ acc
                             | _ -> acc
-                          ) [] (Queries.AD.elements a)
-                      in List.append acc reachable_from_addr_set
+                          ) a []
+                      in
+                      reachable_from_addr_set @ acc
                     | _ -> acc
                   end
                 else acc
@@ -109,14 +115,14 @@ struct
                 let reachable_from_addr_set =
                   List.fold_left (fun acc_addr addr ->
                       match addr with
-                      | Queries.AD.Addr.Addr (v, _) -> List.append acc_addr (v :: get_reachable_mem_from_str_ptr_globals [v] ctx)
+                      | Queries.AD.Addr.Addr (v, _) -> (v :: get_reachable_mem_from_str_ptr_globals [v] ctx) @ acc_addr
                       | _ -> acc_addr
                     ) [] (Queries.AD.elements a)
-                in List.append acc_field reachable_from_addr_set
+                in reachable_from_addr_set @ acc_field
               | _ -> acc_field
             ) [] fields
         in
-        List.append acc_struct reachable_from_fields
+        reachable_from_fields @ acc_struct
       ) []
 
   let warn_for_multi_threaded ctx =
