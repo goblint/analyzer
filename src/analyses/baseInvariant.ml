@@ -712,7 +712,7 @@ struct
               begin match t with
                 | TInt (ik, _) ->
                   begin match x with
-                    | ((Var v), offs) when query_special ->
+                    | ((Var v), offs) ->
                       if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
                       let tv_opt = ID.to_bool c in
                       begin match tv_opt with
@@ -730,7 +730,7 @@ struct
                               inv_exp ~query_special:false (Int (ID.of_bool ik tv)) (BinOp (LAnd, (BinOp (Le, xInt, Lval x, TInt (IInt,[]))), (BinOp (Le, (UnOp (Neg, Lval x, (typeOf xInt))), xInt, TInt (IInt,[]))), (TInt (IInt, [])))) st
                             | _ -> update_lval c x c' ID.pretty
                           end
-                        | None -> update_lval c x c' ID.pretty
+                        | _ -> update_lval c x c' ID.pretty
                       end
                     | _ -> update_lval c x c' ID.pretty
                   end
@@ -749,7 +749,7 @@ struct
               begin match t with
                 | TFloat (fk, _) ->
                   begin match x with
-                    | ((Var v), offs) when query_special ->
+                    | ((Var v), offs) ->
                       if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
                       begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
                         | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp ~query_special:false (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st

@@ -1753,15 +1753,43 @@ struct
   let branch ctx (exp:exp) (tv:bool) : store =
     let valu = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
     let refine () =
-      let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
-      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
-      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
-      if M.tracing then M.traceu "branch" "Invariant enforced!\n";
-      match ctx.ask (Queries.CondVars exp) with
-      | s when Queries.ES.cardinal s = 1 ->
-        let e = Queries.ES.choose s in
-        invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
-      | _ -> res
+      let refine0 =
+        let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
+        if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
+        if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
+        if M.tracing then M.traceu "branch" "Invariant enforced!\n";
+        match ctx.ask (Queries.CondVars exp) with
+        | s when Queries.ES.cardinal s = 1 ->
+          let e = Queries.ES.choose s in
+          invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
+        | _ -> res
+      in
+      match exp with
+      | BinOp (Lt, CastE(t,Lval (Var v, NoOffset)), e,_) when tv ->
+        (match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with 
+        | `Lifted (Abs arg) -> 
+          (* e.g. |arg| < 40 *)
+          let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+          (* arg <= e  (arg <= 40) *)
+          let le = BinOp (Le, CastE(t,arg), e, intType) in
+          (* arg >= -e  (arg >= -40) *)
+          let gt = BinOp(Ge, CastE(t,arg), UnOp (Neg, e, Cilfacade.typeOf e), intType) in
+          let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
+          invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
+        | _ -> refine0)
+      | BinOp (Lt, Lval (Var v, NoOffset), e, _) when tv ->
+        (match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with 
+        | `Lifted (Abs arg) -> 
+          (* e.g. |arg| < 40 *)
+          let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+          (* arg <= e  (arg <= 40) *)
+          let le = BinOp (Le, arg, e, intType) in
+          (* arg >= -e  (arg >= -40) *)
+          let gt = BinOp(Ge, arg, UnOp (Neg, e, Cilfacade.typeOf e), intType) in
+          let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
+          invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
+        | _ -> refine0)
+      | _ -> refine0
     in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)

@@ -8,8 +8,6 @@ int main() {
         {
             int result = data * data;
         }
-        
-        int result = data * data;
     }
     return 8;
 }
