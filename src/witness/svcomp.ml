@@ -17,7 +17,6 @@ let task: (module Task) option ref = ref None
 
 
 let is_error_function' f spec =
-  let module Task = (val (Option.get !task)) in
   List.exists (function
       | Specification.UnreachCall f_spec -> f.vname = f_spec
       | _ -> false
