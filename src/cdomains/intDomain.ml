@@ -610,6 +610,11 @@ module IntervalArith(Ints_t : IntOps.IntOps) = struct
     let x2y2 = (Ints_t.mul x2 y2) in
     (min4 x1y1 x1y2 x2y1 x2y2, max4 x1y1 x1y2 x2y1 x2y2)
 
+  let shiftleft (x1,x2) (y1,y2) =
+    let y1p = Ints_t.shift_left Ints_t.one y1 in
+    let y2p = Ints_t.shift_left Ints_t.one y2 in
+    mul (x1, x2) (y1p, y2p)
+
   let div (x1, x2) (y1, y2) =
     let x1y1n = (Ints_t.div x1 y1) in
     let x1y2n = (Ints_t.div x1 y2) in
@@ -851,7 +856,6 @@ struct
 
   let bitnot = bit1 (fun _ik -> Ints_t.bitnot)
   let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
-  let shift_left  = bitcomp (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
   let neg ?no_ov ik = function None -> (None,{underflow=false; overflow=false}) | Some x -> norm ik @@ Some (IArith.neg x)
 
@@ -863,6 +867,20 @@ struct
   let add ?no_ov = binary_op_with_norm IArith.add
   let mul ?no_ov = binary_op_with_norm IArith.mul
   let sub ?no_ov = binary_op_with_norm IArith.sub
+
+  let shift_left ik a b =
+    match is_bot a, is_bot b with
+    | true, true -> (bot_of ik,{underflow=false; overflow=false})
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show a) (show b)))
+    | _ ->
+      match a, maximal b, minimal b with
+      | Some a, Some bl, Some bu when (Ints_t.compare bl Ints_t.zero >= 0) ->
+        (try
+           let r = IArith.shiftleft a (Ints_t.to_int bl, Ints_t.to_int bu) in
+           norm ik @@ Some r
+         with Z.Overflow -> (top_of ik,{underflow=false; overflow=true}))
+      | _              -> (top_of ik,{underflow=true; overflow=true})
 
   let rem ik x y = match x, y with
     | None, None -> None
