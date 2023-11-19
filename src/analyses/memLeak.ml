@@ -14,16 +14,19 @@ struct
 
   let name () = "memLeak"
 
-  module D = Lattice.Prod(ThreadsToHeapVarsMap)(WasMallocCalled)
+  module D = ThreadsToHeapVarsMap
   module C = D
   module P = IdentityP (D)
+
+  module V = UnitV
+  module G = WasMallocCalled
 
   let context _ d = d
 
   (* HELPER FUNCTIONS *)
   let warn_for_multi_threaded_due_to_abort ctx =
-    let state = ctx.local in
-    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) && snd state then (
+    let malloc_called = ctx.global () in
+    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) && malloc_called then (
       set_mem_safety_flag InvalidMemTrack;
       set_mem_safety_flag InvalidMemcleanup;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program aborted while running in multi-threaded mode. A memory leak might occur"
@@ -32,7 +35,7 @@ struct
   (* If [is_return] is set to [true], then a thread return occurred, else a thread exit *)
   let warn_for_thread_return_or_exit current_thread ctx is_return =
     let state = ctx.local in
-    let heap_vars_of_curr_tid = ThreadsToHeapVarsMap.find current_thread (fst state) in
+    let heap_vars_of_curr_tid = ThreadsToHeapVarsMap.find current_thread state in
     if not (ToppedVarInfoSet.is_empty heap_vars_of_curr_tid) then (
       set_mem_safety_flag InvalidMemcleanup;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory may be leaked at thread %s for thread %a" (if is_return then "return" else "exit") ThreadIdDomain.Thread.pretty current_thread
@@ -40,7 +43,7 @@ struct
 
   let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
     let state = ctx.local in
-    if not (ThreadsToHeapVarsMap.for_all (fun tid heap_vars -> ToppedVarInfoSet.is_empty heap_vars) (fst state)) then
+    if not (ThreadsToHeapVarsMap.for_all (fun tid heap_vars -> ToppedVarInfoSet.is_empty heap_vars) state) then
       match assert_exp_imprecise, exp with
       | true, Some exp ->
         set_mem_safety_flag InvalidMemTrack;
@@ -71,14 +74,15 @@ struct
     | Malloc _
     | Calloc _
     | Realloc _ ->
+      ctx.sideg () true;
       begin match ctx.ask (Queries.AllocVar {on_stack = false}) with
         | `Lifted var ->
           begin match ctx.ask (Queries.CurrentThreadId) with
             | `Lifted tid ->
-              ((ThreadsToHeapVarsMap.add tid (ToppedVarInfoSet.singleton var) (fst state)), true)
-            | _ -> (fst state, true)
+              (ThreadsToHeapVarsMap.add tid (ToppedVarInfoSet.singleton var) state)
+            | _ -> state
           end
-        | _ -> (fst state, true)
+        | _ -> state
       end
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
@@ -90,10 +94,10 @@ struct
             | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) ->
               begin match ctx.ask (Queries.CurrentThreadId) with
                 | `Lifted tid ->
-                  let heap_vars_of_tid = ThreadsToHeapVarsMap.find tid (fst state) in
+                  let heap_vars_of_tid = ThreadsToHeapVarsMap.find tid state in
                   let heap_vars_of_tid_without_v = ToppedVarInfoSet.remove v heap_vars_of_tid in
-                  let new_fst_state = ThreadsToHeapVarsMap.add tid heap_vars_of_tid_without_v (fst state) in
-                  (new_fst_state, snd state)
+                  let new_fst_state = ThreadsToHeapVarsMap.add tid heap_vars_of_tid_without_v state in
+                  new_fst_state
                 | _ -> state
               end
             | _ -> state
