@@ -177,7 +177,15 @@ struct
 
   let threadenter ctx ~multiple lval f args =
     [`Lifted (RegMap.bot ())]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx =
+    match ctx.local with
+    | `Lifted reg ->
+      let old_regpart = ctx.global () in
+      let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      `Lifted reg
+    | x -> x
 
   let exitstate v = `Lifted (RegMap.bot ())
 

@@ -38,6 +38,8 @@ let main () =
       print_endline (GobUnix.localtime ());
       print_endline GobSys.command_line;
     );
+    (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
+    if get_bool "ana.autotune.enabled" && AutoTune.specificationIsActivated () then AutoTune.focusOnSpecification ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =
