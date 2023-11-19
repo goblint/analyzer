@@ -506,6 +506,9 @@ let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Spe
 let specificationIsActivated () =
   isActivated "specification" && get_string "ana.specification" <> ""
 
+let specificationTerminationIsActivated () =
+  isActivated "termination"
+
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
