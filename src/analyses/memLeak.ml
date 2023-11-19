@@ -91,8 +91,8 @@ struct
     in
     global_struct_ptr_vars
     |> List.fold_left (fun acc var ->
-        if ctx.ask (Queries.IsHeapVar var) then eval_value_of_heap_var var
-        else if not (ctx.ask (Queries.IsAllocVar var)) && isPointerType var.vtype then get_pts_of_non_heap_ptr_var var
+        if ctx.ask (Queries.IsHeapVar var) then (eval_value_of_heap_var var) @ acc
+        else if not (ctx.ask (Queries.IsAllocVar var)) && isPointerType var.vtype then (get_pts_of_non_heap_ptr_var var) @ acc
         else acc
       ) []
 
