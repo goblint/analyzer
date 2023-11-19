@@ -237,12 +237,8 @@ let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
 let focusOnMemSafetySpecification () =
   List.iter focusOnMemSafetySpecification (Svcomp.Specification.of_option ())
 
-let focusOnSpecification (spec: Svcomp.Specification.t) =
+let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
-  | UnreachCall s -> ()
-  | NoDataRace -> (*enable all thread analyses*)
-    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
-    enableAnalyses notNeccessaryThreadAnalyses;
   | Termination ->
     let terminationAnas = ["termination"; "threadflag"; "apron"] in
     print_endline @@ "Specification: Termination -> enabling termination analyses \"" ^ (String.concat ", " terminationAnas) ^ "\"";
@@ -251,6 +247,17 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
     set_bool "ana.int.interval" true;
     set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
     ()
+  | _ -> ()
+
+let focusOnTermination () =
+  List.iter focusOnTermination (Svcomp.Specification.of_option ())
+
+let focusOnSpecification (spec: Svcomp.Specification.t) =
+  match spec with
+  | UnreachCall s -> ()
+  | NoDataRace -> (*enable all thread analyses*)
+    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    enableAnalyses notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
@@ -499,6 +506,9 @@ let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Spe
 let specificationIsActivated () =
   isActivated "specification" && get_string "ana.specification" <> ""
 
+let specificationTerminationIsActivated () =
+  isActivated "termination"
+
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
@@ -518,8 +528,8 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  (* if specificationIsActivated () then
-     focusOnSpecification (); *)
+  if specificationIsActivated () then
+    focusOnSpecification ();
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
