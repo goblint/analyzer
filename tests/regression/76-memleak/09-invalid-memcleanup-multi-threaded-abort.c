@@ -4,7 +4,6 @@
 
 int *g;
 int *m1;
-int *m2;
 
 void *f1(void *arg) {
     m1 = malloc(sizeof(int));
@@ -13,6 +12,7 @@ void *f1(void *arg) {
 }
 
 void *f2(void *arg) {
+    int *m2;
     m2 = malloc(sizeof(int));
     free(m2); // No leak for thread t2, since it calls free before exiting
     pthread_exit(NULL); //NOWARN

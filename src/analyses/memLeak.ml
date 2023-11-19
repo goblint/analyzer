@@ -6,7 +6,6 @@ open MessageCategory
 open AnalysisStateUtil
 
 module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
-module ThreadsToHeapVarsMap = MapDomain.MapBot(ThreadIdDomain.Thread)(ToppedVarInfoSet)
 module WasMallocCalled = BoolDomain.MayBool
 module Spec : Analyses.MCPSpec =
 struct
@@ -14,7 +13,7 @@ struct
 
   let name () = "memLeak"
 
-  module D = ThreadsToHeapVarsMap
+  module D = ToppedVarInfoSet
   module C = D
   module P = IdentityP (D)
 
@@ -33,22 +32,20 @@ struct
     )
 
   (* If [is_return] is set to [true], then a thread return occurred, else a thread exit *)
-  let warn_for_thread_return_or_exit current_thread ctx is_return =
-    let state = ctx.local in
-    let heap_vars_of_curr_tid = ThreadsToHeapVarsMap.find current_thread state in
-    if not (ToppedVarInfoSet.is_empty heap_vars_of_curr_tid) then (
+  let warn_for_thread_return_or_exit ctx is_return =
+    if not (ToppedVarInfoSet.is_empty ctx.local) then (
       set_mem_safety_flag InvalidMemcleanup;
-      M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory may be leaked at thread %s for thread %a" (if is_return then "return" else "exit") ThreadIdDomain.Thread.pretty current_thread
+      let current_thread = ctx.ask (Queries.CurrentThreadId) in
+      M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory may be leaked at thread %s for thread %a" (if is_return then "return" else "exit") ThreadIdDomain.ThreadLifted.pretty current_thread
     )
 
   let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
-    let state = ctx.local in
-    if not (ThreadsToHeapVarsMap.for_all (fun tid heap_vars -> ToppedVarInfoSet.is_empty heap_vars) state) then
+    if not (ToppedVarInfoSet.is_empty ctx.local) then
       match assert_exp_imprecise, exp with
       | true, Some exp ->
         set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
-        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty state
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "assert expression %a is unknown. Memory leak might possibly occur for heap variables: %a" d_exp exp D.pretty ctx.local
       | _ ->
         set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
@@ -58,10 +55,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Check for a valid-memcleanup violation in a multi-threaded setting *)
     if (ctx.ask (Queries.MayBeThreadReturn)) then (
-      match ctx.ask (Queries.CurrentThreadId) with
-      | `Lifted tid ->
-        warn_for_thread_return_or_exit tid ctx true
-      | _ -> ()
+        warn_for_thread_return_or_exit ctx true
     );
     (* Returning from "main" is one possible program exit => need to check for memory leaks *)
     if f.svar.vname = "main" then check_for_mem_leak ctx;
@@ -74,35 +68,22 @@ struct
     | Malloc _
     | Calloc _
     | Realloc _ ->
-      ctx.sideg () true;
+      (ctx.sideg () true;
       begin match ctx.ask (Queries.AllocVar {on_stack = false}) with
         | `Lifted var ->
-          begin match ctx.ask (Queries.CurrentThreadId) with
-            | `Lifted tid ->
-              (ThreadsToHeapVarsMap.add tid (ToppedVarInfoSet.singleton var) state)
-            | _ -> state
-          end
+          ToppedVarInfoSet.add var state
         | _ -> state
-      end
+      end)
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
-        (* TODO: The cardinality of 1 seems to lead to the situation where only free() calls in main() are detected here (affects 76/08 and 76/09) *)
-        (* | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad = 1 -> *)
-        | ad when not (Queries.AD.is_top ad) ->
+        | ad when (not (Queries.AD.is_top ad)) && Queries.AD.cardinal ad = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           begin match Queries.AD.choose ad with
             | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) ->
-              begin match ctx.ask (Queries.CurrentThreadId) with
-                | `Lifted tid ->
-                  let heap_vars_of_tid = ThreadsToHeapVarsMap.find tid state in
-                  let heap_vars_of_tid_without_v = ToppedVarInfoSet.remove v heap_vars_of_tid in
-                  let new_fst_state = ThreadsToHeapVarsMap.add tid heap_vars_of_tid_without_v state in
-                  new_fst_state
-                | _ -> state
-              end
-            | _ -> state
+              ToppedVarInfoSet.remove v ctx.local
+            | _ -> ctx.local
           end
-        | _ -> state
+        | _ -> ctx.local
       end
     | Abort ->
       check_for_mem_leak ctx;
@@ -128,7 +109,7 @@ struct
     | ThreadExit _ ->
       begin match ctx.ask (Queries.CurrentThreadId) with
         | `Lifted tid ->
-          warn_for_thread_return_or_exit tid ctx false
+          warn_for_thread_return_or_exit ctx false
         | _ -> ()
       end;
       state
@@ -136,6 +117,8 @@ struct
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
+
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
 end
 
 let _ =
