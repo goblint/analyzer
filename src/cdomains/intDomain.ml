@@ -874,7 +874,7 @@ struct
     | true, _
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show a) (show b)))
     | _ ->
-      match a, maximal b, minimal b with
+      match a, minimal b, maximal b with
       | Some a, Some bl, Some bu when (Ints_t.compare bl Ints_t.zero >= 0) ->
         (try
            let r = IArith.shiftleft a (Ints_t.to_int bl, Ints_t.to_int bu) in
