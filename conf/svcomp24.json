@@ -30,7 +30,8 @@
       "symb_locks",
       "region",
       "thread",
-      "threadJoins"
+      "threadJoins",
+      "tmpSpecial"
     ],
     "path_sens": [
       "mutex",
@@ -85,7 +86,8 @@
         "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
-        "memsafetySpecification"
+        "memsafetySpecification",
+        "termination"
       ]
     }
   },
