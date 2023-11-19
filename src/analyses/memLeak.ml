@@ -34,6 +34,7 @@ struct
   (* If [is_return] is set to [true], then a thread return occurred, else a thread exit *)
   let warn_for_thread_return_or_exit ctx is_return =
     if not (ToppedVarInfoSet.is_empty ctx.local) then (
+      set_mem_safety_flag InvalidMemTrack;
       set_mem_safety_flag InvalidMemcleanup;
       let current_thread = ctx.ask (Queries.CurrentThreadId) in
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory may be leaked at thread %s for thread %a" (if is_return then "return" else "exit") ThreadIdDomain.ThreadLifted.pretty current_thread
@@ -53,8 +54,9 @@ struct
 
   (* TRANSFER FUNCTIONS *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    (* Check for a valid-memcleanup violation in a multi-threaded setting *)
-    if (ctx.ask (Queries.MayBeThreadReturn)) then (
+    (* Check for a valid-memcleanup and memtrack violation in a multi-threaded setting *)
+    (* The check for multi-threadedness is to ensure that valid-memtrack and valid-memclenaup are treated separately for single-threaded programs *)
+    if (ctx.ask (Queries.MayBeThreadReturn) &&  not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true }))) then (
         warn_for_thread_return_or_exit ctx true
     );
     (* Returning from "main" is one possible program exit => need to check for memory leaks *)
