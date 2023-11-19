@@ -98,12 +98,16 @@ struct
         | a when Queries.ID.is_bot a -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
         | a ->
           begin match Queries.ID.to_bool a with
-            | Some b ->
+            | Some b -> (
               (* If we know for sure that the expression in "assert" is false => need to check for memory leaks *)
-              if b = false then
-                check_for_mem_leak ctx
-              else ()
-            | None -> check_for_mem_leak ctx ~assert_exp_imprecise:true ~exp:(Some exp)
+                if b = false then (
+                  warn_for_multi_threaded_due_to_abort ctx;
+                  check_for_mem_leak ctx
+                )
+                else ())
+            | None ->
+              (warn_for_multi_threaded_due_to_abort ctx;
+               check_for_mem_leak ctx ~assert_exp_imprecise:true ~exp:(Some exp))
           end
       in
       warn_for_assert_exp;
