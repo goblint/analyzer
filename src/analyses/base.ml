@@ -1753,15 +1753,40 @@ struct
   let branch ctx (exp:exp) (tv:bool) : store =
     let valu = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
     let refine () =
-      let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
-      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
-      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
-      if M.tracing then M.traceu "branch" "Invariant enforced!\n";
-      match ctx.ask (Queries.CondVars exp) with
-      | s when Queries.ES.cardinal s = 1 ->
-        let e = Queries.ES.choose s in
-        invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
-      | _ -> res
+      let refine0 =
+        let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
+        if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
+        if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
+        if M.tracing then M.traceu "branch" "Invariant enforced!\n";
+        match ctx.ask (Queries.CondVars exp) with
+        | s when Queries.ES.cardinal s = 1 ->
+          let e = Queries.ES.choose s in
+          invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
+        | _ -> res
+      in
+      (* bodge for abs(...); To be removed once we have a clean solution *)
+      let refineAbs op absargexp valexp =
+        let flip op = match op with | Le -> Ge | Lt -> Gt | _ -> failwith "impossible" in
+        (* e.g. |arg| <= 40 *)
+        (* arg <= e  (arg <= 40) *)
+        let le = BinOp (op, absargexp, valexp, intType) in
+        (* arg >= -e  (arg >= -40) *)
+        let gt = BinOp(flip op, absargexp, UnOp (Neg, valexp, Cilfacade.typeOf valexp), intType) in
+        let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
+        invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
+      in
+      match exp with
+      | BinOp ((Lt|Le) as op, CastE(t, Lval (Var v, NoOffset)), e,_) when tv ->
+        (match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with 
+        | `Lifted (Abs arg) -> 
+          refineAbs op (CastE (t, arg)) e
+        | _ -> refine0)
+      | BinOp ((Lt|Le) as op, Lval (Var v, NoOffset), e, _) when tv ->
+        (match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with 
+        | `Lifted (Abs arg) -> 
+          refineAbs op arg e
+        | _ -> refine0)
+      | _ -> refine0
     in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)
@@ -2328,6 +2353,28 @@ struct
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
+      let apply_abs ik x =
+        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        begin match eval_x with
+          | Int int_x ->
+            let xcast = ID.cast_to ik int_x in
+            (* the absolute value of the most-negative value is out of range for 2'complement types *)
+            (match (ID.minimal xcast), (ID.minimal (ID.top_of ik)) with
+             | _, None
+             | None, _ -> ID.top_of ik
+             | Some mx, Some mm when Z.equal mx mm -> ID.top_of ik
+             | _, _ ->
+               match ID.le xcast (ID.of_int ik Z.zero) with
+               | d when d = ID.of_int ik Z.zero -> xcast (* x positive *)
+               | d when d = ID.of_int ik Z.one -> ID.neg xcast (* x negative *)
+               | _ -> (* both possible *)
+                 let x1 = ID.neg (ID.meet (ID.ending ik Z.zero) xcast) in
+                 let x2 = ID.meet (ID.starting ik Z.zero) xcast in
+                 ID.join x1 x2
+            )
+          | _ -> failwith ("non-integer argument in call to function "^f.vname)
+        end
+      in
       let result:value =
         begin match fun_args with
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
@@ -2356,6 +2403,8 @@ struct
           | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
+          | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
+          | Abs x -> Int (ID.cast_to IInt (apply_abs IInt x))
         end
       in
       begin match lv with
