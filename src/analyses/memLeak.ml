@@ -7,7 +7,7 @@ open AnalysisStateUtil
 
 module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
 module ThreadsToHeapVarsMap = MapDomain.MapBot(ThreadIdDomain.Thread)(ToppedVarInfoSet)
-module WasMallocCalled = BoolDomain.MustBool
+module WasMallocCalled = BoolDomain.MayBool
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.IdentitySpec
