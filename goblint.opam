@@ -19,7 +19,7 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
-  "dune" {>= "3.6"}
+  "dune" {>= "3.7"}
   "ocaml" {>= "4.10"}
   "goblint-cil" {>= "2.0.2"}
   "batteries" {>= "3.5.0"}

@@ -76,7 +76,7 @@ depends: [
   "ocamlfind" {= "1.9.5"}
   "odoc" {= "2.2.0" & with-doc}
   "odoc-parser" {= "2.0.0" & with-doc}
-  "ordering" {= "3.6.1"}
+  "ordering" {= "3.7.1"}
   "ounit2" {= "2.2.6" & with-test}
   "pp" {= "1.1.2"}
   "ppx_derivers" {= "1.2.1"}
@@ -93,7 +93,7 @@ depends: [
   "sexplib0" {= "v0.15.1"}
   "sha" {= "1.15.2"}
   "stdlib-shims" {= "0.3.0"}
-  "stdune" {= "3.6.1"}
+  "stdune" {= "3.7.1"}
   "stringext" {= "1.6.0"}
   "topkg" {= "1.0.6"}
   "tyxml" {= "4.5.0" & with-doc}
