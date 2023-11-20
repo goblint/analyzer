@@ -542,9 +542,37 @@
               "title": "ana.autotune.activated",
               "description": "Lists of activated tuning options.",
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "congruence",
+                  "singleThreaded",
+                  "specification",
+                  "mallocWrappers",
+                  "noRecursiveIntervals",
+                  "enums",
+                  "loopUnrollHeuristic",
+                  "forceLoopUnrollForFewLoops",
+                  "arrayDomain",
+                  "octagon",
+                  "wideningThresholds",
+                  "memsafetySpecification",
+                  "termination"
+                ]
+              },
               "default": [
-                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds", "memsafetySpecification"
+                "congruence",
+                "singleThreaded",
+                "specification",
+                "mallocWrappers",
+                "noRecursiveIntervals",
+                "enums",
+                "loopUnrollHeuristic",
+                "arrayDomain",
+                "octagon",
+                "wideningThresholds",
+                "memsafetySpecification",
+                "termination"
               ]
             }
           },
