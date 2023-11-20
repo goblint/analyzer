@@ -184,7 +184,7 @@ let enableAnalyses anas =
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
-let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
+let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"]
 let reduceThreadAnalyses () =
   let isThreadCreate = function
     | LibraryDesc.ThreadCreate _ -> true
