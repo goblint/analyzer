@@ -78,6 +78,7 @@ type special =
   | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Setjmp of { env: Cil.exp; }
   | Longjmp of { env: Cil.exp; value: Cil.exp; }
+  | Bounded of { exp: Cil.exp}  (** Used to check for bounds for termination analysis. *)
   | Rand
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 

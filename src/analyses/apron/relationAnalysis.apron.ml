@@ -196,7 +196,7 @@ struct
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
-    | ik when not (IntDomain.should_ignore_overflow ik) -> (* don't add type bounds for signed when assume_none *)
+    | ik ->
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
@@ -204,7 +204,6 @@ struct
       let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
       let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
       rel
-    | _
     | exception Invalid_argument _ ->
       rel
 
