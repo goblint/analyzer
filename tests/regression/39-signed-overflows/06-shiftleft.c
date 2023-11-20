@@ -19,5 +19,8 @@ int main()
     __goblint_check(r >= 8);
     __goblint_check(r <= 16);
 
+    int regval;
+    unsigned long bla = (unsigned long )((1 << ((int )regval >> 6)) << 20);  //WARN
+
     return 0;
 }
