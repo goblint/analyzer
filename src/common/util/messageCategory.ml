@@ -12,6 +12,7 @@ type undefined_behavior =
   | NullPointerDereference
   | UseAfterFree
   | MemoryOutOfBoundsAccess
+  | MemoryOutOfScopeAccess
   | DoubleFree
   | InvalidMemoryDeallocation
   | MemoryLeak
@@ -121,6 +122,7 @@ struct
       | NullPointerDereference -> ["NullPointerDereference"]
       | UseAfterFree -> ["UseAfterFree"]
       | MemoryOutOfBoundsAccess -> ["MemoryOutOfBoundsAccess"]
+      | MemoryOutOfScopeAccess -> ["MemoryOutOfScopeAccess"]
       | DoubleFree -> ["DoubleFree"]
       | InvalidMemoryDeallocation -> ["InvalidMemoryDeallocation"]
       | MemoryLeak -> ["MemoryLeak"]
@@ -234,6 +236,7 @@ let behaviorName = function
     |NullPointerDereference -> "NullPointerDereference"
     |UseAfterFree -> "UseAfterFree"
     |MemoryOutOfBoundsAccess -> "MemoryOutOfBoundsAccess"
+    |MemoryOutOfScopeAccess -> "MemoryOutOfScopeAccess"
     |DoubleFree -> "DoubleFree"
     |InvalidMemoryDeallocation -> "InvalidMemoryDeallocation"
     |MemoryLeak -> "MemoryLeak"

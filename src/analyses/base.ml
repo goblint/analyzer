@@ -1820,6 +1820,41 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
+        let is_globally_reachable_heap_var heap_var =
+          let global_vars =
+            List.filter_map (function GVar (v, _, _) | GVarDecl (v, _) -> Some v | _ -> None) !Cilfacade.current_file.globals
+          in
+          let global_heap_vars =
+            List.fold_left (fun acc gvar ->
+                match ctx.ask (Queries.MayPointTo (Lval (Var gvar, NoOffset))) with
+                | a when not (Queries.AD.is_top a) ->
+                  let glob_heap_vars = List.filter_map (function Queries.AD.Addr.Addr (v, _) (*when ctx.ask (Queries.IsHeapVar v)*) -> Some v | _ -> None) (Queries.AD.elements a) in
+                  glob_heap_vars @ acc
+                | _ -> acc
+              ) [] global_vars
+          in
+          List.mem heap_var global_heap_vars
+        in
+        let pts_has_non_global_contents =
+          match ctx.ask (Queries.MayPointTo exp) with
+          | a when not (Queries.AD.is_top a) ->
+            a
+            |> Queries.AD.filter (function Queries.AD.Addr.Addr _ -> true | _ -> false)
+            |> Queries.AD.exists (fun addr ->
+                begin match addr with
+                  | Queries.AD.Addr.Addr (v, _) ->
+                    if CPA.mem v ctx.local.cpa then true
+                    else if ctx.ask (Queries.IsAllocVar v) then true
+                    else if ctx.ask (Queries.IsHeapVar v) && not (is_globally_reachable_heap_var v) then true
+                    else false
+                  | Queries.AD.Addr.UnknownPtr -> true (* Can't be sure about unknown pointers *)
+                  | _ -> false
+                end
+              )
+          | _ -> true (* If the pts is top, we can't say anything about global/local reachability of the memory for sure *)
+        in
+        if pts_has_non_global_contents && fundec.svar.vname <> "main" then
+          M.warn ~category:(Behavior (Undefined MemoryOutOfScopeAccess)) ~tags:[CWE 562] "Function %s returns non-globally accessible memory via the expression %a" fundec.svar.vname d_exp exp;
         let t_override = match Cilfacade.fundec_return_type fundec with
           | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
           | ret -> ret
