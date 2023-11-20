@@ -81,7 +81,7 @@ struct
       )
     | _, _ -> ctx.local
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     if D.is_bot ctx.local then ( (* bot is All threads *)
       M.info ~category:Imprecise "Thread created while ALL threads must-joined, continuing with no threads joined.";
       D.top () (* top is no threads *)

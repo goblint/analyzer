@@ -160,7 +160,14 @@ let check_arguments () =
         ^ String.concat " and " @@ List.map (fun s -> "'" ^ s ^ "'") imprecise_options)
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
-  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'"
+  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if List.mem "termination" @@ get_string_list "ana.activated" then (
+    if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
+    set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
+    set_string "sem.int.signed_overflow" "assume_none";
+    warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none";
+  );
+  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -186,7 +193,7 @@ let handle_options () =
   check_arguments ();
   AfterConfig.run ();
   Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
-  if AutoTune.isActivated "specification" && get_string "ana.specification" <> "" then
+  if AutoTune.isActivated "memsafetySpecification" && get_string "ana.specification" <> "" then
     AutoTune.focusOnMemSafetySpecification ();
   Cilfacade.init_options ();
   handle_flags ()
@@ -486,7 +493,7 @@ let merge_parsed parsed =
 
   Cilfacade.current_file := merged_AST; (* Set before createCFG, so Cilfacade maps can be computed for loop unrolling. *)
   CilCfg.createCFG merged_AST; (* Create CIL CFG from CIL AST. *)
-  Cilfacade.reset_lazy (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling. *)
+  Cilfacade.reset_lazy ~keepupjumpinggotos:true (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling but keep gotos. *)
   merged_AST
 
 let preprocess_parse_merge () =

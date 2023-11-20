@@ -92,6 +92,10 @@ jobs:
         if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test apron termination regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group termination -s
+
       - name: Test regression cram
         run: opam exec -- dune runtest tests/regression
 

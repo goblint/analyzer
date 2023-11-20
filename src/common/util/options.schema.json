@@ -352,7 +352,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp","memLeak" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -544,7 +544,7 @@
               "type": "array",
               "items": { "type": "string" },
               "default": [
-                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds"
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds", "memsafetySpecification"
               ]
             }
           },
@@ -2105,6 +2105,12 @@
           "type": "boolean",
           "default": true
         },
+        "termination": {
+          "title": "warn.termination",
+          "description": "Non-Termination warning",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",
@@ -2279,24 +2285,56 @@
       "title": "witness",
       "type": "object",
       "properties": {
-        "enabled": {
-          "title": "witness.enabled",
-          "description": "Output witness",
-          "type": "boolean",
-          "default": true
-        },
-        "path": {
-          "title": "witness.path",
-          "description": "Witness output path",
-          "type": "string",
-          "default": "witness.graphml"
-        },
-        "id": {
-          "title": "witness.id",
-          "description": "Which witness node IDs to use? node/enumerate",
-          "type": "string",
-          "enum": ["node", "enumerate"],
-          "default": "node"
+        "graphml": {
+          "title": "witness.graphml",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "witness.graphml.enabled",
+              "description": "Output GraphML witness",
+              "type": "boolean",
+              "default": false
+            },
+            "path": {
+              "title": "witness.graphml.path",
+              "description": "GraphML witness output path",
+              "type": "string",
+              "default": "witness.graphml"
+            },
+            "id": {
+              "title": "witness.graphml.id",
+              "description": "Which witness node IDs to use? node/enumerate",
+              "type": "string",
+              "enum": ["node", "enumerate"],
+              "default": "node"
+            },
+            "minimize": {
+              "title": "witness.graphml.minimize",
+              "description": "Try to minimize the witness",
+              "type": "boolean",
+              "default": false
+            },
+            "uncil": {
+              "title": "witness.graphml.uncil",
+              "description":
+                "Try to undo CIL control flow transformations in witness",
+              "type": "boolean",
+              "default": false
+            },
+            "stack": {
+              "title": "witness.graphml.stack",
+              "description": "Construct stacktrace-based witness nodes",
+              "type": "boolean",
+              "default": true
+            },
+            "unknown": {
+              "title": "witness.graphml.unknown",
+              "description": "Output witness for unknown result",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         },
         "invariant": {
           "title": "witness.invariant",
@@ -2333,7 +2371,7 @@
               "title": "witness.invariant.accessed",
               "description": "Only emit invariants for locally accessed variables",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "full": {
               "title": "witness.invariant.full",
@@ -2376,31 +2414,6 @@
           },
           "additionalProperties": false
         },
-        "minimize": {
-          "title": "witness.minimize",
-          "description": "Try to minimize the witness",
-          "type": "boolean",
-          "default": false
-        },
-        "uncil": {
-          "title": "witness.uncil",
-          "description":
-            "Try to undo CIL control flow transformations in witness",
-          "type": "boolean",
-          "default": false
-        },
-        "stack": {
-          "title": "witness.stack",
-          "description": "Construct stacktrace-based witness nodes",
-          "type": "boolean",
-          "default": true
-        },
-        "unknown": {
-          "title": "witness.unknown",
-          "description": "Output witness for unknown result",
-          "type": "boolean",
-          "default": true
-        },
         "yaml": {
           "title": "witness.yaml",
           "type": "object",
@@ -2410,6 +2423,16 @@
               "description": "Output YAML witness",
               "type": "boolean",
               "default": false
+            },
+            "format-version": {
+              "title": "witness.yaml.format-version",
+              "description": "YAML witness format version",
+              "type": "string",
+              "enum": [
+                "0.1",
+                "2.0"
+              ],
+              "default": "0.1"
             },
             "entry-types": {
               "title": "witness.yaml.entry-types",
@@ -2423,7 +2446,8 @@
                   "flow_insensitive_invariant",
                   "precondition_loop_invariant",
                   "loop_invariant_certificate",
-                  "precondition_loop_invariant_certificate"
+                  "precondition_loop_invariant_certificate",
+                  "invariant_set"
                 ]
               },
               "default": [
@@ -2431,7 +2455,24 @@
                 "loop_invariant",
                 "flow_insensitive_invariant",
                 "loop_invariant_certificate",
-                "precondition_loop_invariant_certificate"
+                "precondition_loop_invariant_certificate",
+                "invariant_set"
+              ]
+            },
+            "invariant-types": {
+              "title": "witness.yaml.invariant-types",
+              "description": "YAML witness invariant types to output/input.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "location_invariant",
+                  "loop_invariant"
+                ]
+              },
+              "default": [
+                "location_invariant",
+                "loop_invariant"
               ]
             },
             "path": {

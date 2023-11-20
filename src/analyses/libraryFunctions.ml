@@ -32,6 +32,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("memcmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("__builtin_memcmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("memchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
     ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
     ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
@@ -62,6 +63,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("localeconv", unknown ~attrs:[ThreadUnsafe] []);
     ("localtime", unknown ~attrs:[ThreadUnsafe] [drop "time" [r]]);
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
+    ("__builtin_strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r; w]; drop "delim" [r]]);
@@ -146,6 +148,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atomic_flag_test_and_set_explicit", unknown [drop "obj" [r; w]; drop "order" []]);
     ("atomic_load", unknown [drop "obj" [r]]);
     ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
+    ("_Exit", special [drop "status" []] @@ Abort);
   ]
 
 (** C POSIX library functions.
@@ -335,7 +338,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("regexec", unknown [drop "preg" [r_deep]; drop "string" [r]; drop "nmatch" []; drop "pmatch" [w_deep]; drop "eflags" []]);
     ("regfree", unknown [drop "preg" [f_deep]]);
     ("ffs", unknown [drop "i" []]);
-    ("_exit", special [drop "status" []] Abort);
+    ("_exit", special [drop "status" []] @@ Abort);
     ("execvp", unknown [drop "file" [r]; drop "argv" [r_deep]]);
     ("execl", unknown (drop "path" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
     ("statvfs", unknown [drop "path" [r]; drop "buf" [w]]);
@@ -505,6 +508,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* MacOS's built-in assert *)
     ("__assert_fail", special [drop "assertion" [r]; drop "file" [r]; drop "line" []; drop "function" [r]] @@ Abort); (* gcc's built-in assert *)
+    ("__assert", special [drop "assertion" [r]; drop "file" [r]; drop "line" []] @@ Abort); (* header says: The following is not at all used here but needed for standard compliance. *)
     ("__builtin_return_address", unknown [drop "level" []]);
     ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
@@ -576,6 +580,10 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fgets_chk", unknown [drop "__s" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__fread_alias", unknown [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__fread_chk", unknown [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("fread_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "buffer" [w]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("__fread_unlocked_alias", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_unlocked_chk", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_unlocked_chk_warn", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__read_chk", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []; drop "__buflen" []]);
     ("__read_alias", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []]);
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
@@ -718,6 +726,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
     ("__goblint_split_begin", unknown [drop "exp" []]);
     ("__goblint_split_end", unknown [drop "exp" []]);
+    ("__goblint_bounded", special [__ "exp"[]] @@ fun exp -> Bounded { exp });
   ]
 
 (** zstd functions.
@@ -972,6 +981,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
+    ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
   ]
 
 let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
