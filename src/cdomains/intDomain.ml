@@ -610,7 +610,7 @@ module IntervalArith(Ints_t : IntOps.IntOps) = struct
     let x2y2 = (Ints_t.mul x2 y2) in
     (min4 x1y1 x1y2 x2y1 x2y2, max4 x1y1 x1y2 x2y1 x2y2)
 
-  let shiftleft (x1,x2) (y1,y2) =
+  let shift_left (x1,x2) (y1,y2) =
     let y1p = Ints_t.shift_left Ints_t.one y1 in
     let y2p = Ints_t.shift_left Ints_t.one y2 in
     mul (x1, x2) (y1p, y2p)
@@ -877,7 +877,7 @@ struct
       match a, minimal b, maximal b with
       | Some a, Some bl, Some bu when (Ints_t.compare bl Ints_t.zero >= 0) ->
         (try
-           let r = IArith.shiftleft a (Ints_t.to_int bl, Ints_t.to_int bu) in
+           let r = IArith.shift_left a (Ints_t.to_int bl, Ints_t.to_int bu) in
            norm ik @@ Some r
          with Z.Overflow -> (top_of ik,{underflow=false; overflow=true}))
       | _              -> (top_of ik,{underflow=true; overflow=true})
