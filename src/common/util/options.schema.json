@@ -2170,6 +2170,25 @@
           "description": "Output messages in deterministic order. Useful for cram testing.",
           "type": "boolean",
           "default": false
+        },
+        "memleak": {
+          "title": "warn.memleak",
+          "type":"object",
+          "properties": {
+            "memcleanup": {
+              "title": "warn.memleak.memcleanup",
+              "description": "Enable memory leak warnings only for violations of the SV-COMP \"valid-memcleanup\" category",
+              "type": "boolean",
+              "default": false
+            },
+            "memtrack": {
+              "title": "warn.memleak.memtrack",
+              "description": "Enable memory leak warnings only for violations of the SV-COMP \"valid-memtrack\" category",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
