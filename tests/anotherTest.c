@@ -35,3 +35,7 @@ int main() {
 
     return 0;
 }
+
+//two threads modify a shared variable (shared_data) using a mutex for synchronization.
+
+//a race condition on the shared_data varaible due to simultaneous reads and writes from differenet threads without proper synchronization.
