@@ -114,6 +114,7 @@
     },
     "yaml": {
       "enabled": false,
+      "strict": true,
       "format-version": "2.0",
       "entry-types": [
         "location_invariant",

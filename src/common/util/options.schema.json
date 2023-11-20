@@ -2487,6 +2487,12 @@
               "type": "string",
               "default": ""
             },
+            "strict": {
+              "title": "witness.yaml.strict",
+              "description": "",
+              "type": "boolean",
+              "default": false
+            },
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
