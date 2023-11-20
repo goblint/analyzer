@@ -27,7 +27,7 @@ type math =
   | Islessequal of (Basetype.CilExp.t * Basetype.CilExp.t)
   | Islessgreater of (Basetype.CilExp.t * Basetype.CilExp.t)
   | Isunordered of (Basetype.CilExp.t * Basetype.CilExp.t)
-  | Abs of Basetype.CilExp.t
+  | Abs of (CilType.Ikind.t * Basetype.CilExp.t)
   | Ceil of (CilType.Fkind.t * Basetype.CilExp.t)
   | Floor of (CilType.Fkind.t * Basetype.CilExp.t)
   | Fabs of (CilType.Fkind.t * Basetype.CilExp.t)
@@ -160,7 +160,7 @@ module MathPrintable = struct
     | Islessequal (exp1, exp2) -> Pretty.dprintf "isLessEqual(%a, %a)" d_exp exp1 d_exp exp2
     | Islessgreater (exp1, exp2) -> Pretty.dprintf "isLessGreater(%a, %a)" d_exp exp1 d_exp exp2
     | Isunordered (exp1, exp2) -> Pretty.dprintf "isUnordered(%a, %a)" d_exp exp1 d_exp exp2
-    | Abs exp -> Pretty.dprintf "abs(%a)" d_exp exp
+    | Abs (ik, exp) -> Pretty.dprintf "(%a )abs(%a)" d_ikind ik d_exp exp
     | Ceil (fk, exp) -> Pretty.dprintf "(%a )ceil(%a)" d_fkind fk d_exp exp
     | Floor (fk, exp) -> Pretty.dprintf "(%a )floor(%a)" d_fkind fk d_exp exp
     | Fabs (fk, exp) -> Pretty.dprintf "(%a )fabs(%a)" d_fkind fk d_exp exp

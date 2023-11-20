@@ -838,12 +838,12 @@ struct
     match exp with
     | BinOp ((Lt|Le) as op, CastE(t, Lval (Var v, NoOffset)), e,_) when tv ->
       begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
-        | `Lifted (Abs arg) -> refineAbs op (CastE (t, arg)) e
+        | `Lifted (Abs (ik, arg)) -> refineAbs op (CastE (t, arg)) e
         | _ -> refine0
       end
     | BinOp ((Lt|Le) as op, Lval (Var v, NoOffset), e, _) when tv ->
       begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
-        | `Lifted (Abs arg) -> refineAbs op arg e
+        | `Lifted (Abs (ik, arg)) -> refineAbs op arg e
         | _ -> refine0
       end
     | _ -> refine0

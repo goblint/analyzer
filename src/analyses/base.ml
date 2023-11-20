@@ -2375,7 +2375,7 @@ struct
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
           | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
-          | Abs x -> Int (ID.cast_to IInt (apply_abs IInt x))
+          | Abs (ik, x) -> Int (ID.cast_to ik (apply_abs ik x))
         end
       in
       begin match lv with
