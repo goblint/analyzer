@@ -25,24 +25,33 @@ module Mpqf = struct (* multi-precision rational numbers *)
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
 end
 
-module Array = struct
+
+module Equality = struct
+  type t = (int option * Z.t) [@@deriving eq, ord, hash]
+  let zero = (None, Z.zero)
+  let to_int x = Z.to_int @@ snd x
+end
+
+module EqualitiesArray = struct
   include Array
-  let zero = (0, Z.zero)
-  let hash : 'a array -> int = (fun x -> 31 + x.(0)) (* TODO **)
+  type t = Equality.t Array.t [@@deriving eq, ord]
+
+  let hash : t -> int = (fun x -> 31 + Equality.to_int x.(0)) (* TODO **)
+
   let add_element m n = 
-    let num_vars = Array.length m in
+    let num_vars = length m in
     if num_vars = 0 then m else
     if n > num_vars then failwith "n too large" else
-      let new_array = Array.make (num_vars + 1) zero in
-      if n = 0 then Array.blit m 0 new_array 1 (num_vars - 1) else
-        Array.blit m 0 new_array 0 n; if n <> num_vars then Array.blit m n new_array (n + 1) (num_vars - n);
+      let new_array = make (num_vars + 1) Equality.zero in
+      if n = 0 then blit m 0 new_array 1 (num_vars - 1) else
+        blit m 0 new_array 0 n; if n <> num_vars then blit m n new_array (n + 1) (num_vars - n);
       new_array
 
   let add_elements m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
-    let nnc = Array.length indexes in
-    if Array.length m = 0 || nnc = 0 then m else
-      let nc = Array.length m in
-      let m' = Array.make (nc + nnc) zero in
+    let nnc = length indexes in
+    if length m = 0 || nnc = 0 then m else
+      let nc = length m in
+      let m' = make (nc + nnc) Equality.zero in
       let offset = ref 0 in
       for j = 0 to nc - 1 do
         while  !offset < nnc &&  !offset + j = indexes.(!offset) do incr offset done;
@@ -51,12 +60,12 @@ module Array = struct
       m'
 
   let del_cols m cols =
-    let n_c = Array.length cols in
-    if n_c = 0 || Array.length m = 0 then m
+    let n_c = length cols in
+    if n_c = 0 || length m = 0 then m
     else
-      let m_c = Array.length m in
+      let m_c = length m in
       if m_c = n_c then [||] else
-        let m' = Array.make (m_c - n_c) zero in
+        let m' = make (m_c - n_c) Equality.zero in
         let offset = ref 0 in
         for j = 0 to (m_c - n_c) - 1 do
           while  !offset < n_c &&  !offset + j = cols.(!offset) do incr offset done;
@@ -67,7 +76,7 @@ module Array = struct
   let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
   let remove_zero_elements m =
-    Array.filter (fun x -> x = 0) m
+    filter (fun x -> x = 0) m
 
 end
 
@@ -80,13 +89,13 @@ module V = RelationDomain.V(Var)
 module VarManagement =
 struct
   include SharedFunctions.EnvOps
-  module Vector = Array
+  module EArray = EqualitiesArray
 
   type t = {
-    mutable d : (int * Z.t) Array.t option;
+    mutable d : EArray.t option;
     mutable env : Environment.t
   }
-  [@@deriving eq, ord] (*TODO add hash**)
+  [@@deriving eq, ord, hash] (*TODO add hash**)
 
   let empty_env = Environment.make [||] [||]
 
@@ -97,19 +106,19 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let copy t = {t with d = Option.map Vector.copy t.d}
+  let copy t = {t with d = Option.map EArray.copy t.d}
 
   let dim_add (ch: Apron.Dim.change) m =
-    Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim; (* ?? *)
-    Array.add_elements m ch.dim
+    EArray.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim; (* ?? *)
+    EArray.add_elements m ch.dim
 
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m (*?*)
 
   let dim_remove (ch: Apron.Dim.change) m del =
-    if Array.length ch.dim = 0 || (Vector.length m = 0) then m else (
-      Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;(* ?? *)
-      let m' = if not del then let m = Vector.copy m in Array.add_elements m ch.dim else m in
-      Array.del_cols m' ch.dim)
+    if EArray.length ch.dim = 0 || (EArray.length m = 0) then m else (
+      EArray.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;(* ?? *)
+      let m' = if not del then let m = EArray.copy m in EArray.add_elements m ch.dim else m in
+      EArray.del_cols m' ch.dim)
 
   let dim_remove ch m del = timing_wrap "dim remove" (dim_remove ch m) del
 
@@ -175,23 +184,19 @@ struct
 
   let mem_var t var = Environment.mem_var t.env var
 
-  include ConvenienceOps(Mpqf)
-(*
-  let get_c v = match Vector.findi (fun x -> x <>: Mpqf.zero) v with
-    | exception Not_found -> Some Mpqf.zero
-    | i when Int.compare (Array.length v) (i + 1) = 0 -> Some (v.(i))
+  let get_constant (var, off) = match var with
+    | None -> Some off
     | _ -> None
 
-  let get_coeff_vec (t: t) texp =
-    (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
-      Returns None if the expression is not affine*)
+  let get_coeff (t: t) texp =
+    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
+      Returns None if the expression is not a sum between a variable (without coefficient) and a constant. *)
     let open Apron.Texpr1 in
-    let exception NotLinear in
-    let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg v = Vector.map_with (fun x -> Mpqf.mone *: x) v; v in
-    let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
-        Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
-    in
+    let exception NotLinear2Var in
+    let exception NotIntegerOffset in
+    let mpqf_to_int x = 
+      if not(Z.equal (Mpqf.get_den x) Z.one) then raise NotIntegerOffset
+      else Mpqf.get_num x in
     let rec convert_texpr texp =
       begin match texp with
         (*If x is a constant, replace it with its const. val. immediately*)
@@ -199,45 +204,45 @@ struct
                      let open Coeff in
                      match union with
                      | Interval _ -> failwith "Not a constant"
-                     | Scalar x -> (match x with
-                         | Float x -> Mpqf.of_float x
-                         | Mpqf x -> x
-                         | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
-        | Var x ->
-          let zero_vec_cp = Vector.copy zero_vec in
-          let entry_only v = Vector.set_val_with v (Environment.dim_of_var t.env x) Mpqf.one; v in
-          begin match t.d with
-            | Some m -> let row = Vector.nth m (Environment.dim_of_var t.env x) in
-              begin match row with
-                | exception _ -> entry_only zero_vec_cp
-                | v ->
-                  Vector.set_val_with zero_vec_cp ((Vector.length zero_vec) - 1) v; zero_vec_cp
-                | _ -> entry_only zero_vec_cp end
-            | None -> entry_only zero_vec_cp end
+                     | Scalar x -> begin match x with
+                         | Float x -> raise NotIntegerOffset
+                         | Mpqf x -> (None, mpqf_to_int x)
+                         | Mpfrf x -> raise NotIntegerOffset end in of_union x
+        | Var x -> 
+          let var_dim = Environment.dim_of_var t.env x in
+          begin match t.d with 
+            | Some m -> m.(var_dim)
+            | None -> (Some var_dim, Z.zero) end
         | Unop (u, e, _, _) ->
           begin match u with
-            | Neg -> neg @@ convert_texpr e
+            | Neg -> raise NotLinear2Var
             | Cast -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
-            | Sqrt -> raise NotLinear end
+            | Sqrt -> raise NotLinear2Var end
         | Binop (b, e1, e2, _, _) ->
           begin match b with
-            | Add -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (convert_texpr e2); v1
-            | Sub -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (neg @@ convert_texpr e2); v1
+            | Add -> begin match convert_texpr e1, convert_texpr e2 with
+                | (None, off1), (var2, off2) -> (var2, Z.(off1 + off2))
+                | (var1, off1), (None, off2) -> (var1, Z.(off1 + off2))
+                | (_, _), (_, _) -> raise NotLinear2Var end
+            | Sub -> begin match convert_texpr e1, convert_texpr e2 with
+                | (None, off1), (var2, off2) -> raise NotLinear2Var
+                | (var1, off1), (None, off2) -> (var1, Z.(off1 - off2))
+                | (var1, off1), (var2, off2) -> if var1 = var2 then (None, Z.(off1 - off2)) else raise NotLinear2Var end
             | Mul ->
               let x1, x2 = convert_texpr e1, convert_texpr e2 in
-              begin match get_c x1, get_c x2 with
-                | _, Some c -> Vector.apply_with_c_with ( *:) c x1; x1
-                | Some c, _ -> Vector.apply_with_c_with ( *:) c x2; x2
-                | _, _ -> raise NotLinear end
-            | _ -> raise NotLinear end
+              begin match get_constant x1, get_constant x2 with
+                | Some c1, Some c2 -> (None, Z.(c1 * c2))
+                | _, _ -> raise NotLinear2Var end
+            | _ -> raise NotLinear2Var end
       end
     in match convert_texpr texp with
-    | exception NotLinear -> None
+    | exception NotLinear2Var -> None
+    | exception NotIntegerOffset -> None
     | x -> Some(x)
 
-  let get_coeff_vec t texp = timing_wrap "coeff_vec" (get_coeff_vec t) texp
+  let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
 end
-
+(*
 (** As it is specifically used for the new affine equality domain, it can only provide bounds if the expression contains known constants only and in that case, min and max are the same. *)
 module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc).t) =
 struct
@@ -278,16 +283,16 @@ struct
   let show t =
     let conv_to_ints row =
       let module BI = IntOps.BigIntOps in
-      let row = Array.copy @@ Vector.to_array row
+      let row = EqualitiesArray.copy @@ Vector.to_EqualitiesArray row
       in
-      for i = 0 to Array.length row -1 do
+      for i = 0 to EqualitiesArray.length row -1 do
         let val_i = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ Mpqf.get_den row.(i)
-        in Array.iteri(fun j x -> row.(j) <- val_i *: x)  row
+        in EqualitiesArray.iteri(fun j x -> row.(j) <- val_i *: x)  row
       done;
-      let int_arr = Array.init (Array.length row) (fun i -> Mpqf.get_num row.(i))
-      in let div = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ Array.fold_left BI.gcd int_arr.(0) int_arr
-      in Array.iteri (fun i x -> row.(i) <- x /: div) row;
-      Vector.of_array @@ row
+      let int_arr = EqualitiesArray.init (EqualitiesArray.length row) (fun i -> Mpqf.get_num row.(i))
+      in let div = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ EqualitiesArray.fold_left BI.gcd int_arr.(0) int_arr
+      in EqualitiesArray.iteri (fun i x -> row.(i) <- x /: div) row;
+      Vector.of_EqualitiesArray @@ row
     in
     let vec_to_constraint vec env =
       let vars, _ = Environment.vars env
@@ -305,7 +310,7 @@ struct
         else if vl <: Mpqf.zero then "+" ^ Mpqf.to_string vl
         else ""
       in
-      let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
+      let res = (String.concat "" @@ EqualitiesArray.to_list @@ EqualitiesArray.map dim_to_str vars)
                 ^ (c_to_str @@ Vector.nth vec (Vector.length vec - 1)) ^ "=0"
       in if String.starts_with res "+" then String.sub res 1 (String.length res - 1) else res
     in
@@ -319,7 +324,7 @@ struct
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
 
-  let name () = "affeq"
+  let name () = "lin2vareq"
 
   let to_yojson _ = failwith "ToDo Implement in future"
 
@@ -664,17 +669,17 @@ struct
     match t.d with
     | None -> []
     | Some m ->
-      let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
-      for i = 0 to Lincons1.array_length earray do
+      let eEqualitiesArray = Lincons1.EqualitiesArray_make t.env (Matrix.num_rows m) in
+      for i = 0 to Lincons1.EqualitiesArray_length eEqualitiesArray do
         let row = Matrix.get_row m i in
         let coeff_vars = List.map (fun x ->  Coeff.s_of_mpqf @@ Vector.nth row (Environment.dim_of_var t.env x), x) (vars t) in
         let cst = Coeff.s_of_mpqf @@ Vector.nth row (Vector.length row - 1) in
-        Lincons1.set_list (Lincons1.array_get earray i) coeff_vars (Some cst)
+        Lincons1.set_list (Lincons1.EqualitiesArray_get eEqualitiesArray i) coeff_vars (Some cst)
       done;
-      let {lincons0_array; array_env}: Lincons1.earray = earray in
-      Array.enum lincons0_array
+      let {lincons0_EqualitiesArray; EqualitiesArray_env}: Lincons1.eEqualitiesArray = eEqualitiesArray in
+      EqualitiesArray.enum lincons0_EqualitiesArray
       |> Enum.map (fun (lincons0: Lincons0.t) ->
-          Lincons1.{lincons0; env = array_env}
+          Lincons1.{lincons0; env = EqualitiesArray_env}
         )
       |> List.of_enum
 
@@ -693,5 +698,7 @@ module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S3 with type 
 struct
   module D =  D (Vc) (Mx)
   include SharedFunctions.AssertionModule (V) (D)
-  include D*)
+  include D
+
 end
+*)
