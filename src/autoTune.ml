@@ -458,6 +458,17 @@ let wideningOption factors file =
       print_endline "Enabled widening thresholds";
   }
 
+let activateTmpSpecialAnalysis () =
+  let isMathFun = function
+    | LibraryDesc.Math _ -> true
+    | _ -> false
+  in
+  let hasMathFunctions = hasFunction isMathFun in
+  if hasMathFunctions then (
+    print_endline @@ "math function -> enabling tmpSpecial analysis and floating-point domain";
+    enableAnalyses ["tmpSpecial"];
+    set_bool "ana.float.interval" true;
+  )
 
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
@@ -517,6 +528,9 @@ let chooseConfig file =
 
   if isActivated "arrayDomain" then
     selectArrayDomains file;
+
+  if isActivated "tmpSpecialAnalysis" then
+    activateTmpSpecialAnalysis ();
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
