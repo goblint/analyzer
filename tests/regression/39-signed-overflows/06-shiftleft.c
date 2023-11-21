@@ -21,7 +21,7 @@ int main()
     __goblint_check(r <= 16);
 
     int regval = INT_MAX;
-    int shift = ((int )regval >> 6); //NOWARN
+    int shift = regval >> 6; //NOWARN
     int blub = 1 << shift; //WARN
 
     int regval2;
