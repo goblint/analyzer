@@ -195,6 +195,8 @@ sig
     val string_comparison: t -> t -> int option -> ID.t
     val string_writing_defined: t -> bool
     val remove_unknownptrs: t -> t
+    val get_unknownptrs: t -> t
+    val has_unknownptr: t -> bool
     val unknownptrs_origins: GoblintCil.Pretty.doc -> t -> (GoblintCil.Pretty.doc * Messages.Location.t option) list
   end
 end

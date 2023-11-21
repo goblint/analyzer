@@ -65,9 +65,9 @@ struct
 
   let mayPointTo ctx exp =
     let ad = ctx.ask (Queries.MayPointTo exp) in
-    let a' = if Queries.AD.mem UnknownPtr ad then (
+    let a' = if Queries.AD.has_unknownptr ad then (
         M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
-        Queries.AD.remove UnknownPtr ad
+        Queries.AD.remove_unknownptrs ad
       ) else ad
     in
     List.filter_map (function

@@ -1325,10 +1325,11 @@ struct
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
           let a' = AD.remove_unknownptrs a in (* run reachable_vars without unknown just to be safe: TODO why? *)
+          let u = AD.get_unknownptrs a in
           let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
           let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
           if AD.may_be_unknown a then
-            AD.add UnknownPtr addrs' (* add unknown back *)
+            AD.union u addrs' (* add unknowns back *)
           else
             addrs'
         | Int i ->

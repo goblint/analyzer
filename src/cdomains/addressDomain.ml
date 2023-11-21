@@ -469,6 +469,18 @@ struct
       | UnknownPtr _ -> false
       | _ -> true
     ) ad
+
+  let get_unknownptrs ad = filter (function
+      | UnknownPtr _ -> true
+      | _ -> false
+    ) ad
+
+  let has_unknownptr ad = fold (fun a acc ->
+      match a with
+      | UnknownPtr _ -> true
+      | _ -> acc
+    ) ad false
+
   let unknownptrs_origins doc ad =
     fold (fun addr acc ->
         match addr with

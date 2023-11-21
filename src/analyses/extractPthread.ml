@@ -878,7 +878,7 @@ module Spec : Analyses.MCPSpec = struct
   module ExprEval = struct
     let eval_ptr ctx exp =
       ctx.ask (Queries.MayPointTo exp)
-      |> Queries.AD.remove UnknownPtr (* UNSOUND *)
+      |> Queries.AD.remove_unknownptrs (* UNSOUND *)
       |> Queries.AD.to_var_may
 
     let eval_var ctx exp =
