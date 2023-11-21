@@ -1,4 +1,4 @@
-//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak --set ana.base.privatization mutex-meet-tid --set ana.path_sens[+] threadflag  --set ana.activated[+] thread --set ana.activated[+] threadid
+//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak --set ana.base.privatization mutex-meet-tid --set ana.path_sens[+] threadflag  --set ana.activated[+] thread
 #include <stdlib.h>
 #include <pthread.h>
 

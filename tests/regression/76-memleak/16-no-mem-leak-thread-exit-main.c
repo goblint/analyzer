@@ -13,6 +13,11 @@ int main(int argc, char const *argv[]) {
     pthread_t t1;
     pthread_create(&t1, NULL, f1, NULL);
 
-	// memory from thread f1 which was not joined into main, is not freed
-    return 0; //WARN
+    pthread_exit(NULL);
+
+    pthread_join(t1, NULL);
+
+    // A pthread_join called in main will wait for other threads to finish
+    // Therefore, no memory leak here
+    return 0; // NOWARN
 }

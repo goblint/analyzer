@@ -1,4 +1,4 @@
-//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak  --set ana.activated[+] thread --set ana.activated[+] threadid
+//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak --set ana.activated[+] thread
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -26,7 +26,7 @@ int main(int argc, char const *argv[]) {
 
     pthread_t t2;
     pthread_create(&t2, NULL, f2, NULL);
-    
+
     free(g);
 
     pthread_join(t1, NULL);

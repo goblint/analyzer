@@ -1,5 +1,4 @@
-//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak  --set ana.activated[+] thread --set ana.activated[+] threadid
-#include <stdlib.h>
+//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak  --set ana.activated[+] thread 
 #include <pthread.h>
 
 int *g;
