@@ -117,12 +117,14 @@ struct
               match ValueDomain.Structs.get s field with
               | Queries.VD.Address a ->
                 let reachable_from_addr_set =
-                  List.fold_left (fun acc_addr addr ->
+                  Queries.AD.fold (fun addr acc_addr ->
                       match addr with
-                      | Queries.AD.Addr.Addr (v, _) -> (v :: get_reachable_mem_from_str_ptr_globals [v] ctx) @ acc_addr
+                      | Queries.AD.Addr.Addr (v, _) ->
+                        let reachable_from_v = Queries.AD.of_list (List.map (fun v -> Queries.AD.Addr.Addr (v, `NoOffset)) (get_reachable_mem_from_str_ptr_globals [v] ctx)) in
+                        Queries.AD.join (Queries.AD.add addr reachable_from_v) acc_addr
                       | _ -> acc_addr
-                    ) [] (Queries.AD.elements a)
-                in reachable_from_addr_set @ acc_field
+                    ) a (Queries.AD.empty ())
+                in (Queries.AD.to_var_may reachable_from_addr_set) @ acc_field
               | _ -> acc_field
             ) [] fields
         in
