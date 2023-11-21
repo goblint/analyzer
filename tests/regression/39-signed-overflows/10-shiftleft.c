@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval
 #include <goblint.h>
+#include <limits.h>
 int main()
 {
     int r;
@@ -19,8 +20,12 @@ int main()
     __goblint_check(r >= 8);
     __goblint_check(r <= 16);
 
-    int regval;
-    unsigned long bla = (unsigned long )((1 << ((int )regval >> 6)) << 20);  //WARN
+    int regval = INT_MAX;
+    int shift = regval >> 6; //NOWARN
+    int blub = 1 << shift; //WARN
+
+    int regval2;
+    unsigned long bla = (unsigned long )((1 << ((int )regval2 >> 6)) << 20);  //WARN
 
     return 0;
 }

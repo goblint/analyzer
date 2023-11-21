@@ -610,7 +610,7 @@ module IntervalArith(Ints_t : IntOps.IntOps) = struct
     let x2y2 = (Ints_t.mul x2 y2) in
     (min4 x1y1 x1y2 x2y1 x2y2, max4 x1y1 x1y2 x2y1 x2y2)
 
-  let shiftleft (x1,x2) (y1,y2) =
+  let shift_left (x1,x2) (y1,y2) =
     let y1p = Ints_t.shift_left Ints_t.one y1 in
     let y2p = Ints_t.shift_left Ints_t.one y2 in
     mul (x1, x2) (y1p, y2p)
@@ -877,7 +877,7 @@ struct
       match a, minimal b, maximal b with
       | Some a, Some bl, Some bu when (Ints_t.compare bl Ints_t.zero >= 0) ->
         (try
-           let r = IArith.shiftleft a (Ints_t.to_int bl, Ints_t.to_int bu) in
+           let r = IArith.shift_left a (Ints_t.to_int bl, Ints_t.to_int bu) in
            norm ik @@ Some r
          with Z.Overflow -> (top_of ik,{underflow=false; overflow=true}))
       | _              -> (top_of ik,{underflow=true; overflow=true})
@@ -3428,14 +3428,14 @@ module IntDomTupleImpl = struct
     | Some(_, {underflow; overflow}) -> not (underflow || overflow)
     | _ -> false
 
-  let check_ov ik intv intv_set =
+  let check_ov ~cast ik intv intv_set =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
     if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
       let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
-      set_overflow_flag ~cast:false ~underflow ~overflow ik;
+      set_overflow_flag ~cast ~underflow ~overflow ik;
     );
     no_ov
 
@@ -3444,7 +3444,7 @@ module IntDomTupleImpl = struct
     let map x = Option.map fst x in
     let intv =  f p2 @@ r.fi2_ovc (module I2) in
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
-    ignore (check_ov ik intv intv_set);
+    ignore (check_ov ~cast:false ik intv intv_set);
     map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5)
 
   let create2_ovc ik r x = (* use where values are introduced *)
@@ -3625,7 +3625,7 @@ module IntDomTupleImpl = struct
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1_ovc (module I2)) b in
     let intv_set = map (r.f1_ovc (module I5)) e in
-    let no_ov = check_ov ik intv intv_set in
+    let no_ov = check_ov ~cast ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> fst) a
@@ -3635,10 +3635,10 @@ module IntDomTupleImpl = struct
       , BatOption.map fst intv_set )
 
   (* map2 with overflow check *)
-  let map2ovc ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
+  let map2ovc ?(cast=false) ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
     let intv = opt_map2 (r.f2_ovc (module I2)) xb yb in
     let intv_set = opt_map2 (r.f2_ovc (module I5)) xe ye in
-    let no_ov = check_ov ik intv intv_set in
+    let no_ov = check_ov ~cast ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I1) x y |> fst) xa ya
