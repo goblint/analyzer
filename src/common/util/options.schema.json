@@ -544,7 +544,7 @@
               "type": "array",
               "items": { "type": "string" },
               "default": [
-                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds", "memsafetySpecification"
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds", "memsafetySpecification", "tmpSpecialAnalysis"
               ]
             }
           },
