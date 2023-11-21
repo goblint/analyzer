@@ -311,13 +311,16 @@ struct
     }
 
     let to_yaml {invariant_type} =
-      `O ([
-          ("type", `String (InvariantType.invariant_type invariant_type));
-        ] @ InvariantType.to_yaml' invariant_type)
+      `O [
+        ("invariant", `O ([
+             ("type", `String (InvariantType.invariant_type invariant_type));
+           ] @ InvariantType.to_yaml' invariant_type)
+        )
+      ]
 
     let of_yaml y =
       let open GobYaml in
-      let+ invariant_type = y |> InvariantType.of_yaml in
+      let+ invariant_type = y |> find "invariant" >>= InvariantType.of_yaml in
       {invariant_type}
   end
 
