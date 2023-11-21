@@ -1,4 +1,4 @@
-(lang dune 3.6)
+(lang dune 3.7)
 (using dune_site 0.1)
 (cram enable)
 (name goblint)
@@ -64,3 +64,5 @@
     (share lib)
     (share conf))
 )
+
+; (map_workspace_root false) ;uncomment to enable breakpoints

@@ -7,6 +7,8 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
+(** Whether the termination analysis detects the program as non-terminating *)
+let svcomp_may_not_terminate = ref false
 (** Whether an invalid free happened *)
 let svcomp_may_invalid_free = ref false
 

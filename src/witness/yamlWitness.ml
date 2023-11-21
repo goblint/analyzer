@@ -25,7 +25,7 @@ struct
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let creation_time = TimeUtil.iso8601_now () in
     {
-      format_version = "0.1";
+      format_version = GobConfig.get_string "witness.yaml.format-version";
       uuid = Uuidm.to_string uuid;
       creation_time;
       producer;
@@ -91,6 +91,29 @@ struct
     metadata = metadata ~task ();
   }
 
+  let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+    invariant_type = LocationInvariant {
+        location;
+        value = invariant;
+        format = "c_expression";
+      };
+  }
+
+  let loop_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+    invariant_type = LoopInvariant {
+        location;
+        value = invariant;
+        format = "c_expression";
+      };
+  }
+
+  let invariant_set ~task ~(invariants): Entry.t = {
+    entry_type = InvariantSet {
+        content = invariants;
+      };
+    metadata = metadata ~task ();
+  }
+
   let target ~uuid ~type_ ~(file_name): Target.t = {
     uuid;
     type_;
@@ -120,12 +143,12 @@ struct
   }
 end
 
-let yaml_entries_to_file yaml_entries file =
+let yaml_entries_to_file ?(invariants=0) yaml_entries file =
   let yaml = `A yaml_entries in
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
   (* estimate how big it should be + extra in case empty *)
-  let text = match Yaml.to_string ~len:(List.length yaml_entries * 4096 + 2048) yaml with
+  let text = match Yaml.to_string ~len:((List.length yaml_entries + invariants) * 4096 + 2048) yaml with
     | Ok text -> text
     | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
   in
@@ -133,6 +156,9 @@ let yaml_entries_to_file yaml_entries file =
 
 let entry_type_enabled entry_type =
   List.mem entry_type (GobConfig.get_string_list "witness.yaml.entry-types")
+
+let invariant_type_enabled invariant_type =
+  List.mem invariant_type (GobConfig.get_string_list "witness.yaml.invariant-types")
 
 module Make (R: ResultQuery.SpecSysSol2) =
 struct
@@ -385,13 +411,81 @@ struct
         entries
     in
 
+    (* Generate invariant set *)
+    let (entries, invariants) =
+      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
+        let invariants = [] in
+
+        (* Generate location invariants *)
+        let invariants =
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
+            NH.fold (fun n local acc ->
+                let loc = Node.location n in
+                if is_invariant_node n then (
+                  let lvals = local_lvals n local in
+                  match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
+                  | `Lifted inv ->
+                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    List.fold_left (fun acc inv ->
+                        let location_function = (Node.find_fundec n).svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        let invariant = CilType.Exp.show inv in
+                        let invariant = Entry.location_invariant' ~location ~invariant in
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force nh) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate loop invariants *)
+        let invariants =
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
+            NH.fold (fun n local acc ->
+                let loc = Node.location n in
+                if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
+                  match R.ask_local_node n ~local (Invariant Invariant.default_context) with
+                  | `Lifted inv ->
+                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    List.fold_left (fun acc inv ->
+                        let location_function = (Node.find_fundec n).svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        let invariant = CilType.Exp.show inv in
+                        let invariant = Entry.loop_invariant' ~location ~invariant in
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force nh) invariants
+          )
+          else
+            invariants
+        in
+
+        let invariants = List.rev invariants in
+        let entry = Entry.invariant_set ~task ~invariants in
+        (entry :: entries, List.length invariants)
+      )
+      else
+        (entries, 0)
+    in
+
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
 
     M.msg_group Info ~category:Witness "witness generation summary" [
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 
-    yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+    yaml_entries_to_file ~invariants yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 
   let write () =
     Timing.wrap "yaml witness" write ()
@@ -639,6 +733,48 @@ struct
           None
       in
 
+      let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
+
+        let validate_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
+          let loc = loc_of_location location_invariant.location in
+          let inv = location_invariant.value in
+
+          match Locator.find_opt locator loc with
+          | Some lvars ->
+            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+          | None ->
+            incr cnt_error;
+            M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
+        in
+
+        let validate_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
+          let loc = loc_of_location loop_invariant.location in
+          let inv = loop_invariant.value in
+
+          match Locator.find_opt loop_locator loc with
+          | Some lvars ->
+            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+          | None ->
+            incr cnt_error;
+            M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
+        in
+
+        let validate_invariant (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
+          match invariant_type_enabled target_type, invariant.invariant_type with
+          | true, LocationInvariant x ->
+            validate_location_invariant x
+          | true, LoopInvariant x ->
+            validate_loop_invariant x
+          | false, (LocationInvariant _ | LoopInvariant _) ->
+            incr cnt_disabled;
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type;
+        in
+
+        List.iter validate_invariant invariant_set.content;
+        None
+      in
+
       match entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         validate_location_invariant x
@@ -646,7 +782,9 @@ struct
         validate_loop_invariant x
       | true, PreconditionLoopInvariant x ->
         validate_precondition_loop_invariant x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _) ->
+      | true, InvariantSet x ->
+        validate_invariant_set x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
         None
