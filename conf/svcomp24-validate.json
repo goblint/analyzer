@@ -87,7 +87,8 @@
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
-        "termination"
+        "termination",
+        "tmpSpecialAnalysis"
       ]
     },
     "widen": {

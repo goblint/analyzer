@@ -35,6 +35,7 @@ module type CFloatType = sig
   val sub: round_mode -> t -> t -> t
   val mul: round_mode -> t -> t -> t
   val div: round_mode -> t -> t -> t
+  val sqrt: round_mode -> t -> t
   val atof: round_mode -> string -> t
 end
 
@@ -74,6 +75,7 @@ module CDouble = struct
   external sub: round_mode -> t -> t -> t = "sub_double"
   external mul: round_mode -> t -> t -> t = "mul_double"
   external div: round_mode -> t -> t -> t = "div_double"
+  external sqrt: round_mode -> t -> t = "sqrt_double"
 
   external atof: round_mode -> string -> t = "atof_double"
 end
@@ -107,6 +109,7 @@ module CFloat = struct
   external sub: round_mode -> t -> t -> t = "sub_float"
   external mul: round_mode -> t -> t -> t = "mul_float"
   external div: round_mode -> t -> t -> t = "div_float"
+  external sqrt: round_mode -> t -> t = "sqrt_float"
 
   external atof: round_mode -> string -> t = "atof_float"
 

@@ -40,6 +40,8 @@ module type FloatArith = sig
   (** sin(x) *)
   val tan : t -> t
   (** tan(x) *)
+  val sqrt : t -> t
+  (** sqrt(x) *)
 
   (** {inversions of unary functions}*)
   val inv_ceil : ?asPreciseAsConcrete:bool -> t -> t
@@ -670,6 +672,14 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
 
+  let eval_sqrt = function
+    | (l, h) when l = Float_t.zero && h = Float_t.zero -> of_const 0.
+    | (l, h) when l >= Float_t.zero ->
+      let low = Float_t.sqrt Down l in
+      let high = Float_t.sqrt Up h in
+      Interval (low, high)
+    | _ -> top ()
+
   let eval_inv_ceil ?(asPreciseAsConcrete=false) = function
     | (l, h) ->
       if (Float_t.sub Up (Float_t.ceil l) (Float_t.sub Down (Float_t.ceil l) (Float_t.of_float Nearest 1.0)) = (Float_t.of_float Nearest 1.0)) then (
@@ -784,6 +794,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let cos = eval_unop eval_cos
   let sin = eval_unop eval_sin
   let tan = eval_unop eval_tan
+  let sqrt = eval_unop eval_sqrt
 
   let inv_ceil ?(asPreciseAsConcrete=false) = eval_unop ~warn:false (eval_inv_ceil ~asPreciseAsConcrete:asPreciseAsConcrete)
   let inv_floor ?(asPreciseAsConcrete=false) = eval_unop ~warn:false (eval_inv_floor ~asPreciseAsConcrete:asPreciseAsConcrete)
@@ -899,6 +910,7 @@ module FloatIntervalImplLifted = struct
   let cos = lift (F1.cos, F2.cos)
   let sin = lift (F1.sin, F2.sin)
   let tan = lift (F1.tan, F2.tan)
+  let sqrt = lift (F1.sqrt, F2.sqrt)
 
   let inv_ceil ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) = function
     | F32 a -> F32 (F1.inv_ceil ~asPreciseAsConcrete:true a)
@@ -1159,6 +1171,8 @@ module FloatDomTupleImpl = struct
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.sin); }
   let tan =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.tan); }
+  let sqrt =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.sqrt); }
 
   (*"asPreciseAsConcrete" has no meaning here*)
   let inv_ceil ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) =
