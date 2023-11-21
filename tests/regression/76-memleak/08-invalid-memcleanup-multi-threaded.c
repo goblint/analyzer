@@ -1,4 +1,4 @@
-//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak
+//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak  --set ana.activated[+] thread --set ana.activated[+] threadid
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -7,6 +7,7 @@ int *m1;
 
 void *f1(void *arg) {
     m1 = malloc(sizeof(int));
+    free(m1);
     // Thread t1 leaks m1 here
     pthread_exit(NULL); //WARN
 }
@@ -27,6 +28,9 @@ int main(int argc, char const *argv[]) {
     pthread_create(&t2, NULL, f2, NULL);
     
     free(g);
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
 
     // main thread is not leaking anything
     return 0; //NOWARN
