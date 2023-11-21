@@ -7,6 +7,7 @@ int *m1;
 void *f1(void *arg) {
     m1 = malloc(sizeof(int));
     while (1);
+    return NULL;
 }
 
 int main(int argc, char const *argv[]) {
@@ -14,8 +15,6 @@ int main(int argc, char const *argv[]) {
     pthread_create(&t1, NULL, f1, NULL);
 
     pthread_exit(NULL);
-
-    pthread_join(t1, NULL);
 
     // A pthread_join called in main will wait for other threads to finish
     // Therefore, no memory leak here
