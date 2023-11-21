@@ -342,9 +342,9 @@ struct
 
   module D = FlagConfiguredTID.D
 
-  let threadenter (t, d) node i v =
+  let threadenter ~multiple (t, d) node i v =
     match t with
-    | Thread tid -> List.map lift (FlagConfiguredTID.threadenter (tid, d) node i v)
+    | Thread tid -> List.map lift (FlagConfiguredTID.threadenter ~multiple (tid, d) node i v)
     | UnknownThread -> assert false
 
   let threadspawn = FlagConfiguredTID.threadspawn
