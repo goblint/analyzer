@@ -75,8 +75,25 @@ end
 module GVarF (V: SpecSysVar) =
 struct
   include Printable.Either (V) (CilType.Fundec)
+  let name () = "FromSpec"
   let spec x = `Left x
   let contexts x = `Right x
+
+  (* from Basetype.Variables *)
+  let var_id = show
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> true
+end
+
+module GVarFC (V:SpecSysVar) (C:Printable.S) =
+struct
+  include Printable.Either (V) (Printable.Prod (CilType.Fundec) (C))
+  let name () = "FromSpec"
+  let spec x = `Left x
+  let call (x, c) = `Right (x, c)
 
   (* from Basetype.Variables *)
   let var_id = show
@@ -341,7 +358,7 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; spawn    : lval option -> varinfo -> exp list -> unit
+  ; spawn    : ?multiple:bool -> lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
   }
@@ -443,10 +460,10 @@ sig
   val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
 
   (** Returns initial state for created thread. *)
-  val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
+  val threadenter : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
-  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
@@ -595,6 +612,12 @@ struct
   let is_write_only _ = false
 end
 
+module UnitV =
+struct
+  include Printable.Unit
+  include StdV
+end
+
 module VarinfoV =
 struct
   include CilType.Varinfo (* TODO: or Basetype.Variables? *)
@@ -642,7 +665,8 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.info ~category:Unsound "ASM statement ignored.");
+    M.msg_final Info ~category:Unsound "ASM ignored";
+    M.info ~category:Unsound "ASM statement ignored.";
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)
@@ -695,8 +719,8 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     ctx.local
 
-  let threadenter ctx lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [ctx.local]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 end
 
 

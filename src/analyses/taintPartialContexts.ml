@@ -88,9 +88,9 @@ struct
     d
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.bot ()]
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     match lval with
     | Some lv -> taint_lval ctx lv
     | None -> ctx.local
@@ -110,7 +110,7 @@ module VS = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All" 
 
 (* Convert Lval set to (less precise) Varinfo set. *)
 let conv_varset (addr_set : Spec.D.t) : VS.t =
-  if Spec.D.is_top addr_set then 
+  if Spec.D.is_top addr_set then
     VS.top ()
-  else 
-    VS.of_list (List.filter_map (fun addr -> Spec.D.Addr.to_var_may addr) (Spec.D.elements addr_set))
+  else
+    VS.of_list (Spec.D.to_var_may addr_set)

@@ -43,8 +43,8 @@ struct
   let name () = "var_eq"
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let typ_equal = CilType.Typ.equal (* TODO: Used to have equality checking, which ignores attributes. Is that needed? *)
@@ -258,7 +258,7 @@ struct
         if Queries.AD.is_top aad
         then false
         else Queries.AD.exists (function
-            | Addr (u,s) -> CilType.Varinfo.equal v u && oleq o (Addr.Offs.to_exp s)
+            | Addr (u,s) -> CilType.Varinfo.equal v u && oleq o (Addr.Offs.to_exp s) (* TODO: avoid conversion? *)
             | _ -> false
           ) aad
       in
@@ -294,11 +294,11 @@ struct
            | Question (b, t, f, _) -> lval_may_change_pt b bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let r =
-      if Cil.isConstant b then false
+      if Cil.isConstant b || Cil.isConstant a then false
       else if Queries.AD.is_top bad
       then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.AD.exists (function
-          | Addr (v,o) -> lval_may_change_pt a (v, Addr.Offs.to_exp o)
+          | Addr (v,o) -> lval_may_change_pt a (v, Addr.Offs.to_exp o) (* TODO: avoid conversion? *)
           | _ -> false
         ) bad
     in
@@ -441,8 +441,7 @@ struct
         D.top ()
       else
         let taint_exp =
-          Queries.AD.elements tainted
-          |> List.filter_map Addr.to_mval
+          Queries.AD.to_mval tainted
           |> List.map Addr.Mval.to_cil_exp
           |> Queries.ES.of_list
         in

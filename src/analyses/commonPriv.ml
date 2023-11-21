@@ -19,12 +19,14 @@ struct
       if not mutex_active then failwith "Privatization (to be useful) requires the 'mutex' analysis to be enabled (it is currently disabled)"
   end
 
-  module RequireMutexPathSensInit =
+  module RequireMutexPathSensOneMainInit =
   struct
     let init () =
       RequireMutexActivatedInit.init ();
       let mutex_path_sens = List.mem "mutex" (GobConfig.get_string_list "ana.path_sens") in
       if not mutex_path_sens then failwith "The activated privatization requires the 'mutex' analysis to be enabled & path sensitive (it is currently enabled, but not path sensitive)";
+      let mainfuns = List.length @@ GobConfig.get_list "mainfun" in
+      if not (mainfuns = 1) then failwith "The activated privatization requires exactly one main function to be specified";
       ()
   end
 
@@ -60,15 +62,10 @@ struct
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
-    let module VS = Set.Make (CilType.Varinfo) in
     Q.AD.fold (fun m acc ->
-        Q.AD.fold (fun l acc ->
-            match l with
-            | Q.AD.Addr.Addr (v,_) -> VS.add v acc (* always `NoOffset from mutex analysis *)
-            | _ -> acc
-          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
-      ) (ask.f Q.MustLockset) VS.empty
-    |> VS.elements
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+      ) (ask.f Q.MustLockset) (Q.VS.empty ())
+    |> Q.VS.elements
 end
 
 module MutexGlobals =
@@ -89,7 +86,7 @@ struct
   module V =
   struct
     (* TODO: Either3? *)
-    include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    include Printable.Either (struct include Printable.Either (VMutex) (VMutexInits) let name () = "mutex" end) (VGlobal)
     let name () = "MutexGlobals"
     let mutex x: t = `Left (`Left x)
     let mutex_inits: t = `Left (`Right ())
@@ -128,7 +125,7 @@ struct
       Lockset.empty ()
     else
       let ad = ask.f Queries.MustLockset in
-      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ())
+      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ()) (* TODO: use AD as Lockset *)
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)

@@ -410,6 +410,18 @@ struct
           meet_bin c c
         else
           a, b
+      | BAnd as op ->
+        (* we only attempt to refine a here *)
+        let a =
+          match ID.to_int b with
+          | Some x when BI.equal x BI.one ->
+            (match ID.to_bool c with
+             | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
+             | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
+             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a\n" d_binop op ID.pretty c; a)
+          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a\n" d_binop op ID.pretty b ID.pretty c; a
+        in
+        a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         a, b
@@ -545,8 +557,8 @@ struct
     in
     let eval e st = eval_rv a gs st e in
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
-    let unroll_fk_of_exp e = 
-      match unrollType (Cilfacade.typeOf e) with 
+    let unroll_fk_of_exp e =
+      match unrollType (Cilfacade.typeOf e) with
       | TFloat (fk, _) -> fk
       | _ -> failwith "value which was expected to be a float is of different type?!"
     in
@@ -700,8 +712,8 @@ struct
               begin match t with
                 | TInt (ik, _) ->
                   begin match x with
-                    | ((Var v), offs) -> 
-                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs))); 
+                    | ((Var v), offs) ->
+                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
                       let tv_opt = ID.to_bool c in
                       begin match tv_opt with
                         | Some tv ->
@@ -735,12 +747,12 @@ struct
               begin match t with
                 | TFloat (fk, _) ->
                   begin match x with
-                    | ((Var v), offs) -> 
-                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs))); 
+                    | ((Var v), offs) ->
+                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
                       begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
                         | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
                         | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
-                        | `Lifted (Fabs (ret_fk, xFloat)) -> 
+                        | `Lifted (Fabs (ret_fk, xFloat)) ->
                           let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
                           if FD.is_bot inv then
                             raise Analyses.Deadcode
@@ -793,15 +805,15 @@ struct
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
         | _ -> false
       in
-      try
-        let ik = Cilfacade.get_ikind_exp exp in
+      match Cilfacade.get_ikind_exp exp with
+      | ik ->
         let itv = if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
           else
             ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
         in
         inv_exp (Int itv) exp st
-      with Invalid_argument _ ->
+      | exception Invalid_argument _ ->
         let fk = Cilfacade.get_fkind_exp exp in
         let ftv = if not tv then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             FD.of_const fk 0.

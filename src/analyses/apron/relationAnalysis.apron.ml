@@ -196,7 +196,7 @@ struct
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
-    | ik when not (IntDomain.should_ignore_overflow ik) -> (* don't add type bounds for signed when assume_none *)
+    | ik ->
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
@@ -204,7 +204,6 @@ struct
       let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
       let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
       rel
-    | _
     | exception Invalid_argument _ ->
       rel
 
@@ -276,7 +275,7 @@ struct
   let reachable_from_args ctx args =
     let to_vs e =
       ctx.ask (ReachableFrom e)
-      |> LockDomain.MayLocksetNoRW.to_var_may
+      |> Queries.AD.to_var_may
       |> VS.of_list
     in
     List.fold (fun vs e -> VS.join vs (to_vs e)) (VS.empty ()) args
@@ -647,7 +646,7 @@ struct
 
   (* Thread transfer functions. *)
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let st = ctx.local in
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
@@ -665,7 +664,7 @@ struct
       (* TODO: do something like base? *)
       failwith "relation.threadenter: unknown function"
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     ctx.local
 
   let event ctx e octx =

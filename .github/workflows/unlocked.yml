@@ -18,6 +18,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
+          - 5.0.x
           - ocaml-variants.4.14.0+options,ocaml-option-flambda
           - 4.14.x
           - 4.13.x
@@ -45,7 +46,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
@@ -91,6 +92,10 @@ jobs:
         if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test apron termination regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group termination -s
+
       - name: Test regression cram
         run: opam exec -- dune runtest tests/regression
 
@@ -131,7 +136,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
@@ -208,14 +213,14 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2 # needed for GitHub Actions Cache in build-push-action
+        uses: docker/setup-buildx-action@v3 # needed for GitHub Actions Cache in build-push-action
 
       - name: Build dev Docker image
         id: build
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           target: dev
@@ -246,7 +251,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2

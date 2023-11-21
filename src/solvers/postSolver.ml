@@ -82,10 +82,13 @@ module Verify: F =
 
     let complain_constraint x ~lhs ~rhs =
       AnalysisState.verified := Some false;
+      M.msg_final Error ~category:Unsound "Fixpoint not reached";
       ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let complain_side x y ~lhs ~rhs =
       AnalysisState.verified := Some false;
+
+      M.msg_final Error ~category:Unsound "Fixpoint not reached";
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let one_side ~vh ~x ~y ~d =

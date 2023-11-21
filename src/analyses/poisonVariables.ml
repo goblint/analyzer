@@ -65,7 +65,7 @@ struct
     VS.join au ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 
   let event ctx e octx =
@@ -92,11 +92,8 @@ struct
         | ad when Queries.AD.is_top ad && not (VS.is_empty octx.local) ->
           M.warn ~category:(Behavior (Undefined Other)) "reading unknown memory location, may be tainted!"
         | ad ->
-          Queries.AD.iter (function
-              (* Use original access state instead of current with removed written vars. *)
-              | Queries.AD.Addr.Addr (v,o) -> check_mval octx.local (Queries.AD.Addr.Addr (v,o))
-              | _ -> ()
-            ) ad
+          (* Use original access state instead of current with removed written vars. *)
+          Queries.AD.iter (check_mval octx.local) ad
       end;
       ctx.local
     | Access {ad; kind = Write; _} ->
@@ -106,9 +103,7 @@ struct
           ctx.local
         | ad ->
           Queries.AD.fold (fun addr vs ->
-              match addr with
-              | Queries.AD.Addr.Addr _ -> rem_mval vs addr
-              | _ -> vs
+              rem_mval vs addr
             ) ad ctx.local
       end
     | _ -> ctx.local

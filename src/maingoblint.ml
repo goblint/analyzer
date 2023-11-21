@@ -9,11 +9,11 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %s\n" Version.goblint;
+  printf "Goblint version: %s\n" Goblint_build_info.version;
   printf "Cil version:     %s\n" Cil.cilVersion;
-  printf "Dune profile:    %s\n" ConfigProfile.profile;
+  printf "Dune profile:    %s\n" Goblint_build_info.dune_profile;
   printf "OCaml version:   %s\n" Sys.ocaml_version;
-  printf "OCaml flambda:   %s\n" ConfigOcaml.flambda;
+  printf "OCaml flambda:   %s\n" Goblint_build_info.ocaml_flambda;
   if get_bool "dbg.verbose" then (
     printf "Library versions:\n";
     List.iter (fun (name, version) ->
@@ -135,6 +135,7 @@ let check_arguments () =
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
+  if List.mem "memOutOfBounds" @@ get_string_list "ana.activated" && not @@ get_bool "cil.addNestedScopeAttr" then (set_bool "cil.addNestedScopeAttr" true; warn "The memOutOfBounds analysis enables cil.addNestedScopeAttr.");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
@@ -159,7 +160,14 @@ let check_arguments () =
         ^ String.concat " and " @@ List.map (fun s -> "'" ^ s ^ "'") imprecise_options)
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
-  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'"
+  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if List.mem "termination" @@ get_string_list "ana.activated" then (
+    if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
+    set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
+    set_string "sem.int.signed_overflow" "assume_none";
+    warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none";
+  );
+  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -185,6 +193,8 @@ let handle_options () =
   check_arguments ();
   AfterConfig.run ();
   Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+  if AutoTune.isActivated "memsafetySpecification" && get_string "ana.specification" <> "" then
+    AutoTune.focusOnMemSafetySpecification ();
   Cilfacade.init_options ();
   handle_flags ()
 
@@ -410,6 +420,10 @@ let preprocess_files () =
   );
   preprocessed
 
+(** Regex for special "paths" in cpp output:
+    <built-in>, <command-line>, but also translations! *)
+let special_path_regexp = Str.regexp "<.+>"
+
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
   (* get the AST *)
@@ -417,10 +431,10 @@ let parse_preprocessed preprocessed =
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
-    let transform_file (path_str, system_header) = match path_str with
-      | "<built-in>" | "<command-line>" ->
+    let transform_file (path_str, system_header) =
+      if Str.string_match special_path_regexp path_str 0 then
         (path_str, system_header) (* ignore special "paths" *)
-      | _ ->
+      else
         let path = Fpath.v path_str in
         let path' = if get_bool "pre.transform-paths" then (
             let cwd_opt =
@@ -479,7 +493,7 @@ let merge_parsed parsed =
 
   Cilfacade.current_file := merged_AST; (* Set before createCFG, so Cilfacade maps can be computed for loop unrolling. *)
   CilCfg.createCFG merged_AST; (* Create CIL CFG from CIL AST. *)
-  Cilfacade.reset_lazy (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling. *)
+  Cilfacade.reset_lazy ~keepupjumpinggotos:true (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling but keep gotos. *)
   merged_AST
 
 let preprocess_parse_merge () =
@@ -584,19 +598,19 @@ let do_gobview cilfile =
       let file_dir = Fpath.(run_dir / "files") in
       GobSys.mkdir_or_exists file_dir;
       let file_loc = Hashtbl.create 113 in
-      let counter = ref 0 in
-      let copy path =
+      let copy (path, i) =
         let name, ext = Fpath.split_ext (Fpath.base path) in
-        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int !counter) name) in
-        counter := !counter + 1;
+        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int i) name) in
         let dest = Fpath.(file_dir // unique_name) in
         let gobview_path = match Fpath.relativize ~root:run_dir dest with
           | Some p -> Fpath.to_string p
           | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
         Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
-        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest) in
+        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest)
+      in
       let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
-      List.iter copy source_paths;
+      let source_file_paths = List.filteri_map (fun i e -> if Fpath.is_file_path e then Some (e, i) else None) source_paths in
+      List.iter copy source_file_paths;
       Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
       (* marshal timing statistics *)
       let stats = Fpath.(run_dir / "stats.marshalled") in

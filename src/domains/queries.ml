@@ -92,14 +92,19 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
-  | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
+  | BlobSize: {exp: Cil.exp; base_address: bool} -> ID.t t
+  (* Size of a dynamically allocated `Blob pointed to by exp. *)
+  (* If the record's second field is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
-  | HeapVar: VI.t t
+  | AllocVar: {on_stack: bool} -> VI.t t
+  (* Create a variable representing a dynamic allocation-site *)
+  (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
+  | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t
   (* For locals: Is another copy of this local variable reachable via pointers? *)
@@ -114,7 +119,7 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
-  | MustProtectedVars: mustprotectedvars -> AD.t t
+  | MustProtectedVars: mustprotectedvars -> VS.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -122,6 +127,9 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: AD.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | MustTermLoop: stmt -> MustBool.t t
+  | MustTermAllLoops: MustBool.t t
+  | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
 
 type 'a result = 'a
@@ -152,6 +160,7 @@ struct
     | MayBePublicWithout _ -> (module MayBool)
     | MayBeThreadReturn -> (module MayBool)
     | IsHeapVar _ -> (module MayBool)
+    | IsAllocVar _ -> (module MayBool)
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
     | MustBeSingleThreaded _ -> (module MustBool)
@@ -163,7 +172,7 @@ struct
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
-    | HeapVar -> (module VI)
+    | AllocVar _ -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
@@ -179,7 +188,7 @@ struct
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
-    | MustProtectedVars _ -> (module AD)
+    | MustProtectedVars _ -> (module VS)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
@@ -187,6 +196,9 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module AD)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | MustTermLoop _ -> (module MustBool)
+    | MustTermAllLoops -> (module MustBool)
+    | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
 
   (** Get bottom result for query. *)
@@ -216,6 +228,7 @@ struct
     | MayBePublicWithout _ -> MayBool.top ()
     | MayBeThreadReturn -> MayBool.top ()
     | IsHeapVar _ -> MayBool.top ()
+    | IsAllocVar _ -> MayBool.top ()
     | MutexType _ -> MutexAttrDomain.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
@@ -228,7 +241,7 @@ struct
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
-    | HeapVar -> VI.top ()
+    | AllocVar _ -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
@@ -243,7 +256,7 @@ struct
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
-    | MustProtectedVars _ -> AD.top ()
+    | MustProtectedVars _ -> VS.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
@@ -251,6 +264,9 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> AD.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | MustTermLoop _ -> MustBool.top ()
+    | MustTermAllLoops -> MustBool.top ()
+    | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
 end
 
@@ -288,7 +304,7 @@ struct
     | Any (PartAccess _) -> 23
     | Any (IterPrevVars _) -> 24
     | Any (IterVars _) -> 25
-    | Any HeapVar -> 29
+    | Any (AllocVar _) -> 29
     | Any (IsHeapVar _) -> 30
     | Any (IsMultiple _) -> 31
     | Any (EvalThread _) -> 32
@@ -312,7 +328,11 @@ struct
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
+    | Any (MustTermLoop _) -> 53
+    | Any MustTermAllLoops -> 54
+    | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 53
+    | Any (IsAllocVar _) -> 54
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -335,7 +355,12 @@ struct
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
-      | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
+      | Any (BlobSize {exp = e1; base_address = b1}), Any (BlobSize {exp = e2; base_address = b2}) ->
+        let r = CilType.Exp.compare e1 e2 in
+        if r <> 0 then
+          r
+        else
+          Stdlib.compare b1 b2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
@@ -347,7 +372,9 @@ struct
         else
           compare (Any q1) (Any q2)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsAllocVar v1), Any (IsAllocVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
+      | Any (MustTermLoop s1), Any (MustTermLoop s2) -> CilType.Stmt.compare s1 s2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
@@ -380,13 +407,15 @@ struct
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
     | Any (EvalValue e) -> CilType.Exp.hash e
-    | Any (BlobSize e) -> CilType.Exp.hash e
+    | Any (BlobSize {exp = e; base_address = b}) -> CilType.Exp.hash e + Hashtbl.hash b
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
+    | Any (MustTermLoop s) -> CilType.Stmt.hash s
+    | Any (IsAllocVar v) -> CilType.Varinfo.hash v
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
@@ -428,14 +457,15 @@ struct
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
     | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
-    | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
+    | Any (BlobSize {exp = e; base_address = b}) -> Pretty.dprintf "BlobSize %a (base_address: %b)" CilType.Exp.pretty e b
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
-    | Any HeapVar -> Pretty.dprintf "HeapVar"
+    | Any (AllocVar {on_stack = on_stack}) -> Pretty.dprintf "AllocVar %b" on_stack
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
+    | Any (IsAllocVar v) -> Pretty.dprintf "IsAllocVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
     | Any (EvalThread e) -> Pretty.dprintf "EvalThread %a" CilType.Exp.pretty e
     | Any (EvalJumpBuf e) -> Pretty.dprintf "EvalJumpBuf %a" CilType.Exp.pretty e
@@ -455,6 +485,9 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any (MustTermLoop s) -> Pretty.dprintf "MustTermLoop %a" CilType.Stmt.pretty s
+    | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
+    | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
 end
 

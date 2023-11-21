@@ -115,7 +115,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -824,6 +824,8 @@ struct
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
+      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
+      let r =
       match x, offs with
       | Blob((va, _, orig) as c), `Index (_, ox) ->
         begin
@@ -886,6 +888,9 @@ struct
             | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
+      in
+      if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a\n" pretty r;
+      r
     in
     let l, o = match exp with
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)

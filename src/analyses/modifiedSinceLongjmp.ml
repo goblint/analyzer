@@ -23,7 +23,8 @@ struct
     (* Only checks for v.vglob on purpose, acessing espaced locals after longjmp is UB like for any local *)
     not v.vglob (* *) && not (BaseUtil.is_volatile v) && v.vstorage <> Static
 
-  let relevants_from_ls ls =
+  let relevants_from_ad ls =
+    (* TODO: what about AD with both known and unknown pointers? *)
     if Queries.AD.is_top ls then
       VS.top ()
     else
@@ -33,23 +34,12 @@ struct
           | _ -> acc
         ) ls (VS.empty ())
 
-  let relevants_from_ad ad =
-    (* TODO: what about AD with both known and unknown pointers? *)
-    if Queries.AD.is_top ad then
-      VS.top ()
-    else
-      Queries.AD.fold (fun addr vs ->
-          match addr with
-          | Queries.AD.Addr.Addr (v,_) -> if is_relevant v then VS.add v vs else vs
-          | _ -> vs
-        ) ad (VS.empty ())
-
   (* transfer functions *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    let taintedcallee = relevants_from_ls (f_ask.f Queries.MayBeTainted) in
+    let taintedcallee = relevants_from_ad (f_ask.f Queries.MayBeTainted) in
     add_to_all_defined taintedcallee ctx.local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
@@ -67,7 +57,7 @@ struct
       ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

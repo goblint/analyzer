@@ -877,18 +877,9 @@ module Spec : Analyses.MCPSpec = struct
 
   module ExprEval = struct
     let eval_ptr ctx exp =
-      let ad = ctx.ask (Queries.MayPointTo exp) in
-      if (not (Queries.AD.is_top ad)) && not (Queries.AD.is_empty ad) then
-        if Queries.AD.exists (function (* TODO: always false *)
-            | UnknownPtr _ -> true
-            | _ -> false) ad
-        then (* UNSOUND *)
-          Queries.AD.remove_unknownptrs ad
-          |> Queries.AD.to_var_may
-        else
-          Queries.AD.to_var_may ad
-      else
-        []
+      ctx.ask (Queries.MayPointTo exp)
+      |> Queries.AD.remove UnknownPtr (* UNSOUND *)
+      |> Queries.AD.to_var_may
 
     let eval_var ctx exp =
       match exp with
@@ -1128,11 +1119,7 @@ module Spec : Analyses.MCPSpec = struct
             ad
         in
         let thread_fun =
-          Queries.AD.fold (fun addr vars ->
-              match addr with
-              | Queries.AD.Addr.Addr (v,_) -> v :: vars
-              | _ -> vars
-            ) funs_ad []
+          Queries.AD.to_var_may funs_ad
           |> List.unique ~eq:(fun a b -> a.vid = b.vid)
           |> List.hd
         in
@@ -1251,13 +1238,13 @@ module Spec : Analyses.MCPSpec = struct
       (Ctx.top ())
 
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let d : D.t = ctx.local in
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)
     let tasks_f =
       let var_in_ad ad f = Queries.AD.exists (function
-          | Queries.AD.Addr.Addr (ls_f,_) -> ls_f = f
+          | Queries.AD.Addr.Addr (ls_f,_) -> CilType.Varinfo.equal ls_f f
           | _ -> false
         ) ad
       in
@@ -1267,7 +1254,7 @@ module Spec : Analyses.MCPSpec = struct
     [ { f_d with pred = d.pred } ]
 
 
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let exitstate v = D.top ()
 

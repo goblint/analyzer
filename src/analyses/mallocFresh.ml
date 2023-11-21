@@ -43,7 +43,7 @@ struct
     | Malloc _
     | Calloc _
     | Realloc _ ->
-      begin match ctx.ask HeapVar with
+      begin match ctx.ask (AllocVar {on_stack = false}) with
         | `Lifted var -> D.add var ctx.local
         | _ -> ctx.local
       end
@@ -52,10 +52,10 @@ struct
       | None -> ctx.local
       | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.empty ()]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     D.empty ()
 
   module A =

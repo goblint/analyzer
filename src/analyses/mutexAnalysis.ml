@@ -30,6 +30,8 @@ struct
 
       include MapDomain.MapTop_LiftBot (ValueDomain.Addr) (Count)
 
+      let name () = "multiplicity"
+
       let increment v x =
         let current = find v x in
         if current = max_count () then
@@ -240,8 +242,8 @@ struct
     | Queries.MustProtectedVars {mutex = m; write} ->
       let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
-          Queries.AD.join (Queries.AD.of_var v) acc
-        ) protected (Queries.AD.empty ())
+          Queries.VS.add v acc
+        ) protected (Queries.VS.empty ())
     | Queries.IterSysVars (Global g, f) ->
       f (Obj.repr (V.protecting g)) (* TODO: something about V.protected? *)
     | WarnGlobal g ->

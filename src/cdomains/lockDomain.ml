@@ -7,7 +7,7 @@ module IdxDom = ValueDomain.IndexDomain
 
 open GoblintCil
 
-module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO HoareDomain? *)
+module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
 module Simple = Lattice.Reverse (Mutexes)
 module Priorities = IntDomain.Lifted
 
@@ -37,6 +37,7 @@ struct
   end
 
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
+  let name () = "lockset"
 
   let may_be_same_offset of1 of2 =
     (* Only reached with definite of2 and indefinite of1. *)
