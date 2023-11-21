@@ -2123,7 +2123,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
-        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+        invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2328,7 +2328,7 @@ struct
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
-      let apply_abs ik x =
+let apply_abs ik x =
         let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
         begin match eval_x with
           | Int int_x ->
