@@ -1,19 +1,18 @@
-//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak --set ana.activated[+] thread
+//PARAM: --set ana.malloc.unique_address_count 1 --set ana.activated[+] memLeak --set ana.base.privatization mutex-meet-tid --set ana.path_sens[+] threadflag  --set ana.activated[+] thread
 #include <stdlib.h>
 #include <pthread.h>
 
 int *g;
 int *m1;
+int *m2;
 
 void *f1(void *arg) {
     m1 = malloc(sizeof(int));
-    free(m1);
     // Thread t1 leaks m1 here
     pthread_exit(NULL); //WARN
 }
 
 void *f2(void *arg) {
-    int *m2;
     m2 = malloc(sizeof(int));
     free(m2); // No leak for thread t2, since it calls free before exiting
     pthread_exit(NULL); //NOWARN

@@ -22,10 +22,16 @@ struct
 
   let context _ d = d
 
+  let must_be_single_threaded ~since_start ctx =
+    ctx.ask (Queries.MustBeSingleThreaded { since_start })
+
+  let was_malloc_called ctx =
+    ctx.global ()
+
   (* HELPER FUNCTIONS *)
   let warn_for_multi_threaded_due_to_abort ctx =
-    let malloc_called = ctx.global () in
-    if not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true })) && malloc_called then (
+    let malloc_called = was_malloc_called ctx in
+    if not (must_be_single_threaded ctx ~since_start:true) && malloc_called then (
       set_mem_safety_flag InvalidMemTrack;
       set_mem_safety_flag InvalidMemcleanup;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program aborted while running in multi-threaded mode. A memory leak might occur"
@@ -176,11 +182,18 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Check for a valid-memcleanup and memtrack violation in a multi-threaded setting *)
     (* The check for multi-threadedness is to ensure that valid-memtrack and valid-memclenaup are treated separately for single-threaded programs *)
-    if (ctx.ask (Queries.MayBeThreadReturn) &&  not (ctx.ask (Queries.MustBeSingleThreaded { since_start = true }))) then (
-        warn_for_thread_return_or_exit ctx true
+    if (ctx.ask (Queries.MayBeThreadReturn) &&  not (must_be_single_threaded ctx ~since_start:true)) then (
+      warn_for_thread_return_or_exit ctx true
     );
     (* Returning from "main" is one possible program exit => need to check for memory leaks *)
-    if f.svar.vname = "main" then check_for_mem_leak ctx;
+    if f.svar.vname = "main" then (
+      check_for_mem_leak ctx;
+      if not (must_be_single_threaded ctx ~since_start:false) && was_malloc_called ctx then begin
+        set_mem_safety_flag InvalidMemTrack;
+        set_mem_safety_flag InvalidMemcleanup;
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Possible memory leak: Memory was allocated in a multithreaded program, but not all threads are joined."
+      end
+    );
     ctx.local
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
