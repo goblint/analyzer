@@ -324,47 +324,17 @@ struct
      module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) *)
 
   type var = V.t
+  (* prints the current variable equalities with resolved variable names *)
+  let show varM =
+    let lookup i = Var.to_string (Environment.var_of_dim varM.env i) in
+    let show_var i tuple =
+        match tuple with
+        | (None, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ Z.to_string offset
+        | (Some index, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ lookup index ^ " + " ^ Z.to_string offset
+    in match varM.d with
+    | None -> "No equalities available"
+    | Some arr -> Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
 
-  let show t =
-    let conv_to_ints row =
-      let module BI = IntOps.BigIntOps in
-      let row = EqualitiesArray.copy @@ Vector.to_EqualitiesArray row
-      in
-      for i = 0 to EqualitiesArray.length row -1 do
-        let val_i = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ Mpqf.get_den row.(i)
-        in EqualitiesArray.iteri(fun j x -> row.(j) <- val_i *: x)  row
-      done;
-      let int_arr = EqualitiesArray.init (EqualitiesArray.length row) (fun i -> Mpqf.get_num row.(i))
-      in let div = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ EqualitiesArray.fold_left BI.gcd int_arr.(0) int_arr
-      in EqualitiesArray.iteri (fun i x -> row.(i) <- x /: div) row;
-      Vector.of_EqualitiesArray @@ row
-    in
-    let vec_to_constraint vec env =
-      let vars, _ = Environment.vars env
-      in let dim_to_str var =
-           let vl =  Vector.nth vec (Environment.dim_of_var env var)
-           in let var_str = Var.to_string var
-           in if vl =: Mpqf.one then "+" ^ var_str
-           else if vl =: Mpqf.mone then "-" ^ var_str
-           else if vl <: Mpqf.mone then Mpqf.to_string vl ^ var_str
-           else if vl >: Mpqf.one then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
-           else ""
-      in
-      let c_to_str vl =
-        if vl >: Mpqf.zero then "-" ^ Mpqf.to_string vl
-        else if vl <: Mpqf.zero then "+" ^ Mpqf.to_string vl
-        else ""
-      in
-      let res = (String.concat "" @@ EqualitiesArray.to_list @@ EqualitiesArray.map dim_to_str vars)
-                ^ (c_to_str @@ Vector.nth vec (Vector.length vec - 1)) ^ "=0"
-      in if String.starts_with res "+" then String.sub res 1 (String.length res - 1) else res
-    in
-    match t.d with
-    | None -> "Bottom Env"
-    | Some m when Vector.length m = 0 -> "⊤"
-    | Some m ->
-      let constraint_list = List.init (Vector.length m) (fun i -> vec_to_constraint (conv_to_ints @@ m) t.env)
-      in Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]")
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
