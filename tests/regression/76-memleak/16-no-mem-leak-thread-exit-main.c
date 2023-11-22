@@ -14,9 +14,9 @@ int main(int argc, char const *argv[]) {
     pthread_t t1;
     pthread_create(&t1, NULL, f1, NULL);
 
-    pthread_exit(NULL);
-
     // A pthread_exit called in main will wait for other threads to finish
     // Therefore, no memory leak here
-    return 0; // NOWARN
+    pthread_exit(NULL); // NOWARN
+
+    return 0; // NOWARN (unreachable)
 }
