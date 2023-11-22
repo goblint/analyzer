@@ -1,3 +1,21 @@
+## v2.3.0 (unreleased)
+Functionally equivalent to Goblint in SV-COMP 2024.
+
+### SV-COMP 2024
+* Add termination analysis (#1093).
+* Add OOB analysis (#1094, #1197).
+* Add memory leak analysis (???, #1246, #1241).
+* Improve multi-threaded use-after-free analysis (#1123, ).
+* Support MemSafety in SV-COMP (#1201, #1199, #1262).
+* YAML witnesses in SV-COMP mode (#1217, #1226, #1225, #1248).
+* YAML witness version 2.0 (#1238, #1240).
+* SV-COMP multi-property (#1220, #1228).
+* Adapt autotuning (#912, #921, #987, #1214, #1234, #1168).
+* Support `alloca` (#1179).
+* Fix old thread analysis soundness (#1223, #1230).
+* Add library functions (#1242, #1244, #1254, #1239).
+* Fix some region escape unsoundness (#1247).
+
 ## v2.2.1
 * Bump batteries lower bound to 3.5.0.
 * Fix flaky dead code elimination transformation test.
