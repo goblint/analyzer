@@ -217,7 +217,8 @@ let createCFG (file: file) =
 
         | Instr _
         | If _
-        | Return _ ->
+        | Return _
+        | Asm _ ->
           stmt, visited_stmts
 
         | Continue _
@@ -295,7 +296,6 @@ let createCFG (file: file) =
             let edge_of_instr = function
               | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
               | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
-              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
@@ -378,6 +378,10 @@ let createCFG (file: file) =
             (* Nothing to do, find_real_stmt skips over these. *)
             ()
 
+          | Asm (_, _, _, _, _, labels, _) ->
+              (* todo: how to do the duplication??? *)
+              ()
+
           | Continue _
           | Break _
           | Switch _ ->
@@ -386,6 +390,7 @@ let createCFG (file: file) =
 
           | ComputedGoto _ ->
             failwith "CfgTools.createCFG: unsupported stmt"
+        
         in
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "handle" (List.iter handle) fd.sallstmts;
 
