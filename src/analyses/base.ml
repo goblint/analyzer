@@ -1056,7 +1056,13 @@ struct
             );
             (* Warn if any of the addresses contains a non-local and non-global variable *)
             if AD.exists (function
-                | AD.Addr.Addr (v, _) -> not (CPA.mem v st.cpa) && not (is_global a v)
+                | AD.Addr.Addr (v, _) ->
+                  (M.tracel "wtf" "checking for %a\n" CilType.Varinfo.pretty v;
+                   if v.vglob then
+                     (* this is OK *)
+                     false
+                   else
+                     (not (CPA.mem v st.cpa)) || WeakUpdates.mem v st.weak)
                 | _ -> false
               ) adr then (
               AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
