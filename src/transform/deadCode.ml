@@ -72,7 +72,7 @@ let filter_map_block ?(unchecked_condition = Fun.const (GoblintCil.integer 1)) f
         let keep_block = impl_block b in
         if keep_stmt || keep_block then Some skind else None
 
-      | Instr _ | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ as skind ->
+      | Instr _ | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ | Asm _ as skind ->
         (* no further statements are contained recursively here, so nothing left to do *)
         if keep_stmt then Some skind else None
 
@@ -91,7 +91,7 @@ let filter_map_block ?(unchecked_condition = Fun.const (GoblintCil.integer 1)) f
 (** Is it possible for this statement to begin executing normally, but not finish? *)
 let may_stop_execution stmt =
   match stmt.skind with
-  | Instr is -> List.exists (function Call _ | Asm _ -> true | _ -> false) is
+  | Instr is -> List.exists (function Call _ -> true | _ -> false) is
   | _ -> false
 
 (** Perform a depth first search over the CFG. Record the IDs of live statements;

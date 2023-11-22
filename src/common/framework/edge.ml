@@ -21,9 +21,9 @@ type t =
     * transferred to the function node! *)
   | Test of CilType.Exp.t * bool
   (** The true-branch or false-branch of a conditional exp *)
-  | ASM of string list * asm_out * asm_in
+  | ASM of string list * asm_out * asm_in * bool
   (** Inline assembly statements, and the annotations for output and input
-    * variables. *)
+    * variables. The last field is a flag that indicates if this is a duplicated edge. *)
   | VDecl of CilType.Varinfo.t
   (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
     * local variables or only when it is not possible to pull the declaration up, is
@@ -43,7 +43,7 @@ let pretty () = function
   | Entry (f) -> Pretty.text "(body)"
   | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
   | Ret (None,f) -> Pretty.dprintf "return"
-  | ASM (_,_,_) -> Pretty.text "ASM ..."
+  | ASM (_,_,_,_) -> Pretty.text "ASM ..."
   | Skip -> Pretty.text "skip"
   | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
 
@@ -91,7 +91,7 @@ let to_yojson e =
         ("function", CilType.Fundec.to_yojson function_);
         ("exp", [%to_yojson: CilType.Exp.t option] exp);
       ]
-    | ASM (instructions, output, input) ->
+    | ASM (instructions, output, input, _) ->
       [
         ("type", `String "asm");
         ("instructions", [%to_yojson: string list] instructions);

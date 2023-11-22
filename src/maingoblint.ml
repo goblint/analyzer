@@ -399,8 +399,11 @@ let preprocess_files () =
 
   let preprocessed =
     List.concat_map preprocess_arg_file (List.map Fpath.v (get_string_list "files"))
+    (* todo: uncomment; for testing only *)
+    (*
     @
     List.concat_map (preprocess_arg_file ~preprocess:true) !extra_files
+    *)
   in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
@@ -455,8 +458,6 @@ let parse_preprocessed preprocessed =
       Cilfacade.getAST preprocessed_file
     with
     | Frontc.ParseError s ->
-      if !E.hadErrors then
-        E.s (E.error "There were parsing errors in %s" fileName_str);
       raise (FrontendError (Format.sprintf "Frontc.ParseError: %s" s))
     | Errormsg.Error ->
       raise (FrontendError "Errormsg.Error")
@@ -556,7 +557,7 @@ let do_analyze change_info merged_AST =
         (* Cilfacade.current_file := ast'; *)
     in
 
-    Timing.wrap "analysis" (control_analyze merged_AST) funs
+    Timing.wrap "analysis" (control_analyze merged_AST) funs 
   )
 
 let do_html_output () =

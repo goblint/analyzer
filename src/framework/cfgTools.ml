@@ -378,9 +378,18 @@ let createCFG (file: file) =
             (* Nothing to do, find_real_stmt skips over these. *)
             ()
 
-          | Asm (_, _, _, _, _, labels, _) ->
-              (* todo: how to do the duplication??? *)
-              ()
+          | Asm (_, tmpls, outs, ins, _, labels, loc) ->
+            begin match real_succs () with
+            | [] -> failwith "MyCFG.createCFG: 0 Asm succ"
+            | [succ, skippedStatements] -> begin
+                addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, false)) (Statement succ);
+                List.iter (fun label ->
+                  let succ, skippedStatements = find_real_stmt ~parent:stmt !label in 
+                  addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, true)) (Statement succ)
+                ) labels
+              end
+            | _ -> failwith "MyCFG.createCFG: >1 Asm succ"
+            end
 
           | Continue _
           | Break _
