@@ -1139,6 +1139,9 @@ struct
 
   (* interpreter end *)
 
+  let is_not_alloc_var ctx v =
+    not (ctx.ask (Queries.IsAllocVar v))
+
   let is_not_heap_alloc_var ctx v =
     let is_alloc = ctx.ask (Queries.IsAllocVar v) in
     not is_alloc || (is_alloc && not (ctx.ask (Queries.IsHeapVar v)))
@@ -1277,7 +1280,7 @@ struct
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_heap_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
@@ -1289,9 +1292,15 @@ struct
               else
                 a
             in
-            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
+            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
+             | Array a ->
+               (* unroll into array for Calloc calls *)
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
+                | Blob (_,s,_) -> `Lifted s
+                | _ -> Queries.Result.top q
+               )
              | Blob (_,s,_) -> `Lifted s
              | _ -> Queries.Result.top q)
           )
