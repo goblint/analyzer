@@ -93,6 +93,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("iswspace", unknown [drop "wc" []]);
     ("iswalnum", unknown [drop "wc" []]);
     ("iswprint", unknown [drop "wc" []]);
+    ("iswxdigit", unknown [drop "ch" []]);
     ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("perror", unknown [drop "s" [r]]);
     ("getchar", unknown []);
