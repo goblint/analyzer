@@ -22,12 +22,15 @@ struct
   module P = IdentityP (D)
 
   (* transfer functions *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
+  let handle_thread_return ctx (exp: exp option) =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
-    begin match tid with
+    match tid with
       | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
       | _ -> ()
-    end;
+
+  let return ctx (exp:exp option) _ : D.t =
+    if ctx.ask Queries.MayBeThreadReturn then
+      handle_thread_return ctx exp;
     ctx.local
 
   let rec is_not_unique ctx tid =
@@ -64,6 +67,9 @@ struct
        | [t] -> join_thread ctx.local t (* single thread *)
        | _ -> ctx.local (* if several possible threads are may-joined, none are must-joined *)
        | exception SetDomain.Unsupported _ -> ctx.local)
+    | ThreadExit { ret_val } ->
+      handle_thread_return ctx (Some ret_val);
+      ctx.local
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
