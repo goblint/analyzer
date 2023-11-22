@@ -10,8 +10,10 @@ open Pretty
 module M = Messages
 open Apron
 open VectorMatrix
+open Printf
 
 (** TODO: modify code *)
+
 module Mpqf = struct (* multi-precision rational numbers *)
   include Mpqf
   let compare = cmp
@@ -40,7 +42,6 @@ module EqualitiesArray = struct
 
   let add_element m n = 
     let num_vars = length m in
-    if num_vars = 0 then m else
     if n > num_vars then failwith "n too large" else
       let new_array = make (num_vars + 1) Equality.zero in
       if n = 0 then blit m 0 new_array 1 (num_vars - 1) else
@@ -49,7 +50,7 @@ module EqualitiesArray = struct
 
   let add_elements m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
     let nnc = length indexes in
-    if length m = 0 || nnc = 0 then m else
+    if nnc = 0 then m else
       let nc = length m in
       let m' = make (nc + nnc) Equality.zero in
       let offset = ref 0 in
@@ -98,6 +99,16 @@ struct
   [@@deriving eq, ord, hash] (*TODO add hash**)
 
   let empty_env = Environment.make [||] [||]
+  
+  (* For debugging *)
+  let print_env = Environment.print (Format.std_formatter)
+  let print_opt x = match x with
+  | Some x -> printf "%d " x
+  | None -> printf "None "
+  let print_d = Array.iter (fun (var, off) -> print_opt var; Z.print off)
+  let print_t t = match t.d with
+  | Some x -> print_d x
+  | None -> printf "None "; print_env t.env
 
   let bot () =
     {d = Some [||]; env = empty_env}
@@ -128,7 +139,7 @@ struct
         else Environment.dimchange new_env t.env
       in match t.d with
       | None -> bot_env
-      | Some m -> {d = Some (dim_add dim_change m); env = new_env}
+      | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
 
   let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
 
@@ -242,6 +253,8 @@ struct
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
 end
+(*end*)
+
 (*
 (** As it is specifically used for the new affine equality domain, it can only provide bounds if the expression contains known constants only and in that case, min and max are the same. *)
 module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc).t) =
@@ -267,16 +280,16 @@ struct
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
 end
-
+*)
 module D(Vc: AbstractVector) (Mx: AbstractMatrix) =
 struct
   include Printable.Std
   include ConvenienceOps (Mpqf)
-  include VarManagement (Vc)
+  include VarManagement 
 
-  module Bounds = ExpressionBounds (Vc) (Mx)
+  (* module Bounds = ExpressionBounds (Vc) (Mx) 
 
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) *)
 
   type var = V.t
 
@@ -701,4 +714,4 @@ struct
   include D
 
 end
-*)
+
