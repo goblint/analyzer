@@ -125,6 +125,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("clearerr", unknown [drop "stream" [w]]);
     ("clearerr_unlocked", unknown [drop "stream" [w]]);
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
+    ("wprintf", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("fwprintf", unknown (drop "stream" [w] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
@@ -158,6 +160,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
     ("_Exit", special [drop "status" []] @@ Abort);
     ("strcoll", unknown [drop "lhs" [r]; drop "rhs" [r]]);
+    ("wscanf", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("fwscanf", unknown (drop "stream" [r] :: drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("swscanf", unknown (drop "buffer" [r] :: drop "fmt" [r] :: VarArgs (drop' [r])));
   ]
 
 (** C POSIX library functions.
