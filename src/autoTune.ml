@@ -223,10 +223,6 @@ let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
     set_bool "cil.addNestedScopeAttr" true;
     print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
     enableAnalyses memOobAna;
-    (* Set privatization to mutex-meet-tid *)
-    set_string "ana.base.privatization" "mutex-meet-tid";
-    (* Required for mutex-meet-tid privatization *)
-    GobConfig.set_auto "ana.path_sens[+]" "threadflag";
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the memLeak analysis *)
     let memLeakAna = ["memLeak"] in
