@@ -7,7 +7,6 @@ int *m1;
 
 void *f1(void *arg) {
     m1 = malloc(sizeof(int));
-    free(m1);
     // Thread t1 leaks m1 here
     pthread_exit(NULL); //WARN
 }
