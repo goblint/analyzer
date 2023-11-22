@@ -16,7 +16,7 @@ int main(int argc, char const *argv[]) {
 
     pthread_exit(NULL);
 
-    // A pthread_join called in main will wait for other threads to finish
+    // A pthread_exit called in main will wait for other threads to finish
     // Therefore, no memory leak here
     return 0; // NOWARN
 }
