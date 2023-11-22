@@ -76,8 +76,6 @@ module EqualitiesArray = struct
 
   let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
-  let remove_zero_elements m =
-    filter (fun x -> x = 0) m
 
 end
 
@@ -99,16 +97,16 @@ struct
   [@@deriving eq, ord, hash] (*TODO add hash**)
 
   let empty_env = Environment.make [||] [||]
-  
+
   (* For debugging *)
   let print_env = Environment.print (Format.std_formatter)
   let print_opt x = match x with
-  | Some x -> printf "%d " x
-  | None -> printf "None "
+    | Some x -> printf "%d " x
+    | None -> printf "None "
   let print_d = Array.iter (fun (var, off) -> print_opt var; Z.print off)
   let print_t t = match t.d with
-  | Some x -> print_d x
-  | None -> printf "None "; print_env t.env
+    | Some x -> print_d x
+    | None -> printf "None "; print_env t.env
 
   let bot () =
     {d = Some [||]; env = empty_env}
@@ -252,6 +250,40 @@ struct
     | x -> Some(x)
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
+
+  let find_reference_variable d env var = fst d.(Environment.dim_of_var env var)
+
+  let find_vars_in_the_connected_component d env ref_var = 
+    EArray.filter (fun i -> let (var, _) = d.(i) in var = ref_var) (EArray.mapi const d)
+
+  let find_var_in_the_connected_component_with_least_index d env ref_var = 
+    EArray.fold_left (fun curr_min (var, _) -> if var = ref_var then match curr_min with
+        | None -> var
+        | Some curr_min ->
+          match var with 
+          |Some i -> if i < curr_min then Some i else Some curr_min
+          | None -> Some curr_min else curr_min) None d
+
+  let abstract_exists var t = match t.d with 
+    | Some d -> 
+      (* let ref_var = find_reference_variable d t.env var in *)
+      if Environment.mem_var t.env var then 
+        (* let connected_component = find_vars_in_the_connected_component d t.env ref_var in *)
+        remove_vars t [var]
+      else 
+        (* the connected component is either empty, or x_i is the reference variable *)
+        let dim_of_var = Some (Environment.dim_of_var t.env var) in
+        let connected_component = find_vars_in_the_connected_component d t.env dim_of_var in
+        if connected_component = [||] then t else
+          (* TODO: x_i is the reference variable *)
+          begin match find_var_in_the_connected_component_with_least_index d t.env dim_of_var with
+            | Some var_least_index -> let (_, off) = d.(var_least_index) in 
+              EArray.iteri (fun _ x -> let (_, off2) = d.(x) in d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
+              {d = Some d;
+               env = t.env}
+            | None -> t
+          end
+    | None -> t
 end
 (*end*)
 
@@ -289,7 +321,7 @@ struct
 
   (* module Bounds = ExpressionBounds (Vc) (Mx) 
 
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) *)
+     module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) *)
 
   type var = V.t
 
@@ -488,39 +520,18 @@ struct
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
 
-  let assign_texpr (t: VarManagement(Vc).t) var texp =
-    let assign_invertible_rels x var b env =
-      let j0 = Environment.dim_of_var env var in
-      let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
-      let b0 = Vector.nth b j0 in
-      Vector.apply_with_c_with (/:) b0 a_j0; (*Corresponds to Axj0/Bj0*)
-      let recalc_entries m rd_a = Matrix.map2_with (fun x y -> Vector.map2i_with (fun j z d ->
-          if j = j0 then y
-          else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
-          else z +: y *: d) x b; x) m rd_a
-      in
-      recalc_entries x a_j0;
-      if Matrix.normalize_with x then {d = Some x; env = env} else bot ()
-    in
-    let assign_invertible_rels x var b env = timing_wrap "assign_invertible" (assign_invertible_rels x var b) env in
-    let assign_uninvertible_rel x var b env =
-      let b_length = Vector.length b in
-      Vector.mapi_with (fun i z -> if i < b_length - 1 then Mpqf.mone *: z else z) b;
-      Vector.set_val_with b (Environment.dim_of_var env var) Mpqf.one;
-      let opt_m = Matrix.rref_vec_with x b in
-      if Option.is_none opt_m then bot () else
-        {d = opt_m; env = env}
-    in
-    (* let assign_uninvertible_rel x var b env = timing_wrap "assign_uninvertible" (assign_uninvertible_rel x var b) env in *)
-    let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <>: Mpqf.zero
-    in let affineEq_vec = get_coeff_vec t texp
-    in if is_bot t then t else let m = Option.get t.d in
-      match affineEq_vec with
-      | Some v when is_top_env t -> if is_invertible v then t else assign_uninvertible_rel m var v t.env
-      | Some v -> if is_invertible v then let t' = assign_invertible_rels (Matrix.copy m) var v t.env in {d = t'.d; env = t'.env}
-        else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env false
-          in assign_uninvertible_rel new_m var v t.env
-      | None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env false); env = t.env}
+
+
+  let assign_texpr (t: VarManagement.t) var texp =
+
+  in
+  let dim_var = Environment.dim_of_var texp.env var in
+  match texp.d with 
+  | Some d ->  let rhs = d.(dim_var) in (*Current equality with var on the left hand side*)
+    bot ()
+  | None -> bot ()
+
+
 
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
