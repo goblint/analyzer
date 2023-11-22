@@ -1,25 +1,14 @@
 ## v2.3.0 (unreleased)
 Functionally equivalent to Goblint in SV-COMP 2024.
 
-* Refactor/fix race analysis (#1170, #1198).
-* Add library function (#1167, #1174, #1220, #1203, #1205, #1212).
-* Refactor/fix `MayPointTo` and `ReachableFrom` queries (#1142, #1176, #1144).
-* Add final messages about unsound results (#1190, #1191).
-
-### SV-COMP 2024
-* Add termination analysis (#1093).
-* Add OOB analysis (#1094, #1197).
-* Add memory leak analysis (???, #1246, #1241).
-* Improve multi-threaded use-after-free analysis (#1123, ).
-* Support MemSafety in SV-COMP (#1201, #1199, #1259, #1262).
-* YAML witnesses in SV-COMP mode (#1217, #1226, #1225, #1248).
-* YAML witness version 2.0 (#1238, #1240).
-* SV-COMP multi-property (#1220, #1228).
-* Adapt autotuning (#912, #921, #987, #1214, #1234, #1168).
-* Support `alloca` (#1179).
-* Fix old thread analysis soundness (#1223, #1230).
-* Add library functions (#1242, #1244, #1254, #1239, #1269).
-* Fix some region escape unsoundness (#1247).
+* Add termination analysis for loops (#1093).
+* Add memory out-of-bounds analysis (#1094, #1197).
+* Add memory leak analysis (#1127, #1241, #1246).
+* Add SV-COMP `termination`, `valid-memsafety` and `valid-memcleanup` properties support (#1220, #1228, #1201, #1199, #1259, #1262).
+* Add YAML witness version 2.0 support (#1238, #1240, #1217, #1226, #1225, #1248).
+* Add final warnings about unsound results (#1190, #1191).
+* Add many library function specifications (#1167, #1174, #1203, #1205, #1212, #1220, #1239, #1242, #1244, #1254, #1269).
+* Adapt automatic configuration tuning (#912, #921, #987, #1168, #1214, #1234).
 
 ## v2.2.1
 * Bump batteries lower bound to 3.5.0.
