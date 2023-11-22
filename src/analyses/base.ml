@@ -2328,7 +2328,7 @@ struct
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
-let apply_abs ik x =
+      let apply_abs ik x =
         let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
         begin match eval_x with
           | Int int_x ->
