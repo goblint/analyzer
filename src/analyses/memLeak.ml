@@ -27,8 +27,8 @@ struct
     get_global_vars ()
     |> List.filter (fun v ->
         match unrollType v.vtype with
-        | TPtr (TComp _, _)
-        | TPtr ((TNamed ({ttype = TComp _; _}, _)), _) -> true
+        | TPtr (TComp (ci,_), _)
+        | TPtr ((TNamed ({ttype = TComp (ci, _); _}, _)), _) -> ci.cstruct
         | TComp (_, _)
         | (TNamed ({ttype = TComp _; _}, _)) -> false
         | _ -> false)
@@ -37,8 +37,8 @@ struct
     get_global_vars ()
     |> List.filter (fun v ->
         match unrollType v.vtype with
-        | TComp (_, _)
-        | (TNamed ({ttype = TComp _; _}, _)) -> true
+        | TComp (ci, _)
+        | (TNamed ({ttype = TComp (ci,_); _}, _)) -> ci.cstruct
         | _ -> false)
 
   let get_reachable_mem_from_globals (global_vars:varinfo list) ctx =
