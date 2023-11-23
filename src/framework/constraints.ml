@@ -494,10 +494,10 @@ end
 
 module CGName = struct let name = "contextGas" end
 module IntConf = 
-  struct
-    let n () = max_int (* TODO: Shouldn't matter if this value is bigger than cg_init_val*)
-    let names x = Format.asprintf "%d" x
-  end
+struct
+  let n () = max_int (* TODO: Shouldn't matter if this value is bigger than cg_init_val*)
+  let names x = Format.asprintf "%d" x
+end
 
 (** Lifts a [Spec] with the context gas variable. For every function call the context gas is reduced. 
     If the context gas is 0, the remaining function calls are analyzed context insensitively (before the analysis is context sensitive)*)
