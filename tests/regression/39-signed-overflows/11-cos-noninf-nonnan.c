@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.float.interval --set ana.activated[+] tmpSpecial --html
+// PARAM: --enable ana.float.interval --set ana.activated[+] tmpSpecial
 
 #include <math.h>
 
