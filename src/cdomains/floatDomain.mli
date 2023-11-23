@@ -51,7 +51,7 @@ module type FloatArith = sig
   val cos : ?asPreciseAsConcrete:bool -> ?notInf_notNaN:bool -> t -> t
   (** cos(x) *)
 
-  val sin : t -> t
+  val sin : ?asPreciseAsConcrete:bool -> ?notInf_notNaN:bool -> t -> t
   (** sin(x) *)
 
   val tan : t -> t

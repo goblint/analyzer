@@ -2355,7 +2355,7 @@ struct
           | _ -> failwith ("non-integer argument in call to function "^f.vname)
         end
       in
-      let apply_cos fk (float_fun : ?asPreciseAsConcrete:bool -> ?notInf_notNaN:bool -> FD.t -> FD.t) x =
+      let apply_better_trig fk (float_fun : ?asPreciseAsConcrete:bool -> ?notInf_notNaN:bool -> FD.t -> FD.t) x =
         let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
         begin match eval_x with
           | Float float_x ->
@@ -2406,8 +2406,8 @@ struct
           | Asin (fk, x) -> Float (apply_unary fk FD.asin x)
           | Atan (fk, x) -> Float (apply_unary fk FD.atan x)
           | Atan2 (fk, y, x) -> Float (apply_binary fk (fun y' x' -> FD.atan (FD.div y' x')) y x)
-          | Cos (fk, x) -> Float (apply_cos fk FD.cos x)
-          | Sin (fk, x) -> Float (apply_unary fk FD.sin x)
+          | Cos (fk, x) -> Float (apply_better_trig fk FD.cos x)
+          | Sin (fk, x) -> Float (apply_better_trig fk FD.sin x)
           | Tan (fk, x) -> Float (apply_unary fk FD.tan x)
           | Isgreater (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
           | Isgreaterequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
