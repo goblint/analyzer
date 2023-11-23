@@ -89,6 +89,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("iswspace", unknown [drop "wc" []]);
     ("iswalnum", unknown [drop "wc" []]);
     ("iswprint", unknown [drop "wc" []]);
+    ("iswxdigit", unknown [drop "ch" []]);
     ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("perror", unknown [drop "s" [r]]);
     ("getchar", unknown []);
@@ -118,8 +119,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("vsnprintf", unknown [drop "str" [w]; drop "size" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mktime", unknown [drop "tm" [r;w]]);
     ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
-    ("clearerr", unknown [drop "stream" [w]]);
+    ("clearerr", unknown [drop "stream" [w]]); (* TODO: why only w? *)
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
+    ("wprintf", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("fwprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
@@ -130,7 +133,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wcstombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r]; drop "size" []]);
     ("wcsrtombs", unknown ~attrs:[ThreadUnsafe] [drop "dst" [w]; drop "src" [r_deep; w]; drop "size" []; drop "ps" [r_deep; w_deep]]);
     ("mbstowcs", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []]);
-    ("abs", unknown [drop "j" []]);
+    ("abs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (IInt, j)) });
+    ("labs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILong, j)) });
+    ("llabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILongLong, j)) });
+    ("imaxabs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
@@ -149,6 +155,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atomic_load", unknown [drop "obj" [r]]);
     ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
     ("_Exit", special [drop "status" []] @@ Abort);
+    ("strcoll", unknown [drop "lhs" [r]; drop "rhs" [r]]);
+    ("wscanf", unknown (drop "fmt" [r] :: VarArgs (drop' [w])));
+    ("fwscanf", unknown (drop "stream" [r_deep; w_deep] :: drop "fmt" [r] :: VarArgs (drop' [w])));
+    ("swscanf", unknown (drop "buffer" [r] :: drop "fmt" [r] :: VarArgs (drop' [w])));
   ]
 
 (** C POSIX library functions.
@@ -298,6 +308,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sendto", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []; drop "dest_addr" [r_deep]; drop "addrlen" []]);
     ("strdup", unknown [drop "s" [r]]);
     ("strndup", unknown [drop "s" [r]; drop "n" []]);
+    ("__strndup", unknown [drop "s" [r]; drop "n" []]);
     ("syscall", unknown (drop "number" [] :: VarArgs (drop' [r; w])));
     ("sysconf", unknown [drop "name" []]);
     ("syslog", unknown (drop "priority" [] :: drop "format" [r] :: VarArgs (drop' [r]))); (* TODO: is the VarArgs correct here? *)
@@ -406,6 +417,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("srandom", unknown [drop "seed" []]);
     ("random", special [] Rand);
     ("posix_memalign", unknown [drop "memptr" [w]; drop "alignment" []; drop "size" []]); (* TODO: Malloc *)
+    ("stpcpy", unknown [drop "dest" [w]; drop "src" [r]]);
   ]
 
 (** Pthread functions. *)
@@ -569,6 +581,10 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
+    ("feof_unlocked", unknown [drop "stream" [r_deep; w_deep]]);
+    ("ferror_unlocked", unknown [drop "stream" [r_deep; w_deep]]);
+    ("fwrite_unlocked", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("clearerr_unlocked", unknown [drop "stream" [w]]); (* TODO: why only w? *)
     ("futimesat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]]);
     ("error", unknown ((drop "status" []) :: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
     ("warn", unknown (drop "format" [r] :: VarArgs (drop' [r])));
@@ -580,6 +596,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fgets_chk", unknown [drop "__s" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__fread_alias", unknown [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__fread_chk", unknown [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_chk_warn", unknown [drop "buffer" [w]; drop "os" []; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fread_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "buffer" [w]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("__fread_unlocked_alias", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__fread_unlocked_chk", unknown ~attrs:[ThreadUnsafe] [drop "__ptr" [w]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
@@ -652,6 +669,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fstatfs", unknown [drop "fd" []; drop "buf" [w]]);
     ("cfmakeraw", unknown [drop "termios" [r; w]]);
     ("process_vm_readv", unknown [drop "pid" []; drop "local_iov" [w_deep]; drop "liovcnt" []; drop "remote_iov" []; drop "riovcnt" []; drop "flags" []]);
+    ("__libc_current_sigrtmax", unknown []);
+    ("__libc_current_sigrtmin", unknown []);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -726,6 +745,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
     ("__goblint_split_begin", unknown [drop "exp" []]);
     ("__goblint_split_end", unknown [drop "exp" []]);
+    ("__goblint_bounded", special [__ "exp"[]] @@ fun exp -> Bounded { exp });
   ]
 
 (** zstd functions.
@@ -944,9 +964,9 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("scalbln", unknown [drop "arg" []; drop "exp" []]);
     ("scalblnf", unknown [drop "arg" []; drop "exp" []]);
     ("scalblnl", unknown [drop "arg" []; drop "exp" []]);
-    ("sqrt", unknown [drop "x" []]);
-    ("sqrtf", unknown [drop "x" []]);
-    ("sqrtl", unknown [drop "x" []]);
+    ("sqrt", special [__ "x" []] @@ fun x -> Math { fun_args = (Sqrt (FDouble, x)) });
+    ("sqrtf", special [__ "x" []] @@ fun x -> Math { fun_args = (Sqrt (FFloat, x)) });
+    ("sqrtl", special [__ "x" []] @@ fun x -> Math { fun_args = (Sqrt (FLongDouble, x)) });
     ("tgamma", unknown [drop "x" []]);
     ("tgammaf", unknown [drop "x" []]);
     ("tgammal", unknown [drop "x" []]);

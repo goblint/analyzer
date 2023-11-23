@@ -85,7 +85,7 @@ The configuration file has to be named `launch.json` and must reside in the `./.
     "configurations": [
       {
         "name": "Goblint",
-        "type": "ocamlearlybird",
+        "type": "ocaml.earlybird",
         "request": "launch",
         "program": "${workspaceFolder}/goblint.byte",
         "arguments": [
@@ -97,7 +97,8 @@ The configuration file has to be named `launch.json` and must reside in the `./.
     ]
 }
 ```
-Note that the individual arguments to Goblint should be passed here as separate strings that do not contain spaces.
+Note that the individual arguments to Goblint should be passed here as separate strings that do not contain spaces. Finally, to enable breakpoints uncomment `(map_workspace_root false)` in the dune-project file.
+
 
 ### Running Goblint in the VS Code Debugger
 

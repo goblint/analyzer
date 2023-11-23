@@ -71,7 +71,9 @@
         "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
-        "memsafetySpecification"
+        "memsafetySpecification",
+        "tmpSpecialAnalysis",
+        "termination"
       ]
     }
   },

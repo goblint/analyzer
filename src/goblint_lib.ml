@@ -148,8 +148,8 @@ module UnitAnalysis = UnitAnalysis
 
 module Assert = Assert
 module FileUse = FileUse
+module LoopTermination = LoopTermination
 module Uninit = Uninit
-module Termination = Termination
 module Expsplit = Expsplit
 module StackTrace = StackTrace
 module Spec = Spec
@@ -339,6 +339,7 @@ module Tracing = Tracing
 module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
+module TerminationPreprocessing = TerminationPreprocessing
 
 (** {2 Witnesses}
 
