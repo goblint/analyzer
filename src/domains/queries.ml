@@ -16,6 +16,7 @@ module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
 
 module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
 module ML = LibraryDesc.MathLifted
+module MLInv = SetDomain.Reverse (SetDomain.ToppedSet (Lattice.Prod (Lattice.Flat (CilType.Exp) (Printable.DefaultNames)) (ML)) (struct let topname = "All" end))
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"
@@ -131,6 +132,7 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | TmpSpecialInv: Mval.Exp.t -> MLInv.t t
 
 type 'a result = 'a
 
@@ -200,6 +202,7 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
+    | TmpSpecialInv _ -> (module MLInv)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -268,6 +271,7 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
+    | TmpSpecialInv _ -> MLInv.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -332,7 +336,8 @@ struct
     | Any MustTermAllLoops -> 54
     | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 56
-    | Any (IsAllocVar _) -> 57
+    | Any (TmpSpecialInv _) -> 57
+    | Any (IsAllocVar _) -> 58
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -489,6 +494,7 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any (TmpSpecialInv lv) -> Pretty.dprintf "TmpSpecialInv %a" Mval.Exp.pretty lv
 end
 
 let to_value_domain_ask (ask: ask) =

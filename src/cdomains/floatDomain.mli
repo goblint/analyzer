@@ -48,7 +48,7 @@ module type FloatArith = sig
   val atan : t -> t
   (** atan(x) *)
 
-  val cos : t -> t
+  val cos : ?asPreciseAsConcrete:bool -> ?notInf_notNaN:bool -> t -> t
   (** cos(x) *)
 
   val sin : t -> t
@@ -63,8 +63,10 @@ module type FloatArith = sig
   (** {inversions of unary functions}*)
   val inv_ceil : ?asPreciseAsConcrete:bool -> t -> t
   (** (inv_ceil z -> x) if (z = ceil(x)) *)
+
   val inv_floor : ?asPreciseAsConcrete:bool -> t -> t
   (** (inv_floor z -> x) if (z = floor(x)) *)
+
   val inv_fabs : t -> t
   (** (inv_fabs z -> x) if (z = fabs(x)) *)
 

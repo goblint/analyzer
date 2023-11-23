@@ -2355,6 +2355,40 @@ struct
           | _ -> failwith ("non-integer argument in call to function "^f.vname)
         end
       in
+      let apply_cos fk (float_fun : ?asPreciseAsConcrete:bool -> ?notInf_notNaN:bool -> FD.t -> FD.t) x =
+        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        begin match eval_x with
+          | Float float_x ->
+            let notInf_notNaN = match x with
+              | Lval (Var xvar, offs) -> (
+                  match ctx.ask (Q.TmpSpecialInv (xvar, Offset.Exp.of_cil offs)) with
+                  | s when Q.MLInv.is_top s -> false
+                  | s ->
+                    let matchnan = function
+                      | `Lifted LibraryDesc.Isnan _ -> true
+                      | _ -> false in
+                    let matchinf = function
+                      | `Lifted LibraryDesc.Isnan _ -> true
+                      | _ -> false in
+                    let isFalse = function
+                      | `Lifted expy -> (
+                          match ctx.ask (Q.EvalInt expy) with
+                          | v when Queries.ID.is_bot v -> false
+                          | v ->
+                            match Queries.ID.to_bool v with
+                            | Some b -> not b
+                            | None -> false)
+                      | _ -> false
+                    in
+                    let isNotNan = Q.MLInv.exists (fun (y, ml) -> matchnan ml && isFalse y) s in
+                    let isNotInf = Q.MLInv.exists (fun (y, ml) -> matchinf ml && isFalse y) s in
+                    isNotInf && isNotNan)
+              | _ -> false
+            in
+            float_fun ~notInf_notNaN (FD.cast_to fk float_x)
+          | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
+        end
+      in
       let result:value =
         begin match fun_args with
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
@@ -2372,7 +2406,7 @@ struct
           | Asin (fk, x) -> Float (apply_unary fk FD.asin x)
           | Atan (fk, x) -> Float (apply_unary fk FD.atan x)
           | Atan2 (fk, y, x) -> Float (apply_binary fk (fun y' x' -> FD.atan (FD.div y' x')) y x)
-          | Cos (fk, x) -> Float (apply_unary fk FD.cos x)
+          | Cos (fk, x) -> Float (apply_cos fk FD.cos x)
           | Sin (fk, x) -> Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> Float (apply_unary fk FD.tan x)
           | Isgreater (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))

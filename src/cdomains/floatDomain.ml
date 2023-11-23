@@ -34,7 +34,7 @@ module type FloatArith = sig
   (** asin(x) *)
   val atan : t -> t
   (** atan(x) *)
-  val cos : t -> t
+  val cos : ?asPreciseAsConcrete:bool -> ?notInf_notNaN:bool -> t -> t
   (** cos(x) *)
   val sin : t -> t
   (** sin(x) *)
@@ -791,7 +791,18 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let acos = eval_unop eval_acos
   let asin = eval_unop eval_asin
   let atan = eval_unop eval_atan
-  let cos = eval_unop eval_cos
+  let cos ?(asPreciseAsConcrete=false) ?(notInf_notNaN=false) op =
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    (* TODO: cos should return NaN if argument is + or - infinity, fix this. *)
+    | Interval v -> eval_cos v
+    | PlusInfinity
+    | MinusInfinity
+    | NaN -> NaN
+    | Top ->
+      if asPreciseAsConcrete && notInf_notNaN then
+        eval_cos (Float_t.lower_bound, Float_t.upper_bound)
+      else top()
   let sin = eval_unop eval_sin
   let tan = eval_unop eval_tan
   let sqrt = eval_unop eval_sqrt
@@ -907,7 +918,11 @@ module FloatIntervalImplLifted = struct
   let acos = lift (F1.acos, F2.acos)
   let asin = lift (F1.asin, F2.asin)
   let atan = lift (F1.atan, F2.atan)
-  let cos = lift (F1.cos, F2.cos)
+  let cos ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) ?(notInf_notNaN=BoolDomain.MustBool.top ()) = function
+    | F32 a -> F32 (F1.cos ~asPreciseAsConcrete:true ~notInf_notNaN a)
+    | F64 a -> F64 (F2.cos ~asPreciseAsConcrete:true ~notInf_notNaN a)
+    | FLong a -> FLong (F2.cos ~notInf_notNaN a)
+    | FFloat128 a -> FFloat128 (F2.cos ~notInf_notNaN a)
   let sin = lift (F1.sin, F2.sin)
   let tan = lift (F1.tan, F2.tan)
   let sqrt = lift (F1.sqrt, F2.sqrt)
@@ -1165,8 +1180,8 @@ module FloatDomTupleImpl = struct
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.asin); }
   let atan =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.atan); }
-  let cos =
-    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.cos); }
+  let cos ?(asPreciseAsConcrete=BoolDomain.MustBool.top ()) ?(notInf_notNaN=BoolDomain.MustBool.top ()) =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.cos ~asPreciseAsConcrete ~notInf_notNaN); }
   let sin =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.sin); }
   let tan =
