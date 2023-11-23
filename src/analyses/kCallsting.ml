@@ -1,8 +1,4 @@
-open GoblintCil
-open Pretty
-open GobPretty
 open Analyses
-open Cil
 
 module Spec (D: Lattice.S) : Analyses.MCPSpec =
 struct
@@ -24,6 +20,4 @@ struct
     let remaining_space = k - List.length d in
     let args_to_concat = take remaining_space args in
     List.rev_append (List.rev args_to_concat) d
-
-
 end 
