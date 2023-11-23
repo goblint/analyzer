@@ -99,7 +99,9 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
     FunctionSet.iter
       (fun vinfo ->
          print_endline ("    " ^ vinfo.vname);
-         setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
+         match (Cilfacade.find_varinfo_fundec vinfo) with
+         | fd -> setCongruenceRecursive fd (depth -1) neigbourFunction
+         | exception Not_found -> () (* Happens for __goblint_bounded*)
       )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
          (fun x -> not (isExtern x.vstorage || BatString.starts_with x.vname "__builtin"))
