@@ -58,6 +58,7 @@ sig
   type origin
   include Lattice.S with type t = value * size * origin
 
+  val map: (value -> value) -> t -> t
   val value: t -> value
   val invalidate_value: VDQ.t -> typ -> t -> t
 end
@@ -77,6 +78,7 @@ struct
   type size = Size.t
   type origin = ZeroInit.t
 
+  let map f (v, s, o) = f v, s, o
   let value (a, b, c) = a
   let relift (a, b, c) = Value.relift a, b, c
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
@@ -745,9 +747,9 @@ struct
     | Float f -> Float (FD.top_of (FD.get_fkind f))
     | Address _ -> Address (AD.top_ptr)
     | Struct s -> Struct (Structs.map invalidate_abstract_value s)
-    | Union u -> Union (Unions.top ())
+    | Union u -> Union (Unions.top ()) (* More precise invalidate does not make sense, as it is not clear which component is accessed. *)
     | Array a -> Array (CArrays.map invalidate_abstract_value a)
-    | Blob _ -> Blob (Blobs.top ())
+    | Blob b -> Blob (Blobs.map invalidate_abstract_value b)
     | Thread _ -> Thread (Threads.top ())
     | JmpBuf _ -> JmpBuf (JmpBufs.top ())
     | Mutex -> Mutex
