@@ -1897,16 +1897,38 @@ struct
       | _ -> f_get
     else
       f_get
-  let set (ask:VDQ.t) (t_f, t_n) i v = 
+
+  let construct a n =
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.set ask t_f i v, N.set ask t_n i v)
+      (a, n ())
     else
-      (A.set ask t_f i v, N.top ())
-  let make ?(varAttr=[]) ?(typAttr=[]) i v = 
+      (a, N.top ())
+
+  let set (ask:VDQ.t) (t_f, t_n) i v = construct (A.set ask t_f i v) (fun () -> N.set ask t_n i v)
+  let make ?(varAttr=[]) ?(typAttr=[]) i v = construct (A.make ~varAttr ~typAttr i v) (fun () -> N.make ~varAttr ~typAttr i v)
+  let map f (t_f, t_n) = construct (A.map f t_f) (fun () -> N.map f t_n)
+  let update_length newl (t_f, t_n) = construct (A.update_length newl t_f) (fun () -> N.update_length newl t_n)
+
+  let smart_binop op_a op_n x y (t_f1, t_n1) (t_f2, t_n2) = construct (op_a x y t_f1 t_f2) (fun () -> op_n x y t_n1 t_n2)
+
+  let smart_join = smart_binop A.smart_join N.smart_join
+  let smart_widen = smart_binop A.smart_widen N.smart_widen
+
+  let string_op op (t_f1, t_n1) (_, t_n2) n = construct (A.map Val.invalidate_abstract_value t_f1) (fun () -> op t_n1 t_n2 n)
+  let string_copy = string_op N.string_copy
+  let string_concat = string_op N.string_concat
+
+  let extract op default (_, t_n1) (_, t_n2) n = 
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.make ~varAttr ~typAttr i v, N.make i v)
+      op t_n1 t_n2 n
     else
-      (A.make ~varAttr ~typAttr i v, N.top ())
+      (* Hidden behind unit, as constructing defaults may happen to early otherwise *)
+      (* e.g. for Idx.top_of IInt *)
+      default ()
+
+  let substring_extraction x y = extract (fun x y _  -> N.substring_extraction x y) (fun () -> IsMaybeSubstr) x y None
+  let string_comparison = extract N.string_comparison (fun () -> Idx.top_of IInt) 
+
   let length (t_f, t_n) = 
     if get_bool "ana.base.arrays.nullbytes" then
       N.length t_n
@@ -1914,21 +1936,8 @@ struct
       A.length t_f
   let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) (t_f, t_n) v f = (A.move_if_affected ~replace_with_const ask t_f v f, N.move_if_affected ~replace_with_const ask t_n v f)
   let get_vars_in_e (t_f, _) = A.get_vars_in_e t_f
-  let map f (t_f, t_n) = 
-    if get_bool "ana.base.arrays.nullbytes" then
-      (A.map f t_f, N.map f t_n)
-    else
-      (A.map f t_f, N.top ())
   let fold_left f acc (t_f, _) = A.fold_left f acc t_f
 
-  let smart_binop op_a op_n x y (t_f1, t_n1) (t_f2, t_n2) = 
-    if get_bool "ana.base.arrays.nullbytes" then
-      (op_a x y t_f1 t_f2, op_n x y t_n1 t_n2)
-    else
-      (op_a x y t_f1 t_f2, N.top ())
-
-  let smart_join = smart_binop A.smart_join N.smart_join
-  let smart_widen = smart_binop A.smart_widen N.smart_widen
   let smart_leq x y (t_f1, t_n1) (t_f2, t_n2) = 
     if get_bool "ana.base.arrays.nullbytes" then
       A.smart_leq x y t_f1 t_f2 && N.smart_leq x y t_n1 t_n2
@@ -1946,33 +1955,6 @@ struct
     else
       Idx.top_of !Cil.kindOfSizeOf
 
-  (* invalidates the information in A, and applies op t_n1 t_n2 n *)
-  (* when ana.base.arrays.nullbytes is set *)
-  let string_op op (t_f1, t_n1) (_, t_n2) n = 
-    if get_bool "ana.base.arrays.nullbytes" then
-      (A.map Val.invalidate_abstract_value t_f1, op t_n1 t_n2 n)
-    else
-      (A.map Val.invalidate_abstract_value t_f1, N.top ())
-
-  let string_copy = string_op N.string_copy
-  let string_concat = string_op N.string_concat
-
-  let substring_extraction (_, t_n1) (_, t_n2) = 
-    if get_bool "ana.base.arrays.nullbytes" then
-      N.substring_extraction t_n1 t_n2
-    else
-      IsMaybeSubstr
-  let string_comparison (_, t_n1) (_, t_n2) n = 
-    if get_bool "ana.base.arrays.nullbytes" then
-      N.string_comparison t_n1 t_n2 n
-    else
-      Idx.top_of IInt
-
-  let update_length newl (t_f, t_n) = 
-    if get_bool "ana.base.arrays.nullbytes" then
-      (A.update_length newl t_f, N.update_length newl t_n)
-    else
-      (A.update_length newl t_f, N.top ())
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, N.project ~varAttr ~typAttr ask t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = A.invariant ~value_invariant ~offset ~lval t_f
 end
