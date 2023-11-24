@@ -1600,17 +1600,11 @@ struct
         if not (MaySet.exists (Z.gt (Z.of_int n)) may_nulls_set2) then
           (MustSet.singleton (Z.of_int n), MaySet.singleton (Z.of_int n))
         else if not (MustSet.exists (Z.gt (Z.of_int n)) must_nulls_set2) then
-          let max_size2 = match idx_maximal size2 with
-            | Some max_size2 -> max_size2
-            | None -> Z.succ (Z.of_int n) in
+          let max_size2 = BatOption.default (Z.succ (Z.of_int n)) (idx_maximal size2) in
           (MustSet.empty (), MaySet.add (Z.of_int n) (MaySet.filter (Z.geq (Z.of_int n)) may_nulls_set2 max_size2))
         else
-          let min_size2 = match Idx.minimal size2 with
-            | Some min_size2 -> min_size2
-            | None -> Z.zero in
-          let max_size2 = match idx_maximal size2 with
-            | Some max_size2 -> max_size2
-            | None -> Z.of_int n in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
+          let max_size2 = BatOption.default (Z.of_int n) (idx_maximal size2) in
           (MustSet.filter (Z.gt (Z.of_int n)) must_nulls_set2 min_size2, MaySet.filter (Z.gt (Z.of_int n)) may_nulls_set2 max_size2) in
       compute_concat must_nulls_set2' may_nulls_set2'
     | _ -> (MustSet.top (), MaySet.top (), size1)
