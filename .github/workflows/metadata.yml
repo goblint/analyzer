@@ -27,6 +27,9 @@ jobs:
           args: --validate
 
   zenodo-validate:
+    # Zenodo schema URL is dead
+    if: ${{ false }}
+
     strategy:
       matrix:
         node-version:
