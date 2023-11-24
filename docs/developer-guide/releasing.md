@@ -37,13 +37,11 @@
     2. Extract distribution archive.
     3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
     4. Navigate to distribution archive inside Docker container: `cd /goblint`.
-    5. Pin package from distribution archive: `opam pin add --no-action .`.
-    6. Install depexts: `opam depext --with-test goblint`.
-    7. Install and test package: `opam install --with-test goblint`.
-    8. Activate opam environment: `eval $(opam env)`.
-    9. Check version: `goblint --version`.
-    10. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
-    11. Exit Docker container.
+    5. Install and test package from distribution archive: `opam-2.1 install --with-test .`.
+    6. Activate opam environment: `eval $(opam env)`.
+    7. Check version: `goblint --version`.
+    8. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
+    9. Exit Docker container.
 
 12. Temporarily enable Zenodo GitHub webhook.
 
