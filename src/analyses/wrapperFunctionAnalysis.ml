@@ -33,11 +33,20 @@ struct
      Introduce a function for this to keep things consistent. *)
   let node_for_ctx ctx = ctx.prev_node
 
+  module NodeFlatLattice =
+  struct
+    include NodeFlatLattice
+    let name () = "wrapper call"
+  end
+
   module UniqueCount = UniqueCount
 
   (* Map for counting function call node visits up to n (of the current thread). *)
   module UniqueCallCounter =
-    MapDomain.MapBot_LiftTop(NodeFlatLattice)(UniqueCount)
+  struct
+    include MapDomain.MapBot_LiftTop(NodeFlatLattice)(UniqueCount)
+    let name () = "unique calls"
+  end
 
   (* Increase counter for given node. If it does not exist yet, create it. *)
   let add_unique_call counter node =
@@ -87,7 +96,7 @@ struct
 
   let startstate v = D.bot ()
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     (* The new thread receives a fresh counter *)
     [D.bot ()]
 

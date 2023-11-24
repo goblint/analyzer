@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -26,10 +26,10 @@ jobs:
         run: npm install -g ajv-cli
 
       - name: Migrate schema # https://github.com/ajv-validator/ajv-cli/issues/199
-        run: ajv migrate -s src/util/options.schema.json
+        run: ajv migrate -s src/common/util/options.schema.json
 
       - name: Validate conf
-        run: ajv validate -s src/util/options.schema.json -d "conf/**/*.json"
+        run: ajv validate -s src/common/util/options.schema.json -d "conf/**/*.json"
 
       - name: Validate incremental tests
-        run: ajv validate -s src/util/options.schema.json -d "tests/incremental/*/*.json"
+        run: ajv validate -s src/common/util/options.schema.json -d "tests/incremental/*/*.json"

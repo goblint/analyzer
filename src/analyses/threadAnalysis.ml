@@ -22,12 +22,15 @@ struct
   module P = IdentityP (D)
 
   (* transfer functions *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
+  let handle_thread_return ctx (exp: exp option) =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
-    begin match tid with
+    match tid with
       | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
       | _ -> ()
-    end;
+
+  let return ctx (exp:exp option) _ : D.t =
+    if ctx.ask Queries.MayBeThreadReturn then
+      handle_thread_return ctx exp;
     ctx.local
 
   let rec is_not_unique ctx tid =
@@ -61,8 +64,12 @@ struct
            s
        in
        match TS.elements (ctx.ask (Queries.EvalThread id)) with
-       | threads -> List.fold_left join_thread ctx.local threads
+       | [t] -> join_thread ctx.local t (* single thread *)
+       | _ -> ctx.local (* if several possible threads are may-joined, none are must-joined *)
        | exception SetDomain.Unsupported _ -> ctx.local)
+    | ThreadExit { ret_val } ->
+      handle_thread_return ctx (Some ret_val);
+      ctx.local
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -84,8 +91,14 @@ struct
     | _ -> Queries.Result.top q
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx =
+
+  let threadenter ctx ~multiple lval f args =
+    if multiple then
+      (let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx ctx) in
+       ctx.sideg tid (true, TS.bot (), false));
+    [D.bot ()]
+
+  let threadspawn ctx ~multiple lval f args fctx =
     let creator = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx fctx) in
     let repeated = D.mem tid ctx.local in

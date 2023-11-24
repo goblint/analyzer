@@ -14,7 +14,8 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = (get_bool "ana.sv-comp.enabled" && get_bool "witness.enabled") || get_bool "exp.arg" in
+  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg" in
+  let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -36,6 +37,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
                Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
             |> lift true (module LongjmpLifter)
+            |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
           ) in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
@@ -103,6 +105,8 @@ struct
     let module StringMap = BatMap.Make (String) in
     let live_lines = ref StringMap.empty in
     let dead_lines = ref StringMap.empty in
+    let module FunSet = Hashtbl.Make (CilType.Fundec) in
+    let live_funs: unit FunSet.t = FunSet.create 13 in
     let add_one n v =
       match n with
       | Statement s when Cilfacade.(StmtH.mem pseudo_return_to_fun s) ->
@@ -113,6 +117,7 @@ struct
            See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
         let l = UpdateCil.getLoc n in
         let f = Node.find_fundec n in
+        FunSet.replace live_funs f ();
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
         let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
@@ -134,6 +139,21 @@ struct
       try StringMap.find fn (StringMap.find file !live_lines)
       with Not_found -> BatISet.empty
     in
+    if List.mem "termination" @@ get_string_list "ana.activated" then (
+      (* check if we have upjumping gotos *)
+      let open Cilfacade in
+      let warn_for_upjumps fundec gotos = 
+        if FunSet.mem live_funs fundec then (
+          (* set nortermiantion flag *)
+          AnalysisState.svcomp_may_not_terminate := true;
+          (* iterate through locations to produce warnings *)
+          LocSet.iter (fun l _ -> 
+              M.warn ~loc:(M.Location.CilLocation l) ~category:Termination "The program might not terminate! (Upjumping Goto)"
+            ) gotos
+        )
+      in
+      FunLocH.iter warn_for_upjumps funs_with_upjumping_gotos
+    );
     dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
     dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
     dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
@@ -280,7 +300,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
+        ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -385,7 +405,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -417,13 +437,13 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
       in
       (* TODO: don't hd *)
-      List.hd (Spec.threadenter ctx None v [])
+      List.hd (Spec.threadenter ctx ~multiple:false None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
@@ -529,7 +549,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GobSys.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = GobUnix.localtime () }
+                let json = to_yojson { command = GobSys.command_line; version = Goblint_build_info.version; timestamp = Unix.time (); localtime = GobUnix.localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)

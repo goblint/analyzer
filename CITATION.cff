@@ -12,12 +12,15 @@ authors: # same authors as in .zenodo.json and dune-project
   - given-names: Michael
     family-names: Schwarz
     affiliation: "Technische Universität München"
+    orcid: "https://orcid.org/0000-0002-9828-0308"
   - given-names: Julian
     family-names: Erhard
     affiliation: "Technische Universität München"
+    orcid: "https://orcid.org/0000-0002-1729-3925"
   - given-names: Sarah
     family-names: Tilscher
     affiliation: "Technische Universität München"
+    orcid: "https://orcid.org/0009-0009-9644-7475"
   - given-names: Ralf
     family-names: Vogler
     affiliation: "Technische Universität München"
@@ -27,6 +30,7 @@ authors: # same authors as in .zenodo.json and dune-project
   - given-names: Vesal
     family-names: Vojdani
     affiliation: "University of Tartu"
+    orcid: "https://orcid.org/0000-0003-4336-7980"
 
 license: MIT
 repository-code: "https://github.com/goblint/analyzer"
