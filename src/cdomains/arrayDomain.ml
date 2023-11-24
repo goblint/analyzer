@@ -1883,7 +1883,7 @@ struct
   type value = Val.t
 
   type ret = Null | NotNull | Top
-  type substr = IsNotSubstr | IsSubstrAtIndex0 | IsMaybeSubstr
+  type substr = N.substr = IsNotSubstr | IsSubstrAtIndex0 | IsMaybeSubstr
 
   let domain_of_t (t_f, _) = A.domain_of_t t_f
 
@@ -1957,10 +1957,11 @@ struct
       (A.map Val.invalidate_abstract_value t_f1, N.string_concat t_n1 t_n2 n)
     else
       (A.map Val.invalidate_abstract_value t_f1, N.top ())
-  let substring_extraction (_, t_n1) (_, t_n2) = match N.substring_extraction t_n1 t_n2 with
-    | IsNotSubstr when get_bool "ana.base.arrays.nullbytes" -> IsNotSubstr
-    | IsSubstrAtIndex0 when get_bool "ana.base.arrays.nullbytes" -> IsSubstrAtIndex0
-    | _ -> IsMaybeSubstr
+  let substring_extraction (_, t_n1) (_, t_n2) = 
+    if get_bool "ana.base.arrays.nullbytes" then
+      N.substring_extraction t_n1 t_n2
+    else
+      IsMaybeSubstr
   let string_comparison (_, t_n1) (_, t_n2) n = 
     if get_bool "ana.base.arrays.nullbytes" then
       N.string_comparison t_n1 t_n2 n
