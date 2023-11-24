@@ -97,16 +97,17 @@
 
     This ensures that the environment and the archive have all the correct system libraries.
 
-6. Commit and push the archive to an SV-COMP archives repository branch (but don't open a MR yet): <https://gitlab.com/sosy-lab/sv-comp/archives-2023#sparse-checkout> (SV-COMP 2023).
-7. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
+6. Create (or add new version) Zenodo artifact and upload the archive.
 
-    1. Clone coveriteam repository.
-    2. Locally modify `actors/goblint.yml` archive location to the raw URL of the pushed archive.
-    3. Run Goblint on some sv-benchmarks and properties via CoveriTeam.
+7. Open MR with Zenodo version DOI to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
 
-    This ensures that Goblint runs on SoSy-Lab servers.
+<!-- 7. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
 
-8. Open MR to the SV-COMP archives repository.
+1. Clone coveriteam repository.
+2. Locally modify `actors/goblint.yml` archive location to the raw URL of the pushed archive.
+3. Run Goblint on some sv-benchmarks and properties via CoveriTeam.
+
+This ensures that Goblint runs on SoSy-Lab servers. -->
 
 ### After all preruns
 

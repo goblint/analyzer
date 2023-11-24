@@ -542,9 +542,39 @@
               "title": "ana.autotune.activated",
               "description": "Lists of activated tuning options.",
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "congruence",
+                  "singleThreaded",
+                  "specification",
+                  "mallocWrappers",
+                  "noRecursiveIntervals",
+                  "enums",
+                  "loopUnrollHeuristic",
+                  "forceLoopUnrollForFewLoops",
+                  "arrayDomain",
+                  "octagon",
+                  "wideningThresholds",
+                  "memsafetySpecification",
+                  "termination",
+                  "tmpSpecialAnalysis"
+                ]
+              },
               "default": [
-                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds", "memsafetySpecification", "tmpSpecialAnalysis"
+                "congruence",
+                "singleThreaded",
+                "specification",
+                "mallocWrappers",
+                "noRecursiveIntervals",
+                "enums",
+                "loopUnrollHeuristic",
+                "arrayDomain",
+                "octagon",
+                "wideningThresholds",
+                "memsafetySpecification",
+                "termination",
+                "tmpSpecialAnalysis"
               ]
             }
           },
@@ -1005,6 +1035,12 @@
             "free": {
               "title": "ana.race.free",
               "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            },
+            "call": {
+              "title": "ana.race.call",
+              "description": "Report races for thread-unsafe function calls.",
               "type": "boolean",
               "default": true
             },
@@ -2164,6 +2200,25 @@
           "description": "Output messages in deterministic order. Useful for cram testing.",
           "type": "boolean",
           "default": false
+        },
+        "memleak": {
+          "title": "warn.memleak",
+          "type":"object",
+          "properties": {
+            "memcleanup": {
+              "title": "warn.memleak.memcleanup",
+              "description": "Enable memory leak warnings only for violations of the SV-COMP \"valid-memcleanup\" category",
+              "type": "boolean",
+              "default": false
+            },
+            "memtrack": {
+              "title": "warn.memleak.memtrack",
+              "description": "Enable memory leak warnings only for violations of the SV-COMP \"valid-memtrack\" category",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -2486,6 +2541,12 @@
               "description": "YAML witness input path",
               "type": "string",
               "default": ""
+            },
+            "strict": {
+              "title": "witness.yaml.strict",
+              "description": "",
+              "type": "boolean",
+              "default": false
             },
             "unassume": {
               "title": "witness.yaml.unassume",
