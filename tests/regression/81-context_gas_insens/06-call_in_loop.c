@@ -1,7 +1,8 @@
 // PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// Checks proper handling of recursion in loops + iterator variable = function parameter
 #include <stdio.h>
 
-int num_iterat = 1000; // should be context gas value - 1
+int num_iterat = 1000; 
 
 int f(int i)
 {

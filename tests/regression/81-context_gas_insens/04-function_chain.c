@@ -1,4 +1,5 @@
 // PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// Checks if function chains are handled properly + boundary check
 #include <stdio.h>
 
 int num_iterat = 9; // should be context gas value - 1

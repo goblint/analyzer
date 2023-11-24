@@ -1,4 +1,6 @@
-// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set --set exp.unrolling-factor 3
+// Checks if recursion in loops are handled properly + loop unrolling
+// TODO
 #include <stdio.h>
 
 int num_iterat = 3;

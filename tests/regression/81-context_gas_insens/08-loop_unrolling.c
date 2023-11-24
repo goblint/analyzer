@@ -1,39 +1,29 @@
-// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set  --set exp.unrolling-factor 3
-// TODO
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set --set exp.unrolling-factor 3
+// Checks if loop unrolling makes a difference for the analysis
 #include <stdio.h>
 
-int num_iterat = 3;
+int num_iterat = 20; 
 
-int g(int i)
+int f(int i)
 {
     int res = 0;
     if (i == 0)
     {
-        res = 1;
+        res = 2;
     }
     if (i > 0)
     {
-        res = g(--i);
+        res = f(--i);
     }
     return res;
 }
 
-int f(int i)
-{
-    if (i > 0)
-    {
-        for (; i >= 0; i--)
-        {
-            int res = g(i);
-            __goblint_check(res == 1);
-            return res;
-        }
-    }
-    return -1;
-}
-
 int main(void)
 {
-    f(num_iterat);
-    return 0;
+    for (int i = 5; i > 0; i--)
+    {
+        int res = f(num_iterat);
+        __goblint_check(res == 2); //UNKNOWN
+    }
+
 }

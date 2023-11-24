@@ -1,4 +1,6 @@
 // PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// Checks if recursion in loop is handled properly + iterator variable = function parameter
+// TODO
 #include <stdio.h>
 
 int f(int i)
