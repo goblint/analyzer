@@ -24,7 +24,6 @@ module MustSet = struct
     else
       M.min_elt must_nulls_set
 
-
   let interval_mem (l,u) set =
     if M.is_bot set then
       true
@@ -62,4 +61,35 @@ module MaySet = struct
       Z.zero
     else
       M.min_elt may_nulls_set
+end
+
+module MustMaySet = struct
+  include Lattice.Prod (MustSet) (MaySet)
+
+  let must_mem i (musts, mays) = MustSet.mem i musts
+  let must_mem_interval (l,u) (musts, mays) = MustSet.interval_mem (l,u) musts
+
+  let may_be_empty (musts, mays) = MustSet.is_empty musts
+  let must_be_empty (musts, mays) = MaySet.is_empty mays
+
+  let min_may_elem (musts, mays) = MaySet.min_elt mays
+  let min_must_elem (musts, mays) = MustSet.min_elt musts
+
+  let add_may_interval (l,u) (musts, mays) =
+    let rec add_indexes i max set =
+      if Z.gt i max then
+        set
+      else
+        add_indexes (Z.succ i) max (MaySet.add i set)
+    in
+    (musts, add_indexes l u mays)
+
+  let precise_singleton i =
+    (MustSet.singleton i, MaySet.singleton i)
+
+  let may_exist f (musts, mays) = MaySet.exists f mays
+
+  let forget_may (musts, mays) = (musts, MaySet.top ())
+  let forget_must (musts, mays) = (MustSet.top (), mays)
+  let filter_musts f min_size (musts, mays) = (MustSet.filter f musts min_size, mays)
 end
