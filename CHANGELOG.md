@@ -1,4 +1,4 @@
-## v2.3.0 (unreleased)
+## v2.3.0
 Functionally equivalent to Goblint in SV-COMP 2024.
 
 * Add termination analysis for loops (#1093).
