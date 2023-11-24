@@ -1921,16 +1921,14 @@ struct
       (A.map f t_f, N.top ())
   let fold_left f acc (t_f, _) = A.fold_left f acc t_f
 
-  let smart_join x y (t_f1, t_n1) (t_f2, t_n2) = 
+  let smart_binop op_a op_n x y (t_f1, t_n1) (t_f2, t_n2) = 
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.smart_join x y t_f1 t_f2, N.smart_join x y t_n1 t_n2)
+      (op_a x y t_f1 t_f2, op_n x y t_n1 t_n2)
     else
-      (A.smart_join x y t_f1 t_f2, N.top ())
-  let smart_widen x y (t_f1, t_n1) (t_f2, t_n2) = 
-    if get_bool "ana.base.arrays.nullbytes" then
-      (A.smart_widen x y t_f1 t_f2, N.smart_widen x y t_n1 t_n2)
-    else
-      (A.smart_widen x y t_f1 t_f2, N.top ())
+      (op_a x y t_f1 t_f2, N.top ())
+
+  let smart_join = smart_binop A.smart_join N.smart_join
+  let smart_widen = smart_binop A.smart_widen N.smart_widen
   let smart_leq x y (t_f1, t_n1) (t_f2, t_n2) = 
     if get_bool "ana.base.arrays.nullbytes" then
       A.smart_leq x y t_f1 t_f2 && N.smart_leq x y t_n1 t_n2
@@ -1947,16 +1945,18 @@ struct
       N.to_string_length t_n
     else
       Idx.top_of !Cil.kindOfSizeOf
-  let string_copy (t_f1, t_n1) (_, t_n2) n = 
+
+  (* invalidates the information in A, and applies op t_n1 t_n2 n *)
+  (* when ana.base.arrays.nullbytes is set *)
+  let string_op op (t_f1, t_n1) (_, t_n2) n = 
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.map Val.invalidate_abstract_value t_f1, N.string_copy t_n1 t_n2 n)
+      (A.map Val.invalidate_abstract_value t_f1, op t_n1 t_n2 n)
     else
       (A.map Val.invalidate_abstract_value t_f1, N.top ())
-  let string_concat (t_f1, t_n1) (_, t_n2) n =
-    if get_bool "ana.base.arrays.nullbytes" then
-      (A.map Val.invalidate_abstract_value t_f1, N.string_concat t_n1 t_n2 n)
-    else
-      (A.map Val.invalidate_abstract_value t_f1, N.top ())
+
+  let string_copy = string_op N.string_copy
+  let string_concat = string_op N.string_concat
+
   let substring_extraction (_, t_n1) (_, t_n2) = 
     if get_bool "ana.base.arrays.nullbytes" then
       N.substring_extraction t_n1 t_n2
