@@ -1108,34 +1108,16 @@ struct
     in
 
     let set_interval min_i max_i =
-      if Val.is_null v then
-        match idx_maximal size with
-        (* ... and size has no upper limit, add all indexes of interval to may_nulls_set *)
-        | None ->  Nulls.add_interval Possibly (min_i, max_i) nulls
-        | Some max_size ->
-          (* ... add all indexes < maximal size to may_nulls_set *)
-          if Z.equal min_i Z.zero && Z.geq max_i max_size then
-            Nulls.add_all Possibly nulls
-          else 
-            Nulls.add_interval Possibly (min_i, Z.min (Z.pred max_size) max_i) nulls
-      else if Val.is_not_null v then
-        if Z.equal min_i Z.zero && Z.geq max_i min_size then
-          Nulls.remove_all Possibly nulls
-        else
-          Nulls.filter_musts (fun x -> (Z.lt x min_i || Z.gt x max_i) && Z.lt x min_size) min_size nulls
+      (* Update max_i so it is capped at the maximum size *)
+      let max_i = BatOption.map_default (fun x -> Z.min max_i @@ Z.pred x) max_i (idx_maximal size) in
+      if Val.is_not_null v then
+        Nulls.remove_interval Possibly (min_i, max_i) min_size nulls 
       else
-        let nulls = match idx_maximal size with
-          (* ... and size has no upper limit, add all indexes of interval to may_nulls_set *)
-          | None -> Nulls.add_interval Possibly (min_i,max_i) nulls
-          | Some max_size when Z.equal min_i Z.zero && Z.geq max_i max_size ->
-            (* ... add all indexes < maximal size to may_nulls_set *)
-            Nulls.add_all Possibly nulls
-          | Some max_size -> Nulls.add_interval Possibly (min_i, Z.min (Z.pred max_size) max_i) nulls
-        in
-        if Z.equal min_i Z.zero && Z.geq max_i min_size then
-          Nulls.remove_all Possibly nulls
+        let nulls = Nulls.add_interval ~maxfull:(idx_maximal size) Possibly (min_i, max_i) nulls in
+        if Val.is_null v then
+          nulls
         else
-          Nulls.filter_musts (fun x -> (Z.lt x min_i || Z.gt x max_i) && Z.lt x min_size) min_size nulls
+          Nulls.remove_interval Possibly (min_i, max_i) min_size nulls 
     in
 
     (* warn if index is (potentially) out of bounds *)
