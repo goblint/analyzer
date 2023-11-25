@@ -66,14 +66,27 @@ end
 module MustMaySet = struct
   include Lattice.Prod (MustSet) (MaySet)
 
-  let must_mem i (musts, mays) = MustSet.mem i musts
-  let must_mem_interval (l,u) (musts, mays) = MustSet.interval_mem (l,u) musts
+  type mode = Definitely | Possibly
 
-  let may_be_empty (musts, mays) = MustSet.is_empty musts
-  let must_be_empty (musts, mays) = MaySet.is_empty mays
+  let is_empty mode (musts, mays) =
+    match mode with
+    | Definitely -> MaySet.is_empty mays
+    | Possibly -> MustSet.is_empty musts
 
-  let min_may_elem (musts, mays) = MaySet.min_elt mays
-  let min_must_elem (musts, mays) = MustSet.min_elt musts
+  let min_elem mode (musts, mays) =
+    match mode with
+    | Definitely -> MustSet.min_elt musts
+    | Possibly -> MaySet.min_elt mays
+
+  let mem mode i (musts, mays) =
+    match mode with
+    | Definitely -> MustSet.mem i musts
+    | Possibly -> MaySet.mem i mays
+
+  let interval_mem mode (l,u) (musts, mays) =
+    match mode with
+    | Definitely -> MustSet.interval_mem (l,u) musts
+    | Possibly -> failwith "not implemented"
 
   let add_may_interval (l,u) (musts, mays) =
     let rec add_indexes i max set =

@@ -1041,7 +1041,7 @@ struct
     (* if there is no maximum size *)
     | Some max_i, None when Z.geq max_i Z.zero ->
       (* ... and maximum value in index interval < minimal size, return Null if all numbers in index interval are in must_nulls_set *)
-      if Z.lt max_i min_size && Nulls.must_mem_interval (min_i,max_i) nulls then
+      if Z.lt max_i min_size && Nulls.interval_mem Definitely (min_i,max_i) nulls then
         Null
         (* ... return NotNull if no number in index interval is in may_nulls_set *)
       else if not (Nulls.may_exist (fun x -> Z.geq x min_i && Z.leq x max_i) nulls) then
@@ -1050,7 +1050,7 @@ struct
         Top
     | Some max_i, Some max_size when Z.geq max_i Z.zero ->
       (* if maximum value in index interval < minimal size, return Null if all numbers in index interval are in must_nulls_set *)
-      if Z.lt max_i min_size && Nulls.must_mem_interval (min_i, max_i) nulls then
+      if Z.lt max_i min_size && Nulls.interval_mem Definitely (min_i, max_i) nulls then
         Null
         (* if maximum value in index interval < maximal size, return NotNull if no number in index interval is in may_nulls_set *)
       else if Z.lt max_i max_size && not (Nulls.may_exist (fun x -> Z.geq x min_i && Z.leq x max_i) nulls) then
@@ -1255,14 +1255,14 @@ struct
   let to_string ((must_nulls_set, may_nulls_set, size) as x) =
     let nulls = (must_nulls_set, may_nulls_set) in
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => warn about certain buffer overflow and return tuple unchanged *)
-    if Nulls.must_be_empty nulls then
+    if Nulls.is_empty Definitely nulls then
       (M.error ~category:ArrayOobMessage.past_end "Array access past end: buffer overflow"; x)
       (* if only must_nulls_set empty, no certainty about array containing null byte => warn about potential buffer overflow and return tuple unchanged *)
-    else if Nulls.may_be_empty nulls then
+    else if Nulls.is_empty Possibly nulls then
       (M.warn ~category:ArrayOobMessage.past_end "May access array past end: potential buffer overflow"; x)
     else
-      let min_must_null = Nulls.min_must_elem nulls in
-      let min_may_null = Nulls.min_may_elem nulls in
+      let min_must_null = Nulls.min_elem Definitely nulls in
+      let min_may_null = Nulls.min_elem Possibly nulls in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
       if Z.equal min_must_null min_may_null then
         let (must,may) = Nulls.precise_singleton min_must_null in
@@ -1330,7 +1330,7 @@ struct
           | None, None -> ());
 
        (* if definitely no null byte in array, i.e. must_nulls_set = may_nulls_set = empty set *)
-       if Nulls.must_be_empty nulls then
+       if Nulls.is_empty Definitely nulls then
          (M.warn ~category:ArrayOobMessage.past_end 
             "Resulting string might not be null-terminated because src doesn't contain a null byte";
           match idx_maximal size with
@@ -1339,13 +1339,13 @@ struct
           | _ -> (must_nulls_set, may_nulls_set, Idx.of_int ILong (Z.of_int n)))
          (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1; 
           * warn as in any case, resulting array not guaranteed to contain null byte *)
-       else if Nulls.may_be_empty nulls then
-         let min_may_null = Nulls.min_may_elem nulls in
+       else if Nulls.is_empty Possibly nulls then
+         let min_may_null = Nulls.min_elem Possibly nulls in
          warn_no_null Z.zero false min_may_null;
          (must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
        else
-         let min_must_null = Nulls.min_must_elem nulls in
-         let min_may_null = Nulls.min_may_elem nulls in
+         let min_must_null = Nulls.min_elem Definitely nulls in
+         let min_may_null = Nulls.min_elem Possibly nulls in
          (* warn if resulting array may not contain null byte *)
          warn_no_null min_must_null true min_may_null;
          (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
@@ -1358,18 +1358,18 @@ struct
     let nulls = (must_nulls_set, may_nulls_set) in
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
     (* TODO: check of must set really needed? *)
-    if Nulls.must_be_empty nulls then
+    if Nulls.is_empty Definitely nulls then
       (M.error ~category:ArrayOobMessage.past_end "Array doesn't contain a null byte: buffer overflow";
        match Idx.minimal size with
        | Some min_size -> Idx.starting !Cil.kindOfSizeOf min_size
        | None -> Idx.starting !Cil.kindOfSizeOf Z.zero)
       (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
-    else if Nulls.may_be_empty nulls then
+    else if Nulls.is_empty Possibly nulls then
       (M.warn ~category:ArrayOobMessage.past_end "Array might not contain a null byte: potential buffer overflow";
-       Idx.starting !Cil.kindOfSizeOf (Nulls.min_may_elem nulls))
+       Idx.starting !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls))
       (* else return interval [minimal may null, minimal must null] *)
     else
-      Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_may_elem nulls, Nulls.min_must_elem nulls)
+      Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)
 
   let string_copy (must_nulls_set1, may_nulls_set1, size1) (must_nulls_set2, may_nulls_set2, size2) n =
     (* filter out indexes before strlen(src) from dest sets and after strlen(src) from src sets and build union, keep size of dest *)
@@ -1612,7 +1612,7 @@ struct
   let substring_extraction haystack ((must_needle, may_needle, size_needle) as needle) =
     let nulls_needle = (must_needle, may_needle) in
     (* if needle is empty string, i.e. certain null byte at index 0, return value of strstr is pointer to haystack *)
-    if Nulls.must_mem Z.zero nulls_needle then
+    if Nulls.mem Definitely Z.zero nulls_needle then
       IsSubstrAtIndex0
     else
       let haystack_len = to_string_length haystack in
