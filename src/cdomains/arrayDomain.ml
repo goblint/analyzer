@@ -1077,40 +1077,42 @@ struct
     let min_i = min i in
     let max_i = idx_maximal i in
 
-    let set_exact i =
+    let set_exact_nulls i =
       match idx_maximal size with
       (* if size has no upper limit *)
       | None -> 
         (* ... and value <> null, remove i from must_nulls_set and also from may_nulls_set if not top *)
         if Val.is_not_null v && not (MaySet.is_top may_nulls_set) then
-          (MustSet.remove i must_nulls_set min_size, MaySet.M.remove i may_nulls_set, size)
+          Nulls.remove Definitely i nulls min_size
         else if Val.is_not_null v then
-          (MustSet.remove i must_nulls_set min_size, may_nulls_set, size)
+          Nulls.remove Possibly i nulls min_size
           (* ..., i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
         else if Z.lt i min_size && Val.is_null v then
-          (MustSet.add i must_nulls_set, MaySet.add i may_nulls_set, size)
+          Nulls.add Definitely i nulls
           (* ..., i >= minimal size and value = null, add i only to may_nulls_set *)
         else if Val.is_null v then
-          (must_nulls_set, MaySet.add i may_nulls_set, size)
+          Nulls.add Possibly i nulls
           (* ... and value unknown, remove i from must_nulls_set and add it to may_nulls_set *)
         else
-          (MustSet.remove i must_nulls_set min_size, MaySet.add i may_nulls_set, size)
+          let removed = Nulls.remove Possibly i nulls min_size in
+          Nulls.add Possibly i removed
       | Some max_size ->
         (* if value <> null, remove i from must_nulls_set and may_nulls_set *)
         if Val.is_not_null v then
-          (MustSet.remove i must_nulls_set min_size, MaySet.remove i may_nulls_set max_size, size)
+          Nulls.remove Definitely i nulls min_size
           (* if i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
         else if Z.lt i min_size && Val.is_null v then
-          (MustSet.add i must_nulls_set, MaySet.add i may_nulls_set, size)
+          Nulls.add Definitely i nulls
           (* if minimal size <= i < maximal size and value = null, add i only to may_nulls_set *)
         else if Z.lt i max_size && Val.is_null v then
-          (must_nulls_set, MaySet.add i may_nulls_set, size)
+          Nulls.add Possibly i nulls
           (* if i < maximal size and value unknown, remove i from must_nulls_set and add it to may_nulls_set *)
         else if Z.lt i max_size then
-          (MustSet.remove i must_nulls_set min_size, MaySet.add i may_nulls_set, size)
-          (* if i >= maximal size, return tuple unmodified *)
+          let removed = Nulls.remove Possibly i nulls min_size in
+          Nulls.add Possibly i removed
         else
-          (must_nulls_set, may_nulls_set, size) in
+          nulls 
+    in
 
     let set_interval_must min_i max_i =
       (* if value = null, return must_nulls_set unmodified as not clear which index is set to null *)
@@ -1142,44 +1144,47 @@ struct
 
     (* warn if index is (potentially) out of bounds *)
     array_oob_check (module Idx) (must_nulls_set, size) (e, i);
-    match max_i with
+    let nulls = match max_i with
     (* if no maximum number in index interval *)
     | None ->
       (* ..., value = null *)
       (if Val.is_null v && idx_maximal size = None then
          match idx_maximal size with
          (* ... and there is no maximal size, modify may_nulls_set to top *)
-         | None ->  uf @@ (Nulls.forget_may nulls, size)
+         | None ->  Nulls.forget_may nulls
          (* ... and there is a maximal size, add all i from minimal index to maximal size to may_nulls_set *)
-         | Some max_size -> uf @@ (Nulls.add_may_interval (min_i, Z.pred max_size) nulls, size)
+         | Some max_size -> Nulls.add_may_interval (min_i, Z.pred max_size) nulls
          (* ... and value <> null, only keep indexes < minimal index in must_nulls_set *)
        else if Val.is_not_null v then
-         uf @@ (Nulls.filter_musts (Z.gt min_i) min_size nulls, size)
+         Nulls.filter_musts (Z.gt min_i) min_size nulls
          (*..., value unknown *)
        else
          match Idx.minimal size, idx_maximal size with
          (* ... and size unknown, modify both sets to top *)
-         | None, None -> uf @@ (Nulls.top (), size)
+         | None, None -> Nulls.top ()
          (* ... and only minimal size known, remove all indexes < minimal size from must_nulls_set and modify may_nulls_set to top *)
          | Some min_size, None -> 
             let nulls = Nulls.forget_may nulls in
-            uf @@ (Nulls.filter_musts (Z.gt min_size) min_size nulls, size)
+            Nulls.filter_musts (Z.gt min_size) min_size nulls
          (* ... and only maximal size known, modify must_nulls_set to top and add all i from minimal index to maximal size to may_nulls_set *)
          | None, Some max_size -> 
             let nulls = Nulls.forget_must nulls in
-            uf @@ (Nulls.add_may_interval (min_i, Z.pred max_size) nulls, size)
+            Nulls.add_may_interval (min_i, Z.pred max_size) nulls
          (* ... and size is known, remove all indexes < minimal size from must_nulls_set and add all i from minimal index to maximal size to may_nulls_set *)
          | Some min_size, Some max_size -> 
             let nulls = Nulls.filter_musts (Z.gt min_size) min_size nulls in
-            uf @@ (Nulls.add_may_interval (min_i, Z.pred max_size) nulls, size)
+            Nulls.add_may_interval (min_i, Z.pred max_size) nulls
       )
     | Some max_i when Z.geq max_i Z.zero ->
       if Z.equal min_i max_i then
-        set_exact min_i
+        set_exact_nulls min_i
       else
-        (set_interval_must min_i max_i, set_interval_may min_i max_i, size)
+        (set_interval_must min_i max_i, set_interval_may min_i max_i)
     (* if maximum number in interval is invalid, i.e. negative, return tuple unmodified *)
-    | _ -> x 
+    | _ -> nulls
+    in
+    uf @@ (nulls, size) 
+
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v =
     let min_i, max_i = match Idx.minimal i, idx_maximal i with

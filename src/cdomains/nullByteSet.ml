@@ -88,6 +88,16 @@ module MustMaySet = struct
     | Definitely -> MustSet.interval_mem (l,u) musts
     | Possibly -> failwith "not implemented"
 
+  let remove mode i (musts, mays) min_size = 
+    match mode with
+    | Definitely -> (MustSet.remove i musts min_size, MaySet.remove i mays min_size)
+    | Possibly -> (MustSet.remove i musts min_size, mays)
+
+  let add mode i (musts, mays) =
+    match mode with
+    | Definitely -> (MustSet.add i musts, MaySet.add i mays)
+    | Possibly -> (musts, MaySet.add i mays)
+
   let add_may_interval (l,u) (musts, mays) =
     let rec add_indexes i max set =
       if Z.gt i max then
