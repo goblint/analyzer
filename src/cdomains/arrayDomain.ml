@@ -1064,9 +1064,7 @@ struct
 
   let set (ask: VDQ.t) ((must_nulls_set, may_nulls_set, size) as x) (e, i) v =
     let nulls = (must_nulls_set, may_nulls_set) in
-    let min interval = match Idx.minimal interval with
-      | Some min_num when Z.geq min_num Z.zero -> min_num
-      | _ -> Z.zero in (* assume worst case minimal natural number *)
+    let min interval = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal interval)) in
 
     let min_size = min size in
     let min_i = min i in
@@ -1207,17 +1205,21 @@ struct
            Z.zero, None)
         else
           min_i, None
-      | None, None -> Z.zero, None in
-    match max_i, Val.is_null v, Val.is_not_null v with
-    (* if value = null, return (bot = all indexes up to minimal size - 1, top = all indexes up to maximal size - 1, size) *)
-    | Some max_i, true, _ -> (MustSet.bot (), MaySet.top (), Idx.of_interval ILong (min_i, max_i))
-    | None, true, _ -> (MustSet.bot (), MaySet.top (), Idx.starting ILong min_i)
-    (* if value <> null, return (top = no indexes, bot = no indexes, size) *)
-    | Some max_i, false, true -> (MustSet.top (), MaySet.bot (), Idx.of_interval ILong (min_i, max_i))
-    | None, false, true -> (MustSet.top (), MaySet.bot (), Idx.starting ILong min_i)
-    (* if value unknown, return (top = no indexes, top = all indexes up to maximal size - 1, size) *)
-    | Some max_i, false, false -> (MustSet.top (), MaySet.top (), Idx.of_interval ILong (min_i, max_i))
-    | None, false, false -> (MustSet.top (), MaySet.top (), Idx.starting ILong min_i)
+      | None, None -> Z.zero, None 
+    in
+    let size = match max_i with
+      | Some max_i -> Idx.of_interval ILong (min_i, max_i)
+      | None -> Idx.starting ILong min_i 
+    in
+    let nulls =
+      if Val.is_null v then
+        Nulls.make_all_must ()
+      else if Val.is_not_null v then
+        Nulls.make_none_may ()
+      else
+        Nulls.top ()
+    in
+    uf @@ (nulls, size)
 
   let length (_, _, size) = Some size
 
