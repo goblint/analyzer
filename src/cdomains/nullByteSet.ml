@@ -98,6 +98,18 @@ module MustMaySet = struct
     | Definitely -> (MustSet.add i musts, MaySet.add i mays)
     | Possibly -> (musts, MaySet.add i mays)
 
+  let add_interval mode (l,u) (musts, mays) =
+    match mode with
+    | Definitely -> failwith "todo"
+    | Possibly -> 
+      let rec add_indexes i max set =
+        if Z.gt i max then
+          set
+        else
+          add_indexes (Z.succ i) max (MaySet.add i set)
+      in
+      (musts, add_indexes l u mays)
+
   let add_may_interval (l,u) (musts, mays) =
     let rec add_indexes i max set =
       if Z.gt i max then

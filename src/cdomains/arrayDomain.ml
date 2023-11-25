@@ -1142,6 +1142,23 @@ struct
           else
             add_indexes min_i max_i may_nulls_set in
 
+    let set_interval min_i max_i =
+      if Val.is_null v then
+        match idx_maximal size with
+        (* ... and size has no upper limit, add all indexes of interval to may_nulls_set *)
+        | None ->  Nulls.add_interval Possibly (min_i, max_i) nulls
+        | Some max_size ->
+          (* ... add all indexes < maximal size to may_nulls_set *)
+          if Z.equal min_i Z.zero && Z.geq max_i max_size then
+            (must_nulls_set, MaySet.top ())
+          else if Z.geq max_i max_size then
+            (must_nulls_set, add_indexes min_i (Z.pred max_size) may_nulls_set)
+          else
+            Nulls.add_interval Possibly (min_i, max_i) nulls
+      else
+        (set_interval_must min_i max_i, set_interval_may min_i max_i)
+    in
+
     (* warn if index is (potentially) out of bounds *)
     array_oob_check (module Idx) (must_nulls_set, size) (e, i);
     let nulls = match max_i with
@@ -1179,7 +1196,7 @@ struct
       if Z.equal min_i max_i then
         set_exact_nulls min_i
       else
-        (set_interval_must min_i max_i, set_interval_may min_i max_i)
+        set_interval min_i max_i
     (* if maximum number in interval is invalid, i.e. negative, return tuple unmodified *)
     | _ -> nulls
     in
