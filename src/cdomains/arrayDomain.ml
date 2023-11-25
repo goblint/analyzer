@@ -1150,9 +1150,9 @@ struct
         | Some max_size ->
           (* ... add all indexes < maximal size to may_nulls_set *)
           if Z.equal min_i Z.zero && Z.geq max_i max_size then
-            (must_nulls_set, MaySet.top ())
+            Nulls.add_all Possibly nulls
           else if Z.geq max_i max_size then
-            (must_nulls_set, add_indexes min_i (Z.pred max_size) may_nulls_set)
+            Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
           else
             Nulls.add_interval Possibly (min_i, max_i) nulls
       else
@@ -1170,7 +1170,7 @@ struct
          (* ... and there is no maximal size, modify may_nulls_set to top *)
          | None ->  Nulls.forget_may nulls
          (* ... and there is a maximal size, add all i from minimal index to maximal size to may_nulls_set *)
-         | Some max_size -> Nulls.add_may_interval (min_i, Z.pred max_size) nulls
+         | Some max_size -> Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
          (* ... and value <> null, only keep indexes < minimal index in must_nulls_set *)
        else if Val.is_not_null v then
          Nulls.filter_musts (Z.gt min_i) min_size nulls
@@ -1186,11 +1186,11 @@ struct
          (* ... and only maximal size known, modify must_nulls_set to top and add all i from minimal index to maximal size to may_nulls_set *)
          | None, Some max_size -> 
             let nulls = Nulls.forget_must nulls in
-            Nulls.add_may_interval (min_i, Z.pred max_size) nulls
+            Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
          (* ... and size is known, remove all indexes < minimal size from must_nulls_set and add all i from minimal index to maximal size to may_nulls_set *)
          | Some min_size, Some max_size -> 
             let nulls = Nulls.filter_musts (Z.gt min_size) min_size nulls in
-            Nulls.add_may_interval (min_i, Z.pred max_size) nulls
+            Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
       )
     | Some max_i when Z.geq max_i Z.zero ->
       if Z.equal min_i max_i then

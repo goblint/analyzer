@@ -110,14 +110,10 @@ module MustMaySet = struct
       in
       (musts, add_indexes l u mays)
 
-  let add_may_interval (l,u) (musts, mays) =
-    let rec add_indexes i max set =
-      if Z.gt i max then
-        set
-      else
-        add_indexes (Z.succ i) max (MaySet.add i set)
-    in
-    (musts, add_indexes l u mays)
+  let add_all mode (musts, mays) =
+    match mode with
+    | Definitely -> failwith "todo"
+    | Possibly -> (musts, MaySet.top ())
 
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)
