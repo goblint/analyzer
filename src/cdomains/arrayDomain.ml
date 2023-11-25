@@ -1292,63 +1292,68 @@ struct
     * marking the end of the string and if needed followed by further null bytes to obtain 
     * an n bytes string. *)
   let to_n_string (must_nulls_set, may_nulls_set, size) n =
-    let nulls = (must_nulls_set, may_nulls_set) in
-    let rec add_indexes i max set =
-      if Z.geq i max then
-        set
-      else
-        add_indexes (Z.succ i) max (MaySet.add i set) in
-    let update_must_indexes min_must_null must_nulls_set =
-      if Z.equal min_must_null Z.zero then
-        MustSet.bot ()
-      else
-        (* if strlen < n, every byte starting from min_must_null is surely also transformed to null *)
-        add_indexes min_must_null (Z.of_int n) must_nulls_set
-        |> MustSet.M.filter (Z.gt (Z.of_int n)) in
-    let update_may_indexes min_may_null may_nulls_set =
-      if Z.equal min_may_null Z.zero then
-        MaySet.top ()
-      else
-        (* if minimal strlen < n, every byte starting from minimal may null index may be transformed to null *)
-        add_indexes min_may_null (Z.of_int n) may_nulls_set
-        |> MaySet.M.filter (Z.gt (Z.of_int n)) in
-    let warn_no_null min_must_null exists_min_must_null min_may_null =
-      if Z.geq min_may_null (Z.of_int n) then
-        M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
-      else if (exists_min_must_null && (Z.geq min_must_null (Z.of_int n)) || (Z.gt min_must_null min_may_null)) || not exists_min_must_null then
-        M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes" in
-
     if n < 0 then
-      (MustSet.top (), MaySet.top (), Idx.top_of ILong)
+      uf @@ (Nulls.top (), Idx.top_of ILong)
     else
+      let n = Z.of_int n in
+      let nulls = (must_nulls_set, may_nulls_set) in
+      let rec add_indexes i max set =
+        if Z.geq i max then
+          set
+        else
+          add_indexes (Z.succ i) max (MaySet.add i set) in
+      let update_must_indexes min_must_null must_nulls_set =
+        if Z.equal min_must_null Z.zero then
+          MustSet.bot ()
+        else
+          (* if strlen < n, every byte starting from min_must_null is surely also transformed to null *)
+          add_indexes min_must_null n must_nulls_set
+          |> MustSet.M.filter (Z.gt n) in
+      let update_may_indexes min_may_null may_nulls_set =
+        if Z.equal min_may_null Z.zero then
+          MaySet.top ()
+        else
+          (* if minimal strlen < n, every byte starting from minimal may null index may be transformed to null *)
+          add_indexes min_may_null n may_nulls_set
+          |> MaySet.M.filter (Z.gt n) in
+      let warn_no_null min_must_null exists_min_must_null min_may_null =
+        if Z.geq min_may_null n then
+          M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
+        else if (exists_min_must_null && (Z.geq min_must_null n) || (Z.gt min_must_null min_may_null)) || not exists_min_must_null then
+          M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
+      in
       ((match Idx.minimal size, idx_maximal size with
           | Some min_size, Some max_size ->
-            if Z.gt (Z.of_int n) max_size then
+            if Z.gt n max_size then
               M.warn ~category:ArrayOobMessage.past_end "Array size is smaller than n bytes; can cause a buffer overflow"
-            else if Z.gt (Z.of_int n) min_size then
+            else if Z.gt n min_size then
               M.warn ~category:ArrayOobMessage.past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
           | Some min_size, None ->
-            if Z.gt (Z.of_int n) min_size then
+            if Z.gt n min_size then
               M.warn ~category:ArrayOobMessage.past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
           | None, Some max_size ->
-            if Z.gt (Z.of_int n) max_size then
+            if Z.gt n max_size then
               M.warn ~category:ArrayOobMessage.past_end "Array size is smaller than n bytes; can cause a buffer overflow"
           | None, None -> ());
-
+      let nulls = 
        (* if definitely no null byte in array, i.e. must_nulls_set = may_nulls_set = empty set *)
        if Nulls.is_empty Definitely nulls then
          (M.warn ~category:ArrayOobMessage.past_end 
             "Resulting string might not be null-terminated because src doesn't contain a null byte";
           match idx_maximal size with
           (* ... there *may* be null bytes from maximal size to n - 1 if maximal size < n (i.e. past end) *)
-          | Some max_size when Z.geq max_size Z.zero -> (must_nulls_set, add_indexes max_size (Z.of_int n) may_nulls_set, Idx.of_int ILong (Z.of_int n))
-          | _ -> (must_nulls_set, may_nulls_set, Idx.of_int ILong (Z.of_int n)))
+          | Some max_size when Z.geq max_size Z.zero -> Nulls.add_interval Possibly (max_size, Z.pred n) nulls
+          | _ -> nulls)
          (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1; 
           * warn as in any case, resulting array not guaranteed to contain null byte *)
        else if Nulls.is_empty Possibly nulls then
          let min_may_null = Nulls.min_elem Possibly nulls in
          warn_no_null Z.zero false min_may_null;
-         (must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
+         if Z.equal min_may_null Z.zero then
+          Nulls.forget_may nulls
+         else
+          let (must, mays) = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
+          (must, mays |> MaySet.M.filter (Z.gt n))  (* TODO: this makes little sense *)
        else
          let min_must_null = Nulls.min_elem Definitely nulls in
          let min_may_null = Nulls.min_elem Possibly nulls in
@@ -1356,9 +1361,11 @@ struct
          warn_no_null min_must_null true min_may_null;
          (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
          if Z.equal min_must_null min_may_null then
-           (update_must_indexes min_must_null must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
+           (update_must_indexes min_must_null must_nulls_set, update_may_indexes min_may_null may_nulls_set)
          else
-           (MustSet.top (), update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n)))
+           (MustSet.top (), update_may_indexes min_may_null may_nulls_set)
+      in
+      uf @@ (nulls,  Idx.of_int ILong n))
 
   let to_string_length (must_nulls_set, may_nulls_set, size) =
     let nulls = (must_nulls_set, may_nulls_set) in
