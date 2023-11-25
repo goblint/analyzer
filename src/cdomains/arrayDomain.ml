@@ -1223,18 +1223,19 @@ struct
 
   let length (_, _, size) = Some size
 
-  let move_if_affected ?(replace_with_const=false) _ sets_and_size _ _ = sets_and_size
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
 
   let get_vars_in_e _ = []
 
   let map f (must_nulls_set, may_nulls_set, size) =
+    let nulls = (must_nulls_set, may_nulls_set) in
     (* if f(null) = null, all values in must_nulls_set still are surely null; 
      * assume top for may_nulls_set as checking effect of f for every possible value is unfeasbile *)
     if Val.is_null (f (Val.null ())) then
-      (must_nulls_set, MaySet.top (), size)
+      uf @@ (Nulls.forget_may nulls, size)
       (* else also return top for must_nulls_set *)
     else
-      (MustSet.top (), MaySet.top (), size)
+      uf @@ (Nulls.top (), size)
 
   let fold_left f acc _ = f acc (Val.top ())
 
@@ -1386,17 +1387,13 @@ struct
          else if Z.lt min_size1 max_len2 then
            M.warn ~category:ArrayOobMessage.past_end "The length of string src may be greater than the allocated size for dest");
         let must_nulls_set_result = 
-          let min_size2 = match Idx.minimal size2' with
-            | Some min_size2 -> min_size2
-            | None -> Z.zero in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
           (* get must nulls from src string < minimal size of dest *)
           MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2
           (* and keep indexes of dest >= maximal strlen of src *)
           |> MustSet.union (MustSet.filter (Z.leq max_len2) must_nulls_set1 min_size1) in
         let may_nulls_set_result = 
-          let max_size2 = match idx_maximal size2' with
-            | Some max_size2 -> max_size2
-            | None -> max_size1 in
+          let max_size2 = BatOption.default max_size1 (idx_maximal size2') in
           (* get may nulls from src string < maximal size of dest *)
           MaySet.filter (Z.gt max_size1) may_nulls_set2' max_size2
           (* and keep indexes of dest >= minimal strlen of src *)
@@ -1406,9 +1403,7 @@ struct
         (if Z.lt min_size1 max_len2 then
            M.warn ~category:ArrayOobMessage.past_end "The length of string src may be greater than the allocated size for dest");
         let must_nulls_set_result = 
-          let min_size2 = match Idx.minimal size2' with
-            | Some min_size2 -> min_size2
-            | None -> Z.zero in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
           MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2
           |> MustSet.union (MustSet.filter (Z.leq max_len2) must_nulls_set1 min_size1) in
         let may_nulls_set_result = 
@@ -1423,14 +1418,10 @@ struct
            M.warn ~category:ArrayOobMessage.past_end "The length of string src may be greater than the allocated size for dest");
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result = 
-          let min_size2 = match Idx.minimal size2' with
-            | Some min_size2 -> min_size2
-            | None -> Z.zero in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
           MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2 in
         let may_nulls_set_result =
-          let max_size2 = match idx_maximal size2' with
-            | Some max_size2 -> max_size2
-            | None -> max_size1 in
+          let max_size2 = BatOption.default max_size1 (idx_maximal size2') in
           MaySet.filter (Z.gt max_size1) may_nulls_set2' max_size2
           |> MaySet.union (MaySet.filter (Z.leq min_len2) may_nulls_set1 max_size1) in
         (must_nulls_set_result, may_nulls_set_result, size1)
@@ -1439,9 +1430,7 @@ struct
            M.warn ~category:ArrayOobMessage.past_end "The length of string src may be greater than the allocated size for dest");
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result = 
-          let min_size2 = match Idx.minimal size2' with
-            | Some min_size2 -> min_size2
-            | None -> Z.zero in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
           MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2 in
         let may_nulls_set_result = 
           (* get all may nulls from src string as no maximal size of dest *)
