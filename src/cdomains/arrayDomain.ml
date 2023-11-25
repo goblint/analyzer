@@ -1155,6 +1155,11 @@ struct
             Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
           else
             Nulls.add_interval Possibly (min_i, max_i) nulls
+      else if Val.is_not_null v then
+        if Z.equal min_i Z.zero && Z.geq max_i min_size then
+          Nulls.remove_all Possibly nulls
+        else
+          Nulls.filter_musts (fun x -> (Z.lt x min_i || Z.gt x max_i) && Z.lt x min_size) min_size nulls
       else
         (set_interval_must min_i max_i, set_interval_may min_i max_i)
     in

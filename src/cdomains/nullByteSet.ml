@@ -115,6 +115,11 @@ module MustMaySet = struct
     | Definitely -> failwith "todo"
     | Possibly -> (musts, MaySet.top ())
 
+  let remove_all mode (musts, mays) =
+    match mode with
+    | Definitely -> (MustSet.top (), mays)
+    | Possibly -> failwith "todo"
+
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)
 
