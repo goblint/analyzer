@@ -146,6 +146,8 @@ module MustMaySet = struct
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)
 
+  let precise_set s = (s,s)
+
   let make_all_must () = (MustSet.bot (), MaySet.top ())
   let make_none_may () = (MustSet.top (), MaySet.bot ())
 

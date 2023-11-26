@@ -1234,7 +1234,7 @@ struct
         | Some i -> build_set (i + 1) (MaySet.add (Z.of_int i) set)
         | None -> MaySet.add last_null set in
     let set = build_set 0 (MaySet.empty ()) in
-    ((set, set), Idx.of_int ILong (Z.succ last_null))
+    (Nulls.precise_set set, Idx.of_int ILong (Z.succ last_null))
 
   (** Returns an abstract value with at most one null byte marking the end of the string *)
   let to_string ((nulls, size) as x:t):t =
@@ -1579,10 +1579,10 @@ struct
       let n = Z.of_int n in
       (* take at most n bytes from src; if no null byte among them, add null byte at index n *)
       let nulls2' =
-        let (must_nulls_set2, may_nulls_set2), size2 = to_string (nulls2, size2) in
-        if not (MaySet.exists (Z.gt n) may_nulls_set2) then
-          (Nulls.precise_singleton n)
-        else if not (MustSet.exists (Z.gt n) must_nulls_set2) then
+        let ((must_nulls_set2, may_nulls_set2) as nulls2), size2 = to_string (nulls2, size2) in
+        if not (Nulls.exists Possibly (Z.gt n) nulls2) then
+          Nulls.precise_singleton n
+        else if not (Nulls.exists Definitely (Z.gt n) nulls2) then
           let max_size2 = BatOption.default (Z.succ n) (idx_maximal size2) in
           (MustSet.empty (), MaySet.add n (MaySet.filter (Z.geq n) may_nulls_set2 max_size2))
         else
