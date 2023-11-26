@@ -12,9 +12,11 @@ module MustSet = struct
     else
       M.remove i must_nulls_set
 
-  let filter cond must_nulls_set min_size =
+  let filter ?min_size cond must_nulls_set =
     if M.is_bot must_nulls_set then
-      M.filter cond (compute_set min_size)
+      match min_size with
+      | Some min_size -> M.filter cond (compute_set min_size)
+      | _ -> M.empty ()
     else
       M.filter cond must_nulls_set
 
@@ -50,9 +52,11 @@ module MaySet = struct
     else
       M.remove i may_nulls_set
 
-  let filter cond may_nulls_set max_size =
+  let filter ?max_size cond may_nulls_set =
     if M.is_top may_nulls_set then
-      M.filter cond (MustSet.compute_set max_size)
+      match max_size with
+      | Some max_size -> M.filter cond (MustSet.compute_set max_size)
+      | _ -> may_nulls_set
     else
       M.filter cond may_nulls_set
 
@@ -67,6 +71,8 @@ module MustMaySet = struct
   include Lattice.Prod (MustSet) (MaySet)
 
   type mode = Definitely | Possibly
+
+  let empty () = (MustSet.top (), MaySet.bot ())
 
   let is_empty mode (musts, mays) =
     match mode with
@@ -124,7 +130,7 @@ module MustMaySet = struct
         if Z.equal l Z.zero && Z.geq u min_size then 
           (MustSet.top (), mays)
         else
-          (MustSet.filter (fun x -> (Z.lt x l || Z.gt x u) && Z.lt x min_size) musts min_size, mays)
+          (MustSet.filter ~min_size (fun x -> (Z.lt x l || Z.gt x u) && Z.lt x min_size) musts, mays)
 
   let add_all mode (musts, mays) =
     match mode with
@@ -133,8 +139,8 @@ module MustMaySet = struct
 
   let remove_all mode (musts, mays) =
     match mode with
-    | Definitely -> (MustSet.top (), mays)
-    | Possibly -> failwith "todo"
+    | Possibly -> (MustSet.top (), mays)
+    | Definitely -> empty ()
 
   let is_full_set mode (musts, mays) =
     match mode with
@@ -152,14 +158,16 @@ module MustMaySet = struct
   let precise_set s = (s,s)
 
   let make_all_must () = (MustSet.bot (), MaySet.top ())
-  let empty () = (MustSet.top (), MaySet.bot ())
+
+  let may_can_benefit_from_filter (musts, mays) = not (MaySet.is_top mays)
 
   let exists mode f (musts, mays) =
     match mode with
     | Definitely -> MustSet.exists f musts
     | Possibly -> MaySet.exists f mays
 
-  let forget_may (musts, mays) = (musts, MaySet.top ())
-  let forget_must (musts, mays) = (MustSet.top (), mays)
-  let filter_musts f min_size (musts, mays) = (MustSet.filter f musts min_size, mays)
+  let filter ?min_size ?max_size f (must, mays):t =
+    (MustSet.filter ?min_size f must, MaySet.filter ?max_size f mays)
+
+  let filter_musts f min_size (musts, mays) = (MustSet.filter ~min_size f musts, mays)
 end
