@@ -1010,6 +1010,18 @@ struct
   type value = Val.t
 
   type ret = Null | NotNull | Top
+  module Val = struct
+    include Val
+
+    let is_null v = 
+      if is_not_null v then 
+        NotNull 
+      else if is_null v then
+        Null
+      else
+        Top
+  end
+
   type substr = IsNotSubstr | IsSubstrAtIndex0 | IsMaybeSubstr
 
   module ArrayOobMessage = M.Category.Behavior.Undefined.ArrayOutOfBounds
@@ -1060,7 +1072,7 @@ struct
     (* if maximum number in interval is invalid, i.e. negative, return Top of value *)
     | _ -> Top
 
-  let uf ((a,b),c) = (a,b,c) 
+  let uf ((a,b),c) = (a,b,c)
 
   let set (ask: VDQ.t) ((must_nulls_set, may_nulls_set, size) as x) (e, i) v =
     let nulls = (must_nulls_set, may_nulls_set) in
@@ -1074,30 +1086,26 @@ struct
       match idx_maximal size with
       (* if size has no upper limit *)
       | None -> 
-        (* ... and value <> null, remove i from must_nulls_set and also from may_nulls_set if not top *)
-        if Val.is_not_null v && not (MaySet.is_top may_nulls_set) then
-          Nulls.remove Definitely i nulls min_size
-        else if Val.is_not_null v then
-          Nulls.remove Possibly i nulls min_size
-          (* ..., i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
-        else if Z.lt i min_size && Val.is_null v then
-          Nulls.add Definitely i nulls
-          (* ..., i >= minimal size and value = null, add i only to may_nulls_set *)
-        else if Val.is_null v then
-          Nulls.add Possibly i nulls
-          (* ... and value unknown, remove i from must_nulls_set and add it to may_nulls_set *)
-        else
+        (match Val.is_null v with
+        | NotNull ->
+          Nulls.remove (if MaySet.is_top may_nulls_set then Possibly else Definitely) i nulls min_size
+          (* ... and value <> null, remove i from must_nulls_set and also from may_nulls_set if not top *)
+        | Null ->
+          Nulls.add (if Z.lt i min_size then Definitely else Possibly) i nulls
+          (* i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
+          (* i >= minimal size and value = null, add i only to may_nulls_set *)
+        | Top ->
           let removed = Nulls.remove Possibly i nulls min_size in
-          Nulls.add Possibly i removed
+          Nulls.add Possibly i removed)
       | Some max_size ->
         (* if value <> null, remove i from must_nulls_set and may_nulls_set *)
         if Val.is_not_null v then
           Nulls.remove Definitely i nulls min_size
           (* if i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
-        else if Z.lt i min_size && Val.is_null v then
+        else if Z.lt i min_size && Val.is_null v = Null then
           Nulls.add Definitely i nulls
           (* if minimal size <= i < maximal size and value = null, add i only to may_nulls_set *)
-        else if Z.lt i max_size && Val.is_null v then
+        else if Z.lt i max_size && Val.is_null v = Null then
           Nulls.add Possibly i nulls
           (* if i < maximal size and value unknown, remove i from must_nulls_set and add it to may_nulls_set *)
         else if Z.lt i max_size then
@@ -1114,7 +1122,7 @@ struct
         Nulls.remove_interval Possibly (min_i, max_i) min_size nulls 
       else
         let nulls = Nulls.add_interval ~maxfull:(idx_maximal size) Possibly (min_i, max_i) nulls in
-        if Val.is_null v then
+        if Val.is_null v = Null then
           nulls
         else
           Nulls.remove_interval Possibly (min_i, max_i) min_size nulls 
@@ -1126,7 +1134,7 @@ struct
     (* if no maximum number in index interval *)
     | None ->
       (* ..., value = null *)
-      (if Val.is_null v && idx_maximal size = None then
+      (if Val.is_null v = Null && idx_maximal size = None then
          match idx_maximal size with
          (* ... and there is no maximal size, modify may_nulls_set to top *)
          | None ->  Nulls.forget_may nulls
@@ -1193,13 +1201,10 @@ struct
       | Some max_i -> Idx.of_interval ILong (min_i, max_i)
       | None -> Idx.starting ILong min_i 
     in
-    let nulls =
-      if Val.is_null v then
-        Nulls.make_all_must ()
-      else if Val.is_not_null v then
-        Nulls.make_none_may ()
-      else
-        Nulls.top ()
+    let nulls = match Val.is_null v with
+      | Null -> Nulls.make_all_must ()
+      | NotNull -> Nulls.make_none_may ()
+      | Top -> Nulls.top ()
     in
     uf @@ (nulls, size)
 
@@ -1213,11 +1218,9 @@ struct
     let nulls = (must_nulls_set, may_nulls_set) in
     (* if f(null) = null, all values in must_nulls_set still are surely null; 
      * assume top for may_nulls_set as checking effect of f for every possible value is unfeasbile *)
-    if Val.is_null (f (Val.null ())) then
-      uf @@ (Nulls.forget_may nulls, size)
-      (* else also return top for must_nulls_set *)
-    else
-      uf @@ (Nulls.top (), size)
+    match Val.is_null (f (Val.null ())) with
+    | Null -> uf @@ (Nulls.forget_may nulls, size)
+    | _ -> uf @@ (Nulls.top (), size) (* else also return top for must_nulls_set *)
 
   let fold_left f acc _ = f acc (Val.top ())
 
