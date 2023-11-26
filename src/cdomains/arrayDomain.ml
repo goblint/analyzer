@@ -1259,13 +1259,7 @@ struct
         | None -> 
           if MaySet.is_top (Nulls.get_set Possibly nulls) then
             let empty = Nulls.empty () in
-
-            let rec add_indexes acc i =
-              if i >. min_must_null then
-                acc
-              else
-                add_indexes (MaySet.add i acc) (Z.succ i) in
-            ((MustSet.empty (), add_indexes (MaySet.empty ()) Z.zero), Idx.of_int ILong (Z.succ min_must_null))
+            (Nulls.add_interval Possibly (Z.zero, min_must_null) empty, Idx.of_int ILong (Z.succ min_must_null))
           else
             ((MustSet.empty (), MaySet.M.filter (Z.geq min_must_null) (Nulls.get_set Possibly nulls)), Idx.of_int ILong (Z.succ min_must_null))
 
