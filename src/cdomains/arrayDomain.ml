@@ -1007,6 +1007,7 @@ struct
   let (>.) = Z.gt
   let (>=.) = Z.geq
   let (=.) = Z.equal
+  let (+.) = Z.add
 
   (* (Must Null Set, May Null Set, Array Size) *)
   include Lattice.Prod (Nulls) (Idx)
@@ -1470,10 +1471,10 @@ struct
   let string_concat (nulls1, size1) (nulls2, size2) n =
     let update_sets min_size1 max_size1 max_size1_exists minlen1 maxlen1 maxlen1_exists minlen2 maxlen2 maxlen2_exists nulls2' = 
       (* track any potential buffer overflow and issue warning if needed *)
-      (if max_size1_exists && Z.leq max_size1 (Z.add minlen1 minlen2) then
+      (if max_size1_exists && max_size1 <=. (minlen1 +. minlen2) then
         warn_past_end
            "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
-       else if (maxlen1_exists && maxlen2_exists && Z.leq min_size1 (Z.add maxlen1 maxlen2)) || not maxlen1_exists || not maxlen2_exists then
+       else if (maxlen1_exists && maxlen2_exists && min_size1 <=. (maxlen1 +. maxlen2)) || not maxlen1_exists || not maxlen2_exists then
         warn_past_end 
            "The length of the concatenation of the strings in src and dest may be greater than the allocated size for dest");
       (* if any must_nulls_set empty, result must_nulls_set also empty; 
@@ -1484,30 +1485,30 @@ struct
         let (must_nulls_set2', may_nulls_set2') = nulls2' in
         let may_nulls_set_result =
           if max_size1_exists then
-            MaySet.filter (fun x -> if maxlen1_exists && maxlen2_exists then Z.leq x (Z.add maxlen1 maxlen2) else true) may_nulls_set1 max_size1
+            MaySet.filter (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1 max_size1
             |> MaySet.elements
             (* if may_nulls_set2' is top, limit it to max_size1 *)
             |> BatList.cartesian_product (MaySet.elements (MaySet.filter (fun x -> true) may_nulls_set2' max_size1))
-            |> List.map (fun (i1, i2) -> Z.add i1 i2)
+            |> List.map (fun (i1, i2) -> i1 +. i2)
             |> MaySet.of_list
-            |> MaySet.union (MaySet.filter (Z.lt (Z.add minlen1 minlen2)) may_nulls_set1 max_size1)
+            |> MaySet.union (MaySet.filter (Z.lt (minlen1 +. minlen2)) may_nulls_set1 max_size1)
             |> MaySet.M.filter (Z.gt max_size1) 
           else if not (MaySet.is_top may_nulls_set1) && not (MaySet.is_top may_nulls_set2') && maxlen1_exists && maxlen2_exists then
-            MaySet.M.filter (fun x -> if maxlen1_exists && maxlen2_exists then Z.leq x (Z.add maxlen1 maxlen2) else true) may_nulls_set1
+            MaySet.M.filter (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1
             |> MaySet.elements
             |> BatList.cartesian_product (MaySet.elements may_nulls_set2')
-            |> List.map (fun (i1, i2) -> Z.add i1 i2)
+            |> List.map (fun (i1, i2) -> i1 +. i2)
             |> MaySet.of_list
-            |> MaySet.union (MaySet.M.filter (Z.lt (Z.add minlen1 minlen2)) may_nulls_set1)
+            |> MaySet.union (MaySet.M.filter (Z.lt (minlen1 +. minlen2)) may_nulls_set1)
           else
             MaySet.top () in
         ((MustSet.top (), may_nulls_set_result), size1)
         (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
       else if Nulls.min_elem_precise (nulls1) && Nulls.min_elem_precise nulls2' then
-        let (must_nulls_set1, may_nulls_set1) = nulls1 in
         let min_i1 = Nulls.min_elem Definitely nulls1 in
         let min_i2 = Nulls.min_elem Definitely nulls2' in
-        let min_i = Z.add min_i1 min_i2 in
+        let min_i = min_i1 +. min_i2 in
+        let (must_nulls_set1, may_nulls_set1) = nulls1 in
         let must_nulls_set_result = 
           MustSet.filter (Z.lt min_i) must_nulls_set1 min_size1
           |> MustSet.add min_i
@@ -1522,30 +1523,30 @@ struct
         ((must_nulls_set_result, may_nulls_set_result), size1)
         (* else only add all may nulls together <= strlen(dest) + strlen(src) *)
       else
+        let min_i2 = Nulls.min_elem Definitely nulls2' in
         let (must_nulls_set1, may_nulls_set1) = nulls1 in
         let (must_nulls_set2', may_nulls_set2') = nulls2' in
-        let min_i2 = MustSet.min_elt must_nulls_set2' in
         let may_nulls_set2'_until_min_i2 = 
           match idx_maximal size2 with
           | Some max_size2 -> MaySet.filter (Z.geq min_i2) may_nulls_set2' max_size2
           | None -> MaySet.filter (Z.geq min_i2) may_nulls_set2' (Z.succ min_i2) in
-        let must_nulls_set_result = MustSet.filter (fun x -> if maxlen1_exists && maxlen2_exists then (Z.add maxlen1 maxlen2) <. x else false) must_nulls_set1 min_size1 in
+        let must_nulls_set_result = MustSet.filter (fun x -> if maxlen1_exists && maxlen2_exists then (maxlen1 +. maxlen2) <. x else false) must_nulls_set1 min_size1 in
         let may_nulls_set_result = 
           if max_size1_exists then
-            MaySet.filter (fun x -> if maxlen1_exists && maxlen2_exists then Z.leq x (Z.add maxlen1 maxlen2) else true) may_nulls_set1 max_size1
+            MaySet.filter (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1 max_size1
             |> MaySet.elements
             |> BatList.cartesian_product (MaySet.elements may_nulls_set2'_until_min_i2)
-            |> List.map (fun (i1, i2) -> Z.add i1 i2)
+            |> List.map (fun (i1, i2) -> i1 +. i2)
             |> MaySet.of_list
-            |> MaySet.union (MaySet.filter (Z.lt (Z.add minlen1 minlen2)) may_nulls_set1 max_size1)
+            |> MaySet.union (MaySet.filter (Z.lt (minlen1 +. minlen2)) may_nulls_set1 max_size1)
             |> MaySet.M.filter (fun x -> if max_size1_exists then max_size1 >. x else true) 
           else if not (MaySet.is_top may_nulls_set1) then
-            MaySet.M.filter (fun x -> if maxlen1_exists && maxlen2_exists then Z.leq x (Z.add maxlen1 maxlen2) else true) may_nulls_set1
+            MaySet.M.filter (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1
             |> MaySet.elements
             |> BatList.cartesian_product (MaySet.elements may_nulls_set2'_until_min_i2)
-            |> List.map (fun (i1, i2) -> Z.add i1 i2)
+            |> List.map (fun (i1, i2) -> i1 +. i2)
             |> MaySet.of_list
-            |> MaySet.union (MaySet.M.filter (Z.lt (Z.add minlen1 minlen2)) may_nulls_set1)
+            |> MaySet.union (MaySet.M.filter (Z.lt (minlen1 +. minlen2)) may_nulls_set1)
           else
             MaySet.top () in
         ((must_nulls_set_result, may_nulls_set_result), size1) in
