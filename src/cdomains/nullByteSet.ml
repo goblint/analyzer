@@ -78,6 +78,9 @@ module MustMaySet = struct
     | Definitely -> MustSet.min_elt musts
     | Possibly -> MaySet.min_elt mays
 
+  let min_elem_precise x =
+    Z.equal (min_elem Definitely x) (min_elem Possibly x)
+
   let mem mode i (musts, mays) =
     match mode with
     | Definitely -> MustSet.mem i musts
@@ -149,7 +152,7 @@ module MustMaySet = struct
   let precise_set s = (s,s)
 
   let make_all_must () = (MustSet.bot (), MaySet.top ())
-  let make_none_may () = (MustSet.top (), MaySet.bot ())
+  let empty () = (MustSet.top (), MaySet.bot ())
 
   let exists mode f (musts, mays) =
     match mode with
