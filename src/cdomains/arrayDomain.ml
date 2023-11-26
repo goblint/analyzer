@@ -1613,14 +1613,13 @@ struct
     let (must_nulls_set2, may_nulls_set2) = nulls2 in
     let compare n n_exists =
       (* if s1 = s2 = empty string, i.e. certain null byte at index 0, or n = 0, return 0 *)
-      if (MustSet.mem Z.zero must_nulls_set1 && (MustSet.mem Z.zero must_nulls_set2))
-      || (n_exists && Z.equal Z.zero n) then
+      if (Nulls.mem Definitely Z.zero nulls1 && Nulls.mem Definitely Z.zero nulls2) || (n_exists && Z.equal Z.zero n) then
         Idx.of_int IInt Z.zero
         (* if only s1 = empty string, return negative integer *)
-      else if MustSet.mem Z.zero must_nulls_set1 && not (MaySet.mem Z.zero may_nulls_set2) then
+      else if Nulls.mem Definitely Z.zero nulls1 && not (Nulls.mem Possibly Z.zero nulls2) then
         Idx.ending IInt Z.minus_one
         (* if only s2 = empty string, return positive integer *)
-      else if MustSet.mem Z.zero must_nulls_set2 then
+      else if Nulls.mem Definitely Z.zero nulls2 then
         Idx.starting IInt Z.one
       else 
         (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
@@ -1637,13 +1636,13 @@ struct
     (* strcmp *)
     | None ->
       (* track any potential buffer overflow and issue warning if needed *)
-      (if MustSet.is_empty must_nulls_set1 && MaySet.is_empty may_nulls_set1 then
+      (if Nulls.is_empty Definitely nulls1 && Nulls.is_empty Possibly nulls1 then
          M.error ~category:ArrayOobMessage.past_end "Array of string 1 doesn't contain a null byte: buffer overflow"
-       else if MustSet.is_empty must_nulls_set1 then
+       else if Nulls.is_empty Possibly nulls1 then
          M.warn ~category:ArrayOobMessage.past_end "Array of string 1 might not contain a null byte: potential buffer overflow");
-      (if MustSet.is_empty must_nulls_set2 && MaySet.is_empty may_nulls_set2 then
+      (if Nulls.is_empty Definitely nulls2 && Nulls.is_empty Possibly nulls2  then
          M.error ~category:ArrayOobMessage.past_end "Array of string 2 doesn't contain a null byte: buffer overflow"
-       else if MustSet.is_empty must_nulls_set2 then
+       else if Nulls.is_empty Possibly nulls2 then
          M.warn ~category:ArrayOobMessage.past_end "Array of string 2 might not contain a null byte: potential buffer overflow");
       (* compute abstract value for result of strcmp *)
       compare Z.zero false
@@ -1660,7 +1659,8 @@ struct
            M.warn ~category:ArrayOobMessage.past_end "The size of the array of string 1 might be smaller than n bytes"
        | None ->
          if Z.gt (Z.of_int n) min_size1 then
-           M.warn ~category:ArrayOobMessage.past_end "The size of the array of string 1 might be smaller than n bytes");
+           M.warn ~category:ArrayOobMessage.past_end "The size of the array of string 1 might be smaller than n bytes"
+      );
       (match idx_maximal size2 with
        | Some max_size2 ->
          if Z.gt (Z.of_int n) max_size2 then
