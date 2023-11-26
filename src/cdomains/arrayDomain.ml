@@ -1071,8 +1071,6 @@ struct
     (* if maximum number in interval is invalid, i.e. negative, return Top of value *)
     | _ -> Top
 
-  let uf (a,c) = (a,c)
-
   let set (ask: VDQ.t) (nulls, size) (e, i) v =
     let min interval = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal interval)) in
 
@@ -1163,7 +1161,7 @@ struct
     (* if maximum number in interval is invalid, i.e. negative, return tuple unmodified *)
     | _ -> nulls
     in
-    uf @@ (nulls, size) 
+    (nulls, size) 
 
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v =
@@ -1191,16 +1189,13 @@ struct
           min_i, None
       | None, None -> Z.zero, None 
     in
-    let size = match max_i with
-      | Some max_i -> Idx.of_interval ILong (min_i, max_i)
-      | None -> Idx.starting ILong min_i 
-    in
+    let size = BatOption.map_default (fun x -> Idx.of_interval ILong (min_i, x)) (Idx.starting ILong min_i) max_i in
     let nulls = match Val.is_null v with
       | Null -> Nulls.make_all_must ()
       | NotNull -> Nulls.make_none_may ()
       | Top -> Nulls.top ()
     in
-    uf @@ (nulls, size)
+    (nulls, size)
 
   let length (_, size) = Some size
 
@@ -1212,8 +1207,8 @@ struct
     (* if f(null) = null, all values in must_nulls_set still are surely null; 
      * assume top for may_nulls_set as checking effect of f for every possible value is unfeasbile *)
     match Val.is_null (f (Val.null ())) with
-    | Null -> uf @@ (Nulls.forget_may nulls, size)
-    | _ -> uf @@ (Nulls.top (), size) (* else also return top for must_nulls_set *)
+    | Null -> (Nulls.forget_may nulls, size)
+    | _ -> (Nulls.top (), size) (* else also return top for must_nulls_set *)
 
   let fold_left f acc _ = f acc (Val.top ())
 
@@ -1271,10 +1266,9 @@ struct
   let to_n_string (nulls, size) n:t =
     let must_nulls_set, may_nulls_set = nulls in
     if n < 0 then
-      uf @@ (Nulls.top (), Idx.top_of ILong)
+      (Nulls.top (), Idx.top_of ILong)
     else
       let n = Z.of_int n in
-      let nulls = (must_nulls_set, may_nulls_set) in
       let rec add_indexes i max set =
         if Z.geq i max then
           set
@@ -1300,7 +1294,7 @@ struct
         else if (exists_min_must_null && (Z.geq min_must_null n) || (Z.gt min_must_null min_may_null)) || not exists_min_must_null then
           M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
       in
-      ((match Idx.minimal size, idx_maximal size with
+      (match Idx.minimal size, idx_maximal size with
           | Some min_size, Some max_size ->
             if Z.gt n max_size then
               M.warn ~category:ArrayOobMessage.past_end "Array size is smaller than n bytes; can cause a buffer overflow"
@@ -1343,7 +1337,7 @@ struct
          else
            (MustSet.top (), update_may_indexes min_may_null may_nulls_set)
       in
-      uf @@ (nulls,  Idx.of_int ILong n))
+      (nulls,  Idx.of_int ILong n)
 
   let to_string_length (nulls, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
