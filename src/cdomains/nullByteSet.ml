@@ -133,6 +133,16 @@ module MustMaySet = struct
     | Definitely -> (MustSet.top (), mays)
     | Possibly -> failwith "todo"
 
+  let is_full_set mode (musts, mays) =
+    match mode with
+    | Definitely -> MustSet.is_bot musts
+    | Possibly -> MaySet.is_top mays 
+  
+  let get_set mode (musts, mays) =
+    match mode with
+    | Definitely -> musts
+    | Possibly -> mays
+
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)
 
