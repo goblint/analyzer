@@ -1116,14 +1116,12 @@ struct
     let set_interval min_i max_i =
       (* Update max_i so it is capped at the maximum size *)
       let max_i = BatOption.map_default (fun x -> Z.min max_i @@ Z.pred x) max_i (idx_maximal size) in
-      if Val.is_not_null v then
-        Nulls.remove_interval Possibly (min_i, max_i) min_size nulls 
-      else
+      match Val.is_null v with
+      | NotNull -> Nulls.remove_interval Possibly (min_i, max_i) min_size nulls
+      | Null -> Nulls.add_interval ~maxfull:(idx_maximal size) Possibly (min_i, max_i) nulls
+      | Top ->
         let nulls = Nulls.add_interval ~maxfull:(idx_maximal size) Possibly (min_i, max_i) nulls in
-        if Val.is_null v = Null then
-          nulls
-        else
-          Nulls.remove_interval Possibly (min_i, max_i) min_size nulls 
+        Nulls.remove_interval Possibly (min_i, max_i) min_size nulls 
     in
 
     (* warn if index is (potentially) out of bounds *)
