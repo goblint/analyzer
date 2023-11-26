@@ -1544,7 +1544,7 @@ struct
             MaySet.top () in
         ((must_nulls_set_result, may_nulls_set_result), size1) in
 
-    let compute_concat must_nulls_set2' may_nulls_set2' =
+    let compute_concat (must_nulls_set2',may_nulls_set2') =
       let strlen1 = to_string_length ((must_nulls_set1, may_nulls_set1), size1) in
       let strlen2 = to_string_length ((must_nulls_set2', may_nulls_set2'), size2) in
       match Idx.minimal size1, Idx.minimal strlen1, Idx.minimal strlen2 with
@@ -1572,12 +1572,12 @@ struct
     match n with
     (* strcat *)
     | None ->
-      let (must_nulls_set2', may_nulls_set2'), _ = to_string ((must_nulls_set2, may_nulls_set2), size2) in
-      compute_concat must_nulls_set2' may_nulls_set2'
+      let nulls2', _ = to_string ((must_nulls_set2, may_nulls_set2), size2) in
+      compute_concat nulls2'
     (* strncat *)
     | Some n when n >= 0 -> 
       (* take at most n bytes from src; if no null byte among them, add null byte at index n *)
-      let must_nulls_set2', may_nulls_set2' =
+      let nulls2' =
         let (must_nulls_set2, may_nulls_set2), size2 = to_string ((must_nulls_set2, may_nulls_set2), size2) in
         if not (MaySet.exists (Z.gt (Z.of_int n)) may_nulls_set2) then
           (MustSet.singleton (Z.of_int n), MaySet.singleton (Z.of_int n))
@@ -1587,8 +1587,9 @@ struct
         else
           let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
           let max_size2 = BatOption.default (Z.of_int n) (idx_maximal size2) in
-          (MustSet.filter (Z.gt (Z.of_int n)) must_nulls_set2 min_size2, MaySet.filter (Z.gt (Z.of_int n)) may_nulls_set2 max_size2) in
-      compute_concat must_nulls_set2' may_nulls_set2'
+          (MustSet.filter (Z.gt (Z.of_int n)) must_nulls_set2 min_size2, MaySet.filter (Z.gt (Z.of_int n)) may_nulls_set2 max_size2) 
+      in
+      compute_concat nulls2'
     | _ -> (Nulls.top (), size1)
 
   let substring_extraction haystack ((nulls_needle, size_needle) as needle) =
@@ -1648,12 +1649,8 @@ struct
       compare Z.zero false
     (* strncmp *)
     | Some n when n >= 0 ->
-      let min_size1 = match Idx.minimal size1 with
-        | Some min_size1 -> min_size1
-        | None -> Z.zero in
-      let min_size2 = match Idx.minimal size2 with
-        | Some min_size2 -> min_size2
-        | None -> Z.zero in
+      let min_size1 = BatOption.default Z.zero (Idx.minimal size1) in
+      let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
       (* issue a warning if n is (potentially) smaller than array sizes *)
       (match idx_maximal size1 with
        | Some max_size1 ->
