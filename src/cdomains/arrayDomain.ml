@@ -1460,7 +1460,6 @@ struct
 
   let string_concat (nulls1, size1) (nulls2, size2) n =
     let (must_nulls_set1, may_nulls_set1) = nulls1 in
-    let (must_nulls_set2, may_nulls_set2) = nulls2 in
     let update_sets min_size1 max_size1 max_size1_exists minlen1 maxlen1 maxlen1_exists minlen2 maxlen2 maxlen2_exists must_nulls_set2' may_nulls_set2' = 
       (* track any potential buffer overflow and issue warning if needed *)
       (if max_size1_exists && Z.leq max_size1 (Z.add minlen1 minlen2) then
@@ -1566,22 +1565,23 @@ struct
     match n with
     (* strcat *)
     | None ->
-      let nulls2', _ = to_string ((must_nulls_set2, may_nulls_set2), size2) in
+      let nulls2', _ = to_string (nulls2, size2) in
       compute_concat nulls2'
     (* strncat *)
     | Some n when n >= 0 -> 
+      let n = Z.of_int n in
       (* take at most n bytes from src; if no null byte among them, add null byte at index n *)
       let nulls2' =
-        let (must_nulls_set2, may_nulls_set2), size2 = to_string ((must_nulls_set2, may_nulls_set2), size2) in
-        if not (MaySet.exists (Z.gt (Z.of_int n)) may_nulls_set2) then
-          (MustSet.singleton (Z.of_int n), MaySet.singleton (Z.of_int n))
-        else if not (MustSet.exists (Z.gt (Z.of_int n)) must_nulls_set2) then
-          let max_size2 = BatOption.default (Z.succ (Z.of_int n)) (idx_maximal size2) in
-          (MustSet.empty (), MaySet.add (Z.of_int n) (MaySet.filter (Z.geq (Z.of_int n)) may_nulls_set2 max_size2))
+        let (must_nulls_set2, may_nulls_set2), size2 = to_string (nulls2, size2) in
+        if not (MaySet.exists (Z.gt n) may_nulls_set2) then
+          (Nulls.precise_singleton n)
+        else if not (MustSet.exists (Z.gt n) must_nulls_set2) then
+          let max_size2 = BatOption.default (Z.succ n) (idx_maximal size2) in
+          (MustSet.empty (), MaySet.add n (MaySet.filter (Z.geq n) may_nulls_set2 max_size2))
         else
           let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
-          let max_size2 = BatOption.default (Z.of_int n) (idx_maximal size2) in
-          (MustSet.filter (Z.gt (Z.of_int n)) must_nulls_set2 min_size2, MaySet.filter (Z.gt (Z.of_int n)) may_nulls_set2 max_size2) 
+          let max_size2 = BatOption.default n (idx_maximal size2) in
+          (MustSet.filter (Z.gt n) must_nulls_set2 min_size2, MaySet.filter (Z.gt n) may_nulls_set2 max_size2) 
       in
       compute_concat nulls2'
     | _ -> (Nulls.top (), size1)
