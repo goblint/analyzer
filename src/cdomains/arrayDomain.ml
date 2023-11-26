@@ -1361,42 +1361,44 @@ struct
     else
       Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)
 
-  let string_copy (nulls1, size1) (nulls2, size2) n =
-    let must_nulls_set1, may_nulls_set1 = nulls1 in
-    let must_nulls_set2, may_nulls_set2 = nulls2 in
+  let string_copy (dstnulls, dstsize) ((srcnulls, srcsize) as src) n =
+    let must_nulls_set1, may_nulls_set1 = dstnulls in
     (* filter out indexes before strlen(src) from dest sets and after strlen(src) from src sets and build union, keep size of dest *)
-    let update_sets must_nulls_set2' may_nulls_set2' size2' len2 =
-      match Idx.minimal size1, idx_maximal size1, Idx.minimal len2, idx_maximal len2 with
-      | Some min_size1, Some max_size1, Some min_len2, Some max_len2 ->
-        (if max_size1 <. min_len2 then 
+    let update_sets (truncatednulls, truncatedsize) len2 =
+      let must_nulls_set2',may_nulls_set2' = truncatednulls in
+      match Idx.minimal dstsize, idx_maximal dstsize, Idx.minimal len2, idx_maximal len2 with
+      | Some min_dstsize, Some max_dstsize, Some min_srclen, Some max_srclen ->
+        (if max_dstsize <. min_srclen then 
            warn_past_end "The length of string src is greater than the allocated size for dest" 
-         else if min_size1 <. max_len2 then
+         else if min_dstsize <. max_srclen then
            warn_past_end "The length of string src may be greater than the allocated size for dest");
         let must_nulls_set_result = 
-          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
           (* get must nulls from src string < minimal size of dest *)
-          MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2
+          MustSet.filter (Z.gt min_dstsize) must_nulls_set2' min_size2
           (* and keep indexes of dest >= maximal strlen of src *)
-          |> MustSet.union (MustSet.filter (Z.leq max_len2) must_nulls_set1 min_size1) in
+          |> MustSet.union (MustSet.filter (Z.leq max_srclen) must_nulls_set1 min_dstsize) in
         let may_nulls_set_result = 
-          let max_size2 = BatOption.default max_size1 (idx_maximal size2') in
+          let max_size2 = BatOption.default max_dstsize (idx_maximal truncatedsize) in
           (* get may nulls from src string < maximal size of dest *)
-          MaySet.filter (Z.gt max_size1) may_nulls_set2' max_size2
+          MaySet.filter (Z.gt max_dstsize) may_nulls_set2' max_size2
           (* and keep indexes of dest >= minimal strlen of src *)
-          |> MaySet.union (MaySet.filter (Z.leq min_len2) may_nulls_set1 max_size1) in
-        ((must_nulls_set_result, may_nulls_set_result), size1)
+          |> MaySet.union (MaySet.filter (Z.leq min_srclen) may_nulls_set1 max_dstsize) in
+        ((must_nulls_set_result, may_nulls_set_result), dstsize)
+        
+
       | Some min_size1, None, Some min_len2, Some max_len2 ->
         (if min_size1 <. max_len2 then
            warn_past_end "The length of string src may be greater than the allocated size for dest");
         let must_nulls_set_result = 
-          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
           MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2
           |> MustSet.union (MustSet.filter (Z.leq max_len2) must_nulls_set1 min_size1) in
         let may_nulls_set_result = 
           (* get all may nulls from src string as no maximal size of dest *)
           may_nulls_set2'
           |> MaySet.union (MaySet.filter (Z.leq min_len2) may_nulls_set1 (Z.succ min_len2))  in
-        ((must_nulls_set_result, may_nulls_set_result), size1)
+        ((must_nulls_set_result, may_nulls_set_result), dstsize)
       | Some min_size1, Some max_size1, Some min_len2, None ->
         (if max_size1 <. min_len2 then 
            warn_past_end "The length of string src is greater than the allocated size for dest" 
@@ -1404,65 +1406,64 @@ struct
            warn_past_end"The length of string src may be greater than the allocated size for dest");
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result = 
-          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
           MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2 in
         let may_nulls_set_result =
-          let max_size2 = BatOption.default max_size1 (idx_maximal size2') in
+          let max_size2 = BatOption.default max_size1 (idx_maximal truncatedsize) in
           MaySet.filter (Z.gt max_size1) may_nulls_set2' max_size2
           |> MaySet.union (MaySet.filter (Z.leq min_len2) may_nulls_set1 max_size1) in
-        ((must_nulls_set_result, may_nulls_set_result), size1)
+        ((must_nulls_set_result, may_nulls_set_result), dstsize)
       | Some min_size1, None, Some min_len2, None ->
         (if min_size1 <. min_len2 then
            warn_past_end "The length of string src may be greater than the allocated size for dest");
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result = 
-          let min_size2 = BatOption.default Z.zero (Idx.minimal size2') in
+          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
           MustSet.filter (Z.gt min_size1) must_nulls_set2' min_size2 in
         let may_nulls_set_result = 
           (* get all may nulls from src string as no maximal size of dest *)
           may_nulls_set2'
           |> MaySet.union (MaySet.filter (Z.leq min_len2) may_nulls_set1 (Z.succ min_len2))  in
-        ((must_nulls_set_result, may_nulls_set_result), size1)
+        ((must_nulls_set_result, may_nulls_set_result), dstsize)
       (* any other case shouldn't happen as minimal index is always >= 0 *)
-      | _ -> (Nulls.top (), size1) in
+      | _ -> (Nulls.top (), dstsize) in
 
     (* warn if size of dest is (potentially) smaller than size of src and the latter (potentially) has no null byte at index < size of dest *)
-    let sizes_warning size2 =
-      (match Idx.minimal size1, idx_maximal size1, Idx.minimal size2, idx_maximal size2 with
-       | Some min_size1, _, Some min_size2, _ when min_size1 <. min_size2 ->
-         if not (MaySet.exists (Z.gt min_size1) may_nulls_set2) then
+    let sizes_warning srcsize =
+      (match Idx.minimal dstsize, idx_maximal dstsize, Idx.minimal srcsize, idx_maximal srcsize with
+       | Some min_dstsize, _, Some min_srcsize, _ when min_dstsize <. min_srcsize ->
+         if not (Nulls.exists Possibly (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src doesn't contain a null byte at an index smaller than the size of dest"
-         else if not (MustSet.exists (Z.gt min_size1) must_nulls_set2) then
+         else if not (Nulls.exists Definitely (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
-       | Some min_size1, _, _, Some max_size2 when min_size1 <. max_size2 ->
-         if not (MaySet.exists (Z.gt min_size1) may_nulls_set2) then
+       | Some min_dstsize, _, _, Some max_srcsize when min_dstsize <. max_srcsize ->
+         if not (Nulls.exists Possibly (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src doesn't contain a null byte at an index smaller than the size of dest"
-         else if not (MustSet.exists (Z.gt min_size1) must_nulls_set2) then
+         else if not (Nulls.exists Definitely (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
-       | Some min_size1, _, _, None ->
-         if not (MustSet.exists (Z.gt min_size1) must_nulls_set2) then
+       | Some min_dstsize, _, _, None ->
+         if not (Nulls.exists Definitely (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
-       | _, Some max_size1, _, Some max_size2 when max_size1 <. max_size2 ->
-         if not (MustSet.exists (Z.gt max_size1) must_nulls_set2) then
+       | _, Some mac_dstsize, _, Some max_srcsize when mac_dstsize <. max_srcsize ->
+         if not (Nulls.exists Definitely (Z.gt mac_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
-       |_, Some max_size1, _, None ->
-         if not (MustSet.exists (Z.gt max_size1) must_nulls_set2) then
+       |_, Some max_dstsize, _, None ->
+         if not (Nulls.exists Definitely (Z.gt max_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
        | _ -> ()) in
 
     match n with
     (* strcpy *)
     | None ->
-      sizes_warning size2;
-      let (must_nulls_set2', may_nulls_set2'), size2' = to_string (nulls2, size2) in
-      let strlen2 = to_string_length (nulls2, size2) in
-      update_sets must_nulls_set2' may_nulls_set2' size2' strlen2
+      sizes_warning srcsize;
+      let truncated = to_string src in
+      update_sets truncated (to_string_length src)
     (* strncpy = exactly n bytes from src are copied to dest *)
     | Some n when n >= 0 ->
       sizes_warning (Idx.of_int ILong (Z.of_int n));
-      let (must_nulls_set2', may_nulls_set2'), size2' = to_n_string (nulls2, size2) n in
-      update_sets must_nulls_set2' may_nulls_set2' size2' (Idx.of_int !Cil.kindOfSizeOf (Z.of_int n))
-    | _ -> (Nulls.top (), size1)
+      let truncated = to_n_string src n in
+      update_sets truncated (Idx.of_int !Cil.kindOfSizeOf (Z.of_int n))
+    | _ -> (Nulls.top (), dstsize)
 
   let string_concat (nulls1, size1) (nulls2, size2) n =
     let (must_nulls_set1, may_nulls_set1) = nulls1 in
