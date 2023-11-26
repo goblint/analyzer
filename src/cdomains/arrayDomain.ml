@@ -1380,7 +1380,7 @@ struct
         let may_nulls_set_result = 
           let max_size2 = BatOption.default max_dstsize (idx_maximal truncatedsize) in
           (* get may nulls from src string < maximal size of dest *)
-          MaySet.filter ~max_size: max_size2 (Z.gt max_dstsize) may_nulls_set2'
+          MaySet.filter ~max_size:max_size2 (Z.gt max_dstsize) may_nulls_set2'
           (* and keep indexes of dest >= minimal strlen of src *)
           |> MaySet.union (MaySet.filter ~max_size:max_dstsize (Z.leq min_srclen) may_nulls_set1) in
         ((must_nulls_set_result, may_nulls_set_result), dstsize)
@@ -1477,28 +1477,34 @@ struct
        * for all i1, i2 in may_nulls_set1, may_nulls_set2: add i1 + i2 if it is <= strlen(dest) + strlen(src) to new may_nulls_set
        * and keep indexes > minimal strlen(dest) + strlen(src) of may_nulls_set *)
       if Nulls.is_empty Possibly nulls1 || Nulls.is_empty Possibly nulls2 then
-        let (must_nulls_set1, may_nulls_set1) = nulls1 in
-        let (must_nulls_set2', may_nulls_set2') = nulls2' in
-        let may_nulls_set_result =
-          if max_size1_exists then
-            MaySet.filter ~max_size:max_size1 (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1
-            |> MaySet.elements
-            (* if may_nulls_set2' is top, limit it to max_size1 *)
-            |> BatList.cartesian_product (MaySet.elements (MaySet.filter ~max_size:max_size1 (fun x -> true) may_nulls_set2'))
+        if max_size1_exists then
+          let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
+          let r = 
+            nulls1_no_must
+            (* filter ensures we have the concete representation *)
+            |> Nulls.filter ~max_size:max_size1 (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true)
+            |> Nulls.elements ~max_size:max_size1 Possibly
+            |> BatList.cartesian_product (Nulls.elements ~max_size:max_size1 Possibly nulls2')
             |> List.map (fun (i1, i2) -> i1 +. i2)
-            |> MaySet.of_list
-            |> MaySet.union (MaySet.filter ~max_size:max_size1 (Z.lt (minlen1 +. minlen2)) may_nulls_set1)
-            |> MaySet.M.filter (Z.gt max_size1) 
-          else if not (MaySet.is_top may_nulls_set1) && not (MaySet.is_top may_nulls_set2') && maxlen1_exists && maxlen2_exists then
-            MaySet.M.filter (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1
-            |> MaySet.elements
-            |> BatList.cartesian_product (MaySet.elements may_nulls_set2')
+            |> (fun x -> Nulls.add_list Possibly x (Nulls.filter ~max_size:max_size1 (Z.lt (minlen1 +. minlen2)) nulls1_no_must))
+            |> Nulls.filter (Z.gt max_size1)
+          in 
+          (r, size1)
+        else if Nulls.may_can_benefit_from_filter nulls1 && Nulls.may_can_benefit_from_filter nulls2 && maxlen1_exists && maxlen2_exists then
+          let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
+          let r = 
+            nulls1_no_must
+            (* filter ensures we have the concete representation *)
+            |> Nulls.filter (fun x -> x <=. (maxlen1 +. maxlen2))
+            |> Nulls.elements Possibly
+            |> BatList.cartesian_product (Nulls.elements Possibly nulls2')
             |> List.map (fun (i1, i2) -> i1 +. i2)
-            |> MaySet.of_list
-            |> MaySet.union (MaySet.M.filter (Z.lt (minlen1 +. minlen2)) may_nulls_set1)
-          else
-            MaySet.top () in
-        ((MustSet.top (), may_nulls_set_result), size1)
+            |> (fun x -> Nulls.add_list Possibly x (Nulls.filter (Z.lt (minlen1 +. minlen2)) nulls1_no_must))
+          in 
+          (r, size1)
+        else
+          (Nulls.top (), size1)
+
         (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
       else if Nulls.min_elem_precise (nulls1) && Nulls.min_elem_precise nulls2' then
         let min_i1 = Nulls.min_elem Definitely nulls1 in

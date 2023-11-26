@@ -46,6 +46,14 @@ module MaySet = struct
   module M = SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All Null" end)
   include M
 
+  let elements ?max_size may_nulls_set =
+    if M.is_top may_nulls_set then
+      match max_size with
+      | Some max_size -> M.elements @@ MustSet.compute_set max_size
+      | _ -> failwith "top and no max size supplied"
+    else
+      M.elements may_nulls_set
+
   let remove i may_nulls_set max_size =
     if M.is_top may_nulls_set then
       M.remove i (MustSet.compute_set max_size)
@@ -107,6 +115,11 @@ module MustMaySet = struct
     | Definitely -> (MustSet.add i musts, MaySet.add i mays)
     | Possibly -> (musts, MaySet.add i mays)
 
+  let add_list mode l (musts, mays) =
+    match mode with
+    | Definitely -> failwith "todo"
+    | Possibly -> (musts, MaySet.union (MaySet.of_list l) mays)
+
   let add_interval ?maxfull mode (l,u) (musts, mays) =
     match mode with
     | Definitely -> failwith "todo"
@@ -151,6 +164,12 @@ module MustMaySet = struct
     match mode with
     | Definitely -> musts
     | Possibly -> mays
+
+  let elements ?max_size ?min_size mode (musts, mays) =
+    match mode with
+    | Definitely ->failwith "todo"
+    | Possibly -> MaySet.elements ?max_size mays 
+
 
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)
