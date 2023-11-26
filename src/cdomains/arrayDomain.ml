@@ -1098,21 +1098,19 @@ struct
           let removed = Nulls.remove Possibly i nulls min_size in
           Nulls.add Possibly i removed)
       | Some max_size ->
-        (* if value <> null, remove i from must_nulls_set and may_nulls_set *)
-        if Val.is_not_null v then
-          Nulls.remove Definitely i nulls min_size
-          (* if i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
-        else if Z.lt i min_size && Val.is_null v = Null then
-          Nulls.add Definitely i nulls
-          (* if minimal size <= i < maximal size and value = null, add i only to may_nulls_set *)
-        else if Z.lt i max_size && Val.is_null v = Null then
-          Nulls.add Possibly i nulls
-          (* if i < maximal size and value unknown, remove i from must_nulls_set and add it to may_nulls_set *)
-        else if Z.lt i max_size then
-          let removed = Nulls.remove Possibly i nulls min_size in
-          Nulls.add Possibly i removed
-        else
-          nulls 
+        (match Val.is_null v with
+         | NotNull ->
+           Nulls.remove Definitely i nulls min_size
+           (* if value <> null, remove i from must_nulls_set and may_nulls_set *)
+         | Null when Z.lt i min_size ->
+           Nulls.add Definitely i nulls
+         | Null when Z.lt i max_size ->
+           Nulls.add Possibly i nulls
+         | NotNull when Z.lt i max_size ->
+           let removed = Nulls.remove Possibly i nulls min_size in
+           Nulls.add Possibly i removed
+         | _ -> nulls
+        )
     in
 
     let set_interval min_i max_i =
