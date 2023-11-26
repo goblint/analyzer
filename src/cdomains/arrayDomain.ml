@@ -1073,7 +1073,7 @@ struct
 
   let uf (a,c) = (a,c)
 
-  let set (ask: VDQ.t) ((nulls, size) as x) (e, i) v =
+  let set (ask: VDQ.t) (nulls, size) (e, i) v =
     let min interval = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal interval)) in
 
     let min_size = min size in
