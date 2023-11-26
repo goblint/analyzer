@@ -1609,8 +1609,6 @@ struct
       | _ -> IsMaybeSubstr
 
   let string_comparison (nulls1, size1) (nulls2, size2) n =
-    let (must_nulls_set1, may_nulls_set1) = nulls1  in
-    let (must_nulls_set2, may_nulls_set2) = nulls2 in
     let compare n n_exists =
       (* if s1 = s2 = empty string, i.e. certain null byte at index 0, or n = 0, return 0 *)
       if (Nulls.mem Definitely Z.zero nulls1 && Nulls.mem Definitely Z.zero nulls2) || (n_exists && Z.equal Z.zero n) then
@@ -1621,16 +1619,21 @@ struct
         (* if only s2 = empty string, return positive integer *)
       else if Nulls.mem Definitely Z.zero nulls2 then
         Idx.starting IInt Z.one
-      else 
-        (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
-        (try if Z.equal (MustSet.min_elt must_nulls_set1) (MaySet.min_elt may_nulls_set1) 
-             && Z.equal (MustSet.min_elt must_nulls_set2) (MaySet.min_elt may_nulls_set2)
-             && (not n_exists || Z.lt (MustSet.min_elt must_nulls_set1) n || Z.lt (MustSet.min_elt must_nulls_set2) n )
-             && not (Z.equal (MustSet.min_elt must_nulls_set1) (MustSet.min_elt must_nulls_set2)) then
-             Idx.of_excl_list IInt [Z.zero]
-           else
+      else
+        try 
+          let min_must1 = Nulls.min_elem Definitely nulls1 in
+          let min_must2 = Nulls.min_elem Definitely nulls2 in
+          if not (Z.equal min_must1 min_must2) 
+              && Z.equal min_must1 (Nulls.min_elem Possibly nulls1)
+              && Z.equal min_must2 (Nulls.min_elem Possibly nulls2)
+              && (not n_exists || Z.lt min_must1 n || Z.lt min_must2 n)
+          then
+            (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *) 
+            Idx.of_excl_list IInt [Z.zero]
+          else
              Idx.top_of IInt
-         with Not_found -> Idx.top_of IInt) in
+        with Not_found -> Idx.top_of IInt
+    in
 
     match n with
     (* strcmp *)
