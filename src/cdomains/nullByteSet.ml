@@ -149,7 +149,10 @@ module MustMaySet = struct
   let make_all_must () = (MustSet.bot (), MaySet.top ())
   let make_none_may () = (MustSet.top (), MaySet.bot ())
 
-  let may_exist f (musts, mays) = MaySet.exists f mays
+  let exists mode f (musts, mays) =
+    match mode with
+    | Definitely -> MustSet.exists f musts
+    | Possibly -> MaySet.exists f mays
 
   let forget_may (musts, mays) = (musts, MaySet.top ())
   let forget_must (musts, mays) = (MustSet.top (), mays)
