@@ -1,4 +1,5 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.relation.privatization mutex-meet-tid --enable ana.thread.include-node
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.relation.privatization mutex-meet-tid --enable ana.thread.include-node --enable ana.apron.strengthening
+// strengthening needed with relational unprotected invariant in mutex-meet-tid
 #include <pthread.h>
 #include <goblint.h>
 
