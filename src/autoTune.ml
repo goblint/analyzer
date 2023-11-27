@@ -224,7 +224,7 @@ let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
     print_endline "Setting \"cil.addNestedScopeAttr\" to true";
     set_bool "cil.addNestedScopeAttr" true;
     print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
-    enableAnalyses memOobAna
+    enableAnalyses memOobAna;
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the memLeak analysis *)
     let memLeakAna = ["memLeak"] in
