@@ -588,6 +588,96 @@ struct
 
 end
 
+(** Lifts a [Spec] to analyse with the k-callsting approach. For this the last k callstack elements are used as context*)
+module CallstringLifter (S:Spec)
+  : Spec with module C = Printable.Liszt (CilType.Fundec)
+          and module G = S.G
+=
+struct
+  include S
+
+  (* simulates a call stack of depth k*)
+  module CallStack = struct
+    include Printable.Liszt (CilType.Fundec) 
+    let dummy = []
+    let callDepthHeight = 10
+
+    let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
+      let rec take n = function
+        | [] -> []
+        | x :: xs when n > 0 -> x :: take (n - 1) xs
+        | _ -> []
+      in
+      let remaining_space = callDepthHeight - List.length elem in
+      let remaining_stack = take remaining_space (List.rev stack) in
+      List.rev_append remaining_stack elem
+  end
+
+  module D = Lattice.Prod (S.D) (Lattice.FakeSingleton(CallStack))
+  module G = S.G
+  module C = CallStack
+  module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt (x, _) = of_elt x
+  end
+
+  let name () = S.name ()^" with k callstring approach"
+  let startstate v = S.startstate v, []
+  let exitstate v = S.exitstate v, []
+  let morphstate v (d,l) = S.morphstate v d, l
+
+  (* returns the call stack of the given ctx*)
+  let stack ctx = 
+    snd ctx.local (* Note: snd ctx.local = snd (ctx.context ()), due to initialization ctx.local must be used here*)
+
+  let context fd (d,l) = l
+
+  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =
+    (* D.t -> S.D.t *)
+    {ctx with local = fst ctx.local
+            ; split = (fun d es -> ctx.split (d, stack ctx) es)
+            ; context = (fun () -> ctx_failwith "no context (k Callstring)")
+    }
+
+  let print f ctx ctx' = 
+    printf "fundec: %s\n" (CilType.Fundec.show f);
+    printf "List alt: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (stack ctx);
+    printf "\nList neu: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (stack ctx');
+    printf "\n\n"
+
+  let enter ctx r f args = 
+    let new_stack = CallStack.push (stack ctx) [f] in
+    let ctx' = {ctx with context = (fun () -> new_stack)
+                       ; local = (fst ctx.local, new_stack)} in
+    if not !AnalysisState.postsolving then print f ctx ctx';
+    let liftmap_tup = List.map (fun (x,y) -> (x, stack ctx), (y, new_stack)) in (* new_stack = snd ctx'.local *)
+    liftmap_tup (S.enter (conv ctx') r f args)
+
+  let liftmap f ctx = List.map (fun (x) -> (x, stack ctx)) f
+
+  let sync ctx reason                             = S.sync (conv ctx) reason, stack ctx
+  let query ctx q                                 = S.query (conv ctx) q
+  let assign ctx lval expr                        = S.assign (conv ctx) lval expr, stack ctx
+  let vdecl ctx v                                 = S.vdecl (conv ctx) v, stack ctx
+  let body ctx fundec                             = S.body (conv ctx) fundec, stack ctx
+  let branch ctx e tv                             = S.branch (conv ctx) e tv, stack ctx
+  let return ctx r f                              = S.return (conv ctx) r f, stack ctx
+  let asm ctx                                     = S.asm (conv ctx), stack ctx
+  let skip ctx                                    = S.skip (conv ctx), stack ctx
+  let special ctx r f args                        = S.special (conv ctx) r f args, stack ctx
+  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (None) (fst es) f_ask, stack ctx
+  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (None) (fst es) f_ask, stack ctx
+  let paths_as_set ctx                            = liftmap (S.paths_as_set (conv ctx)) ctx 
+  let threadenter ctx ~multiple lval f args       = liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx (*TODO: it's also possible to push to the stack*)
+  let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), stack ctx
+  let event ctx e octx                            = S.event (conv ctx) e (conv octx), stack ctx
+
+end
+
 module type Increment =
 sig
   val increment: increment_data option
