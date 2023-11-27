@@ -5,6 +5,7 @@ open IntOps
 
 module M = Messages
 module Mval_outer = Mval
+module SD = StringDomain
 
 
 module AddressBase (Mval: Printable.S) =
@@ -14,23 +15,14 @@ struct
     | Addr of Mval.t
     | NullPtr
     | UnknownPtr
-    | StrPtr of string option
+    | StrPtr of SD.t
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
 
   let name () = Format.sprintf "address (%s)" (Mval.name ())
 
-  let hash x = match x with
-    | StrPtr _ ->
-      if GobConfig.get_bool "ana.base.limit-string-addresses" then
-        13859
-      else
-        hash x
-    | _ -> hash x
-
   let show = function
     | Addr m -> Mval.show m
-    | StrPtr (Some x)   -> "\"" ^ x ^ "\""
-    | StrPtr None -> "(unknown string)"
+    | StrPtr s   -> StringDomain.show s
     | UnknownPtr -> "?"
     | NullPtr    -> "NULL"
 
@@ -42,31 +34,18 @@ struct
     )
 
   (* strings *)
-  let of_string x = StrPtr (Some x)
+  let of_string x = StrPtr (SD.of_string x)
   let to_string = function
-    | StrPtr (Some x) -> Some x
+    | StrPtr s -> SD.to_string s
     | _        -> None
-  (* only keep part before first null byte *)
   let to_c_string = function
-    | StrPtr (Some x) ->
-      begin match String.split_on_char '\x00' x with
-        | s::_ -> Some s
-        | [] -> None
-      end
+    | StrPtr s -> SD.to_c_string s
     | _ -> None
-  let to_n_c_string n x =
-    match to_c_string x with
-    | Some x ->
-      if n > String.length x then
-        Some x
-      else if n < 0 then
-        None
-      else
-        Some (String.sub x 0 n)
+  let to_n_c_string n = function
+    | StrPtr s -> SD.to_n_c_string n s
     | _ -> None
-  let to_string_length x =
-    match to_c_string x with
-    | Some x -> Some (String.length x)
+  let to_string_length = function
+    | StrPtr s -> SD.to_string_length s
     | _ -> None
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
@@ -101,8 +80,7 @@ struct
   (* TODO: seems to be unused *)
   let to_exp = function
     | Addr m -> AddrOf (Mval.to_cil m)
-    | StrPtr (Some x) -> mkString x
-    | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
+    | StrPtr s -> SD.to_exp s
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
   (* TODO: unused *)
@@ -123,9 +101,7 @@ struct
 
   let semantic_equal x y = match x, y with
     | Addr x, Addr y -> Mval.semantic_equal x y
-    | StrPtr None, StrPtr _
-    | StrPtr _, StrPtr None -> Some true
-    | StrPtr (Some a), StrPtr (Some b) -> if a = b then None else Some false
+    | StrPtr s1, StrPtr s2 -> SD.semantic_equal s1 s2
     | NullPtr, NullPtr -> Some true
     | UnknownPtr, UnknownPtr
     | UnknownPtr, Addr _
@@ -135,34 +111,13 @@ struct
     | _, _ -> Some false
 
   let leq x y = match x, y with
-    | StrPtr _, StrPtr None -> true
-    | StrPtr a, StrPtr b   -> a = b
+    | StrPtr s1, StrPtr s2   -> SD.leq s1 s2
     | Addr x, Addr y -> Mval.leq x y
     | _                      -> x = y
 
   let top_indices = function
     | Addr x -> Addr (Mval.top_indices x)
     | x -> x
-
-  let join_string_ptr x y = match x, y with
-    | None, _
-    | _, None -> None
-    | Some a, Some b when a = b -> Some a
-    | Some a, Some b (* when a <> b *) ->
-      if GobConfig.get_bool "ana.base.limit-string-addresses" then
-        None
-      else
-        raise Lattice.Uncomparable
-
-  let meet_string_ptr x y = match x, y with
-    | None, a
-    | a, None -> a
-    | Some a, Some b when a = b -> Some a
-    | Some a, Some b (* when a <> b *) ->
-      if GobConfig.get_bool "ana.base.limit-string-addresses" then
-        raise Lattice.BotValue
-      else
-        raise Lattice.Uncomparable
 
   let merge mop sop x y =
     match x, y with
@@ -172,10 +127,10 @@ struct
     | Addr x, Addr y -> Addr (mop x y)
     | _ -> raise Lattice.Uncomparable
 
-  let join = merge Mval.join join_string_ptr
-  let widen = merge Mval.widen join_string_ptr
-  let meet = merge Mval.meet meet_string_ptr
-  let narrow = merge Mval.narrow meet_string_ptr
+  let join = merge Mval.join SD.join
+  let widen = merge Mval.widen SD.join
+  let meet = merge Mval.meet SD.meet
+  let narrow = merge Mval.narrow SD.meet
 
   include Lattice.NoBotTop
 
@@ -194,8 +149,7 @@ struct
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr v
-      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
-      | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
+      | StrPtr s -> StrPtr (SD.repr s)
       | NullPtr -> NullPtr
       | UnknownPtr -> UnknownPtr
   end
@@ -211,8 +165,7 @@ struct
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, Offset.Unit.of_offs o) (* addrs grouped by var and part of offset *)
-      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
-      | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
+      | StrPtr s -> StrPtr (SD.repr s)
       | NullPtr -> NullPtr
       | UnknownPtr -> UnknownPtr
   end
