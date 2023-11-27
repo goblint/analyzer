@@ -537,7 +537,7 @@ struct
   let cg_val ctx = 
     snd ctx.local (* Note: snd ctx.local = snd (ctx.context ()), due to initialization ctx.local must be used here*)
 
-  let name () = S.name ()^" with context gas"
+  let name () = S.name ()^" with context gas (" ^ (string_of_int cg_init_val) ^")"
   let startstate v = S.startstate v, cg_init_val
   let exitstate v = S.exitstate v, 0 (* TODO: probably doesn't matter*)
   let morphstate v (d,i) = S.morphstate v d, i
@@ -566,7 +566,7 @@ struct
     | [] -> " "
     | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)
 
-  let enter ctx r f args = 
+  let enter ctx r f args =  
     let ctx_dec = dec_context_gas ctx in 
     if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
@@ -593,19 +593,29 @@ struct
 
 end
 
-(** Lifts a [Spec] to analyse with the k-callsting approach. For this the last k callstack elements are used as context*)
-module CallstringLifter (S:Spec)
-  : Spec with module C = Printable.Liszt (CilType.Fundec)
-          and module G = S.G
+(* Specifies the type of the callstack elements for the CallstringLifter*)
+module type Callstack_Type =
+sig
+  include CilType.S
+  val stackTypeName: string
+  val pushElem: fundec -> exp list -> ('d,'g,'c,'v) ctx -> t list (* returns a list of elements that should be pushed to the Callstack *) (*pushElem could be currently also a single element*)
+  val printStack: fundec -> exp list -> t list -> t list -> unit (* a helper function to print the callstack *)
+end
+
+(** Lifts a [Spec] to analyse with the k-callsting approach. For this the last k callstack elements are used as context
+    With the CT argument it is possible to specify the type of the Callstack elements
+*)
+module CallstringLifter (S:Spec) (CT:Callstack_Type)
+  : Spec with module G = S.G
 =
 struct
   include S
 
   (* simulates a call stack of depth k*)
   module CallStack = struct
-    include Printable.Liszt (CilType.Fundec) 
+    include Printable.Liszt (CT) 
     let dummy = []
-    let callDepthHeight = 10
+    let depth = 2
 
     let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
       let rec take n = function
@@ -613,9 +623,13 @@ struct
         | x :: xs when n > 0 -> x :: take (n - 1) xs
         | _ -> []
       in
-      let remaining_space = callDepthHeight - List.length elem in
-      let remaining_stack = take remaining_space (List.rev stack) in
-      List.rev_append remaining_stack elem
+      let remaining_space = depth - List.length elem in (*TODO: if we stick with the list it must be assumed that the list length can be larger than the depth*)
+      if remaining_space >= 0 
+      then
+        let remaining_stack = take remaining_space (List.rev stack) in
+        List.rev_append remaining_stack elem
+      else
+        List.rev(take depth (List.rev elem))
   end
 
   module D = Lattice.Prod (S.D) (Lattice.FakeSingleton(CallStack))
@@ -628,7 +642,7 @@ struct
     let of_elt (x, _) = of_elt x
   end
 
-  let name () = S.name ()^" with k callstring approach"
+  let name () = S.name ()^" with k-callstring approach ("^ CT.stackTypeName ^", k = " ^ (string_of_int CallStack.depth)^")"
   let startstate v = S.startstate v, []
   let exitstate v = S.exitstate v, []
   let morphstate v (d,l) = S.morphstate v d, l
@@ -643,22 +657,15 @@ struct
     (* D.t -> S.D.t *)
     {ctx with local = fst ctx.local
             ; split = (fun d es -> ctx.split (d, stack ctx) es)
-            ; context = (fun () -> ctx_failwith "no context (k Callstring)")
+            ; context = (fun () -> ctx_failwith "no context (k Callstring)") (* TODO: correct?*)
     }
 
-  let print f ctx ctx' = 
-    printf "fundec: %s\n" (CilType.Fundec.show f);
-    printf "List alt: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (stack ctx);
-    printf "\nList neu: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (stack ctx');
-    printf "\n\n"
-
   let enter ctx r f args = 
-    let new_stack = CallStack.push (stack ctx) [f] in
+    let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
+    let new_stack = CallStack.push (stack ctx) elem in
     let ctx' = {ctx with context = (fun () -> new_stack)
                        ; local = (fst ctx.local, new_stack)} in
-    if not !AnalysisState.postsolving then print f ctx ctx';
+    if not !AnalysisState.postsolving then CT.printStack f args (stack ctx) (stack ctx');
     let liftmap_tup = List.map (fun (x,y) -> (x, stack ctx), (y, new_stack)) in (* new_stack = snd ctx'.local *)
     liftmap_tup (S.enter (conv ctx') r f args)
 
@@ -680,8 +687,41 @@ struct
   let threadenter ctx ~multiple lval f args       = liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx (*TODO: it's also possible to push to the stack*)
   let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), stack ctx
   let event ctx e octx                            = S.event (conv ctx) e (conv octx), stack ctx
-
 end
+
+module Fundec:Callstack_Type = struct
+  include CilType.Fundec
+  let stackTypeName = "Fundec"
+  let pushElem f args ctx = [f]
+
+  let printStack f expL listA listB = 
+    printf "fundec: %s\n" (CilType.Fundec.show f);
+    printf "List alt: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listA;
+    printf "\nList neu: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listB;
+    printf "\n\n"
+end
+
+module Stmt:Callstack_Type = struct
+  include CilType.Stmt
+  let stackTypeName = "Stmt"
+  let pushElem f args ctx = match ctx.prev_node with (* TODO: Why do I need to use prev_node???*)
+    | Statement stmt -> [stmt]
+    | _ -> printf "not a stmt\n"; []
+
+  let printStack f expL listA listB = 
+    printf "fundec: %s\n" (CilType.Fundec.show f);
+    printf "List alt: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listA;
+    printf "\nList neu: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listB;
+    printf "\n\n"
+end
+
+(* Lifters for the Callstring approach with different Callstack element types*)
+module CallstringLifter_Fundec (S:Spec) = CallstringLifter (S:Spec) (Fundec)
+module CallstringLifter_Stmt (S:Spec) = CallstringLifter (S:Spec) (Stmt)
 
 module type Increment =
 sig
