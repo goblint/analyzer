@@ -711,8 +711,9 @@ struct
               (* handle special calls *)
               begin match x, t with
                 | (Var v, offs), TInt (ik, _) ->
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
-                  begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
                     | `Lifted (Abs (_ik, xInt)) ->
                       inv_exp (Int (ID.join c (ID.neg c))) xInt st (* TODO: deduplicate *)
                     | tmpSpecial ->
@@ -747,8 +748,9 @@ struct
               (* handle special calls *)
               begin match x, t with
                 | (Var v, offs), TFloat (fk, _) ->
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
-                  begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
                     | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
                     | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
                     | `Lifted (Fabs (ret_fk, xFloat)) ->
