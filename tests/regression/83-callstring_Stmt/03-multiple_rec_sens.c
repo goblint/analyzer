@@ -1,8 +1,8 @@
-// PARAM: --enable ana.context.callstring --enable ana.int.interval_set
+// PARAM: --enable ana.context.callstring_stmt --enable ana.int.interval_set
 // Interesting if multiple recursions are handled properly
 #include <stdio.h>
 
-int num_iterat = 2;
+int num_iterat = 10;
 
 int f(int i)
 {
@@ -53,4 +53,7 @@ int main(void)
     int res3 = h(num_iterat);
     int res4 = h(num_iterat);
     int res5 = h(num_iterat);
+    
+    int result = res1 + res2 + res3 + res4 + res5;
+    __goblint_check(result == 5);
 }

@@ -1,8 +1,8 @@
-// PARAM: --enable ana.context.callstring --enable ana.int.interval_set
+// PARAM: --enable ana.context.callstring_stmt --enable ana.int.interval_set
 // Checks if function chains are handled properly
 #include <stdio.h>
 
-int num_iterat = 9;
+int num_iterat = 10;
 
 int h(int i)
 {
@@ -49,4 +49,6 @@ int f(int i)
 int main(void)
 {
     int result = f(num_iterat);
+    
+    __goblint_check(result == 1); 
 }
