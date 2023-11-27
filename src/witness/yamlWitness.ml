@@ -136,9 +136,9 @@ struct
 
   let precondition_loop_invariant_certificate ~target ~(certification): Entry.t = {
     entry_type = PreconditionLoopInvariantCertificate {
-      target;
-      certification;
-    };
+        target;
+        certification;
+      };
     metadata = metadata ();
   }
 end
