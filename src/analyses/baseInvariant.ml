@@ -714,27 +714,25 @@ struct
                   begin match x with
                     | ((Var v), offs) ->
                       if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
-                      let tv_opt = ID.to_bool c in
-                      begin match tv_opt with
-                        | Some tv ->
-                          begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
-                            | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
-                            | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
-                            (* should be correct according to C99 standard*)
-                            | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
-                            | `Lifted (Abs (_ik, xInt)) ->
-                              inv_exp (Int (ID.join c (ID.neg c))) xInt st (* TODO: deduplicate *)
-                            | _ -> update_lval c x c' ID.pretty
-                          end
-                        | None ->
-                          begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
-                            | `Lifted (Abs (_ik, xInt)) ->
-                              inv_exp (Int (ID.join c (ID.neg c))) xInt st (* TODO: deduplicate *)
-                            | _ -> update_lval c x c' ID.pretty
+                      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                        | `Lifted (Abs (_ik, xInt)) ->
+                          inv_exp (Int (ID.join c (ID.neg c))) xInt st (* TODO: deduplicate *)
+                        | tmpSpecial ->
+                          let tv_opt = ID.to_bool c in (* TODO: simplify *)
+                          begin match tv_opt with
+                            | Some tv ->
+                              begin match tmpSpecial with
+                                | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
+                                | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
+                                (* should be correct according to C99 standard*)
+                                | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
+                                | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
+                                | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
+                                | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
+                                | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                                | _ -> update_lval c x c' ID.pretty
+                              end
+                            | None -> update_lval c x c' ID.pretty
                           end
                       end
                     | _ -> update_lval c x c' ID.pretty
