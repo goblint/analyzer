@@ -99,7 +99,9 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
     FunctionSet.iter
       (fun vinfo ->
          print_endline ("    " ^ vinfo.vname);
-         setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
+         match Cilfacade.find_varinfo_fundec vinfo with
+         | fd -> setCongruenceRecursive fd (depth -1) neigbourFunction
+         | exception Not_found -> () (* Happens for __goblint_bounded *)
       )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
          (fun x -> not (isExtern x.vstorage || BatString.starts_with x.vname "__builtin"))
@@ -180,11 +182,11 @@ let enableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[+]") anas
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
-(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
+(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
-let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
+let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"]
 let reduceThreadAnalyses () =
   let isThreadCreate = function
     | LibraryDesc.ThreadCreate _ -> true
@@ -210,8 +212,50 @@ let activateLongjmpAnalysesWhenRequired () =
     enableAnalyses longjmpAnalyses;
   )
 
-let focusOnSpecification () =
-  match Svcomp.Specification.of_option () with
+let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
+  match spec with
+  | ValidFree -> (* Enable the useAfterFree analysis *)
+    let uafAna = ["useAfterFree"] in
+    print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
+    enableAnalyses uafAna
+  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
+    let memOobAna = ["memOutOfBounds"] in
+    set_bool "ana.arrayoob" true;
+    print_endline "Setting \"cil.addNestedScopeAttr\" to true";
+    set_bool "cil.addNestedScopeAttr" true;
+    print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
+    enableAnalyses memOobAna
+  | ValidMemtrack
+  | ValidMemcleanup -> (* Enable the memLeak analysis *)
+    let memLeakAna = ["memLeak"] in
+    if (get_int "ana.malloc.unique_address_count") < 1 then (
+      print_endline "Setting \"ana.malloc.unique_address_count\" to 5";
+      set_int "ana.malloc.unique_address_count" 5;
+    );
+    print_endline @@ "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"" ^ (String.concat ", " memLeakAna) ^ "\"";
+    enableAnalyses memLeakAna
+  | _ -> ()
+
+let focusOnMemSafetySpecification () =
+  List.iter focusOnMemSafetySpecification (Svcomp.Specification.of_option ())
+
+let focusOnTermination (spec: Svcomp.Specification.t) =
+  match spec with
+  | Termination ->
+    let terminationAnas = ["termination"; "threadflag"; "apron"] in
+    print_endline @@ "Specification: Termination -> enabling termination analyses \"" ^ (String.concat ", " terminationAnas) ^ "\"";
+    enableAnalyses terminationAnas;
+    set_string "sem.int.signed_overflow" "assume_none";
+    set_bool "ana.int.interval" true;
+    set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
+    ()
+  | _ -> ()
+
+let focusOnTermination () =
+  List.iter focusOnTermination (Svcomp.Specification.of_option ())
+
+let focusOnSpecification (spec: Svcomp.Specification.t) =
+  match spec with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
@@ -219,13 +263,10 @@ let focusOnSpecification () =
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
-  | ValidFree -> (* Enable the useAfterFree analysis *)
-    let uafAna = ["useAfterFree"] in
-    print_endline @@ "Specification: ValidFree -> enabling useAfterFree analysis \"" ^ (String.concat ", " uafAna) ^ "\"";
-    enableAnalyses uafAna
-  (* TODO: Finish these two below later *)
-  | ValidDeref
-  | ValidMemtrack -> ()
+  | _ -> ()
+
+let focusOnSpecification () =
+  List.iter focusOnSpecification (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -383,9 +424,10 @@ let congruenceOption factors file =
 let apronOctagonOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
-      match Svcomp.Specification.of_option () with
-      | NoOverflow -> 12
-      | _ -> 8
+      if List.mem Svcomp.Specification.NoOverflow (Svcomp.Specification.of_option ()) then
+        12
+      else
+        8
     else 8
   in let globals = 2 in
   let selectedLocals =
@@ -433,6 +475,17 @@ let wideningOption factors file =
       print_endline "Enabled widening thresholds";
   }
 
+let activateTmpSpecialAnalysis () =
+  let isMathFun = function
+    | LibraryDesc.Math _ -> true
+    | _ -> false
+  in
+  let hasMathFunctions = hasFunction isMathFun in
+  if hasMathFunctions then (
+    print_endline @@ "math function -> enabling tmpSpecial analysis and floating-point domain";
+    enableAnalyses ["tmpSpecial"];
+    set_bool "ana.float.interval" true;
+  )
 
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
@@ -462,6 +515,14 @@ let chooseFromOptions costTarget options =
 
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
 
+let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
+
+let specificationIsActivated () =
+  isActivated "specification" && get_string "ana.specification" <> ""
+
+let specificationTerminationIsActivated () =
+  isActivated "termination"
+
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
@@ -481,7 +542,7 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "specification" && get_string "ana.specification" <> "" then
+  if specificationIsActivated () then
     focusOnSpecification ();
 
   if isActivated "enums" && hasEnums file then
@@ -493,12 +554,15 @@ let chooseConfig file =
   if isActivated "arrayDomain" then
     selectArrayDomains file;
 
+  if isActivated "tmpSpecialAnalysis" then
+    activateTmpSpecialAnalysis ();
+
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
-  let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
+  (* Termination analysis uses apron in a different configuration. *)
+  let options = if isActivated "octagon" && not (isTerminationTask ()) then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
   List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options
-
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps

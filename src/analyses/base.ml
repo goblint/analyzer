@@ -399,6 +399,8 @@ struct
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.one else match eq p1 p2 with Some x when x -> ID.of_int ik BI.zero | _ -> bool_top ik)
         | IndexPI when AD.to_string p2 = ["all_index"] ->
           addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
+        | IndexPI | PlusPI ->
+          addToAddrOp p1 (AD.to_int p2) (* sometimes index is AD for some reason... *)
         | _ -> VD.top ()
       end
     (* For other values, we just give up! *)
@@ -1043,10 +1045,24 @@ struct
     | Mem n, ofs -> begin
         match (eval_rv a gs st n) with
         | Address adr ->
-          (if AD.is_null adr
-           then M.error ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "Must dereference NULL pointer"
-           else if AD.may_be_null adr
-           then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
+          (
+            if AD.is_null adr then (
+              AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
+              M.error ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "Must dereference NULL pointer"
+            )
+            else if AD.may_be_null adr then (
+              AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
+              M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer"
+            );
+            (* Warn if any of the addresses contains a non-local and non-global variable *)
+            if AD.exists (function
+                | AD.Addr.Addr (v, _) -> not (CPA.mem v st.cpa) && not (is_global a v)
+                | _ -> false
+              ) adr then (
+              AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
+              M.warn "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
+            )
+          );
           AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
@@ -1122,6 +1138,9 @@ struct
       eval_rv ask gs st e
 
   (* interpreter end *)
+
+  let is_not_alloc_var ctx v =
+    not (ctx.ask (Queries.IsAllocVar v))
 
   let is_not_heap_alloc_var ctx v =
     let is_alloc = ctx.ask (Queries.IsAllocVar v) in
@@ -1217,9 +1236,16 @@ struct
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
               x
-            | y -> failwith (GobPretty.sprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local)
+            | Top
+            | Bot ->
+              JmpBufDomain.JmpBufSet.top ()
+            | y ->
+              M.debug ~category:Imprecise "EvalJmpBuf %a is %a, not JmpBuf." CilType.Exp.pretty e VD.pretty y;
+              JmpBufDomain.JmpBufSet.top ()
           end
-        | _ -> failwith "problem?!"
+        | _ ->
+          M.debug ~category:Imprecise "EvalJmpBuf is not Address";
+          JmpBufDomain.JmpBufSet.top ()
       end
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
@@ -1254,7 +1280,7 @@ struct
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_heap_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
@@ -1266,9 +1292,15 @@ struct
               else
                 a
             in
-            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
+            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
+             | Array a ->
+               (* unroll into array for Calloc calls *)
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
+                | Blob (_,s,_) -> `Lifted s
+                | _ -> Queries.Result.top q
+               )
              | Blob (_,s,_) -> `Lifted s
              | _ -> Queries.Result.top q)
           )
@@ -1921,7 +1953,7 @@ struct
 
 
 
-  let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
+  let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list * bool =
     let create_thread lval arg v =
       try
         (* try to get function declaration *)
@@ -1962,7 +1994,7 @@ struct
           else
             start_funvars
         in
-        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
+        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown, false
       end
     | _, _ when get_bool "sem.unknown_function.spawn" ->
       (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
@@ -1975,9 +2007,9 @@ struct
       let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
       let flist = shallow_flist @ deep_flist in
       let addrs = List.concat_map AD.to_var_may flist in
-      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
-      List.filter_map (create_thread None None) addrs
-    | _, _ -> []
+      if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
+      List.filter_map (create_thread None None) addrs, true
+    | _, _ -> [], false
 
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
@@ -2023,20 +2055,84 @@ struct
     in
     match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
-      if AD.is_top a then
+      if AD.is_top a then (
+        AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
-      else if has_non_heap_var a then
+      ) else if has_non_heap_var a then (
+        AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
-      else if has_non_zero_offset a then
+      ) else if has_non_zero_offset a then (
+        AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
-    | _ -> M.warn ~category:MessageCategory.Analyzer "Pointer %a in function %s doesn't evaluate to a valid address." d_exp ptr special_fn.vname
+      )
+    | _ ->
+      AnalysisStateUtil.set_mem_safety_flag InvalidFree;
+      M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
+  let points_to_heap_only ctx ptr =
+    match ctx.ask (Queries.MayPointTo ptr) with
+    | a when not (Queries.AD.is_top a)->
+      Queries.AD.for_all (function
+          | Addr (v, _) -> ctx.ask (Queries.IsHeapVar v)
+          | _ -> false
+        ) a
+    | _ -> false
+
+  let get_size_of_ptr_target ctx ptr =
+    let intdom_of_int x =
+      ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
+    in
+    let size_of_type_in_bytes typ =
+      let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
+      intdom_of_int typ_size_in_bytes
+    in
+    if points_to_heap_only ctx ptr then
+      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+      ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
+    else
+      match ctx.ask (Queries.MayPointTo ptr) with
+      | a when not (Queries.AD.is_top a) ->
+        let pts_list = Queries.AD.elements a in
+        let pts_elems_to_sizes (addr: Queries.AD.elt) =
+          begin match addr with
+            | Addr (v, _) ->
+              begin match v.vtype with
+                | TArray (item_typ, _, _) ->
+                  let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+                  begin match ctx.ask (Queries.EvalLength ptr) with
+                    | `Lifted arr_len ->
+                      let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
+                      begin
+                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+                      end
+                    | `Bot -> `Bot
+                    | `Top -> `Top
+                  end
+                | _ ->
+                  let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+                  `Lifted type_size_in_bytes
+              end
+            | _ -> `Top
+          end
+        in
+        (* Map each points-to-set element to its size *)
+        let pts_sizes = List.map pts_elems_to_sizes pts_list in
+        (* Take the smallest of all sizes that ptr's contents may have *)
+        begin match pts_sizes with
+          | [] -> `Bot
+          | [x] -> x
+          | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
+        end
+      | _ ->
+        (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+         `Top)
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
-        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+        invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2044,19 +2140,34 @@ struct
       let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
       (addr, AD.type_of addr)
     in
-    let forks = forkfun ctx lv f args in
+    let forks, multiple = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple3.second forks);
-    List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
+    List.iter (BatTuple.Tuple3.uncurry (ctx.spawn ~multiple)) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
     let desc = LF.find f in
-    let memory_copying dst src =
+    let memory_copying dst src n =
+      let dest_size = get_size_of_ptr_target ctx dst in
+      let n_intdom = Option.map_default (fun exp -> ctx.ask (Queries.EvalInt exp)) `Bot n in
+      let dest_size_equal_n =
+        match dest_size, n_intdom with
+        | `Lifted ds, `Lifted n ->
+          let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
+          let casted_n = ID.cast_to (Cilfacade.ptrdiff_ikind ()) n in
+          let ds_eq_n =
+            begin try ID.eq casted_ds casted_n
+              with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+            end
+          in
+          Option.default false (ID.to_bool ds_eq_n)
+        | _ -> false
+      in
       let dest_a, dest_typ = addr_type_of_exp dst in
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
       let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
                     |> AD.type_of in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
+      let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
         else
@@ -2117,13 +2228,13 @@ struct
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Memcpy { dest = dst; src; n; }, _ -> (* TODO: use n *)
-      memory_copying dst src
+      memory_copying dst src (Some n)
     (* strcpy(dest, src); *)
     | Strcpy { dest = dst; src; n = None }, _ ->
       let dest_a, dest_typ = addr_type_of_exp dst in
       (* when dest surely isn't a string literal, try copying src to dest *)
       if AD.string_writing_defined dest_a then
-        memory_copying dst src
+        memory_copying dst src None
       else
         (* else return top (after a warning was issued) *)
         set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ))
@@ -2226,6 +2337,24 @@ struct
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
+      let apply_abs ik x =
+        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        begin match eval_x with
+          | Int int_x ->
+            let xcast = ID.cast_to ik int_x in
+            (* the absolute value of the most-negative value is out of range for 2'complement types *)
+            (match (ID.minimal xcast), (ID.minimal (ID.top_of ik)) with
+             | _, None
+             | None, _ -> ID.top_of ik
+             | Some mx, Some mm when Z.equal mx mm -> ID.top_of ik
+             | _, _ ->
+               let x1 = ID.neg (ID.meet (ID.ending ik Z.zero) xcast) in
+               let x2 = ID.meet (ID.starting ik Z.zero) xcast in
+               ID.join x1 x2
+            )
+          | _ -> failwith ("non-integer argument in call to function "^f.vname)
+        end
+      in
       let result:value =
         begin match fun_args with
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
@@ -2254,6 +2383,8 @@ struct
           | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
+          | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
+          | Abs (ik, x) -> Int (ID.cast_to ik (apply_abs ik x))
         end
       in
       begin match lv with
@@ -2539,7 +2670,7 @@ struct
     in
     combine_one ctx.local after
 
-  let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
+  let threadenter ctx ~multiple (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
       [make_entry ~thread:true ctx fd args]
@@ -2549,7 +2680,7 @@ struct
       let st = special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) ctx.global st f args in
       [st]
 
-  let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
+  let threadspawn ctx ~multiple (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     begin match lval with
       | Some lval ->
         begin match ThreadId.get_current (Analyses.ask_of_ctx fctx) with

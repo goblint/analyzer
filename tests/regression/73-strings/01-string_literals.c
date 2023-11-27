@@ -1,4 +1,4 @@
-// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval
+// PARAM: --set ana.base.strings.domain disjoint --enable ana.int.interval
 
 #include <goblint.h>
 #include <string.h>
@@ -21,7 +21,7 @@ int main() {
     char* s1 = "abcde";
     char* s2 = "abcdfg";
     char* s3 = hello_world();
-    
+
     int i = strlen(s1);
     __goblint_check(i == 5);
 
@@ -96,10 +96,10 @@ int main() {
         #define STRNCAT strncat(s1, "hi", 1)
     #endif
     STRNCAT; // WARN
-        
+
     #ifdef __APPLE__
         // do nothing => no warning
-    #else  
+    #else
         char s4[] = "hello";
         strcpy(s4, s2); // NOWARN
         strncpy(s4, s3, 2); // NOWARN

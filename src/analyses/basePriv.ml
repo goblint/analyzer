@@ -901,7 +901,7 @@ end
 module MinePrivBase =
 struct
   include NoFinalize
-  include ConfCheck.RequireMutexPathSensInit
+  include ConfCheck.RequireMutexPathSensOneMainInit
   include MutexGlobals (* explicit not needed here because G is Prod anyway? *)
 
   let thread_join ?(force=false) ask get e st = st

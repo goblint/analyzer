@@ -17,11 +17,7 @@
     live: 7
     dead: 0
     total lines: 7
-  [Info][Unsound] Unknown address in {&tmp} has escaped. (92-distribute-fields-type-deep.c:36:3-36:20)
-  [Info][Unsound] Unknown value in {?} could be an escaped pointer address! (92-distribute-fields-type-deep.c:36:3-36:20)
   [Info][Unsound] Write to unknown address: privatization is unsound. (92-distribute-fields-type-deep.c:36:3-36:20)
-  [Info][Unsound] Unknown address in {&tmp} has escaped. (92-distribute-fields-type-deep.c:44:3-44:17)
-  [Info][Unsound] Unknown value in {?} could be an escaped pointer address! (92-distribute-fields-type-deep.c:44:3-44:17)
   [Info][Unsound] Write to unknown address: privatization is unsound. (92-distribute-fields-type-deep.c:44:3-44:17)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (92-distribute-fields-type-deep.c:36:3-36:20)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (92-distribute-fields-type-deep.c:36:3-36:20)
