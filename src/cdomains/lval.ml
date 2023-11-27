@@ -1,5 +1,5 @@
-(** Domains for offsets and lvalues. *)
-
+(** Domains for {!GoblintCil.lval}. *)
+(*
 open GoblintCil
 open Pretty
 
@@ -280,9 +280,9 @@ struct
         | [] -> None
       end
     | _ -> None
-  let to_n_c_string n x = 
+  let to_n_c_string n x =
     match to_c_string x with
-    | Some x -> 
+    | Some x ->
       if n > String.length x then
         Some x
       else if n < 0 then
@@ -290,7 +290,7 @@ struct
       else
         Some (String.sub x 0 n)
     | _ -> None
-  let to_string_length x = 
+  let to_string_length x =
     match to_c_string x with
     | Some x -> Some (String.length x)
     | _ -> None
@@ -668,3 +668,5 @@ struct
 
   let name () = "offset without index"
 end
+*)
+module Set = SetDomain.ToppedSet (CilType.Lval) (struct let topname = "All" end)

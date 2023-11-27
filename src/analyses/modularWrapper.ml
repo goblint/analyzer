@@ -242,11 +242,11 @@ struct
   let startstate v =
     wrap_default (S.startstate v)
 
-  let threadenter ctx lval f args =
-    map_ctx_list (fun ctx -> S.threadenter ctx lval f args) ctx
+  let threadenter ctx ~multiple lval f args =
+    map_ctx_list (fun ctx -> S.threadenter ~multiple ctx lval f args) ctx
 
-  let threadspawn ctx lval f args (fctx: (D.t, G.t, C.t, V.t) ctx) : D.t =
-    map_ctx_fctx (fun ctx fctx -> S.threadspawn ctx lval f args fctx) ~ctx ~fctx
+  let threadspawn ctx ~multiple lval f args (fctx: (D.t, G.t, C.t, V.t) ctx) : D.t =
+    map_ctx_fctx (fun ctx fctx -> S.threadspawn ctx ~multiple lval f args fctx) ~ctx ~fctx
 
   let exitstate v =
     wrap_default (S.exitstate v)

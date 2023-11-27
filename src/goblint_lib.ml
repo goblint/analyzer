@@ -1,3 +1,4 @@
+(** Main library. *)
 
 (** {1 Framework} *)
 
@@ -22,6 +23,7 @@ module CfgTools = CfgTools
 module Analyses = Analyses
 module Constraints = Constraints
 module AnalysisState = AnalysisState
+module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
 
 (** Master control program (MCP) is the analysis specification for the dynamic product of activated analyses. *)
@@ -49,7 +51,7 @@ module VarQuery = VarQuery
 (** {2 Configuration}
 
     Runtime configuration is represented as JSON.
-    Options are specified and documented by the JSON schema [src/util/options.schema.json]. *)
+    Options are specified and documented by the JSON schema [src/common/util/options.schema.json]. *)
 
 module GobConfig = GobConfig
 module AfterConfig = AfterConfig
@@ -74,6 +76,7 @@ module ApronAnalysis = ApronAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
+module TmpSpecial = TmpSpecial
 
 (** {2 Heap}
 
@@ -82,6 +85,9 @@ module CondVars = CondVars
 module Region = Region
 module MallocFresh = MallocFresh
 module Malloc_null = Malloc_null
+module MemLeak = MemLeak
+module UseAfterFree = UseAfterFree
+module MemOutOfBounds = MemOutOfBounds
 
 (** {2 Concurrency}
 
@@ -142,8 +148,8 @@ module UnitAnalysis = UnitAnalysis
 
 module Assert = Assert
 module FileUse = FileUse
+module LoopTermination = LoopTermination
 module Uninit = Uninit
-module Termination = Termination
 module Expsplit = Expsplit
 module StackTrace = StackTrace
 module Spec = Spec
@@ -177,6 +183,7 @@ module Lattice = Lattice
 module BoolDomain = BoolDomain
 module SetDomain = SetDomain
 module MapDomain = MapDomain
+module TrieDomain = TrieDomain
 module DisjointDomain = DisjointDomain
 module HoareDomain = HoareDomain
 module PartitionDomain = PartitionDomain
@@ -192,15 +199,35 @@ module FlagHelper = FlagHelper
 
     Domains for {!Base} analysis. *)
 
-module BaseDomain = BaseDomain
-module ValueDomain = ValueDomain
+(** {5 Numeric} *)
+
 module IntDomain = IntDomain
 module FloatDomain = FloatDomain
+
+(** {5 Addresses}
+
+    Memory locations are identified by {{!Mval} mvalues}, which consist of a {{!GoblintCil.varinfo} variable} and an {{!Offset.t} offset}.
+    Mvalues are used throughout Goblint, not just the {!Base} analysis.
+
+    Addresses extend mvalues with [NULL], unknown pointers and string literals. *)
+
+module Mval = Mval
+module Offset = Offset
 module AddressDomain = AddressDomain
+
+(** {5 Complex} *)
+
 module StructDomain = StructDomain
 module UnionDomain = UnionDomain
 module ArrayDomain = ArrayDomain
 module JmpBufDomain = JmpBufDomain
+
+(** {5 Combined}
+
+    These combine the above domains together for {!Base} analysis. *)
+
+module BaseDomain = BaseDomain
+module ValueDomain = ValueDomain
 module ValueDomainQueries = ValueDomainQueries
 
 (** {4 Relational}
@@ -230,7 +257,6 @@ module PthreadDomain = PthreadDomain
 
 module Basetype = Basetype
 module Lval = Lval
-module CilLval = CilLval
 module Access = Access
 module AccessDomain = AccessDomain
 
@@ -239,7 +265,7 @@ module RegionDomain = RegionDomain
 module FileDomain = FileDomain
 module StackDomain = StackDomain
 
-module LvalMapDomain = LvalMapDomain
+module MvalMapDomain = MvalMapDomain
 module SpecDomain = SpecDomain
 
 (** {2 Testing}
@@ -313,6 +339,7 @@ module Tracing = Tracing
 module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
+module TerminationPreprocessing = TerminationPreprocessing
 
 (** {2 Witnesses}
 
@@ -428,46 +455,20 @@ module PrivPrecCompareUtil = PrivPrecCompareUtil
 module RelationPrecCompareUtil = RelationPrecCompareUtil
 module ApronPrecCompareUtil = ApronPrecCompareUtil
 
-(** {2 Build info} *)
-
-(** OCaml compiler info. *)
-module ConfigOcaml = ConfigOcaml
-
-(** Dune profile info. *)
-module ConfigProfile = ConfigProfile
-
-(** Goblint version info. *)
-module Version = Version
-
-(** Goblint git version info. *)
-module ConfigVersion = ConfigVersion
-
-
 (** {1 Library extensions}
 
-    OCaml library extensions which are completely independent of Goblint. *)
+    OCaml library extensions which are completely independent of Goblint.
+
+    See {!Goblint_std}. *)
 
 (** {2 Standard library}
 
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
-module GobGc = GobGc
-module GobHashtbl = GobHashtbl
-module GobList = GobList
-module GobRef = GobRef
-module GobResult = GobResult
-module GobOption = GobOption
-module GobSys = GobSys
-module GobUnix = GobUnix
 
 (** {2 Other libraries}
 
     External library extensions. *)
 
-module GobFpath = GobFpath
-module GobPretty = GobPretty
-module GobYaml = GobYaml
-module GobYojson = GobYojson
-module GobZ = GobZ
 module MyCheck = MyCheck

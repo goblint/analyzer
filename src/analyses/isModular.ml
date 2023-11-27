@@ -41,11 +41,11 @@ struct
     ctx.local
 
   let startstate v = false
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let is_modular = ModularUtil0.is_modular_fun f in
     [is_modular]
 
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = false
 
   let query ctx (type a) (q: a Queries.t): a Queries.result = match q with

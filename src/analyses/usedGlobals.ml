@@ -120,8 +120,8 @@ struct
     add_globals_from_exp_option (lval_opt_to_exp_opt lval) ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

@@ -27,10 +27,18 @@ sig
   val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
-module Field =  Lattice.Flat (CilType.Fieldinfo) (struct
-    let top_name = "Unknown field"
-    let bot_name = "If you see this, you are special!"
-  end)
+module Field = struct
+  include Lattice.Flat (CilType.Fieldinfo) (struct
+      let top_name = "Unknown field"
+      let bot_name = "If you see this, you are special!"
+    end)
+
+  let meet f g =
+    if equal f g then
+      f
+    else
+      raise Lattice.Uncomparable
+end
 
 module Simple (Values: Arg) =
 struct
@@ -88,6 +96,10 @@ struct
 
   let replace m field value =
     of_field ~field ~value
+  let meet (f, x) (g, y) =
+    let field = Field.meet f g in
+    let value = Values.meet x y in
+    (field, value)
 
   let invariant ~value_invariant ~offset ~lval (lift_f, v) =
     match offset with

@@ -264,6 +264,7 @@ let node_locator: Locator.t ResettableLazy.t =
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
+  Messages.(Table.MH.clear final_table);
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
@@ -289,7 +290,8 @@ let analyze ?(reset=false) (s: t) =
   Fun.protect ~finally:(fun () ->
       GobConfig.set_bool "incremental.load" true
     ) (fun () ->
-      Maingoblint.do_analyze increment_data (Option.get s.file)
+      Maingoblint.do_analyze increment_data (Option.get s.file);
+      Maingoblint.do_gobview (Option.get s.file);
     )
 
 let () =

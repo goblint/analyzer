@@ -4,7 +4,7 @@ open GoblintCil
 open Batteries
 
 module Q = Queries
-module AD = ValueDomain.AD
+module AD = Queries.AD
 module VD = ValueDomain.Compound
 
 module Spec =
@@ -12,7 +12,7 @@ struct
   include Analyses.DefaultSpec
 
   let name () = "read"
-  module D = ValueDomain.AD
+  module D = AD
   module C = Lattice.Unit
 
   let context _ _ = C.bot ()
@@ -21,28 +21,17 @@ struct
     AD.join k d
 
   let eval_lval ctx (varinfo, offs) =
-    let offset = Lval.CilLval.to_ciloffs offs in
+    let offset = Offset.Exp.to_cil offs in
     let lval = (Var varinfo, offset) in
-    match ctx.ask (Q.EvalLval lval) with
-    | `Lifted a -> a
-    | _ -> failwith "EvalLval returned top"
-
-  module LvalSet = BatSet.Make (Lval.CilLval)
-
-  let eval_lvals ctx lvals =
-    LvalSet.fold (fun lval acc -> AD.join acc (eval_lval ctx lval)) lvals (AD.bot ())
+    ctx.ask (Q.EvalLval lval)
 
   let reads_on_exp ctx exp =
     let reads = ref (AD.empty ()) in
     let collect_read exp =
       match exp with
       | AddrOf lval ->
-        let lvals = match ctx.ask (Q.MayPointTo (AddrOf lval)) with
-          | `Lifted a -> a
-          | _ -> failwith "MayPointTo returned top"
-        in
-        let address = eval_lvals ctx lvals in
-        reads := AD.join address !reads
+        let addresses : AD.t = ctx.ask (Q.MayPointTo (AddrOf lval)) in
+        reads := AD.join addresses !reads
       | _ ->
         (* Ignore cases without AddrOf*)
         ()
@@ -103,11 +92,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let used_globals = ModularUtil.get_callee_globals f_ask in
     let get_reachable_exp (exp: exp) =
-      match ask.f (Q.ReachableAddressesFrom exp) with
-      | `Top ->
-        Messages.warn ~category:Messages.Category.Analyzer  ~tags:[Category Unsound] "Target address of expression %a could not be resolved (i.e. the address was top)" CilType.Exp.pretty exp;
-        AD.top_ptr
-      | `Lifted rs -> rs
+      ask.f (Q.ReachableAddressesFrom exp)
     in
     let effective_args = used_globals @ args in
     let reachable = List.map get_reachable_exp effective_args in
@@ -129,15 +114,15 @@ struct
     D.join lval_reads exp_reads
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Read ->
       let read : D.t = ctx.local in
-      `Lifted read
+      read
     | _ -> Q.Result.top q
 
   let modular_support () = Modular

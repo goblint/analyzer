@@ -28,13 +28,9 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
-    match ask.f (Queries.EvalLval lval) with
-    | `Top ->
-      M.warn "Written lvalue is top. Write is not recorded!";
-      ctx.local
-    | `Lifted lv ->
-      let rv = ask.f (Queries.EvalValue rval) in
-      add_entry lv rv ctx.local
+    let lv = ask.f (Queries.EvalLval lval) in
+    let rv = ask.f (Queries.EvalValue rval) in
+    add_entry lv rv ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -54,11 +50,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let used_globals = ModularUtil.get_callee_globals f_ask in
     let get_reachable_exp (exp: exp) =
-      match ask.f (Q.ReachableAddressesFrom exp) with
-      | `Top ->
-        Messages.warn ~category:Messages.Category.Analyzer  ~tags:[Category Unsound] "Target address of expression %a could not be resolved (i.e. the address was top)" CilType.Exp.pretty exp;
-        AD.top_ptr
-      | `Lifted rs -> rs
+      ask.f (Q.ReachableAddressesFrom exp)
     in
     let effective_args = used_globals @ args in
     let reachable = List.map get_reachable_exp effective_args in
@@ -82,12 +74,8 @@ struct
       let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in
       let return_value = ModularUtil.ValueDomainExtension.map_back return_value ~reachable in
       let ask = Analyses.ask_of_ctx ctx in
-      match ask.f (Queries.EvalLval lval) with
-      | `Top ->
-        M.warn "Written lvalue is top. Write is not recorded!";
-        ctx.local
-      | `Lifted lv ->
-        add_entry lv return_value ctx.local
+      let lv =  ask.f (Queries.EvalLval lval) in
+      add_entry lv return_value ctx.local
     in
     Option.map_default assign_return_val ctx.local lval
 
@@ -95,8 +83,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Q.t): a Q.result =

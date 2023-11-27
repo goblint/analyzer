@@ -32,13 +32,21 @@ struct
 
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in
-    let n = TS.cardinal parents in
-    (* A thread is not unique if it is
-      * a) repeatedly created,
-      * b) created in multiple threads, or
-      * c) created by a thread that is itself multiply created.
-      * Note that starting threads have empty ancestor sets! *)
-    rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
+    if rep then
+      true (* repeatedly created *)
+    else (
+      let n = TS.cardinal parents in
+      if n > 1 then
+        true (* created in multiple threads *)
+      else if n > 0 then (
+        (* created by single thread *)
+        let parent = TS.choose parents in
+        (* created by itself thread-recursively or by a thread that is itself multiply created *)
+        T.equal tid parent || is_not_unique ctx parent (* equal check needed to avoid infinte self-recursion *)
+      )
+      else
+        false (* no ancestors, starting thread *)
+    )
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
@@ -53,7 +61,8 @@ struct
            s
        in
        match TS.elements (ctx.ask (Queries.EvalThread id)) with
-       | threads -> List.fold_left join_thread ctx.local threads
+       | [t] -> join_thread ctx.local t (* single thread *)
+       | _ -> ctx.local (* if several possible threads are may-joined, none are must-joined *)
        | exception SetDomain.Unsupported _ -> ctx.local)
     | _ -> ctx.local
 
@@ -76,8 +85,14 @@ struct
     | _ -> Queries.Result.top q
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx =
+
+  let threadenter ctx ~multiple lval f args =
+    if multiple then
+      (let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx ctx) in
+       ctx.sideg tid (true, TS.bot (), false));
+    [D.bot ()]
+
+  let threadspawn ctx ~multiple lval f args fctx =
     let creator = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx fctx) in
     let repeated = D.mem tid ctx.local in

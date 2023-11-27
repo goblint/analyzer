@@ -57,6 +57,17 @@ module type FloatArith = sig
   val tan : t -> t
   (** tan(x) *)
 
+  val sqrt : t -> t
+  (** sqrt(x) *)
+
+  (** {inversions of unary functions}*)
+  val inv_ceil : ?asPreciseAsConcrete:bool -> t -> t
+  (** (inv_ceil z -> x) if (z = ceil(x)) *)
+  val inv_floor : ?asPreciseAsConcrete:bool -> t -> t
+  (** (inv_floor z -> x) if (z = floor(x)) *)
+  val inv_fabs : t -> t
+  (** (inv_fabs z -> x) if (z = fabs(x)) *)
+
 
   (** {b Comparison operators} *)
 
@@ -116,6 +127,7 @@ module type FloatDomainBase = sig
   val starting : float -> t
   val ending_before : float -> t
   val starting_after : float -> t
+  val finite : t
 
   val minimal: t -> float option
   val maximal: t -> float option
@@ -150,6 +162,7 @@ module type FloatDomain = sig
   val starting : Cil.fkind -> float -> t
   val ending_before : Cil.fkind -> float -> t
   val starting_after : Cil.fkind -> float -> t
+  val finite : Cil.fkind -> t
 
   val minimal: t -> float option
   val maximal: t -> float option

@@ -31,29 +31,30 @@ struct
     let activated = get_string_list "ana.activated" in
     emit_single_threaded := List.mem (ModifiedSinceLongjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
 
-  let do_access ?(lval=None) ?(resolve=true) (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
-    let ls = BatOption.default (ctx.ask reach_or_mpt) lval in
-    ctx.emit (Access {exp=e; lvals=ls; kind; reach})
+    let ad = ctx.ask reach_or_mpt in
+    ctx.emit (Access {exp=e; ad; kind; reach})
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
-      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses.
-    If [lval] is passed, access is no ReachableFrom and MayPointTo queries are performed. *)
-  let access_one_top ?lval ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
+      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
+  let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
+    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)\n" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
-      if deref then
-        do_access ~lval ctx kind reach exp;
-      Access.distribute_access_exp (do_access ~lval ctx Read false) exp
+      if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
+        do_access ctx kind reach exp;
+      if M.tracing then M.tracei "access" "distribute_access_exp\n";
+      Access.distribute_access_exp (do_access ctx Read false) exp;
+      if M.tracing then M.traceu "access" "distribute_access_exp\n";
     );
-    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
+    if M.tracing then M.traceu "access" "access_one_top\n"
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
-  let threadenter ctx lval f args = [()]
+  let threadenter ctx ~multiple lval f args = [()]
   let exitstate  v = ()
   let context fd d = ()
 
@@ -114,15 +115,8 @@ struct
       Written.iter (fun a _ -> list := a :: !list) written;
       !list
     in
-    let read_addresses = match f_ask.f Queries.Read with
-      | `Top -> failwith "Read yielded `Top!"
-      | `Lifted a -> a
-    in
-    let get_reachable e =
-      match ctx.ask (Queries.ReachableAddressesFrom e) with
-      | `Top -> failwith "ReachableAddressesFrom returned `Top."
-      | `Lifted a -> a
-    in
+    let read_addresses = f_ask.f Queries.Read in
+    let get_reachable e = ctx.ask (Queries.ReachableAddressesFrom e) in
     let used_globals = ModularUtil.get_callee_globals f_ask in
     let effective_args = args @ used_globals in
     let reachable =
@@ -147,20 +141,20 @@ struct
         let offset = Offs.to_cil_offset offs in
         let exp = AddrOf (lhost, offset) in
 
-        let offs = Lval.CilLval.of_ciloffs offset in
+        let offs = Offset.Exp.of_cil offset in
         let lval = v, offs in
 
         lval, exp
       in
-      let addrs = AD.to_var_offset ad in
+      let addrs = AD.to_mval ad in
       List.map addr_to_lval_and_exp addrs
     in
     let written_lvals_with_exps = List.concat_map address_to_lvals written_addresses in
     let read_lvals_with_exps = address_to_lvals read_addresses in
     (* Trigger access events *)
     let add_lval_event ~kind ((v, offs), exp) =
-      let ls = LS.of_list [v, offs] in
-      access_one_top ~lval:ls ~deref:true ctx kind false exp
+      (* let ls = LS.of_list [v, offs] in *)
+      access_one_top ~deref:true ctx kind false exp
     in
     List.iter (add_lval_event ~kind:AccessKind.Write) written_lvals_with_exps;
     List.iter (add_lval_event ~kind:AccessKind.Read) read_lvals_with_exps
@@ -185,7 +179,7 @@ struct
   let combine_assign ctx lv fexp f args fc al f_ask =
     write_lval_option ctx lv
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx  ~multiple lval f args fctx =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
       | None -> ()
@@ -201,25 +195,20 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
-      begin match lvals with
-        | ls when Queries.LS.is_top ls ->
-          let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
-          ctx.sideg ctx.node (G.singleton access)
-        | ls ->
-          let events = Queries.LS.fold (fun (var, offs) acc ->
-              let coffs = Lval.CilLval.to_ciloffs offs in
-              let access: AccessDomain.Event.t =
-                if CilType.Varinfo.equal var dummyFunDec.svar then
-                  {var_opt = None; offs_opt = (Some coffs); kind}
-                else
-                  {var_opt = (Some var); offs_opt = (Some coffs); kind}
-              in
-              G.add access acc
-            ) ls (G.empty ())
-          in
-          ctx.sideg ctx.node events
-      end
+    | Events.Access {ad; kind; _} when !collect_local && !AnalysisState.postsolving ->
+      let events = Queries.AD.fold (fun addr es ->
+          match addr with
+          | Queries.AD.Addr.Addr (var, offs) ->
+            let coffs = ValueDomain.Offs.to_cil offs in
+            let access: AccessDomain.Event.t = {var_opt = (Some var); offs_opt = (Some coffs); kind} in
+            G.add access es
+          | UnknownPtr ->
+            let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
+            G.add access es
+          | _ -> es
+        ) ad (G.empty ())
+      in
+      ctx.sideg ctx.node events
     | _ ->
       ctx.local
 end

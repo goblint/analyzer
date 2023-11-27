@@ -28,7 +28,7 @@ struct
     ctx.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = true
-  let threadenter ctx lval f args = [true]
+  let threadenter ctx ~multiple lval f args = [true]
   let exitstate  v = D.top ()
 
   let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =

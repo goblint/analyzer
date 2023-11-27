@@ -33,7 +33,7 @@ struct
     ctx.local || Cilfacade.isVLAType v.vtype
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
+  let threadenter ctx ~multiple lval f args = [D.top ()]
   let exitstate  v = D.top ()
 end
 

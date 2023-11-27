@@ -23,12 +23,11 @@ struct
     include StdV
   end
 
-  let regions exp part st : Lval.CilLval.t list =
+  let regions exp part st : Mval.Exp.t list =
     match st with
     | `Lifted reg ->
       let ev = Reg.eval_exp exp in
-      let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
-      List.map to_exp (Reg.related_globals ev (part,reg))
+      Reg.related_globals ev (part,reg)
     | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
@@ -59,7 +58,7 @@ struct
         ls
     | _ -> Queries.Result.top q
 
-  module Lvals = SetDomain.Make (Lval.CilLval)
+  module Lvals = SetDomain.Make (Mval.Exp)
   module A =
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
@@ -82,12 +81,9 @@ struct
       Some (Lvals.empty ())
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
-      let rec unknown_index = function
-        | `NoOffset -> `NoOffset
-        | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (Lval.any_index_exp, unknown_index os) (* forget specific indices *)
-      in
-      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
+      (* forget specific indices *)
+      (* TODO: If indices are topped, could they not be collected in the first place? *)
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -178,9 +174,17 @@ struct
   let startstate v =
     `Lifted (RegMap.bot ())
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [`Lifted (RegMap.bot ())]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx =
+    match ctx.local with
+    | `Lifted reg ->
+      let old_regpart = ctx.global () in
+      let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      `Lifted reg
+    | x -> x
 
   let exitstate v = `Lifted (RegMap.bot ())
 

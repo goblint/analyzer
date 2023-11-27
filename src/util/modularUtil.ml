@@ -7,7 +7,7 @@ module Addr = ValueDomain.Addr
 module VS = Batteries.Set.Make (CilType.Varinfo)
 
 let address_to_canonical a =
-  let t = Addr.get_type a in
+  let t = Addr.type_of a in
   type_to_varinfo t
 
 let is_canonical (v: varinfo) =
@@ -63,7 +63,7 @@ struct
     | Address ad ->
       begin
         let map_back (a: Addr.t) =
-          match Addr.to_var_offset a with
+          match Addr.to_mval a with
           | Some (vi, off) when is_canonical vi ->
             let represented_no_offs = represented_by ~canonical:vi ~reachable in
             add_field_offset represented_no_offs off

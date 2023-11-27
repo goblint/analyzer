@@ -99,11 +99,11 @@ struct
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
-    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Offset.Exp.to_cil offs))
     | Lval (Mem e,o)                       -> Lval (Mem (replace_base (v,offs) q e), o)
-    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | AddrOf (Mem e,o)                     -> AddrOf (Mem (replace_base (v,offs) q e), o)
-    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
 
@@ -302,9 +302,10 @@ struct
 
     let equal_to _ _ = `Top
     let to_int _ = None
+    let top () = Unknown
   end
 
-  include Lval.Normal (Idx)
+  include AddressDomain.AddressPrintable (Mval.MakePrintable (Offset.MakePrintable (Idx)))
 
   let rec conv_const_offset x =
     match x with
@@ -313,6 +314,5 @@ struct
     | Index (_,o) -> `Index (Idx.Unknown, conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
-  (* We assume that no locking is done in modularly analyzed code *)
-  let from_var_offset (v, o) = from_var_offset ~is_modular:false (v, conv_const_offset o)
+  let of_mval (v, o) = of_mval ~is_modular:false (v, conv_const_offset o)
 end

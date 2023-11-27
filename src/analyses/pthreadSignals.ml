@@ -17,22 +17,12 @@ struct
   module C = MustSignals
   module G = SetDomain.ToppedSet (MHP) (struct let topname = "All Threads" end)
 
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
+  let possible_vinfos (a: Queries.ask) cv_arg =
+    Queries.AD.to_var_may (a.f (Queries.MayPointTo cv_arg))
 
-  let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset ~is_modular:(a.f IsModular)  (v,conv_offset o) :: b in
-    match a.f (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | _ -> []
-
-  let possible_vinfos a cv_arg =
-    List.filter_map ValueDomain.Addr.to_var_may (eval_exp_addr a cv_arg)
+  let is_modular ctx =
+    let ask = Analyses.ask_of_ctx ctx in
+    ask.f Queries.IsModular
 
   (* transfer functions *)
 
@@ -71,7 +61,7 @@ struct
       end
       in
       let open Signalled in
-      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.from_var ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) a) ctx.local | _ -> ctx.local in
+      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.of_var ~is_modular:(is_modular ctx) a) ctx.local | _ -> ctx.local in
       let conds = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
       (match List.fold_left (fun acc cond -> can_be_signalled cond ||| acc) Never conds with
        | PossiblySignalled -> add_if_singleton conds
@@ -87,7 +77,7 @@ struct
     | _ -> ctx.local
 
   let startstate v = Signals.empty ()
-  let threadenter ctx lval f args = [ctx.local]
+  let threadenter ctx ~multiple lval f args = [ctx.local]
   let exitstate  v = Signals.empty ()
 end
 

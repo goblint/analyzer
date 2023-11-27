@@ -5,12 +5,12 @@ open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Lval.OffsetLat (IndexDomain)
+module Offs = Offset.MakeLattice (IndexDomain)
 module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
-module LS = VDQ.LS
+module AD = VDQ.AD
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -92,7 +92,7 @@ module rec Compound: sig
     | Mutex
     | MutexAttr of MutexAttrDomain.t
     | Bot
-  include S with type t := t and type offs = (fieldinfo,IndexDomain.t) Lval.offs
+  include S with type t := t and type offs = IndexDomain.t Offset.t
 end =
 struct
   type t =
@@ -116,7 +116,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -217,7 +217,7 @@ struct
       let target_and_address_from_type t =
         (* Assumes type-based target. *)
         let target = TypeVarinfoMap.to_varinfo t in
-        target, AD.from_var ~is_modular:true target
+        target, AD.of_var ~is_modular:true target
       in
       let target, target_address = target_and_address_from_type t in
       let null_ptr = AD.null_ptr in
@@ -306,7 +306,7 @@ struct
   include Printable.Std
   let name () = "compound"
 
-  type offs = (fieldinfo,IndexDomain.t) Lval.offs
+  type offs = IndexDomain.t Offset.t
 
 
   let bot () = Bot
@@ -402,7 +402,7 @@ struct
       | t -> t
     in
     let rec adjust_offs v o d =
-      let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
+      let ta = try Addr.Offs.type_of ~base:v.vtype o with Offset.Type_of_error (t,s) -> raise (CastError s) in
       let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
@@ -415,7 +415,7 @@ struct
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
-        else if Addr.is_zero_offset o then adjust_offs v (Addr.remove_offset o) (Some true)
+        else if Addr.Offs.cmp_zero_offset o = `MustZero then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
@@ -424,14 +424,14 @@ struct
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
               M.tracel "casta" "cast struct to its first field\n";
-              adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
             | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
     let one_addr = let open Addr in function
@@ -477,7 +477,7 @@ struct
         | TInt (ik,_) ->
           Int (ID.cast_to ?torg ik (match v with
               | Int x -> x
-              | Address x -> AD.to_int (module ID) x
+              | Address x -> AD.to_int x
               | Float x -> FD.to_int ik x
               (*| Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -634,7 +634,7 @@ struct
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
     | (Union x, Union y) -> Union (Unions.widen x y)
     | (Array x, Array y) -> Array (CArrays.widen x y)
-    | (Blob x, Blob y) -> Blob (Blobs.widen x y)
+    | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
     | (Thread y, Int x) ->
@@ -684,7 +684,7 @@ struct
     | (Int x, Int y) -> Int (ID.meet x y)
     | (Float x, Float y) -> Float (FD.meet x y)
     | (Int _, Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
-    | (Address x, Int y) -> Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (Address x, Int y) -> Address (AD.meet x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.meet x y)
     | (Struct x, Struct y) -> Struct (Structs.meet x y)
     | (Union x, Union y) -> Union (Unions.meet x y)
@@ -709,7 +709,7 @@ struct
     | (Int x, Int y) -> Int (ID.narrow x y)
     | (Float x, Float y) -> Float (FD.narrow x y)
     | (Int _, Address _) -> narrow x (cast IntDomain.Size.top_typ y)
-    | (Address x, Int y) -> Address (AD.narrow x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (Address x, Int y) -> Address (AD.narrow x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.narrow x y)
     | (Struct x, Struct y) -> Struct (Structs.narrow x y)
     | (Union x, Union y) -> Union (Unions.narrow x y)
@@ -806,9 +806,9 @@ struct
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin match ask.may_point_to (Lval lval) with
-          | v when LS.cardinal v = 1 && not (LS.is_top v) ->
-            begin match LS.choose v with
-              | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
+          | v when AD.cardinal v = 1 && not (AD.is_top v) ->
+            begin match AD.choose v with
+              | AD.Addr.Addr (var,`Index (i,`NoOffset)) when ID.equal_to Z.zero i = `Eq && CilType.Varinfo.equal var arr_start_var ->
                 (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
                 add
               | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
@@ -874,6 +874,8 @@ struct
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
+      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
+      let r =
       match x, offs with
       | Blob((va, _, orig) as c), `Index (_, ox) ->
         begin
@@ -946,6 +948,9 @@ struct
             | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
+      in
+      if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a\n" pretty r;
+      r
     in
     let l, o = match exp with
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
@@ -1023,16 +1028,16 @@ struct
               Top
         end
         | JmpBuf _, _ ->
-        (* hack for jmp_buf variables *)
-        begin match value with
-          | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
-          | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
-          | _ ->
-            if !AnalysisState.global_initialization then
-              JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
-            else
-              Top
-        end
+          (* hack for jmp_buf variables *)
+          begin match value with
+            | JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
+            | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
+            | _ ->
+              if !AnalysisState.global_initialization then
+                JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
+              else
+                Top
+          end
       | _ ->
       let result =
         match offs with
@@ -1268,11 +1273,7 @@ struct
         match addr with
         | Addr.Addr (v, o) -> Addr.Addr (v, project_offs p o)
         | ptr -> ptr) a
-  and project_offs p offs =
-    match offs with
-    | `NoOffset -> `NoOffset
-    | `Field (field, offs') -> `Field (field, project_offs p offs')
-    | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
+  and project_offs p offs = Offs.map_indices (ID.project p) offs
   and project_arr ask p array_attr n =
     let n = match array_attr with
       | Some (varAttr,typAttr) -> CArrays.project ~varAttr ~typAttr ask n
@@ -1333,16 +1334,8 @@ struct
         | Addr.UnknownPtr ->
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-          let rec offs_to_offset = function
-            | `NoOffset -> NoOffset
-            | `Field (f, offs) -> Field (f, offs_to_offset offs)
-            | `Index (i, offs) ->
-              (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
-              let i_definite = BatOption.get (IndexDomain.to_int i) in
-              let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
-              Index (i_exp, offs_to_offset offs)
-          in
-          let offset = offs_to_offset offs in
+          (* Addr.Offs.is_definite implies to_cil doesn't contain Offset.any_index_exp. *)
+          let offset = Addr.Offs.to_cil offs in
 
           let cast_to_void_ptr e =
             Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
