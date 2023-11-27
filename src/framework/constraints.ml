@@ -566,7 +566,7 @@ struct
     | [] -> " "
     | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)
 
-  let enter ctx r f args =  
+  let enter ctx r f args =
     let ctx_dec = dec_context_gas ctx in 
     if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
@@ -615,7 +615,7 @@ struct
   module CallStack = struct
     include Printable.Liszt (CT) 
     let dummy = []
-    let depth = 2
+    let depth = 10
 
     let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
       let rec take n = function
@@ -661,13 +661,17 @@ struct
     }
 
   let enter ctx r f args = 
-    let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
-    let new_stack = CallStack.push (stack ctx) elem in
-    let ctx' = {ctx with context = (fun () -> new_stack)
-                       ; local = (fst ctx.local, new_stack)} in
-    if not !AnalysisState.postsolving then CT.printStack f args (stack ctx) (stack ctx');
-    let liftmap_tup = List.map (fun (x,y) -> (x, stack ctx), (y, new_stack)) in (* new_stack = snd ctx'.local *)
-    liftmap_tup (S.enter (conv ctx') r f args)
+    let liftmap_tup new_stack = List.map (fun (x,y) -> (x, stack ctx), (y, new_stack)) in (* new_stack = snd ctx'.local *)
+    if CilType.Fundec.show f = "main" 
+    then liftmap_tup (stack ctx) (S.enter (conv ctx) r f args)
+    else(
+      let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
+      let new_stack = CallStack.push (stack ctx) elem in
+      let ctx' = {ctx with context = (fun () -> new_stack)
+                         ; local = (fst ctx.local, new_stack)} in
+      if not !AnalysisState.postsolving then CT.printStack f args (stack ctx) (stack ctx');
+      liftmap_tup new_stack (S.enter (conv ctx') r f args))
+
 
   let liftmap f ctx = List.map (fun (x) -> (x, stack ctx)) f
 

@@ -1,8 +1,8 @@
-// PARAM: --enable ana.context.callstring --enable ana.int.interval_set
+// PARAM: --enable ana.context.callstring_stmt --enable ana.int.interval_set
 // Basic example
 #include <stdio.h>
 
-int num_iterat = 12;
+int num_iterat = 10;
 int a = 20;
 
 int f(int i)
@@ -18,4 +18,5 @@ int f(int i)
 int main(void)
 {
     f(num_iterat);
+     __goblint_check(a == 0);
 }
