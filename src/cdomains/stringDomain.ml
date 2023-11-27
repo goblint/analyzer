@@ -4,23 +4,20 @@ let name () = "string"
 
 type string_domain = Unit | Disjoint | Flat
 
-let string_domain = ref None
+let string_domain: string_domain ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      match GobConfig.get_string "ana.base.strings.domain" with
+      | "unit" -> Unit
+      | "disjoint" -> Disjoint
+      | "flat" -> Flat
+      | _ -> failwith "ana.base.strings.domain: illegal value"
+    )
 
-let string_domain_config = "ana.base.strings.domain"
-
-let parse config = match config with
-  | "unit" -> Unit
-  | "disjoint" -> Disjoint
-  | "flat" -> Flat
-  | _ -> raise @@ GobConfig.ConfigError ("Invalid option for " ^ string_domain_config)
-
-let get_string_domain () =
-  if !string_domain = None then
-    string_domain := Some (parse (GobConfig.get_string string_domain_config));
-  Option.get !string_domain
+let get_string_domain () = ResettableLazy.force string_domain
 
 let reset_lazy () =
-  string_domain := None
+  ResettableLazy.reset string_domain
+
 
 type t = string option [@@deriving eq, ord, hash]
 
