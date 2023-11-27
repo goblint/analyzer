@@ -597,7 +597,23 @@
               "description": "Lists of activated tuning options.",
               "type": "array",
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "congruence",
+                  "singleThreaded",
+                  "specification",
+                  "mallocWrappers",
+                  "noRecursiveIntervals",
+                  "enums",
+                  "loopUnrollHeuristic",
+                  "forceLoopUnrollForFewLoops",
+                  "arrayDomain",
+                  "octagon",
+                  "wideningThresholds",
+                  "memsafetySpecification",
+                  "termination",
+                  "tmpSpecialAnalysis"
+                ]
               },
               "default": [
                 "congruence",
@@ -611,6 +627,7 @@
                 "octagon",
                 "wideningThresholds",
                 "memsafetySpecification",
+                "termination",
                 "tmpSpecialAnalysis"
               ]
             }
@@ -689,11 +706,19 @@
               },
               "additionalProperties": false
             },
-            "limit-string-addresses": {
-              "title": "ana.base.limit-string-addresses",
-              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
-              "type": "boolean",
-              "default": true
+            "strings": {
+              "title": "ana.base.strings",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.strings.domain",
+                  "description": "Domain for string literals.",
+                  "type": "string",
+                  "enum": ["unit", "flat", "disjoint"],
+                  "default": "flat"
+                }
+              },
+              "additionalProperties": false
             },
             "partition-arrays": {
               "title": "ana.base.partition-arrays",
@@ -1117,6 +1142,12 @@
             "free": {
               "title": "ana.race.free",
               "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            },
+            "call": {
+              "title": "ana.race.call",
+              "description": "Report races for thread-unsafe function calls.",
               "type": "boolean",
               "default": true
             },
@@ -2282,6 +2313,25 @@
           "description": "Output messages in deterministic order. Useful for cram testing.",
           "type": "boolean",
           "default": false
+        },
+        "memleak": {
+          "title": "warn.memleak",
+          "type":"object",
+          "properties": {
+            "memcleanup": {
+              "title": "warn.memleak.memcleanup",
+              "description": "Enable memory leak warnings only for violations of the SV-COMP \"valid-memcleanup\" category",
+              "type": "boolean",
+              "default": false
+            },
+            "memtrack": {
+              "title": "warn.memleak.memtrack",
+              "description": "Enable memory leak warnings only for violations of the SV-COMP \"valid-memtrack\" category",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -2606,6 +2656,12 @@
               "description": "YAML witness input path",
               "type": "string",
               "default": ""
+            },
+            "strict": {
+              "title": "witness.yaml.strict",
+              "description": "",
+              "type": "boolean",
+              "default": false
             },
             "unassume": {
               "title": "witness.yaml.unassume",

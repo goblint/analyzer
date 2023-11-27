@@ -2132,7 +2132,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
-        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+        invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =

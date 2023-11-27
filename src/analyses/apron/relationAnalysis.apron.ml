@@ -70,7 +70,7 @@ struct
     let visitor = object
       inherit nopCilVisitor
       method! vlval = function
-        | (Var v, NoOffset) when v.vglob || ThreadEscape.has_escaped ask v ->
+        | (Var v, NoOffset) when (v.vglob || ThreadEscape.has_escaped ask v) && RD.Tracked.varinfo_tracked v ->
           let v_in =
             if VH.mem v_ins v then
               VH.find v_ins v

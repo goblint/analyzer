@@ -136,19 +136,18 @@ struct
 
   let precondition_loop_invariant_certificate ~target ~(certification): Entry.t = {
     entry_type = PreconditionLoopInvariantCertificate {
-      target;
-      certification;
-    };
+        target;
+        certification;
+      };
     metadata = metadata ();
   }
 end
 
-let yaml_entries_to_file ?(invariants=0) yaml_entries file =
+let yaml_entries_to_file yaml_entries file =
   let yaml = `A yaml_entries in
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
-  (* estimate how big it should be + extra in case empty *)
-  let text = match Yaml.to_string ~len:((List.length yaml_entries + invariants) * 4096 + 2048) yaml with
+  let text = match GobYaml.to_string' yaml with
     | Ok text -> text
     | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
   in
@@ -170,6 +169,16 @@ struct
   module FMap = BatHashtbl.Make (CilType.Fundec)
   module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
   type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
+
+  (* TODO: fix location hack *)
+  module LH = BatHashtbl.Make (CilType.Location)
+  let location2nodes: Node.t list LH.t Lazy.t = lazy (
+    let lh = LH.create 113 in
+    NH.iter (fun n _ ->
+        LH.modify_def [] (Node.location n) (List.cons n) lh
+      ) (Lazy.force nh);
+    lh
+  )
 
   let write () =
     let input_files = GobConfig.get_string_list "files" in
@@ -234,16 +243,21 @@ struct
     (* Generate location invariants (without precondition) *)
     let entries =
       if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
-        NH.fold (fun n local acc ->
-            let loc = Node.location n in
-            if is_invariant_node n then (
-              let lvals = local_lvals n local in
-              match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
+        LH.fold (fun loc ns acc ->
+            if List.exists is_invariant_node ns then (
+              let inv = List.fold_left (fun acc n ->
+                  let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                  let lvals = local_lvals n local in
+                  Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                ) (Invariant.bot ()) ns
+              in
+              match inv with
               | `Lifted inv ->
+                let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                let location_function = fundec.svar.vname in
+                let location = Entry.location ~location:loc ~location_function in
                 let invs = WitnessUtil.InvariantExp.process_exp inv in
                 List.fold_left (fun acc inv ->
-                    let location_function = (Node.find_fundec n).svar.vname in
-                    let location = Entry.location ~location:loc ~location_function in
                     let invariant = Entry.invariant (CilType.Exp.show inv) in
                     let entry = Entry.location_invariant ~task ~location ~invariant in
                     entry :: acc
@@ -253,7 +267,7 @@ struct
             )
             else
               acc
-          ) (Lazy.force nh) entries
+          ) (Lazy.force location2nodes) entries
       )
       else
         entries
@@ -262,15 +276,20 @@ struct
     (* Generate loop invariants (without precondition) *)
     let entries =
       if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
-        NH.fold (fun n local acc ->
-            let loc = Node.location n in
-            if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
-              match R.ask_local_node n ~local (Invariant Invariant.default_context) with
+        LH.fold (fun loc ns acc ->
+            if WitnessInvariant.emit_loop_head && List.exists (WitnessUtil.NH.mem WitnessInvariant.loop_heads) ns then (
+              let inv = List.fold_left (fun acc n ->
+                  let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                  Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                ) (Invariant.bot ()) ns
+              in
+              match inv with
               | `Lifted inv ->
+                let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                let location_function = fundec.svar.vname in
+                let location = Entry.location ~location:loc ~location_function in
                 let invs = WitnessUtil.InvariantExp.process_exp inv in
                 List.fold_left (fun acc inv ->
-                    let location_function = (Node.find_fundec n).svar.vname in
-                    let location = Entry.location ~location:loc ~location_function in
                     let invariant = Entry.invariant (CilType.Exp.show inv) in
                     let entry = Entry.loop_invariant ~task ~location ~invariant in
                     entry :: acc
@@ -280,7 +299,7 @@ struct
             )
             else
               acc
-          ) (Lazy.force nh) entries
+          ) (Lazy.force location2nodes) entries
       )
       else
         entries
@@ -412,23 +431,28 @@ struct
     in
 
     (* Generate invariant set *)
-    let (entries, invariants) =
+    let entries =
       if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
         let invariants = [] in
 
         (* Generate location invariants *)
         let invariants =
           if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
-            NH.fold (fun n local acc ->
-                let loc = Node.location n in
-                if is_invariant_node n then (
-                  let lvals = local_lvals n local in
-                  match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
+            LH.fold (fun loc ns acc ->
+                if List.exists is_invariant_node ns then (
+                  let inv = List.fold_left (fun acc n ->
+                      let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                      let lvals = local_lvals n local in
+                      Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                    ) (Invariant.bot ()) ns
+                  in
+                  match inv with
                   | `Lifted inv ->
+                    let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                    let location_function = fundec.svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
                     let invs = WitnessUtil.InvariantExp.process_exp inv in
                     List.fold_left (fun acc inv ->
-                        let location_function = (Node.find_fundec n).svar.vname in
-                        let location = Entry.location ~location:loc ~location_function in
                         let invariant = CilType.Exp.show inv in
                         let invariant = Entry.location_invariant' ~location ~invariant in
                         invariant :: acc
@@ -438,7 +462,7 @@ struct
                 )
                 else
                   acc
-              ) (Lazy.force nh) invariants
+              ) (Lazy.force location2nodes) invariants
           )
           else
             invariants
@@ -447,15 +471,20 @@ struct
         (* Generate loop invariants *)
         let invariants =
           if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
-            NH.fold (fun n local acc ->
-                let loc = Node.location n in
-                if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
-                  match R.ask_local_node n ~local (Invariant Invariant.default_context) with
+            LH.fold (fun loc ns acc ->
+                if WitnessInvariant.emit_loop_head && List.exists (WitnessUtil.NH.mem WitnessInvariant.loop_heads) ns then (
+                  let inv = List.fold_left (fun acc n ->
+                      let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                      Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                    ) (Invariant.bot ()) ns
+                  in
+                  match inv with
                   | `Lifted inv ->
+                    let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                    let location_function = fundec.svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
                     let invs = WitnessUtil.InvariantExp.process_exp inv in
                     List.fold_left (fun acc inv ->
-                        let location_function = (Node.find_fundec n).svar.vname in
-                        let location = Entry.location ~location:loc ~location_function in
                         let invariant = CilType.Exp.show inv in
                         let invariant = Entry.loop_invariant' ~location ~invariant in
                         invariant :: acc
@@ -465,7 +494,7 @@ struct
                 )
                 else
                   acc
-              ) (Lazy.force nh) invariants
+              ) (Lazy.force location2nodes) invariants
           )
           else
             invariants
@@ -473,10 +502,10 @@ struct
 
         let invariants = List.rev invariants in
         let entry = Entry.invariant_set ~task ~invariants in
-        (entry :: entries, List.length invariants)
+        entry :: entries
       )
       else
-        (entries, 0)
+        entries
     in
 
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
@@ -485,7 +514,7 @@ struct
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 
-    yaml_entries_to_file ~invariants yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+    yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 
   let write () =
     Timing.wrap "yaml witness" write ()

@@ -262,6 +262,15 @@ let preprocess_files () =
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
 
+  if get_bool "ana.sv-comp.enabled" then (
+    let architecture_flag = match get_string "exp.architecture" with
+      | "32bit" -> "-m32"
+      | "64bit" -> "-m64"
+      | _ -> assert false
+    in
+    cppflags := architecture_flag :: !cppflags
+  );
+
   (* the base include directory *)
   (* TODO: any better way? dune executable promotion doesn't add _build sites *)
   let source_lib_dirs =
