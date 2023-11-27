@@ -714,16 +714,17 @@ struct
                   let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
                   if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
                   begin match tmpSpecial with
-                    | `Lifted (Abs (_ik, xInt)) ->
-                      inv_exp (Int (ID.join c (ID.neg c))) xInt st (* TODO: deduplicate *)
+                    | `Lifted (Abs (ik, xInt)) ->
+                      let c' = ID.cast_to ik c in (* different ik! *)
+                      inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
                     | tmpSpecial ->
-                      let tv_opt = ID.to_bool c in (* TODO: simplify *)
-                      begin match tv_opt with
+                      begin match ID.to_bool c with
                         | Some tv ->
                           begin match tmpSpecial with
                             | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
                             | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
                             (* should be correct according to C99 standard*)
+                            (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
                             | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
