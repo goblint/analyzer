@@ -805,15 +805,15 @@ struct
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
         | _ -> false
       in
-      try
-        let ik = Cilfacade.get_ikind_exp exp in
+      match Cilfacade.get_ikind_exp exp with
+      | ik ->
         let itv = if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
           else
             ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
         in
         inv_exp (Int itv) exp st
-      with Invalid_argument _ ->
+      | exception Invalid_argument _ ->
         let fk = Cilfacade.get_fkind_exp exp in
         let ftv = if not tv then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             FD.of_const fk 0.
@@ -821,4 +821,31 @@ struct
             FD.top_of fk
         in
         inv_exp (Float ftv) exp st
+
+  let invariant ctx a gs st exp tv: D.t =
+    let refine0 = invariant ctx a gs st exp tv in
+    (* bodge for abs(...); To be removed once we have a clean solution *)
+    let refineAbs op absargexp valexp =
+      let flip op = match op with | Le -> Ge | Lt -> Gt | _ -> failwith "impossible" in
+      (* e.g. |arg| <= 40 *)
+      (* arg <= e  (arg <= 40) *)
+      let le = BinOp (op, absargexp, valexp, intType) in
+      (* arg >= -e  (arg >= -40) *)
+      let gt = BinOp(flip op, absargexp, UnOp (Neg, valexp, Cilfacade.typeOf valexp), intType) in
+      let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
+      invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
+    in
+    match exp with
+    | BinOp ((Lt|Le) as op, CastE(t, Lval (Var v, NoOffset)), e,_) when tv ->
+      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
+        | `Lifted (Abs (ik, arg)) -> refineAbs op (CastE (t, arg)) e
+        | _ -> refine0
+      end
+    | BinOp ((Lt|Le) as op, Lval (Var v, NoOffset), e, _) when tv ->
+      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
+        | `Lifted (Abs (ik, arg)) -> refineAbs op arg e
+        | _ -> refine0
+      end
+    | _ -> refine0
+
 end

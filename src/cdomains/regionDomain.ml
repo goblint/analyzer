@@ -9,6 +9,15 @@ module B = Printable.UnitConf (struct let name = "•" end)
 module VFB =
 struct
   include Printable.Either (VF) (B)
+  let name () = "region"
+
+  let pretty () = function
+    | `Right () -> Pretty.text "•"
+    | `Left x -> VF.pretty () x
+
+  let show = function
+    | `Right () -> "•"
+    | `Left x -> VF.show x
 
   let printXml f = function
     | `Right () ->
@@ -51,6 +60,7 @@ end
 
 module RS = struct
   include PartitionDomain.Set (VFB)
+  let name () = "regions"
   let single_vf vf = singleton (VFB.of_vf vf)
   let single_bullet = singleton (VFB.bullet)
   let remove_bullet x = remove VFB.bullet x
@@ -147,13 +157,13 @@ struct
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
-  let add_set (s:set) llist (p,m:t): t =
+  let add_set ?(escape=false) (s:set) llist (p,m:t): t =
     if RS.has_bullet s then
       let f key value (ys, x) =
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
       let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
       let x = RS.remove_bullet x in
-      if RS.is_empty x then
+      if not escape && RS.is_empty x then
         p, RegMap.add_list_set llist RS.single_bullet m
       else
         RegPart.add x p, RegMap.add_list_set ys x m
@@ -204,6 +214,25 @@ struct
     match eval_exp (Lval lval) with
     | Some (_,x,_) -> p, RegMap.add x RS.single_bullet m
     | _ -> p,m
+
+  (* Copied & modified from assign. *)
+  let assign_escape (rval: exp) (st: t): t =
+    (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
+    let t = Cilfacade.typeOf rval in
+    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
+      match eval_exp rval with
+      (* TODO: should offs_x matter? *)
+      | Some (deref_y,y,offs_y) ->
+        let (p,m) = st in begin
+          match is_global y with
+          | true  ->
+            add_set ~escape:true (RS.single_vf y) [] st
+          | false  ->
+            add_set ~escape:true (RegMap.find y m) [y] st
+        end
+      | _ -> st
+    end else
+      st
 
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
     let add_o o2 (v,o) = (v, F.add_offset o o2) in

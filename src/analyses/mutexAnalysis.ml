@@ -30,6 +30,8 @@ struct
 
       include MapDomain.MapTop_LiftBot (ValueDomain.Addr) (Count)
 
+      let name () = "multiplicity"
+
       let increment v x =
         let current = find v x in
         if current = max_count () then

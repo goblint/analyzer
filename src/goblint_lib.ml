@@ -1,3 +1,4 @@
+(** Main library. *)
 
 (** {1 Framework} *)
 
@@ -22,6 +23,7 @@ module CfgTools = CfgTools
 module Analyses = Analyses
 module Constraints = Constraints
 module AnalysisState = AnalysisState
+module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
 
 (** Master control program (MCP) is the analysis specification for the dynamic product of activated analyses. *)
@@ -49,7 +51,7 @@ module VarQuery = VarQuery
 (** {2 Configuration}
 
     Runtime configuration is represented as JSON.
-    Options are specified and documented by the JSON schema [src/util/options.schema.json]. *)
+    Options are specified and documented by the JSON schema [src/common/util/options.schema.json]. *)
 
 module GobConfig = GobConfig
 module AfterConfig = AfterConfig
@@ -146,8 +148,8 @@ module UnitAnalysis = UnitAnalysis
 
 module Assert = Assert
 module FileUse = FileUse
+module LoopTermination = LoopTermination
 module Uninit = Uninit
-module Termination = Termination
 module Expsplit = Expsplit
 module StackTrace = StackTrace
 module Spec = Spec
@@ -338,6 +340,7 @@ module Tracing = Tracing
 module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
+module TerminationPreprocessing = TerminationPreprocessing
 
 (** {2 Witnesses}
 
@@ -453,46 +456,20 @@ module PrivPrecCompareUtil = PrivPrecCompareUtil
 module RelationPrecCompareUtil = RelationPrecCompareUtil
 module ApronPrecCompareUtil = ApronPrecCompareUtil
 
-(** {2 Build info} *)
-
-(** OCaml compiler info. *)
-module ConfigOcaml = ConfigOcaml
-
-(** Dune profile info. *)
-module ConfigProfile = ConfigProfile
-
-(** Goblint version info. *)
-module Version = Version
-
-(** Goblint git version info. *)
-module ConfigVersion = ConfigVersion
-
-
 (** {1 Library extensions}
 
-    OCaml library extensions which are completely independent of Goblint. *)
+    OCaml library extensions which are completely independent of Goblint.
+
+    See {!Goblint_std}. *)
 
 (** {2 Standard library}
 
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
-module GobGc = GobGc
-module GobHashtbl = GobHashtbl
-module GobList = GobList
-module GobRef = GobRef
-module GobResult = GobResult
-module GobOption = GobOption
-module GobSys = GobSys
-module GobUnix = GobUnix
 
 (** {2 Other libraries}
 
     External library extensions. *)
 
-module GobFpath = GobFpath
-module GobPretty = GobPretty
-module GobYaml = GobYaml
-module GobYojson = GobYojson
-module GobZ = GobZ
 module MyCheck = MyCheck

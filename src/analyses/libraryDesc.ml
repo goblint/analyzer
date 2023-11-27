@@ -27,6 +27,7 @@ type math =
   | Islessequal of (Basetype.CilExp.t * Basetype.CilExp.t)
   | Islessgreater of (Basetype.CilExp.t * Basetype.CilExp.t)
   | Isunordered of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Abs of (CilType.Ikind.t * Basetype.CilExp.t)
   | Ceil of (CilType.Fkind.t * Basetype.CilExp.t)
   | Floor of (CilType.Fkind.t * Basetype.CilExp.t)
   | Fabs of (CilType.Fkind.t * Basetype.CilExp.t)
@@ -38,7 +39,8 @@ type math =
   | Atan2 of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
   | Cos of (CilType.Fkind.t * Basetype.CilExp.t)
   | Sin of (CilType.Fkind.t * Basetype.CilExp.t)
-  | Tan of (CilType.Fkind.t * Basetype.CilExp.t) [@@deriving eq, ord, hash]
+  | Tan of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Sqrt of (CilType.Fkind.t * Basetype.CilExp.t) [@@deriving eq, ord, hash]
 
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
@@ -78,6 +80,7 @@ type special =
   | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Setjmp of { env: Cil.exp; }
   | Longjmp of { env: Cil.exp; value: Cil.exp; }
+  | Bounded of { exp: Cil.exp}  (** Used to check for bounds for termination analysis. *)
   | Rand
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
@@ -158,6 +161,7 @@ module MathPrintable = struct
     | Islessequal (exp1, exp2) -> Pretty.dprintf "isLessEqual(%a, %a)" d_exp exp1 d_exp exp2
     | Islessgreater (exp1, exp2) -> Pretty.dprintf "isLessGreater(%a, %a)" d_exp exp1 d_exp exp2
     | Isunordered (exp1, exp2) -> Pretty.dprintf "isUnordered(%a, %a)" d_exp exp1 d_exp exp2
+    | Abs (ik, exp) -> Pretty.dprintf "(%a )abs(%a)" d_ikind ik d_exp exp
     | Ceil (fk, exp) -> Pretty.dprintf "(%a )ceil(%a)" d_fkind fk d_exp exp
     | Floor (fk, exp) -> Pretty.dprintf "(%a )floor(%a)" d_fkind fk d_exp exp
     | Fabs (fk, exp) -> Pretty.dprintf "(%a )fabs(%a)" d_fkind fk d_exp exp
@@ -170,6 +174,7 @@ module MathPrintable = struct
     | Cos (fk, exp) -> Pretty.dprintf "(%a )cos(%a)" d_fkind fk d_exp exp
     | Sin (fk, exp) -> Pretty.dprintf "(%a )sin(%a)" d_fkind fk d_exp exp
     | Tan (fk, exp) -> Pretty.dprintf "(%a )tan(%a)" d_fkind fk d_exp exp
+    | Sqrt (fk, exp) -> Pretty.dprintf "(%a )sqrt(%a)" d_fkind fk d_exp exp
 
   include Printable.SimplePretty (
     struct

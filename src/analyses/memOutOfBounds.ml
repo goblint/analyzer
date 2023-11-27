@@ -3,6 +3,7 @@
 open GoblintCil
 open Analyses
 open MessageCategory
+open AnalysisStateUtil
 
 module AS = AnalysisState
 module VDQ = ValueDomainQueries
@@ -68,17 +69,17 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-  let points_to_heap_only ctx ptr =
+  let points_to_alloc_only ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (Queries.AD.is_top a)->
       Queries.AD.for_all (function
-          | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
+          | Addr (v, o) -> ctx.ask (Queries.IsAllocVar v)
           | _ -> false
         ) a
     | _ -> false
 
   let get_size_of_ptr_target ctx ptr =
-    if points_to_heap_only ctx ptr then
+    if points_to_alloc_only ctx ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
       ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
     else
@@ -88,6 +89,10 @@ struct
         let pts_elems_to_sizes (addr: Queries.AD.elt) =
           begin match addr with
             | Addr (v, _) ->
+              if hasAttribute "goblint_cil_nested" v.vattr then (
+                set_mem_safety_flag InvalidDeref;
+                M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
+              );
               begin match v.vtype with
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
@@ -117,8 +122,9 @@ struct
           | x::xs -> List.fold_left VDQ.ID.join x xs
         end
       | _ ->
-        M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-        `Top
+        (set_mem_safety_flag InvalidDeref;
+         M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+         `Top)
 
   let get_ptr_deref_type ptr_typ =
     match ptr_typ with
@@ -159,6 +165,50 @@ struct
         with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
       end
 
+  let cil_offs_to_idx ctx typ offs =
+    (* TODO: Some duplication with convert_offset in base.ml, unclear how to immediately get more reuse *)
+    let rec convert_offset (ofs: offset) =
+      match ofs with
+      | NoOffset -> `NoOffset
+      | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
+      | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
+        `Index (ID.top (), convert_offset ofs)
+      | Index (exp, ofs) ->
+        let i = match ctx.ask (Queries.EvalInt exp) with
+          | `Lifted x -> x
+          | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+        in
+        `Index (i, convert_offset ofs)
+    in
+    PreValueDomain.Offs.to_index (convert_offset offs)
+
+
+  let check_unknown_addr_deref ctx ptr =
+    let may_contain_unknown_addr =
+      match ctx.ask (Queries.EvalValue ptr) with
+      | a when not (Queries.VD.is_top a) ->
+        begin match a with
+          | Address a -> ValueDomain.AD.may_be_unknown a
+          | _ -> false
+        end
+      (* Intuition: if ptr evaluates to top, it could potentially evaluate to the unknown address *)
+      | _ -> true
+    in
+    if may_contain_unknown_addr then begin
+      set_mem_safety_flag InvalidDeref;
+      M.warn ~category:(Behavior (Undefined Other)) "Pointer %a contains an unknown address. Invalid dereference may occur" d_exp ptr
+    end
+
+  let ptr_only_has_str_addr ctx ptr =
+    match ctx.ask (Queries.EvalValue ptr) with
+    | a when not (Queries.VD.is_top a) ->
+      begin match a with
+        | Address a -> ValueDomain.AD.for_all (fun addr -> match addr with | StrPtr _ -> true | _ -> false) a
+        | _ -> false
+      end
+    (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
+    | _ -> false
+
   let rec get_addr_offs ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (VDQ.AD.is_top a) ->
@@ -174,22 +224,25 @@ struct
                   | Addr (_, o) -> ID.is_bot @@ offs_to_idx t o
                   | _ -> false
                 ) a then (
-                (* TODO: Uncomment once staging-memsafety branch changes are applied *)
-                (* set_mem_safety_flag InvalidDeref; *)
+                set_mem_safety_flag InvalidDeref;
                 M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
               ) else if VDQ.AD.exists (function
-                  | Addr (_, o) -> ID.is_bot @@ offs_to_idx t o
+                  | Addr (_, o) -> ID.is_top_of (Cilfacade.ptrdiff_ikind ()) (offs_to_idx t o)
                   | _ -> false
                 ) a then (
-                (* TODO: Uncomment once staging-memsafety branch changes are applied *)
-                (* set_mem_safety_flag InvalidDeref; *)
+                set_mem_safety_flag InvalidDeref;
                 M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
               );
-              (* Offset should be the same for all elements in the points-to set *)
-              (* Hence, we can just pick one element and obtain its offset *)
-              begin match VDQ.AD.choose a with
-                | Addr (_, o) -> offs_to_idx t o
-                | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+              (* Get the address offsets of all points-to set elements *)
+              let addr_offsets =
+                VDQ.AD.filter (function Addr (v, o) -> true | _ -> false) a
+                |> VDQ.AD.to_mval
+                |> List.map (fun (_, o) -> offs_to_idx t o)
+              in
+              begin match addr_offsets with
+                | [] -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+                | [x] -> x
+                | x::xs -> List.fold_left ID.join x xs
               end
           end
         | None ->
@@ -197,18 +250,55 @@ struct
           ID.top_of @@ Cilfacade.ptrdiff_ikind ()
       end
     | _ ->
+      set_mem_safety_flag InvalidDeref;
       M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
       ID.top_of @@ Cilfacade.ptrdiff_ikind ()
 
   and check_lval_for_oob_access ctx ?(is_implicitly_derefed = false) lval =
-    if not @@ lval_contains_a_ptr lval then ()
+    (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
+    if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr ctx (Lval lval) then ()
     else
       (* If the lval doesn't indicate an explicit dereference, we still need to check for an implicit dereference *)
       (* An implicit dereference is, e.g., printf("%p", ptr), where ptr is a pointer *)
       match lval, is_implicitly_derefed with
       | (Var _, _), false -> ()
       | (Var v, _), true -> check_no_binop_deref ctx (Lval lval)
-      | (Mem e, _), _ ->
+      | (Mem e, o), _ ->
+        let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
+        let offs_intdom = begin match ptr_deref_type with
+          | Some t -> cil_offs_to_idx ctx t o
+          | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+        end in
+        let e_size = get_size_of_ptr_target ctx e in
+        let () = begin match e_size with
+          | `Top ->
+            (set_mem_safety_flag InvalidDeref;
+             M.warn "Size of lval dereference expression %a is top. Out-of-bounds memory access may occur" d_exp e)
+          | `Bot ->
+            (set_mem_safety_flag InvalidDeref;
+             M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e)
+          | `Lifted es ->
+            let casted_es = ID.cast_to (Cilfacade.ptrdiff_ikind ()) es in
+            let one = intdom_of_int 1 in
+            let casted_es = ID.sub casted_es one in
+            let casted_offs = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in
+            let ptr_size_lt_offs =
+              begin try ID.lt casted_es casted_offs
+                with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+              end
+            in
+            let behavior = Undefined MemoryOutOfBoundsAccess in
+            let cwe_number = 823 in
+            begin match ID.to_bool ptr_size_lt_offs with
+              | Some true ->
+                (set_mem_safety_flag InvalidDeref;
+                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" ID.pretty casted_es ID.pretty casted_offs)
+              | Some false -> ()
+              | None ->
+                (set_mem_safety_flag InvalidDeref;
+                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_es ID.pretty casted_offs)
+            end
+        end in
         begin match e with
           | Lval (Var v, _) as lval_exp -> check_no_binop_deref ctx lval_exp
           | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI ->
@@ -219,6 +309,7 @@ struct
         end
 
   and check_no_binop_deref ctx lval_exp =
+    check_unknown_addr_deref ctx lval_exp;
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
     let ptr_size = get_size_of_ptr_target ctx lval_exp in
@@ -229,10 +320,10 @@ struct
     | Some t ->
       begin match ptr_size, addr_offs with
         | `Top, _ ->
-          AS.svcomp_may_invalid_deref := true;
+          set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
         | `Bot, _ ->
-          AS.svcomp_may_invalid_deref := true;
+          set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
         | `Lifted ps, ao ->
           let casted_ps = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ps in
@@ -240,11 +331,11 @@ struct
           let ptr_size_lt_offs = ID.lt casted_ps casted_ao in
           begin match ID.to_bool ptr_size_lt_offs with
             | Some true ->
-              AnalysisState.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" ID.pretty casted_ps ID.pretty casted_ao
             | Some false -> ()
             | None ->
-              AnalysisState.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_ps ID.pretty casted_ao
           end
       end
@@ -275,6 +366,7 @@ struct
     | AddrOf lval -> check_lval_for_oob_access ctx ~is_implicitly_derefed lval
 
   and check_binop_exp ctx binop e1 e2 t =
+    check_unknown_addr_deref ctx e1;
     let binopexp = BinOp (binop, e1, e2, t) in
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
@@ -303,16 +395,16 @@ struct
           in
           begin match ptr_size, offset_size_with_addr_size with
             | `Top, _ ->
-              AS.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a in expression %a is top. Memory out-of-bounds access might occur" d_exp e1 d_exp binopexp
             | _, `Top ->
-              AS.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a is top. Memory out-of-bounds access might occur" d_exp binopexp
             | `Bot, _ ->
-              AS.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a in expression %a is bottom. Memory out-of-bounds access might occur" d_exp e1 d_exp binopexp
             | _, `Bot ->
-              AS.svcomp_may_invalid_deref := true;
+              set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a is bottom. Memory out-of-bounds access might occur" d_exp binopexp
             | `Lifted ps, `Lifted o ->
               let casted_ps = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ps in
@@ -320,11 +412,11 @@ struct
               let ptr_size_lt_offs = ID.lt casted_ps casted_o in
               begin match ID.to_bool ptr_size_lt_offs with
                 | Some true ->
-                  AS.svcomp_may_invalid_deref := true;
+                  set_mem_safety_flag InvalidDeref;
                   M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer in expression %a is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" d_exp binopexp ID.pretty casted_ps ID.pretty casted_o
                 | Some false -> ()
                 | None ->
-                  AnalysisState.svcomp_may_invalid_deref := true;
+                  set_mem_safety_flag InvalidDeref;
                   M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare pointer size (%a) with offset (%a). Memory out-of-bounds access may occur" ID.pretty casted_ps ID.pretty casted_o
               end
           end
@@ -333,23 +425,24 @@ struct
     | _ -> ()
 
   (* For memset() and memcpy() *)
-  let check_count ctx fun_name dest n =
+  let check_count ctx fun_name ptr n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let dest_size = get_size_of_ptr_target ctx dest in
+    let ptr_size = get_size_of_ptr_target ctx ptr in
     let eval_n = ctx.ask (Queries.EvalInt n) in
-    let addr_offs = get_addr_offs ctx dest in
-    match dest_size, eval_n with
+    let addr_offs = get_addr_offs ctx ptr in
+    match ptr_size, eval_n with
     | `Top, _ ->
-      AnalysisState.svcomp_may_invalid_deref := true;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp dest fun_name
+      set_mem_safety_flag InvalidDeref;
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp ptr fun_name
     | _, `Top ->
-      AnalysisState.svcomp_may_invalid_deref := true;
+      set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is unknown. Memory out-of-bounds access might occur" fun_name
     | `Bot, _ ->
-      AnalysisState.svcomp_may_invalid_deref := true;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is bottom. Memory out-of-bounds access might occur" d_exp dest fun_name
+      set_mem_safety_flag InvalidDeref;
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is bottom. Memory out-of-bounds access might occur" d_exp ptr fun_name
     | _, `Bot ->
+      set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name
     | `Lifted ds, `Lifted en ->
       let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
@@ -358,11 +451,11 @@ struct
       let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in
       begin match ID.to_bool dest_size_lt_count with
         | Some true ->
-          AnalysisState.svcomp_may_invalid_deref := true;
-          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en
+          set_mem_safety_flag InvalidDeref;
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en
         | Some false -> ()
         | None ->
-          AnalysisState.svcomp_may_invalid_deref := true;
+          set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of dest (%a) with address offset (%a) count (%a) in function %s. Memory out-of-bounds access may occur" ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en fun_name
       end
 
@@ -396,9 +489,10 @@ struct
     (* Check calls to memset and memcpy for out-of-bounds-accesses *)
     match desc.special arglist with
     | Memset { dest; ch; count; } -> check_count ctx f.vname dest count;
-    | Memcpy { dest; src; n = count; } -> check_count ctx f.vname dest count;
-    | _ -> ();
-    ctx.local
+    | Memcpy { dest; src; n = count; } ->
+      (check_count ctx f.vname src count;
+       check_count ctx f.vname dest count;)
+    | _ -> ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     List.iter (fun arg -> check_exp_for_oob_access ctx arg) args;
