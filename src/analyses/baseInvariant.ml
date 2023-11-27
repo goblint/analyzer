@@ -726,9 +726,16 @@ struct
                             | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                            | `Lifted (Abs (_ik, xInt)) ->
+                              inv_exp (Int (ID.join c (ID.neg c))) xInt st (* TODO: deduplicate *)
                             | _ -> update_lval c x c' ID.pretty
                           end
-                        | None -> update_lval c x c' ID.pretty
+                        | None ->
+                          begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                            | `Lifted (Abs (_ik, xInt)) ->
+                              inv_exp (Int (ID.join c (ID.neg c))) xInt st (* TODO: deduplicate *)
+                            | _ -> update_lval c x c' ID.pretty
+                          end
                       end
                     | _ -> update_lval c x c' ID.pretty
                   end
@@ -821,31 +828,4 @@ struct
             FD.top_of fk
         in
         inv_exp (Float ftv) exp st
-
-  let invariant ctx a gs st exp tv: D.t =
-    let refine0 = invariant ctx a gs st exp tv in
-    (* bodge for abs(...); To be removed once we have a clean solution *)
-    let refineAbs op absargexp valexp =
-      let flip op = match op with | Le -> Ge | Lt -> Gt | _ -> failwith "impossible" in
-      (* e.g. |arg| <= 40 *)
-      (* arg <= e  (arg <= 40) *)
-      let le = BinOp (op, absargexp, valexp, intType) in
-      (* arg >= -e  (arg >= -40) *)
-      let gt = BinOp(flip op, absargexp, UnOp (Neg, valexp, Cilfacade.typeOf valexp), intType) in
-      let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
-      invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
-    in
-    match exp with
-    | BinOp ((Lt|Le) as op, CastE(t, Lval (Var v, NoOffset)), e,_) when tv ->
-      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
-        | `Lifted (Abs (ik, arg)) -> refineAbs op (CastE (t, arg)) e
-        | _ -> refine0
-      end
-    | BinOp ((Lt|Le) as op, Lval (Var v, NoOffset), e, _) when tv ->
-      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
-        | `Lifted (Abs (ik, arg)) -> refineAbs op arg e
-        | _ -> refine0
-      end
-    | _ -> refine0
-
 end
