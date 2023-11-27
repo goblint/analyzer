@@ -148,7 +148,6 @@ module UnitAnalysis = UnitAnalysis
 
 module Assert = Assert
 module LoopTermination = LoopTermination
-module KCallstring = KCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module StackTrace = StackTrace
