@@ -1075,9 +1075,15 @@
               "type": "boolean",
               "default": false
             },
-            "callstring": {
-              "title": "ana.context.callstring",
-              "description": "If enabled, the last k elements of the callstack are used as context",
+            "callstring_fundec": {
+              "title": "ana.context.callstring_fundec",
+              "description": "If enabled, the last k elements of the callstack are used as context. The tcallstack elements are of type Fundec",
+              "type": "boolean",
+              "default": false
+            },
+            "callstring_stmt": {
+              "title": "ana.context.callstring_stmt",
+              "description": "If enabled, the last k elements of the callstack are used as context. The tcallstack elements are of type Stmt",
               "type": "boolean",
               "default": false
             }
