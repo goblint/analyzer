@@ -1,6 +1,5 @@
 // PARAM: --set ana.activated[+] mhp
 #include <pthread.h>
-#include <assert.h>
 
 int g;
 int g2;

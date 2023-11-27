@@ -2,6 +2,7 @@
 // Fig 5 from Miné 2014
 #include <pthread.h>
 #include <stdio.h>
+#include <goblint.h>
 
 int x;
 int y;
@@ -44,7 +45,7 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun2, NULL);
   pthread_mutex_lock(&mutex);
-  assert(x==y);
+  __goblint_check(x==y);
   pthread_mutex_unlock(&mutex);
   return 0;
 }

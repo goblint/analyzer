@@ -1,6 +1,6 @@
-(** Thread creation and uniqueness analyses. *)
+(** Created threads and their uniqueness analysis ([thread]). *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module T  = ThreadIdDomain.Thread
@@ -8,54 +8,68 @@ module TS = ConcDomain.ThreadSet
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "thread"
   module D = ConcDomain.CreatedThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
-  module V = T
-
-  let should_join = D.equal
+  module V =
+  struct
+    include T
+    include StdV
+  end
+  module P = IdentityP (D)
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
-  let body ctx (f:fundec) : D.t =  ctx.local
-  let return ctx (exp:exp option) (f:fundec) : D.t =
+  let handle_thread_return ctx (exp: exp option) =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
-    begin match tid with
+    match tid with
       | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
       | _ -> ()
-    end;
+
+  let return ctx (exp:exp option) _ : D.t =
+    if ctx.ask Queries.MayBeThreadReturn then
+      handle_thread_return ctx exp;
     ctx.local
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in
-    let n = TS.cardinal parents in
-    (* A thread is not unique if it is
-      * a) repeatedly created,
-      * b) created in multiple threads, or
-      * c) created by a thread that is itself multiply created.
-      * Note that starting threads have empty ancestor sets! *)
-    rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
+    if rep then
+      true (* repeatedly created *)
+    else (
+      let n = TS.cardinal parents in
+      if n > 1 then
+        true (* created in multiple threads *)
+      else if n > 0 then (
+        (* created by single thread *)
+        let parent = TS.choose parents in
+        (* created by itself thread-recursively or by a thread that is itself multiply created *)
+        T.equal tid parent || is_not_unique ctx parent (* equal check needed to avoid infinte self-recursion *)
+      )
+      else
+        false (* no ancestors, starting thread *)
+    )
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `ThreadJoin (id, ret_var) ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | ThreadJoin { thread = id; ret_var } ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
-      (* TODO: elements might throw an exception *)
-      let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
-      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
-      let join_thread s tid =
-        if has_clean_exit tid && not (is_not_unique ctx tid) then
-          D.remove tid s
-        else
-          s
-      in
-      List.fold_left join_thread ctx.local threads
+      (let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
+       let join_thread s tid =
+         if has_clean_exit tid && not (is_not_unique ctx tid) then
+           D.remove tid s
+         else
+           s
+       in
+       match TS.elements (ctx.ask (Queries.EvalThread id)) with
+       | [t] -> join_thread ctx.local t (* single thread *)
+       | _ -> ctx.local (* if several possible threads are may-joined, none are must-joined *)
+       | exception SetDomain.Unsupported _ -> ctx.local)
+    | ThreadExit { ret_val } ->
+      handle_thread_return ctx (Some ret_val);
+      ctx.local
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -66,17 +80,25 @@ struct
         | `Lifted tid -> not (is_not_unique ctx tid)
         | _ -> false
       end
-    | Queries.MustBeSingleThreaded -> begin
+    | Queries.MustBeSingleThreaded {since_start = false} -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
-        | `Lifted tid when T.is_main tid -> D.is_empty ctx.local
+        | `Lifted tid when T.is_main tid ->
+          (* This analysis cannot tell if we are back in single-threaded mode or never left it. *)
+          D.is_empty ctx.local
         | _ -> false
       end
     | _ -> Queries.Result.top q
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx =
+
+  let threadenter ctx ~multiple lval f args =
+    if multiple then
+      (let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx ctx) in
+       ctx.sideg tid (true, TS.bot (), false));
+    [D.bot ()]
+
+  let threadspawn ctx ~multiple lval f args fctx =
     let creator = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx fctx) in
     let repeated = D.mem tid ctx.local in

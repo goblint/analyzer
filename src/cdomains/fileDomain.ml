@@ -1,6 +1,8 @@
-open Prelude
+(** Domains for file handles. *)
 
-module D = LvalMapDomain
+open Batteries
+
+module D = MvalMapDomain
 
 
 module Val =
@@ -27,9 +29,9 @@ struct
   include D.Domain (D.Value (Val))
 
   (* returns a tuple (thunk, result) *)
-  let report_ ?neg:(neg=false) k p msg m =
-    let f ?may:(may=false) msg =
-      let f () = warn ~may:may msg in
+  let report_ ?(neg=false) k p msg m =
+    let f ?(may=false) msg =
+      let f () = warn ~may msg in
       f, if may then `May true else `Must true in
     let mf = (fun () -> ()), `Must false in
     if mem k m then
@@ -40,7 +42,7 @@ struct
       else mf (* none *)
     else if neg then f msg else mf
 
-  let report ?neg:(neg=false) k p msg m = (fst (report_ ~neg:neg k p msg m)) () (* evaluate thunk *)
+  let report ?(neg=false) k p msg m = (fst (report_ ~neg k p msg m)) () (* evaluate thunk *)
 
   let reports k xs m =
     let uncurry (neg, p, msg) = report_ ~neg:neg k p msg m in
@@ -58,7 +60,7 @@ struct
 
   let fopen k loc filename mode m =
     if is_unknown k m then m else
-      let mode = match String.lowercase mode with "r" -> Val.Read | _ -> Val.Write in
+      let mode = match String.lowercase_ascii mode with "r" -> Val.Read | _ -> Val.Write in
       let v = V.make k loc (Val.Open(filename, mode)) in
       add' k v m
   let fclose k loc m =

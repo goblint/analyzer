@@ -1,0 +1,20 @@
+{
+    "ana": {
+      "activated": [
+        "base", "mallocWrapper","escape","mutex","mutexEvents","access", "race", "assert"
+      ],
+      "base": {
+        "privatization": "none",
+        "context": {
+          "non-ptr": false
+        }
+      },
+      "thread": {
+        "domain": "plain",
+        "include-node": false
+      }
+    },
+    "exp": {
+      "earlyglobs": true
+    }
+  }

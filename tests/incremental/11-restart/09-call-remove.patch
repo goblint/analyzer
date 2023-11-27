@@ -1,0 +1,19 @@
+--- tests/incremental/11-restart/09-call-remove.c
++++ tests/incremental/11-restart/09-call-remove.c
+@@ -8,7 +8,7 @@
+ }
+
+ void* t_fun(void *arg) {
+-    foo();
++    // foo();
+     return NULL;
+ }
+
+@@ -13,7 +13,7 @@ void* t_fun(void *arg) {
+ }
+
+ void* t_fun2(void *arg) {
+-    __goblint_check(g == 1); // UNKNOWN before, success after
++    __goblint_check(g == 1); // unknown before, SUCCESS after
+     return NULL;
+ }

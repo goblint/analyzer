@@ -1,4 +1,4 @@
-//PARAM: --sets ana.int.refinement once  --enable ana.int.enums
+//PARAM: --set ana.int.refinement once  --enable ana.int.enums
 int main() {
   int x;
   _Bool c;

@@ -1,13 +1,18 @@
-(** Symbolic lock-sets for use in per-element patterns. *)
+(** Symbolic lockset analysis for per-element (field or index) locking patterns ([symb_locks]).
+
+    @see <https://doi.org/10.1145/2970276.2970337> Static race detection for device drivers: the Goblint approach. Section 5 and 6. *)
 
 module LF = LibraryFunctions
-module LP = Exp.LockingPattern
-module Exp = Exp.Exp
+module LP = SymbLocksDomain.LockingPattern
+module Exp = SymbLocksDomain.Exp
+module ILock = SymbLocksDomain.ILock
 module VarEq = VarEq.Spec
 
 module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 
 (* Note: This is currently more conservative than varEq --- but
@@ -24,8 +29,8 @@ struct
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let branch ctx exp tv = ctx.local
@@ -43,7 +48,8 @@ struct
     List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local
 
   let enter ctx lval f args = [(ctx.local,ctx.local)]
-  let combine ctx lval fexp f args fc st2 = st2
+  let combine_env ctx lval fexp f args fc au f_ask = au
+  let combine_assign ctx lval fexp f args fc st2 f_ask = ctx.local
 
   let get_locks e st =
     let add_perel x xs =
@@ -59,11 +65,15 @@ struct
       | a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
       | _ -> Queries.ES.singleton e
     in
+    if M.tracing then M.tracel "symb_locks" "get_all_locks exps %a = %a\n" d_plainexp e Queries.ES.pretty exps;
+    if M.tracing then M.tracel "symb_locks" "get_all_locks st = %a\n" D.pretty st;
     let add_locks x xs = PS.union (get_locks x st) xs in
-    Queries.ES.fold add_locks exps (PS.empty ())
+    let r = Queries.ES.fold add_locks exps (PS.empty ()) in
+    if M.tracing then M.tracel "symb_locks" "get_all_locks %a = %a\n" d_plainexp e PS.pretty r;
+    r
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
-    let uk_index_equal i1 i2 = ask.f (Queries.MustBeEqual (i1, i2)) in
+    let uk_index_equal = Queries.must_be_equal ask in
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with
       | Some (true, i, e) when uk_index_equal ei i ->
@@ -75,47 +85,33 @@ struct
     | _ -> PS.empty ()
 
   let special ctx lval f arglist =
-    match LF.classify f.vname arglist with
-    | `Lock _ ->
-      D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | `Unlock ->
-      D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | `Unknown fn when VarEq.safe_fn fn ->
-      Messages.warn "Assume that %s does not change lockset." fn;
-      ctx.local
-    | `Unknown x -> begin
-        let st =
-          match lval with
-          | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
-          | None -> ctx.local
-        in
-        let write_args =
-          match LF.get_invalidate_action f.vname with
-          | Some fnc -> fnc `Write arglist
-          | _ -> arglist
-        in
-        List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
-      end
-    | _ ->
-      ctx.local
+    let desc = LF.find f in
+    match desc.special arglist, f.vname with
+    | Lock { lock; _ }, _ ->
+      D.add (Analyses.ask_of_ctx ctx) lock ctx.local
+    | Unlock lock, _ ->
+      D.remove (Analyses.ask_of_ctx ctx) lock ctx.local
+    | _, _ ->
+      let st =
+        match lval with
+        | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
+        | None -> ctx.local
+      in
+      let write_args =
+        LibraryDesc.Accesses.find_kind desc.accs Write arglist
+      in
+      (* TODO: why doesn't invalidate_exp involve any reachable for deep write? *)
+      List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
 
-
-  let rec conv_const_offset x =
-    match x with
-    | NoOffset    -> `NoOffset
-
-    | Index (Const  (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
-    | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-    | Field (f,o) -> `Field (f, conv_const_offset o)
 
   module A =
   struct
     module E = struct
-      include Printable.Either (CilType.Offset) (ValueDomain.Addr)
+      include Printable.Either (CilType.Offset) (ILock)
 
       let pretty () = function
         | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
-        | `Right addr -> Pretty.dprintf "i-lock:%a" ValueDomain.Addr.pretty addr
+        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr
 
       include Printable.SimplePretty (
         struct
@@ -127,7 +123,7 @@ struct
     include SetDomain.Make (E)
 
     let name () = "symblock"
-    let may_race lp lp2 = is_empty @@ inter lp lp2
+    let may_race lp lp2 = disjoint lp lp2
     let should_print lp = not (is_empty lp)
   end
 
@@ -142,6 +138,7 @@ struct
     *)
     let one_perelem (e,a,l) xs =
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
+      if M.tracing then M.tracel "symb_locks" "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l;
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
       | Some (v, o) ->
         (* ignore (printf "adding lock %s\n" l); *)
@@ -158,10 +155,10 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
+        let lock = ILock.of_mval (v, o) in
         A.add (`Right lock) xs
       | _ ->
-        Messages.warn "Internal error: found a strange lockstep pattern.";
+        Messages.info ~category:Unsound "Internal error: found a strange lockstep pattern.";
         xs
     in
     let do_perel e xs =
@@ -187,7 +184,7 @@ struct
         (match ctx.ask (Queries.Regions e) with
          | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
-                try Queries.ES.add (Lval.CilLval.to_exp x) xs
+                try Queries.ES.add (Mval.Exp.to_cil_exp x) xs
                 with Lattice.BotValue -> xs
            in begin
              try Queries.LS.fold add_exp ls (Queries.ES.singleton e)

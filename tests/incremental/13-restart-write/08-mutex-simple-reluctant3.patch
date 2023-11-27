@@ -1,0 +1,19 @@
+--- tests/incremental/13-restart-write/08-mutex-simple-reluctant3.c
++++ tests/incremental/13-restart-write/08-mutex-simple-reluctant3.c
+@@ -7,6 +7,7 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
+
+ void *t_fun(void *arg) {
+   pthread_mutex_lock(&mutex1);
++  myglobal=myglobal+1; // RACE!
+   pthread_mutex_unlock(&mutex1);
+   return NULL;
+ }
+@@ -15,7 +16,7 @@ int main(void) {
+   pthread_t id;
+   pthread_create(&id, NULL, t_fun, NULL);
+   pthread_mutex_lock(&mutex2);
+-  myglobal=myglobal+1; // NORACE
++  myglobal=myglobal+1; // RACE!
+   pthread_mutex_unlock(&mutex2);
+   pthread_join (id, NULL);
+   return 0;

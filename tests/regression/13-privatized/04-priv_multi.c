@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 #include <unistd.h> // sleep
 
 
@@ -47,7 +47,7 @@ void *dispose(void *arg) {
     if (B > 0) {
       p = B;
       pthread_mutex_unlock(&mutex_B);
-      assert(p == 5);
+      __goblint_check(p == 5);
     }
     else
       pthread_mutex_unlock(&mutex_B);
@@ -68,7 +68,7 @@ int main () {
     pthread_mutex_lock(&mutex_A);
     pthread_mutex_lock(&mutex_B);
 
-    assert(A == B);
+    __goblint_check(A == B);
 
     pthread_mutex_unlock(&mutex_B);
     pthread_mutex_unlock(&mutex_A);

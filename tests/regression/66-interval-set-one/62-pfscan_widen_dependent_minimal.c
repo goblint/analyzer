@@ -1,0 +1,80 @@
+// PARAM: --enable ana.int.interval_set --enable exp.priv-distr-init
+extern int __VERIFIER_nondet_int();
+
+#include <pthread.h>
+#include <goblint.h>
+
+// protection priv succeeds
+// write fails due to [1,1] widen [0,1] -> [-inf,1]
+// sensitive to eval and widen order!
+
+struct __anonstruct_PQUEUE_63 {
+   int qsize ;
+   int occupied ;
+   pthread_mutex_t mtx ;
+};
+typedef struct __anonstruct_PQUEUE_63 PQUEUE;
+
+PQUEUE pqb  ;
+
+int pqueue_init(PQUEUE *qp , int qsize )
+{
+  qp->qsize = qsize;
+  qp->occupied = 0;
+  pthread_mutex_init(& qp->mtx, NULL);
+  return (0);
+}
+
+int pqueue_put(PQUEUE *qp)
+{
+  pthread_mutex_lock(& qp->mtx);
+  while (qp->occupied >= qp->qsize) {
+
+  }
+  __goblint_check(qp->occupied >= 0); // precise privatization fails
+  (qp->occupied) ++;
+  pthread_mutex_unlock(& qp->mtx);
+  return (1);
+}
+
+int pqueue_get(PQUEUE *qp)
+{
+  int got = 0;
+  pthread_mutex_lock(& qp->mtx);
+  while (qp->occupied <= 0) {
+
+  }
+  __goblint_check(qp->occupied > 0); // precise privatization fails
+  if (qp->occupied > 0) {
+    (qp->occupied) --;
+    got = 1;
+    pthread_mutex_unlock(& qp->mtx);
+  } else {
+    pthread_mutex_unlock(& qp->mtx);
+  }
+  return (got);
+}
+
+
+void *worker(void *arg )
+{
+  while (1) {
+    pqueue_get(& pqb);
+  }
+  return NULL;
+}
+
+int main(int argc , char **argv )
+{
+  pthread_t tid;
+  int qsize = __VERIFIER_nondet_int();
+
+  PQUEUE *qp = &pqb;
+  pqueue_init(& pqb, qsize);
+  pthread_create(& tid, NULL, & worker, NULL);
+
+  for (int i = 1; i < argc; i++) {
+    pqueue_put(& pqb);
+  }
+  return 0;
+}

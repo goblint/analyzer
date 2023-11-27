@@ -1,0 +1,7 @@
+{
+    "ana": {
+        "dead-code": {
+            "branches": true
+        }
+    }
+}

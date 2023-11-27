@@ -1,0 +1,7 @@
+
+(install
+  (section (site (goblint conf)))
+  (files
+    (glob_files_rec *.json)
+  )
+)

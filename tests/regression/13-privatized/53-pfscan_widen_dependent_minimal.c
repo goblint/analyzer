@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 // protection priv succeeds
 // write fails due to [1,1] widen [0,1] -> [-inf,1]
@@ -31,7 +31,7 @@ int pqueue_put(PQUEUE *qp)
   while (qp->occupied >= qp->qsize) {
 
   }
-  assert(qp->occupied >= 0); // precise privatization fails
+  __goblint_check(qp->occupied >= 0); // precise privatization fails
   (qp->occupied) ++;
   pthread_mutex_unlock(& qp->mtx);
   return (1);
@@ -44,7 +44,7 @@ int pqueue_get(PQUEUE *qp)
   while (qp->occupied <= 0) {
 
   }
-  assert(qp->occupied > 0); // precise privatization fails
+  __goblint_check(qp->occupied > 0); // precise privatization fails
   if (qp->occupied > 0) {
     (qp->occupied) --;
     got = 1;

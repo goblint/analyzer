@@ -1,6 +1,9 @@
-open Prelude
+(** Extra constraint system evaluation pass for warning generation, verification, pruning, etc. *)
+
+open Batteries
 open Analyses
 open GobConfig
+module Pretty = GoblintCil.Pretty
 
 (** Postsolver with hooks. *)
 module type S =
@@ -17,7 +20,7 @@ end
 (** Functorial postsolver for any system. *)
 module type F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  S with module S = S and module VH = VH
+    S with module S = S and module VH = VH
 
 (** Base implementation for postsolver. *)
 module Unit: F =
@@ -34,6 +37,8 @@ module Unit: F =
 (** Sequential composition of two postsolvers. *)
 module Compose (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
 struct
+  (* Assumes PS1 and PS2 have actually same modules!
+     Module constraint only gives type-wise equality. *)
   module S = PS1.S
   module VH = PS1.VH
 
@@ -58,7 +63,7 @@ module Prune: F =
     include Unit (S) (VH)
 
     let finalize ~vh ~reachable =
-      if get_bool "dbg.debug" then
+      if get_bool "dbg.verbose" then
         print_endline "Pruning result";
 
       VH.filteri_inplace (fun x _ ->
@@ -73,22 +78,25 @@ module Verify: F =
     include Unit (S) (VH)
 
     let init () =
-      Goblintutil.verified := Some true
+      AnalysisState.verified := Some true
 
     let complain_constraint x ~lhs ~rhs =
-      Goblintutil.verified := Some false;
+      AnalysisState.verified := Some false;
+      M.msg_final Error ~category:Unsound "Fixpoint not reached";
       ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let complain_side x y ~lhs ~rhs =
-      Goblintutil.verified := Some false;
+      AnalysisState.verified := Some false;
+
+      M.msg_final Error ~category:Unsound "Fixpoint not reached";
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let one_side ~vh ~x ~y ~d =
       let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in
-      if not (S.Dom.leq d y_lhs) then
+      if S.Var.is_write_only y then
+        VH.replace vh y (S.Dom.join y_lhs d) (* HACK: allow warnings/accesses to be added without complaining *)
+      else if not (S.Dom.leq d y_lhs) then
         complain_side x y ~lhs:y_lhs ~rhs:d
-      else
-        VH.replace vh y (S.Dom.join y_lhs d) (* HACK: allow warnings/accesses to be added *)
 
     let one_constraint ~vh ~x ~rhs =
       let lhs = try VH.find vh x with Not_found -> S.Dom.bot () in
@@ -105,11 +113,11 @@ module Warn: F =
     let old_should_warn = ref None
 
     let init () =
-      old_should_warn := Some !Goblintutil.should_warn;
-      Goblintutil.should_warn := true
+      old_should_warn := Some !AnalysisState.should_warn;
+      AnalysisState.should_warn := true
 
     let finalize ~vh ~reachable =
-      Goblintutil.should_warn := Option.get !old_should_warn
+      AnalysisState.should_warn := Option.get !old_should_warn
   end
 
 (** Postsolver for save_run option. *)
@@ -126,7 +134,7 @@ module SaveRun: F =
       let save_run = Fpath.v save_run_str in
       let solver = Fpath.(save_run / solver_file) in
       if get_bool "dbg.verbose" then
-        Format.printf "Saving the solver result to %a" Fpath.pp solver;
+        Format.printf "Saving the solver result to %a\n" Fpath.pp solver;
       GobSys.mkdir_or_exists save_run;
       Serialize.marshal vh solver
   end
@@ -161,9 +169,15 @@ struct
     | Some f, Some d -> Some (fun get set -> S.Dom.join (f get set) d)
 end
 
-(** Make complete postsolving function from postsolver.
-    This is generic and non-incremental. *)
-module Make (PS: S) =
+(** Postsolver for incremental. *)
+module type IncrS =
+sig
+  include S
+  val init_reachable: vh:S.Dom.t VH.t -> unit VH.t
+end
+
+(** Make incremental postsolving function from incremental postsolver. *)
+module MakeIncr (PS: IncrS) =
 struct
   module S = PS.S
   module VH = PS.VH
@@ -180,10 +194,10 @@ struct
     in
     let module S = EqConstrSysFromStartEqConstrSys (StartS) in
 
-    Goblintutil.postsolving := true;
+    AnalysisState.postsolving := true;
     PS.init ();
 
-    let reachable = VH.create (VH.length vh) in
+    let reachable = PS.init_reachable ~vh in
     let rec one_var x =
       if M.tracing then M.trace "postsolver" "one_var %a reachable=%B system=%B\n" S.Var.pretty_trace x (VH.mem reachable x) (Option.is_some (S.system x));
       if not (VH.mem reachable x) then (
@@ -205,13 +219,13 @@ struct
       if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
-    List.iter one_var vs;
+    (Timing.wrap "postsolver_iter" (List.iter one_var)) vs;
 
     PS.finalize ~vh ~reachable;
-    Goblintutil.postsolving := false
+    AnalysisState.postsolving := false
 
   let post xs vs vh =
-    Stats.time "postsolver" (post xs vs) vh
+    Timing.wrap "postsolver" (post xs vs) vh
 end
 
 (** List of postsolvers. *)
@@ -226,10 +240,17 @@ sig
   val postsolvers: (module M) list
 end
 
-(** Make complete postsolving function from list of postsolvers.
-    If list is empty, no postsolving is performed.
-    This is generic and non-incremental. *)
-module MakeList (Arg: MakeListArg) =
+(** List of postsolvers for incremental. *)
+module type MakeIncrListArg =
+sig
+  include MakeListArg
+
+  val init_reachable: vh:S.Dom.t VH.t -> unit VH.t
+end
+
+(** Make incremental postsolving function from incremental list of postsolvers.
+    If list is empty, no postsolving is performed. *)
+module MakeIncrList (Arg: MakeIncrListArg) =
 struct
   module S = Arg.S
   module VH = Arg.VH
@@ -247,8 +268,26 @@ struct
     match postsolver_opt with
     | None -> ()
     | Some (module PS) ->
-      let module M = Make (PS) in
+      let module IncrPS =
+      struct
+        include PS
+        let init_reachable = Arg.init_reachable
+      end
+      in
+      let module M = MakeIncr (IncrPS) in
       M.post xs vs vh
+end
+
+(** Make complete (non-incremental) postsolving function from list of postsolvers.
+    If list is empty, no postsolving is performed. *)
+module MakeList (Arg: MakeListArg) =
+struct
+  module IncrArg =
+  struct
+    include Arg
+    let init_reachable ~vh = VH.create (VH.length vh)
+  end
+  include MakeIncrList (IncrArg)
 end
 
 (** Standard postsolver options. *)

@@ -1,0 +1,29 @@
+(include_subdirs unqualified)
+
+(library
+ (name goblint_common)
+ (public_name goblint.common)
+ (wrapped false) ; TODO: wrap
+ (libraries
+   batteries.unthreaded
+   zarith
+   goblint_std
+   goblint-cil
+   fpath
+   yojson
+   json-data-encoding
+   cpu
+   goblint_timing
+   goblint_build_info
+   goblint.sites
+   qcheck-core.runner)
+ (flags :standard -open Goblint_std)
+ (preprocess
+  (pps
+    ppx_deriving.std
+    ppx_deriving_hash
+    ppx_deriving_yojson
+    ppx_blob))
+ (preprocessor_deps (file util/options.schema.json)))
+
+(documentation)

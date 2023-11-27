@@ -1,0 +1,11 @@
+{
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": true,
+                "fuel": 2
+            },
+            "write-only": false
+        }
+    }
+}

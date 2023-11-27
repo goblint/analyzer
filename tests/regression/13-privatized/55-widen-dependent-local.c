@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 // protection priv succeeds
 // write fails due to [1,+inf] widen ([1,+inf] join [0,+inf]) -> [-inf,+inf]
@@ -24,7 +24,7 @@ int put() {
   while (g >= limit) { // problematic widen
 
   }
-  assert(g >= 0); // precise privatization fails
+  __goblint_check(g >= 0); // precise privatization fails
   g++;
   pthread_mutex_unlock(&A);
 }

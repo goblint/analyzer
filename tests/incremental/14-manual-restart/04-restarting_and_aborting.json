@@ -1,0 +1,25 @@
+{
+    "exp": {
+        "earlyglobs": true
+    },
+    "ana": {
+        "int": {
+            "interval": true,
+            "congruence": true
+        }
+    },
+    "solvers": {
+      "td3": {
+        "skip-unchanged-rhs": true
+      }
+    },
+    "incremental": {
+        "compare": "cfg",
+        "restart": {
+            "sided": {
+                "enabled": false
+            },
+            "list": []
+        }
+    }
+}

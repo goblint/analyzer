@@ -1,6 +1,6 @@
 // PARAM: --set ana.base.structs.domain "sets" --enable ana.int.interval
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
 struct FunctionInfo {
@@ -60,12 +60,12 @@ int example1() {
     }
 
     if (functionToRun.id == 2) {
-        assert(functionToRun.ptr == f1 || functionToRun.ptr == f5);
-        assert(functionToRun.ptr != f3);
+        __goblint_check(functionToRun.ptr == f1 || functionToRun.ptr == f5);
+        __goblint_check(functionToRun.ptr != f3);
     } else if (functionToRun.id > 3 && functionToRun.id < 5) {
-        assert(functionToRun.ptr == f5 || functionToRun.ptr == f2 || functionToRun.ptr == f6);
-        assert(functionToRun.ptr != f3);
-        assert(functionToRun.ptr == f2 || functionToRun.ptr == f6); // TODO
+        __goblint_check(functionToRun.ptr == f5 || functionToRun.ptr == f2 || functionToRun.ptr == f6);
+        __goblint_check(functionToRun.ptr != f3);
+        __goblint_check(functionToRun.ptr == f2 || functionToRun.ptr == f6); // TODO
     }
 
     return 0;

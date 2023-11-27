@@ -11,7 +11,7 @@ void *foo(void *arg) {
   mystruct *s = (mystruct *) arg;
 
   lock(s);
-  s->myint=s->myint+1;
+  s->myint=s->myint+1; // NORACE
   unlock(s);
 
   return NULL;

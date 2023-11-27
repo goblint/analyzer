@@ -1,27 +1,10 @@
+open Goblint_lib
 (* open! Defaults (* Enums / ... need initialized conf *) *)
-
-module type FiniteSetElems =
-sig
-  type t
-  val elems: t list
-end
-
-module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
-struct
-  module E =
-  struct
-    include E
-    let arbitrary () = QCheck.oneofl Elems.elems
-  end
-
-  include SetDomain.Make (E)
-  let top () = of_list Elems.elems
-  let is_top x = equal x (top ())
-end
+open GoblintCil
 
 module PrintableChar =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = char [@@deriving eq, ord, hash, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
@@ -34,7 +17,7 @@ struct
   include Printable.SimpleShow (P)
 end
 
-module ArbitraryLattice = FiniteSet (PrintableChar) (
+module ArbitraryLattice = SetDomain.FiniteSet (PrintableChar) (
   struct
     type t = char
     let elems = ['a'; 'b'; 'c'; 'd']
@@ -58,16 +41,17 @@ let domains: (module Lattice.S) list = [
   (module ArbitraryLattice);
   (module HoareArbitrary);
   (module HoareArbitrary_NoTop);
-  (module HoareDomain.MapBot (ArbitraryLattice) (HoareArbitrary));
-  (module HoareDomain.MapBot (ArbitraryLattice) (HoareArbitrary_NoTop));
+  (module HoareDomain.MapBot[@alert "-deprecated"] (ArbitraryLattice) (HoareArbitrary));
+  (module HoareDomain.MapBot[@alert "-deprecated"] (ArbitraryLattice) (HoareArbitrary_NoTop));
 ]
 
 let nonAssocDomains: (module Lattice.S) list = []
 
 let intDomains: (module IntDomainProperties.S) list = [
-  (module IntDomain.Interval);
+  (module IntDomain.SOverflowUnlifter(IntDomain.Interval));
   (module IntDomain.Enums);
   (module IntDomain.Congruence);
+  (module IntDomain.SOverflowUnlifter(IntDomain.IntervalSet));
   (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
@@ -83,7 +67,7 @@ let ikinds: Cil.ikind list = [
   IChar;
   ISChar;
   IUChar;
-  IBool;
+  (* IBool; *) (* see https://github.com/goblint/analyzer/pull/1111 *)
   IInt;
   IUInt;
   IShort;

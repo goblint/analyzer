@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 extern void* magic(void* arg);
 
@@ -8,6 +8,6 @@ int main() {
   pthread_t id;
   pthread_create(&id, NULL, magic, &x);
 
-  assert(x == 0); // UNKNOWN! (magic may invalidate)
+  __goblint_check(x == 0); // UNKNOWN! (magic may invalidate)
   return 0;
 }

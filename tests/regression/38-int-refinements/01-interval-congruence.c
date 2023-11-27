@@ -1,5 +1,5 @@
 // PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.int.congruence --set ana.int.refinement fixpoint
-#include <assert.h>
+#include <goblint.h>
 
 int main(){
     int r;
@@ -15,7 +15,7 @@ int main(){
     if (k >= 3) {
 
         // After refinement with congruences, the lower bound should be 7 as the numbers 3 - 6 are not in the congr. class
-        assert (k < 7); // FAIL
+        __goblint_check(k < 7); // FAIL
     }
 
     int l;
@@ -27,7 +27,7 @@ int main(){
 
     if (l <= 41) {
         // Similarly to before, the upper bound should be 37 now.
-        assert (l > 37); // FAIL
+        __goblint_check(l > 37); // FAIL
     }
     return 0;
 }

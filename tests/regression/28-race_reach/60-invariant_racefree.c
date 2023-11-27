@@ -1,5 +1,5 @@
+// PARAM:  --set lib.activated[+] sv-comp
 #include<pthread.h>
-#include<assert.h>
 #include "racemacros.h"
 
 int x = 0;

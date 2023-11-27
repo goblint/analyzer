@@ -2,14 +2,14 @@
 // Own version of 29/20
 #include <pthread.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int *global;
 
 void *t_fun(void *arg) {
   int *p = global;
   *p = 2;
-  assert(*p == 2); // UNKNOWN!
+  __goblint_check(*p == 2); // UNKNOWN!
   return NULL;
 }
 
@@ -21,7 +21,7 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
 
   *p = 1;
-  assert(*p == 1); // UNKNOWN!
+  __goblint_check(*p == 1); // UNKNOWN!
 
   pthread_join (id, NULL);
   return 0;

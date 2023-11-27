@@ -1,12 +1,12 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 void foo() {
-  assert(1); // assert reachable
+  __goblint_check(1); // assert reachable
 }
 
 void bar() {
-  assert(1); // assert reachable
+  __goblint_check(1); // assert reachable
 }
 
 void (*funs[2])() = {

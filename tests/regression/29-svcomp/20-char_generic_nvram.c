@@ -2,7 +2,7 @@
 // Minimized from pthread-driver-races/char_generic_nvram_read_nvram_write_nvram.i
 #include <pthread.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 typedef long long loff_t;
 
@@ -10,13 +10,13 @@ void read_nvram(loff_t *ppos)
 {
  unsigned int i;
  *ppos = i;
- assert(*ppos == i); // UNKNOWN!
+ __goblint_check(*ppos == i); // UNKNOWN!
 }
 void write_nvram(loff_t *ppos)
 {
  unsigned int i;
  *ppos = i;
- assert(*ppos == i); // UNKNOWN!
+ __goblint_check(*ppos == i); // UNKNOWN!
 }
 loff_t *whoop_loff_t;
 void *whoop_wrapper_write_nvram(void* args)

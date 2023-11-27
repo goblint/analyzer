@@ -1,4 +1,16 @@
+(** Abstract domains for C arrays. *)
+
 open IntOps
+open GoblintCil
+module VDQ = ValueDomainQueries
+
+type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
+
+val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
+(** gets the underlying domain: chosen by the attributes in AttributeConfiguredArrayDomain *)
+
+val can_recover_from_top: domain -> bool
+(** Some domains such as Trivial cannot recover from their value ever being top. {!ValueDomain} handles intialization differently for these *)
 
 (** Abstract domains representing arrays. *)
 module type S =
@@ -10,21 +22,24 @@ sig
   type value
   (** The abstract domain of values stored in the array. *)
 
-  val get: Queries.ask -> t -> ExpDomain.t * idx -> value
+  val domain_of_t: t -> domain
+  (* Returns the domain used for the array*)
+
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
 
-  val set: Queries.ask -> t -> ExpDomain.t * idx -> value -> t
+  val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
 
-  val make: idx -> value -> t
+  val make: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> idx -> value -> t
   (** [make l e] creates an abstract representation of an array of length [l]
     * containing the element [e]. *)
 
   val length: t -> idx option
   (** returns length of array if known *)
 
-  val move_if_affected: ?replace_with_const:bool -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   (** changes the way in which the array is partitioned if this is necessitated by a change
     * to the variable **)
 
@@ -38,13 +53,13 @@ sig
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   (** Left fold (like List.fold_left) over the arrays elements *)
 
-  val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
-  (** Left fold over the elements of two arrays (like List.fold_left2 *)
-
   val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> t
   val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool
   val update_length: idx -> t -> t
+
+  val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> VDQ.t -> t -> t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type LatticeWithSmartOps =
@@ -70,10 +85,10 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type va
   * uses three values from Val to represent the elements of the array to the left,
   * at, and to the right of the expression. The Idx domain is required only so to
   * have a signature that allows for choosing an array representation at runtime.
-   *)
+*)
 
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** Like partitioned but additionally manages the length of the array. *)
 
-module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
-(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on the value of ana.base.arrays.domain. *)
+module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
+(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)

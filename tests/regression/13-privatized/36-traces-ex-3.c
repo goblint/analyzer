@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 2; // matches expected precise read
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -22,7 +22,7 @@ int main(void) {
   pthread_mutex_lock(&A);
   pthread_mutex_unlock(&A);
   pthread_mutex_lock(&B);
-  assert(g == 2);
+  __goblint_check(g == 2);
   pthread_mutex_unlock(&B);
   return 0;
 }

@@ -1,9 +1,9 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --sets ana.apron.privatization mutex-meet-tid
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.relation.privatization mutex-meet-tid
 
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-#include <assert.h>
+#include <goblint.h>
 
 const int SIGMA = 4;
 
@@ -14,7 +14,7 @@ pthread_mutex_t mut_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void *thread1(void * arg)
 {
-    assert(array_index <= 4);
+    __goblint_check(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0:
@@ -36,7 +36,7 @@ void *thread1(void * arg)
 
 void *thread2(void * arg)
 {
-    assert(array_index <= 4);
+    __goblint_check(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0:
@@ -58,7 +58,7 @@ void *thread2(void * arg)
 
 void *thread3(void * arg)
 {
-    assert(array_index <= 4);
+    __goblint_check(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0:
@@ -80,7 +80,7 @@ void *thread3(void * arg)
 
 void *thread4(void * arg)
 {
-    assert(array_index <= 4);
+    __goblint_check(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0:
@@ -137,7 +137,7 @@ int main()
 
 	sum = array_0 + array_1 + array_2 + array_3;
 
-	assert(sum == SIGMA);  //UNKNOWN! <-- wrong, different threads might use the same array offset when writing
+	__goblint_check(sum == SIGMA);  //UNKNOWN! <-- wrong, different threads might use the same array offset when writing
 
 	return 0;
 }

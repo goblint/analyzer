@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 42; // matches write in t_fun
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -33,7 +33,7 @@ int main(void) {
   }
   // locally written g is only in one branch, g == g#prot should be forgotten!
   t = g;
-  assert(t == 17); // UNKNOWN!
+  __goblint_check(t == 17); // UNKNOWN!
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
   return 0;

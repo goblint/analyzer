@@ -1,23 +1,28 @@
-(** Multi-threadedness analysis. *)
+(** Multi-threadedness analysis ([threadflag]). *)
 
-module GU = Goblintutil
 module LF = LibraryFunctions
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
-let is_multi (ask: Queries.ask): bool =
-  if !GU.global_initialization then false else
-  not (ask.f Queries.MustBeSingleThreaded)
+let is_currently_multi (ask: Queries.ask): bool =
+  if !AnalysisState.global_initialization then false else
+    not (ask.f (Queries.MustBeSingleThreaded {since_start = false}))
 
+let has_ever_been_multi (ask: Queries.ask): bool =
+  if !AnalysisState.global_initialization then false else
+    not (ask.f (Queries.MustBeSingleThreaded {since_start = true}))
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   module Flag = ThreadFlagDomain.Simple
   module D = Flag
   module C = Flag
+  module P = IdentityP (D)
+  module V = UnitV
+  module G = BoolDomain.MayBool
 
   let name () = "threadflag"
 
@@ -29,38 +34,19 @@ struct
   let create_tid v =
     Flag.get_multi ()
 
-  let should_join = D.equal
-
-  let body ctx f = ctx.local
-
-  let branch ctx exp tv = ctx.local
-
   let return ctx exp fundec  =
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
       (* TODO: is this necessary? *)
       Flag.join ctx.local (Flag.get_main ())
-    | "StartupHook" ->
-      (* TODO: is this necessary? *)
-      Flag.get_multi ()
     | _ ->
       ctx.local
 
-  let assign ctx (lval:lval) (rval:exp) : D.t  =
-    ctx.local
-
-  let enter ctx lval f args =
-    [ctx.local,ctx.local]
-
-  let combine ctx lval fexp f args fc st2 = st2
-
-  let special ctx lval f args =
-    ctx.local
-
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeSingleThreaded -> not (Flag.is_multi ctx.local)
+    | Queries.MustBeSingleThreaded _ -> not (Flag.is_multi ctx.local) (* If this analysis can tell, it is the case since the start *)
     | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
+    | Queries.IsEverMultiThreaded -> (ctx.global () : bool) (* requires annotation to compile *)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
     | _ -> Queries.Result.top x
@@ -73,15 +59,16 @@ struct
     let should_print m = not m
   end
   let access ctx _ =
-    is_multi (Analyses.ask_of_ctx ctx)
+    is_currently_multi (Analyses.ask_of_ctx ctx)
 
-  let threadenter ctx lval f args =
-    if not (is_multi (Analyses.ask_of_ctx ctx)) then
+  let threadenter ctx ~multiple lval f args =
+    if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     [create_tid f]
 
-  let threadspawn ctx lval f args fctx =
-    if not (is_multi (Analyses.ask_of_ctx ctx)) then
+  let threadspawn ctx ~multiple lval f args fctx =
+    ctx.sideg () true;
+    if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     D.join ctx.local (Flag.get_main ())
 end

@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int glob = 5; // not static!
 
@@ -12,8 +12,8 @@ void *t_fun(void *arg) {
 
 int main() {
   pthread_t id;
-  assert(glob == 5);
+  __goblint_check(glob == 5);
   pthread_create(&id, NULL, t_fun, NULL);
-  assert(glob == 5); // UNKNOWN!
+  __goblint_check(glob == 5); // UNKNOWN!
   return 0;
 }

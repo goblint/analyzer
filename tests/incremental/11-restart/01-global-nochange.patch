@@ -1,0 +1,11 @@
+--- tests/incremental/11-restart/01-global-nochange.c
++++ tests/incremental/11-restart/01-global-nochange.c
+@@ -2,7 +2,7 @@
+ #include <pthread.h>
+
+ int g = 1;
+-
++// cmt
+ void* t_fun(void *arg) {
+     g = 2;
+     return NULL;

@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] symb_locks
+// PARAM: --set ana.activated[+] symb_locks --set lib.activated[+] zstd --disable ana.race.free
+// disabled free races because unsound: https://github.com/goblint/analyzer/pull/978
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.
@@ -10,6 +11,7 @@
 
 #include<stdlib.h>
 #include<pthread.h>
+#include<goblint.h>
 #define ZSTD_pthread_mutex_t            pthread_mutex_t
 #define ZSTD_pthread_mutex_init(a, b)   pthread_mutex_init((a), (b))
 #define ZSTD_pthread_mutex_destroy(a)   pthread_mutex_destroy((a))
@@ -158,7 +160,7 @@ static void* POOL_thread(void* opaque) {
             ZSTD_pthread_cond_wait(&ctx->queuePopCond, &ctx->queueMutex);
         }
         /* Pop a job off the queue */
-        {   POOL_job const job = ctx->queue[ctx->queueHead]; //NORACE
+        {   POOL_job const job = ctx->queue[ctx->queueHead]; // TODO NORACE
             ctx->queueHead = (ctx->queueHead + 1) % ctx->queueSize; //NORACE
             ctx->numThreadsBusy++; //NORACE
             ctx->queueEmpty = (ctx->queueHead == ctx->queueTail); //NORACE
@@ -175,7 +177,7 @@ static void* POOL_thread(void* opaque) {
             ZSTD_pthread_mutex_unlock(&ctx->queueMutex);
         }
     }  /* for (;;) */
-    assert(0);  //NOWARN (unreachable)
+    __goblint_check(0);  //NOWARN (unreachable)
 }
 
 POOL_ctx* POOL_create(size_t numThreads, size_t queueSize) {

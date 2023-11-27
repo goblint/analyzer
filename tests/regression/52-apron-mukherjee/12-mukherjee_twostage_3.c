@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --enable ana.apron.threshold_widening
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int data1value = 0;
 int data2value = 0;
@@ -40,8 +40,8 @@ void* iRThread_1(void* arg){
 	pthread_mutex_unlock(&lock);
 
 	if(t1 != 0) {
-		assert(t2 != (t1+1)); //UNKNOWN!
-		assert(t2 == (t1+1)); //UNKNOWN!
+		__goblint_check(t2 != (t1+1)); //UNKNOWN!
+		__goblint_check(t2 == (t1+1)); //UNKNOWN!
 	}
 	return 0;
 }

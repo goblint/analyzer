@@ -1,4 +1,6 @@
-open Prelude
+(** Two-phased terminating SLR3 solver ([slr3tp]). *)
+
+open Batteries
 open Analyses
 open Constraints
 open Messages
@@ -22,7 +24,7 @@ module Make =
 
     let narrow = narrow S.Dom.narrow
 
-    let solve box st vs =
+    let solve st vs =
       let key    = HM.create 10 in
       let module H = Heap.Make (struct
           type t = S.Var.t
@@ -71,7 +73,7 @@ module Make =
         let effects = ref Set.empty in
         let side y d =
           assert (not (S.Dom.is_bot d));
-          trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
+          if tracing then trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
           let first = not (Set.mem y !effects) in
           effects := Set.add y !effects;
           if first then (
@@ -107,11 +109,11 @@ module Make =
           if wpx then
             if b then
               let nar = narrow old tmp in
-              trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
+              if tracing then trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
               nar
             else
               let wid = S.Dom.widen old (S.Dom.join old tmp) in
-              trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
+              if tracing then trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
               wid
           else
             tmp
@@ -161,7 +163,7 @@ module Make =
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
         let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
-        in trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
+        in if tracing then trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
       and eq x get set =
         eval_rhs_event x;
         match S.system x with

@@ -1,36 +1,23 @@
-open Cil
+(** Domains for disjoint heap regions. *)
+
+open GoblintCil
 open GobConfig
+open MusteqDomain
 
-module GU = Goblintutil
-module V = Basetype.Variables
 module B = Printable.UnitConf (struct let name = "•" end)
-module F = Lval.Fields
-
-module VF =
-struct
-  include Printable.ProdSimple (V) (F)
-  let show (v,fd) =
-    let v_str = V.show v in
-    let fd_str = F.show fd in
-    v_str ^ fd_str
-  let pretty () x = Pretty.text (show x)
-
-  let printXml f (v,fi) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printInnerXml fi
-
-  (* Indicates if the two var * offset pairs should collapse or not. *)
-  let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
-  let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
-  (* Joins the fields, assuming the vars are equal. *)
-  let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
-  let is_glob (v,f) = v.vglob
-  let kill x (v,f) = v, F.kill x f
-  let replace x exp (v,fd) = v, F.replace x exp fd
-end
 
 module VFB =
 struct
   include Printable.Either (VF) (B)
+  let name () = "region"
+
+  let pretty () = function
+    | `Right () -> Pretty.text "•"
+    | `Left x -> VF.pretty () x
+
+  let show = function
+    | `Right () -> "•"
+    | `Left x -> VF.show x
 
   let printXml f = function
     | `Right () ->
@@ -47,13 +34,13 @@ struct
   let leq x y =
     match x,y with
     | `Right (), `Right () -> true
-    | `Right (), _ | _, `Right () -> false
+    | `Right (), _ | _, `Right () -> false (* incomparable according to collapse *)
     | `Left x, `Left y -> VF.leq x y
 
   let join (x:t) (y:t) :t =
     match x,y with
-    | `Right (), _ -> `Right ()
-    | _, `Right () -> `Right ()
+    | `Right (), `Right () -> `Right ()
+    | `Right (), _ | _, `Right () -> raise Lattice.Uncomparable (* incomparable according to collapse *)
     | `Left x, `Left y -> `Left (VF.join x y)
 
   let lift f y = match y with
@@ -73,6 +60,7 @@ end
 
 module RS = struct
   include PartitionDomain.Set (VFB)
+  let name () = "regions"
   let single_vf vf = singleton (VFB.of_vf vf)
   let single_bullet = singleton (VFB.bullet)
   let remove_bullet x = remove VFB.bullet x
@@ -119,7 +107,7 @@ struct
 
   let is_global (v,fd) = v.vglob
 
-  let remove v (p,m) = p, RegMap.remove (v,[]) m
+  let remove v (p,m) = p, RegMap.remove (v, `NoOffset) m
   let remove_vars (vs: varinfo list) (cp:t): t =
     List.fold_right remove vs cp
 
@@ -142,16 +130,7 @@ struct
 
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t =
-    let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else [] in
-    let rec do_offs deref def = function
-      | Field (fd, offs) -> begin
-          match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
-          | Some v -> do_offs deref (Some (deref, (v, offsornot (Field (fd, offs))), [])) offs
-          | None -> do_offs deref def offs
-        end
-      | Index (_, offs) -> do_offs deref def offs
-      | NoOffset -> def
-    in
+    let offsornot offs = if (get_bool "exp.region-offsets") then F.of_cil offs else `NoOffset in
     (* The intuition for the offset computations is that we keep the static _suffix_ of an
      * access path. These can be used to partition accesses when fields do not overlap.
      * This means that for pointer dereferences and when obtaining the value from an lval
@@ -159,7 +138,7 @@ struct
      * unknown in the region. *)
     let rec eval_rval deref rval =
       match rval with
-      | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, [])) (eval_lval deref lval)
+      | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, `NoOffset)) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
       | CastE (typ, exp) -> eval_rval deref exp
       | BinOp (MinusPI, p, i, typ)
@@ -168,29 +147,23 @@ struct
       | _ -> None
     and eval_lval deref lval =
       match lval with
-      | (Var x, NoOffset) when Goblintutil.is_blessed x.vtype <> None ->
-        begin match Goblintutil.is_blessed x.vtype with
-          | Some v -> Some (deref, (v,[]), [])
-          | _ when x.vglob -> Some (deref, (x, []), [])
-          | _ -> None
-        end
-      | (Var x, offs) -> do_offs deref (Some (deref, (x, offsornot offs), [])) offs
+      | (Var x, offs) -> Some (deref, (x, offsornot offs), `NoOffset)
       | (Mem exp,offs) ->
         match eval_rval true exp with
-        | Some (deref, v, _) -> do_offs deref (Some (deref, v, offsornot offs)) offs
-        | x -> do_offs deref x offs
+        | Some (deref, v, _) -> Some (deref, v, offsornot offs)
+        | x -> x
     in
     eval_rval false exp
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
-  let add_set (s:set) llist (p,m:t): t =
+  let add_set ?(escape=false) (s:set) llist (p,m:t): t =
     if RS.has_bullet s then
       let f key value (ys, x) =
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
       let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
       let x = RS.remove_bullet x in
-      if RS.is_empty x then
+      if not escape && RS.is_empty x then
         p, RegMap.add_list_set llist RS.single_bullet m
       else
         RegPart.add x p, RegMap.add_list_set ys x m
@@ -208,7 +181,7 @@ struct
         if VF.equal x y then st else
           let (p,m) = st in begin
             let append_offs_y = RS.map (function
-                | `Left (v, offs) -> `Left (v, offs @ offs_y)
+                | `Left (v, offs) -> `Left (v, F.add_offset offs offs_y)
                 | `Right () -> `Right ()
               )
             in
@@ -242,8 +215,27 @@ struct
     | Some (_,x,_) -> p, RegMap.add x RS.single_bullet m
     | _ -> p,m
 
+  (* Copied & modified from assign. *)
+  let assign_escape (rval: exp) (st: t): t =
+    (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
+    let t = Cilfacade.typeOf rval in
+    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
+      match eval_exp rval with
+      (* TODO: should offs_x matter? *)
+      | Some (deref_y,y,offs_y) ->
+        let (p,m) = st in begin
+          match is_global y with
+          | true  ->
+            add_set ~escape:true (RS.single_vf y) [] st
+          | false  ->
+            add_set ~escape:true (RegMap.find y m) [y] st
+        end
+      | _ -> st
+    end else
+      st
+
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
-    let add_o o2 (v,o) = (v,o@o2) in
+    let add_o o2 (v,o) = (v, F.add_offset o o2) in
     match deref_vfd with
     | Some (true, vfd, os) ->
       let vfd_class =
@@ -256,7 +248,7 @@ struct
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []
-    | None -> Messages.warn "Access to unknown address could be global"; []
+    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
 end
 
 (* TODO: remove Lift *)

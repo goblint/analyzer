@@ -8,7 +8,7 @@ void *foo(void *arg) {
   mystruct *s = (mystruct *) arg;
 
   pthread_mutex_lock(&s->mymutex);
-  s->myint=s->myint+1;
+  s->myint=s->myint+1; // NORACE
   pthread_mutex_unlock(&s->mymutex);
 
   return NULL;

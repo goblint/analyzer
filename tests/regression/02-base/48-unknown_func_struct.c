@@ -1,11 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <goblint.h>
 
 
 typedef struct list {
     int val;
     struct list *next;
 } list_t;
+
+void mutate_list(list_t n);
+void mutate_list2(list_t* n);
 
 // void mutate_list(list_t n){
 //     list_t *next = n.next;
@@ -23,10 +27,10 @@ int main(){
 
     // When passing a struct to an unknown function, reachable memory should be invalidated
     mutate_list(first);
-    assert(second.val == 2); //UNKNOWN!
+    __goblint_check(second.val == 2); //UNKNOWN!
 
     // Passing a pointer to the struct here.
     mutate_list2(&first);
-    assert(second.val == 2); //UNKNOWN!
+    __goblint_check(second.val == 2); //UNKNOWN!
     return 0;
 }

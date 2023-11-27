@@ -1,20 +1,20 @@
-open Prelude
+(** Various simple/old solvers and solver utilities. *)
+
+open Batteries
 open GobConfig
 open Analyses
 
-let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
-
-
-module LoadRunSolver: GenericEqBoxSolver =
+module LoadRunSolver: GenericEqSolver =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
-    let solve box xs vs =
+    let solve xs vs =
       (* copied from Control.solve_and_postprocess *)
       let solver_file = "solver.marshalled" in
       let load_run = Fpath.v (get_string "load_run") in
       let solver = Fpath.(load_run / solver_file) in
       if get_bool "dbg.verbose" then
-        Format.printf "Loading the solver result of a saved run from %a" Fpath.pp solver;
+        (* Do NOT replace with Printf because of GobView: https://github.com/goblint/gobview/issues/10 *)
+        print_endline ("Loading the solver result of a saved run from " ^ (Fpath.to_string solver));
       let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
         let vh' = VH.create (VH.length vh) in
@@ -29,15 +29,13 @@ module LoadRunSolver: GenericEqBoxSolver =
         vh
   end
 
-module LoadRunIncrSolver: GenericEqBoxIncrSolver =
+module LoadRunIncrSolver: GenericEqIncrSolver =
   Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct
   open S
   open Messages
-
-  module GU = Goblintutil
 
   let stack_d = ref 0
   let full_trace = false
@@ -66,7 +64,7 @@ struct
   let stop_event () = ()
 
   let new_var_event x =
-    incr Goblintutil.vars;
+    incr SolverStats.vars;
     if tracing then trace "sol" "New %a\n" Var.pretty_trace x
 
   let get_var_event x =
@@ -74,7 +72,7 @@ struct
 
   let eval_rhs_event x =
     if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
-    incr Goblintutil.evals;
+    incr SolverStats.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
   let update_var_event x o n =
@@ -91,9 +89,9 @@ struct
   let ncontexts = ref 0
   let print_context_stats rho =
     let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
-    let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
+    let str k = GobPretty.sprint S.Var.pretty_trace k in (* use string as key since k may have cycles which lead to exception *)
     let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
-    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
+    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 0 (str k) ((+)1) histo) rho;
     (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
     (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
     ncontexts := Hashtbl.fold (fun _ -> (+)) histo 0;
@@ -117,18 +115,18 @@ struct
   let print_stats _ =
     print_newline ();
     (* print_endline "# Generic solver stats"; *)
-    Printf.printf "runtime: %s\n" (string_of_time ());
-    Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
+    Printf.printf "runtime: %s\n" (GobSys.string_of_time ());
+    Printf.printf "vars: %d, evals: %d\n" !SolverStats.vars !SolverStats.evals;
     Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();
     print_newline ();
-    (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
+    (* Timing.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
-    let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
+    let gc = GobGc.print_quick_stat Legacy.stdout in
     print_newline ();
-    Option.may (write_csv [string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
+    Option.may (write_csv [GobSys.string_of_time (); string_of_int !SolverStats.vars; string_of_int !SolverStats.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout
     (* if read_line () = "n" then raise Break *)
@@ -137,7 +135,7 @@ struct
     let write_header = write_csv ["runtime"; "vars"; "evals"; "contexts"; "max_heap"] (* TODO @ !solver_stats_headers *) in
     Option.may write_header stats_csv;
     (* call print_stats on dbg.solver-signal *)
-    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
+    Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
     (* call print_stats every dbg.solver-stats-interval *)
     Sys.set_signal Sys.sigvtalrm (Signal_handle print_stats);
     (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_VIRTUAL is user time; sends sigvtalarm; ITIMER_PROF/sigprof is already used in Timeout.Unix.timeout *)
@@ -148,17 +146,18 @@ struct
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
-module DirtyBoxSolver : GenericEqBoxSolver =
+module DirtyBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
       with Not_found -> d
 
-    let solve box xs vs =
+    let solve xs vs =
       (* the stabile "set" *)
       let stbl = H.create 1024 in
       (* the influence map *)
@@ -194,7 +193,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
         if not (H.mem sol x) then solve_one x;
         (* do nothing if we have stabilized [x] *)
         let oldd = H.find sol x in
-        let newd = box x oldd d in
+        let newd = box oldd d in
         update_var_event x oldd newd;
         if not (S.Dom.equal oldd newd) then begin
           (* set the new value for [x] *)
@@ -226,13 +225,14 @@ module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
       with Not_found -> d
 
-    let solveWithStart box (ht,hts) xs vs =
+    let solveWithStart (ht,hts) xs vs =
       (* the stabile "set" *)
       let stbl = H.create 1024 in
       (* the influence map *)
@@ -286,7 +286,7 @@ module SoundBoxSolverImpl =
         (* do nothing if we have stabilized [x] *)
         let oldd = H.find sol x in
         (* compute the new value *)
-        let newd = box x oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
+        let newd = box oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
         if not (S.Dom.equal oldd newd) then begin
           update_var_event x oldd newd;
           (* set the new value for [x] *)
@@ -298,7 +298,7 @@ module SoundBoxSolverImpl =
           H.remove infl x;
           H.replace infl x [x];
           if full_trace
-          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: semgrep.trace-not-in-tracing *)
+          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: trace-not-in-tracing *)
           (* solve all dependencies *)
           solve_all deps
         end
@@ -315,18 +315,19 @@ module SoundBoxSolverImpl =
       sol, sols
 
     (** the solve function *)
-    let solve box xs ys = solveWithStart box (H.create 1024, H.create 1024) xs ys |> fst
+    let solve xs ys = solveWithStart (H.create 1024, H.create 1024) xs ys |> fst
   end
 
-module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
+module SoundBoxSolver : GenericEqSolver = SoundBoxSolverImpl
 
 
 
 (* use this if you do widenings & narrowings for globals --- outdated *)
-module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
+module PreciseSideEffectBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
@@ -336,7 +337,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
     module VM = Map.Make (S.Var)
     module VS = Set.Make (S.Var)
 
-    let solve box xs vs =
+    let solve xs vs =
       (* the stabile "set" *)
       let stbl  = H.create 1024 in
       (* the influence map *)
@@ -400,7 +401,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
           try S.Dom.join d (VM.find x (H.find sols z))
           with Not_found -> d
         in
-        let newd = box x oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
+        let newd = box oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
         update_var_event x oldd newd;
         if not (S.Dom.equal oldd newd) then begin
           (* set the new value for [x] *)

@@ -1,0 +1,12 @@
+{
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": false
+            }
+        },
+        "reluctant": {
+            "enabled": true
+        }
+    }
+}

@@ -1,0 +1,10 @@
+{
+    "ana": {
+        "int": {
+            "interval": true
+        }
+    },
+    "incremental": {
+        "wpoint": false
+    }
+}

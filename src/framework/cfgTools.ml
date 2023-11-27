@@ -1,35 +1,13 @@
+(** Construction and output of CFGs. *)
+
 open MyCFG
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 
 module H = NodeH
 module NH = NodeH
 
-
-(* TODO: refactor duplication with find_loop_heads *)
-module NS = Set.Make (Node)
-let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
-  let loop_heads = NH.create 100 in
-  let global_visited_nodes = NH.create 100 in
-
-  (* DFS *)
-  let rec iter_node path_visited_nodes node =
-    if NS.mem node path_visited_nodes then
-      NH.replace loop_heads node ()
-    else if not (NH.mem global_visited_nodes node) then begin
-      NH.replace global_visited_nodes node ();
-      let new_path_visited_nodes = NS.add node path_visited_nodes in
-      List.iter (fun (_, to_node) ->
-          iter_node new_path_visited_nodes to_node
-        ) (Cfg.next node)
-    end
-  in
-
-  let entry_node = FunctionEntry fd in
-  iter_node NS.empty entry_node;
-
-  loop_heads
 
 let find_backwards_reachable ~initial_size (module Cfg:CfgBackward) (node:node): unit NH.t =
   let reachable = NH.create initial_size in
@@ -137,7 +115,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   );
   r
 
-let computeSCCs x = Stats.time "computeSCCs" (computeSCCs x)
+let computeSCCs x = Timing.wrap "computeSCCs" (computeSCCs x)
 
 let rec pretty_edges () = function
   | [] -> Pretty.dprintf ""
@@ -146,7 +124,7 @@ let rec pretty_edges () = function
 
 let get_pseudo_return_id fd =
   let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
+  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Cilfacade.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
   if sid < start_id then sid + start_id else sid
 
 let node_scc_global = NH.create 113
@@ -159,14 +137,27 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
+(** Type of CFG "edges": keyed by 'from' and 'to' nodes,
+    along with the list of connecting instructions. *)
+module CfgEdge = struct
+  type t = Node.t * MyCFG.edges * Node.t [@@deriving eq, hash]
+end
+
+module CfgEdgeH = BatHashtbl.Make (CfgEdge)
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
+
+  (* Track the list of pure control-flow statements between two CFG nodes,
+     which do not otherwise appear in the control flow graph. *)
+  let skippedByEdge = CfgEdgeH.create 113 in
+
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
   let fd_nodes = NH.create 113 in
 
-  let addEdges fromNode edges toNode =
+  let addEdges ?(skippedStatements = []) fromNode edges toNode =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
         pretty_edges edges
@@ -176,23 +167,36 @@ let createCFG (file: file) =
     NH.replace fd_nodes toNode ();
     H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
     H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
+    CfgEdgeH.replace skippedByEdge (fromNode, edges, toNode) skippedStatements;
     if Messages.tracing then Messages.trace "cfg" "done\n\n"
   in
-  let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
-  let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
+  let addEdge ?skippedStatements fromNode edge toNode =
+    addEdges ?skippedStatements fromNode [edge] toNode
+  in
+  let addEdge_fromLoc ?skippedStatements fromNode edge toNode =
+    addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode
+  in
 
   (* Find real (i.e. non-empty) successor of statement.
      CIL CFG contains some unnecessary intermediate statements.
+     The first return value is the next real successor, the second argument
+     is the list of skipped intermediate statements.
      If stmt is succ of parent, then optional argument parent must be passed
      to also detect cycle ending with parent itself.
      If not_found is true, then a stmt without succs will raise Not_found
      instead of returning that stmt. *)
   let find_real_stmt ?parent ?(not_found=false) stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
-    let rec find visited_sids stmt =
-      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
-      if List.mem stmt.sid visited_sids then (* mem uses structural equality on ints, which is fine *)
-        stmt (* cycle *)
+    let rec find visited_stmts stmt =
+      if Messages.tracing then
+        Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n"
+          (d_list "; " (fun () x -> Pretty.text (string_of_int x)))
+          (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
+      if
+        GobOption.exists (CilType.Stmt.equal stmt) parent
+        || List.exists (CilType.Stmt.equal stmt) visited_stmts
+      then
+        stmt, visited_stmts (* cycle *)
       else
         match stmt.skind with
         | Goto _ (* 1 succ *)
@@ -204,9 +208,9 @@ let createCFG (file: file) =
               if not_found then
                 raise Not_found
               else
-                stmt
+                stmt, visited_stmts
             | [next] ->
-              find (stmt.sid :: visited_sids) next
+              find (stmt :: visited_stmts) next
             | _ -> (* >1 succ *)
               failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
           end
@@ -214,7 +218,7 @@ let createCFG (file: file) =
         | Instr _
         | If _
         | Return _ ->
-          stmt
+          stmt, visited_stmts
 
         | Continue _
         | Break _
@@ -226,13 +230,10 @@ let createCFG (file: file) =
           failwith "MyCFG.createCFG: unsupported stmt"
     in
     try
-      let initial_visited_sids = match parent with
-        | Some parent -> [parent.sid]
-        | None -> []
-      in
-      let r = find initial_visited_sids stmt in
-      if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
-      r
+      (* rev_path is the stack of all visited statements, excluding the final statement *)
+      let final_stmt, rev_path = find [] stmt in
+      if Messages.tracing then Messages.traceu "cfg" "-> %d\n" final_stmt.sid;
+      final_stmt, List.rev rev_path
     with Not_found ->
       if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
       raise Not_found
@@ -250,17 +251,20 @@ let createCFG (file: file) =
         NH.clear fd_nodes;
 
         (* Find the first statement in the function *)
-        let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
+        let entrynode, skippedStatements = find_real_stmt (Cilfacade.getFirstStmt fd) in
         (* Add the entry edge to that node *)
-        addEdge (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
+        addEdge ~skippedStatements (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
         (* Return node to be used for infinite loop connection to end of function
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
-          let newst = mkStmt (Return (None, fd_loc)) in
+          if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s.\n" fd.svar.vname;
+          let fd_end_loc = {fd_loc with line = fd_loc.endLine; byte = fd_loc.endByte; column = fd_loc.endColumn} in
+          let newst = mkStmt (Return (None, fd_end_loc)) in
           newst.sid <- get_pseudo_return_id fd;
           Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
+          Cilfacade.IntH.replace Cilfacade.pseudo_return_stmt_sids newst.sid newst;
           let newst_node = Statement newst in
-          addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
+          addEdge newst_node (fd_end_loc, Ret (None, fd)) (Function fd);
           newst_node
         )
         in
@@ -280,25 +284,25 @@ let createCFG (file: file) =
             (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
             begin match real_succs () with
               | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-              | [succ] ->
+              | [succ, skippedStatements] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
                   let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Instr [] itself doesn't have one *)
-                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+                  addEdge ~skippedStatements (Statement stmt) (loc, Skip) (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
-              | Set (lval,exp,loc,eloc) -> eloc, Assign (lval, exp) (* TODO: eloc loc fallback if unknown here and If *)
-              | Call (lval,func,args,loc,eloc) -> eloc, Proc (lval,func,args)
+              | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
+              | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
-            let add_succ_node succ_node = addEdges (Statement stmt) edges succ_node in
+            let add_succ_node ?skippedStatements succ_node = addEdges ?skippedStatements (Statement stmt) edges succ_node in
             begin match real_succs () with
               | [] -> add_succ_node (Lazy.force pseudo_return) (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
-              | [succ] -> add_succ_node (Statement succ)
+              | [succ, skippedStatements] -> add_succ_node ~skippedStatements (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 non-empty Instr succ"
             end
 
@@ -309,13 +313,13 @@ let createCFG (file: file) =
                First, true branch's succ is consed (to empty succs list).
                Second, false branch's succ is consed (to previous succs list).
                CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
-            let (true_stmt, false_stmt) = match real_succs () with
+            let ((true_stmt, true_skippedStatements), (false_stmt, false_skippedStatements)) = match real_succs () with
               | [false_stmt; true_stmt] -> (true_stmt, false_stmt)
               | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
-            addEdge (Statement stmt) (eloc, Test (exp, true )) (Statement true_stmt);
-            addEdge (Statement stmt) (eloc, Test (exp, false)) (Statement false_stmt)
+            addEdge ~skippedStatements:true_skippedStatements (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, true )) (Statement true_stmt);
+            addEdge ~skippedStatements:false_skippedStatements (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, false)) (Statement false_stmt)
 
           | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)
@@ -324,11 +328,11 @@ let createCFG (file: file) =
                An extra Neg(1) edge is added in such case. *)
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
             begin match find_real_stmt ~not_found:true brk with (* don't specify stmt as parent because if find_real_stmt finds cycle, it should not return the Loop statement *)
-              | break_stmt ->
+              | break_stmt, _ ->
                 (* break statement is what follows the (constant true) Loop *)
                 (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
                    so break statement is just remembered here *)
-                let loop_stmt = find_real_stmt stmt in
+                let loop_stmt, _ = find_real_stmt stmt in
                 NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
               | exception Not_found ->
                 (* if the (constant true) Loop and its break statement are at the end of the function,
@@ -351,9 +355,9 @@ let createCFG (file: file) =
             (* stmt.succs for Goto just contains the target ref. *)
             begin match real_succs () with
               | [] -> failwith "MyCFG.createCFG: 0 Goto succ" (* target ref is always succ *)
-              | [succ] ->
+              | [succ, skippedStatements] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
-                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+                  addEdge ~skippedStatements (Statement stmt) (loc, Skip) (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 Goto succ"
             end
 
@@ -363,10 +367,10 @@ let createCFG (file: file) =
             (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
             begin match real_succs () with
               | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-              | [succ] ->
+              | [succ, skippedStatements] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
                   let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Block [] itself doesn't have one *)
-                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+                  addEdge ~skippedStatements (Statement stmt) (loc, Skip) (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 Block [] succ"
             end
 
@@ -378,12 +382,12 @@ let createCFG (file: file) =
           | Break _
           | Switch _ ->
             (* Should be removed by Cil.prepareCFG. *)
-            failwith "MyCFG.createCFG: unprepared stmt"
+            failwith "CfgTools.createCFG: unprepared stmt"
 
           | ComputedGoto _ ->
-            failwith "MyCFG.createCFG: unsupported stmt"
+            failwith "CfgTools.createCFG: unsupported stmt"
         in
-        Stats.time "handle" (List.iter handle) fd.sallstmts;
+        Timing.wrap ~args:[("function", `String fd.svar.vname)] "handle" (List.iter handle) fd.sallstmts;
 
         if Messages.tracing then Messages.trace "cfg" "Over\n";
 
@@ -460,7 +464,7 @@ let createCFG (file: file) =
           else
             NH.iter (NH.replace node_scc_global) node_scc; (* there's no merge inplace *)
         in
-        Stats.time "iter_connect" iter_connect ();
+        Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
@@ -472,12 +476,12 @@ let createCFG (file: file) =
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   if get_bool "dbg.verbose" then
     ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
-  cfgF, cfgB
+  cfgF, cfgB, skippedByEdge
 
-let createCFG = Stats.time "createCFG" createCFG
+let createCFG = Timing.wrap "createCFG" createCFG
 
 
-let minimizeCFG (fw,bw) =
+let minimizeCFG (fw,bw) sk =
   let keep = H.create (H.length bw) in
   let comp_keep t (_,f) =
     if (List.compare_length_with (H.find_default bw t []) 1 <> 0) || (List.compare_length_with (H.find_default fw t []) 1 <> 0) then
@@ -490,30 +494,40 @@ let minimizeCFG (fw,bw) =
   (* H.iter comp_keep fw; *)
   let cfgB = H.create (H.length bw) in
   let cfgF = H.create (H.length fw) in
+  let skippedStmts = CfgEdgeH.create (CfgEdgeH.length sk) in
   let ready = H.create (H.length bw) in
-  let rec add a b t (e,f)=
+  let inbound t =
+    H.find_default bw t []
+    |> List.map (fun (e, f) -> e, f, CfgEdgeH.find_default sk (f, e, t) [])
+  in
+  (* list of traversed edges, list of traversed skipped statements,
+     end of current path, current to node, (edge, current from node, skipped statements on edge) *)
+  let rec add a p b t (e, f, s) =
+    let a', p' = e @ a, s @ p in
     if H.mem keep f then begin
-      H.modify_def [] b (List.cons (e@a,f)) cfgB;
-      H.modify_def [] f (List.cons (e@a,b)) cfgF;
+      H.modify_def [] b (List.cons (a', f)) cfgB;
+      H.modify_def [] f (List.cons (a', b)) cfgF;
+      CfgEdgeH.replace skippedStmts (f, a', b) p';
       if H.mem ready b then begin
         H.replace ready f ();
-        List.iter (add [] f f) (H.find_default bw f [])
+        List.iter (add [] [] f f) (inbound f)
       end
     end else begin
-      List.iter (add (e@a) b f) (H.find_default bw f [])
+      let f_stmt = match f with Statement s -> [s] | _ -> [] in
+      List.iter (add a' (f_stmt @ p') b f) (inbound f)
     end
   in
-  H.iter (fun k _ -> List.iter (add [] k k) (H.find_default bw k [])) keep;
+  H.iter (fun k _ -> List.iter (add [] [] k k) (inbound k)) keep;
   H.clear ready;
   H.clear keep;
-  cfgF, cfgB
+  cfgF, cfgB, skippedStmts
 
 
 module type CfgPrinters =
 sig
   val defaultNodeStyles: string list
-  val printNodeStyle: out_channel -> node -> unit
-  val printEdgeStyle: out_channel -> node -> (edges * node) -> unit
+  val printNodeStyle: Format.formatter -> node -> unit
+  val printEdgeStyle: Format.formatter -> node -> (edges * node) -> unit
 end
 
 module type NodeStyles =
@@ -526,18 +540,18 @@ module CfgPrinters (NodeStyles: NodeStyles) =
 struct
   include NodeStyles
 
-  let p_node () n = text (Node.show_id n)
+  let p_node out n = Format.fprintf out "%s" (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
-  let p_edge () x = Pretty.text (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
+  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (GobPretty.sprint Edge.pretty x))
 
-  let rec p_edges () = function
-    | [] -> Pretty.dprintf ""
-    | [(_, x)] -> p_edge () x
-    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+  let rec p_edges out = function
+    | [] -> Format.fprintf out ""
+    | [(_, x)] -> Format.fprintf out "%a" p_edge x
+    | (_,x)::xs -> Format.fprintf out "%a\n%a" p_edge x p_edges xs
 
   let printEdgeStyle out (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
+    Format.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges
 
   let printNodeStyle out (n:node) =
     let label = match n with
@@ -546,18 +560,18 @@ struct
     in
     let shape = match n with
       | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
-      | Statement _     -> [] (* use default shape *)
+      | Statement _ -> [] (* use default shape *)
       | Function _
       | FunctionEntry _ -> ["shape=box"]
     in
     let styles = String.concat "," (label @ shape @ extraNodeStyles n) in
-    ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
+    Format.fprintf out ("\t%a [%s];\n") p_node n styles
 end
 
 let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   let node_table = NH.create 113 in
-  Printf.fprintf out "digraph cfg {\n";
-  Printf.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
+  Format.fprintf out "digraph cfg {\n";
+  Format.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
     NH.replace node_table toNode ();
@@ -572,20 +586,18 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
         if not (NH.mem node_scc_done node) then (
           match NH.find_option node_scc_global node with
           | Some scc when NH.length scc.nodes > 1 ->
-            Printf.fprintf out "\tsubgraph cluster {\n\t\t";
+            Format.fprintf out "\tsubgraph cluster {\n\t\t";
             NH.iter (fun node _ ->
                 NH.replace node_scc_done node ();
-                Printf.fprintf out ("%s; ") (Node.show_id node)
+                Format.fprintf out ("%s; ") (Node.show_id node)
               ) scc.nodes;
-            Printf.fprintf out "\n\t}\n";
+            Format.fprintf out "\n\t}\n";
           | _ -> ()
         )
       ) node_table
   );
 
-  Printf.fprintf out "}\n";
-  flush out;
-  close_out_noerr out
+  Format.fprintf out "}\n"
 
 let fprint_hash_dot cfg  =
   let module NoExtraNodeStyles =
@@ -596,29 +608,22 @@ let fprint_hash_dot cfg  =
   in
   let out = open_out "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
-  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
+  let ppf = Format.formatter_of_out_channel out in
+  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
+  Format.pp_print_flush ppf ();
+  close_out out
 
 
-let getCFG (file: file) : cfg * cfg =
-  let cfgF, cfgB = createCFG file in
-  let cfgF, cfgB =
+let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
+  let cfgF, cfgB, skippedByEdge = createCFG file in
+  let cfgF, cfgB, skippedByEdge =
     if get_bool "exp.mincfg" then
-      Stats.time "minimizing the cfg" minimizeCFG (cfgF, cfgB)
+      Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB) skippedByEdge
     else
-      (cfgF, cfgB)
+      (cfgF, cfgB, skippedByEdge)
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
-  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n [])
-
-
-(* TODO: unused *)
-let generate_irpt_edges cfg =
-  let make_irpt_edge toNode (_, fromNode) =
-    match toNode with
-    | FunctionEntry f -> let _ = print_endline ( " Entry " ) in ()
-    | _ -> H.add cfg toNode (SelfLoop, toNode)
-  in
-  H.iter make_irpt_edge cfg
+  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
@@ -636,8 +641,7 @@ let iter_fd_edges (module Cfg : CfgBackward) fd =
 let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let module HtmlExtraNodeStyles =
   struct
-    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* \N is graphviz special for node ID *)
-
+    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* The \N is graphviz special for node ID. *)
     let extraNodeStyles n =
       if live n then
         []
@@ -648,17 +652,25 @@ let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let iter_edges = iter_fd_edges (module Cfg) fd in
   fprint_dot (module CfgPrinters (HtmlExtraNodeStyles)) iter_edges out
 
-let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
-  iterGlobals file (fun glob ->
+let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
+  fprint_fundec_html_dot (module Cfg) live fd Format.str_formatter;
+  Format.flush_str_formatter ()
+
+let dead_code_cfg (module FileCfg: MyCFG.FileCfg) live =
+  iterGlobals FileCfg.file (fun glob ->
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
-        let base_dir = Goblintutil.create_dir (Fpath.v "cfgs") in
+        let base_dir = GobSys.mkdir_or_exists_absolute (Fpath.v "cfgs") in
         let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
         let dot_file_name = fd.svar.vname^".dot" in
-        let file_dir = Goblintutil.create_dir Fpath.(base_dir / c_file_name) in
+        let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (open_out (Fpath.to_string fname))
+        let out = open_out (Fpath.to_string fname) in
+        let ppf = Format.formatter_of_out_channel out in
+        fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
+        Format.pp_print_flush ppf ();
+        close_out out
       | _ -> ()
     )
 
@@ -672,12 +684,12 @@ let getGlobalInits (file: file) : edges  =
       doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in
-    let rec all_index = function
-      | Index (e,o) -> Index (all_array_index_exp, all_index o)
-      | Field (f,o) -> Field (f, all_index o)
+    let rec any_index_offset = function
+      | Index (e,o) -> Index (Offset.Index.Exp.any, any_index_offset o)
+      | Field (f,o) -> Field (f, any_index_offset o)
       | NoOffset -> NoOffset
     in
-    let all_index (lh,offs) = lh, all_index offs in
+    let any_index (lh,offs) = lh, any_index_offset offs in
     match init with
     | SingleInit exp ->
       let assign lval = (loc, Assign (lval, exp)) in
@@ -685,8 +697,8 @@ let getGlobalInits (file: file) : edges  =
          Instead, we get one assign for each distinct value in the array *)
       if not fast_global_inits then
         Hashtbl.add inits (assign lval) ()
-      else if not (Hashtbl.mem inits (assign (all_index lval))) then
-        Hashtbl.add inits (assign (all_index lval)) ()
+      else if not (Hashtbl.mem inits (assign (any_index lval))) then
+        Hashtbl.add inits (assign (any_index lval)) ()
       else
         ()
     | CompoundInit (typ, lst) ->
@@ -710,7 +722,7 @@ let getGlobalInits (file: file) : edges  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1;}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
 
 
 let numGlobals file =

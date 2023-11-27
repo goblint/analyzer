@@ -20,6 +20,12 @@ rules:
         - pattern: List.length $L >= $N
         - pattern: List.length $L < $N
         - pattern: List.length $L <= $N
+        - pattern: $N = List.length $L
+        - pattern: $N <> List.length $L
+        - pattern: $N > List.length $L
+        - pattern: $N >= List.length $L
+        - pattern: $N < List.length $L
+        - pattern: $N <= List.length $L
       - metavariable-pattern:
           metavariable: $N
           patterns:

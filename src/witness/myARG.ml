@@ -1,11 +1,16 @@
-open WitnessUtil
+(** Abstract reachability graph. *)
+
 open MyCFG
+open GoblintCil
 
 module type Node =
 sig
   include Hashtbl.HashedType
+  include Set.OrderedType with type t := t
 
   val cfgnode: t -> MyCFG.node
+  val context_id: t -> int
+  val path_id: t -> int
   val to_string: t -> string
 
   val move_opt: t -> MyCFG.node -> t option
@@ -17,7 +22,6 @@ sig
   type t
 
   val embed: MyCFG.edge -> t
-  val cfgedge: t -> MyCFG.edge option
   val to_string: t -> string
 end
 
@@ -26,33 +30,82 @@ struct
   type t = edge
 
   let embed e = e
-  let cfgedge e = Some e
-  let to_string e = Pretty.sprint ~width:80 (Edge.pretty_plain () e)
+  let to_string e = GobPretty.sprint Edge.pretty_plain e
 end
 
 type inline_edge =
   | CFGEdge of Edge.t
-  | InlineEntry of CilType.Exp.t list
-  | InlineReturn of CilType.Lval.t option
-  [@@deriving to_yojson]
+  | InlineEntry of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
+  | InlineReturn of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
+  | InlinedEdge of Edge.t
+  | ThreadEntry of CilType.Lval.t option * CilType.Varinfo.t * CilType.Exp.t list
+[@@deriving eq, ord, hash]
 
 let pretty_inline_edge () = function
   | CFGEdge e -> Edge.pretty_plain () e
-  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
-  | InlineReturn None -> Pretty.dprintf "InlineReturn"
-  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+  | InlineEntry (_, _, args) -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
+  | InlineReturn (None, _, _) -> Pretty.dprintf "InlineReturn"
+  | InlineReturn (Some ret, _, _) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+  | InlinedEdge e -> Pretty.dprintf "Inlined %a" Edge.pretty_plain e
+  | ThreadEntry (_, _, args) -> Pretty.dprintf "ThreadEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
+
+let inline_edge_to_yojson = function
+  | CFGEdge e ->
+    `Assoc [
+      ("cfg", Edge.to_yojson e)
+    ]
+  | InlineEntry (lval, function_, args) ->
+    `Assoc [
+      ("entry", `Assoc [
+          ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Fundec.to_yojson function_);
+          ("args", [%to_yojson: CilType.Exp.t list] args);
+        ]);
+    ]
+  | InlineReturn (lval, function_, args) ->
+    `Assoc [
+      ("return", `Assoc [
+          ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Fundec.to_yojson function_);
+          ("args", [%to_yojson: CilType.Exp.t list] args);
+        ]);
+    ]
+  | InlinedEdge e ->
+    `Assoc [
+      ("inlined", Edge.to_yojson e)
+    ]
+  | ThreadEntry (lval, function_, args) ->
+    `Assoc [
+      ("thread", `Assoc [
+          ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Varinfo.to_yojson function_);
+          ("args", [%to_yojson: CilType.Exp.t list] args);
+        ]);
+    ]
+
+module InlineEdgePrintable: Printable.S with type t = inline_edge =
+struct
+  include Printable.StdLeaf
+  type t = inline_edge [@@deriving eq, ord, hash, to_yojson]
+
+  let name () = "inline edge"
+
+  let pretty = pretty_inline_edge
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+    (* TODO: deriving to_yojson gets overridden by SimplePretty *)
+end
 
 module InlineEdge: Edge with type t = inline_edge =
 struct
-  type t = inline_edge [@@deriving to_yojson]
+  type t = inline_edge
 
   let embed e = CFGEdge e
-
-  let cfgedge = function
-    | CFGEdge e -> Some e
-    | _ -> None
-
-  let to_string e = Pretty.sprint ~width:80 (pretty_inline_edge () e)
+  let to_string e = InlineEdgePrintable.show e
 end
 
 (* Abstract Reachability Graph *)
@@ -68,23 +121,27 @@ end
 module StackNode (Node: Node):
   Node with type t = Node.t list =
 struct
-  include HashedList (Node)
+  type t = Node.t list [@@deriving eq, ord, hash]
 
   let cfgnode nl = Node.cfgnode (List.hd nl)
+  let context_id nl = Node.context_id (List.hd nl)
+  let path_id nl = Node.path_id (List.hd nl)
   let to_string nl =
     nl
     |> List.map Node.to_string
     |> String.concat "@"
 
-  let move_opt nl to_node = match nl with
+  let move_opt nl to_node =
+    let open GobOption.Syntax in
+    match nl with
     | [] -> None
     | n :: stack ->
-      Node.move_opt n to_node
-      |> BatOption.map (fun to_n -> to_n :: stack)
+      let+ to_n = Node.move_opt n to_node in
+      to_n :: stack
   let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
-module Stack (Cfg:CfgForward) (Arg: S):
+module Stack (Arg: S with module Edge = InlineEdge):
   S with module Node = StackNode (Arg.Node) and module Edge = Arg.Edge =
 struct
   module Node = StackNode (Arg.Node)
@@ -92,61 +149,46 @@ struct
 
   let main_entry = [Arg.main_entry]
 
-  let next = function
+  let next =
+    let open GobList.Syntax in
+    function
     | [] -> failwith "StackArg.next: empty"
     | n :: stack ->
       let cfgnode = Arg.Node.cfgnode n in
       match cfgnode with
-      | Function _ -> (* TODO: can this be done without Cfg? *)
+      | Function _ -> (* TODO: can this be done without cfgnode? *)
         begin match stack with
           (* | [] -> failwith "StackArg.next: return stack empty" *)
           | [] -> [] (* main return *)
           | call_n :: call_stack ->
-            let call_cfgnode = Arg.Node.cfgnode call_n in
             let call_next =
-              Cfg.next call_cfgnode
+              Arg.next call_n
               (* filter because infinite loops starting with function call
                  will have another Neg(1) edge from the head *)
-              |> List.filter (fun (locedges, to_node) ->
-                  List.exists (function
-                      | (_, Proc _) -> true
-                      | (_, _) -> false
-                    ) locedges
+              |> List.filter_map (fun (edge, to_n) ->
+                  match edge with
+                  | InlinedEdge _ -> Some to_n
+                  | _ -> None
                 )
             in
-            begin match call_next with
-              | [] -> failwith "StackArg.next: call next empty"
-              | [(_, return_node)] ->
-                begin match Arg.Node.move_opt call_n return_node with
-                  (* TODO: Is it possible to have a calling node without a returning node? *)
-                  (* | None -> [] *)
-                  | None -> failwith "StackArg.next: no return node"
-                  | Some return_n ->
-                    (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
-                    Arg.next n
-                    |> List.filter (fun (edge, to_n) ->
-                        (* let to_cfgnode = Arg.Node.cfgnode to_n in
-                        MyCFG.Node.equal to_cfgnode return_node *)
-                        Arg.Node.equal_node_context to_n return_n
-                      )
-                    |> List.map (fun (edge, to_n) ->
-                        let to_n' = to_n :: call_stack in
-                        (edge, to_n')
-                      )
-                end
-              | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
-            end
+            Arg.next n
+            |> List.filter_map (fun (edge, to_n) ->
+                if BatList.mem_cmp Arg.Node.compare to_n call_next then (
+                  let to_n' = to_n :: call_stack in
+                  Some (edge, to_n')
+                )
+                else
+                  None
+              )
         end
       | _ ->
-        Arg.next n
-        |> List.map (fun (edge, to_n) ->
-            let to_cfgnode = Arg.Node.cfgnode to_n in
-            let to_n' = match to_cfgnode with
-              | FunctionEntry _ -> to_n :: n :: stack
-              | _ -> to_n :: stack
-            in
-            (edge, to_n')
-          )
+        let+ (edge, to_n) = Arg.next n in
+        let to_cfgnode = Arg.Node.cfgnode to_n in
+        let to_n' = match to_cfgnode with
+          | FunctionEntry _ -> to_n :: n :: stack
+          | _ -> to_n :: stack
+        in
+        (edge, to_n')
 
   (* Avoid infinite stack nodes for recursive programs
      by dropping down to repeated stack node. *)
@@ -188,20 +230,19 @@ struct
          ) *)
 
   let rec next node =
-    Arg.next node
-    |> List.concat_map (fun (edge, to_node) ->
-        if IsInteresting.is_interesting node edge to_node then
-          [(edge, to_node)]
-        else begin
-          let to_node_next = next to_node in
-          if List.exists (fun (edge, to_node) ->
-              IsInteresting.is_interesting node edge to_node
-            ) to_node_next then
-            [(edge, to_node)] (* don't shortcut if node has outdoing interesting edges, e.g. control *)
-          else
-            to_node_next
-        end
-      )
+    let open GobList.Syntax in
+    let* (edge, to_node) = Arg.next node in
+    if IsInteresting.is_interesting node edge to_node then
+      [(edge, to_node)]
+    else begin
+      let to_node_next = next to_node in
+      if List.exists (fun (edge, to_node) ->
+          IsInteresting.is_interesting node edge to_node
+        ) to_node_next then
+        [(edge, to_node)] (* don't shortcut if node has outdoing interesting edges, e.g. control *)
+      else
+        to_node_next
+    end
 end
 
 
@@ -219,10 +260,10 @@ end
 module CfgIntra (Cfg:CfgForward): SIntraOpt =
 struct
   let next node =
-    Cfg.next node
-    |> List.concat_map (fun (es, to_n) ->
-        List.map (fun (_, e) -> (e, to_n)) es
-      )
+    let open GobList.Syntax in
+    let* (es, to_n) = Cfg.next node in
+    let+ (_, e) = es in
+    (e, to_n)
   let next_opt _ = None
 end
 
@@ -264,7 +305,7 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.uncil" -> (* TODO: use elocs instead? *)
+    | Statement {sid; skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.graphml.uncil" -> (* TODO: use elocs instead? *)
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
@@ -317,7 +358,7 @@ struct
       Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.uncil" -> (* TODO: use eloc instead? *)
+    | Statement {skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.graphml.uncil" -> (* TODO: use eloc instead? *)
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
       if Node.location if_true_next_n = loc && Node.location if_false_next_n = loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
@@ -344,12 +385,13 @@ struct
   include Arg
 
   let next node =
+    let open GobOption.Syntax in
     match ArgIntra.next_opt (Node.cfgnode node) with
     | None -> Arg.next node
     | Some next ->
       next
       |> BatList.filter_map (fun (e, to_n) ->
-          Node.move_opt node to_n
-          |> BatOption.map (fun to_node -> (Edge.embed e, to_node))
+          let+ to_node = Node.move_opt node to_n in
+          (Edge.embed e, to_node)
         )
 end

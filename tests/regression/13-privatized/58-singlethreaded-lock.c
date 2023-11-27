@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.enums --enable ana.int.interval
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0;
 
@@ -24,6 +24,6 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL); // enter multithreaded mode with nonempty lockset
 
   g = 3; // write under mutex which was locked during singlethreaded mode
-  assert(g == 3);
+  __goblint_check(g == 3);
   return 0;
 }

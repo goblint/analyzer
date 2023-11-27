@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.activated "['base', 'mallocWrapper', 'escape', 'expRelation', 'var_eq']" --set ana.base.privatization none
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.activated[+] var_eq
 int *tmp;
 
 int main ()

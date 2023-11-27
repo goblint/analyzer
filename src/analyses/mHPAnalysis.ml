@@ -1,4 +1,5 @@
-(** MHP access analysis. *)
+(** May-happen-in-parallel (MHP) analysis for memory accesses ([mhp]). *)
+
 open Analyses
 
 module Spec =
@@ -14,12 +15,7 @@ struct
     let should_print _ = true
   end
 
-  let access ctx _: MHP.t =
-    {
-      tid = ctx.ask CurrentThreadId;
-      created = ctx.ask CreatedThreads;
-      must_joined = ctx.ask MustJoinedThreads
-    }
+  let access ctx _: MHP.t = MHP.current (Analyses.ask_of_ctx ctx)
 end
 
 let _ =

@@ -1,6 +1,9 @@
-(** Assigning static regions to dynamic memory. *)
+(** Analysis of disjoint heap regions for dynamically allocated memory ([region]).
 
-open Prelude.Ana
+    @see <https://doi.org/10.1007/978-3-642-03237-0_13> Seidl, H., Vojdani, V. Region Analysis for Race Detection. *)
+
+open Batteries
+open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
@@ -14,15 +17,18 @@ struct
   module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
-  module V = Printable.UnitConf (struct let name = "partitions" end)
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "partitions" end)
+    include StdV
+  end
 
-  let regions exp part st : Lval.CilLval.t list =
+  let regions exp part st : Mval.Exp.t list =
     match st with
     | `Lifted reg ->
       let ev = Reg.eval_exp exp in
-      let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
-      List.map to_exp (Reg.related_globals ev (part,reg))
-    | `Top -> Messages.warn "Region state is broken :("; []
+      Reg.related_globals ev (part,reg)
+    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
   let is_bullet exp part st : bool =
@@ -52,7 +58,7 @@ struct
         ls
     | _ -> Queries.Result.top q
 
-  module Lvals = SetDomain.Make (Lval.CilLval)
+  module Lvals = SetDomain.Make (Mval.Exp)
   module A =
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
@@ -63,7 +69,7 @@ struct
       (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)
       | Some r1, _ when Lvals.is_empty r1 -> true
       | _, Some r2 when Lvals.is_empty r2 -> true
-      | Some r1, Some r2 when Lvals.is_empty (Lvals.inter r1 r2) -> false
+      | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
       | _, _ -> true
     let should_print r = match r with
       | Some r when Lvals.is_empty r -> false
@@ -75,12 +81,9 @@ struct
       Some (Lvals.empty ())
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
-      let rec unknown_index = function
-        | `NoOffset -> `NoOffset
-        | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
-      in
-      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
+      (* forget specific indices *)
+      (* TODO: If indices are topped, could they not be collected in the first place? *)
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -133,7 +136,10 @@ struct
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
     | `Lifted reg -> begin
       let old_regpart = ctx.global () in
@@ -150,11 +156,13 @@ struct
     | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `Malloc _ | `Calloc _ -> begin
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | Malloc _ | Calloc _ | Realloc _ -> begin
         match ctx.local, lval with
         | `Lifted reg, Some lv ->
           let old_regpart = ctx.global () in
+          (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
             ctx.sideg () regpart;
@@ -162,21 +170,22 @@ struct
         | _ -> ctx.local
       end
     | _ ->
-      let t, _, _, _ = splitFunctionTypeVI  f in
-      match unrollType t with
-      | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
-          | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
+      ctx.local
 
   let startstate v =
     `Lifted (RegMap.bot ())
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [`Lifted (RegMap.bot ())]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx =
+    match ctx.local with
+    | `Lifted reg ->
+      let old_regpart = ctx.global () in
+      let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      `Lifted reg
+    | x -> x
 
   let exitstate v = `Lifted (RegMap.bot ())
 

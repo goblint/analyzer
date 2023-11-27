@@ -1,4 +1,4 @@
-// PARAM:  --set dbg.debug true --enable ana.arrayoob --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --enable ana.arrayoob --enable annotation.int.enabled --set ana.int.refinement fixpoint
 
 // Variable sized array: oob access
 

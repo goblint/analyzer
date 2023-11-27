@@ -1,3 +1,4 @@
+open Goblint_lib
 module MS = Set.Make (Messages.Message)
 
 let colors = ref true

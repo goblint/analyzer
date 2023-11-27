@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 extern int __VERIFIER_nondet_int();
 
-#include <assert.h>
+#include <goblint.h>
 
 extern void magic();
 
@@ -16,9 +16,9 @@ void main() {
     g = r;
     h = r + 1;
 
-    assert(g < h);
+    __goblint_check(g < h);
     magic(); // invalidates (forgets) globals
-    assert(g < h); // UNKNOWN!
-    assert(x == r); // shouldn't forget locals
+    __goblint_check(g < h); // UNKNOWN!
+    __goblint_check(x == r); // shouldn't forget locals
   }
 }

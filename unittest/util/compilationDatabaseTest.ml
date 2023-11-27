@@ -1,3 +1,4 @@
+open Goblint_lib
 open OUnit2
 
 let command_object_from_string s =

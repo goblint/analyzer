@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 extern int printf(char *, ...);
 
 int i;
@@ -10,6 +12,6 @@ int proc() {
 
 main () {
   i = proc();
-  assert(i == 0);
+  __goblint_check(i == 0);
   printf("%d\n", i);
 }

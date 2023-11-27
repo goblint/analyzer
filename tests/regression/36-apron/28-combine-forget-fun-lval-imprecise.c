@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 extern int __VERIFIER_nondet_int();
 
-#include <assert.h>
+#include <goblint.h>
 
 int f(int x) {
   return x + 1;
@@ -34,7 +34,7 @@ int main(void) {
       // 3. y == #ret && #ret == z + 1 (&& y == z + 1)
     // forget #ret is: y == z + 1
 
-    assert(y == z + 1);
+    __goblint_check(y == z + 1);
   }
   return 0;
 }

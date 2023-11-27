@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -23,7 +23,8 @@ void update (int *p) {
   struct s *s = list_entry(p, struct s, list);
   pthread_mutex_lock(&s->mutex);
   s++;
-  s->datum++; // RACE!
+  // Not actual race: https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1354
+  s->datum++; // RACE
   pthread_mutex_unlock(&s->mutex); // no UB because ERRORCHECK
 }
 

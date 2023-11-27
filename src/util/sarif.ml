@@ -1,5 +1,7 @@
+(** SARIF output of {!Messages}. *)
+
 (** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
-open Prelude
+open Batteries
 
 open SarifType
 open SarifRules
@@ -24,7 +26,7 @@ let goblintTool: Tool.t = {
     fullName = "Goblint static analyser";
     informationUri = "https://goblint.in.tum.de/home";
     organization = "TUM - i2 and UTartu - SWS";
-    version = Version.goblint;
+    version = Goblint_build_info.version;
     rules = List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
   };
 }
@@ -48,7 +50,7 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
 
 
 
-let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.location): Location.t = {
+let location_of_cil_location ({file; line; column; endLine; endColumn; _}: GoblintCil.location): Location.t = {
   physicalLocation = {
     artifactLocation = { uri = file };
     region = {
@@ -70,7 +72,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     | Success -> ("pass", "none")
   in
   let piece_location (piece: Messages.Piece.t) = match piece.loc with
-    | Some loc -> [location_of_cil_location loc]
+    | Some loc -> [location_of_cil_location (Messages.Location.to_cil loc)]
     | None -> []
   in
   let prefix = Format.asprintf "%a " Messages.Tags.pp message.tags in
@@ -86,11 +88,16 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     }
     in
     [result]
-  | Group {group_text; pieces} ->
+  | Group {group_text; group_loc; pieces} ->
     (* each grouped piece becomes a separate result with the other locations as related *)
+    (* TODO: use group_loc instead of distributing? *)
+    let group_loc_text = match group_loc with
+      | None -> ""
+      | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
+    in
     let piece_locations = List.map piece_location pieces in
     List.map2i (fun i piece locations ->
-        let text = prefix ^ group_text ^ "\n" ^ piece.Messages.Piece.text in
+        let text = prefix ^ group_text ^ group_loc_text ^ "\n" ^ piece.Messages.Piece.text in
         let relatedLocations = List.unique ~eq:Location.equal (List.flatten (List.remove_at i piece_locations)) in
         let result: Result.t = {
           ruleId;
@@ -106,7 +113,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
 
 let files_of_message (message: Messages.Message.t): string list =
   let piece_file (piece: Messages.Piece.t) = match piece.loc with
-    | Some loc -> Some loc.file
+    | Some loc -> Some (Messages.Location.to_cil loc).file
     | None -> None
   in
   match message.multipiece with
@@ -130,16 +137,12 @@ let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
   |> List.of_enum
 
 let to_yojson messages =
-  let commandLine = match Array.to_list Sys.argv with
-    | command :: arguments -> Filename.quote_command command arguments
-    | [] -> assert false
-  in
   SarifLog.to_yojson {
     version = "2.1.0";
     schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
     runs = [{
         invocations = [{
-            commandLine;
+            commandLine = GobSys.command_line;
             executionSuccessful = true;
           }];
         artifacts = artifacts_of_messages messages;

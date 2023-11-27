@@ -10,7 +10,7 @@ def relpath(file)
   return Pathname(file).relative_path_from Pathname(Dir.getwd) # Pathname for arg required for ruby 2.5, 2.6 accepts string as well
 end
 require 'set'
-$timeout = 10 # seconds
+$timeout = 20 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
@@ -41,7 +41,7 @@ end
 
 $goblint = File.join(Dir.getwd,"goblint")
 goblintbyte = File.join(Dir.getwd,"goblint.byte")
-if File.exists?(goblintbyte) then
+if File.exist?(goblintbyte) then
   puts "Running the byte-code version! Continue? (y/n)"
   exit unless $stdin.gets()[0] == 'y'
   $goblint = goblintbyte
@@ -50,11 +50,11 @@ elsif not File.exist?($goblint) then
 end
 $vrsn = `#{$goblint} --version`
 
-if not File.exists? "linux-headers" then
+if not File.exist? "linux-headers" then
   puts "Missing linux-headers, will download now!"
   `make headers`
 end
-has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make headers failed (e.g. on opam-repository opam-ci where network is forbidden)
+has_linux_headers = File.exist? "linux-headers" # skip kernel tests if make headers failed (e.g. on opam-repository opam-ci where network is forbidden)
 
 #Command line parameters
 #Either only run a single test, or
@@ -62,10 +62,12 @@ has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make hea
 $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
-incremental = ARGV.last == "-i" && ARGV.pop
+witness = ARGV.last == "-w" && ARGV.pop
+cfg = ARGV.last == "-c" && ARGV.pop
+incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
-if marshal || incremental then
+if marshal || witness || incremental then
   sequential = true
 end
 if marshal && incremental then
@@ -137,28 +139,34 @@ class Tests
   end
 
   def collect_warnings
-    warnings[-1] = "term"
-    lines = IO.readlines(warnfile)
+    lines = IO.readlines(warnfile, :encoding => "UTF-8")
     lines.each do |l|
-      if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
         @vars = $1
         @evals = $2
       end
+      if l =~ /\[Termination\]/ then warnings[-1] = "nonterm" end # Get Termination warning
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
+      ranking = ["other", "warn", "goto", "fundec", "loop", "term", "nonterm", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]
       thiswarn =  case obj
                     when /\(conf\. \d+\)/            then "race"
-                    when /lockset:/                  then "race" # osek races have their own legacy-like output
                     when /Deadlock/                  then "deadlock"
                     when /lock (before|after):/      then "deadlock"
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
+                    when /invariant confirmed/       then "success"
+                    when /invariant unconfirmed/     then "unknown"
+                    when /invariant refuted/         then "fail"
+                    when /(Upjumping Goto)/          then "goto"
+                    when /(Fundec \w+ is contained in a call graph cycle)/ then "fundec"
+                    when /(Loop analysis)/           then "loop"
                     when /^\[Warning\]/              then "warn"
                     when /^\[Error\]/                then "warn"
+                    when /^\[Info\]/                 then "warn"
+                    when /^\[Success\]/              then "success"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                     when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
@@ -179,21 +187,35 @@ class Tests
         if cond then
           @correct += 1
           # full p.path is too long and p.name does not allow click to open in terminal
-          if todo.include? idx then puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!" end
+          if todo.include? idx
+            if idx < 0
+              puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan} for #{type.yellow} is now passing!"
+            else
+              puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!"
+            end
+          end
         else
-          if todo.include? idx then @ignored += 1 else
-            puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
-            puts tests_line[idx].rstrip.gray
-            ferr = idx if ferr.nil? or idx < ferr
+          if todo.include? idx
+            @ignored += 1
+          else
+            if idx < 0 # When non line specific keywords were used don't print a line
+              puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}"
+            else
+              puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
+              puts tests_line[idx].rstrip.gray
+              ferr = idx if ferr.nil? or idx < ferr
+            end
           end
         end
       }
       case type
-      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
+      when "goto", "fundec", "loop", "deadlock", "race", "fail", "unknown", "warn"
         check.call warnings[idx] == type
-      when "nowarn"
+      when "nonterm"
+        check.call warnings[idx] == type
+      when "nowarn", "term"
         check.call warnings[idx].nil?
-      when "assert"
+      when "assert", "success"
         check.call warnings[idx] == "success"
       when "norace"
         check.call warnings[idx] != "race"
@@ -204,7 +226,7 @@ class Tests
   end
 
   def time_to_html
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
     if res == [] or not errors == [] then
@@ -217,7 +239,7 @@ class Tests
 
   def problems_to_html
     id = "#{p.id} #{p.group}/#{p.name}"
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     if correct + ignored == tests.size && ok then
       "<td style =\"color: green\">NONE</td>"
     else
@@ -286,7 +308,19 @@ class Project
         tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
       elsif obj =~ /WARN/ then
         tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
-      elsif obj =~ /assert.*\(/ then
+      elsif obj =~ /SUCCESS/ then
+        tests[i] = "success"
+      elsif obj =~ /FAIL/ then
+        tests[i] = "fail"
+      elsif obj =~ /NONTERMLOOP/ then
+        tests[i] = "loop"
+      elsif obj =~ /NONTERMGOTO/ then
+        tests[i] = "goto"
+      elsif obj =~ /NONTERMFUNDEC/ then
+        tests[i] = "fundec"
+      elsif obj =~ /UNKNOWN/ then
+        tests[i] = "unknown"
+      elsif obj =~ /(assert|__goblint_check).*\(/ then
         if obj =~ /FAIL/ then
           tests[i] = "fail"
         elsif obj =~ /UNKNOWN/ then
@@ -297,10 +331,13 @@ class Project
       end
     end
     case lines[0]
-    when /NON?TERM/
-      tests[-1] = "noterm"
+    when /NONTERM/
+      tests[-1] = "nonterm"
     when /TERM/
       tests[-1] = "term"
+    end
+    if lines[0] =~ /TODO/ then
+      todo << -1
     end
     Tests.new(self, tests, tests_line, todo)
   end
@@ -358,7 +395,7 @@ class Project
 
   def run
     filename = File.basename(@path)
-    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --set goblint-dir .goblint-#{@id.sub('/','-')} 2>#{@testset.statsfile}"
+    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set goblint-dir .goblint-#{@id.sub('/','-')} 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd, starttime)
   end
@@ -407,8 +444,13 @@ class ProjectIncr < Project
     super(lines)
     @testset.p = self
     `patch -p0 -b <#{patch_path}`
-    lines_incr = IO.readlines(path)
+    status = $?.exitstatus
+    lines_incr = IO.readlines(path, :encoding => "UTF-8")
     `patch -p0 -b -R <#{patch_path}`
+    if status != 0
+      puts "Failed to apply patch: #{patch_path}"
+      exit 1
+    end
     @testset_incr = parse_tests(lines_incr)
     @testset_incr.p = self
     @testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")
@@ -419,8 +461,8 @@ class ProjectIncr < Project
 
   def run
     filename = File.basename(@path)
-    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.save --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
-    cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.load --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
+    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --enable incremental.save --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
+    cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --enable dbg.timing.enabled --enable incremental.load --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
     starttime = Time.now
     run_testset(@testset_incr, cmd, starttime)
     # apply patch
@@ -463,12 +505,29 @@ class ProjectMarshal < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     run_testset(@testset, cmd2, starttime)
     FileUtils.rm_rf('run')
+    end
+end
+
+class ProjectWitness < Project
+  def create_test_set(lines)
+    super(lines)
+    @testset.p = self
+  end
+  def run ()
+    filename = File.basename(@path)
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable warn.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable warn.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
+    starttime = Time.now
+    run_testset(@testset, cmd1, starttime)
+    starttime = Time.now
+    run_testset(@testset, cmd2, starttime)
+    FileUtils.rm_f('witness.yml')
     end
 end
 
@@ -497,20 +556,20 @@ regs.sort.each do |d|
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
-    lines = IO.readlines(path)
+    lines = IO.readlines(path, :encoding => "UTF-8")
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
     next if not has_linux_headers and lines[0] =~ /kernel/
     if incremental then
       config_path = File.expand_path(f[0..-3] + ".json", grouppath)
-      params = "--conf #{config_path}"
+      params = if cfg then "--conf #{config_path} --set incremental.compare cfg" else "--conf #{config_path}" end
     else
       lines[0] =~ /PARAM: (.*)$/
       if $1 then params = $1 else params = "" end
     end
     # always enable debugging so that the warnings would work
-    params << " --set dbg.debug true"
+    params << " --set warn.debug true"
     p = if incremental then
           patch = f[0..-3] + ".patch"
           patch_path = File.expand_path(patch, grouppath)
@@ -519,6 +578,8 @@ regs.sort.each do |d|
           ProjectIncr.new(id, testname, groupname, path, params, patch_path, conf_path)
         elsif marshal then
           ProjectMarshal.new(id, testname, groupname, path, params)
+        elsif witness then
+          ProjectWitness.new(id, testname, groupname, path, params)
         else
           Project.new(id, testname, groupname, path, params)
         end

@@ -1,4 +1,7 @@
-open Prelude
+(** Terminating SLR3 solver ([slr3t]).
+    Simpler version of {!SLRphased} without phases. *)
+
+open Batteries
 open Analyses
 open Constraints
 open Messages
@@ -22,7 +25,7 @@ module SLR3term =
 
     let narrow = narrow S.Dom.narrow
 
-    let solve box st vs =
+    let solve st vs =
       let key    = HM.create 10 in
       let module H = Heap.Make (struct
           type t = S.Var.t
@@ -61,14 +64,14 @@ module SLR3term =
           HM.replace rho  x (S.Dom.bot ());
           HM.replace infl x (VS.add x VS.empty);
           let c = if side then count_side else count in
-          trace "sol" "INIT: Var: %a with prio %d\n" S.Var.pretty_trace x !c;
+          if tracing then trace "sol" "INIT: Var: %a with prio %d\n" S.Var.pretty_trace x !c;
           HM.replace key x !c; decr c
         end
       in
       let sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
         let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
-        trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
+        if tracing then trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
       in
       let rec iterate b_old prio =
         if H.size !q = 0 || min_key q > prio then ()
@@ -119,7 +122,7 @@ module SLR3term =
           )
           *)
           (* if S.Dom.is_bot d then print_endline "BOT" else *)
-          trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
+          if tracing then trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
           let first = not (Set.mem y !effects) in
           effects := Set.add y !effects;
           if first then (
@@ -153,17 +156,17 @@ module SLR3term =
           if wpx then
             if S.Dom.leq tmp old then (
               let nar = narrow old tmp in
-              trace "sol" "NARROW1: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
+              if tracing then trace "sol" "NARROW1: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
               nar, true
             ) else
             if b_old then (
               let nar = narrow old tmp in
-              trace "sol" "NARROW2: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
+              if tracing then trace "sol" "NARROW2: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
               nar, true
             )
             else (
               let wid = S.Dom.widen old (S.Dom.join old tmp) in
-              trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
+              if tracing then trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
               wid, false
             )
           else

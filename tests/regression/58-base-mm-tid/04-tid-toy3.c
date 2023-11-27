@@ -1,0 +1,44 @@
+// PARAM: --set ana.path_sens[+] threadflag --set ana.base.privatization mutex-meet-tid --enable ana.int.interval
+// Inspired by 36/73
+#include <pthread.h>
+#include <goblint.h>
+
+int g = 10;
+int h = 10;
+pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
+
+void *t_fun(void *arg) {
+  pthread_mutex_lock(&A);
+  __goblint_check(g == h); //UNKNOWN!
+  pthread_mutex_unlock(&A);
+  return NULL;
+}
+
+int main(void) {
+  int t = 15;
+
+  g = 12;
+  h = 14;
+
+  pthread_mutex_lock(&A);
+  __goblint_check(g == h); //FAIL
+  pthread_mutex_unlock(&A);
+
+  pthread_t id;
+  pthread_create(&id, NULL, t_fun, NULL);
+
+  pthread_mutex_lock(&A);
+  __goblint_check(g == h); //FAIL
+  pthread_mutex_unlock(&A);
+
+  pthread_mutex_lock(&A);
+  g = t;
+  h = t;
+  pthread_mutex_unlock(&A);
+
+  pthread_mutex_lock(&A);
+  __goblint_check(g == h);
+  pthread_mutex_unlock(&A);
+
+  return 0;
+}

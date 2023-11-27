@@ -1,6 +1,5 @@
 //PARAM: --set ana.activated[+] mhp --set ana.activated[+] threadJoins
 #include <pthread.h>
-#include <assert.h>
 
 int g;
 int g2;

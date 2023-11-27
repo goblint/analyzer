@@ -2,7 +2,7 @@
 // Based on 36/09.
 extern int __VERIFIER_nondet_int();
 
-#include <assert.h>
+#include <goblint.h>
 
 void main() {
   int i = __VERIFIER_nondet_int(); //rand
@@ -10,12 +10,12 @@ void main() {
     // only implies i != 0
     // doesn't imply i > 0
     // doesn't imply i >= 1
-    assert(i >= 1); // UNKNOWN!
+    __goblint_check(i >= 1); // UNKNOWN!
   }
   else {
     // implies i == 0
     // doesn't imply i < 0
-    assert(i == 0);
-    assert(i < 0); // FAIL
+    __goblint_check(i == 0);
+    __goblint_check(i < 0); // FAIL
   }
 }

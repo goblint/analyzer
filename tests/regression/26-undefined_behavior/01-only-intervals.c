@@ -1,9 +1,9 @@
-// PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
-#include <assert.h>
+// PARAM: --enable ana.int.interval --disable ana.int.def_exc
+#include <goblint.h>
 
 int main() {
   for(int i=2; i < 42; i++) {
     int x = i==2; // NOWARN
-    assert(1);
+    __goblint_check(1);
   }
 }

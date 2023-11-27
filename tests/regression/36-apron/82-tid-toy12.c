@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 int h = 10;
@@ -58,13 +58,13 @@ int main(void) {
   pthread_create(&id3, NULL, t_benign, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  __goblint_check(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   pthread_join(id2, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); // UNKNOWN!
+  __goblint_check(g == h); // UNKNOWN!
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
@@ -72,7 +72,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); // UNKNOWN!
+  __goblint_check(g == h); // UNKNOWN!
   pthread_mutex_unlock(&A);
 
   return 0;

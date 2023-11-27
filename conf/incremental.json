@@ -28,9 +28,13 @@
     "trace": {
       "context": true
     },
+    "timing": {
+      "enabled": true
+    }
+  },
+  "warn": {
     "debug": true
   },
-  "printstats": true,
   "result": "none",
   "solver": "td3",
   "solvers": {

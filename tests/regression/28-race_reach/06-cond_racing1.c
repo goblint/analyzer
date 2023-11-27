@@ -1,6 +1,6 @@
+//PARAM: --set lib.activated[+] sv-comp
 #include<stdio.h>
 #include<pthread.h>
-#include<assert.h>
 
 #include <pthread.h>
 #include "racemacros.h"
@@ -32,7 +32,3 @@ int main() {
   join_threads(t);
   return 0;
 }
-
-
-
-

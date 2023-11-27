@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <goblint.h>
 
 
 typedef struct list {
@@ -13,6 +14,7 @@ typedef union either {
     struct list node;
 } either_t;
 
+void mutate_either(either_t e);
 // void mutate_either(either_t e){
 //     list_t *next = e.node.next;
 //     next->val = 42;
@@ -32,6 +34,6 @@ int main(){
 
     // When passing a union to an unknown function, reachable memory should be invalidated
     mutate_either(e);
-    assert(second.val == 2); //UNKNOWN!
+    __goblint_check(second.val == 2); //UNKNOWN!
     return 0;
 }

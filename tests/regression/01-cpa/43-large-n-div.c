@@ -1,5 +1,5 @@
 //PARAM: --enable ana.int.interval --disable ana.int.def_exc
-#include <assert.h>
+#include <goblint.h>
 
 int main(){
     // 2^33
@@ -11,8 +11,8 @@ int main(){
 
     if(z == 4){
         // Should be reachable
-        assert(1);
+        __goblint_check(1);
     }
 
-    assert(z == 4);
+    __goblint_check(z == 4);
 }

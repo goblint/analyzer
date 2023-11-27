@@ -1,3 +1,5 @@
+(** Domain alternatives chosen by a runtime flag. *)
+
 module type FlagError = sig
   val msg: string
   val name: string
@@ -6,7 +8,7 @@ end
 
 module FlagHelper (L:Printable.S) (R:Printable.S) (Msg: FlagError) =
 struct
-  type t = L.t option * R.t option
+  type t = L.t option * R.t option [@@deriving eq, ord, hash]
 
   let unop opl opr (h,r) = match (h, r) with
     | (Some l, None) -> opl l
@@ -28,40 +30,14 @@ struct
     | (None, Some t1), (None, Some t2) -> (None, Some(opr t1 t2))
     | _ -> failwith Msg.msg
 
-  let equal = binop L.equal R.equal
-  let hash = unop L.hash R.hash
-  let compare = binop L.compare R.compare
   let show = unop L.show R.show
   let pretty () = unop (L.pretty ()) (R.pretty ())
   let printXml f = unop (L.printXml f) (R.printXml f)
   let to_yojson = unop L.to_yojson R.to_yojson
   let relift = unop_to_t L.relift R.relift
 
-  let invariant _ _ = Invariant.none
   let tag _ = failwith (Msg.name ^ ": no tag")
   let arbitrary () = failwith (Msg.name ^ ": no arbitrary")
-end
-
-module GroupableFlagHelper (L:MapDomain.Groupable) (R:MapDomain.Groupable) (Msg: FlagError) =
-struct
-  include FlagHelper (L) (R) (Msg)
-  type group = L.group option * R.group option
-
-  let trace_enabled = false
-
-  let show_group = unop L.show_group R.show_group
-  let to_group (h,p) = match (h, p) with
-    | (Some h, None) ->
-      (let r = L.to_group h in
-       match r with
-       | Some r -> Some (Some r, None)
-       | _ -> None)
-    | (None, Some p) ->
-      (let r = R.to_group p in
-       match r with
-       | Some r -> Some (None, Some r)
-       | _ -> None)
-    | _ -> failwith Msg.msg
 end
 
 module type LatticeFlagHelperArg = sig

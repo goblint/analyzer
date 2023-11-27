@@ -1,16 +1,17 @@
 //PARAM: --set ana.activated[+] threadJoins
 #include <pthread.h>
-#include <assert.h>
 
 int g = 10;
 int h = 10;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
+  g++; // RACE!
   return NULL;
 }
 
 void *t_benign(void *arg) {
+  h++; // RACE!
   pthread_t id2;
   pthread_create(&id2, NULL, t_fun, NULL);
   pthread_join(id2, NULL);
@@ -29,6 +30,9 @@ int main(void) {
   pthread_join(id2[2], NULL);
 
   // should be empty
+
+  g++; // RACE!
+  h++; // RACE!
 
   return 0;
 }

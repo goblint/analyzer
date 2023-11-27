@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set exp.unrolling-factor 5
+// PARAM: --enable ana.int.interval --set exp.unrolling-factor 5 --enable dbg.run_cil_check
+#include <goblint.h>
+
 int global;
 
 int main(void)
@@ -27,8 +29,8 @@ void example1(void)
         i++;
     }
 
-    assert(a[0] == 0); // UNKNOWN
-    assert(a[3] == 3); // UNKNOWN
+    __goblint_check(a[0] == 0); // UNKNOWN
+    __goblint_check(a[3] == 3); // UNKNOWN
 }
 
 // Do-while loop simple example
@@ -42,8 +44,8 @@ void example2(void)
         i++;
     } while (i<=5);
 
-    assert(a[0] == 0); // UNKNOWN
-    assert(a[3] == 3); // UNKNOWN
+    __goblint_check(a[0] == 0); // UNKNOWN
+    __goblint_check(a[3] == 3); // UNKNOWN
 }
 
 // Initialization not completed, yet the array representation is not precise
@@ -57,9 +59,9 @@ void example3(void)
         i++;
     }
 
-    assert(a[0] == 0); // UNKNOWN
-    assert(a[3] == 0); // UNKNOWN
-    assert(a[7] == 0); // UNKNOWN
+    __goblint_check(a[0] == 0); // UNKNOWN
+    __goblint_check(a[3] == 0); // UNKNOWN
+    __goblint_check(a[7] == 0); // UNKNOWN
 }
 
 // Example with increased precision. Goblint detects in which iteration it is during the unrolled part.
@@ -70,19 +72,19 @@ void example4(void)
     int first_iteration = 1;
 
     while (i < 10) {
-        if (first_iteration == 1) assert(i==0);
-        else if (i > 5) assert(i == 6); // UNKNOWN
+        if (first_iteration == 1) __goblint_check(i==0);
+        else if (i > 5) __goblint_check(i == 6); // UNKNOWN
         first_iteration = 0;
         a[i] = 0;
         i++;
     }
-    
-    assert(a[0] == 0);
-    assert(first_iteration == 0);
+
+    __goblint_check(a[0] == 0);
+    __goblint_check(first_iteration == 0);
 }
 
 
-// Example where the precision increase can be appreciated by a variable that 
+// Example where the precision increase can be appreciated by a variable that
 // is modified in the loop other than the ones used in the loop head
 void example5(void)
 {
@@ -94,17 +96,17 @@ void example5(void)
         a[i] = 0;
         top += i;
         if(i==2){
-            assert(top == 3);
+            __goblint_check(top == 3);
         }
         else{
-            assert(top == 3); // FAIL
+            __goblint_check(top == 3); // FAIL
         }
         i++;
     }
 
-    assert(a[0] == 0);
-    assert(a[3] == 0);
-    assert(top == 6);
+    __goblint_check(a[0] == 0);
+    __goblint_check(a[3] == 0);
+    __goblint_check(top == 6);
 }
 
 // Loop has less iterations than the unrolling factor
@@ -116,13 +118,13 @@ void example6(void)
 
     while (i < 3) {
         a[i] = 0;
-        assert(a[0]==0);
+        __goblint_check(a[0]==0);
         i++;
     }
 
-    assert(a[0] == 0);
-    assert(a[3] == 0);
-    assert(top == 6); // FAIL
+    __goblint_check(a[0] == 0);
+    __goblint_check(a[3] == 0);
+    __goblint_check(top == 6); // FAIL
 }
 
 // There is a call on the loop's condition
@@ -142,8 +144,8 @@ void example7(void)
 		a[i] = i;
 		++i;
 	}
-    assert(a[0] == 0); //UNKNOWN
-    assert(a[6] == 0); //UNKNOWN
+    __goblint_check(a[0] == 0); //UNKNOWN
+    __goblint_check(a[6] == 0); //UNKNOWN
 }
 
 // nested loops

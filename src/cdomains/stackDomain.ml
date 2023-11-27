@@ -1,4 +1,4 @@
-module GU = Goblintutil
+(** Call stack domains. *)
 
 module type S =
 sig
@@ -62,7 +62,4 @@ end
 module Dom3 = struct
   include Lattice.FakeSingleton (Loc)
   let push x (xs:t): t = x :: xs
-  let pop = function
-    | (x::xs) -> xs
-    | [] -> failwith "Popping empty stack."
 end

@@ -17,8 +17,10 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
+      "assert",
       "var_eq",
       "symb_locks",
       "region",
@@ -59,10 +61,16 @@
     },
     "int": {
       "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
     }
   },
   "witness": {
-    "id": "enumerate",
-    "unknown": false
+    "graphml": {
+      "enabled": true,
+      "id": "enumerate",
+      "unknown": false
+    }
   }
 }

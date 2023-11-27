@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set ana.activated[+] malloc_null
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -39,7 +39,6 @@ int main(void) {
       exit(-1);
   }
 
-  assert(0); // FAIL
   *u = 40; // NOWARN
   *v = 40; // NOWARN
 
