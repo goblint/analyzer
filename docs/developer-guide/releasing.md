@@ -57,6 +57,7 @@
 
 15. Create an opam package: `dune-release opam pkg`.
 16. Submit the opam package to opam-repository: `dune-release opam submit`.
+17. Revert temporary removal of opam pins.
 
 
 ## SV-COMP
