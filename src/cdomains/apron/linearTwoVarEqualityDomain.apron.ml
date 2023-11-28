@@ -29,9 +29,15 @@ end
 
 
 module Equality = struct
+  (* (Some i, k) represents a sum of a variable with index i and the number k.
+     (None, k) represents the number k. *)
   type t = (int option * Z.t) [@@deriving eq, ord, hash]
   let zero = (None, Z.zero)
+  let var_zero i = (Some i, Z.zero)
   let to_int x = Z.to_int @@ snd x
+  let print : t -> unit = fun (a, b) -> match a with
+    | None -> print_endline @@ "(None , " ^ Z.to_string b ^ ")"
+    | Some x -> print_endline @@ "(Some " ^ string_of_int x ^ ", " ^ Z.to_string b ^ ")"
 end
 
 module EqualitiesArray = struct
@@ -40,19 +46,21 @@ module EqualitiesArray = struct
 
   let hash : t -> int = (fun x -> 31 + Equality.to_int x.(0)) (* TODO **)
 
-  let add_element m n = 
-    let num_vars = length m in
-    if n > num_vars then failwith "n too large" else
-      let new_array = make (num_vars + 1) Equality.zero in
-      if n = 0 then blit m 0 new_array 1 (num_vars - 1) else
-        blit m 0 new_array 0 n; if n <> num_vars then blit m n new_array (n + 1) (num_vars - n);
+  let make_empty_array len = Array.mapi (fun i (x, y) -> (Some i, Z.zero)) (make len Equality.zero)
+
+  let add_element arr index = 
+    let num_vars = length arr in
+    if index > num_vars then failwith "n too large" else
+      let new_array = make (num_vars + 1) (Equality.var_zero index) in
+      if index = 0 then blit arr 0 new_array 1 (num_vars - 1) else
+        blit arr 0 new_array 0 index; if index <> num_vars then blit arr index new_array (index + 1) (num_vars - index);
       new_array
 
   let add_elements m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
     let nnc = length indexes in
     if nnc = 0 then m else
       let nc = length m in
-      let m' = make (nc + nnc) Equality.zero in
+      let m' = make_empty_array (nc + nnc) in
       let offset = ref 0 in
       for j = 0 to nc - 1 do
         while  !offset < nnc &&  !offset + j = indexes.(!offset) do incr offset done;
@@ -60,13 +68,13 @@ module EqualitiesArray = struct
       done;
       m'
 
-  let del_cols m cols =
+  let del_cols : ('a option * Z.t) mappable ->int mappable ->('a option * Z.t) mappable = fun m cols ->
     let n_c = length cols in
     if n_c = 0 || length m = 0 then m
     else
       let m_c = length m in
       if m_c = n_c then [||] else
-        let m' = make (m_c - n_c) Equality.zero in
+        let m' = make_empty_array (m_c - n_c) in
         let offset = ref 0 in
         for j = 0 to (m_c - n_c) - 1 do
           while  !offset < n_c &&  !offset + j = cols.(!offset) do incr offset done;
@@ -94,7 +102,7 @@ struct
     mutable d : EArray.t option;
     mutable env : Environment.t
   }
-  [@@deriving eq, ord, hash] (*TODO add hash**)
+  [@@deriving eq, ord, hash] 
 
   let empty_env = Environment.make [||] [||]
 
@@ -103,10 +111,10 @@ struct
   let print_opt x = match x with
     | Some x -> printf "%d " x
     | None -> printf "None "
-  let print_d = Array.iter (fun (var, off) -> print_opt var; Z.print off)
-  let print_t t = match t.d with
-    | Some x -> print_d x
-    | None -> printf "None "; print_env t.env
+  let print_d = Array.iter (fun (var, off) -> print_opt var; Z.print off; printf "; ")
+  let print_t t = begin match t.d with
+    | Some x -> (print_d x; print_endline "")
+    | None -> printf "None " end; print_env t.env; print_endline ""
 
   let bot () =
     {d = Some [||]; env = empty_env}
@@ -116,6 +124,10 @@ struct
   let is_bot_env t = t.d = None
 
   let copy t = {t with d = Option.map EArray.copy t.d}
+
+  let size t = match t.d with
+    | None -> 0 
+    | Some d -> EArray.length d
 
   let dim_add (ch: Apron.Dim.change) m =
     EArray.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim; (* ?? *)
@@ -189,17 +201,47 @@ struct
 
   let keep_vars t vs = timing_wrap "keep_vars" (keep_vars t) vs
 
+  let forget_var t var_index =
+    match t.d with 
+    | None -> t
+    | Some d -> d.(var_index) <- Equality.var_zero var_index;
+      {t with d = Some d}
+
+
+  let forget_var t var = timing_wrap "forget_var" (forget_var t) var
+
+  (*let forget_vars t vars =
+    if is_bot t || is_top_env t then t
+    else
+      let m = Option.get t.d in
+      if List.is_empty vars then t else
+        (*let rec rem_vars m vars' =
+           begin match vars' with
+             |            [] -> m
+             | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end 
+          in *){d = Some m; env = t.env}
+
+    let forget_vars t vars =
+    let res = forget_vars t vars in
+    if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
+    res
+
+    let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars*)
+
   let vars t = vars t.env
 
   let mem_var t var = Environment.mem_var t.env var
 
+  (* Returns the constant represented by an equality, if the equality represents a constant without a variable *)
   let get_constant (var, off) = match var with
     | None -> Some off
     | _ -> None
 
   let get_coeff (t: t) texp =
-    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
-      Returns None if the expression is not a sum between a variable (without coefficient) and a constant. *)
+    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset, 
+      where the variable is a reference variable in the current state t.
+      Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
+    *)
     let open Apron.Texpr1 in
     let exception NotLinear2Var in
     let exception NotIntegerOffset in
@@ -218,7 +260,7 @@ struct
                          | Mpqf x -> (None, mpqf_to_int x)
                          | Mpfrf x -> raise NotIntegerOffset end in of_union x
         | Var x -> 
-          let var_dim = Environment.dim_of_var t.env x in
+          let var_dim = print Format.std_formatter (Texpr1.of_expr t.env (Var x)); Environment.dim_of_var t.env x in
           begin match t.d with 
             | Some m -> m.(var_dim)
             | None -> (Some var_dim, Z.zero) end
@@ -266,25 +308,50 @@ struct
 
   let abstract_exists var t = match t.d with 
     | Some d -> 
-      (* let ref_var = find_reference_variable d t.env var in *)
-      if Environment.mem_var t.env var then 
-        (* let connected_component = find_vars_in_the_connected_component d t.env ref_var in *)
-        remove_vars t [var]
-      else 
-        (* the connected component is either empty, or x_i is the reference variable *)
-        let dim_of_var = Some (Environment.dim_of_var t.env var) in
-        let connected_component = find_vars_in_the_connected_component d t.env dim_of_var in
-        if connected_component = [||] then t else
-          (* TODO: x_i is the reference variable *)
-          begin match find_var_in_the_connected_component_with_least_index d t.env dim_of_var with
-            | Some var_least_index -> let (_, off) = d.(var_least_index) in 
+      let var_to_remove = Environment.dim_of_var t.env var in
+      begin match find_reference_variable d t.env var with 
+        | None -> (* the variable is equal to a constant *) t
+        | Some ref_var ->
+          if ref_var <> var_to_remove then forget_var t var_to_remove
+          else
+            (* x_i is the reference variable of its connected component *)
+            let dim_of_var = Some (Environment.dim_of_var t.env var) in
+            let connected_component = find_vars_in_the_connected_component d t.env dim_of_var in
+            if EArray.length connected_component = 1 
+            then t  (* x_i is the only element of its connected component *) 
+            else
+              (* x_i is the reference variable -> we need to find a new reference variable *)
+              let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index d t.env dim_of_var in
+              let (_, off) = d.(var_least_index) in 
               EArray.iteri (fun _ x -> let (_, off2) = d.(x) in d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
-              {d = Some d;
-               env = t.env}
-            | None -> t
-          end
+              {d = Some d; env = t.env}
+      end
+    | None -> t (* there are no  variables in the current environment *)
+
+  let assign_const t var const = match t.d with 
     | None -> t
+    | Some d -> d.(var) <- (None, const); t
+
+  let subtract_const_from_var t var const = 
+    match t.d with 
+    | None -> t
+    | Some d -> 
+      let subtract_const_from_var_for_single_equality const index element =
+        let (eq_var_opt, off2) = d.(index) in 
+        if index = var then
+          match eq_var_opt with
+          | None -> d.(index) <- (None, Z.(off2 + const))
+          | Some eq_var -> begin if eq_var <> index then d.(index) <- (None, Z.(off2 + const)) end
+        else 
+          begin if Option.is_some eq_var_opt
+            then let eq_var = Option.get eq_var_opt
+              in begin if eq_var = var then d.(index) <- (Some eq_var, Z.(off2 - const)) end
+          end
+      in
+      EArray.iteri (subtract_const_from_var_for_single_equality const) d; {d = Some d; env = t.env}
 end
+
+
 (*end*)
 
 (*
@@ -466,40 +533,35 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let remove_rels_with_var x var env imp = (*
-    let j0 = Environment.dim_of_var env var in*)
-    if imp then x else x
-
-  let remove_rels_with_var x var env imp = timing_wrap "remove_rels_with_var" (remove_rels_with_var x var env) imp
-
-  let forget_vars t vars =
-    if is_bot t || is_top_env t then t
-    else
-      let m = Option.get t.d in
-      if List.is_empty vars then t else
-        (*let rec rem_vars m vars' =
-           begin match vars' with
-             |            [] -> m
-             | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end 
-          in *){d = Some m; env = t.env}
-
-  let forget_vars t vars =
-    let res = forget_vars t vars in
-    if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
-    res
-
-  let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
-
-
-
+  (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" *)
   let assign_texpr (t: VarManagement.t) var texp =
+    let assigned_var = Environment.dim_of_var t.env var  (* this is the variable we are assigning to *) in
+    begin match t.d with 
+      | Some d ->   
+        begin match d.(assigned_var) with
+          | exception Failure _ -> bot() (* we don't have any information about the variable assigned_var yet*)
+          | rhs -> (* rhs is the current equality with assigned_var on the left hand side *) 
+            let abstract_exists_var = abstract_exists var t in
+            begin match get_coeff t texp with
+              | None -> (* Statement "assigned_var = ?" (non-linear assignment) *) abstract_exists_var
+              | Some (exp_var_opt, off) -> 
+                begin match exp_var_opt with
+                  | None -> (* Statement "assigned_var = off" (constant assignment) *) 
+                    assign_const abstract_exists_var assigned_var off
+                  | Some exp_var (* Statement "assigned_var = exp_var + off" (linear assignment) *) 
+                    -> begin if assigned_var = exp_var then 
+                          (* Statement "assigned_var = assigned_var + off" *)
+                          subtract_const_from_var t assigned_var off
+                        else
+                          let empty_array = EqualitiesArray.make_empty_array (VarManagement.size t) in
+                          let added_equality = empty_array.(exp_var) <- (Some assigned_var, off); empty_array in
+                          meet abstract_exists_var {d = Some added_equality; env = t.env}  (* change reference variable*)
+                      end 
+                end
+            end
 
-  in
-  let dim_var = Environment.dim_of_var texp.env var in
-  match texp.d with 
-  | Some d ->  let rhs = d.(dim_var) in (*Current equality with var on the left hand side*)
-    bot ()
-  | None -> bot ()
+        end 
+      | None -> bot () end 
 
 
 
