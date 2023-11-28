@@ -1024,9 +1024,7 @@ struct
   let warn_past_end = M.error ~category:ArrayOobMessage.past_end
 
   let get (ask: VDQ.t) (nulls, size) (e, i) =
-    let min interval = match Idx.minimal interval with
-      | Some min_num when min_num >=. Z.zero -> min_num
-      | _ -> Z.zero in (* assume worst case minimal natural number *)
+    let min interval = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal interval)) in
 
     let min_i = min i in
     let max_i = Idx.maximal i in
