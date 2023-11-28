@@ -170,6 +170,8 @@ module MustMaySet = struct
     | Definitely ->failwith "todo"
     | Possibly -> MaySet.elements ?max_size mays 
 
+  let union_mays (must,mays) (_,mays2) = (must, MaySet.join mays mays2)
+  
 
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)

@@ -1395,14 +1395,11 @@ struct
         (if min_size1 <. min_len2 then
            warn_past_end "The length of string src may be greater than the allocated size for dest");
         (* do not keep any index of dest as no maximal strlen of src *)
-        let must_nulls_set_result =
-          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
-          MustSet.filter ~min_size:min_size2 (Z.gt min_size1) must_nulls_set2' in
-        let may_nulls_set_result =
-          (* get all may nulls from src string as no maximal size of dest *)
-          may_nulls_set2'
-          |> MaySet.union (MaySet.filter ~max_size:(Z.succ min_len2) (Z.leq min_len2) may_nulls_set1)  in
-        ((must_nulls_set_result, may_nulls_set_result), dstsize)
+        let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
+        let truncatednulls = Nulls.remove_interval Possibly (Z.zero, min_size1) min_size2 truncatednulls in
+        let filtered_dst = Nulls.filter ~max_size:(Z.succ min_len2) (Z.leq min_len2) dstnulls in
+        (* get all may nulls from src string as no maximal size of dest *)
+        (Nulls.union_mays truncatednulls filtered_dst, dstsize)
       (* any other case shouldn't happen as minimal index is always >= 0 *)
       | _ -> (Nulls.top (), dstsize) in
 
