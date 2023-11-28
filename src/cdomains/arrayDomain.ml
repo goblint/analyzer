@@ -1023,21 +1023,16 @@ struct
   module ArrayOobMessage = M.Category.Behavior.Undefined.ArrayOutOfBounds
   let warn_past_end = M.error ~category:ArrayOobMessage.past_end
 
-  (* helper: returns Idx.maximal except for Overflows that are mapped to None *)
-  let idx_maximal i = match Idx.maximal i with
-    | Some i when Z.fits_int i -> Some i
-    | _ -> None
-
   let get (ask: VDQ.t) (nulls, size) (e, i) =
     let min interval = match Idx.minimal interval with
       | Some min_num when min_num >=. Z.zero -> min_num
       | _ -> Z.zero in (* assume worst case minimal natural number *)
 
     let min_i = min i in
-    let max_i = idx_maximal i in
+    let max_i = Idx.maximal i in
     let min_size = min size in
 
-    match max_i, idx_maximal size with
+    match max_i, Idx.maximal size with
     (* if there is no maximum value in index interval *)
     | None, _ when not (Nulls.exists Possibly ((<=.) min_i) nulls) ->
       (* ... return NotNull if no i >= min_i in may_nulls_set *)
@@ -1072,10 +1067,10 @@ struct
 
     let min_size = min size in
     let min_i = min i in
-    let max_i = idx_maximal i in
+    let max_i = Idx.maximal i in
 
     let set_exact_nulls i =
-      match idx_maximal size with
+      match Idx.maximal size with
       (* if size has no upper limit *)
       | None ->
         (match Val.is_null v with
@@ -1107,12 +1102,12 @@ struct
 
     let set_interval min_i max_i =
       (* Update max_i so it is capped at the maximum size *)
-      let max_i = BatOption.map_default (fun x -> Z.min max_i @@ Z.pred x) max_i (idx_maximal size) in
+      let max_i = BatOption.map_default (fun x -> Z.min max_i @@ Z.pred x) max_i (Idx.maximal size) in
       match Val.is_null v with
       | NotNull -> Nulls.remove_interval Possibly (min_i, max_i) min_size nulls
-      | Null -> Nulls.add_interval ~maxfull:(idx_maximal size) Possibly (min_i, max_i) nulls
+      | Null -> Nulls.add_interval ~maxfull:(Idx.maximal size) Possibly (min_i, max_i) nulls
       | Maybe ->
-        let nulls = Nulls.add_interval ~maxfull:(idx_maximal size) Possibly (min_i, max_i) nulls in
+        let nulls = Nulls.add_interval ~maxfull:(Idx.maximal size) Possibly (min_i, max_i) nulls in
         Nulls.remove_interval Possibly (min_i, max_i) min_size nulls
     in
 
@@ -1122,8 +1117,8 @@ struct
     (* if no maximum number in index interval *)
     | None ->
       (* ..., value = null *)
-      (if Val.is_null v = Null && idx_maximal size = None then
-         match idx_maximal size with
+      (if Val.is_null v = Null && Idx.maximal size = None then
+         match Idx.maximal size with
          (* ... and there is no maximal size, modify may_nulls_set to top *)
          | None ->  Nulls.add_all Possibly nulls
          (* ... and there is a maximal size, add all i from minimal index to maximal size to may_nulls_set *)
@@ -1133,7 +1128,7 @@ struct
          Nulls.filter_musts (Z.gt min_i) min_size nulls
          (*..., value unknown *)
        else
-         match Idx.minimal size, idx_maximal size with
+         match Idx.minimal size, Idx.maximal size with
          (* ... and size unknown, modify both sets to top *)
          | None, None -> Nulls.top ()
          (* ... and only minimal size known, remove all indexes < minimal size from must_nulls_set and modify may_nulls_set to top *)
@@ -1161,7 +1156,7 @@ struct
 
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v =
-    let min_i, max_i = match Idx.minimal i, idx_maximal i with
+    let min_i, max_i = match Idx.minimal i, Idx.maximal i with
       | Some min_i, Some max_i ->
         if min_i <. Z.zero && max_i <. Z.zero then
           (M.error ~category:ArrayOobMessage.before_start "Tries to create an array of negative size";
@@ -1243,7 +1238,7 @@ struct
           Nulls.precise_singleton min_must_null
         (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
         else
-          match idx_maximal size with
+          match Idx.maximal size with
           | Some max_size ->
             let nulls' = Nulls.remove_all Possibly nulls in
             Nulls.filter ~max_size (Z.leq min_must_null) nulls'
@@ -1289,7 +1284,7 @@ struct
         else if (exists_min_must_null && (min_must_null >=. n) || min_must_null >. min_may_null) || not exists_min_must_null then
           M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
       in
-      (match Idx.minimal size, idx_maximal size with
+      (match Idx.minimal size, Idx.maximal size with
           | Some min_size, Some max_size ->
             if n >. max_size then
               warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
@@ -1307,7 +1302,7 @@ struct
        if Nulls.is_empty Definitely nulls then
          (warn_past_end
             "Resulting string might not be null-terminated because src doesn't contain a null byte";
-          match idx_maximal size with
+          match Idx.maximal size with
           (* ... there *may* be null bytes from maximal size to n - 1 if maximal size < n (i.e. past end) *)
           | Some max_size when Z.geq max_size Z.zero -> Nulls.add_interval Possibly (max_size, Z.pred n) nulls
           | _ -> nulls)
@@ -1353,7 +1348,7 @@ struct
     (* filter out indexes before strlen(src) from dest sets and after strlen(src) from src sets and build union, keep size of dest *)
     let update_sets (truncatednulls, truncatedsize) len2 =
       let must_nulls_set2',may_nulls_set2' = truncatednulls in
-      match Idx.minimal dstsize, idx_maximal dstsize, Idx.minimal len2, idx_maximal len2 with
+      match Idx.minimal dstsize, Idx.maximal dstsize, Idx.minimal len2, Idx.maximal len2 with
       | Some min_dstsize, Some max_dstsize, Some min_srclen, Some max_srclen ->
         (if max_dstsize <. min_srclen then
            warn_past_end "The length of string src is greater than the allocated size for dest"
@@ -1366,7 +1361,7 @@ struct
           (* and keep indexes of dest >= maximal strlen of src *)
           |> MustSet.union (MustSet.filter ~min_size:min_dstsize (Z.leq max_srclen) must_nulls_set1) in
         let may_nulls_set_result =
-          let max_size2 = BatOption.default max_dstsize (idx_maximal truncatedsize) in
+          let max_size2 = BatOption.default max_dstsize (Idx.maximal truncatedsize) in
           (* get may nulls from src string < maximal size of dest *)
           MaySet.filter ~max_size:max_size2 (Z.gt max_dstsize) may_nulls_set2'
           (* and keep indexes of dest >= minimal strlen of src *)
@@ -1396,7 +1391,7 @@ struct
           let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
           MustSet.filter ~min_size:min_size2 (Z.gt min_size1) must_nulls_set2' in
         let may_nulls_set_result =
-          let max_size2 = BatOption.default max_size1 (idx_maximal truncatedsize) in
+          let max_size2 = BatOption.default max_size1 (Idx.maximal truncatedsize) in
           MaySet.filter ~max_size:max_size2 (Z.gt max_size1) may_nulls_set2'
           |> MaySet.union (MaySet.filter ~max_size:max_size1 (Z.leq min_len2) may_nulls_set1) in
         ((must_nulls_set_result, may_nulls_set_result), dstsize)
@@ -1417,7 +1412,7 @@ struct
 
     (* warn if size of dest is (potentially) smaller than size of src and the latter (potentially) has no null byte at index < size of dest *)
     let sizes_warning srcsize =
-      (match Idx.minimal dstsize, idx_maximal dstsize, Idx.minimal srcsize, idx_maximal srcsize with
+      (match Idx.minimal dstsize, Idx.maximal dstsize, Idx.minimal srcsize, Idx.maximal srcsize with
        | Some min_dstsize, _, Some min_srcsize, _ when min_dstsize <. min_srcsize ->
          if not (Nulls.exists Possibly (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src doesn't contain a null byte at an index smaller than the size of dest"
@@ -1517,7 +1512,7 @@ struct
         let (must_nulls_set1, may_nulls_set1) = nulls1 in
         let (must_nulls_set2', may_nulls_set2') = nulls2' in
         let may_nulls_set2'_until_min_i2 =
-          match idx_maximal size2 with
+          match Idx.maximal size2 with
           | Some max_size2 -> MaySet.filter ~max_size:max_size2 (Z.geq min_i2) may_nulls_set2'
           | None -> MaySet.filter ~max_size:(Z.succ min_i2) (Z.geq min_i2) may_nulls_set2' in
         let must_nulls_set_result = MustSet.filter ~min_size:min_size1  (fun x -> if maxlen1_exists && maxlen2_exists then (maxlen1 +. maxlen2) <. x else false) must_nulls_set1 in
@@ -1546,7 +1541,7 @@ struct
       let strlen2 = to_string_length (nulls2', size2) in
       match Idx.minimal size1, Idx.minimal strlen1, Idx.minimal strlen2 with
       | Some min_size1, Some minlen1, Some minlen2 ->
-        begin match idx_maximal size1, idx_maximal strlen1, idx_maximal strlen2 with
+        begin match Idx.maximal size1, Idx.maximal strlen1, Idx.maximal strlen2 with
           | Some max_size1, Some maxlen1, Some maxlen2 ->
             update_sets min_size1 max_size1 true minlen1 maxlen1 true minlen2 maxlen2 true nulls2'
           (* no upper bound for length of concatenation *)
@@ -1580,11 +1575,11 @@ struct
         if not (Nulls.exists Possibly (Z.gt n) nulls2) then
           Nulls.precise_singleton n
         else if not (Nulls.exists Definitely (Z.gt n) nulls2) then
-          let max_size2 = BatOption.default (Z.succ n) (idx_maximal size2) in
+          let max_size2 = BatOption.default (Z.succ n) (Idx.maximal size2) in
           (MustSet.empty (), MaySet.add n (MaySet.filter ~max_size:max_size2 (Z.geq n) may_nulls_set2))
         else
           let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
-          let max_size2 = BatOption.default n (idx_maximal size2) in
+          let max_size2 = BatOption.default n (Idx.maximal size2) in
           (MustSet.filter ~min_size: min_size2 (Z.gt n) must_nulls_set2, MaySet.filter ~max_size:max_size2 (Z.gt n) may_nulls_set2)
       in
       compute_concat nulls2'
@@ -1597,7 +1592,7 @@ struct
     else
       let haystack_len = to_string_length haystack in
       let needle_len = to_string_length needle in
-      match idx_maximal haystack_len, Idx.minimal needle_len with
+      match Idx.maximal haystack_len, Idx.minimal needle_len with
       | Some haystack_max, Some needle_min ->
         (* if strlen(haystack) < strlen(needle), needle can never be substring of haystack => return None *)
         if haystack_max <. needle_min then
@@ -1653,7 +1648,7 @@ struct
       let min_size1 = BatOption.default Z.zero (Idx.minimal size1) in
       let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
       (* issue a warning if n is (potentially) smaller than array sizes *)
-      (match idx_maximal size1 with
+      (match Idx.maximal size1 with
        | Some max_size1 ->
          if n >. max_size1 then
            warn_past_end"The size of the array of string 1 is smaller than n bytes"
@@ -1663,7 +1658,7 @@ struct
          if n >. min_size1 then
            warn_past_end "The size of the array of string 1 might be smaller than n bytes"
       );
-      (match idx_maximal size2 with
+      (match Idx.maximal size2 with
        | Some max_size2 ->
          if n >. max_size2 then
            warn_past_end "The size of the array of string 2 is smaller than n bytes"
