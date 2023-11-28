@@ -192,6 +192,16 @@ struct
   let join =
     Map.join
 
+  let meet a b =
+    if a == b then
+      a
+    else
+      let merge_pair _ x y = match x, y with
+        | Some x, Some y -> Some (Values.meet x y)
+        | _, _ -> raise Lattice.Uncomparable
+      in
+      Map.merge merge_pair a b
+
   (** Performs join or widen operation using per element merge function *)
   let merge ~merge_values x y =
     if is_top x || is_top y then
