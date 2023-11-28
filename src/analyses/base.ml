@@ -1486,7 +1486,7 @@ struct
             Priv.read_global a priv_getg st x
         in
         let new_value = update_offset old_value in
-        M.tracel "hgh" "update_offset %a -> %a\n" VD.pretty old_value VD.pretty new_value;
+        if M.tracing then M.tracel "set" "update_offset %a -> %a\n" VD.pretty old_value VD.pretty new_value;
         let r = Priv.write_global ~invariant a priv_getg (priv_sideg ctx.sideg) st x new_value in
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
@@ -2132,7 +2132,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
-        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+        invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =

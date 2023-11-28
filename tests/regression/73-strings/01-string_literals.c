@@ -1,4 +1,4 @@
-// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval
+// PARAM: --set ana.base.strings.domain disjoint --enable ana.int.interval
 
 #include <goblint.h>
 #include <string.h>
@@ -118,10 +118,10 @@ void example2() {
         #define STRNCAT strncat(s1, "hi", 1)
     #endif
     STRNCAT; // WARN
-        
+
     #ifdef __APPLE__
         // do nothing => no warning
-    #else  
+    #else
         char s4[] = "hello";
         strcpy(s4, s2); // NOWARN -> null byte array domain not enabled
         strncpy(s4, s3, 2); // NOWARN

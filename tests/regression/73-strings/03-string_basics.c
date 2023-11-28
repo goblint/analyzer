@@ -1,4 +1,4 @@
-// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval --enable ana.base.arrays.nullbytes
+// PARAM: --set ana.base.strings.domain disjoint --enable ana.int.interval  --enable ana.base.arrays.nullbytes
 
 #include <goblint.h>
 #include <string.h>
