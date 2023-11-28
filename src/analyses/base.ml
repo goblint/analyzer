@@ -150,10 +150,7 @@ struct
    * Initializing my variables
    **************************************************************************)
 
-  let return_varstore = ref dummyFunDec.svar
-  let return_varinfo () = !return_varstore
-  let return_var () = AD.of_var ~is_modular:false (return_varinfo ())
-  let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
+  include Base0
 
   let longjmp_return = ref dummyFunDec.svar
 
