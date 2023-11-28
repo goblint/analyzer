@@ -1645,28 +1645,19 @@ struct
     (* strncmp *)
     | Some n when n >= 0 ->
       let n = Z.of_int n in
-      let min_size1 = BatOption.default Z.zero (Idx.minimal size1) in
-      let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
-      (* issue a warning if n is (potentially) smaller than array sizes *)
-      (match Idx.maximal size1 with
-       | Some max_size1 ->
-         if n >. max_size1 then
-           warn_past_end"The size of the array of string 1 is smaller than n bytes"
-         else if n >. min_size1 then
-           warn_past_end "The size of the array of string 1 might be smaller than n bytes"
-       | None ->
-         if n >. min_size1 then
-           warn_past_end "The size of the array of string 1 might be smaller than n bytes"
-      );
-      (match Idx.maximal size2 with
-       | Some max_size2 ->
-         if n >. max_size2 then
-           warn_past_end "The size of the array of string 2 is smaller than n bytes"
-         else if n >. min_size2 then
-           warn_past_end "The size of the array of string 2 might be smaller than n bytes"
-       | None ->
-         if n >. min_size2 then
-           warn_past_end "The size of the array of string 2 might be smaller than n bytes");
+      let warn_size size name =
+        let min = BatOption.default Z.zero (Idx.minimal size) in
+        match Idx.maximal size with
+        | Some max when n >. max ->
+          warn_past_end "The size of the array of string %s is smaller than n bytes" name
+        | Some max when n >. min ->
+          warn_past_end "The size of the array of string %s might be smaller than n bytes" name
+        | None when n >. min ->
+          warn_past_end "The size of the array of string %s might be smaller than n bytes" name
+        | _ -> ()
+      in
+      warn_size size1 "1";
+      warn_size size2 "2";
       (* compute abstract value for result of strncmp *)
       compare n true
     | _ -> Idx.top_of IInt
