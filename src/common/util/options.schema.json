@@ -757,7 +757,7 @@
                     "The domain that should be used for unions. Options: simple/map",
                   "type": "string",
                   "enum": ["simple", "map"],
-                  "default": "map"
+                  "default": "simple"
                 }
               },
               "additionalProperties": false
@@ -1362,7 +1362,7 @@
               "description":
                 "Unknown function call spawns reachable functions",
               "type": "boolean",
-              "default": false
+              "default": true
             },
             "call": {
               "title": "sem.unknown_function.call",
