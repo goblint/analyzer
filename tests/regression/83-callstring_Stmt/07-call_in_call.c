@@ -1,10 +1,10 @@
-// PARAM: --enable ana.context.callstring_fundec --enable ana.int.interval_set
-// Checks if function chains are handled properly
+// PARAM: --enable ana.context.callstring_stmt --enable ana.int.interval_set
+// Interesting if nested recursions are handled properly
 #include <stdio.h>
 
-int num_iterat = 11;
+int num_iterat = 10; 
 
-int h(int i)
+int f(int i)
 {
     int res = 0;
     if (i == 0)
@@ -13,7 +13,7 @@ int h(int i)
     }
     if (i > 0)
     {
-        res = h(--i);
+        res = f(--i);
     }
     return res;
 }
@@ -27,12 +27,12 @@ int g(int i)
     }
     if (i > 0)
     {
-        res = h(--i);
+        res = g(--i);
     }
     return res;
 }
 
-int f(int i)
+int h(int i)
 {
     int res = 0;
     if (i == 0)
@@ -41,14 +41,14 @@ int f(int i)
     }
     if (i > 0)
     {
-        res = g(--i);
+        res = h(--i);
     }
     return res;
 }
 
 int main(void)
 {
-    int result = f(num_iterat);
-    
-    __goblint_check(result == 1); 
+    int res = f(g(h(num_iterat))); // h(4) = 3; g(3) = 2; f(2) = 1
+
+    __goblint_check(res == 1);
 }
