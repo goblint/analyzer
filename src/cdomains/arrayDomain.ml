@@ -1023,12 +1023,12 @@ struct
   module ArrayOobMessage = M.Category.Behavior.Undefined.ArrayOutOfBounds
   let warn_past_end = M.error ~category:ArrayOobMessage.past_end
 
-  let get (ask: VDQ.t) (nulls, size) (e, i) =
-    let min interval = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal interval)) in
+  let min_nat_of_idx i = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal i))
 
-    let min_i = min i in
+  let get (ask: VDQ.t) (nulls, size) (e, i) =
+    let min_i = min_nat_of_idx i in
     let max_i = Idx.maximal i in
-    let min_size = min size in
+    let min_size = min_nat_of_idx size in
 
     match max_i, Idx.maximal size with
     (* if there is no maximum value in index interval *)
@@ -1061,10 +1061,8 @@ struct
     | _ -> Maybe
 
   let set (ask: VDQ.t) (nulls, size) (e, i) v =
-    let min interval = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal interval)) in
-
-    let min_size = min size in
-    let min_i = min i in
+    let min_size = min_nat_of_idx size in
+    let min_i = min_nat_of_idx i in
     let max_i = Idx.maximal i in
 
     let set_exact_nulls i =
@@ -1653,7 +1651,7 @@ struct
     | Some n when n >= 0 ->
       let n = Z.of_int n in
       let warn_size size name =
-        let min = BatOption.default Z.zero (Idx.minimal size) in
+        let min = min_nat_of_idx size in
         match Idx.maximal size with
         | Some max when n >. max ->
           warn_past_end "The size of the array of string %s is smaller than n bytes" name
