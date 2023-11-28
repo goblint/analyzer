@@ -1260,13 +1260,6 @@ struct
           set
         else
           add_indexes (Z.succ i) max (MaySet.add i set) in
-      let update_must_indexes min_must_null must_nulls_set =
-        if min_must_null =. Z.zero then
-          MustSet.bot ()
-        else
-          (* if strlen < n, every byte starting from min_must_null is surely also transformed to null *)
-          add_indexes min_must_null n must_nulls_set
-          |> MustSet.M.filter (Z.gt n) in
       let update_may_indexes min_may_null may_nulls_set =
         if min_may_null =. Z.zero then
           MaySet.top ()
@@ -1311,7 +1304,7 @@ struct
           Nulls.add_all Possibly nulls
          else
           let (must, mays) = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-          (must, mays |> MaySet.M.filter (Z.gt n))  (* TODO: this makes little sense *)
+          (must, mays |> MaySet.M.filter (fun x -> x <. n))  (* TODO: this makes little sense *)
        else
          let min_must_null = Nulls.min_elem Definitely nulls in
          let min_may_null = Nulls.min_elem Possibly nulls in
@@ -1319,7 +1312,12 @@ struct
          warn_no_null min_must_null true min_may_null;
          (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
          if min_must_null =. min_may_null then
-           (update_must_indexes min_must_null must_nulls_set, update_may_indexes min_may_null may_nulls_set)
+          (if min_must_null =. Z.zero then
+            Nulls.full_set ()
+          else
+            let nulls = Nulls.add_interval Definitely (min_must_null, Z.pred n) nulls in
+            let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
+            Nulls.filter (fun x -> x <. n) nulls)
          else
            (MustSet.top (), update_may_indexes min_may_null may_nulls_set)
       in

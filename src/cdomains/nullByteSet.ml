@@ -84,6 +84,8 @@ module MustMaySet = struct
 
   let empty () = (MustSet.top (), MaySet.bot ())
 
+  let full_set () = (MustSet.bot (), MaySet.top ())
+
   let is_empty mode (musts, mays) =
     match mode with
     | Definitely -> MaySet.is_empty mays
@@ -123,21 +125,23 @@ module MustMaySet = struct
     | Possibly -> (musts, MaySet.union (MaySet.of_list l) mays)
 
   let add_interval ?maxfull mode (l,u) (musts, mays) =
-    match mode with
-    | Definitely -> failwith "todo"
-    | Possibly -> 
+    let rec add_indexes i max set =
+      if Z.gt i max then
+        set
+      else
+        add_indexes (Z.succ i) max (MaySet.add i set)
+    in
+    let mays =
       match maxfull with
       | Some Some maxfull when Z.equal l Z.zero && Z.geq u maxfull -> 
-        (musts, MaySet.top ())
+        MaySet.top ()
       | _ ->
-        let rec add_indexes i max set =
-          if Z.gt i max then
-            set
-          else
-            add_indexes (Z.succ i) max (MaySet.add i set)
-        in
-        (musts, add_indexes l u mays)
-
+        add_indexes l u mays
+    in
+    match mode with
+    | Definitely -> (add_indexes l u musts, mays)
+    | Possibly -> (musts, mays)
+    
   let remove_interval mode (l,u) min_size (musts, mays) =
     match mode with
     | Definitely -> failwith "todo"
