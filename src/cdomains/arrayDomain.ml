@@ -1593,12 +1593,9 @@ struct
       let haystack_len = to_string_length haystack in
       let needle_len = to_string_length needle in
       match Idx.maximal haystack_len, Idx.minimal needle_len with
-      | Some haystack_max, Some needle_min ->
+      | Some haystack_max, Some needle_min when haystack_max <. needle_min ->
         (* if strlen(haystack) < strlen(needle), needle can never be substring of haystack => return None *)
-        if haystack_max <. needle_min then
-          IsNotSubstr
-        else
-          IsMaybeSubstr
+        IsNotSubstr
       | _ -> IsMaybeSubstr
 
   let string_comparison (nulls1, size1) (nulls2, size2) n =
