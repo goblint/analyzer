@@ -1254,11 +1254,15 @@ struct
       (Nulls.top (), Idx.top_of ILong)
     else
       let n = Z.of_int n in
-      let warn_no_null min_must_null exists_min_must_null min_may_null =
+      let warn_no_null min_must_null min_may_null =
         if Z.geq min_may_null n then
           M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
-        else if (exists_min_must_null && (min_must_null >=. n) || min_must_null >. min_may_null) || not exists_min_must_null then
-          M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
+        else 
+          (match min_must_null with
+          | Some min_must_null when not (min_must_null >=. n || min_must_null >. min_may_null) -> ()
+          | _ ->
+            M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
+          )
       in
       (match Idx.minimal size, Idx.maximal size with
           | Some min_size, Some max_size ->
@@ -1286,7 +1290,7 @@ struct
           * warn as in any case, resulting array not guaranteed to contain null byte *)
        else if Nulls.is_empty Possibly nulls then
          let min_may_null = Nulls.min_elem Possibly nulls in
-         warn_no_null Z.zero false min_may_null;
+         warn_no_null None min_may_null;
          if min_may_null =. Z.zero then
           Nulls.add_all Possibly nulls
          else
@@ -1296,15 +1300,15 @@ struct
          let min_must_null = Nulls.min_elem Definitely nulls in
          let min_may_null = Nulls.min_elem Possibly nulls in
          (* warn if resulting array may not contain null byte *)
-         warn_no_null min_must_null true min_may_null;
+         warn_no_null (Some min_must_null) min_may_null;
          (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
          if min_must_null =. min_may_null then
-          (if min_must_null =. Z.zero then
+          if min_must_null =. Z.zero then
             Nulls.full_set ()
           else
             let nulls = Nulls.add_interval Definitely (min_must_null, Z.pred n) nulls in
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-            Nulls.filter (fun x -> x <. n) nulls)
+            Nulls.filter (fun x -> x <. n) nulls
          else if min_may_null =. Z.zero then
             Nulls.top ()
          else 
