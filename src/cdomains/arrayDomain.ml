@@ -1571,16 +1571,18 @@ struct
       let n = Z.of_int n in
       (* take at most n bytes from src; if no null byte among them, add null byte at index n *)
       let nulls2' =
-        let ((must_nulls_set2, may_nulls_set2) as nulls2), size2 = to_string (nulls2, size2) in
+        let (nulls2, size2) = to_string (nulls2, size2) in
         if not (Nulls.exists Possibly (Z.gt n) nulls2) then
           Nulls.precise_singleton n
         else if not (Nulls.exists Definitely (Z.gt n) nulls2) then
-          let max_size2 = BatOption.default (Z.succ n) (Idx.maximal size2) in
-          (MustSet.empty (), MaySet.add n (MaySet.filter ~max_size:max_size2 (Z.geq n) may_nulls_set2))
+          let max_size = BatOption.default (Z.succ n) (Idx.maximal size2) in
+          let nulls2 = Nulls.remove_all Possibly nulls2 in
+          let nulls2 = Nulls.filter ~max_size (Z.geq n) nulls2 in
+          Nulls.add Possibly n nulls2
         else
-          let min_size2 = BatOption.default Z.zero (Idx.minimal size2) in
-          let max_size2 = BatOption.default n (Idx.maximal size2) in
-          (MustSet.filter ~min_size: min_size2 (Z.gt n) must_nulls_set2, MaySet.filter ~max_size:max_size2 (Z.gt n) may_nulls_set2)
+          let min_size = BatOption.default Z.zero (Idx.minimal size2) in
+          let max_size = BatOption.default n (Idx.maximal size2) in
+          Nulls.filter ~max_size ~min_size (Z.gt n) nulls2
       in
       compute_concat nulls2'
     | _ -> (Nulls.top (), size1)
