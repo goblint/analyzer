@@ -1039,13 +1039,12 @@ struct
 
     match max_i, idx_maximal size with
     (* if there is no maximum value in index interval *)
-    | None, _ ->
+    | None, _ when not (Nulls.exists Possibly ((<=.) min_i) nulls) ->
       (* ... return NotNull if no i >= min_i in may_nulls_set *)
-      if not (Nulls.exists Possibly ((<=.) min_i) nulls) then
-        NotNull
-        (* ... else return Top *)
-      else
-        Maybe
+      NotNull
+    | None, _ ->
+      (* ... else return Top *)
+      Maybe
     (* if there is no maximum size *)
     | Some max_i, None when max_i >=. Z.zero ->
       (* ... and maximum value in index interval < minimal size, return Null if all numbers in index interval are in must_nulls_set *)
