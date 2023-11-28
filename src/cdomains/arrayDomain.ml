@@ -1632,14 +1632,14 @@ struct
     (* strcmp *)
     | None ->
       (* track any potential buffer overflow and issue warning if needed *)
-      (if Nulls.is_empty Definitely nulls1 && Nulls.is_empty Possibly nulls1 then
-         warn_past_end "Array of string 1 doesn't contain a null byte: buffer overflow"
-       else if Nulls.is_empty Possibly nulls1 then
-         warn_past_end "Array of string 1 might not contain a null byte: potential buffer overflow");
-      (if Nulls.is_empty Definitely nulls2 && Nulls.is_empty Possibly nulls2  then
-         warn_past_end "Array of string 2 doesn't contain a null byte: buffer overflow"
-       else if Nulls.is_empty Possibly nulls2 then
-         warn_past_end "Array of string 2 might not contain a null byte: potential buffer overflow");
+      let warn_missing_nulls nulls name =
+        if Nulls.is_empty Definitely nulls then
+          warn_past_end "Array of string %s doesn't contain a null byte: buffer overflow" name
+        else if Nulls.is_empty Possibly nulls then
+          warn_past_end "Array of string %s might not contain a null byte: potential buffer overflow" name
+      in
+      warn_missing_nulls nulls1 "1";
+      warn_missing_nulls nulls2 "2";
       (* compute abstract value for result of strcmp *)
       compare Z.zero false
     (* strncmp *)
