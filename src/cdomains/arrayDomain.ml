@@ -1602,9 +1602,9 @@ struct
       | _ -> IsMaybeSubstr
 
   let string_comparison (nulls1, size1) (nulls2, size2) n =
-    let compare n n_exists =
+    let cmp n =
       (* if s1 = s2 = empty string, i.e. certain null byte at index 0, or n = 0, return 0 *)
-      if (Nulls.mem Definitely Z.zero nulls1 && Nulls.mem Definitely Z.zero nulls2) || (n_exists &&  n =. Z.zero) then
+      if (Nulls.mem Definitely Z.zero nulls1 && Nulls.mem Definitely Z.zero nulls2) || (BatOption.map_default (Z.equal Z.zero) false n) then
         Idx.of_int IInt Z.zero
         (* if only s1 = empty string, return negative integer *)
       else if Nulls.mem Definitely Z.zero nulls1 && not (Nulls.mem Possibly Z.zero nulls2) then
@@ -1619,7 +1619,7 @@ struct
           if not (min_must1 =. min_must2)
               && min_must1 =.(Nulls.min_elem Possibly nulls1)
               && min_must2 =. (Nulls.min_elem Possibly nulls2)
-              && (not n_exists || min_must1 <. n || min_must2 <. n)
+              && (BatOption.map_default (fun x -> min_must1 <. x || min_must2 <. x) true n)
           then
             (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
             Idx.of_excl_list IInt [Z.zero]
@@ -1641,7 +1641,7 @@ struct
       warn_missing_nulls nulls1 "1";
       warn_missing_nulls nulls2 "2";
       (* compute abstract value for result of strcmp *)
-      compare Z.zero false
+      cmp None
     (* strncmp *)
     | Some n when n >= 0 ->
       let n = Z.of_int n in
@@ -1659,7 +1659,7 @@ struct
       warn_size size1 "1";
       warn_size size2 "2";
       (* compute abstract value for result of strncmp *)
-      compare n true
+      cmp (Some n)
     | _ -> Idx.top_of IInt
 
   let update_length new_size (nulls, size) = (nulls, new_size)
