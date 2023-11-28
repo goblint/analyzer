@@ -152,8 +152,6 @@ struct
 
   include Base0
 
-  let longjmp_return = ref dummyFunDec.svar
-
   let heap_var on_stack ctx =
     let info = match (ctx.ask (Q.AllocVar {on_stack})) with
       | `Lifted vinfo -> vinfo
