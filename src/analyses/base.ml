@@ -91,6 +91,10 @@ struct
 
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
 
+  let is_modular ctx =
+    let ask = Analyses.ask_of_ctx ctx in
+    ask.f Queries.IsModular
+
   (*This is a bit of a hack to be able to change array domains if a pointer to an array is given as an argument*)
   (*We have to prevent different domains to be used at the same time for the same array*)
   (*After a function call, the domain has to be the same as before and we can not depend on the pointers staying the same*)
