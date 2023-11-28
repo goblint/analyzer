@@ -1335,17 +1335,15 @@ struct
 
   let to_string_length (nulls, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
-    (* TODO: check of must set really needed? *)
     if Nulls.is_empty Definitely nulls then
       (warn_past_end "Array doesn't contain a null byte: buffer overflow";
-       match Idx.minimal size with
-       | Some min_size -> Idx.starting !Cil.kindOfSizeOf min_size
-       | None -> Idx.starting !Cil.kindOfSizeOf Z.zero)
-      (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
+       Idx.starting !Cil.kindOfSizeOf (BatOption.default Z.zero (Idx.minimal size))
+      )
+    (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "Array might not contain a null byte: potential buffer overflow";
        Idx.starting !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls))
-      (* else return interval [minimal may null, minimal must null] *)
+    (* else return interval [minimal may null, minimal must null] *)
     else
       Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)
 
