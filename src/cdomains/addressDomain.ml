@@ -76,8 +76,12 @@ module AddressPrintable (Mval: Mval.Printable) =
 struct
   include AddressBase (Mval)
 
-  let of_var ~is_modular x = Addr (x, `NoOffset)
-  let of_mval ~is_modular (x, o) = Addr (x, o)
+  let of_mval ~is_modular (x, o) =
+    let x = ModularUtil0.varinfo_or_canonical ~is_modular x in
+    Addr (x, o)
+
+  let of_var ~is_modular x =
+    of_mval ~is_modular (x, `NoOffset)
 
   let to_var = function
     | Addr (x,_) -> Some x
