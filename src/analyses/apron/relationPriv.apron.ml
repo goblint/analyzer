@@ -954,6 +954,7 @@ struct
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
+    let get_mutex_global_g = Cluster.keep_global g get_mutex_global_g in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
       if not inits then
