@@ -1448,24 +1448,25 @@ struct
     | _ -> (Nulls.top (), dstsize)
 
   let string_concat (nulls1, size1) (nulls2, size2) n =
-    let update_sets min_size1 max_size1 max_size1_exists minlen1 maxlen1 maxlen1_exists minlen2 maxlen2 maxlen2_exists nulls2' =
+    let update_sets min_size1 max_size1 minlen1 (maxlen1: Z.t option) minlen2 maxlen2 maxlen2_exists nulls2' =
       (* track any potential buffer overflow and issue warning if needed *)
-      (if max_size1_exists && max_size1 <=. (minlen1 +. minlen2) then
+      (if GobOption.exists (fun x -> x <=. (minlen1 +. minlen2)) max_size1 then
         warn_past_end
            "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
-       else if (maxlen1_exists && maxlen2_exists && min_size1 <=. (maxlen1 +. maxlen2)) || not maxlen1_exists || not maxlen2_exists then
+       else if (GobOption.for_all (fun x -> min_size1 <=. (x +. maxlen2)) maxlen1) && maxlen2_exists || not maxlen2_exists then
          warn_past_end
            "The length of the concatenation of the strings in src and dest may be greater than the allocated size for dest");
       (* if any must_nulls_set empty, result must_nulls_set also empty;
        * for all i1, i2 in may_nulls_set1, may_nulls_set2: add i1 + i2 if it is <= strlen(dest) + strlen(src) to new may_nulls_set
        * and keep indexes > minimal strlen(dest) + strlen(src) of may_nulls_set *)
       if Nulls.is_empty Possibly nulls1 || Nulls.is_empty Possibly nulls2 then
-        if max_size1_exists then
+        match max_size1 with
+        | Some max_size1 ->
           let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
           let r =
             nulls1_no_must
             (* filter ensures we have the concete representation *)
-            |> Nulls.filter ~max_size:max_size1 (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true)
+            |> Nulls.filter ~max_size:max_size1 (fun x -> GobOption.for_all (fun maxlen1 -> if maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) maxlen1)
             |> Nulls.elements ~max_size:max_size1 Possibly
             |> BatList.cartesian_product (Nulls.elements ~max_size:max_size1 Possibly nulls2')
             |> List.map (fun (i1, i2) -> i1 +. i2)
@@ -1473,22 +1474,23 @@ struct
             |> Nulls.filter (Z.gt max_size1)
           in
           (r, size1)
-        else if Nulls.may_can_benefit_from_filter nulls1 && Nulls.may_can_benefit_from_filter nulls2 && maxlen1_exists && maxlen2_exists then
-          let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
-          let r =
-            nulls1_no_must
-            (* filter ensures we have the concete representation *)
-            |> Nulls.filter (fun x -> x <=. (maxlen1 +. maxlen2))
-            |> Nulls.elements Possibly
-            |> BatList.cartesian_product (Nulls.elements Possibly nulls2')
-            |> List.map (fun (i1, i2) -> i1 +. i2)
-            |> (fun x -> Nulls.add_list Possibly x (Nulls.filter (Z.lt (minlen1 +. minlen2)) nulls1_no_must))
-          in
-          (r, size1)
-        else
-          (Nulls.top (), size1)
-
-        (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
+        | None when Nulls.may_can_benefit_from_filter nulls1 && Nulls.may_can_benefit_from_filter nulls2 ->
+          (match maxlen1, Some maxlen2 with
+          | Some maxlen1, Some maxlen2 when maxlen2_exists ->
+            let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
+            let r =
+              nulls1_no_must
+              (* filter ensures we have the concete representation *)
+              |> Nulls.filter (fun x -> x <=. (maxlen1 +. maxlen2))
+              |> Nulls.elements Possibly
+              |> BatList.cartesian_product (Nulls.elements Possibly nulls2')
+              |> List.map (fun (i1, i2) -> i1 +. i2)
+              |> (fun x -> Nulls.add_list Possibly x (Nulls.filter (Z.lt (minlen1 +. minlen2)) nulls1_no_must))
+            in
+            (r, size1)
+          | _ -> (Nulls.top (), size1))
+        |  _ -> (Nulls.top (), size1)
+      (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
       else if Nulls.min_elem_precise (nulls1) && Nulls.min_elem_precise nulls2' then
         let min_i1 = Nulls.min_elem Definitely nulls1 in
         let min_i2 = Nulls.min_elem Definitely nulls2' in
@@ -1499,12 +1501,13 @@ struct
           |> MustSet.add min_i
           |> MustSet.M.filter (Z.gt min_size1) in
         let may_nulls_set_result =
-          if max_size1_exists then
+          match max_size1 with
+          | Some max_size1 ->
             MaySet.filter ~max_size:max_size1 (Z.lt min_i) may_nulls_set1
             |> MaySet.add min_i
-            |> MaySet.M.filter (fun x -> if max_size1_exists then max_size1 >. x else true)
-          else
-            MaySet.top () in
+            |> MaySet.M.filter (fun x -> max_size1 >. x)
+          | _ -> MaySet.top ()
+        in
         ((must_nulls_set_result, may_nulls_set_result), size1)
         (* else only add all may nulls together <= strlen(dest) + strlen(src) *)
       else
@@ -1515,24 +1518,25 @@ struct
           match Idx.maximal size2 with
           | Some max_size2 -> MaySet.filter ~max_size:max_size2 (Z.geq min_i2) may_nulls_set2'
           | None -> MaySet.filter ~max_size:(Z.succ min_i2) (Z.geq min_i2) may_nulls_set2' in
-        let must_nulls_set_result = MustSet.filter ~min_size:min_size1  (fun x -> if maxlen1_exists && maxlen2_exists then (maxlen1 +. maxlen2) <. x else false) must_nulls_set1 in
+        let must_nulls_set_result = MustSet.filter ~min_size:min_size1  (fun x -> GobOption.exists (fun maxlen1 -> if maxlen2_exists then (maxlen1 +. maxlen2) <. x else false) maxlen1) must_nulls_set1 in
         let may_nulls_set_result =
-          if max_size1_exists then
-            MaySet.filter ~max_size:max_size1 (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1
+          match max_size1 with
+          | Some max_size1 ->
+            MaySet.filter ~max_size:max_size1 (fun x -> GobOption.for_all (fun maxlen1 -> if maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) maxlen1) may_nulls_set1
             |> MaySet.elements
             |> BatList.cartesian_product (MaySet.elements may_nulls_set2'_until_min_i2)
             |> List.map (fun (i1, i2) -> i1 +. i2)
             |> MaySet.of_list
             |> MaySet.union (MaySet.filter ~max_size:max_size1 (Z.lt (minlen1 +. minlen2)) may_nulls_set1)
-            |> MaySet.M.filter (fun x -> if max_size1_exists then max_size1 >. x else true)
-          else if not (MaySet.is_top may_nulls_set1) then
-            MaySet.M.filter (fun x -> if maxlen1_exists && maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) may_nulls_set1
+            |> MaySet.M.filter (fun x -> max_size1 >. x)
+          | None when not (MaySet.is_top may_nulls_set1) ->
+            MaySet.M.filter (fun x -> GobOption.for_all (fun maxlen1 -> if maxlen2_exists then x <=. (maxlen1 +. maxlen2) else true) maxlen1) may_nulls_set1
             |> MaySet.elements
             |> BatList.cartesian_product (MaySet.elements may_nulls_set2'_until_min_i2)
             |> List.map (fun (i1, i2) -> i1 +. i2)
             |> MaySet.of_list
             |> MaySet.union (MaySet.M.filter (Z.lt (minlen1 +. minlen2)) may_nulls_set1)
-          else
+          | _ ->
             MaySet.top () in
         ((must_nulls_set_result, may_nulls_set_result), size1) in
 
@@ -1543,20 +1547,20 @@ struct
       | Some min_size1, Some minlen1, Some minlen2 ->
         begin match Idx.maximal size1, Idx.maximal strlen1, Idx.maximal strlen2 with
           | Some max_size1, Some maxlen1, Some maxlen2 ->
-            update_sets min_size1 max_size1 true minlen1 maxlen1 true minlen2 maxlen2 true nulls2'
+            update_sets min_size1 (Some max_size1) minlen1 (Some maxlen1) minlen2 maxlen2 true nulls2'
           (* no upper bound for length of concatenation *)
           | Some max_size1, None, Some _
           | Some max_size1, Some _, None
           | Some max_size1, None, None ->
-            update_sets min_size1 max_size1 true minlen1 Z.zero false minlen2 Z.zero false nulls2'
+            update_sets min_size1 (Some max_size1) minlen1 None minlen2 Z.zero false nulls2'
           (* no upper bound for size of dest *)
           | None, Some maxlen1, Some maxlen2 ->
-            update_sets min_size1 Z.zero false minlen1 maxlen1 true minlen2 maxlen2 true nulls2'
+            update_sets min_size1 None minlen1 (Some maxlen1) minlen2 maxlen2 true nulls2'
           (* no upper bound for size of dest and length of concatenation *)
           | None, None, Some _
           | None, Some _, None
           | None, None, None ->
-            update_sets min_size1 Z.zero false minlen1 Z.zero false minlen2 Z.zero false nulls2'
+            update_sets min_size1 None minlen1 None minlen2 Z.zero false nulls2'
         end
       (* any other case shouldn't happen as minimal index is always >= 0 *)
       | _ -> (Nulls.top (), size1) in
