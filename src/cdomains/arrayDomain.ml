@@ -1236,23 +1236,25 @@ struct
       (warn_past_end "May access array past end: potential buffer overflow"; x)
     else
       let min_must_null = Nulls.min_elem Definitely nulls in
+      let new_size = Idx.of_int ILong (Z.succ min_must_null) in
       let min_may_null = Nulls.min_elem Possibly nulls in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
-      if min_must_null =. min_may_null then
-        let nulls = Nulls.precise_singleton min_must_null in
-        (nulls, Idx.of_int ILong (Z.succ min_must_null))
-      (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
-      else
-        match idx_maximal size with
-        | Some max_size ->
-          let nulls' = Nulls.remove_all Possibly nulls in
-          (Nulls.filter ~max_size (Z.leq min_must_null) nulls', Idx.of_int ILong (Z.succ min_must_null))
-        | None when not (Nulls.may_can_benefit_from_filter nulls) ->
-          let empty = Nulls.empty () in
-          (Nulls.add_interval Possibly (Z.zero, min_must_null) empty, Idx.of_int ILong (Z.succ min_must_null))
-        | None ->
-          let nulls' = Nulls.remove_all Possibly nulls in
-          (Nulls.filter (Z.leq min_must_null) nulls', Idx.of_int ILong (Z.succ min_must_null))
+      let nulls = 
+        if min_must_null =. min_may_null then
+          Nulls.precise_singleton min_must_null
+        (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
+        else
+          match idx_maximal size with
+          | Some max_size ->
+            let nulls' = Nulls.remove_all Possibly nulls in
+            Nulls.filter ~max_size (Z.leq min_must_null) nulls'
+          | None when not (Nulls.may_can_benefit_from_filter nulls) ->
+            Nulls.add_interval Possibly (Z.zero, min_must_null) (Nulls.empty ())
+          | None ->
+            let nulls' = Nulls.remove_all Possibly nulls in
+            Nulls.filter (Z.leq min_must_null) nulls'
+      in
+      (nulls, new_size)
 
   (** [to_n_string index_set n] returns an abstract value with a potential null byte
     * marking the end of the string and if needed followed by further null bytes to obtain
