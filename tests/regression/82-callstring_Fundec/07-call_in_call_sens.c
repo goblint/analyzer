@@ -1,8 +1,8 @@
 // PARAM: --enable ana.context.callstring_fundec --enable ana.int.interval_set
-// Interesting if multiple recursions are handled properly
+// Interesting if nested recursions are handled properly
 #include <stdio.h>
 
-int num_iterat = 9;
+int num_iterat = 9; 
 
 int f(int i)
 {
@@ -23,7 +23,7 @@ int g(int i)
     int res = 0;
     if (i == 0)
     {
-        res = 1;
+        res = 2;
     }
     if (i > 0)
     {
@@ -37,7 +37,7 @@ int h(int i)
     int res = 0;
     if (i == 0)
     {
-        res = 1;
+        res = 3;
     }
     if (i > 0)
     {
@@ -48,13 +48,7 @@ int h(int i)
 
 int main(void)
 {
-    int res1 = f(num_iterat);
-    __goblint_check(res1 == 1);
-    int res2 = g(num_iterat);
-    int res3 = h(num_iterat);
-    int res4 = h(num_iterat);
-    int res5 = h(num_iterat);
-    
-    int result = res1 + res2 + res3 + res4 + res5;
-    __goblint_check(result == 5);
+    int res = f(g(h(num_iterat))); // h(4) = 3; g(3) = 2; f(2) = 1
+
+    __goblint_check(res == 1);
 }

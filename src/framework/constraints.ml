@@ -615,7 +615,7 @@ struct
   module CallStack = struct
     include Printable.Liszt (CT) 
     let dummy = []
-    let depth = 10
+    let depth = 10 (* must be >= 0 *)
 
     let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
       let rec take n = function
@@ -623,7 +623,7 @@ struct
         | x :: xs when n > 0 -> x :: take (n - 1) xs
         | _ -> []
       in
-      let remaining_space = depth - List.length elem in (*TODO: if we stick with the list it must be assumed that the list length can be larger than the depth*)
+      let remaining_space = depth - List.length elem in 
       if remaining_space >= 0 
       then
         let remaining_stack = take remaining_space (List.rev stack) in
@@ -664,12 +664,12 @@ struct
     let liftmap_tup new_stack = List.map (fun (x,y) -> (x, stack ctx), (y, new_stack)) in (* new_stack = snd ctx'.local *)
     if CilType.Fundec.show f = "main" 
     then liftmap_tup (stack ctx) (S.enter (conv ctx) r f args)
-    else(
+    else (
       let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
       let new_stack = CallStack.push (stack ctx) elem in
-      let ctx' = {ctx with context = (fun () -> new_stack)
+      let ctx' = {ctx with context = (fun () -> new_stack) (* in case conv ctx makes the context to fail, this is not necessary*)
                          ; local = (fst ctx.local, new_stack)} in
-      if not !AnalysisState.postsolving then CT.printStack f args (stack ctx) (stack ctx');
+      if not !AnalysisState.postsolving then CT.printStack f args (stack ctx) (stack ctx'); (* just for debugging purpose*)
       liftmap_tup new_stack (S.enter (conv ctx') r f args))
 
 

@@ -2,7 +2,7 @@
 // Checks if function chains are handled properly
 #include <stdio.h>
 
-int num_iterat = 10;
+int num_iterat = 12;
 
 int h(int i)
 {
