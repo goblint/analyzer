@@ -1484,7 +1484,7 @@ struct
           | _ -> (Nulls.top (), size1))
         |  _ -> (Nulls.top (), size1)
       (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
-      else if Nulls.min_elem_precise (nulls1) && Nulls.min_elem_precise nulls2' then
+      else if Nulls.min_elem_precise nulls1 && Nulls.min_elem_precise nulls2' then
         let min_i1 = Nulls.min_elem Definitely nulls1 in
         let min_i2 = Nulls.min_elem Definitely nulls2' in
         let min_i = min_i1 +. min_i2 in
