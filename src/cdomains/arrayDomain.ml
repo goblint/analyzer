@@ -1208,12 +1208,12 @@ struct
     let last_null = Z.of_int (String.length s) in
     let rec build_set i set =
       if (Z.of_int i) >=. last_null then
-        MaySet.add last_null set
+        Nulls.Set.add last_null set
       else
         match String.index_from_opt s i '\x00' with
-        | Some i -> build_set (i + 1) (MaySet.add (Z.of_int i) set)
-        | None -> MaySet.add last_null set in
-    let set = build_set 0 (MaySet.empty ()) in
+        | Some i -> build_set (i + 1) (Nulls.Set.add (Z.of_int i) set)
+        | None -> Nulls.Set.add last_null set in
+    let set = build_set 0 (Nulls.Set.empty ()) in
     (Nulls.precise_set set, Idx.of_int ILong (Z.succ last_null))
 
   (** Returns an abstract value with at most one null byte marking the end of the string *)

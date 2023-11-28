@@ -78,6 +78,8 @@ end
 module MustMaySet = struct
   include Lattice.Prod (MustSet) (MaySet)
 
+  module Set = SetDomain.Make (IntDomain.BigInt)
+
   type mode = Definitely | Possibly
 
   let empty () = (MustSet.top (), MaySet.bot ())
@@ -176,7 +178,7 @@ module MustMaySet = struct
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)
 
-  let precise_set s = (s,s)
+  let precise_set (s:Set.t):t = (`Lifted s,`Lifted s)
 
   let make_all_must () = (MustSet.bot (), MaySet.top ())
 
