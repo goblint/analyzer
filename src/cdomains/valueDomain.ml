@@ -39,9 +39,9 @@ sig
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
+  type retnull = Null | NotNull | Maybe
   val null: unit -> t
-  val is_null: t -> bool
-  val is_not_null: t -> bool
+  val is_null: t -> retnull
 
   val get_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t
@@ -276,15 +276,13 @@ struct
 
   let null () = Int (ID.of_int IChar Z.zero)
 
+  type retnull = Null | NotNull | Maybe
   let is_null = function
-    | Int n -> GobOption.exists (Z.equal Z.zero) (ID.to_int n)
-    | _ -> false
-
-  let is_not_null = function
+    | Int n  when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Null
     | Int n ->
       let zero_ik = ID.of_int (ID.ikind n) Z.zero in
-      ID.to_bool (ID.ne n zero_ik) = Some true
-    | _ -> false (* we don't know anything *)
+      if ID.to_bool (ID.ne n zero_ik) = Some true then NotNull else Maybe
+    | _ -> Maybe
 
   let get_ikind = function
     | Int n -> Some (ID.ikind n)

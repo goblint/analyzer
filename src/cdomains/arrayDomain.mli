@@ -71,7 +71,7 @@ module type Str =
 sig
   include S0
 
-  type ret = Null | NotNull | Top
+  type ret = Null | NotNull | Maybe
   type substr = IsNotSubstr | IsSubstrAtIndex0 | IsMaybeSubstr
 
   val get: VDQ.t -> t -> Basetype.CilExp.t option * idx -> ret
@@ -88,17 +88,17 @@ sig
     * into array [dest], taking at most [n] bytes of [src] if present *)
 
   val string_concat: t -> t -> int option -> t
-  (** [string_concat s1 s2 n] returns a new abstract value representing the string 
+  (** [string_concat s1 s2 n] returns a new abstract value representing the string
     * concatenation of the input abstract values [s1] and [s2], taking at most [n] bytes of
     * [s2] if present *)
 
   val substring_extraction: t -> t -> substr
-  (** [substring_extraction haystack needle] returns [IsNotSubstr] if the string represented by 
-    * the abstract value [needle] surely isn't a substring of [haystack], [IsSubstrAtIndex0] if 
+  (** [substring_extraction haystack needle] returns [IsNotSubstr] if the string represented by
+    * the abstract value [needle] surely isn't a substring of [haystack], [IsSubstrAtIndex0] if
     * [needle] is the empty string, else [Unknown] *)
 
   val string_comparison: t -> t -> int option -> idx
-  (** [string_comparison s1 s2 n] returns a negative / positive idx element if the string 
+  (** [string_comparison s1 s2 n] returns a negative / positive idx element if the string
     * represented by [s1] is less / greater than the one by [s2] or zero if they are equal;
     * only compares the first [n] bytes if present *)
 end
@@ -112,7 +112,7 @@ sig
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 end
 
-module type LatticeWithInvalidate = 
+module type LatticeWithInvalidate =
 sig
   include Lattice.S
   val invalidate_abstract_value: t -> t
@@ -129,10 +129,10 @@ end
 module type LatticeWithNull =
 sig
   include LatticeWithSmartOps
+  type retnull = Null | NotNull | Maybe
 
   val null: unit -> t
-  val is_null: t -> bool
-  val is_not_null: t -> bool
+  val is_null: t -> retnull
 
   val get_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t
@@ -162,8 +162,8 @@ module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S wit
 module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): Str with type value = Val.t and type idx = Idx.t
 (** This functor creates an array representation by the indexes of all null bytes
   * the array must and may contain. This is useful to analyze strings, i.e. null-
-  * terminated char arrays, and particularly to determine if operations on strings 
-  * could lead to a buffer overflow. Concrete values from Val are not interesting 
+  * terminated char arrays, and particularly to determine if operations on strings
+  * could lead to a buffer overflow. Concrete values from Val are not interesting
   * for this domain. It additionally tracks the array size.
 *)
 
@@ -171,6 +171,6 @@ module AttributeConfiguredArrayDomain (Val: LatticeWithSmartOps) (Idx: IntDomain
 (** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
 
 module AttributeConfiguredAndNullByteArrayDomain (Val: LatticeWithNull) (Idx: IntDomain.Z): StrWithDomain with type value = Val.t and type idx = Idx.t
-(** Like FlagHelperAttributeConfiguredArrayDomain but additionally runs NullByte 
-  * in parallel if flag "ana.base.arrays.nullbytes" is set. 
+(** Like FlagHelperAttributeConfiguredArrayDomain but additionally runs NullByte
+  * in parallel if flag "ana.base.arrays.nullbytes" is set.
 *)
