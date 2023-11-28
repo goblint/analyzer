@@ -1250,23 +1250,10 @@ struct
     * marking the end of the string and if needed followed by further null bytes to obtain
     * an n bytes string. *)
   let to_n_string (nulls, size) n:t =
-    let must_nulls_set, may_nulls_set = nulls in
     if n < 0 then
       (Nulls.top (), Idx.top_of ILong)
     else
       let n = Z.of_int n in
-      let rec add_indexes i max set =
-        if Z.geq i max then
-          set
-        else
-          add_indexes (Z.succ i) max (MaySet.add i set) in
-      let update_may_indexes min_may_null may_nulls_set =
-        if min_may_null =. Z.zero then
-          MaySet.top ()
-        else
-          (* if minimal strlen < n, every byte starting from minimal may null index may be transformed to null *)
-          add_indexes min_may_null n may_nulls_set
-          |> MaySet.M.filter (Z.gt n) in
       let warn_no_null min_must_null exists_min_must_null min_may_null =
         if Z.geq min_may_null n then
           M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
@@ -1303,8 +1290,8 @@ struct
          if min_may_null =. Z.zero then
           Nulls.add_all Possibly nulls
          else
-          let (must, mays) = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-          (must, mays |> MaySet.M.filter (fun x -> x <. n))  (* TODO: this makes little sense *)
+          let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
+          Nulls.filter (fun x -> x <. n) nulls
        else
          let min_must_null = Nulls.min_elem Definitely nulls in
          let min_may_null = Nulls.min_elem Possibly nulls in
@@ -1318,8 +1305,12 @@ struct
             let nulls = Nulls.add_interval Definitely (min_must_null, Z.pred n) nulls in
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
             Nulls.filter (fun x -> x <. n) nulls)
-         else
-           (MustSet.top (), update_may_indexes min_may_null may_nulls_set)
+         else if min_may_null =. Z.zero then
+            Nulls.top ()
+         else 
+            let nulls = Nulls.remove_all Possibly nulls in
+            let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
+            Nulls.filter (fun x -> x <. n) nulls
       in
       (nulls,  Idx.of_int ILong n)
 
