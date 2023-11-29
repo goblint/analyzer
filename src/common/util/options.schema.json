@@ -757,7 +757,7 @@
                     "The domain that should be used for unions. Options: simple/map",
                   "type": "string",
                   "enum": ["simple", "map"],
-                  "default": "simple"
+                  "default": "map"
                 }
               },
               "additionalProperties": false
