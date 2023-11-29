@@ -12,6 +12,8 @@ void *write_global(void *p){
 
 int main(){
 	pthread_t t;
+	// Creation of thread of modularly analyzed function.
+	// Not handled for now.
 	pthread_create(&t, NULL, write_global, NULL);
 
 	int j = g;

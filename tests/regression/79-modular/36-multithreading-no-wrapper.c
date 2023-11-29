@@ -22,6 +22,8 @@ int main(){
 	pp = malloc(sizeof(int*));
 	*pp = NULL;
 
+	// Creation of threads of modularly analyzed functions.
+	// Not handled for now.
 	pthread_create(&t1, NULL, change_pointer, NULL);
 	pthread_create(&t2, NULL, write_through_pointer, NULL);
 
