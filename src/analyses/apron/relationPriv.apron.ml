@@ -1318,6 +1318,50 @@ struct
     let r = sync ask getg sideg st reason in
     if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
     r
+
+  let escape node ask getg sideg st vs =
+    if M.tracing then M.traceli "relationpriv" "escape\n";
+    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      sideg x v
+    in
+    let r = escape node ask getg sideg st vs in
+    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    r
+
+  let thread_join ?force ask getg e st =
+    if M.tracing then M.traceli "relationpriv" "thread_join\n";
+    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      r
+    in
+    let r = thread_join ?force ask getg e st in
+    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    r
+
+  let thread_return ask getg sideg tid st =
+    if M.tracing then M.traceli "relationpriv" "thread_return\n";
+    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      sideg x v
+    in
+    let r = thread_return ask getg sideg tid st in
+    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    r
 end
 
 
