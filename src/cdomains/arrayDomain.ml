@@ -1227,7 +1227,7 @@ struct
       let new_size = Idx.of_int ILong (Z.succ min_must_null) in
       let min_may_null = Nulls.min_elem Possibly nulls in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
-      let nulls = 
+      let nulls =
         if min_must_null =. min_may_null then
           Nulls.precise_singleton min_must_null
         (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
@@ -1255,7 +1255,7 @@ struct
       let warn_no_null min_must_null min_may_null =
         if Z.geq min_may_null n then
           M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
-        else 
+        else
           (match min_must_null with
           | Some min_must_null when not (min_must_null >=. n || min_must_null >. min_may_null) -> ()
           | _ ->
@@ -1309,7 +1309,7 @@ struct
             Nulls.filter (fun x -> x <. n) nulls
          else if min_may_null =. Z.zero then
             Nulls.top ()
-         else 
+         else
             let nulls = Nulls.remove_all Possibly nulls in
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
             Nulls.filter (fun x -> x <. n) nulls
@@ -1437,7 +1437,7 @@ struct
       (if GobOption.exists (fun x -> x <=. (minlen1 +. minlen2)) max_size1 then
         warn_past_end
            "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
-       else 
+       else
         (match maxlen1, maxlen2 with
         | Some maxlen1, Some maxlen2 when min_size1 >. (maxlen1 +. maxlen2) -> ()
         | _ -> warn_past_end
@@ -1451,7 +1451,7 @@ struct
         | Some max_size1 ->
           let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
           let pred = match maxlen1, maxlen2 with
-            | Some maxlen1, Some maxlen2 -> (fun x -> x <=. (maxlen1 +. maxlen2)) 
+            | Some maxlen1, Some maxlen2 -> (fun x -> x <=. (maxlen1 +. maxlen2))
             | _ -> (fun _ -> true)
           in
           let r =
@@ -1509,16 +1509,16 @@ struct
           match Idx.maximal size2 with
           | Some max_size2 -> MaySet.filter ~max_size:max_size2 (Z.geq min_i2) may_nulls_set2'
           | None -> MaySet.filter ~max_size:(Z.succ min_i2) (Z.geq min_i2) may_nulls_set2' in
-        let must_nulls_set_result = 
+        let must_nulls_set_result =
           let pred = match maxlen1, maxlen2 with
-            | Some maxlen1, Some maxlen2 -> (fun x -> (maxlen1 +. maxlen2) <. x) 
+            | Some maxlen1, Some maxlen2 -> (fun x -> (maxlen1 +. maxlen2) <. x)
             | _ -> (fun _ -> false)
           in
-          MustSet.filter ~min_size:min_size1 pred must_nulls_set1 
+          MustSet.filter ~min_size:min_size1 pred must_nulls_set1
         in
         let may_nulls_set_result =
           let pred = match maxlen1, maxlen2 with
-            | Some maxlen1, Some maxlen2 -> (fun x -> x <=. (maxlen1 +. maxlen2)) 
+            | Some maxlen1, Some maxlen2 -> (fun x -> x <=. (maxlen1 +. maxlen2))
             | _ -> (fun _ -> true)
           in
           match max_size1 with
@@ -1546,7 +1546,7 @@ struct
       let strlen2 = to_string_length (nulls2', size2) in
       match Idx.minimal size1, Idx.minimal strlen1, Idx.minimal strlen2 with
       | Some min_size1, Some minlen1, Some minlen2 ->
-        begin 
+        begin
           let f = update_sets min_size1 (Idx.maximal size1) minlen1 in
           match Idx.maximal strlen1, Idx.maximal strlen2 with
           | (Some _ as maxlen1), (Some _ as maxlen2) -> f maxlen1 minlen2 maxlen2 nulls2'
