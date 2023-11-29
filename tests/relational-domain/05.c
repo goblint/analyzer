@@ -1,19 +1,18 @@
 #include <stdio.h>
 #include <pthread.h>
-//#include <goblint.h>
 
-int x=0;
-int y=0;
+int x =0;
+char y='a';
 
 void *thread1(void *arg){
-    x=1;
-    y=1;
+    if(x==0){
+        y='b';
+    }
     return NULL;
 }
 
 void *thread2(void *arg){
-    y=2;
-    x=2;
+    x =1;
     return NULL;
 }
 
@@ -26,11 +25,9 @@ int main(){
     pthread_join(thread1_id, NULL);
     pthread_join(thread2_id, NULL);
 
-    __goblint_check(x==y);
     __goblint_check(x!=y);
 
     return 0;
 }
 
-//this test case verifies whether the analyzer can correctly represent and maintain the relationship between x and y even when they are modfied concurrectly.
-
+/* This test case uses 2 different types of variable, an integer and a character. It ensures that analyzer can track 2 variable equalities even when the variables have different types and sizes. */

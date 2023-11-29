@@ -25,11 +25,7 @@ int main(){
     pthread_join(thread1_id, NULL);
     pthread_join(thread2_id, NULL);
 
-    if(x==y){
-        printf("Two-variable equality detected!\n");
-    } else {
-        printf("Two-variable equality not detected.\n");
-    }
+    __goblint_check(x!=y);
 
     return 0;
 }

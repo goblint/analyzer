@@ -28,11 +28,7 @@ int main(){
         pthread_join(threads[i], NULL);
     }
 
-    if(x==y){
-        printf("x is equal to y\n");
-    } else {
-        printf("x is not equal to y\n");
-    }
+    __goblint_check(x!=y);
     return 0;
 }
 
