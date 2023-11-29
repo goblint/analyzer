@@ -1,4 +1,4 @@
-//PARAM: --set ana.modular.funs "['write']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'" --set ana.activated[+] "'used_globals'"
+//PARAM: --set ana.modular.funs "['read']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'" --set ana.activated[+] "'used_globals'"
 #include<stdlib.h>
 #include<pthread.h>
 #include<stdio.h>
@@ -17,7 +17,7 @@ void change_pointer(int* i){
 
 void *thread1(void *pp){
 	int **pp_typed = (int**)pp;
-	write(pp_typed); // RACE
+	read(pp_typed); // RACE
 	return NULL;
 }
 
