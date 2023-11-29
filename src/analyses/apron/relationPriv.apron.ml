@@ -1051,7 +1051,7 @@ struct
       (* let rel_side = RD.keep_vars rel_local [g_var] in
       let rel_side = Cluster.unlock (W.singleton g) rel_side in
       let l' = L.add lm rel_side l in *)
-      {rel = rel_local; priv = (W.add g w,LMust.add lm lmust,l)}
+      {rel = rel_local; priv = (W.add g w,lmust,l)}
     )
 
   let lock ask getg (st: relation_components_t) m =
@@ -1104,12 +1104,13 @@ struct
       let rel_side = Cluster.unlock w rel_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid rel_side in
-      W.iter (fun g ->
-          sideg (V.global g) (G.create_mutex sidev)
-        ) w;
-      let lm = LLock.mutex m in
-      let l' = L.add lm rel_side l in
-      {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
+      let (lmust', l') = W.fold (fun g (lmust, l) ->
+          sideg (V.global g) (G.create_mutex sidev);
+          let lm = LLock.global g in
+          (LMust.add lm lmust, L.add lm rel_side l)
+        ) w (lmust, l)
+      in
+      {rel = rel_local; priv = (w',lmust',l')}
     )
 
   let thread_join ?(force=false) (ask:Q.ask) getg exp (st: relation_components_t) =
