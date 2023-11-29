@@ -953,7 +953,7 @@ struct
   let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
     let get_mutex_global_g = Cluster.keep_global g get_mutex_global_g in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
@@ -968,8 +968,8 @@ struct
     if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
     r
 
-  let get_mutex_global_g_with_mutex_inits' inits ask getg =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
+  let get_mutex_global_g_with_mutex_inits' inits ask getg g =
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
     if not inits then
       get_mutex_global_g
     else
@@ -988,7 +988,7 @@ struct
       if atomic && RD.mem_var rel (AV.global g) then
         rel
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg g)
       else
         Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
     in
@@ -1022,7 +1022,7 @@ struct
       if atomic && RD.mem_var rel (AV.global g) then
         rel
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg g)
       else
         Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
     in
@@ -1037,7 +1037,7 @@ struct
       let rel_side = Cluster.unlock (W.singleton g) rel_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid rel_side in
-      sideg (V.mutex atomic_mutex) (G.create_global sidev);
+      sideg (V.global g) (G.create_global sidev);
       let l' = L.add lm rel_side l in
       let rel_local' =
         if is_unprotected ask g then
@@ -1104,7 +1104,9 @@ struct
       let rel_side = Cluster.unlock w rel_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid rel_side in
-      sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
+      W.iter (fun g ->
+          sideg (V.global g) (G.create_mutex sidev)
+        ) w;
       let lm = LLock.mutex m in
       let l' = L.add lm rel_side l in
       {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
