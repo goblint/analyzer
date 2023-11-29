@@ -93,9 +93,9 @@ sig
     * [s2] if present *)
 
   val substring_extraction: t -> t -> substr
-  (** [substring_extraction haystack needle] returns [IsNotSubstr] if the string represented by
-    * the abstract value [needle] surely isn't a substring of [haystack], [IsSubstrAtIndex0] if
-    * [needle] is the empty string, else [Unknown] *)
+  (** [substring_extraction haystack needle] returns {!IsNotSubstr} if the string represented by
+    * the abstract value [needle] surely isn't a substring of [haystack], {!IsSubstrAtIndex0} if
+    * [needle] is the empty string, else {!IsMaybeSubstr} *)
 
   val string_comparison: t -> t -> int option -> idx
   (** [string_comparison s1 s2 n] returns a negative / positive idx element if the string
