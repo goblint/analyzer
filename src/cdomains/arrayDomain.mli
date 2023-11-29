@@ -123,9 +123,9 @@ sig
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> bool
 end
 
-module type LatticeWithNull =
+module type Null =
 sig
-  include LatticeWithSmartOps
+  type t
   type retnull = Null | NotNull | Maybe
 
   val null: unit -> t
@@ -134,6 +134,12 @@ sig
   val get_ikind: t -> Cil.ikind option
   val zero_of_ikind: Cil.ikind -> t
   val not_zero_of_ikind: Cil.ikind -> t
+end
+
+module type LatticeWithNull =
+sig
+  include LatticeWithSmartOps
+  include Null with type t := t
 end
 
 module Trivial (Val: LatticeWithInvalidate) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t

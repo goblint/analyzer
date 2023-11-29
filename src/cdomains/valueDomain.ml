@@ -39,13 +39,7 @@ sig
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
-  type retnull = Null | NotNull | Maybe
-  val null: unit -> t
-  val is_null: t -> retnull
-
-  val get_ikind: t -> Cil.ikind option
-  val zero_of_ikind: Cil.ikind -> t
-  val not_zero_of_ikind: Cil.ikind -> t
+  include ArrayDomain.Null with type t := t
 
   val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
