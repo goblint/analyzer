@@ -16,7 +16,7 @@ typedef union {
 	node_t *nptr;
 } int_or_node;
 
-void *write_node(int_or_node u, int is_node){
+void write_node(int_or_node u, int is_node){
 	if(is_node){
 		u.nptr->value = 23;
 	} else {
