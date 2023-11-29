@@ -238,8 +238,7 @@ struct
     | _ -> None
 
   let get_coeff (t: t) texp =
-    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset, 
-      where the variable is a reference variable in the current state t.
+    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
       Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
     *)
     let open Apron.Texpr1 in
@@ -261,9 +260,7 @@ struct
                          | Mpfrf x -> raise NotIntegerOffset end in of_union x
         | Var x -> 
           let var_dim = print Format.std_formatter (Texpr1.of_expr t.env (Var x)); Environment.dim_of_var t.env x in
-          begin match t.d with 
-            | Some m -> m.(var_dim)
-            | None -> (Some var_dim, Z.zero) end
+          (Some var_dim, Z.zero)
         | Unop (u, e, _, _) ->
           begin match u with
             | Neg -> raise NotLinear2Var
@@ -354,21 +351,13 @@ end
 
 (*end*)
 
-(*
-(** As it is specifically used for the new affine equality domain, it can only provide bounds if the expression contains known constants only and in that case, min and max are the same. *)
-module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc).t) =
-struct
-  include VarManagement (Vc)
 
-  let bound_texpr t texpr =
-    let texpr = Texpr1.to_expr texpr in
-    match get_coeff_vec t texpr  with
-    | Some v -> begin match get_c v with
-        | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
-          let int_val = Mpqf.get_num c
-          in Some int_val, Some int_val
-        | _ -> None, None end
-    | _ -> None, None
+(** TODO: overflow checking *)
+module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
+struct
+  include VarManagement
+
+  let bound_texpr t texpr = Some Z.zero, Some Z.zero (*TODO*)
 
 
   let bound_texpr d texpr1 =
@@ -379,16 +368,16 @@ struct
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
 end
-*)
-module D(Vc: AbstractVector) (Mx: AbstractMatrix) =
+
+module D =
 struct
   include Printable.Std
   include ConvenienceOps (Mpqf)
   include VarManagement 
 
-  (* module Bounds = ExpressionBounds (Vc) (Mx) 
+  module Bounds = ExpressionBounds
 
-     module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) *)
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) 
 
   type var = V.t
   (* prints the current variable equalities with resolved variable names *)
@@ -539,7 +528,6 @@ struct
     begin match t.d with 
       | Some d ->   
         begin match d.(assigned_var) with
-          | exception Failure _ -> bot() (* we don't have any information about the variable assigned_var yet*)
           | rhs -> (* rhs is the current equality with assigned_var on the left hand side *) 
             let abstract_exists_var = abstract_exists var t in
             begin match get_coeff t texp with
@@ -555,7 +543,7 @@ struct
                         else
                           let empty_array = EqualitiesArray.make_empty_array (VarManagement.size t) in
                           let added_equality = empty_array.(exp_var) <- (Some assigned_var, off); empty_array in
-                          meet abstract_exists_var {d = Some added_equality; env = t.env}  (* change reference variable*)
+                          meet abstract_exists_var {d = Some added_equality; env = t.env} 
                       end 
                 end
             end
@@ -567,19 +555,19 @@ struct
 
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
-  let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
+  let assign_exp (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
-      if is_bot t then t else forget_vars t [var]
+      if is_bot t then t else forget_var t (Environment.dim_of_var t.env var)
 
   let assign_exp t var exp no_ov =
     let res = assign_exp t var exp no_ov in
     if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
         (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
-  let assign_var (t: VarManagement(Vc)(Mx).t) v v' =
+  let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
     assign_texpr t v (Apron.Texpr1.to_expr texpr1)
@@ -588,7 +576,7 @@ struct
     let res = assign_var t v v' in
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
-
+(*
   let assign_var_parallel t vv's =
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
@@ -634,7 +622,7 @@ struct
   let substitute_exp t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     let res = assign_exp t var exp no_ov in
-    forget_vars res [var]
+    forget_var res (Environment.dim_of_var t.env var)
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov
@@ -755,6 +743,6 @@ struct
   module D =  D (Vc) (Mx)
   include SharedFunctions.AssertionModule (V) (D)
   include D
-
+*)
 end
 
