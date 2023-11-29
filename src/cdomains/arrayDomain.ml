@@ -90,9 +90,7 @@ end
 module type StrWithDomain =
 sig
   include Str
-
-  val domain_of_t: t -> domain
-  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
+  include S with type t := t and type idx := idx
 end
 
 module type LatticeWithInvalidate =
