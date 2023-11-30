@@ -20,11 +20,17 @@ void *t1(void *arg) {
   pthread_mutex_lock(&a);
   h = 11; g = 12;
   pthread_mutex_unlock(&a);
+  return NULL;
+}
 
+void *t0(void *arg) {
   return NULL;
 }
 
 int main() {
+  pthread_t x;
+  pthread_create(&x, NULL, t0, NULL); // go multithreaded
+
   pthread_mutex_lock(&a);
   h = 9;
   g = 10;
