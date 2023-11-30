@@ -1,6 +1,7 @@
 (** Basic lockset analyses. *)
 
 open Analyses
+open GoblintCil
 
 
 module type DS =
@@ -33,6 +34,21 @@ sig
   val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
 end
 
+let lock_of_lval (lhost, offset) =
+  match lhost with
+  | Var varinfo ->
+    let lock = ValueDomain.Addr.of_var varinfo in
+    let offset = Offset.Exp.of_cil offset in
+    let offset = ValueDomain.Offs.of_exp offset in
+    let lock = ValueDomain.Addr.add_offset lock offset in
+    Some lock
+  | Mem exp ->
+    match exp with
+    | Const (CInt (_, _, Some (str))) ->
+      let lock = ValueDomain.Addr.of_string str in
+      Some lock
+    | _ -> None
+
 module MakeMay (Arg: MayArg) =
 struct
   include Make (Arg.D)
@@ -51,6 +67,14 @@ struct
       ctx.local (* don't remove non-unique lock *)
     | Events.Unlock l ->
       Arg.remove ctx l (* remove definite lock or none in parallel if ambiguous *)
+    | Events.Invalidate {lvals} ->
+      let handle_lval ctx lval = 
+        match lock_of_lval lval with
+        | Some lock -> {ctx with local = Arg.remove ctx lock}
+        | None -> ctx
+      in
+      let ctx = List.fold_left handle_lval ctx lvals in
+      ctx.local
     | _ ->
       ctx.local
 end
@@ -82,6 +106,14 @@ struct
       Arg.remove_all ctx (* remove all locks *)
     | Events.Unlock l ->
       Arg.remove ctx l (* remove definite lock or all in parallel if ambiguous (blob lock is never added) *)
+    | Events.Invalidate {lvals} ->
+      let handle_lval ctx lval = 
+        match lock_of_lval lval with
+        | Some lock -> {ctx with local = Arg.remove ctx lock}
+        | None -> ctx
+      in
+      let ctx = List.fold_left handle_lval ctx lvals in
+      ctx.local
     | _ ->
       ctx.local
 end

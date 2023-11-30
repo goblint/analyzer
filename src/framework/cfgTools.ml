@@ -145,6 +145,8 @@ end
 
 module CfgEdgeH = BatHashtbl.Make (CfgEdge)
 
+let ignore_asm = get_bool "asm_is_nop"
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
@@ -383,10 +385,12 @@ let createCFG (file: file) =
             | [] -> failwith "MyCFG.createCFG: 0 Asm succ"
             | [succ, skippedStatements] -> begin
                 addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, false)) (Statement succ);
-                List.iter (fun label ->
-                  let succ, skippedStatements = find_real_stmt ~parent:stmt !label in 
-                  addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, true)) (Statement succ)
-                ) labels
+                if not ignore_asm then
+                  List.iter (fun label ->
+                      let succ, skippedStatements = find_real_stmt ~parent:stmt !label in 
+                      addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, true)) (Statement succ)
+                    ) labels
+                else ()
               end
             | _ -> failwith "MyCFG.createCFG: >1 Asm succ"
             end
