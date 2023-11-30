@@ -9,11 +9,11 @@ include RelationAnalysis
 (** TODO: modify code *)
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = AffineEqualityDomain.D2 (VectorMatrix.ArrayVector) (VectorMatrix.ArrayMatrix) in
+    let module AD = LinearTwoVarEqualityDomain.D2  in
     let module RD: RelationDomain.RD =
     struct
-      module Var = AffineEqualityDomain.Var
-      module V = AffineEqualityDomain.V
+      module Var = LinearTwoVarEqualityDomain.Var
+      module V = LinearTwoVarEqualityDomain.V
       include AD
     end
     in
