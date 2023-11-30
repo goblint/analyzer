@@ -391,14 +391,11 @@ struct
       st
 end
 
-module PerMutexMeetTIDPriv: S =
+module PerMutexMeetTIDPriv (Digest: Digest): S =
 struct
   open Queries.Protection
   include PerMutexMeetPrivBase
-  include PerMutexTidCommon(struct
-      let exclude_not_started () = GobConfig.get_bool "ana.base.priv.not-started"
-      let exclude_must_joined () = GobConfig.get_bool "ana.base.priv.must-joined"
-    end)(CPA)
+  include PerMutexTidCommon (Digest) (CPA)
 
   let iter_sys_vars getg vq vf =
     match vq with
@@ -425,11 +422,10 @@ struct
     r
 
   let get_relevant_writes (ask:Q.ask) m v =
-    let current = ThreadId.get_current ask in
-    let must_joined = ask.f Queries.MustJoinedThreads in
+    let current = Digest.current ask in
     let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
     GMutex.fold (fun k v acc ->
-        if compatible ask current must_joined k then
+        if Digest.compatible ask current k then
           CPA.join acc (CPA.filter is_in_Gm v)
         else
           acc
@@ -474,8 +470,8 @@ struct
         CPA.add x v st.cpa
     in
     if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
-    let tid = ThreadId.get_current ask in
-    let sidev = GMutex.singleton tid (CPA.singleton x v) in
+    let digest = Digest.current ask in
+    let sidev = GMutex.singleton digest (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
     let l' = if is_recovered_st then
@@ -517,8 +513,8 @@ struct
       {st with cpa = cpa'; priv = (w',lmust,l)}
     else
       let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
-      let tid = ThreadId.get_current ask in
-      let sidev = GMutex.singleton tid (CPA.filter is_in_Gm st.cpa) in
+      let digest = Digest.current ask in
+      let sidev = GMutex.singleton digest (CPA.filter is_in_Gm st.cpa) in
       sideg (V.mutex m) (G.create_mutex sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm (CPA.filter is_in_Gm st.cpa) l in
@@ -568,13 +564,13 @@ struct
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    let tid = ThreadId.get_current ask in
-    let sidev = GMutex.singleton tid escaped_cpa in
+    let digest = Digest.current ask in
+    let sidev = GMutex.singleton digest escaped_cpa in
     sideg V.mutex_inits (G.create_mutex sidev);
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
-          let sidev = GMutex.singleton tid (CPA.singleton x v) in
+          let sidev = GMutex.singleton digest (CPA.singleton x v) in
           sideg (V.global x) (G.create_global sidev);
           CPA.remove x acc
         )
@@ -587,8 +583,8 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     let cpa = st.cpa in
     let cpa_side = CPA.filter (fun x _ -> is_global ask x) cpa in
-    let tid = ThreadId.get_current ask in
-    let sidev = GMutex.singleton tid cpa_side in
+    let digest = Digest.current ask in
+    let sidev = GMutex.singleton digest cpa_side in
     sideg V.mutex_inits (G.create_mutex sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
@@ -1798,12 +1794,19 @@ end
 
 let priv_module: (module S) Lazy.t =
   lazy (
+    let module TIDDigest = ThreadDigest (
+      struct
+        let exclude_not_started () = GobConfig.get_bool "ana.relation.priv.not-started"
+        let exclude_must_joined () = GobConfig.get_bool "ana.relation.priv.must-joined"
+      end
+      )
+    in
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv)
+        | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (TIDDigest))
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
         | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
         | "mine" -> (module MinePriv)
