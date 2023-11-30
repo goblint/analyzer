@@ -8,13 +8,27 @@ module Arg =
 struct
   module D = LockDomain.MayLocksetNoRW
   module P = IdentityP (D)
-  module G = DefaultSpec.G
-  module V = DefaultSpec.V
 
-  let add ctx (l,r) =
-    D.add l ctx.local
+  module V =
+  struct
+    include StdV
+    include LockDomain.Addr
+  end
+  module G = SetDomain.Make (D)
 
-  let remove ctx l =
+  let add (ctx: (D.t, G.t, D.t, V.t) ctx) (l,r) =
+    let l's = ctx.global l in
+    G.iter (fun l' ->
+        if not (D.mem l ctx.local && not (D.mem l l')) then
+          ctx.split (D.add l (D.union ctx.local l')) []
+      ) l's;
+    if D.mem l ctx.local then
+      raise Deadcode
+    else
+      D.add l ctx.local (* for initial empty *)
+
+  let remove (ctx: (D.t, G.t, D.t, V.t) ctx) l =
+    ctx.sideg l (G.singleton ctx.local);
     ctx.local
 end
 
