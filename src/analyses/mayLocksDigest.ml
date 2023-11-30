@@ -4,7 +4,7 @@ open Analyses
 open GoblintCil
 module LF = LibraryFunctions
 
-module Arg:LocksetAnalysis.MayArg =
+module Arg =
 struct
   module D = LockDomain.MayLocksetNoRW
   module P = IdentityP (D)
@@ -24,6 +24,11 @@ struct
   let name () = "maylocksdigest"
 
   let threadenter ctx ~multiple lval f args = [ctx.local]
+
+  let query (ctx: (D.t, _, _, _) ctx) (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | MayLocksDigest -> ctx.local
+    | _ -> Queries.Result.top q
 end
 
 let _ =

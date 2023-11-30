@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet --set ana.activated[+] maylocksdigest --set ana.path_sens[+] maylocksdigest
+// PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-lock --set ana.activated[+] maylocksdigest --set ana.path_sens[+] maylocksdigest --set ana.path_sens[+] threadflag
 #include <pthread.h>
 #include <goblint.h>
 

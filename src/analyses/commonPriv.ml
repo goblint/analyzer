@@ -185,6 +185,17 @@ struct
     | _ -> true
 end
 
+module LockDigest: Digest =
+struct
+  include PreValueDomain.AD
+
+  let current (ask: Q.ask) =
+    ask.f MayLocksDigest
+
+  let compatible (ask: Q.ask) (current: t) (other: t) =
+    true (* TODO *)
+end
+
 module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit

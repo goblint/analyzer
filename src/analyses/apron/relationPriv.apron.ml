@@ -1209,6 +1209,7 @@ let priv_module: (module S) Lazy.t =
          | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ThreadDigest) (ArbitraryCluster (Clustering2)))
          | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (ThreadDigest) (ArbitraryCluster (ClusteringMax)))
          | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (ThreadDigest) (DownwardClosedCluster (ClusteringPower)))
+         | "mutex-meet-lock" -> (module PerMutexMeetPrivTID (LockDigest) (NoCluster))
          | _ -> failwith "ana.relation.privatization: illegal value"
       )
     in

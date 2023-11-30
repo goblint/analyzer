@@ -81,6 +81,7 @@ type _ t =
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: AD.t t
+  | MayLocksDigest: AD.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
@@ -200,6 +201,7 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
+    | MayLocksDigest -> (module AD)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -268,6 +270,7 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
+    | MayLocksDigest -> AD.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -333,6 +336,7 @@ struct
     | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
+    | Any MayLocksDigest -> 58
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -489,6 +493,7 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any MayLocksDigest -> Pretty.dprintf "MayLocksDigest"
 end
 
 let to_value_domain_ask (ask: ask) =
