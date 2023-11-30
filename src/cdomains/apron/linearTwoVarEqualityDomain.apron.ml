@@ -210,7 +210,7 @@ struct
 
   let forget_var t var = timing_wrap "forget_var" (forget_var t) var
 
-  (*let forget_vars t vars =
+  let forget_vars t vars = t (*TODO
     if is_bot t || is_top_env t then t
     else
       let m = Option.get t.d in
@@ -576,8 +576,8 @@ struct
     let res = assign_var t v v' in
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
-(*
-  let assign_var_parallel t vv's =
+(* from here on TODO till end of module*)
+  let assign_var_parallel t vv's = t (*TODO
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
@@ -593,7 +593,7 @@ struct
       let x = Option.get res.d in
       if Matrix.normalize_with x then {d = Some x; env = res.env} else bot ()
     | _ -> t
-
+    *)
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
     if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s \n" (show t) (show res);
@@ -655,7 +655,7 @@ struct
       | exception Convert.Unsupported_CilExp _
       | _, _ -> overflow_res res
 
-  let meet_tcons t tcons expr =
+  let meet_tcons t tcons expr = t (*TODO 
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
     in
     let meet_vec e =
@@ -687,6 +687,7 @@ struct
         | _, _ -> t
       end
     | None -> t
+    *)
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
@@ -709,7 +710,7 @@ struct
 
   let relift t = t
 
-  let invariant t =
+  let invariant t = [] (*TODO
     match t.d with
     | None -> []
     | Some m ->
@@ -726,6 +727,7 @@ struct
           Lincons1.{lincons0; env = EqualitiesArray_env}
         )
       |> List.of_enum
+        *)
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
@@ -736,13 +738,13 @@ struct
   let marshal t = t
 
   let unmarshal t = t
+
 end
 
-module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S3 with type var = Var.t =
+module D2: RelationDomain.S3 with type var = Var.t =
 struct
-  module D =  D (Vc) (Mx)
+  module D = D 
   include SharedFunctions.AssertionModule (V) (D)
   include D
-*)
 end
 
