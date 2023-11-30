@@ -1198,24 +1198,17 @@ end
 
 let priv_module: (module S) Lazy.t =
   lazy (
-    let module TIDDigest = ThreadDigest (
-      struct
-        let exclude_not_started () = GobConfig.get_bool "ana.relation.priv.not-started"
-        let exclude_must_joined () = GobConfig.get_bool "ana.relation.priv.must-joined"
-      end
-      )
-    in
     let module Priv: S =
       (val match get_string "ana.relation.privatization" with
          | "top" -> (module Top : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
-         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (TIDDigest) (NoCluster))
-         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (TIDDigest) (DownwardClosedCluster (Clustering12)))
-         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (TIDDigest) (ArbitraryCluster (Clustering2)))
-         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (TIDDigest) (ArbitraryCluster (ClusteringMax)))
-         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (TIDDigest) (DownwardClosedCluster (ClusteringPower)))
+         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (ThreadDigest) (NoCluster))
+         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (ThreadDigest) (DownwardClosedCluster (Clustering12)))
+         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ThreadDigest) (ArbitraryCluster (Clustering2)))
+         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (ThreadDigest) (ArbitraryCluster (ClusteringMax)))
+         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (ThreadDigest) (DownwardClosedCluster (ClusteringPower)))
          | _ -> failwith "ana.relation.privatization: illegal value"
       )
     in

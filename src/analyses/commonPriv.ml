@@ -162,12 +162,7 @@ sig
   val compatible: Q.ask -> t -> t -> bool
 end
 
-module type PerMutexTidCommonArg = sig
-  val exclude_not_started: unit -> bool
-  val exclude_must_joined: unit -> bool
-end
-
-module ThreadDigest (Conf: PerMutexTidCommonArg): Digest =
+module ThreadDigest: Digest =
 struct
   include ThreadIdDomain.ThreadLifted
 
@@ -182,9 +177,9 @@ struct
     | `Lifted current, `Lifted other ->
       if (TID.is_unique current) && (TID.equal current other) then
         false (* self-read *)
-      else if Conf.exclude_not_started () && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
+      else if GobConfig.get_bool "ana.relation.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
         false (* other is not started yet *)
-      else if Conf.exclude_must_joined () && MHP.must_be_joined other must_joined then
+      else if GobConfig.get_bool "ana.relation.priv.must-joined" && MHP.must_be_joined other must_joined then
         false (* accounted for in local information *)
       else
         true

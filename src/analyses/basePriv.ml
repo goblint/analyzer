@@ -1786,19 +1786,12 @@ end
 
 let priv_module: (module S) Lazy.t =
   lazy (
-    let module TIDDigest = ThreadDigest (
-      struct
-        let exclude_not_started () = GobConfig.get_bool "ana.relation.priv.not-started"
-        let exclude_must_joined () = GobConfig.get_bool "ana.relation.priv.must-joined"
-      end
-      )
-    in
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (TIDDigest))
+        | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
         | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
         | "mine" -> (module MinePriv)
