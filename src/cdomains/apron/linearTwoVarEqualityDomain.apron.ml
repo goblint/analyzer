@@ -2,7 +2,55 @@
 
     @see <http://doi.acm.org/10.1145/2049706.2049710> A. Flexeder, M. Petter, and H. Seidl Fast Interprocedural Linear Two-Variable Equalities. *)
 
-(** TODO: description *)
+(** TODO: description 
+
+    APRON:
+    To get the index of a variable if you have a variable, use:
+    Environment.dim_of_var env variable 
+
+    Function naming:
+    _with -> in place changes
+    no _with -> make a copy 
+
+    TODO while developing: 
+    assert that the output doesnt have the same address as the input
+    (but it may return an unchanged version without making a copy)
+    in order to check if the function that don't have "with" really create a copy
+    Hot o check address equality in OCaml:
+    == compares address equality 
+    != for unequal addresses
+
+    TODO for next week: 
+    minimal working product
+    things to implement:
+    - leq
+    - join
+    - assignment
+    - meet_tcons
+
+    HOW TO RUN THE REGRESSION TESTS:
+    Method 1: regression test ./rectest.sh numberofdirectory numberoftest
+    Method 2: make test -> run entire test suite
+    -> the two methods have a different behaviour w.r.t. unreachable code 
+    script update suite.rb argumentgroupname ???? No idea 
+    - test with different flags 
+    - gobview doesnt work with apron
+      -Visualize test:
+      ./regtest.sh 63 01
+      see result/ folder
+      index.xml -> (printxml uses show)
+      click on program points 
+      orange nodes: dead code
+      state at the beginning of the line
+      multiple paths-> line was divided in two parts by the analysis
+
+    TODO:
+    12. January or earlier pull request -> all features implemented 
+            -> run on svcomp benchmarks -> to check runtime and unsoundness and crashes
+
+    Maybe TODO:
+    Abstract Vector in order to have less code duplication (e.g. VectorBase und Vector)
+*)
 
 open Batteries
 open GoblintCil
@@ -137,7 +185,7 @@ struct
 
   let dim_remove (ch: Apron.Dim.change) m del =
     if EArray.length ch.dim = 0 || (EArray.length m = 0) then m else (
-      EArray.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;(* ?? *)
+      EArray.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
       let m' = if not del then let m = EArray.copy m in EArray.add_elements m ch.dim else m in
       EArray.del_cols m' ch.dim)
 
@@ -166,7 +214,7 @@ struct
     change_d t env' false del
 
   let drop_vars t vars = timing_wrap "drop_vars" (drop_vars t) vars
-
+  (*TODO used by relational domain*)
   let remove_vars t vars = drop_vars t vars false
 
   let remove_vars t vars = timing_wrap "remove_vars" (remove_vars t) vars
@@ -210,7 +258,8 @@ struct
 
   let forget_var t var = timing_wrap "forget_var" (forget_var t) var
 
-  let forget_vars t vars = t (*TODO
+  let forget_vars t vars = t 
+  (*TODO
     if is_bot t || is_top_env t then t
     else
       let m = Option.get t.d in
@@ -384,9 +433,9 @@ struct
   let show varM =
     let lookup i = Var.to_string (Environment.var_of_dim varM.env i) in
     let show_var i tuple =
-        match tuple with
-        | (None, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ Z.to_string offset
-        | (Some index, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ lookup index ^ " + " ^ Z.to_string offset
+      match tuple with
+      | (None, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ Z.to_string offset
+      | (Some index, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ lookup index ^ " + " ^ Z.to_string offset
     in match varM.d with
     | None -> "No equalities available"
     | Some arr -> Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
@@ -522,7 +571,8 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" *)
+  (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" 
+     TODO make a copy of the data structure*)
   let assign_texpr (t: VarManagement.t) var texp =
     let assigned_var = Environment.dim_of_var t.env var  (* this is the variable we are assigning to *) in
     begin match t.d with 
@@ -576,8 +626,9 @@ struct
     let res = assign_var t v v' in
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
-(* from here on TODO till end of module*)
-  let assign_var_parallel t vv's = t (*TODO
+  (* from here on TODO till end of module*)
+  let assign_var_parallel t vv's = t 
+  (*TODO
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
@@ -593,7 +644,7 @@ struct
       let x = Option.get res.d in
       if Matrix.normalize_with x then {d = Some x; env = res.env} else bot ()
     | _ -> t
-    *)
+  *)
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
     if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s \n" (show t) (show res);
@@ -655,7 +706,14 @@ struct
       | exception Convert.Unsupported_CilExp _
       | _, _ -> overflow_res res
 
-  let meet_tcons t tcons expr = t (*TODO 
+  (*meet_tcons -> meet with guard in if statement
+    texpr -> tree expr (right hand side of equality)
+     -> expression used to derive tcons -> used to check for overflow
+    tcons -> tree constraint (x+y<scalar)
+     -> does not have types (overflow is type dependent)
+  *)
+  let meet_tcons t tcons expr = t 
+  (*TODO 
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
     in
     let meet_vec e =
@@ -687,7 +745,7 @@ struct
         | _, _ -> t
       end
     | None -> t
-    *)
+  *)
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
@@ -710,7 +768,8 @@ struct
 
   let relift t = t
 
-  let invariant t = [] (*TODO
+  let invariant t = [] 
+  (*TODO
     match t.d with
     | None -> []
     | Some m ->
@@ -727,7 +786,7 @@ struct
           Lincons1.{lincons0; env = EqualitiesArray_env}
         )
       |> List.of_enum
-        *)
+  *)
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
