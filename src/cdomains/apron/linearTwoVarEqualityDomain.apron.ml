@@ -258,25 +258,6 @@ struct
 
   let forget_var t var = timing_wrap "forget_var" (forget_var t) var
 
-  let forget_vars t vars = t 
-  (*TODO
-    if is_bot t || is_top_env t then t
-    else
-      let m = Option.get t.d in
-      if List.is_empty vars then t else
-        (*let rec rem_vars m vars' =
-           begin match vars' with
-             |            [] -> m
-             | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end 
-          in *){d = Some m; env = t.env}
-
-    let forget_vars t vars =
-    let res = forget_vars t vars in
-    if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
-    res
-
-    let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars*)
-
   let vars t = vars t.env
 
   let mem_var t var = Environment.mem_var t.env var
@@ -454,7 +435,8 @@ struct
   let bot_env = {d = None; env = Environment.make [||] [||]}
 
   let is_bot_env t = t.d = None
-
+(*Would the top not be the identity matrix in affineEq? 
+   i.e. the array where each variable is assigned itself with no other coeffcients? *)
   let top () = failwith "D.top ()"
 
   let is_top _ = false
@@ -571,6 +553,23 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  let forget_vars t vars = 
+    if is_bot t || is_top_env t then t
+    else
+      let m = Option.get t.d in
+      if List.is_empty vars then t else
+        (*let rec rem_vars m vars' =
+            begin match vars' with
+              |            [] -> m
+              | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end 
+          in *){d = Some m; env = t.env}
+
+  let forget_vars t vars =
+  let res = forget_vars t vars in
+  if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
+  res
+
+  let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
   (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" 
      TODO make a copy of the data structure*)
   let assign_texpr (t: VarManagement.t) var texp =
@@ -627,24 +626,29 @@ struct
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
   (* from here on TODO till end of module*)
-  let assign_var_parallel t vv's = t 
-  (*TODO
+  let assign_var_parallel t vv's = 
+     List.fold_left (fun t (v1,v2) -> assign_var t v1 v2) t vv's
+    (* 
+    **This implementation automatically assigns the variables to keep the invariant of the matrix, which is irrelvant for us
+    
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t -> let replace_col m x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
-                                                 let col_x = Matrix.get_col m dim_x in
-                                                 Matrix.set_col_with m col_x dim_y in
-      let m_cp = Matrix.copy m in
-      let switched_m = List.fold_left2 (fun m' x y -> replace_col m' x y) m_cp primed_vars assigned_vars in
-      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
+    | Some arr when not @@ is_top_env multi_t -> 
+      let replace_entry arr x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
+          let entry_x = EArray.get arr dim_x in
+          EArray.set arr entry_x dim_y in
+      let arr_cp = EArray.copy arr in
+      let switched_arr = List.fold_left2 (fun arr' x y -> replace_entry arr' x y) arr_cp primed_vars assigned_vars in
+      let res = drop_vars {d = Some switched_arr; env = multi_t.env} primed_vars true in
       let x = Option.get res.d in
-      if Matrix.normalize_with x then {d = Some x; env = res.env} else bot ()
+      {d = Some x; env = res.env} 
     | _ -> t
-  *)
+    *)
+  
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
     if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s \n" (show t) (show res);
