@@ -30,7 +30,6 @@ exclude_module_names = set([
     "MessagesCompare",
     "PrivPrecCompare",
     "ApronPrecCompare",
-    "Mainspec",
 
     # libraries
     "Goblint_std",
