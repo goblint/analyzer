@@ -85,11 +85,10 @@ struct
   end
   module V =
   struct
-    (* TODO: Either3? *)
-    include Printable.Either (struct include Printable.Either (VMutex) (VMutexInits) let name () = "mutex" end) (VGlobal)
+    include Printable.Either3 (VMutex) (VMutexInits) (VGlobal)
     let name () = "MutexGlobals"
-    let mutex x: t = `Left (`Left x)
-    let mutex_inits: t = `Left (`Right ())
+    let mutex x: t = `Left x
+    let mutex_inits: t = `Middle ()
     let global x: t = `Right x
   end
 

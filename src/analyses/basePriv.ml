@@ -211,12 +211,12 @@ struct
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
-  let invariant_global getg g =
-    match g with
-    | `Left _ -> (* mutex *)
-      Invariant.none
+  let invariant_global getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g'
+    | _ -> (* mutex *)
+      Invariant.none
+
 end
 
 module PerMutexOplusPriv: S =
@@ -625,13 +625,11 @@ struct
     let get_mutex_inits' = CPA.find x get_mutex_inits in
     VD.join get_mutex_global_x' get_mutex_inits'
 
-  let invariant_global getg g =
-    match g with
-    | `Left (`Left _) -> (* mutex *)
-      Invariant.none
-    | `Left (`Right g') -> (* global *)
-      ValueDomain.invariant_global (read_unprotected_global getg) g'
-    | `Right _ -> (* thread *)
+  let invariant_global getg = function
+    | `Middle  g -> (* global *)
+      ValueDomain.invariant_global (read_unprotected_global getg) g
+    | `Left _
+    | `Right _ -> (* mutex or thread *)
       Invariant.none
 end
 
@@ -847,16 +845,15 @@ struct
 
   open Locksets
 
-  let invariant_global getg g =
-    match g with
-    | `Left _ -> (* mutex *)
-      Invariant.none
+  let invariant_global getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (fun x ->
           GWeak.fold (fun s' tm acc ->
               WeakRange.fold_weak VD.join tm acc
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
+    | _ -> (* mutex *)
+      Invariant.none
 
   let invariant_vars ask getg st =
     let module VS = Set.Make (CilType.Varinfo) in
