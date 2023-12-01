@@ -130,7 +130,7 @@ module ExtractPthread = ExtractPthread
     Analyses related to [longjmp] and [setjmp]. *)
 
 module ActiveSetjmp = ActiveSetjmp
-module ModifiedSinceLongjmp = ModifiedSinceLongjmp
+module ModifiedSinceSetjmp = ModifiedSinceSetjmp
 module ActiveLongjmp = ActiveLongjmp
 module PoisonVariables = PoisonVariables
 module Vla = Vla

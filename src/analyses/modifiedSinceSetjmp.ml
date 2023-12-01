@@ -1,6 +1,4 @@
-(** Analysis of variables modified since [setjmp] ([modifiedSinceLongjmp]). *)
-
-(* TODO: this name is wrong *)
+(** Analysis of variables modified since [setjmp] ([modifiedSinceSetjmp]). *)
 
 open GoblintCil
 open Analyses
@@ -9,7 +7,7 @@ module Spec =
 struct
   include Analyses.IdentitySpec
 
-  let name () = "modifiedSinceLongjmp"
+  let name () = "modifiedSinceSetjmp"
   module D = JmpBufDomain.LocallyModifiedMap
   module VS = D.VarSet
   module C = Lattice.Unit
