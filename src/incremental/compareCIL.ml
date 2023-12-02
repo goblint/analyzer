@@ -292,6 +292,8 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     then Some Batteries.(CfgTools.getCFG oldAST |> Tuple3.first, CfgTools.getCFG newAST |> Tuple3.get12)
     else None in
 
+  ResettableLazy.reset Cilfacade.stmt_fundecs; (* reset due to getCFG *)
+
   let addGlobal map global =
     try
       let name, col = match global with
@@ -323,7 +325,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     try
       let gc_old = GlobalMap.find name oldMap in
       eq ~matchVars ~matchFuns ~renameDetection oldMap newMap cfgs gc_old gc_new (change_info, final_matches)
-    with Not_found ->
+    with Not_found -> (* TODO: does this Not_found only concern old_global or also something in eq? *)
       if not renameDetection then
         change_info.added <- gc_new::change_info.added; (* Global could not be found in old map -> added *)
       change_info, final_matches in

@@ -137,6 +137,8 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
+module FH = BatHashtbl.Make (CilType.Fundec)
+
 (** Type of CFG "edges": keyed by 'from' and 'to' nodes,
     along with the list of connecting instructions. *)
 module CfgEdge = struct
@@ -146,36 +148,13 @@ end
 module CfgEdgeH = BatHashtbl.Make (CfgEdge)
 
 let createCFG (file: file) =
-  let cfgF = H.create 113 in
-  let cfgB = H.create 113 in
-
-  (* Track the list of pure control-flow statements between two CFG nodes,
-     which do not otherwise appear in the control flow graph. *)
-  let skippedByEdge = CfgEdgeH.create 113 in
-
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
-  let fd_nodes = NH.create 113 in
+  let cfgs = FH.create 13 in
 
-  let addEdges ?(skippedStatements = []) fromNode edges toNode =
-    if Messages.tracing then
-      Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
-        pretty_edges edges
-        Node.pretty_trace fromNode
-        Node.pretty_trace toNode;
-    NH.replace fd_nodes fromNode ();
-    NH.replace fd_nodes toNode ();
-    H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
-    H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
-    CfgEdgeH.replace skippedByEdge (fromNode, edges, toNode) skippedStatements;
-    if Messages.tracing then Messages.trace "cfg" "done\n\n"
-  in
-  let addEdge ?skippedStatements fromNode edge toNode =
-    addEdges ?skippedStatements fromNode [edge] toNode
-  in
-  let addEdge_fromLoc ?skippedStatements fromNode edge toNode =
-    addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode
-  in
+  (* Track the list of pure control-flow statements between two CFG nodes,
+      which do not otherwise appear in the control flow graph. *)
+  let skippedByEdge = CfgEdgeH.create 113 in (* TODO: make per-fundec *)
 
   (* Find real (i.e. non-empty) successor of statement.
      CIL CFG contains some unnecessary intermediate statements.
@@ -238,7 +217,24 @@ let createCFG (file: file) =
       if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
       raise Not_found
   in
-  addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
+
+  let dummy_func_cfg =
+    let cfgF = H.create 2 in
+    let cfgB = H.create 2 in
+    (* Track the list of pure control-flow statements between two CFG nodes,
+       which do not otherwise appear in the control flow graph. *)
+    let addEdges ?(skippedStatements = []) fromNode edges toNode =
+      H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
+      H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
+      CfgEdgeH.replace skippedByEdge (fromNode, edges, toNode) skippedStatements;
+    in
+    let addEdge ?skippedStatements fromNode edge toNode = addEdges ?skippedStatements fromNode [edge] toNode in
+    let addEdge_fromLoc ?skippedStatements fromNode edge toNode = addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode in
+    addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
+    (cfgF, cfgB)
+  in
+  FH.replace cfgs dummy_func dummy_func_cfg;
+
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob ->
       match glob with
@@ -248,7 +244,26 @@ let createCFG (file: file) =
         if get_bool "dbg.cilcfgdot" then
           Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
 
-        NH.clear fd_nodes;
+        let allstmts_length = List.length fd.sallstmts in
+        let cfgF = H.create allstmts_length in
+        let cfgB = H.create allstmts_length in
+        let fd_nodes = NH.create allstmts_length in
+
+        let addEdges ?(skippedStatements = []) fromNode edges toNode =
+          if Messages.tracing then
+            Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
+              pretty_edges edges
+              Node.pretty_trace fromNode
+              Node.pretty_trace toNode;
+          NH.replace fd_nodes fromNode ();
+          NH.replace fd_nodes toNode ();
+          H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
+          H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
+          CfgEdgeH.replace skippedByEdge (fromNode, edges, toNode) skippedStatements;
+          if Messages.tracing then Messages.trace "cfg" "done\n\n"
+        in
+        let addEdge ?skippedStatements fromNode edge toNode = addEdges ?skippedStatements fromNode [edge] toNode in
+        let addEdge_fromLoc ?skippedStatements fromNode edge toNode = addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode in
 
         (* Find the first statement in the function *)
         let entrynode, skippedStatements = find_real_stmt (Cilfacade.getFirstStmt fd) in
@@ -467,16 +482,18 @@ let createCFG (file: file) =
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
-        let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
+        let reachable_return' = find_backwards_reachable ~initial_size:allstmts_length (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
-          raise (Not_connect fd)
+          raise (Not_connect fd);
+
+        if get_bool "dbg.verbose" then
+          ignore (Pretty.eprintf "%a: cfgF (%a), cfgB (%a)\n" CilType.Fundec.pretty fd GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
+        FH.replace cfgs fd (cfgF, cfgB);
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  if get_bool "dbg.verbose" then
-    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
-  cfgF, cfgB, skippedByEdge
+  (cfgs, skippedByEdge)
 
 let createCFG = Timing.wrap "createCFG" createCFG
 
@@ -520,7 +537,10 @@ let minimizeCFG (fw,bw) sk =
   H.iter (fun k _ -> List.iter (add [] [] k k) (inbound k)) keep;
   H.clear ready;
   H.clear keep;
-  cfgF, cfgB, skippedStmts
+  cfgF, cfgB
+
+let minimizeCFG cfgs skippedByEdge =
+  FH.map (fun _ c -> minimizeCFG c skippedByEdge) cfgs, skippedByEdge
 
 
 module type CfgPrinters =
@@ -599,7 +619,7 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
 
   Format.fprintf out "}\n"
 
-let fprint_hash_dot cfg  =
+let fprint_hash_dot cfgs =
   let module NoExtraNodeStyles =
   struct
     let defaultNodeStyles = []
@@ -607,7 +627,7 @@ let fprint_hash_dot cfg  =
   end
   in
   let out = open_out "cfg.dot" in
-  let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
+  let iter_edges f = FH.iter (fun _ (_, cfg) -> H.iter (fun n es -> List.iter (f n) es) cfg) cfgs in
   let ppf = Format.formatter_of_out_channel out in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
   Format.pp_print_flush ppf ();
@@ -615,15 +635,31 @@ let fprint_hash_dot cfg  =
 
 
 let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
-  let cfgF, cfgB, skippedByEdge = createCFG file in
-  let cfgF, cfgB, skippedByEdge =
+  let cfgs, skippedByEdge = createCFG file in
+  let cfgs, skippedByEdge =
     if get_bool "exp.mincfg" then
-      Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB) skippedByEdge
+      Timing.wrap "minimizing the cfg" (minimizeCFG cfgs) skippedByEdge
     else
-      (cfgF, cfgB, skippedByEdge)
+      cfgs, skippedByEdge
   in
-  if get_bool "justcfg" then fprint_hash_dot cfgB;
-  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
+  if get_bool "justcfg" then fprint_hash_dot cfgs;
+  (* Inlined here to get non-shared stmt_fundecs for CFG comparison,
+     where two CFGs exist simultaneously. *)
+  (* TODO: add fundec to Statement node *)
+  ResettableLazy.reset Cilfacade.stmt_fundecs;
+  let stmt_fundecs = ResettableLazy.force Cilfacade.stmt_fundecs in
+  let find_stmt_fundec stmt =
+    try Cilfacade.StmtH.find Cilfacade.pseudo_return_to_fun stmt
+    with Not_found -> Cilfacade.StmtH.find stmt_fundecs stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+  in
+  let find_fundec node =
+    match node with
+    | Statement stmt -> find_stmt_fundec stmt
+    | Function fd -> fd
+    | FunctionEntry fd -> fd
+  in
+  (* TODO: better Not_found handling *)
+  (fun n -> try H.find_default (fst @@ FH.find cfgs (find_fundec n)) n [] with Not_found -> []), (fun n -> try H.find_default (snd @@ FH.find cfgs (find_fundec n)) n [] with Not_found -> []), skippedByEdge
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
