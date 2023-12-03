@@ -5,8 +5,7 @@
 open Analyses
 
 include RelationAnalysis
-include LinearTwoVarEqualityDomain
-(*
+
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module AD = AffineEqualityDomain.D2 (VectorMatrix.ArrayVector) (VectorMatrix.ArrayMatrix) in
@@ -37,4 +36,3 @@ let after_config () =
 
 let _ =
   AfterConfig.register after_config
-*)

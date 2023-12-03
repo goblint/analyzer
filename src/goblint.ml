@@ -2,46 +2,12 @@ open Goblint_lib
 open GobConfig
 open Maingoblint
 open Printf
-open SharedFunctions
-open AffineEqualityAnalysis
-open VarManagement
-open Apron
-(* open VarManagement *)
-let var1 = Var.of_string "test1"
-let var2 = Var.of_string "test2"
-let env_test = add_vars (bot()) [var1; var2] 
-let print_opt opt print endl = match opt with | None -> print_endline "None"
-                                              | Some x -> print x; if endl then print_endline ""
-let const_expr i = Texpr1.Cst (Scalar (Mpqf (Mpqf.of_int i)))
-let env_with_information = D.assign_texpr env_test var1 (const_expr 3)
+
 (** the main function *)
-let main () = 
+let main () =
   try
     Cilfacade.init ();
     Maingoblint.parse_arguments ();
-
-    (* test test 
-       print_endline "Test 1";
-       let env_test = add_vars (bot()) [(Var.of_string "test1")] in
-       print_t env_test;
-       print_endline "";  print_endline "";*)
-
-    (* test get_coeff 
-    print_endline "Test get_coeff1";
-    print_opt (get_coeff env_test (Var var1)) Equality.print false;
-    print_env env_test.env;
-    print_endline "";
-    print_endline "Test get_coeff2";
-    print_opt (get_coeff env_test (const_expr 3)) Equality.print false;
-    print_endline "";
-    print_endline "Test get_coeff2";
-    print_opt (get_coeff env_test (const_expr 3)) Equality.print false;
-    print_endline "";
-    print_t env_test;*)
-
-    (* test assign_texpr
-    *)
-  print_t env_with_information;
 
     (* Timing. *)
     Maingoblint.reset_stats ();
