@@ -29,7 +29,7 @@
     - meet_tcons
 
     HOW TO RUN THE REGRESSION TESTS:
-    Method 1: regression test ./rectest.sh numberofdirectory numberoftest
+    Method 1: regression test ./regtest.sh numberofdirectory numberoftest
     Method 2: make test -> run entire test suite
     -> the two methods have a different behaviour w.r.t. unreachable code 
     script update suite.rb argumentgroupname ???? No idea 
@@ -62,19 +62,8 @@ open Printf
 
 (** TODO: modify code *)
 
-module Mpqf = struct (* multi-precision rational numbers *)
-  include Mpqf
-  let compare = cmp
-  let zero = of_int 0
-  let one = of_int 1
-  let mone = of_int (-1)
 
-  let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
-
-  let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
-  let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
-end
-
+module Mpqf = SharedFunctions.Mpqf
 
 module Equality = struct
   (* (Some i, k) represents a sum of a variable with index i and the number k.
@@ -94,9 +83,11 @@ module EqualitiesArray = struct
 
   let hash : t -> int = (fun x -> 31 + Equality.to_int x.(0)) (* TODO **)
 
+  let empty () = [||]
+
   let make_empty_array len = Array.mapi (fun i (x, y) -> (Some i, Z.zero)) (make len Equality.zero)
 
-  let add_element arr index = 
+  let add_empty_column arr index = 
     let num_vars = length arr in
     if index > num_vars then failwith "n too large" else
       let new_array = make (num_vars + 1) (Equality.var_zero index) in
@@ -104,7 +95,7 @@ module EqualitiesArray = struct
         blit arr 0 new_array 0 index; if index <> num_vars then blit arr index new_array (index + 1) (num_vars - index);
       new_array
 
-  let add_elements m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
+  let add_empty_columns m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
     let nnc = length indexes in
     if nnc = 0 then m else
       let nc = length m in
@@ -116,7 +107,7 @@ module EqualitiesArray = struct
       done;
       m'
 
-  let del_cols : ('a option * Z.t) mappable ->int mappable ->('a option * Z.t) mappable = fun m cols ->
+  let del_cols m cols =
     let n_c = length cols in
     if n_c = 0 || length m = 0 then m
     else
@@ -132,6 +123,54 @@ module EqualitiesArray = struct
 
   let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
+  let is_empty m = length m = 0
+
+  let find_reference_variable d var_index = fst d.(var_index)
+
+
+  let find_vars_in_the_connected_component d ref_var = 
+    filter (fun i -> let (var, _) = d.(i) in var = ref_var) (mapi const d)
+
+  let find_var_in_the_connected_component_with_least_index d ref_var = 
+    fold_left (fun curr_min (var, _) -> if var = ref_var then match curr_min with
+        | None -> var
+        | Some curr_min ->
+          match var with 
+          |Some i -> if i < curr_min then Some i else Some curr_min
+          | None -> Some curr_min else curr_min) None d
+
+  (* Forget information about variable var in-place.
+     The name reduce_col_with is because the affineEqualitiesDomain also defines this function,
+     and it represents the equalities with a matrix, not like in this case with an array. 
+     We could think about changing this name, then we would need to change it also in 
+     shared_Functions.apron.ml and ectorMatrix.ml and affineEqualitiesDomain.ml *)
+  let reduce_col_with d var = 
+    let ref_var_opt = find_reference_variable d var in
+    d.(var) <- Equality.var_zero var;
+    begin match ref_var_opt with 
+      | None -> (* the variable is equal to a constant *) ()
+      | Some ref_var ->
+        if ref_var <> var then ()
+        else
+          (* x_i is the reference variable of its connected component *)
+          let dim_of_var = Some var in
+          let connected_component = find_vars_in_the_connected_component d dim_of_var in
+          if length connected_component = 1 
+          then ()  (* x_i is the only element of its connected component *) 
+          else
+            (* x_i is the reference variable -> we need to find a new reference variable *)
+            let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index d dim_of_var in
+            let (_, off) = d.(var_least_index) in 
+            iteri (fun _ x -> let (_, off2) = d.(x) in d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
+    end
+
+  (* Forget information about variable i but notin-place *)
+  let reduce_col m j = 
+    let copy = copy m in
+    reduce_col_with copy j;
+    copy 
+
+  let remove_zero_rows t = t 
 
 end
 
@@ -143,16 +182,8 @@ module V = RelationDomain.V(Var)
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement =
 struct
-  include SharedFunctions.EnvOps
   module EArray = EqualitiesArray
-
-  type t = {
-    mutable d : EArray.t option;
-    mutable env : Environment.t
-  }
-  [@@deriving eq, ord, hash] 
-
-  let empty_env = Environment.make [||] [||]
+  include SharedFunctions.VarManagementOps (EArray)
 
   (* For debugging *)
   let print_env = Environment.print (Format.std_formatter)
@@ -164,105 +195,13 @@ struct
     | Some x -> (print_d x; print_endline "")
     | None -> printf "None " end; print_env t.env; print_endline ""
 
-  let bot () =
-    {d = Some [||]; env = empty_env}
-
-  let bot_env = {d = None; env = empty_env}
-
-  let is_bot_env t = t.d = None
-
-  let copy t = {t with d = Option.map EArray.copy t.d}
 
   let size t = match t.d with
     | None -> 0 
     | Some d -> EArray.length d
 
-  let dim_add (ch: Apron.Dim.change) m =
-    EArray.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim; (* ?? *)
-    EArray.add_elements m ch.dim
-
-  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m (*?*)
-
-  let dim_remove (ch: Apron.Dim.change) m del =
-    if EArray.length ch.dim = 0 || (EArray.length m = 0) then m else (
-      EArray.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
-      let m' = if not del then let m = EArray.copy m in EArray.add_elements m ch.dim else m in
-      EArray.del_cols m' ch.dim)
-
-  let dim_remove ch m del = timing_wrap "dim remove" (dim_remove ch m) del
-
-  let change_d t new_env add del =
-    if Environment.equal t.env new_env then t else
-      let dim_change = if add then Environment.dimchange t.env new_env
-        else Environment.dimchange new_env t.env
-      in match t.d with
-      | None -> bot_env
-      | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
-
-  let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
-
-  let add_vars t vars =
-    let t = copy t in
-    let env' = add_vars t.env vars in
-    change_d t env' true false
-
-  let add_vars t vars = timing_wrap "add_vars" (add_vars t) vars
-
-  let drop_vars t vars del =
-    let t = copy t in
-    let env' = remove_vars t.env vars in
-    change_d t env' false del
-
-  let drop_vars t vars = timing_wrap "drop_vars" (drop_vars t) vars
-  (*TODO used by relational domain*)
-  let remove_vars t vars = drop_vars t vars false
-
-  let remove_vars t vars = timing_wrap "remove_vars" (remove_vars t) vars
-
-  let remove_vars_with t vars =
-    let t' = remove_vars t vars in
-    t.d <- t'.d;
-    t.env <- t'.env
-
-  let remove_filter t f =
-    let env' = remove_filter t.env f in
-    change_d t env' false false
-
-  let remove_filter t f = timing_wrap "remove_filter" (remove_filter t) f
-
-  let remove_filter_with t f =
-    let t' = remove_filter t f in
-    t.d <- t'.d;
-    t.env <- t'.env
-
-  let keep_filter t f =
-    let t = copy t in
-    let env' = keep_filter t.env f in
-    change_d t env' false false
-
-  let keep_filter t f = timing_wrap "keep_filter" (keep_filter t) f
-
-  let keep_vars t vs =
-    let t = copy t in
-    let env' = keep_vars t.env vs in
-    change_d t env' false false
-
-  let keep_vars t vs = timing_wrap "keep_vars" (keep_vars t) vs
-
-  let forget_var t var_index =
-    match t.d with 
-    | None -> t
-    | Some d -> d.(var_index) <- Equality.var_zero var_index;
-      {t with d = Some d}
-
-
-  let forget_var t var = timing_wrap "forget_var" (forget_var t) var
-
-  let vars t = vars t.env
-
-  let mem_var t var = Environment.mem_var t.env var
-
-  (* Returns the constant represented by an equality, if the equality represents a constant without a variable *)
+  (* Returns the constant represented by an equality, if the equality represents a constant without a variable.
+     Else it returns None. *)
   let get_constant (var, off) = match var with
     | None -> Some off
     | _ -> None
@@ -320,49 +259,18 @@ struct
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
 
-  let find_reference_variable d env var = fst d.(Environment.dim_of_var env var)
-
-  let find_vars_in_the_connected_component d env ref_var = 
-    EArray.filter (fun i -> let (var, _) = d.(i) in var = ref_var) (EArray.mapi const d)
-
-  let find_var_in_the_connected_component_with_least_index d env ref_var = 
-    EArray.fold_left (fun curr_min (var, _) -> if var = ref_var then match curr_min with
-        | None -> var
-        | Some curr_min ->
-          match var with 
-          |Some i -> if i < curr_min then Some i else Some curr_min
-          | None -> Some curr_min else curr_min) None d
-
   let abstract_exists var t = match t.d with 
-    | Some d -> 
-      let var_to_remove = Environment.dim_of_var t.env var in
-      begin match find_reference_variable d t.env var with 
-        | None -> (* the variable is equal to a constant *) t
-        | Some ref_var ->
-          if ref_var <> var_to_remove then forget_var t var_to_remove
-          else
-            (* x_i is the reference variable of its connected component *)
-            let dim_of_var = Some (Environment.dim_of_var t.env var) in
-            let connected_component = find_vars_in_the_connected_component d t.env dim_of_var in
-            if EArray.length connected_component = 1 
-            then t  (* x_i is the only element of its connected component *) 
-            else
-              (* x_i is the reference variable -> we need to find a new reference variable *)
-              let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index d t.env dim_of_var in
-              let (_, off) = d.(var_least_index) in 
-              EArray.iteri (fun _ x -> let (_, off2) = d.(x) in d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
-              {d = Some d; env = t.env}
-      end
+    | Some d -> {t with d = Some (EArray.reduce_col d (Environment.dim_of_var t.env var))}
     | None -> t (* there are no  variables in the current environment *)
 
   let assign_const t var const = match t.d with 
     | None -> t
-    | Some d -> d.(var) <- (None, const); t
+    | Some t_d -> let d = EArray.copy t_d in d.(var) <- (None, const);  {d = Some d; env = t.env}
 
   let subtract_const_from_var t var const = 
     match t.d with 
     | None -> t
-    | Some d -> 
+    | Some t_d -> let d = EArray.copy t_d in
       let subtract_const_from_var_for_single_equality const index element =
         let (eq_var_opt, off2) = d.(index) in 
         if index = var then
@@ -377,9 +285,6 @@ struct
       in
       EArray.iteri (subtract_const_from_var_for_single_equality const) d; {d = Some d; env = t.env}
 end
-
-
-(*end*)
 
 
 (** TODO: overflow checking *)
@@ -435,13 +340,13 @@ struct
   let bot_env = {d = None; env = Environment.make [||] [||]}
 
   let is_bot_env t = t.d = None
-(*Would the top not be the identity matrix in affineEq? 
-   i.e. the array where each variable is assigned itself with no other coeffcients? *)
+  (*Would the top not be the identity matrix in affineEq? 
+     i.e. the array where each variable is assigned itself with no other coeffcients? *)
   let top () = failwith "D.top ()"
 
   let is_top _ = false
 
-  let is_top_env t = (not @@ Environment.equal empty_env t.env) (*&& GobOption.exists Matrix.is_empty t.d*)
+  let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists EArray.is_empty t.d
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -549,29 +454,35 @@ struct
       join a b
     else b
 
+  let remove_rels_with_var x var env imp =
+    let j0 = Environment.dim_of_var env var in
+    if imp then (EArray.reduce_col_with x j0; x) else EArray.reduce_col x j0
+
   let narrow a b = a
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  (* TODO: I'm not sure if forget_vars should remove the variable from the data structure, 
+     or just forget the information we currently have about the variable. Until now, the second possibility is implemented.*)
   let forget_vars t vars = 
     if is_bot t || is_top_env t then t
     else
       let m = Option.get t.d in
       if List.is_empty vars then t else
-        (*let rec rem_vars m vars' =
-            begin match vars' with
-              |            [] -> m
-              | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end 
-          in *){d = Some m; env = t.env}
+        let rec rem_vars m vars' =
+          begin match vars' with
+            |            [] -> m
+            | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end 
+        in {d = Some (EArray.remove_zero_rows @@ rem_vars (EArray.copy m) vars); env = t.env}
 
   let forget_vars t vars =
-  let res = forget_vars t vars in
-  if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
-  res
+    let res = forget_vars t vars in
+    if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
+    res
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
   (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" 
-     TODO make a copy of the data structure*)
+     This makes a copy of the data structure, it doesn't change t in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     let assigned_var = Environment.dim_of_var t.env var  (* this is the variable we are assigning to *) in
     begin match t.d with 
@@ -609,7 +520,7 @@ struct
     match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
-      if is_bot t then t else forget_var t (Environment.dim_of_var t.env var)
+      if is_bot t then t else forget_vars t [var]
 
   let assign_exp t var exp no_ov =
     let res = assign_exp t var exp no_ov in
@@ -627,10 +538,10 @@ struct
     res
   (* from here on TODO till end of module*)
   let assign_var_parallel t vv's = 
-     List.fold_left (fun t (v1,v2) -> assign_var t v1 v2) t vv's
-    (* 
+    List.fold_left (fun t (v1,v2) -> assign_var t v1 v2) t vv's
+  (* 
     **This implementation automatically assigns the variables to keep the invariant of the matrix, which is irrelvant for us
-    
+
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
@@ -648,7 +559,7 @@ struct
       {d = Some x; env = res.env} 
     | _ -> t
     *)
-  
+
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
     if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s \n" (show t) (show res);
@@ -677,7 +588,7 @@ struct
   let substitute_exp t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     let res = assign_exp t var exp no_ov in
-    forget_var res (Environment.dim_of_var t.env var)
+    forget_vars res [var]
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov

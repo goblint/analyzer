@@ -13,19 +13,7 @@ module M = Messages
 open Apron
 open VectorMatrix
 
-module Mpqf = struct
-  include Mpqf
-  let compare = cmp
-  let zero = of_int 0
-  let one = of_int 1
-  let mone = of_int (-1)
-
-  let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
-
-  let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
-  let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
-end
-
+module Mpqf = SharedFunctions.Mpqf
 module Var = SharedFunctions.Var
 module V = RelationDomain.V(Var)
 
@@ -33,103 +21,9 @@ module V = RelationDomain.V(Var)
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
-  include SharedFunctions.EnvOps
   module Vector = Vec (Mpqf)
   module Matrix = Mx(Mpqf) (Vec)
-
-  type t = {
-    mutable d :  Matrix.t option;
-    mutable env : Environment.t
-  }
-  [@@deriving eq, ord, hash]
-
-  let empty_env = Environment.make [||] [||]
-
-  let bot () =
-    {d = Some (Matrix.empty ()); env = empty_env}
-
-  let bot_env = {d = None; env = empty_env}
-
-  let is_bot_env t = t.d = None
-
-  let copy t = {t with d = Option.map Matrix.copy t.d}
-
-  let dim_add (ch: Apron.Dim.change) m =
-    Array.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
-    Matrix.add_empty_columns m ch.dim
-
-  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
-
-  let dim_remove (ch: Apron.Dim.change) m del =
-    if Array.length ch.dim = 0 || Matrix.is_empty m then m else (
-      Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
-      let m' = if not del then let m = Matrix.copy m in Array.fold_left (fun y x -> Matrix.reduce_col_with y x; y) m ch.dim else m in
-      Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
-
-  let dim_remove ch m del = timing_wrap "dim remove" (dim_remove ch m) del
-
-  let change_d t new_env add del =
-    if Environment.equal t.env new_env then t else
-      let dim_change = if add then Environment.dimchange t.env new_env
-        else Environment.dimchange new_env t.env
-      in match t.d with
-      | None -> bot_env
-      | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
-
-  let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
-
-  let add_vars t vars =
-    let t = copy t in
-    let env' = add_vars t.env vars in
-    change_d t env' true false
-
-  let add_vars t vars = timing_wrap "add_vars" (add_vars t) vars
-
-  let drop_vars t vars del =
-    let t = copy t in
-    let env' = remove_vars t.env vars in
-    change_d t env' false del
-
-  let drop_vars t vars = timing_wrap "drop_vars" (drop_vars t) vars
-
-  let remove_vars t vars = drop_vars t vars false
-
-  let remove_vars t vars = timing_wrap "remove_vars" (remove_vars t) vars
-
-  let remove_vars_with t vars =
-    let t' = remove_vars t vars in
-    t.d <- t'.d;
-    t.env <- t'.env
-
-  let remove_filter t f =
-    let env' = remove_filter t.env f in
-    change_d t env' false false
-
-  let remove_filter t f = timing_wrap "remove_filter" (remove_filter t) f
-
-  let remove_filter_with t f =
-    let t' = remove_filter t f in
-    t.d <- t'.d;
-    t.env <- t'.env
-
-  let keep_filter t f =
-    let t = copy t in
-    let env' = keep_filter t.env f in
-    change_d t env' false false
-
-  let keep_filter t f = timing_wrap "keep_filter" (keep_filter t) f
-
-  let keep_vars t vs =
-    let t = copy t in
-    let env' = keep_vars t.env vs in
-    change_d t env' false false
-
-  let keep_vars t vs = timing_wrap "keep_vars" (keep_vars t) vs
-
-  let vars t = vars t.env
-
-  let mem_var t var = Environment.mem_var t.env var
-
+  include SharedFunctions.VarManagementOps (Mx(Mpqf) (Vec))
   include ConvenienceOps(Mpqf)
 
   let get_c v = match Vector.findi (fun x -> x <>: Mpqf.zero) v with
