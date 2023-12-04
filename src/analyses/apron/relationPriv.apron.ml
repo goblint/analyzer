@@ -195,8 +195,7 @@ struct
   end
   module AV =
   struct
-    include RelationDomain.VarMetadataTbl (VM) (RD.Var)
-
+    include RelationDomain.VarMetadataTbl (VM)
 
     let local g = make_var (Local g)
     let unprot g = make_var (Unprot g)

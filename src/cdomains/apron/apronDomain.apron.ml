@@ -4,7 +4,7 @@ open Batteries
 open GoblintCil
 open Pretty
 (* A binding to a selection of Apron-Domains *)
-open Apron
+open GobApron
 open RelationDomain
 open SharedFunctions
 
@@ -29,8 +29,7 @@ let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds_apron
 
-module Var = SharedFunctions.Var
-module V = RelationDomain.V(Var)
+module V = RelationDomain.V
 
 
 module type Manager =
@@ -497,9 +496,9 @@ struct
   let to_yojson (x: t) =
     let constraints =
       A.to_lincons_array Man.mgr x
-      |> SharedFunctions.Lincons1Set.of_earray
-      |> SharedFunctions.Lincons1Set.elements
-      |> List.map (fun lincons1 -> `String (SharedFunctions.Lincons1.show lincons1))
+      |> Lincons1Set.of_earray
+      |> Lincons1Set.elements
+      |> List.map (fun lincons1 -> `String (Lincons1.show lincons1))
     in
     let env = `String (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x))
     in

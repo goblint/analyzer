@@ -12,10 +12,9 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): ApronDomain.S3) else (module AD)) in
     let module RD: RelationDomain.RD =
     struct
-      module Var = ApronDomain.Var
       module V = ApronDomain.V
       include AD
-      type var = ApronDomain.Var.t
+      type var = GobApron.Var.t
     end
     in
     let module Priv = (val RelationPriv.get_priv ()) in

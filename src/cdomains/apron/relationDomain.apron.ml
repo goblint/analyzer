@@ -5,25 +5,15 @@
 open Batteries
 open GoblintCil
 
-(** Abstracts the extended apron Var. *)
-module type Var =
-sig
-  type t
-  val compare : t -> t -> int
-  val of_string : string -> t
-  val to_string : t -> string
-  val hash : t -> int
-  val equal : t -> t -> bool
-end
-
 module type VarMetadata =
 sig
   type t
   val var_name: t -> string
 end
 
-module VarMetadataTbl (VM: VarMetadata) (Var: Var) =
+module VarMetadataTbl (VM: VarMetadata) =
 struct
+  open GobApron
   module VH = Hashtbl.Make (Var)
 
   let vh = VH.create 113
@@ -57,7 +47,7 @@ end
 
 module type RV =
 sig
-  type t
+  type t = GobApron.Var.t
   type vartable
 
   val vh: vartable
@@ -70,10 +60,11 @@ sig
   val to_cil_varinfo: t -> varinfo Option.t
 end
 
-module V (Var: Var): (RV with type t = Var.t and type vartable = VM.t VarMetadataTbl (VM) (Var).VH.t) =
+module V: (RV with type vartable = VM.t VarMetadataTbl (VM).VH.t) =
 struct
+  open GobApron
   type t = Var.t
-  module VMT = VarMetadataTbl (VM) (Var)
+  module VMT = VarMetadataTbl (VM)
   include VMT
   open VM
 
@@ -105,7 +96,7 @@ end
 module type S2 =
 sig
   type t
-  type var
+  type var = GobApron.Var.t
   type marshal
 
   module Tracked: Tracked
@@ -215,7 +206,6 @@ end
 
 module type RD =
 sig
-  module Var : Var
-  module V : module type of struct include V(Var) end
-  include S3 with type var = Var.t
+  module V : module type of struct include V end
+  include S3
 end
