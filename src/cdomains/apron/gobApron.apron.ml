@@ -35,3 +35,64 @@ struct
       )
     |> of_enum
 end
+
+(** A few code elements for environment changes from functions as remove_vars etc. have been moved to sharedFunctions as they are needed in a similar way inside affineEqualityDomain.
+    A module that includes various methods used by variable handling operations such as add_vars, remove_vars etc. in apronDomain and affineEqualityDomain. *)
+module Environment =
+struct
+  include Environment
+
+  let ivars_only env =
+    let ivs, fvs = Environment.vars env in
+    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum ivs)
+
+  let add_vars env vs =
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var env v))
+      |> Array.of_enum
+    in
+    Environment.add env vs' [||]
+
+  let remove_vars env vs =
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    Environment.remove env vs'
+
+  let remove_filter env f =
+    let vs' =
+      ivars_only env
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    Environment.remove env vs'
+
+  let keep_vars env vs =
+    (* Instead of iterating over all vars in env and doing a linear lookup in vs just to remove them,
+        make a new env with just the desired vs. *)
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    Environment.make vs' [||]
+
+  let keep_filter env f =
+    (* Instead of removing undesired vars,
+       make a new env with just the desired vars. *)
+    let vs' =
+      ivars_only env
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    Environment.make vs' [||]
+end

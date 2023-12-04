@@ -208,7 +208,6 @@ module type AOpsExtra =
 sig
   type t
   val copy : t -> t
-  val vars_as_array : t -> Var.t array
   val vars : t -> Var.t list
   type marshal
   val unmarshal : marshal -> t
@@ -247,15 +246,6 @@ struct
 
   let copy = A.copy Man.mgr
 
-  let vars_as_array d =
-    let ivs, fvs = Environment.vars (A.env d) in
-    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
-    ivs
-
-  let vars d =
-    let ivs = vars_as_array d in
-    List.of_enum (Array.enum ivs)
-
   (* marshal type: Abstract0.t and an array of var names *)
   type marshal = Man.mt Abstract0.t * string array
 
@@ -265,30 +255,32 @@ struct
     let env = Environment.make vars [||] in
     {abstract0; env}
 
+  let vars x = Environment.ivars_only @@ A.env x
+
   let marshal (x: t): marshal =
-    let vars = Array.map Var.to_string (vars_as_array x) in
+    let vars = Array.map Var.to_string (Array.of_list (Environment.ivars_only (A.env x))) in
     x.abstract0, vars
 
   let mem_var d v = Environment.mem_var (A.env d) v
 
   let add_vars_with nd vs =
-    let env' = EnvOps.add_vars (A.env nd) vs in
+    let env' = Environment.add_vars (A.env nd) vs in
     A.change_environment_with Man.mgr nd env' false
 
   let remove_vars_with nd vs =
-    let env' = EnvOps.remove_vars (A.env nd) vs in
+    let env' = Environment.remove_vars (A.env nd) vs in
     A.change_environment_with Man.mgr nd env' false
 
   let remove_filter_with nd f =
-    let env' = EnvOps.remove_filter (A.env nd) f in
+    let env' = Environment.remove_filter (A.env nd) f in
     A.change_environment_with Man.mgr nd env' false
 
   let keep_vars_with nd vs =
-    let env' = EnvOps.keep_vars (A.env nd) vs in
+    let env' = Environment.keep_vars (A.env nd) vs in
     A.change_environment_with Man.mgr nd env' false
 
   let keep_filter_with nd f =
-    let env' = EnvOps.keep_filter (A.env nd) f in
+    let env' = Environment.keep_filter (A.env nd) f in
     A.change_environment_with Man.mgr nd env' false
 
   let forget_vars_with nd vs =
@@ -885,7 +877,6 @@ struct
   let unmarshal (b, d) = (BoxD.unmarshal b, D.unmarshal d)
 
   let mem_var (_, d) v = D.mem_var d v
-  let vars_as_array (_, d) = D.vars_as_array d
   let vars (_, d) = D.vars d
 
   let pretty_diff () ((_, d1), (_, d2)) = D.pretty_diff () (d1, d2)

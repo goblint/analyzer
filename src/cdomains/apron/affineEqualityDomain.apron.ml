@@ -32,7 +32,6 @@ module V = RelationDomain.V
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
-  include SharedFunctions.EnvOps
   module Vector = Vec (Mpqf)
   module Matrix = Mx(Mpqf) (Vec)
 
@@ -77,16 +76,18 @@ struct
 
   let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
 
+  let vars x = Environment.ivars_only x.env
+
   let add_vars t vars =
     let t = copy t in
-    let env' = add_vars t.env vars in
+    let env' = Environment.add_vars t.env vars in
     change_d t env' true false
 
   let add_vars t vars = timing_wrap "add_vars" (add_vars t) vars
 
   let drop_vars t vars del =
     let t = copy t in
-    let env' = remove_vars t.env vars in
+    let env' = Environment.remove_vars t.env vars in
     change_d t env' false del
 
   let drop_vars t vars = timing_wrap "drop_vars" (drop_vars t) vars
@@ -101,7 +102,7 @@ struct
     t.env <- t'.env
 
   let remove_filter t f =
-    let env' = remove_filter t.env f in
+    let env' = Environment.remove_filter t.env f in
     change_d t env' false false
 
   let remove_filter t f = timing_wrap "remove_filter" (remove_filter t) f
@@ -113,19 +114,18 @@ struct
 
   let keep_filter t f =
     let t = copy t in
-    let env' = keep_filter t.env f in
+    let env' = Environment.keep_filter t.env f in
     change_d t env' false false
 
   let keep_filter t f = timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let t = copy t in
-    let env' = keep_vars t.env vs in
+    let env' = Environment.keep_vars t.env vs in
     change_d t env' false false
 
   let keep_vars t vs = timing_wrap "keep_vars" (keep_vars t) vs
 
-  let vars t = vars t.env
 
   let mem_var t var = Environment.mem_var t.env var
 
