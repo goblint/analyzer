@@ -258,7 +258,7 @@ struct
   let vars x = Environment.ivars_only @@ A.env x
 
   let marshal (x: t): marshal =
-    let vars = Array.map Var.to_string (Array.of_list (Environment.ivars_only (A.env x))) in
+    let vars = Array.map Var.to_string (Array.of_list (vars x)) in
     x.abstract0, vars
 
   let mem_var d v = Environment.mem_var (A.env d) v
