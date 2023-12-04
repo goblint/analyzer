@@ -1,6 +1,5 @@
 // PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
 // Interesting if nested recursions are handled properly
-// TODO: is this behavior correct?
 #include <stdio.h>
 
 int num_iterat = 9; // should be context gas value - 1

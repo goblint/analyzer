@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.callstring_fundec --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
 // Checks proper handling of recursions in loops + shows that not all 200 iterations are analyzed
 #include <stdio.h>
 

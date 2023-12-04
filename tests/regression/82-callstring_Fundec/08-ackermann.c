@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.callstring_fundec --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
 // This code would result in a StackOverflow if it is analyses fully context sensitive
 #include <stdio.h>
 

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set --set exp.unrolling-factor 3
+// PARAM: --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set --set exp.unrolling-factor 3
 // Checks if recursion in loops are handled properly + loop unrolling
 // TODO
 #include <stdio.h>
