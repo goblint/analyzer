@@ -200,7 +200,7 @@ let reduceThreadAnalyses () =
 
 (* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
 (* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
-let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceLongjmp"; "poisonVariables"; "expsplit"; "vla"]
+let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceSetjmp"; "poisonVariables"; "expsplit"; "vla"]
 
 let activateLongjmpAnalysesWhenRequired () =
   let isLongjmp = function
@@ -224,7 +224,7 @@ let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
     print_endline "Setting \"cil.addNestedScopeAttr\" to true";
     set_bool "cil.addNestedScopeAttr" true;
     print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
-    enableAnalyses memOobAna
+    enableAnalyses memOobAna;
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the memLeak analysis *)
     let memLeakAna = ["memLeak"] in
