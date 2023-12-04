@@ -1,7 +1,7 @@
 (** Signatures for relational value domains.
 
     See {!ApronDomain} and {!AffineEqualityDomain}. *)
-
+open GobApron
 open Batteries
 open GoblintCil
 
@@ -9,23 +9,6 @@ module type VarMetadata =
 sig
   type t
   val var_name: t -> string
-end
-
-module VarMetadataTbl (VM: VarMetadata) =
-struct
-  open GobApron
-  module VH = Hashtbl.Make (Var)
-
-  let vh = VH.create 113
-
-  let make_var ?name metadata =
-    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-    let var = Var.of_string name in
-    VH.replace vh var metadata;
-    var
-
-  let find_metadata (var: Var.t) =
-    VH.find_option vh var
 end
 
 module VM =
@@ -45,10 +28,26 @@ struct
     | Global g -> g.vname
 end
 
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata (var: Var.t) =
+    VH.find_option vh var
+end
+
 module type RV =
 sig
-  type t = GobApron.Var.t
-  type vartable
+  type t = Var.t
+  type vartable = VM.t VarMetadataTbl (VM).VH.t
 
   val vh: vartable
   val make_var: ?name:string -> VM.t -> t
@@ -60,13 +59,13 @@ sig
   val to_cil_varinfo: t -> varinfo Option.t
 end
 
-module V: (RV with type vartable = VM.t VarMetadataTbl (VM).VH.t) =
+module V: RV =
 struct
-  open GobApron
+  open VM
+
   type t = Var.t
   module VMT = VarMetadataTbl (VM)
   include VMT
-  open VM
 
   type vartable = VM.t VMT.VH.t
 
@@ -81,12 +80,6 @@ struct
     | _ -> None
 end
 
-module type LinCons =
-sig
-  type t
-  val num_vars: t -> int
-end
-
 module type Tracked =
 sig
   val type_tracked: typ -> bool
@@ -96,7 +89,7 @@ end
 module type S2 =
 sig
   type t
-  type var = GobApron.Var.t
+  type var = Var.t
   type marshal
 
   module Tracked: Tracked
@@ -135,8 +128,8 @@ module type S3 =
 sig
   include S2
 
-  val cil_exp_of_lincons1: Apron.Lincons1.t -> exp option
-  val invariant: t -> Apron.Lincons1.t list
+  val cil_exp_of_lincons1: Lincons1.t -> exp option
+  val invariant: t -> Lincons1.t list
 end
 
 type ('a, 'b) relcomponents_t = {
@@ -206,6 +199,6 @@ end
 
 module type RD =
 sig
-  module V : module type of struct include V end
+  module V : RV
   include S3
 end
