@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.callstring_fundec --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
 // Checks if function chains are handled properly
 #include <stdio.h>
 

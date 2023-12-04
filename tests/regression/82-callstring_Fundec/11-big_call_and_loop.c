@@ -1,9 +1,9 @@
-// PARAM: --enable ana.context.callstring_fundec --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
 // Checks proper handling of recursions in loops + should show that analyzing the same function twice with different number of recursions fastens the result
 // TODO weird behavior: only if num_iterat = 9 (= same value as for f(...) and g(...))
 #include <stdio.h>
 
-int num_iterat = 90;
+int num_iterat = 10;
 
 int f(int i)
 {

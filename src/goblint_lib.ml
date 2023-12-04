@@ -149,6 +149,7 @@ module UnitAnalysis = UnitAnalysis
 module Assert = Assert
 module FileUse = FileUse
 module LoopTermination = LoopTermination
+module CallstringAnalysis = CallstringAnalysis
 module Uninit = Uninit
 module Expsplit = Expsplit
 module StackTrace = StackTrace
