@@ -263,25 +263,16 @@ struct
 
   let mem_var d v = Environment.mem_var (A.env d) v
 
-  let add_vars_with nd vs =
-    let env' = Environment.add_vars (A.env nd) vs in
+  let envop f nd a =
+    let env' = f (A.env nd) a in
     A.change_environment_with Man.mgr nd env' false
 
-  let remove_vars_with nd vs =
-    let env' = Environment.remove_vars (A.env nd) vs in
-    A.change_environment_with Man.mgr nd env' false
+  let add_vars_with = envop Environment.add_vars
+  let remove_vars_with = envop Environment.remove_vars
+  let remove_filter_with = envop Environment.remove_filter
+  let keep_vars_with = envop Environment.keep_vars
+  let keep_filter_with = envop Environment.keep_filter
 
-  let remove_filter_with nd f =
-    let env' = Environment.remove_filter (A.env nd) f in
-    A.change_environment_with Man.mgr nd env' false
-
-  let keep_vars_with nd vs =
-    let env' = Environment.keep_vars (A.env nd) vs in
-    A.change_environment_with Man.mgr nd env' false
-
-  let keep_filter_with nd f =
-    let env' = Environment.keep_filter (A.env nd) f in
-    A.change_environment_with Man.mgr nd env' false
 
   let forget_vars_with nd vs =
     (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
