@@ -296,8 +296,7 @@ struct
     let st = ctx.local in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
-      |> List.map (Tuple2.map1 RV.arg)
+      |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
