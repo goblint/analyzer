@@ -261,11 +261,7 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module FileDomain = FileDomain
 module StackDomain = StackDomain
-
-module MvalMapDomain = MvalMapDomain
-module SpecDomain = SpecDomain
 
 (** {2 Testing}
 
