@@ -37,8 +37,10 @@
     - gobview doesnt work with apron
       -Visualize test:
       ./regtest.sh 63 01
-      see result/ folder
-      index.xml -> (printxml uses show)
+      python3 -m http.server
+      open http://localhost:8000/ on a browser
+      go to /result folder
+      index.xml -> main (printxml uses show)
       click on program points 
       orange nodes: dead code
       state at the beginning of the line
@@ -50,6 +52,18 @@
 
     Maybe TODO:
     Abstract Vector in order to have less code duplication (e.g. VectorBase und Vector)
+
+    DEBUG:
+    1. print stack trace while executing ./goblint:
+      -v option for goblint -> prints stack trace
+    2. Print the debug information defined with M.tracel:
+      https://goblint.readthedocs.io/en/latest/developer-guide/debugging/#tracing
+      ./script/trace_on
+      --trace name1 --trace name2
+    3. Debug OCaml
+      gdb debug for OCaml
+      or with EarlyBird (apparently it will maybe not work)
+      or with ocamldebug
 *)
 
 open Batteries
@@ -81,7 +95,7 @@ module EqualitiesArray = struct
   include Array
   type t = Equality.t Array.t [@@deriving eq, ord]
 
-  let hash : t -> int = (fun x -> 31 + Equality.to_int x.(0)) (* TODO **)
+  let hash : t -> int = Array.fold_left (fun acc a -> 31 * acc + Equality.hash a) 0
 
   let empty () = [||]
 
@@ -369,14 +383,12 @@ struct
 
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
+  (* TODO: implement less equal *)
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot t1 || is_top_env t2 then true else
-    if is_bot t2 || is_top_env t1 then false else (
-      let m1, m2 = Option.get t1.d, Option.get t2.d in
-      let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
-      true)
+    if is_bot t2 || is_top_env t1 then false else (true)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -604,27 +616,12 @@ struct
 
   exception NotRefinable
 
-  let meet_tcons_one_var_eq res expr =
-    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
-    match Convert.find_one_var expr with
-    | None -> overflow_res res
-    | Some v ->
-      let ik = Cilfacade.get_ikind v.vtype in
-      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
-      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable (* TODO: unsigned w/o bounds handled differently? *)
-      | Some min, Some max ->
-        assert (Z.equal min max); (* other bounds impossible in affeq *)
-        let (min_ik, max_ik) = IntDomain.Size.range ik in
-        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
-          if IntDomain.should_ignore_overflow ik then bot () else raise NotRefinable
-        else res
-      | exception Convert.Unsupported_CilExp _
-      | _, _ -> overflow_res res
+  let meet_tcons_one_var_eq res expr = res
 
   (*meet_tcons -> meet with guard in if statement
     texpr -> tree expr (right hand side of equality)
      -> expression used to derive tcons -> used to check for overflow
-    tcons -> tree constraint (x+y<scalar)
+    tcons -> tree constraint (expression < 0)
      -> does not have types (overflow is type dependent)
   *)
   let meet_tcons t tcons expr = t 
@@ -672,6 +669,17 @@ struct
     if M.tracing then M.tracel "ops" "unify: %s %s -> %s\n" (show a) (show b) (show res);
     res
 
+  (* Assert a constraint expression. Defined in apronDomain.apron.ml
+
+     If the constraint is never fulfilled, then return bottom. 
+     Else the domain can be modified with the new information given by the constraint.
+
+     It basically just calls the function meet_tcons.
+
+     It is called by eval (defined in sharedFunctions), but also when a guard in 
+     e.g. an if statement is encountered in the C code.
+
+  *)
   let assert_cons d e negate no_ov =
     let no_ov = Lazy.force no_ov in
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b" d_exp e no_ov;
@@ -683,6 +691,11 @@ struct
 
   let relift t = t
 
+  (* representation as C expression 
+
+     This function returns all the equalities that are saved in our datastructure t.
+
+     Lincons -> linear constraint *)
   let invariant t = [] 
   (*TODO
     match t.d with
@@ -708,7 +721,7 @@ struct
   let env (t: Bounds.t) = t.env
 
   type marshal = Bounds.t
-
+  (* marshal is not compatible with apron, therefore we don't have to implement it *)
   let marshal t = t
 
   let unmarshal t = t
