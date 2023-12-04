@@ -1698,14 +1698,14 @@ struct
 
   module V =
   struct
-    include Printable.Either (S.V) (Printable.Either (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C)))
+    include Printable.Either3 (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
     let name () = "longjmp"
     let s x = `Left x
-    let longjmpto x = `Right (`Left x)
-    let longjmpret x = `Right (`Right x)
+    let longjmpto x = `Middle x
+    let longjmpret x = `Right x
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
-      | `Right _ -> false
+      | _ -> false
   end
 
   module G =
@@ -1742,7 +1742,7 @@ struct
       begin match g with
         | `Left g ->
           S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | `Right g ->
+        | _ ->
           Queries.Result.top q
       end
     | InvariantGlobal g ->
@@ -1750,7 +1750,7 @@ struct
       begin match g with
         | `Left g ->
           S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | `Right g ->
+        | _ ->
           Queries.Result.top q
       end
     | IterSysVars (vq, vf) ->

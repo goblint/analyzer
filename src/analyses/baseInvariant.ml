@@ -709,18 +709,22 @@ struct
                 | _ -> Int c
               in
               (* handle special calls *)
-              begin match t with
-                | TInt (ik, _) ->
-                  begin match x with
-                    | ((Var v), offs) ->
-                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
-                      let tv_opt = ID.to_bool c in
-                      begin match tv_opt with
+              begin match x, t with
+                | (Var v, offs), TInt (ik, _) ->
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
+                    | `Lifted (Abs (ik, xInt)) ->
+                      let c' = ID.cast_to ik c in (* different ik! *)
+                      inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
+                    | tmpSpecial ->
+                      begin match ID.to_bool c with
                         | Some tv ->
-                          begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                          begin match tmpSpecial with
                             | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
                             | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
                             (* should be correct according to C99 standard*)
+                            (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
                             | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
@@ -730,9 +734,8 @@ struct
                           end
                         | None -> update_lval c x c' ID.pretty
                       end
-                    | _ -> update_lval c x c' ID.pretty
                   end
-                | _ -> update_lval c x c' ID.pretty
+                | _, _ -> update_lval c x c' ID.pretty
               end
             | Float c ->
               let c' = match t with
@@ -744,22 +747,19 @@ struct
                 | _ -> Float c
               in
               (* handle special calls *)
-              begin match t with
-                | TFloat (fk, _) ->
-                  begin match x with
-                    | ((Var v), offs) ->
-                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
-                      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
-                        | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
-                        | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
-                        | `Lifted (Fabs (ret_fk, xFloat)) ->
-                          let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
-                          if FD.is_bot inv then
-                            raise Analyses.Deadcode
-                          else
-                            inv_exp (Float inv) xFloat st
-                        | _ -> update_lval c x c' FD.pretty
-                      end
+              begin match x, t with
+                | (Var v, offs), TFloat (fk, _) ->
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
+                    | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
+                    | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
+                    | `Lifted (Fabs (ret_fk, xFloat)) ->
+                      let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
+                      if FD.is_bot inv then
+                        raise Analyses.Deadcode
+                      else
+                        inv_exp (Float inv) xFloat st
                     | _ -> update_lval c x c' FD.pretty
                   end
                 | _ -> update_lval c x c' FD.pretty
@@ -821,31 +821,4 @@ struct
             FD.top_of fk
         in
         inv_exp (Float ftv) exp st
-
-  let invariant ctx a gs st exp tv: D.t =
-    let refine0 = invariant ctx a gs st exp tv in
-    (* bodge for abs(...); To be removed once we have a clean solution *)
-    let refineAbs op absargexp valexp =
-      let flip op = match op with | Le -> Ge | Lt -> Gt | _ -> failwith "impossible" in
-      (* e.g. |arg| <= 40 *)
-      (* arg <= e  (arg <= 40) *)
-      let le = BinOp (op, absargexp, valexp, intType) in
-      (* arg >= -e  (arg >= -40) *)
-      let gt = BinOp(flip op, absargexp, UnOp (Neg, valexp, Cilfacade.typeOf valexp), intType) in
-      let one = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global refine0 le tv in
-      invariant ctx (Analyses.ask_of_ctx ctx) ctx.global one gt tv
-    in
-    match exp with
-    | BinOp ((Lt|Le) as op, CastE(t, Lval (Var v, NoOffset)), e,_) when tv ->
-      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
-        | `Lifted (Abs (ik, arg)) -> refineAbs op (CastE (t, arg)) e
-        | _ -> refine0
-      end
-    | BinOp ((Lt|Le) as op, Lval (Var v, NoOffset), e, _) when tv ->
-      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil NoOffset)) with
-        | `Lifted (Abs (ik, arg)) -> refineAbs op arg e
-        | _ -> refine0
-      end
-    | _ -> refine0
-
 end

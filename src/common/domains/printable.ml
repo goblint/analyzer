@@ -273,6 +273,40 @@ struct
     | `Right x -> `Right (Base2.relift x)
 end
 
+module Either3 (Base1: S) (Base2: S) (Base3: S) =
+struct
+  type t = [`Left of Base1.t | `Middle of Base2.t | `Right of Base3.t] [@@deriving eq, ord, hash]
+  include Std
+
+  let pretty () (state:t) =
+    match state with
+    | `Left n -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
+    | `Middle n -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
+    | `Right n -> Pretty.dprintf "%s:%a" (Base3.name ()) Base3.pretty n
+
+  let show state =
+    match state with
+    | `Left n -> (Base1.name ()) ^ ":" ^ Base1.show n
+    | `Middle n -> (Base2.name ()) ^ ":" ^ Base2.show n
+    | `Right n -> (Base3.name ()) ^ ":" ^ Base3.show n
+
+  let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name () ^ " or " ^ Base3.name ()
+  let printXml f = function
+    | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
+    | `Middle x  -> BatPrintf.fprintf f "<value><map>\n<key>\nMiddle\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+    | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base3.printXml x
+
+  let to_yojson = function
+    | `Left x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
+    | `Middle x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+    | `Right x -> `Assoc [ Base3.name (), Base3.to_yojson x ]
+
+  let relift = function
+    | `Left x -> `Left (Base1.relift x)
+    | `Middle x -> `Middle (Base2.relift x)
+    | `Right x -> `Right (Base3.relift x)
+end
+
 module Option (Base: S) (N: Name) =
 struct
   type t = Base.t option [@@deriving eq, ord, hash]
