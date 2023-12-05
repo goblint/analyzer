@@ -184,10 +184,9 @@ struct
 
   let name () = RD.name () ^ " * " ^ PrivD.name ()
 
-  let of_tuple(rel, priv):t = {rel; priv}
-  let to_tuple r = (r.rel, r.priv)
-
   let arbitrary () =
+    let to_tuple r = (r.rel, r.priv) in
+    let of_tuple (rel, priv) = {rel; priv} in
     let tr = QCheck.pair (RD.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
