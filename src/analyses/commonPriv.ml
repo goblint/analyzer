@@ -159,7 +159,7 @@ sig
   include Printable.S
 
   val current: Q.ask -> t
-  val compatible: Q.ask -> t -> t -> bool
+  val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
 
 module ThreadDigest: Digest =
@@ -171,7 +171,7 @@ struct
   let current (ask: Q.ask) =
     ThreadId.get_current ask
 
-  let compatible (ask: Q.ask) (current: t) (other: t) =
+  let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
     match current, other with
     | `Lifted current, `Lifted other ->
       if TID.is_unique current && TID.equal current other then
@@ -247,7 +247,7 @@ struct
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if Digest.compatible ask current k then
+        if Digest.accounted_for ask ~current ~other:k then
           LD.join acc v
         else
           acc

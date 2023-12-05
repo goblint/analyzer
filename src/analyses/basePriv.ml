@@ -425,7 +425,7 @@ struct
     let current = Digest.current ask in
     let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
     GMutex.fold (fun k v acc ->
-        if Digest.compatible ask current k then
+        if Digest.accounted_for ask ~current ~other:k then
           CPA.join acc (CPA.filter is_in_Gm v)
         else
           acc
