@@ -524,32 +524,6 @@
           },
           "additionalProperties": false
         },
-        "file": {
-          "title": "ana.file",
-          "type": "object",
-          "properties": {
-            "optimistic": {
-              "title": "ana.file.optimistic",
-              "description": "Assume fopen never fails.",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "additionalProperties": false
-        },
-        "spec": {
-          "title": "ana.spec",
-          "type": "object",
-          "properties": {
-            "file": {
-              "title": "ana.spec.file",
-              "description": "Path to the specification file.",
-              "type": "string",
-              "default": ""
-            }
-          },
-          "additionalProperties": false
-        },
         "pml": {
           "title": "ana.pml",
           "type": "object",
