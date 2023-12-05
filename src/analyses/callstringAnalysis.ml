@@ -1,6 +1,7 @@
-open GoblintCil
 open Analyses
 open Printf
+open GoblintCil
+open GobConfig
 
 (* Specifies the type of the callstack elements for the CallstringLifter*)
 module type Callstack_Type =
@@ -14,15 +15,14 @@ end
 (** Lifts a [Spec] to analyse with the k-callsting approach. For this the last k callstack elements are used as context
     With the CT argument it is possible to specify the type of the Callstack elements
 *)
-module Spec (CT:Callstack_Type) : MCPSpec= 
+module Spec (CT:Callstack_Type) : MCPSpec = 
 struct
   include Analyses.IdentitySpec
 
   (* simulates a call stack of depth k*)
   module CallStack = struct
     include Printable.Liszt (CT) 
-    let dummy = []
-    let depth = 10 (* must be >= 0 *)
+    let depth = get_int "ana.context.callStack_height" (* must be >= 0 *)
 
     let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
       let rec take n = function
@@ -39,12 +39,12 @@ struct
         List.rev(take depth (List.rev elem))
   end
 
-  module D = Lattice.FakeSingleton(CallStack)
+  module D = Lattice.Fake(CallStack)
   module C = CallStack
   module V = EmptyV
   module G = Lattice.Unit
 
-  let name () = "k-callstring approach ("^ CT.stackTypeName ^", k = " ^ (string_of_int CallStack.depth)^")"
+  let name () = "callstring_"^ CT.stackTypeName
   let startstate v = []
   let exitstate v = []
 
@@ -53,7 +53,7 @@ struct
   let enter ctx r f args = 
     let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
     let new_stack = CallStack.push (ctx.local) elem in
-    let ctx' = {ctx with context = (fun () -> new_stack) (* in case conv ctx makes the context to fail, this is not necessary*)
+    let ctx' = {ctx with context = (fun () -> new_stack)
                        ; local = new_stack} in
     if not !AnalysisState.postsolving then CT.printStack f args (ctx.local) (ctx'.local); (* just for debugging purpose*)
     [ctx.local, new_stack]
@@ -61,7 +61,7 @@ end
 
 module Fundec:Callstack_Type = struct
   include CilType.Fundec
-  let stackTypeName = "Fundec"
+  let stackTypeName = "fundec"
   let pushElem f args ctx = [f]
 
   let printStack f expL listA listB = 
@@ -75,7 +75,7 @@ end
 
 module Stmt:Callstack_Type = struct
   include CilType.Stmt
-  let stackTypeName = "Stmt"
+  let stackTypeName = "stmt"
   let pushElem f args ctx = match ctx.prev_node with (* TODO: Why do I need to use prev_node???*)
     | Statement stmt -> [stmt]
     | _ -> printf "not a stmt\n"; []
@@ -90,11 +90,8 @@ module Stmt:Callstack_Type = struct
 end
 
 (* Lifters for the Callstring approach with different Callstack element types*)
-module CallstringLifter_Fundec = Spec (Fundec)
-module CallstringLifter_Stmt   = Spec (Stmt)
-
 let _ =
-  MCP.register_analysis (module CallstringLifter_Fundec : MCPSpec);
-  MCP.register_analysis (module CallstringLifter_Stmt : MCPSpec)
+  MCP.register_analysis (module Spec (Fundec) : MCPSpec); (* name: callstring_fundec*)
+  MCP.register_analysis (module Spec (Stmt) : MCPSpec) (* name: callstring_stmt*)
 
 
