@@ -526,14 +526,12 @@ struct
     let of_elt (x, _) = of_elt x
   end
 
-  let cg_init_val = 10 (* initial value of context gas*)
-
   (* returns context gas value of the given ctx*)
   let cg_val ctx = 
     snd ctx.local (* Note: snd ctx.local = snd (ctx.context ()), due to initialization ctx.local must be used here*)
 
-  let name () = S.name ()^" with context gas (" ^ (string_of_int cg_init_val) ^")"
-  let startstate v = S.startstate v, cg_init_val
+  let name () = S.name ()^" with context gas"
+  let startstate v = S.startstate v, (get_int "ana.context.ctx_gas_value")
   let exitstate v = S.exitstate v, 0 (* TODO: probably doesn't matter*)
   let morphstate v (d,i) = S.morphstate v d, i
 
@@ -556,14 +554,14 @@ struct
     else {ctx with context = (fun () -> (fst (ctx.context ()), cg_val ctx - 1)) (* context sensitive *)
                  ; local = (fst ctx.local, cg_val ctx - 1)} 
 
-  let rec showExprList args = (*TODO: delete, just here for printing*)
+  (*let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
-    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)
+    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)*)
 
   let enter ctx r f args =
     let ctx_dec = dec_context_gas ctx in 
-    if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);
+    (*if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
     liftmap_tup (S.enter (conv ctx_dec) r f args)
 
@@ -585,7 +583,6 @@ struct
   let threadenter ctx ~multiple lval f args       = liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx (*TODO: it's possible to decrease the counter also here*)
   let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
   let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx
-
 end
 
 module type Increment =
