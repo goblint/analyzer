@@ -532,9 +532,7 @@
                   "wideningThresholds",
                   "memsafetySpecification",
                   "termination",
-                  "tmpSpecialAnalysis",
-                  "callstring_fundec",
-                  "callstring_stmt"
+                  "tmpSpecialAnalysis"
                 ]
               },
               "default": [
@@ -639,7 +637,11 @@
                   "title": "ana.base.strings.domain",
                   "description": "Domain for string literals.",
                   "type": "string",
-                  "enum": ["unit", "flat", "disjoint"],
+                  "enum": [
+                    "unit",
+                    "flat",
+                    "disjoint"
+                  ],
                   "default": "flat"
                 }
               },
@@ -2205,7 +2207,7 @@
         },
         "memleak": {
           "title": "warn.memleak",
-          "type":"object",
+          "type": "object",
           "properties": {
             "memcleanup": {
               "title": "warn.memleak.memcleanup",
