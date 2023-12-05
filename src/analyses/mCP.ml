@@ -76,11 +76,15 @@ struct
       List.map f
     in
     let xs = get_string_list "ana.activated" in
+    let callstring_enabled = (mem "callstring_fundec" xs) || (mem "callstring_stmt" xs) in
+    let cont_callstring = filter (fun x -> x <> "callstring_fundec" && x <> "callstring_stmt") xs in (*the contexts that are insensitive due to the callstring approach*)
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
     path_sens := map' find_id @@ get_string_list "ana.path_sens";
-    cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
+    if callstring_enabled 
+    then cont_inse := map' find_id cont_callstring
+    else cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
     check_deps !activated;
     activated := topo_sort_an !activated;
     activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
@@ -105,7 +109,7 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let context fd x =
+  let context fd x =    
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
         if mem n !cont_inse then
@@ -180,13 +184,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-        { ctx with
+         { ctx with
           local = local';
           ask = ask
-        }
-      and ask q = query ctx' q
-      in
-      ctx' *)
+         }
+         and ask q = query ctx' q
+         in
+         ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function
