@@ -159,7 +159,7 @@ sig
   include Printable.S
 
   val current: Q.ask -> t
-  val compatible: Q.ask -> t -> t -> bool
+  val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
 
 module ThreadDigest: Digest =
@@ -171,18 +171,18 @@ struct
   let current (ask: Q.ask) =
     ThreadId.get_current ask
 
-  let compatible (ask: Q.ask) (current: t) (other: t) =
+  let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
     match current, other with
     | `Lifted current, `Lifted other ->
       if TID.is_unique current && TID.equal current other then
-        false (* self-read *)
+        true (* self-read *)
       else if GobConfig.get_bool "ana.relation.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
-        false (* other is not started yet *)
+        true (* other is not started yet *)
       else if GobConfig.get_bool "ana.relation.priv.must-joined" && MHP.must_be_joined other (ask.f Queries.MustJoinedThreads) then
-        false (* accounted for in local information *)
+        true (* accounted for in local information *)
       else
-        true
-    | _ -> true
+        false
+    | _ -> false
 end
 
 module LockDigest: Digest =
@@ -192,8 +192,8 @@ struct
   let current (ask: Q.ask) =
     ask.f MayLocksDigest
 
-  let compatible (ask: Q.ask) (current: t) (other: t) =
-    true (* TODO *)
+  let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
+    false (* TODO *)
 end
 
 module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
@@ -258,7 +258,7 @@ struct
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if Digest.compatible ask current k then
+        if not (Digest.accounted_for ask ~current ~other:k) then
           LD.join acc v
         else
           acc
