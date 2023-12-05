@@ -28,7 +28,7 @@ int main(){
         pthread_join(threads[i], NULL);
     }
 
-    __goblint_check(x!=y);
+    __goblint_check(x!=y); //UNKNOWN!
     return 0;
 }
 
