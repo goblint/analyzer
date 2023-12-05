@@ -147,12 +147,10 @@ module UnitAnalysis = UnitAnalysis
 (** {2 Other} *)
 
 module Assert = Assert
-module FileUse = FileUse
 module LoopTermination = LoopTermination
 module Uninit = Uninit
 module Expsplit = Expsplit
 module StackTrace = StackTrace
-module Spec = Spec
 
 (** {2 Helper}
 
@@ -263,11 +261,7 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module FileDomain = FileDomain
 module StackDomain = StackDomain
-
-module MvalMapDomain = MvalMapDomain
-module SpecDomain = SpecDomain
 
 (** {2 Testing}
 

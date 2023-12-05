@@ -47,16 +47,3 @@ The `~loc` argument is optional and defaults to the current location, but allows
 The `_noloc` suffixed functions allow general messages without any location (not even current).
 
 By convention, may-warnings (the usual case) should use warning severity and  must-warnings should use error severity.
-
-### Spec analysis
-
-Warnings inside `.spec` files are converted to warnings.
-They parsed from string warnings: the first space-delimited substring determines the category and the rest determines the text.
-
-For example:
-```
-w1 "behavior.undefined.use_after_free"
-w2 "integer.overflow"
-w3 "unknown my message"
-w4 "integer.overflow some text describing the warning"
-```
