@@ -220,14 +220,28 @@ struct
     | None -> Some off
     | _ -> None
 
-  let get_coeff (t: t) texp =
-    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
-      Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
+  let get_coeff_vec (t: t) texp =
+    (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset.
     *)
     let open Apron.Texpr1 in
-    let exception NotLinear2Var in
+    let exception NotLinearExpr in
     let exception NotIntegerOffset in
-    let mpqf_to_int x = 
+    let negate coeff_var_list = List.map (fun (coeff, var) -> (Z.(-coeff), var)) coeff_var_list in
+    let multiply_with_Z number coeff_var_list = 
+      List.map (fun (coeff, var) -> (Z.(number * coeff, var))) coeff_var_list in
+    let multiply a b = 
+      (* if one of them is a constant, then multiply. Otherwise, the expression is not linear*)
+      if List.length a = 1 then
+        match List.nth a 0 with
+        | (a_coeff, None) -> multiply_with_Z a_coeff b
+        | _ -> raise NotLinearExpr
+      else 
+      if List.length b = 1 then
+        match List.nth b 0 with
+        | (b_coeff, None) -> multiply_with_Z b_coeff a
+        | _ -> raise NotLinearExpr
+      else raise NotLinearExpr in
+    let mpqf_to_Z x = 
       if not(Z.equal (Mpqf.get_den x) Z.one) then raise NotIntegerOffset
       else Mpqf.get_num x in
     let rec convert_texpr texp =
@@ -239,37 +253,50 @@ struct
                      | Interval _ -> failwith "Not a constant"
                      | Scalar x -> begin match x with
                          | Float x -> raise NotIntegerOffset
-                         | Mpqf x -> (None, mpqf_to_int x)
+                         | Mpqf x -> [(mpqf_to_Z x, None)]
                          | Mpfrf x -> raise NotIntegerOffset end in of_union x
         | Var x -> 
-          let var_dim = print Format.std_formatter (Texpr1.of_expr t.env (Var x)); Environment.dim_of_var t.env x in
-          (Some var_dim, Z.zero)
+          let var_dim = Environment.dim_of_var t.env x in [(Z.one, Some var_dim)]
         | Unop (u, e, _, _) ->
           begin match u with
-            | Neg -> raise NotLinear2Var
+            | Neg -> negate (convert_texpr e)
             | Cast -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
-            | Sqrt -> raise NotLinear2Var end
+            | Sqrt -> raise NotLinearExpr end
         | Binop (b, e1, e2, _, _) ->
           begin match b with
-            | Add -> begin match convert_texpr e1, convert_texpr e2 with
-                | (None, off1), (var2, off2) -> (var2, Z.(off1 + off2))
-                | (var1, off1), (None, off2) -> (var1, Z.(off1 + off2))
-                | (_, _), (_, _) -> raise NotLinear2Var end
-            | Sub -> begin match convert_texpr e1, convert_texpr e2 with
-                | (None, off1), (var2, off2) -> raise NotLinear2Var
-                | (var1, off1), (None, off2) -> (var1, Z.(off1 - off2))
-                | (var1, off1), (var2, off2) -> if var1 = var2 then (None, Z.(off1 - off2)) else raise NotLinear2Var end
-            | Mul ->
-              let x1, x2 = convert_texpr e1, convert_texpr e2 in
-              begin match get_constant x1, get_constant x2 with
-                | Some c1, Some c2 -> (None, Z.(c1 * c2))
-                | _, _ -> raise NotLinear2Var end
-            | _ -> raise NotLinear2Var end
+            | Add -> List.concat [convert_texpr e1; convert_texpr e2]
+            | Sub -> List.concat [convert_texpr e1; negate (convert_texpr e2)]
+            | Mul -> multiply (convert_texpr e1) (convert_texpr e2)
+            | _ -> raise NotLinearExpr end
       end
-    in match convert_texpr texp with
-    | exception NotLinear2Var -> None
-    | exception NotIntegerOffset -> None
-    | x -> Some(x)
+    in convert_texpr texp 
+
+  let number_vars x = 0(*TODO*)
+
+  let get_coeff (t: t) texp =
+    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
+      Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
+    *)
+    let sum_coefficients summands_list =
+      List.fold_left (fun (var, current_var_offset, curr_offset) (next_coeff, next_var) -> 
+          begin match next_var with
+            | None -> (* this element represents a constant offset *)
+              (var, current_var_offset, Z.(curr_offset + next_coeff))
+            | Some same_var -> (* this element represents a variable with a coefficient 
+                                  -> it must be always the same variable because we only call this function if number_vars summands_list < 2*)
+              (Some same_var, Z.(current_var_offset + next_coeff), curr_offset) end)
+        (None, Z.zero, Z.zero) summands_list
+    in
+    match get_coeff_vec t texp with
+    | exception _ -> None
+    | summands_list -> if number_vars summands_list < 2 then
+        let (var, var_coeff, offset) = sum_coefficients summands_list in
+        if var = None then Some (None, offset)
+        else if var_coeff = Z.one then Some (var, offset)
+        else None
+      else
+        None
+
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
 
