@@ -864,7 +864,7 @@ struct
   let get_relevant_writes (ask:Q.ask) m v =
     let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if Digest.accounted_for ask ~current ~other:k then
+        if not (Digest.accounted_for ask ~current ~other:k) then
           LRD.join acc (Cluster.keep_only_protected_globals ask m v)
         else
           acc

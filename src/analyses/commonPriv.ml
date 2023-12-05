@@ -175,14 +175,14 @@ struct
     match current, other with
     | `Lifted current, `Lifted other ->
       if TID.is_unique current && TID.equal current other then
-        false (* self-read *)
+        true (* self-read *)
       else if GobConfig.get_bool "ana.relation.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
-        false (* other is not started yet *)
+        true (* other is not started yet *)
       else if GobConfig.get_bool "ana.relation.priv.must-joined" && MHP.must_be_joined other (ask.f Queries.MustJoinedThreads) then
-        false (* accounted for in local information *)
+        true (* accounted for in local information *)
       else
-        true
-    | _ -> true
+        false
+    | _ -> false
 end
 
 module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
@@ -247,7 +247,7 @@ struct
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if Digest.accounted_for ask ~current ~other:k then
+        if not (Digest.accounted_for ask ~current ~other:k) then
           LD.join acc v
         else
           acc
