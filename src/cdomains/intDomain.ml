@@ -996,12 +996,12 @@ struct
 
   let arbitrary ik =
     let open QCheck.Iter in
-    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint GobQCheck.Arbitrary.big_int in *)
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
-    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let shrink = function
-      | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik >|= fst)
+      | Some (l, u) -> (return None) <+> (GobQCheck.shrink pair_arb (l, u) >|= of_interval ik >|= fst)
       | None -> empty
     in
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> fst ) pair_arb)
@@ -1601,13 +1601,13 @@ struct
 
   let arbitrary ik =
     let open QCheck.Iter in
-    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint GobQCheck.Arbitrary.big_int in *)
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
-    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let list_pair_arb = QCheck.small_list pair_arb in
     let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
-    let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
+    let shrink xs = GobQCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
 end
 
@@ -1695,7 +1695,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
-  let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
+  let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
 end
 
@@ -2402,8 +2402,8 @@ struct
     let excluded s = from_excl ik s in
     let definite x = of_int ik x in
     let shrink = function
-      | `Excluded (s, _) -> MyCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
-      | `Definite x -> (return `Bot) <+> (MyCheck.shrink (BigInt.arbitrary ()) x >|= definite)
+      | `Excluded (s, _) -> GobQCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
+      | `Definite x -> (return `Bot) <+> (GobQCheck.shrink (BigInt.arbitrary ()) x >|= definite)
       | `Bot -> empty
     in
     QCheck.frequency ~shrink ~print:show [
@@ -2816,8 +2816,8 @@ module Enums : S with type int_t = BigInt.t = struct
     let neg s = of_excl_list ik (BISet.elements s) in
     let pos s = norm ik (Inc s) in
     let shrink = function
-      | Exc (s, _) -> MyCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
-      | Inc s -> MyCheck.shrink (BISet.arbitrary ()) s >|= pos
+      | Exc (s, _) -> GobQCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc s -> GobQCheck.shrink (BISet.arbitrary ()) s >|= pos
     in
     QCheck.frequency ~shrink ~print:show [
       20, QCheck.map neg (BISet.arbitrary ());
@@ -3307,7 +3307,7 @@ struct
 
   let arbitrary ik =
     let open QCheck in
-    let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let cong_arb = pair int_arb int_arb in
     let of_pair ik p = normalize ik (Some p) in
     let to_pair = Option.get in

@@ -69,6 +69,3 @@ RichVarinfo
 
 {2 Standard library}
 {!modules:GobFormat}
-
-{2 Other libraries}
-{!modules:MyCheck}

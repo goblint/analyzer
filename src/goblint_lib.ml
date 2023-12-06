@@ -461,9 +461,3 @@ module ApronPrecCompareUtil = ApronPrecCompareUtil
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
-
-(** {2 Other libraries}
-
-    External library extensions. *)
-
-module MyCheck = MyCheck

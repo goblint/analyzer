@@ -233,9 +233,9 @@ struct
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
-      | `Lifted x -> (return `Bot) <+> (MyCheck.shrink (Base.arbitrary ()) x >|= lift)
+      | `Lifted x -> (return `Bot) <+> (GobQCheck.shrink (Base.arbitrary ()) x >|= lift)
       | `Bot -> empty
-      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
+      | `Top -> GobQCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
     QCheck.frequency ~shrink ~print:show [
       20, QCheck.map lift (Base.arbitrary ());
@@ -626,8 +626,8 @@ struct
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
-      | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
-      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
+      | `Lifted x -> GobQCheck.shrink (Base.arbitrary ()) x >|= lift
+      | `Top -> GobQCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
     QCheck.frequency ~shrink ~print:show [
       20, QCheck.map lift (Base.arbitrary ());
