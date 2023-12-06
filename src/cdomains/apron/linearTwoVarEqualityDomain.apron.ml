@@ -221,7 +221,7 @@ struct
     | _ -> None
 
   let get_coeff_vec (t: t) texp =
-    (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset.
+    (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. 
     *)
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
@@ -379,6 +379,8 @@ struct
   let is_bot t = equal t (bot ())
 
   let bot_env = {d = None; env = Environment.make [||] [||]}
+
+  let top_env env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
 
   let is_bot_env t = t.d = None
   (*Would the top not be the identity matrix in affineEq? 
@@ -576,11 +578,13 @@ struct
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
   (* from here on TODO till end of module*)
+  (* This functionality is not common to C and is used for assignments of the form: x = y, y=x; which is not legitimate C grammar
+  x and y should be assigned to the value of x and y before the assignment respectively.
+  ==> x = y_old , y = x_old;
+  Therefore first apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y 
+  and in a second round assign x' to x and y' to y
+  *)
   let assign_var_parallel t vv's = 
-    List.fold_left (fun t (v1,v2) -> assign_var t v1 v2) t vv's
-  (* 
-    **This implementation automatically assigns the variables to keep the invariant of the matrix, which is irrelvant for us
-
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
@@ -588,16 +592,11 @@ struct
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
     | Some arr when not @@ is_top_env multi_t -> 
-      let replace_entry arr x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
-          let entry_x = EArray.get arr dim_x in
-          EArray.set arr entry_x dim_y in
-      let arr_cp = EArray.copy arr in
-      let switched_arr = List.fold_left2 (fun arr' x y -> replace_entry arr' x y) arr_cp primed_vars assigned_vars in
-      let res = drop_vars {d = Some switched_arr; env = multi_t.env} primed_vars true in
+      let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
+      let res = drop_vars switched_arr primed_vars true in
       let x = Option.get res.d in
       {d = Some x; env = res.env} 
     | _ -> t
-    *)
 
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
@@ -645,13 +644,53 @@ struct
 
   let meet_tcons_one_var_eq res expr = res
 
-  (*meet_tcons -> meet with guard in if statement
+  (* meet_tcons -> meet with guard in if statement
     texpr -> tree expr (right hand side of equality)
      -> expression used to derive tcons -> used to check for overflow
     tcons -> tree constraint (expression < 0)
      -> does not have types (overflow is type dependent)
   *)
-  let meet_tcons t tcons expr = t 
+
+  let number_vars cv's = List.count_matching (fun (_, v)-> match v with | None -> false | Some x -> true) cv's
+  let meet_tcons t tcons expr = 
+    (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables 
+       depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
+    let expr_init = Array.init ((Environment.size t.env) +1) (fun _ -> Z.zero) in 
+    match t.d with 
+    | None -> t
+    | Some d ->
+      let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
+      let update (expr : Z.t Array.t)( c , v) = match v with 
+        | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
+        | Some idx -> match d.(idx) with 
+          | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c_i) ; expr
+          | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
+      in 
+      let convert_scalar scalar = 0. in (* TODO just dummy implementation. this Scalar type is weired*)
+      let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
+      let is_constant = List.fold_left (fun b a -> if Z.equal a Z.zero then b else false) true @@ List.tl @@ Array.to_list final_expr in
+      let is_two_var = if List.count_matching (fun a -> if Z.equal a Z.zero then false else true) @@ List.tl @@ Array.to_list final_expr == 2 then true else false 
+    in if is_constant then 
+      match Tcons1.get_typ tcons with 
+      | EQ -> if Z.equal final_expr.(0) Z.zero then t else {d = None; env = t.env}
+      | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else {d = None; env = t.env}
+      | SUP -> if Z.gt final_expr.(0) Z.zero then t else {d = None; env = t.env}
+      | DISEQ ->  if Z.equal final_expr.(0) Z.zero then {d = None; env = t.env} else t
+      | EQMOD scalar -> if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}
+    else if is_two_var then 
+      let v12 =  List.fold_righti (fun i a l -> if Z.equal a Z.zero then l else i::l) (List.tl @@ Array.to_list final_expr) [] in
+      let v1 = Environment.var_of_dim t.env (List.hd v12) in let v2 = Environment.var_of_dim t.env (List.hd @@ List.tl v12) in
+      match Tcons1.get_typ tcons with 
+      | EQ -> meet t (assign_var (top_env t.env) v1 v2)
+      | SUPEQ -> t (*TODO*)
+      | SUP -> t (*TODO*)
+      | DISEQ ->  t (*TODO*)
+      | EQMOD scalar -> t (*Not supported right now*)
+    else 
+      t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
+
+
+
   (*TODO 
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
     in
