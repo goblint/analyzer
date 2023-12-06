@@ -393,13 +393,63 @@ struct
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false
-    in if is_bot t1 || is_bot t2 then bot() else
+    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
+    let subst_var ts x t = 
+      match !ts with
+        | None -> ()
+        | Some ts' ->
+          if Array.length ts' <> 0 then
+          for i = 0 to Array.length ts' - 1 do
+            match ts'.(i) with
+              | (None, _) -> ()
+              | (Some x', b') -> if x = x' then
+                (match t with 
+                  | (None, bt) -> ts'.(i) <- (None, Z.(b' + bt))
+                  | (Some xt, bt) -> ts'.(i) <- (Some xt, Z.(b' + bt)))
+          done
+    in
+    let add_conj ts t i = 
+      match !ts with
+        | None -> ()
+        | Some ts' ->
+          (match t with
+            | (None, b) -> 
+              (match ts'.(i) with
+                | (None, b') -> if b <> b' then ts := None;
+                | (Some j, b') -> subst_var ts j (None, Z.(b - b')))
+            | (Some j, b) ->
+                (match ts'.(i) with
+                | (None, b1) -> subst_var ts j (None, Z.(b1 - b))
+                | (Some h1, b1) -> 
+                  (match ts'.(j) with
+                    | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
+                    | (Some h2, b2) -> 
+                      if h1 = h2 then 
+                        (if Z.(b1 <> (b2 + b)) then ts := None)
+                      else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
+                      else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))))
+    in 
+    match t1.d, t2.d with
+      | None, _ -> { d = None; env = sup_env} 
+      | _, None -> { d = None; env = sup_env} 
+      | Some d1', Some d2' -> 
+        let ds = ref (Some (Array.copy d1')) in
+        if Array.length d2' <> 0 then
+        for j = 0 to Array.length d2' - 1 do
+          add_conj ds d2'.(j) j
+        done; 
+        {d = !ds; env = sup_env} 
+          
+        (*
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
+    if is_bot t1 || is_bot t2 then bot() else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       match m1, m2 with
       | x, y when is_top_env t1-> {d = Some (dim_add (Environment.dimchange t2.env sup_env) y); env = sup_env}
       | x, y when is_top_env t2 -> {d = Some (dim_add (Environment.dimchange t1.env sup_env) x); env = sup_env}
       | x, y -> bot()
+      *)
   (*let rref_matr = Matrix.rref_matrix_with (Matrix.copy x) (Matrix.copy y) in
     if Option.is_none rref_matr then bot () else
     {d = rref_matr; env = sup_env}*)
@@ -591,12 +641,12 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some arr when not @@ is_top_env multi_t -> 
-      let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
-      let res = drop_vars switched_arr primed_vars true in
-      let x = Option.get res.d in
-      {d = Some x; env = res.env} 
-    | _ -> t
+      | Some arr when not @@ is_top_env multi_t -> 
+        let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
+        let res = drop_vars switched_arr primed_vars true in
+        let x = Option.get res.d in
+        {d = Some x; env = res.env} 
+      | _ -> t
 
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
@@ -657,37 +707,40 @@ struct
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     let expr_init = Array.init ((Environment.size t.env) +1) (fun _ -> Z.zero) in 
     match t.d with 
-    | None -> t
-    | Some d ->
-      let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
-      let update (expr : Z.t Array.t)( c , v) = match v with 
-        | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
-        | Some idx -> match d.(idx) with 
-          | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c_i) ; expr
-          | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
-      in 
-      let convert_scalar scalar = 0. in (* TODO just dummy implementation. this Scalar type is weired*)
-      let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
-      let is_constant = List.fold_left (fun b a -> if Z.equal a Z.zero then b else false) true @@ List.tl @@ Array.to_list final_expr in
-      let is_two_var = if List.count_matching (fun a -> if Z.equal a Z.zero then false else true) @@ List.tl @@ Array.to_list final_expr == 2 then true else false 
-    in if is_constant then 
-      match Tcons1.get_typ tcons with 
-      | EQ -> if Z.equal final_expr.(0) Z.zero then t else {d = None; env = t.env}
-      | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else {d = None; env = t.env}
-      | SUP -> if Z.gt final_expr.(0) Z.zero then t else {d = None; env = t.env}
-      | DISEQ ->  if Z.equal final_expr.(0) Z.zero then {d = None; env = t.env} else t
-      | EQMOD scalar -> if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}
-    else if is_two_var then 
-      let v12 =  List.fold_righti (fun i a l -> if Z.equal a Z.zero then l else i::l) (List.tl @@ Array.to_list final_expr) [] in
-      let v1 = Environment.var_of_dim t.env (List.hd v12) in let v2 = Environment.var_of_dim t.env (List.hd @@ List.tl v12) in
-      match Tcons1.get_typ tcons with 
-      | EQ -> meet t (assign_var (top_env t.env) v1 v2)
-      | SUPEQ -> t (*TODO*)
-      | SUP -> t (*TODO*)
-      | DISEQ ->  t (*TODO*)
-      | EQMOD scalar -> t (*Not supported right now*)
-    else 
-      t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
+      | None -> t
+      | Some d ->
+        let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
+        let update (expr : Z.t Array.t)( c , v) = 
+          match v with 
+            | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
+            | Some idx -> match d.(idx) with 
+              | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c_i) ; expr
+              | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
+        in 
+        let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
+        let is_constant = List.fold_left (fun b a -> if Z.equal a Z.zero then b else false) true @@ List.tl @@ Array.to_list final_expr in
+        let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) @@ List.tl @@ Array.to_list final_expr 
+      in if is_constant then 
+        match Tcons1.get_typ tcons with 
+          | EQ -> if Z.equal final_expr.(0) Z.zero then t else {d = None; env = t.env}
+          | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else {d = None; env = t.env}
+          | SUP -> if Z.gt final_expr.(0) Z.zero then t else {d = None; env = t.env}
+          | DISEQ ->  if Z.equal final_expr.(0) Z.zero then {d = None; env = t.env} else t
+          | EQMOD scalar -> t (*if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
+      else if var_count == 2 then 
+        let v12 =  List.fold_righti (fun i a l -> if Z.equal a Z.zero then l else (i,a)::l) (List.tl @@ Array.to_list final_expr) [] in
+        let a1 = Tuple2.second (List.hd v12) in  
+        let a2 = Tuple2.second (List.hd v12) in
+        let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
+        let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
+        match Tcons1.get_typ tcons with 
+          | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (top_env t.env) var1 var2) else t
+          | SUPEQ -> t (*TODO*)
+          | SUP -> t (*TODO*)
+          | DISEQ ->  t (*TODO*)
+          | EQMOD scalar -> t (*Not supported right now*)
+      else 
+        t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
 
 
 
