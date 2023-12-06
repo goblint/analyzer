@@ -707,3 +707,9 @@ let add_function_declarations (file: Cil.file): unit =
   let fun_decls = List.filter_map declaration_from_GFun functions in
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
+
+
+(** Special index expression for some unknown index.
+    Weakly updates array in assignment.
+    Used for [exp.fast_global_inits]. *)
+let any_index_exp = CastE (TInt (ptrdiff_ikind (), []), mkString "any_index")
