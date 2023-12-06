@@ -33,12 +33,6 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
-module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
-  Lattice.Flat (RawStrings) (struct
-    let top_name = "?"
-    let bot_name = "-"
-  end)
-
 module RawBools: Printable.S with type t = bool =
 struct
   include Printable.StdLeaf
@@ -49,12 +43,6 @@ struct
   let name () = "raw bools"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 end
-
-module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
-  Lattice.Flat (RawBools) (struct
-    let top_name = "?"
-    let bot_name = "-"
-  end)
 
 module CilExp =
 struct

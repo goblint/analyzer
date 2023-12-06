@@ -1344,7 +1344,7 @@ struct
 
   module EM =
   struct
-    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+    include MapDomain.MapBot (Basetype.CilExp) (BoolDomain.FlatBool)
     let name () = "branches"
   end
 

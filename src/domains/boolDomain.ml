@@ -39,3 +39,9 @@ struct
   let meet = (||)
   let narrow = (||)
 end
+
+module FlatBool: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
+  Lattice.Flat (Bool) (struct
+    let top_name = "?"
+    let bot_name = "-"
+  end)
