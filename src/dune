@@ -31,6 +31,14 @@
       (apron -> affineEqualityDomain.apron.ml)
       (-> affineEqualityDomain.no-apron.ml)
     )
+    (select linearTwoVarEquality.ml from
+      (apron -> linearTwoVarEquality.apron.ml)
+      (-> linearTwoVarEquality.no-apron.ml)
+    )
+    (select linearTwoVarEqualityDomain.ml from
+      (apron -> linearTwoVarEqualityDomain.apron.ml)
+      (-> linearTwoVarEqualityDomain.no-apron.ml)
+    )
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
       (-> relationAnalysis.no-apron.ml)
