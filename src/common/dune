@@ -8,6 +8,7 @@
    batteries.unthreaded
    zarith
    goblint_std
+   goblint_tracing
    goblint-cil
    fpath
    yojson

@@ -325,7 +325,6 @@ module SolverBox = SolverBox
     Various input/output interfaces and formats. *)
 
 module Messages = Messages
-module Tracing = Tracing
 
 (** {2 Front-end}
 

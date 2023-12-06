@@ -339,7 +339,8 @@ let msg_final severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   else
     GobPretty.igprintf () fmt
 
-include Tracing
+
+include Goblint_tracing
 
 open Pretty
 

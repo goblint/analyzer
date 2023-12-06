@@ -825,13 +825,13 @@ struct
     )
 
   let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
-    let old_loc  = !Tracing.current_loc in
-    let old_loc2 = !Tracing.next_loc in
-    Tracing.current_loc := f;
-    Tracing.next_loc := t;
+    let old_loc  = !Goblint_tracing.current_loc in
+    let old_loc2 = !Goblint_tracing.next_loc in
+    Goblint_tracing.current_loc := f;
+    Goblint_tracing.next_loc := t;
     Goblint_backtrace.protect ~mark:(fun () -> TfLocation f) ~finally:(fun () ->
-        Tracing.current_loc := old_loc;
-        Tracing.next_loc := old_loc2
+        Goblint_tracing.current_loc := old_loc;
+        Goblint_tracing.next_loc := old_loc2
       ) (fun () ->
         let d       = tf var getl sidel getg sideg prev_node edge d in
         d

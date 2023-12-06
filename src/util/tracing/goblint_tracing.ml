@@ -4,6 +4,7 @@
  * large domains we output. The original code generated the document object
  * even when the subsystem is not activated. *)
 
+open Goblint_std
 open GoblintCil
 open Pretty
 

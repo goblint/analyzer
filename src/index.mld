@@ -46,6 +46,9 @@ The following libraries provide utilities which are completely independent of Go
 {2 Library goblint.timing}
 {!modules:Goblint_timing}
 
+{2 Library goblint.tracing}
+{!modules:Goblint_tracing}
+
 
 {1 Vendored}
 The following libraries are vendored in Goblint.
