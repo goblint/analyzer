@@ -7,6 +7,9 @@ The following libraries make up Goblint's main codebase.
 {!modules:Goblint_lib}
 This library currently contains the majority of Goblint and is in the process of being split into smaller libraries.
 
+{2 Library goblint.config}
+This {{!page-config}unwrapped library} contains various configuration modules extracted from {!Goblint_lib}.
+
 {2 Library goblint.common}
 This {{!page-common}unwrapped library} contains various common modules extracted from {!Goblint_lib}.
 
