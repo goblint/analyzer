@@ -141,7 +141,7 @@ module EqualitiesArray = struct
   let find_vars_in_the_connected_component d ref_var = 
     filter (fun i -> let (var, _) = d.(i) in var = ref_var) (mapi const d)
 
-(* find a variable in the connected component with the least index, but not the reference variable. *)
+  (* find a variable in the connected component with the least index, but not the reference variable. *)
   let find_var_in_the_connected_component_with_least_index connected_component ref_var = 
     fold_left (fun curr_min i -> match curr_min with
         | None -> if i <> ref_var then Some i else None
@@ -387,6 +387,11 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
+    print_string "t1 after change_d\n";
+    print_string @@ show t1;
+    print_string "t2 after change_d\n";
+    print_string @@ show t2;
+    print_string "end\n";
     let subst_var ts x t = 
       match !ts with
         | None -> ()
@@ -458,7 +463,7 @@ struct
   (* TODO: check implementation for less equal *)
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
-    let implies ts t i : bool =
+let implies ts t i : bool =
       match t with
       | (None, b) ->  
         (match ts.(i) with
@@ -492,7 +497,7 @@ struct
 
   let join a b = 
     let ts_zip t1 t2 =
-      if Array.length t1 <> Array.length t2 then None else
+    if Array.length t1 <> Array.length t2 then None else
       let zts = Array.init (Array.length t1) (fun (i : int) -> (i, t1.(i), t2.(i))) in
       Some zts
     in
@@ -501,7 +506,7 @@ struct
     in
     let diff t1 t2 = Z.((const_offset t1) - (const_offset t2))
     in
-    let cmp_z x y = 
+      let cmp_z x y = 
       let cmp_z_ref x y: int =
         match x, y with
         | (None, _), (None, _) -> 0
@@ -513,7 +518,7 @@ struct
       | (_, t1i, t2i), (_, t1j, t2j) -> 
         let diff_e1 = cmp_z_ref t1i t1j in
         if diff_e1 <> 0 then diff_e1 else
-        let diff_e2 = cmp_z_ref t2i t2j in
+          let diff_e2 = cmp_z_ref t2i t2j in
         if diff_e2 <> 0 then diff_e2 else 
         Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
     in
@@ -522,7 +527,7 @@ struct
       | None -> ()
       | Some zts' -> Array.stable_sort cmp_z zts'
     in
-    let sort_annotated ats = 
+          let sort_annotated ats = 
       let cmp_annotated x y : int = 
         match x, y with
         | (i, _), (j, _) -> i - j
@@ -531,23 +536,23 @@ struct
       | None -> ()
       | Some ats' -> Array.stable_sort cmp_annotated ats'
     in
-    let process_eq_classes zts = 
+          let process_eq_classes zts = 
       let is_const x =
         match x with
         | (_, (None, _), (None, _)) -> true
         | _ -> false
       in
-      let size_of_eq_class zts (start : int) : int = 
-        let ref_elem = zts.(start) in
+          let size_of_eq_class zts (start : int) : int =
+          let ref_elem = zts.(start) in
         let remaining = (Array.length zts) - start - 1 in
-        let result = ref 0 in
+          let result = ref 0 in
         for i = 0 to remaining do
           let current_elem = zts.(start + i) in
           if cmp_z ref_elem current_elem = 0 then result := !result + 1
         done;
         !result
       in
-      let least_index_var_in_eq_class zts start size : int * Z.t =
+          let least_index_var_in_eq_class zts start size : int * Z.t =
         let result = ref (0, Z.of_int 0) in 
         match zts.(start) with
           | (i, (_, b), (_, _)) -> result := (i, b);
@@ -611,7 +616,7 @@ struct
         | Some ats' -> Some (Array.map snd ats')
     in
     let join_d t1 t2 =
-      let zipped = ts_zip t1' t2' in
+      let zipped = ts_zip t1 t2 in
       sort_z_by_expr zipped;
       let annotated = process_eq_classes zipped in
       sort_annotated annotated;
@@ -619,16 +624,16 @@ struct
       result
     in
     if is_bot a then b else if is_bot b then a else
-      match Option.get a.d, Option.get b.d with
-      | x, y when is_top_env a || is_top_env b -> {d = Some (EArray.empty ()); env = Environment.lce a.env b.env}
-      | x, y when (Environment.compare a.env b.env <> 0) ->
-        let sup_env = Environment.lce a.env b.env in
-        let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-        let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-        {d = join_d mod_x mod_y; env = sup_env}
-      | x, y when EArray.equal x y -> {d = Some x; env = a.env}
-      | x, y  -> {d = join_d x y; env = a.env} 
-
+    match Option.get a.d, Option.get b.d with
+    | x, y when is_top_env a || is_top_env b -> {d = Some (EArray.empty ()); env = Environment.lce a.env b.env}
+    | x, y when (Environment.compare a.env b.env <> 0) ->
+      let sup_env = Environment.lce a.env b.env in
+      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+      {d = join_d mod_x mod_y; env = sup_env}
+    | x, y when EArray.equal x y -> {d = Some x; env = a.env}
+    | x, y  -> {d = join_d x y; env = a.env}
+  
   let join a b = timing_wrap "join" (join a) b
 
   let join a b =
