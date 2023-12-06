@@ -25,8 +25,8 @@
     things to implement:
     - leq
     - join
-    - assignment
-    - meet_tcons
+    done: assignment
+    done: meet_tcons
 
     HOW TO RUN THE REGRESSION TESTS:
     Method 1: regression test ./regtest.sh numberofdirectory numberoftest
@@ -50,9 +50,6 @@
     12. January or earlier pull request -> all features implemented 
             -> run on svcomp benchmarks -> to check runtime and unsoundness and crashes
 
-    Maybe TODO:
-    Abstract Vector in order to have less code duplication (e.g. VectorBase und Vector)
-
     DEBUG:
     1. print stack trace while executing ./goblint:
       -v option for goblint -> prints stack trace
@@ -74,7 +71,6 @@ open Apron
 open VectorMatrix
 open Printf
 
-(** TODO: modify code *)
 
 
 module Mpqf = SharedFunctions.Mpqf
@@ -157,7 +153,7 @@ module EqualitiesArray = struct
      The name reduce_col_with is because the affineEqualitiesDomain also defines this function,
      and it represents the equalities with a matrix, not like in this case with an array. 
      We could think about changing this name, then we would need to change it also in 
-     shared_Functions.apron.ml and ectorMatrix.ml and affineEqualitiesDomain.ml *)
+     shared_Functions.apron.ml and vectorMatrix.ml and affineEqualitiesDomain.ml *)
   let reduce_col_with d var = 
     let ref_var_opt = find_reference_variable d var in
     d.(var) <- Equality.var_zero var;
@@ -178,7 +174,7 @@ module EqualitiesArray = struct
             iteri (fun _ x -> let (_, off2) = d.(x) in d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
     end
 
-  (* Forget information about variable i but notin-place *)
+  (* Forget information about variable i but not in-place *)
   let reduce_col m j = 
     let copy = copy m in
     reduce_col_with copy j;
@@ -271,12 +267,11 @@ struct
       end
     in convert_texpr texp 
 
-  let number_vars x = 0(*TODO*)
-
   let get_coeff (t: t) texp =
     (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
       Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
     *)
+    let number_vars cv's = List.count_matching (fun (_, v)-> match v with | None -> false | Some x -> true) cv's in
     let sum_coefficients summands_list =
       List.fold_left (fun (var, current_var_offset, curr_offset) (next_coeff, next_var) -> 
           begin match next_var with
@@ -629,10 +624,10 @@ struct
     res
   (* from here on TODO till end of module*)
   (* This functionality is not common to C and is used for assignments of the form: x = y, y=x; which is not legitimate C grammar
-  x and y should be assigned to the value of x and y before the assignment respectively.
-  ==> x = y_old , y = x_old;
-  Therefore first apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y 
-  and in a second round assign x' to x and y' to y
+     x and y should be assigned to the value of x and y before the assignment respectively.
+     ==> x = y_old , y = x_old;
+     Therefore first apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y 
+     and in a second round assign x' to x and y' to y
   *)
   let assign_var_parallel t vv's = 
     let assigned_vars = List.map (function (v, _) -> v) vv's in
@@ -695,13 +690,13 @@ struct
   let meet_tcons_one_var_eq res expr = res
 
   (* meet_tcons -> meet with guard in if statement
-    texpr -> tree expr (right hand side of equality)
+     texpr -> tree expr (right hand side of equality)
      -> expression used to derive tcons -> used to check for overflow
-    tcons -> tree constraint (expression < 0)
+     tcons -> tree constraint (expression < 0)
      -> does not have types (overflow is type dependent)
   *)
 
-  let number_vars cv's = List.count_matching (fun (_, v)-> match v with | None -> false | Some x -> true) cv's
+
   let meet_tcons t tcons expr = 
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables 
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
