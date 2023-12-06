@@ -41,8 +41,16 @@ let after_config () =
   let x1' = Apron.Var.of_string "x1'" in
   let env_test = Apron.Environment.make (Array.of_list [x1; x2; x3; x4]) @@ Array.of_list []  in
   let varM_test = D.top_env env_test in
+  let test = D.assign_texpr varM_test x1 (Texpr1.Cst (Coeff.s_of_int 5)) in
+  let test = D.assign_var test x3 x2 in
+  let test = D.assign_var test x4 x2 in
+  let test = D.assign_texpr test x2 (Texpr1.Cst (Coeff.s_of_int 5)) in
+  print_string "Original variable setup:\n";
   print_string @@ D.show varM_test ;
+  print_string "After x1 = 5:\n";
   print_string @@ D.show (D.assign_texpr varM_test x1 (Texpr1.Cst (Coeff.s_of_int 5)));
+  print_string "After even more assignments:\n";
+  print_string @@ D.show test;
   failwith "Test completed";
   let module Spec = (val get_spec ()) in
   MCP.register_analysis (module Spec : MCPSpec);
