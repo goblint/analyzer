@@ -141,13 +141,11 @@ module EqualitiesArray = struct
   let find_vars_in_the_connected_component d ref_var = 
     filter (fun i -> let (var, _) = d.(i) in var = ref_var) (mapi const d)
 
-  let find_var_in_the_connected_component_with_least_index d ref_var = 
-    fold_left (fun curr_min (var, _) -> if var = ref_var then match curr_min with
-        | None -> var
-        | Some curr_min ->
-          match var with 
-          |Some i -> if i < curr_min then Some i else Some curr_min
-          | None -> Some curr_min else curr_min) None d
+(* find a variable in the connected component with the least index, but not the reference variable. *)
+  let find_var_in_the_connected_component_with_least_index connected_component ref_var = 
+    fold_left (fun curr_min i -> match curr_min with
+        | None -> if i <> ref_var then Some i else None
+        | Some curr_min -> if i < curr_min && i <> ref_var then Some i else Some curr_min) None connected_component
 
   (* Forget information about variable var in-place.
      The name reduce_col_with is because the affineEqualitiesDomain also defines this function,
@@ -169,7 +167,7 @@ module EqualitiesArray = struct
           then ()  (* x_i is the only element of its connected component *) 
           else
             (* x_i is the reference variable -> we need to find a new reference variable *)
-            let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index d dim_of_var in
+            let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index connected_component ref_var in
             let (_, off) = d.(var_least_index) in 
             iteri (fun _ x -> let (_, off2) = d.(x) in d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
     end
