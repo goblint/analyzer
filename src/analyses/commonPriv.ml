@@ -185,8 +185,27 @@ struct
     | _ -> false
 end
 
-module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
+module DigestD (Digest: Digest) (LD: Lattice.S) =
 struct
+  include MapDomain.MapBot_LiftTop (Digest) (LD)
+
+  let get_relevant_writes_nofilter (ask: Q.ask) v =
+    let current = Digest.current ask in
+    fold (fun k v acc ->
+        if not (Digest.accounted_for ask ~current ~other:k) then
+          LD.join acc v
+        else
+          acc
+      ) v (LD.bot ())
+
+  let merge_all v =
+    fold (fun _ v acc -> LD.join acc v) v (LD.bot ())
+end
+
+module PerMutexTidCommon (Digest: Digest) (LD: Lattice.S) =
+struct
+  module DigestD = DigestD (Digest) (LD)
+
   include ConfCheck.RequireThreadFlagPathSensInit
 
   module TID = ThreadIdDomain.Thread
@@ -222,7 +241,7 @@ struct
 
   (* Map from locks to last written values thread-locally *)
   module L = MapDomain.MapBot_LiftTop (LLock) (LD)
-  module GMutex = MapDomain.MapBot_LiftTop (Digest) (LD)
+  module GMutex = DigestD
   module GThread = Lattice.Prod (LMust) (L)
 
   module G =
@@ -243,18 +262,6 @@ struct
   end
 
   module D = Lattice.Prod3 (W) (LMust) (L)
-
-  let get_relevant_writes_nofilter (ask:Q.ask) v =
-    let current = Digest.current ask in
-    GMutex.fold (fun k v acc ->
-        if not (Digest.accounted_for ask ~current ~other:k) then
-          LD.join acc v
-        else
-          acc
-      ) v (LD.bot ())
-
-  let merge_all v =
-    GMutex.fold (fun _ v acc -> LD.join acc v) v (LD.bot ())
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end

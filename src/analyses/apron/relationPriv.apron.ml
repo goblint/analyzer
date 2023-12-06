@@ -862,13 +862,8 @@ struct
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.relation.priv.must-joined" then  ",join"  else "") ^ ")"
 
   let get_relevant_writes (ask:Q.ask) m v =
-    let current = Digest.current ask in
-    GMutex.fold (fun k v acc ->
-        if not (Digest.accounted_for ask ~current ~other:k) then
-          LRD.join acc (Cluster.keep_only_protected_globals ask m v)
-        else
-          acc
-      ) v (LRD.bot ())
+    let v = DigestD.map (Cluster.keep_only_protected_globals ask m) v in
+    DigestD.get_relevant_writes_nofilter ask v
 
   type relation_components_t =  RelationDomain.RelComponents (RD) (D).t
 
@@ -879,7 +874,7 @@ struct
       if not inits then
         get_m
       else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let get_mutex_inits = DigestD.merge_all @@ G.mutex @@ getg V.mutex_inits in
         let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
         if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
         LRD.join get_m get_mutex_inits'
@@ -888,13 +883,13 @@ struct
     r
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
+    let get_mutex_global_g = DigestD.get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
       if not inits then
         get_mutex_global_g
       else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let get_mutex_inits = DigestD.merge_all @@ G.mutex @@ getg V.mutex_inits in
         let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
         if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
         LRD.join get_mutex_global_g get_mutex_inits'

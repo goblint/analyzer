@@ -411,25 +411,20 @@ struct
       m
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
+    let get_mutex_global_g = DigestD.get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
     let r = if not inits then
         get_mutex_global_g
       else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let get_mutex_inits = DigestD.merge_all @@ G.mutex @@ getg V.mutex_inits in
         let get_mutex_inits' = CPA.singleton g (CPA.find g get_mutex_inits) in
         CPA.join get_mutex_global_g get_mutex_inits'
     in
     r
 
   let get_relevant_writes (ask:Q.ask) m v =
-    let current = Digest.current ask in
     let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
-    GMutex.fold (fun k v acc ->
-        if not (Digest.accounted_for ask ~current ~other:k) then
-          CPA.join acc (CPA.filter is_in_Gm v)
-        else
-          acc
-      ) v (CPA.bot ())
+    let v = DigestD.map (CPA.filter is_in_Gm) v in
+    DigestD.get_relevant_writes_nofilter ask v
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
@@ -437,7 +432,7 @@ struct
       if not inits then
         get_m
       else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let get_mutex_inits = DigestD.merge_all @@ G.mutex @@ getg V.mutex_inits in
         let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
         let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
         CPA.join get_m get_mutex_inits'
@@ -615,9 +610,9 @@ struct
     else st
 
   let read_unprotected_global getg x =
-    let get_mutex_global_x = merge_all @@ G.mutex @@ getg (V.global x) in
+    let get_mutex_global_x = DigestD.merge_all @@ G.mutex @@ getg (V.global x) in
     let get_mutex_global_x' = CPA.find x get_mutex_global_x in
-    let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+    let get_mutex_inits = DigestD.merge_all @@ G.mutex @@ getg V.mutex_inits in
     let get_mutex_inits' = CPA.find x get_mutex_inits in
     VD.join get_mutex_global_x' get_mutex_inits'
 
