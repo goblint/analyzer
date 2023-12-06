@@ -12,12 +12,17 @@ module M = Messages
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:Spec)
-  : Spec with module D = Lattice.HConsed (S.D)
-          and module G = S.G
+  : Spec with module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.HConsed (S.D)
+  module HConsedArg =
+  struct
+    (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
+    (* see https://github.com/goblint/analyzer/issues/1005 *)
+    let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
+  end
+  module D = Lattice.HConsed (S.D) (HConsedArg)
   module G = S.G
   module C = S.C
   module V = S.V
