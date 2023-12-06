@@ -10,6 +10,7 @@ For better context, see {!Goblint_lib} which also documents these modules.
 Node
 Edge
 MyCFG
+CfgTools
 }
 
 {2 Specification}
