@@ -20,8 +20,6 @@ struct
     | _ -> Local
   let name () = "variables"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-
-  let arbitrary () = MyCheck.Arbitrary.varinfo
 end
 
 module RawStrings: Printable.S with type t = string =

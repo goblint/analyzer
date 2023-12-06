@@ -56,7 +56,4 @@ struct
     let gens = List.map gen arbs in
     let shrinks = List.map shrink arbs in
     make ~shrink:(Shrink.sequence shrinks) (Gen.sequence gens)
-
-  open GoblintCil
-  let varinfo: Cil.varinfo arbitrary = QCheck.always (Cil.makeGlobalVar "arbVar" Cil.voidPtrType) (* S TODO: how to generate this *)
 end
