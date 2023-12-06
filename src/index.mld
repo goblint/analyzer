@@ -10,6 +10,9 @@ This library currently contains the majority of Goblint and is in the process of
 {2 Library goblint.common}
 This {{!page-common}unwrapped library} contains various common modules extracted from {!Goblint_lib}.
 
+{2 Library goblint.domain}
+This {{!page-domain}unwrapped library} contains various domain modules extracted from {!Goblint_lib}.
+
 
 {1 Library extensions}
 The following libraries provide extensions to other OCaml libraries.

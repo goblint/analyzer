@@ -30,7 +30,6 @@ Options
 {1 Domains}
 {!modules:
 Printable
-Lattice
 }
 
 {2 Analysis-specific}

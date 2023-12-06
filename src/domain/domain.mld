@@ -1,0 +1,9 @@
+{0 Library goblint.domain}
+This library is unwrapped and provides the following top-level modules.
+For better context, see {!Goblint_lib} which also documents these modules.
+
+
+{1 Domains}
+{!modules:
+Lattice
+}
