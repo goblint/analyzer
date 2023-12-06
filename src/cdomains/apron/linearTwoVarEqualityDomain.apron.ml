@@ -627,9 +627,9 @@ struct
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-        {d = Some (join_d mod_x mod_y); env = sup_env}
+        {d = join_d mod_x mod_y; env = sup_env}
       | x, y when EArray.equal x y -> {d = Some x; env = a.env}
-      | x, y  -> {d = Some(join_d x y); env = a.env} 
+      | x, y  -> {d = join_d x y; env = a.env} 
 
   let join a b = timing_wrap "join" (join a) b
 
