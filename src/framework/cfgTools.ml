@@ -122,10 +122,6 @@ let rec pretty_edges () = function
   | [_,x] -> Edge.pretty_plain () x
   | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
-let get_pseudo_return_id fd =
-  let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Cilfacade.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
-  if sid < start_id then sid + start_id else sid
 
 let node_scc_global = NH.create 113
 
@@ -260,7 +256,7 @@ let createCFG (file: file) =
           if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s.\n" fd.svar.vname;
           let fd_end_loc = {fd_loc with line = fd_loc.endLine; byte = fd_loc.endByte; column = fd_loc.endColumn} in
           let newst = mkStmt (Return (None, fd_end_loc)) in
-          newst.sid <- get_pseudo_return_id fd;
+          newst.sid <- Cilfacade.get_pseudo_return_id fd;
           Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
           Cilfacade.IntH.replace Cilfacade.pseudo_return_stmt_sids newst.sid newst;
           let newst_node = Statement newst in

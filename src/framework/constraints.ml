@@ -1004,7 +1004,7 @@ struct
 
     let dummy_pseudo_return_node f =
       (* not the same as in CFG, but compares equal because of sid *)
-      Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
+      Node.Statement ({Cil.dummyStmt with sid = Cilfacade.get_pseudo_return_id f})
     in
     let add_nodes_of_fun (functions: fundec list) (withEntry: fundec -> bool) =
       let add_stmts (f: fundec) =
