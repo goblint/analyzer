@@ -457,12 +457,33 @@ struct
 
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
-  (* TODO: implement less equal *)
+  (* TODO: check implementation for less equal *)
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
+    let implies ts t i : bool =
+      match t with
+      | (None, b) ->  
+        (match ts.(i) with
+        | (None, b') -> Z.equal b b'
+        | _ -> false)
+      | (Some j, b) ->  
+        (match ts.(i), ts.(j) with
+        | (None, _), (_, _) -> false
+        | (_, _), (None, _) -> false
+        | (Some h1, b1), (Some h2, b2) ->
+          h1 = h2 && Z.equal b1 (Z.add b2 b)) 
+    in  
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot t1 || is_top_env t2 then true else
-    if is_bot t2 || is_top_env t1 then false else (true)
+    if is_bot t2 || is_top_env t1 then false else (
+      let m1, m2 = Option.get t1.d, Option.get t2.d in
+      let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
+      let result : bool ref = ref true in
+      for i = 0 to Array.length m2 - 1 do
+        let t = m2.(i) in
+        if not (implies m1' t i) then result := false;
+      done;
+      !result)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
