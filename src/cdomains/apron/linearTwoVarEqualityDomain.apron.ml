@@ -717,11 +717,23 @@ struct
         let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) @@ List.tl @@ Array.to_list final_expr 
       in if is_constant then 
         match Tcons1.get_typ tcons with 
-          | EQ -> if Z.equal final_expr.(0) Z.zero then t else {d = None; env = t.env}
-          | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else {d = None; env = t.env}
-          | SUP -> if Z.gt final_expr.(0) Z.zero then t else {d = None; env = t.env}
-          | DISEQ ->  if Z.equal final_expr.(0) Z.zero then {d = None; env = t.env} else t
-          | EQMOD scalar -> t (*if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
+          | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot()
+          | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else bot()
+          | SUP -> if Z.gt final_expr.(0) Z.zero then t else bot()
+          | DISEQ ->  if Z.equal final_expr.(0) Z.zero then bot() else t
+          | EQMOD scalar -> t (*Not supported right now
+             if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
+      else if var_count == 1 then
+        let var = List.findi (fun i a -> if Z.equal a Z.zero then false else true) @@ Array.to_list final_expr in
+        let c = if Z.divisible final_expr.(0) @@ Tuple2.second var then Some (Z.(- final_expr.(0) / (Tuple2.second var))) else None in
+        match Tcons1.get_typ tcons with 
+        | EQ -> if Option.is_none c then t else  
+            let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int (Option.get c)) in 
+            meet t (assign_texpr (top_env t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
+        | SUPEQ -> t (*We don't know*)
+        | SUP -> t (*We don't know*)
+        | DISEQ ->  t (*We don't know*)
+        | EQMOD scalar -> t (*Not supported right now*)
       else if var_count == 2 then 
         let v12 =  List.fold_righti (fun i a l -> if Z.equal a Z.zero then l else (i,a)::l) (List.tl @@ Array.to_list final_expr) [] in
         let a1 = Tuple2.second (List.hd v12) in  
@@ -730,9 +742,9 @@ struct
         let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
         match Tcons1.get_typ tcons with 
           | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (top_env t.env) var1 var2) else t
-          | SUPEQ -> t (*TODO*)
-          | SUP -> t (*TODO*)
-          | DISEQ ->  t (*TODO*)
+          | SUPEQ -> t (*We don't know*)
+          | SUP -> t (*We don't know*)
+          | DISEQ ->  t (*We don't know*)
           | EQMOD scalar -> t (*Not supported right now*)
       else 
         t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
