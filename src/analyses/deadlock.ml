@@ -37,6 +37,8 @@ struct
         ) ctx.local;
       D.add after ctx.local
 
+    let warn_remove_unknown = ref true
+
     let remove ctx l =
       let inLockAddrs (e, _, _) = Lock.equal l e in
       D.filter (neg inLockAddrs) ctx.local

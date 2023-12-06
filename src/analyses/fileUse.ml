@@ -43,7 +43,6 @@ struct
     | [addr] -> Queries.AD.Addr.to_var_may addr
     | _ -> None
 
-
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let m = ctx.local in
@@ -285,6 +284,23 @@ struct
       D.warn "[Program]fprintf needs at least two arguments"; m
 
     | _ -> m
+
+
+  let event ctx e octx =
+    match e with
+    | Events.Invalidate {lvals} ->
+      let handle_lval dom lval =
+        let key = D.key_from_lval lval in
+        let keys = 
+          match D.get_alias key dom with
+          | Some k -> k::(D.get_aliased k dom)
+          | None -> []
+        in
+        let remove dom key = D.remove key dom in
+        List.fold remove dom keys
+      in
+      List.fold handle_lval ctx.local lvals
+    | _ -> ctx.local
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]

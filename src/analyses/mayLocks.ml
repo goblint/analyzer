@@ -29,6 +29,8 @@ struct
     else
       D.add l ctx.local
 
+  let warn_remove_unknown = ref true
+
   let remove ctx l =
     if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
     match D.Addr.to_mval l with

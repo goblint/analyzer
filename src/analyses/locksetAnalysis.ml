@@ -32,6 +32,7 @@ sig
 
   val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
   val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
+  val warn_remove_unknown: bool ref
 end
 
 let lock_of_lval (lhost, offset) =
@@ -68,12 +69,14 @@ struct
     | Events.Unlock l ->
       Arg.remove ctx l (* remove definite lock or none in parallel if ambiguous *)
     | Events.Invalidate {lvals} ->
+      Arg.warn_remove_unknown := false;
       let handle_lval ctx lval = 
         match lock_of_lval lval with
         | Some lock -> {ctx with local = Arg.remove ctx lock}
         | None -> ctx
       in
       let ctx = List.fold_left handle_lval ctx lvals in
+      Arg.warn_remove_unknown := true;
       ctx.local
     | _ ->
       ctx.local
@@ -107,12 +110,14 @@ struct
     | Events.Unlock l ->
       Arg.remove ctx l (* remove definite lock or all in parallel if ambiguous (blob lock is never added) *)
     | Events.Invalidate {lvals} ->
+      Arg.warn_remove_unknown := false;
       let handle_lval ctx lval = 
         match lock_of_lval lval with
         | Some lock -> {ctx with local = Arg.remove ctx lock}
         | None -> ctx
       in
       let ctx = List.fold_left handle_lval ctx lvals in
+      Arg.warn_remove_unknown := true;
       ctx.local
     | _ ->
       ctx.local
