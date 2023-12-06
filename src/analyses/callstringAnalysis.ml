@@ -8,8 +8,8 @@ module type Callstack_Type =
 sig
   include CilType.S
   val stackTypeName: string
-  val pushElem: fundec -> exp list -> ('d,'g,'c,'v) ctx -> t list (* returns a list of elements that should be pushed to the Callstack *) (*pushElem could be currently also a single element*)
-  val printStack: fundec -> exp list -> t list -> t list -> unit (* a helper function to print the callstack *)
+  val pushElem: fundec -> exp list -> ('d,'g,'c,'v) ctx -> t option (* returns a list of elements that should be pushed to the Callstack *) (*pushElem could be currently also a single element*)
+  val printStack: fundec -> exp list -> (t list * t list) -> (t list * t list) -> unit (* a helper function to print the callstack *)
 end
 
 (** Lifts a [Spec] to analyse with the k-callsting approach. For this the last k callstack elements are used as context
@@ -21,22 +21,20 @@ struct
 
   (* simulates a call stack of depth k*)
   module CallStack = struct
-    include Printable.Liszt (CT) 
+    include Printable.Prod (Printable.Liszt (CT)) (Printable.Liszt (CT))
     let depth = get_int "ana.context.callStack_height" (* must be >= 0 *)
+    let length (stack_first, stack_last) = List.length stack_first + List.length stack_last
 
     let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
-      let rec take n = function
-        | [] -> []
-        | x :: xs when n > 0 -> x :: take (n - 1) xs
-        | _ -> []
-      in
-      let remaining_space = depth - List.length elem in 
-      if remaining_space >= 0 
-      then
-        let remaining_stack = take remaining_space (List.rev stack) in
-        List.rev_append remaining_stack elem
-      else
-        List.rev(take depth (List.rev elem))
+    match elem with
+      | None -> stack
+      | Some e -> 
+        match (length stack >= depth), stack with
+        | _, ([], []) -> [e], []
+        | false, ([], last) -> List.rev last, [e]
+        | false, (stack_first, stack_last) -> stack_first @ List.rev stack_last, [e]  
+        | true, ([], last) -> List.tl(List.rev(last)), [e]
+        | true, (s::stack_first, stack_last) -> stack_first @ List.rev stack_last, [e]
   end
 
   module D = Lattice.Fake(CallStack)
@@ -45,12 +43,12 @@ struct
   module G = Lattice.Unit
 
   let name () = "callstring_"^ CT.stackTypeName
-  let startstate v = []
-  let exitstate v = []
+  let startstate v = ([],[])
+  let exitstate v = ([],[])
 
   let enter ctx r f args = 
-    let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
-    let new_stack = CallStack.push (ctx.local) elem in
+    let elem: CT.t option = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
+    let new_stack: CallStack.t = CallStack.push ctx.local elem in
     if not !AnalysisState.postsolving then CT.printStack f args (ctx.local) new_stack; (* just for debugging purpose*)
     [ctx.local, new_stack]
 
@@ -62,14 +60,16 @@ end
 module Fundec:Callstack_Type = struct
   include CilType.Fundec
   let stackTypeName = "fundec"
-  let pushElem f args ctx = [f]
+  let pushElem f args ctx = Some f
 
-  let printStack f expL listA listB = 
+  let printStack f expL (listA1, listA2) (listB1, listB2) = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listA;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listA1;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (List.rev listA2);
     printf "\nList neu: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listB;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listB1;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (List.rev listB2);
     printf "\n\n"
 end
 
@@ -78,16 +78,18 @@ module Stmt:Callstack_Type = struct
   let stackTypeName = "stmt"
   let pushElem f args ctx = 
     match ctx.prev_node with (* TODO: Why do I need to use prev_node???*)
-    | Statement stmt -> [stmt]
-    | _ -> [] (* first statement is filtered*)
+    | Statement stmt -> Some stmt
+    | _ -> None (* first statement is filtered*)
 
 
-  let printStack f expL listA listB = 
+  let printStack f expL (listA1, listA2) (listB1, listB2) = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listA;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listA1;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) (List.rev listA2);
     printf "\nList neu: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listB;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listB1;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) (List.rev listB2);
     printf "\n\n"
 end
 
