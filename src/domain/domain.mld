@@ -7,3 +7,15 @@ For better context, see {!Goblint_lib} which also documents these modules.
 {!modules:
 Lattice
 }
+
+{2 General}
+{!modules:
+BoolDomain
+SetDomain
+MapDomain
+TrieDomain
+DisjointDomain
+HoareDomain
+PartitionDomain
+FlagHelper
+}
