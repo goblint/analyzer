@@ -48,16 +48,16 @@ struct
   let startstate v = []
   let exitstate v = []
 
-  let context fd d = d
-
   let enter ctx r f args = 
     let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
     let new_stack = CallStack.push (ctx.local) elem in
-    let ctx' = {ctx with context = (fun () -> new_stack)
-                       ; local = new_stack} in
-    if not !AnalysisState.postsolving then CT.printStack f args (ctx.local) (ctx'.local); (* just for debugging purpose*)
+    if not !AnalysisState.postsolving then CT.printStack f args (ctx.local) new_stack; (* just for debugging purpose*)
     [ctx.local, new_stack]
+
+  let combine_env ctx lval fexp f args fc au f_ask = 
+    ctx.local
 end
+
 
 module Fundec:Callstack_Type = struct
   include CilType.Fundec
@@ -76,9 +76,11 @@ end
 module Stmt:Callstack_Type = struct
   include CilType.Stmt
   let stackTypeName = "stmt"
-  let pushElem f args ctx = match ctx.prev_node with (* TODO: Why do I need to use prev_node???*)
+  let pushElem f args ctx = 
+    match ctx.prev_node with (* TODO: Why do I need to use prev_node???*)
     | Statement stmt -> [stmt]
-    | _ -> printf "not a stmt\n"; []
+    | _ -> [] (* first statement is filtered*)
+
 
   let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
