@@ -395,7 +395,8 @@ module PerMutexMeetTIDPriv (Digest: Digest): S =
 struct
   open Queries.Protection
   include PerMutexMeetPrivBase
-  include PerMutexTidCommon (Digest) (CPA)
+  module DigestD = DigestD (Digest) (CPA)
+  include PerMutexTidCommon (DigestD) (CPA)
 
   let iter_sys_vars getg vq vf =
     match vq with
@@ -465,8 +466,7 @@ struct
         CPA.add x v st.cpa
     in
     if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
-    let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest (CPA.singleton x v) in
+    let sidev = DigestD.make ask (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
     let l' = if is_recovered_st then
@@ -508,8 +508,7 @@ struct
       {st with cpa = cpa'; priv = (w',lmust,l)}
     else
       let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
-      let digest = Digest.current ask in
-      let sidev = GMutex.singleton digest (CPA.filter is_in_Gm st.cpa) in
+      let sidev = DigestD.make ask (CPA.filter is_in_Gm st.cpa) in
       sideg (V.mutex m) (G.create_mutex sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm (CPA.filter is_in_Gm st.cpa) l in
@@ -559,13 +558,12 @@ struct
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest escaped_cpa in
+    let sidev = DigestD.make ask escaped_cpa in
     sideg V.mutex_inits (G.create_mutex sidev);
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
-          let sidev = GMutex.singleton digest (CPA.singleton x v) in
+          let sidev = DigestD.make ask (CPA.singleton x v) in
           sideg (V.global x) (G.create_global sidev);
           CPA.remove x acc
         )
@@ -578,8 +576,7 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     let cpa = st.cpa in
     let cpa_side = CPA.filter (fun x _ -> is_global ask x) cpa in
-    let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest cpa_side in
+    let sidev = DigestD.make ask cpa_side in
     sideg V.mutex_inits (G.create_mutex sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)

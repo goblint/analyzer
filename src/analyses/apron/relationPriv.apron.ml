@@ -853,8 +853,9 @@ struct
   module NC = Cluster(RD)
   module Cluster = NC
   module LRD = NC.LRD
+  module DigestD = DigestD (Digest) (LRD)
 
-  include PerMutexTidCommon (Digest) (LRD)
+  include PerMutexTidCommon (DigestD) (LRD)
 
   module AV = RD.V
   module P = UnitP
@@ -937,8 +938,7 @@ struct
     (* unlock *)
     let rel_side = RD.keep_vars rel_local [g_var] in
     let rel_side = Cluster.unlock (W.singleton g) rel_side in
-    let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest rel_side in
+    let sidev = DigestD.make ask rel_side in
     sideg (V.global g) (G.create_global sidev);
     let l' = L.add lm rel_side l in
     let rel_local' =
@@ -975,8 +975,7 @@ struct
     else
       let rel_side = keep_only_protected_globals ask m rel in
       let rel_side = Cluster.unlock w rel_side in
-      let digest = Digest.current ask in
-      let sidev = GMutex.singleton digest rel_side in
+      let sidev = DigestD.make ask rel_side in
       sideg (V.mutex m) (G.create_mutex sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm rel_side l in
@@ -1060,8 +1059,7 @@ struct
     in
     let rel_side = RD.keep_vars rel g_vars in
     let rel_side = Cluster.unlock (W.top ()) rel_side in (* top W to avoid any filtering *)
-    let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest rel_side in
+    let sidev = DigestD.make ask rel_side in
     sideg V.mutex_inits (G.create_mutex sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)

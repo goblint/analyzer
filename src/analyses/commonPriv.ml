@@ -185,7 +185,19 @@ struct
     | _ -> false
 end
 
-module DigestD (Digest: Digest) (LD: Lattice.S) =
+module type DigestD =
+sig
+  include Lattice.S
+  type value
+
+  val get_relevant_writes_nofilter: Q.ask -> t -> value
+  val merge_all: t -> value
+  val make: Q.ask -> value -> t
+
+  val map: (value -> value) -> t -> t
+end
+
+module DigestD (Digest: Digest) (LD: Lattice.S): DigestD with type value = LD.t =
 struct
   include MapDomain.MapBot_LiftTop (Digest) (LD)
 
@@ -200,12 +212,13 @@ struct
 
   let merge_all v =
     fold (fun _ v acc -> LD.join acc v) v (LD.bot ())
+
+  let make ask v =
+    singleton (Digest.current ask) v
 end
 
-module PerMutexTidCommon (Digest: Digest) (LD: Lattice.S) =
+module PerMutexTidCommon (DigestD: DigestD) (LD: Lattice.S) =
 struct
-  module DigestD = DigestD (Digest) (LD)
-
   include ConfCheck.RequireThreadFlagPathSensInit
 
   module TID = ThreadIdDomain.Thread
