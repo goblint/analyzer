@@ -16,6 +16,9 @@ This {{!page-common}unwrapped library} contains various common modules extracted
 {2 Library goblint.domain}
 This {{!page-domain}unwrapped library} contains various domain modules extracted from {!Goblint_lib}.
 
+{2 Library goblint.incremental}
+This {{!page-incremental}unwrapped library} contains various incremental modules extracted from {!Goblint_lib}.
+
 
 {1 Library extensions}
 The following libraries provide extensions to other OCaml libraries.
