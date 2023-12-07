@@ -318,7 +318,7 @@ struct
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
-        | Some (Arg _) when not (List.mem_cmp GobApron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
@@ -404,7 +404,7 @@ struct
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
-    if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (GobApron.Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
