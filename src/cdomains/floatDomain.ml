@@ -622,7 +622,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let overapprox_pi = 3.1416
   let underapprox_pi = 3.1415
 
-  let trig_helper l h k = (** computes dist = distance, l'' = (l/(k*pi) % 10) - floor(l/(k*pi)), h'' = (h/(k*pi)) - floor(h/(k*pi))*)
+  let trig_helper l h k = (** computes dist = distance, l'' = (l/(k*pi)) - floor(l/(k*pi)), h'' = (h/(k*pi)) - floor(h/(k*pi))*)
     let ft_over_kpi = (Float_t.mul Up (Float_t.of_float Up k) (Float_t.of_float Up overapprox_pi)) in
     let ft_under_kpi = (Float_t.mul Down (Float_t.of_float Down k) (Float_t.of_float Down underapprox_pi)) in
     let l' =
@@ -660,7 +660,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     else if dist <= (Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) then
       Interval (min (Float_t.cos Down l) (Float_t.cos Down h), Float_t.of_float Up 1.)
     else
-    of_interval (-. 1., 1.)
+      of_interval (-. 1., 1.)
 
   let eval_sin_cfun l h =
     let (dist, l'', h'') = trig_helper l h 2. in
@@ -678,12 +678,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       Interval (min (Float_t.sin Down l) (Float_t.sin Down h), Float_t.of_float Up 1.)
     else 
       of_interval (-. 1., 1.)
-    
+
   let eval_tan_cfun l h =
     let (dist, l'', h'') = trig_helper l h 1. in
     if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if dist <= (Float_t.of_float Down 1.) && Bool.not ((l'' <= Float_t.of_float Up 0.5) && (h'' >= Float_t.of_float Down 0.5)) then
-        Interval (Float_t.tan Down l, Float_t.tan Up h)
+      Interval (Float_t.tan Down l, Float_t.tan Up h)
     else
       top ()
 
@@ -713,42 +713,30 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: acos argument might be outside of [-1., 1.]";
       of_interval (0., (overapprox_pi))
-    | (l, h) when GobConfig.get_bool "ana.float.math_funeval" ->
-      norm @@ Interval (Float_t.acos Down h, Float_t.acos Up l) (** acos is monotonic decreasing in [-1, 1]*)
-    | _ -> of_interval (0., (overapprox_pi))
+    | (l, h) -> norm @@ Interval (Float_t.acos Down h, Float_t.acos Up l) (** acos is monotonic decreasing in [-1, 1]*)
 
   let eval_asin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: asin argument might be outside of [-1., 1.]";
       div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.)
-    | (l, h) when GobConfig.get_bool "ana.float.math_funeval" ->
-      norm @@ Interval (Float_t.asin Down l, Float_t.asin Up h) (** asin is monotonic increasing in [-1, 1]*)
-    | _ -> div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.)
+    | (l, h) -> norm @@ Interval (Float_t.asin Down l, Float_t.asin Up h) (** asin is monotonic increasing in [-1, 1]*)
 
   let eval_atan = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
-    | (l, h) when GobConfig.get_bool "ana.float.math_funeval" ->
-      norm @@ Interval (Float_t.atan Down l, Float_t.atan Up h) (** atan is monotonic increasing*)
-    | _ -> div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.)
+    | (l, h) -> norm @@ Interval (Float_t.atan Down l, Float_t.atan Up h) (** atan is monotonic increasing*)
 
   let eval_cos = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
-    | (l, h) when GobConfig.get_bool "ana.float.math_funeval" ->
-      norm @@ eval_cos_cfun l h
-    | _ -> of_interval (-. 1., 1.)
+    | (l, h) -> norm @@ eval_cos_cfun l h
 
   let eval_sin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
-    | (l, h) when GobConfig.get_bool "ana.float.math_funeval" ->
-      norm @@ eval_sin_cfun l h
-    | _ -> of_interval (-. 1., 1.)
+    | (l, h) -> norm @@ eval_sin_cfun l h
 
   let eval_tan = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
-    | (l, h) when GobConfig.get_bool "ana.float.math_funeval" ->
-      norm @@ eval_tan_cfun l h
-    | _ -> top ()
+    | (l, h) -> norm @@ eval_tan_cfun l h
 
   let eval_sqrt = function
     | (l, h) when l = Float_t.zero && h = Float_t.zero -> of_const 0.

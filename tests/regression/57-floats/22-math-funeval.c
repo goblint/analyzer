@@ -1,4 +1,4 @@
-// PARAM: --enable ana.float.interval --enable ana.float.math_funeval
+// PARAM: --enable ana.float.interval
 #include <assert.h>
 #include <math.h>
 #include <float.h>

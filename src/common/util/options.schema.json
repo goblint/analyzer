@@ -463,13 +463,6 @@
                 "Use FloatDomain: (float * float) option.",
               "type": "boolean",
               "default": false
-            },
-            "math_funeval": {
-              "title": "ana.float.math_funeval",
-              "description":
-                "Allow evaluation of functions from math.h with c-stubs. Only sound, if the same math.h implementation is used for the programm that is also used in Goblint",
-              "type": "boolean",
-              "default": false
             }
           },
           "additionalProperties": false
