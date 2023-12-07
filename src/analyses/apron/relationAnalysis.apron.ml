@@ -285,7 +285,7 @@ struct
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    let vname = GobApron.Var.to_string var in
+    let vname = Apron.Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
     match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
