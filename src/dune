@@ -11,6 +11,10 @@
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
+    (select gobApron.ml from
+      (apron -> gobApron.apron.ml)
+      (-> gobApron.no-apron.ml)
+    )
     (select apronDomain.ml from
       (apron apron.octD apron.boxD apron.polkaMPQ zarith_mlgmpidl -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
