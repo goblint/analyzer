@@ -36,6 +36,20 @@ static void change_round_mode(int mode)
     }
 }
 
+#define UNARY_OP(name, type, op)                                 \
+    CAMLprim value name##_##type(value mode, value x)            \
+    {                                                            \
+        int old_roundingmode = fegetround();                     \
+        change_round_mode(Int_val(mode));                        \
+        volatile type r, x1 = Double_val(x);                     \
+        r = op(x1);                                              \
+        fesetround(old_roundingmode);                            \
+        return caml_copy_double(r);                              \
+    }
+
+UNARY_OP(sqrt, double, sqrt);
+UNARY_OP(sqrt, float, sqrtf);
+
 #define BINARY_OP(name, type, op)                                \
     CAMLprim value name##_##type(value mode, value x, value y)   \
     {                                                            \

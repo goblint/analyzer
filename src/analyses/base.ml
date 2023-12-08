@@ -1139,6 +1139,9 @@ struct
 
   (* interpreter end *)
 
+  let is_not_alloc_var ctx v =
+    not (ctx.ask (Queries.IsAllocVar v))
+
   let is_not_heap_alloc_var ctx v =
     let is_alloc = ctx.ask (Queries.IsAllocVar v) in
     not is_alloc || (is_alloc && not (ctx.ask (Queries.IsHeapVar v)))
@@ -1277,7 +1280,7 @@ struct
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_heap_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
@@ -1289,9 +1292,15 @@ struct
               else
                 a
             in
-            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
+            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
+             | Array a ->
+               (* unroll into array for Calloc calls *)
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
+                | Blob (_,s,_) -> `Lifted s
+                | _ -> Queries.Result.top q
+               )
              | Blob (_,s,_) -> `Lifted s
              | _ -> Queries.Result.top q)
           )
@@ -1477,7 +1486,7 @@ struct
             Priv.read_global a priv_getg st x
         in
         let new_value = update_offset old_value in
-        M.tracel "hgh" "update_offset %a -> %a\n" VD.pretty old_value VD.pretty new_value;
+        if M.tracing then M.tracel "set" "update_offset %a -> %a\n" VD.pretty old_value VD.pretty new_value;
         let r = Priv.write_global ~invariant a priv_getg (priv_sideg ctx.sideg) st x new_value in
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
@@ -2123,7 +2132,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
-        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+        invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2328,6 +2337,24 @@ struct
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
+      let apply_abs ik x =
+        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        begin match eval_x with
+          | Int int_x ->
+            let xcast = ID.cast_to ik int_x in
+            (* the absolute value of the most-negative value is out of range for 2'complement types *)
+            (match (ID.minimal xcast), (ID.minimal (ID.top_of ik)) with
+             | _, None
+             | None, _ -> ID.top_of ik
+             | Some mx, Some mm when Z.equal mx mm -> ID.top_of ik
+             | _, _ ->
+               let x1 = ID.neg (ID.meet (ID.ending ik Z.zero) xcast) in
+               let x2 = ID.meet (ID.starting ik Z.zero) xcast in
+               ID.join x1 x2
+            )
+          | _ -> failwith ("non-integer argument in call to function "^f.vname)
+        end
+      in
       let result:value =
         begin match fun_args with
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
@@ -2356,6 +2383,8 @@ struct
           | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
+          | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
+          | Abs (ik, x) -> Int (ID.cast_to ik (apply_abs ik x))
         end
       in
       begin match lv with

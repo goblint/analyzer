@@ -19,6 +19,7 @@ module GobUnix = GobUnix
 
 module GobFpath = GobFpath
 module GobPretty = GobPretty
+module GobQCheck = GobQCheck
 module GobYaml = GobYaml
 module GobYojson = GobYojson
 module GobZ = GobZ

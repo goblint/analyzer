@@ -531,6 +531,12 @@ let stmt_fundecs: fundec StmtH.t ResettableLazy.t =
       h
     )
 
+
+let get_pseudo_return_id fd =
+  let start_id = 10_000_000_000 in (* TODO get max_sid? *)
+  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Cilfacade.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
+  if sid < start_id then sid + start_id else sid
+
 let pseudo_return_to_fun = StmtH.create 113
 
 (** Find [fundec] which the [stmt] is in. *)
@@ -707,3 +713,9 @@ let add_function_declarations (file: Cil.file): unit =
   let fun_decls = List.filter_map declaration_from_GFun functions in
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
+
+
+(** Special index expression for some unknown index.
+    Weakly updates array in assignment.
+    Used for [exp.fast_global_inits]. *)
+let any_index_exp = CastE (TInt (ptrdiff_ikind (), []), mkString "any_index") (* TODO: move back to Offset *)

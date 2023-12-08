@@ -12,12 +12,17 @@ module M = Messages
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:Spec)
-  : Spec with module D = Lattice.HConsed (S.D)
-          and module G = S.G
+  : Spec with module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.HConsed (S.D)
+  module HConsedArg =
+  struct
+    (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
+    (* see https://github.com/goblint/analyzer/issues/1005 *)
+    let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
+  end
+  module D = Lattice.HConsed (S.D) (HConsedArg)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -820,13 +825,13 @@ struct
     )
 
   let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
-    let old_loc  = !Tracing.current_loc in
-    let old_loc2 = !Tracing.next_loc in
-    Tracing.current_loc := f;
-    Tracing.next_loc := t;
+    let old_loc  = !Goblint_tracing.current_loc in
+    let old_loc2 = !Goblint_tracing.next_loc in
+    Goblint_tracing.current_loc := f;
+    Goblint_tracing.next_loc := t;
     Goblint_backtrace.protect ~mark:(fun () -> TfLocation f) ~finally:(fun () ->
-        Tracing.current_loc := old_loc;
-        Tracing.next_loc := old_loc2
+        Goblint_tracing.current_loc := old_loc;
+        Goblint_tracing.next_loc := old_loc2
       ) (fun () ->
         let d       = tf var getl sidel getg sideg prev_node edge d in
         d
@@ -999,7 +1004,7 @@ struct
 
     let dummy_pseudo_return_node f =
       (* not the same as in CFG, but compares equal because of sid *)
-      Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
+      Node.Statement ({Cil.dummyStmt with sid = Cilfacade.get_pseudo_return_id f})
     in
     let add_nodes_of_fun (functions: fundec list) (withEntry: fundec -> bool) =
       let add_stmts (f: fundec) =
@@ -1344,7 +1349,7 @@ struct
 
   module EM =
   struct
-    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+    include MapDomain.MapBot (Basetype.CilExp) (BoolDomain.FlatBool)
     let name () = "branches"
   end
 
@@ -1467,14 +1472,14 @@ struct
 
   module V =
   struct
-    include Printable.Either (S.V) (Printable.Either (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C)))
+    include Printable.Either3 (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
     let name () = "longjmp"
     let s x = `Left x
-    let longjmpto x = `Right (`Left x)
-    let longjmpret x = `Right (`Right x)
+    let longjmpto x = `Middle x
+    let longjmpret x = `Right x
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
-      | `Right _ -> false
+      | _ -> false
   end
 
   module G =
@@ -1511,7 +1516,7 @@ struct
       begin match g with
         | `Left g ->
           S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | `Right g ->
+        | _ ->
           Queries.Result.top q
       end
     | InvariantGlobal g ->
@@ -1519,7 +1524,7 @@ struct
       begin match g with
         | `Left g ->
           S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | `Right g ->
+        | _ ->
           Queries.Result.top q
       end
     | IterSysVars (vq, vf) ->

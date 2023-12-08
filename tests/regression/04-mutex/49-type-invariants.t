@@ -14,8 +14,6 @@
     live: 7
     dead: 0
     total lines: 7
-  [Info][Unsound] Unknown address in {&tmp} has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown value in {?} could be an escaped pointer address! (49-type-invariants.c:21:3-21:21)
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:21:3-21:21)
@@ -39,8 +37,6 @@
     live: 7
     dead: 0
     total lines: 7
-  [Info][Unsound] Unknown address in {&tmp} has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown value in {?} could be an escaped pointer address! (49-type-invariants.c:21:3-21:21)
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:21:3-21:21)

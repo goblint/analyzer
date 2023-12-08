@@ -30,7 +30,6 @@ exclude_module_names = set([
     "MessagesCompare",
     "PrivPrecCompare",
     "ApronPrecCompare",
-    "Mainspec",
 
     # libraries
     "Goblint_std",
@@ -42,8 +41,6 @@ exclude_module_names = set([
 
     "MessageCategory", # included in Messages
     "PreValueDomain", # included in ValueDomain
-    "SpecCore", # spec stuff
-    "SpecUtil", # spec stuff
 
     "ConfigVersion",
     "ConfigProfile",

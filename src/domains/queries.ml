@@ -32,7 +32,11 @@ module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
     let bot_name = "bot yojson"
   end)
 
-module SD = Basetype.Strings
+module SD: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
+  Lattice.Flat (Basetype.RawStrings) (struct
+    let top_name = "?"
+    let bot_name = "-"
+  end)
 module VD = ValueDomain.Compound
 module AD = ValueDomain.AD
 
@@ -331,8 +335,8 @@ struct
     | Any (MustTermLoop _) -> 53
     | Any MustTermAllLoops -> 54
     | Any IsEverMultiThreaded -> 55
-    | Any (TmpSpecial _) -> 53
-    | Any (IsAllocVar _) -> 54
+    | Any (TmpSpecial _) -> 56
+    | Any (IsAllocVar _) -> 57
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in

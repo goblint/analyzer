@@ -99,7 +99,9 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
     FunctionSet.iter
       (fun vinfo ->
          print_endline ("    " ^ vinfo.vname);
-         setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
+         match Cilfacade.find_varinfo_fundec vinfo with
+         | fd -> setCongruenceRecursive fd (depth -1) neigbourFunction
+         | exception Not_found -> () (* Happens for __goblint_bounded *)
       )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
          (fun x -> not (isExtern x.vstorage || BatString.starts_with x.vname "__builtin"))
@@ -184,7 +186,7 @@ let enableAnalyses anas =
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
-let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
+let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"]
 let reduceThreadAnalyses () =
   let isThreadCreate = function
     | LibraryDesc.ThreadCreate _ -> true
@@ -198,7 +200,7 @@ let reduceThreadAnalyses () =
 
 (* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
 (* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
-let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceLongjmp"; "poisonVariables"; "expsplit"; "vla"]
+let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceSetjmp"; "poisonVariables"; "expsplit"; "vla"]
 
 let activateLongjmpAnalysesWhenRequired () =
   let isLongjmp = function
@@ -222,7 +224,7 @@ let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
     print_endline "Setting \"cil.addNestedScopeAttr\" to true";
     set_bool "cil.addNestedScopeAttr" true;
     print_endline @@ "Specification: ValidDeref -> enabling memOutOfBounds analysis \"" ^ (String.concat ", " memOobAna) ^ "\"";
-    enableAnalyses memOobAna
+    enableAnalyses memOobAna;
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the memLeak analysis *)
     let memLeakAna = ["memLeak"] in
@@ -473,6 +475,18 @@ let wideningOption factors file =
       print_endline "Enabled widening thresholds";
   }
 
+let activateTmpSpecialAnalysis () =
+  let isMathFun = function
+    | LibraryDesc.Math _ -> true
+    | _ -> false
+  in
+  let hasMathFunctions = hasFunction isMathFun in
+  if hasMathFunctions then (
+    print_endline @@ "math function -> enabling tmpSpecial analysis and floating-point domain";
+    enableAnalyses ["tmpSpecial"];
+    set_bool "ana.float.interval" true;
+  )
+
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
   let operationEstimate = factors.instructions + (factors.expressions / 60) in
@@ -539,6 +553,9 @@ let chooseConfig file =
 
   if isActivated "arrayDomain" then
     selectArrayDomains file;
+
+  if isActivated "tmpSpecialAnalysis" then
+    activateTmpSpecialAnalysis ();
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
