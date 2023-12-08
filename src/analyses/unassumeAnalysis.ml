@@ -111,7 +111,7 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                 NH.add invs n {exp = inv_exp; uuid}
@@ -157,12 +157,12 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc pre_cabs with
               | Ok pre_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located precondition to %a: %a" CilType.Fundec.pretty fundec Cil.d_exp pre_exp;
                 FH.add fun_pres fundec pre_exp;
 
-                begin match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                begin match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
                   | Ok inv_exp ->
                     M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
@@ -200,6 +200,46 @@ struct
           M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
       in
 
+      let unassume_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
+
+        let unassume_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
+          let loc = loc_of_location location_invariant.location in
+          let inv = location_invariant.value in
+          let msgLoc: M.Location.t = CilLocation loc in
+
+          match Locator.find_opt locator loc with
+          | Some nodes ->
+            unassume_nodes_invariant ~loc ~nodes inv
+          | None ->
+            M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
+        in
+
+        let unassume_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
+          let loc = loc_of_location loop_invariant.location in
+          let inv = loop_invariant.value in
+          let msgLoc: M.Location.t = CilLocation loc in
+
+          match Locator.find_opt loop_locator loc with
+          | Some nodes ->
+            unassume_nodes_invariant ~loc ~nodes inv
+          | None ->
+            M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
+        in
+
+        let validate_invariant (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
+          match YamlWitness.invariant_type_enabled target_type, invariant.invariant_type with
+          | true, LocationInvariant x ->
+            unassume_location_invariant x
+          | true, LoopInvariant x ->
+            unassume_loop_invariant x
+          | false, (LocationInvariant _ | LoopInvariant _) ->
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type
+        in
+
+        List.iter validate_invariant invariant_set.content
+      in
+
       match YamlWitness.entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         unassume_location_invariant x
@@ -207,7 +247,9 @@ struct
         unassume_loop_invariant x
       | true, PreconditionLoopInvariant x ->
         unassume_precondition_loop_invariant x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _) ->
+      | true, InvariantSet x ->
+        unassume_invariant_set x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
         M.info_noloc ~category:Witness "cannot unassume entry of type %s" target_type

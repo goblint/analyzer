@@ -149,20 +149,21 @@ struct
   let unop_map f x =
     List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
 
-  let pretty () x =
-    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
-    let xs = unop_fold f [] x in
-    match xs with
-    | [] -> text "[]"
-    | x :: [] -> x
-    | x :: y ->
-      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+  let pretty () xs =
+    let pretty_one a n (module S: Printable.S) x =
+      let doc = Pretty.dprintf "%s:%a" (find_spec_name n) S.pretty (obj x) in
+      match a with
+      | None -> Some doc
+      | Some a -> Some (a ++ text "," ++ line ++ doc)
+    in
+    let doc = Option.default Pretty.nil (unop_fold pretty_one None xs) in
+    Pretty.dprintf "[@[%a@]]" Pretty.insert doc
 
   let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
         let analysis_name = find_spec_name n in
-        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a
+      ) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
@@ -214,7 +215,7 @@ struct
 
   let arbitrary () =
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
-    MyCheck.Arbitrary.sequence arbs
+    GobQCheck.Arbitrary.sequence arbs
 
   let relift = unop_map (fun (module S: Printable.S) x -> Obj.repr (S.relift (Obj.obj x)))
 end
@@ -317,6 +318,7 @@ struct
   open Obj
 
   include DomListPrintable (PrintableOfRepresentativeSpec (DLSpec))
+  let name () = "MCP.P"
 
   type elt = (int * unknown) list
 
@@ -343,6 +345,7 @@ struct
   open Obj
 
   include DomListPrintable (PrintableOfLatticeSpec (DLSpec))
+  let name () = "MCP.D"
 
   let binop_fold f a (x:t) (y:t) =
     GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
@@ -369,12 +372,19 @@ struct
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
 
-  let pretty_diff () (x,y) =
-    let f a n (module S : Lattice.S) x y =
-      if S.leq (obj x) (obj y) then a
-      else a ++ S.pretty_diff () (obj x, obj y) ++ text ". "
+  let pretty_diff () (xs, ys) =
+    let pretty_one a n (module S: Lattice.S) x y =
+      if S.leq (obj x) (obj y) then
+        a
+      else (
+        let doc = Pretty.dprintf "%s:%a" (find_spec_name n) S.pretty_diff (obj x, obj y) in
+        match a with
+        | None -> Some doc
+        | Some a -> Some (a ++ text "," ++ line ++ doc)
+      )
     in
-    binop_fold f nil x y
+    let doc = Option.default Pretty.nil (binop_fold pretty_one None xs ys) in
+    Pretty.dprintf "[@[%a@]]" Pretty.insert doc
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)

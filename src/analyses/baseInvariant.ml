@@ -410,6 +410,18 @@ struct
           meet_bin c c
         else
           a, b
+      | BAnd as op ->
+        (* we only attempt to refine a here *)
+        let a =
+          match ID.to_int b with
+          | Some x when BI.equal x BI.one ->
+            (match ID.to_bool c with
+             | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
+             | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
+             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a\n" d_binop op ID.pretty c; a)
+          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a\n" d_binop op ID.pretty b ID.pretty c; a
+        in
+        a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         a, b
@@ -545,6 +557,11 @@ struct
     in
     let eval e st = eval_rv a gs st e in
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
+    let unroll_fk_of_exp e =
+      match unrollType (Cilfacade.typeOf e) with
+      | TFloat (fk, _) -> fk
+      | _ -> failwith "value which was expected to be a float is of different type?!"
+    in
     let rec inv_exp c_typed exp (st:D.t): D.t =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if VD.is_bot_value c_typed then contra st
@@ -681,6 +698,7 @@ struct
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
           let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
           let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
+          if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a\n" d_lval x VD.pretty c_typed d_type t;
           begin match c_typed with
             | Int c ->
               let c' = match t with
@@ -690,7 +708,35 @@ struct
                 | TFloat (fk, _) -> Float (FD.of_int fk c)
                 | _ -> Int c
               in
-              update_lval c x c' ID.pretty
+              (* handle special calls *)
+              begin match x, t with
+                | (Var v, offs), TInt (ik, _) ->
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
+                    | `Lifted (Abs (ik, xInt)) ->
+                      let c' = ID.cast_to ik c in (* different ik! *)
+                      inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
+                    | tmpSpecial ->
+                      begin match ID.to_bool c with
+                        | Some tv ->
+                          begin match tmpSpecial with
+                            | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
+                            | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
+                            (* should be correct according to C99 standard*)
+                            (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
+                            | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
+                            | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                            | _ -> update_lval c x c' ID.pretty
+                          end
+                        | None -> update_lval c x c' ID.pretty
+                      end
+                  end
+                | _, _ -> update_lval c x c' ID.pretty
+              end
             | Float c ->
               let c' = match t with
                 (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
@@ -700,7 +746,24 @@ struct
                 | TFloat (fk, _) -> Float (FD.cast_to fk c)
                 | _ -> Float c
               in
-              update_lval c x c' FD.pretty
+              (* handle special calls *)
+              begin match x, t with
+                | (Var v, offs), TFloat (fk, _) ->
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
+                    | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
+                    | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
+                    | `Lifted (Fabs (ret_fk, xFloat)) ->
+                      let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
+                      if FD.is_bot inv then
+                        raise Analyses.Deadcode
+                      else
+                        inv_exp (Float inv) xFloat st
+                    | _ -> update_lval c x c' FD.pretty
+                  end
+                | _ -> update_lval c x c' FD.pretty
+              end
             | Address c ->
               let c' = c_typed in (* TODO: need any of the type-matching nonsense? *)
               update_lval c x c' AD.pretty
@@ -742,15 +805,15 @@ struct
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
         | _ -> false
       in
-      try
-        let ik = Cilfacade.get_ikind_exp exp in
+      match Cilfacade.get_ikind_exp exp with
+      | ik ->
         let itv = if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
           else
             ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
         in
         inv_exp (Int itv) exp st
-      with Invalid_argument _ ->
+      | exception Invalid_argument _ ->
         let fk = Cilfacade.get_fkind_exp exp in
         let ftv = if not tv then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             FD.of_const fk 0.

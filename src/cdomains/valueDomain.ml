@@ -10,7 +10,7 @@ module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
-module LS = VDQ.LS
+module AD = VDQ.AD
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -115,7 +115,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -502,7 +502,7 @@ struct
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name (x:t)) (tag_name (y:t)) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name (x:t)) (tag_name (y:t)) CilType.Location.pretty !Goblint_tracing.current_loc pretty x pretty y
 
   let rec leq x y =
     match (x,y) with
@@ -756,9 +756,9 @@ struct
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin match ask.may_point_to (Lval lval) with
-          | v when LS.cardinal v = 1 && not (LS.is_top v) ->
-            begin match LS.choose v with
-              | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
+          | v when AD.cardinal v = 1 && not (AD.is_top v) ->
+            begin match AD.choose v with
+              | AD.Addr.Addr (var,`Index (i,`NoOffset)) when ID.equal_to Z.zero i = `Eq && CilType.Varinfo.equal var arr_start_var ->
                 (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
                 add
               | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
@@ -824,6 +824,8 @@ struct
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
+      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
+      let r =
       match x, offs with
       | Blob((va, _, orig) as c), `Index (_, ox) ->
         begin
@@ -886,6 +888,9 @@ struct
             | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
+      in
+      if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a\n" pretty r;
+      r
     in
     let l, o = match exp with
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)

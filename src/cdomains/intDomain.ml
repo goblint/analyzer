@@ -514,7 +514,7 @@ module Size = struct (* size in bits as int, range as int64 *)
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
     if t = IBool then
-      (* C11 6.3.1.2 Boolean type *) 
+      (* C11 6.3.1.2 Boolean type *)
       if Z.equal x Z.zero then Z.zero else Z.one
     else
       let a,b = range t in
@@ -609,6 +609,11 @@ module IntervalArith(Ints_t : IntOps.IntOps) = struct
     let x2y1 = (Ints_t.mul x2 y1) in
     let x2y2 = (Ints_t.mul x2 y2) in
     (min4 x1y1 x1y2 x2y1 x2y2, max4 x1y1 x1y2 x2y1 x2y2)
+
+  let shift_left (x1,x2) (y1,y2) =
+    let y1p = Ints_t.shift_left Ints_t.one y1 in
+    let y2p = Ints_t.shift_left Ints_t.one y2 in
+    mul (x1, x2) (y1p, y2p)
 
   let div (x1, x2) (y1, y2) =
     let x1y1n = (Ints_t.div x1 y1) in
@@ -760,7 +765,7 @@ struct
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
     assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
@@ -826,7 +831,19 @@ struct
       | _              -> (top_of ik,{underflow=true; overflow=true})
 
   let bitxor = bit (fun _ik -> Ints_t.bitxor)
-  let bitand = bit (fun _ik -> Ints_t.bitand)
+
+  let bitand ik i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, true -> bot_of ik
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try of_int ik (Ints_t.bitand x y) |> fst with Division_by_zero -> top_of ik)
+      | _, Some y when Ints_t.equal y Ints_t.zero -> of_int ik Ints_t.zero |> fst
+      | _, Some y when Ints_t.equal y Ints_t.one -> of_interval ik (Ints_t.zero, Ints_t.one) |> fst
+      | _ -> top_of ik
+
   let bitor  = bit (fun _ik -> Ints_t.bitor)
 
   let bit1 f ik i1 =
@@ -839,7 +856,6 @@ struct
 
   let bitnot = bit1 (fun _ik -> Ints_t.bitnot)
   let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
-  let shift_left  = bitcomp (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
   let neg ?no_ov ik = function None -> (None,{underflow=false; overflow=false}) | Some x -> norm ik @@ Some (IArith.neg x)
 
@@ -851,6 +867,20 @@ struct
   let add ?no_ov = binary_op_with_norm IArith.add
   let mul ?no_ov = binary_op_with_norm IArith.mul
   let sub ?no_ov = binary_op_with_norm IArith.sub
+
+  let shift_left ik a b =
+    match is_bot a, is_bot b with
+    | true, true -> (bot_of ik,{underflow=false; overflow=false})
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show a) (show b)))
+    | _ ->
+      match a, minimal b, maximal b with
+      | Some a, Some bl, Some bu when (Ints_t.compare bl Ints_t.zero >= 0) ->
+        (try
+           let r = IArith.shift_left a (Ints_t.to_int bl, Ints_t.to_int bu) in
+           norm ik @@ Some r
+         with Z.Overflow -> (top_of ik,{underflow=false; overflow=true}))
+      | _              -> (top_of ik,{underflow=true; overflow=true})
 
   let rem ik x y = match x, y with
     | None, None -> None
@@ -966,12 +996,12 @@ struct
 
   let arbitrary ik =
     let open QCheck.Iter in
-    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint GobQCheck.Arbitrary.big_int in *)
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
-    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let shrink = function
-      | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik >|= fst)
+      | Some (l, u) -> (return None) <+> (GobQCheck.shrink pair_arb (l, u) >|= of_interval ik >|= fst)
       | None -> empty
     in
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> fst ) pair_arb)
@@ -1571,13 +1601,13 @@ struct
 
   let arbitrary ik =
     let open QCheck.Iter in
-    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint GobQCheck.Arbitrary.big_int in *)
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
-    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let list_pair_arb = QCheck.small_list pair_arb in
     let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
-    let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
+    let shrink xs = GobQCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
 end
 
@@ -1665,7 +1695,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
-  let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
+  let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
 end
 
@@ -1978,7 +2008,7 @@ struct
   let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
-      let r' = size ik in 
+      let r' = size ik in
         if R.leq r r' then (* upcast -> no change *)
           `Excluded (s, r)
         else if ik = IBool then (* downcast to bool *)
@@ -1986,7 +2016,7 @@ struct
             `Definite (BI.one)
           else
             `Excluded (S.empty(), r')
-        else 
+        else
           (* downcast: may overflow *)
           (* let s' = S.map (BigInt.cast_to ik) s in *)
           (* We want to filter out all i in s' where (t)x with x in r could be i. *)
@@ -2282,7 +2312,28 @@ struct
   let ge ik x y = le ik y x
 
   let bitnot = lift1 BigInt.bitnot
-  let bitand = lift2 BigInt.bitand
+
+  let bitand ik x y = norm ik (match x,y with
+      (* We don't bother with exclusion sets: *)
+      | `Excluded _, `Definite i ->
+        (* Except in two special cases *)
+        if BigInt.equal i BigInt.zero then
+          `Definite BigInt.zero
+        else if BigInt.equal i BigInt.one then
+          of_interval IBool (BigInt.zero, BigInt.one)
+        else
+          top ()
+      | `Definite _, `Excluded _
+      | `Excluded _, `Excluded _ -> top ()
+      (* The good case: *)
+      | `Definite x, `Definite y ->
+        (try `Definite (BigInt.bitand x y) with | Division_by_zero -> top ())
+      | `Bot, `Bot -> `Bot
+      | _ ->
+        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
+
+
   let bitor  = lift2 BigInt.bitor
   let bitxor = lift2 BigInt.bitxor
 
@@ -2351,8 +2402,8 @@ struct
     let excluded s = from_excl ik s in
     let definite x = of_int ik x in
     let shrink = function
-      | `Excluded (s, _) -> MyCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
-      | `Definite x -> (return `Bot) <+> (MyCheck.shrink (BigInt.arbitrary ()) x >|= definite)
+      | `Excluded (s, _) -> GobQCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
+      | `Definite x -> (return `Bot) <+> (GobQCheck.shrink (BigInt.arbitrary ()) x >|= definite)
       | `Bot -> empty
     in
     QCheck.frequency ~shrink ~print:show [
@@ -2765,8 +2816,8 @@ module Enums : S with type int_t = BigInt.t = struct
     let neg s = of_excl_list ik (BISet.elements s) in
     let pos s = norm ik (Inc s) in
     let shrink = function
-      | Exc (s, _) -> MyCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
-      | Inc s -> MyCheck.shrink (BISet.arbitrary ()) s >|= pos
+      | Exc (s, _) -> GobQCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc s -> GobQCheck.shrink (BISet.arbitrary ()) s >|= pos
     in
     QCheck.frequency ~shrink ~print:show [
       20, QCheck.map neg (BISet.arbitrary ());
@@ -3134,7 +3185,7 @@ struct
 
   (** The implementation of the bit operations could be improved based on the master’s thesis
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
-      see: https://www.dsi.unive.it/~avp/domains.pdf *)
+      see: http://www.es.mdh.se/pdf_publications/948.pdf *)
   let bit2 f ik x y = match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
@@ -3144,7 +3195,19 @@ struct
 
   let bitor ik x y = bit2 Ints_t.bitor ik x y
 
-  let bitand ik x y = bit2 Ints_t.bitand ik x y
+  let bitand ik x y =  match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c, m), Some (c', m') ->
+      if (m =: Ints_t.zero && m' =: Ints_t.zero) then
+        (* both arguments constant *)
+        Some (Ints_t.bitand c c', Ints_t.zero)
+      else if m' =: Ints_t.zero && c' =: Ints_t.one && Ints_t.rem m (Ints_t.of_int 2) =: Ints_t.zero then
+        (* x & 1  and  x == c (mod 2*z) *)
+        (* Value is equal to LSB of c *)
+        Some (Ints_t.bitand c c', Ints_t.zero)
+      else
+        top ()
 
   let bitxor ik x y = bit2 Ints_t.bitxor ik x y
 
@@ -3154,8 +3217,8 @@ struct
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some(c2, m2) ->
       if m2 =: Ints_t.zero then
-        if (c2 |: m1) then
-          Some(c1 %: c2,Ints_t.zero)
+        if (c2 |: m1) && (c1 %: c2 =: Ints_t.zero || m1 =: Ints_t.zero || not (Cil.isSigned ik)) then
+          Some(c1 %: c2, Ints_t.zero)
         else
           normalize ik (Some(c1, (Ints_t.gcd m1 c2)))
       else
@@ -3229,6 +3292,7 @@ struct
 
   let invariant_ikind e ik x =
     match x with
+    | x when is_top x -> Invariant.top ()
     | Some (c, m) when m =: Ints_t.zero ->
       if get_bool "witness.invariant.exact" then
         let c = Ints_t.to_bigint c in
@@ -3243,7 +3307,7 @@ struct
 
   let arbitrary ik =
     let open QCheck in
-    let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let cong_arb = pair int_arb int_arb in
     let of_pair ik p = normalize ik (Some p) in
     let to_pair = Option.get in
@@ -3364,14 +3428,14 @@ module IntDomTupleImpl = struct
     | Some(_, {underflow; overflow}) -> not (underflow || overflow)
     | _ -> false
 
-  let check_ov ik intv intv_set =
+  let check_ov ~cast ik intv intv_set =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
     if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
       let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
-      set_overflow_flag ~cast:false ~underflow ~overflow ik;
+      set_overflow_flag ~cast ~underflow ~overflow ik;
     );
     no_ov
 
@@ -3380,7 +3444,7 @@ module IntDomTupleImpl = struct
     let map x = Option.map fst x in
     let intv =  f p2 @@ r.fi2_ovc (module I2) in
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
-    ignore (check_ov ik intv intv_set);
+    ignore (check_ov ~cast:false ik intv intv_set);
     map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5)
 
   let create2_ovc ik r x = (* use where values are introduced *)
@@ -3561,7 +3625,7 @@ module IntDomTupleImpl = struct
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1_ovc (module I2)) b in
     let intv_set = map (r.f1_ovc (module I5)) e in
-    let no_ov = check_ov ik intv intv_set in
+    let no_ov = check_ov ~cast ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> fst) a
@@ -3571,10 +3635,10 @@ module IntDomTupleImpl = struct
       , BatOption.map fst intv_set )
 
   (* map2 with overflow check *)
-  let map2ovc ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
+  let map2ovc ?(cast=false) ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
     let intv = opt_map2 (r.f2_ovc (module I2)) xb yb in
     let intv_set = opt_map2 (r.f2_ovc (module I5)) xe ye in
-    let no_ov = check_ov ik intv intv_set in
+    let no_ov = check_ov ~cast ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I1) x y |> fst) xa ya

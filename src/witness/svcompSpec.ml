@@ -6,11 +6,20 @@ type t =
   | UnreachCall of string
   | NoDataRace
   | NoOverflow
+  | Termination
+  | ValidFree
+  | ValidDeref
+  | ValidMemtrack
+  | ValidMemcleanup
+
+type multi = t list
 
 let of_string s =
   let s = String.strip s in
-  let regexp = Str.regexp "CHECK( init(main()), LTL(G ! \\(.*\\)) )" in
-  if Str.string_match regexp s 0 then
+  let regexp_single = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )" in
+  let regexp_negated = Str.regexp "CHECK( init(main()), LTL(G ! \\(.*\\)) )" in
+  let regexp_finally = Str.regexp "CHECK( init(main()), LTL(F \\(.*\\)) )" in
+  if Str.string_match regexp_negated s 0 then
     let global_not = Str.matched_group 1 s in
     if global_not = "data-race" then
       NoDataRace
@@ -23,8 +32,35 @@ let of_string s =
         UnreachCall f
       else
         failwith "Svcomp.Specification.of_string: unknown global not expression"
+  else if Str.string_match regexp_single s 0 then
+    let global = Str.matched_group 1 s in
+    if global = "valid-free" then
+      ValidFree
+    else if global = "valid-deref" then
+      ValidDeref
+    else if global = "valid-memtrack" then
+      ValidMemtrack
+    else if global = "valid-memcleanup" then
+      ValidMemcleanup
+    else
+      failwith "Svcomp.Specification.of_string: unknown global expression"
+  else if Str.string_match regexp_finally s 0 then
+    let finally = Str.matched_group 1 s in
+    if finally = "end" then
+      Termination
+    else
+      failwith "Svcomp.Specification.of_string: unknown finally expression"
   else
     failwith "Svcomp.Specification.of_string: unknown expression"
+
+let of_string s: multi =
+  List.filter_map (fun line ->
+      let line = String.strip line in
+      if line = "" then
+        None
+      else
+        Some (of_string line)
+    ) (String.split_on_char '\n' s)
 
 let of_file path =
   let s = BatFile.with_file_in path BatIO.read_all in
@@ -38,9 +74,32 @@ let of_option () =
     of_string s
 
 let to_string spec =
-  let global_not = match spec with
-    | UnreachCall f -> "call(" ^ f ^ "())"
-    | NoDataRace -> "data-race"
-    | NoOverflow -> "overflow"
+  let module Prop = struct
+    type prop = F | G
+    let string_of_prop = function
+      | F -> "F"
+      | G -> "G"
+  end
   in
-  "CHECK( init(main()), LTL(G ! " ^ global_not ^ ") )"
+  let open Prop in
+  let print_output prop spec_str is_neg =
+    let prop = string_of_prop prop in
+    if is_neg then
+      Printf.sprintf "CHECK( init(main()), LTL(%s ! %s) )" prop spec_str
+    else
+      Printf.sprintf "CHECK( init(main()), LTL(%s %s) )" prop spec_str
+  in
+  let prop, spec_str, is_neg = match spec with
+    | UnreachCall f -> G, "call(" ^ f ^ "())", true
+    | NoDataRace -> G, "data-race", true
+    | NoOverflow -> G, "overflow", true
+    | ValidFree -> G, "valid-free", false
+    | ValidDeref -> G, "valid-deref", false
+    | ValidMemtrack -> G, "valid-memtrack", false
+    | ValidMemcleanup -> G, "valid-memcleanup", false
+    | Termination -> F, "end", false
+  in
+  print_output prop spec_str is_neg
+
+let to_string spec =
+  String.concat "\n" (List.map to_string spec)

@@ -85,7 +85,6 @@ FlagModeDomain
 LockDomain
 StackDomain
 FileDomain
-SpecDomain
 LvalMapDomain
 
 }
@@ -106,7 +105,6 @@ Glob
 {!modules:
 MCP
 Base
-Spec
 
 CondVars
 Contain

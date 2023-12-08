@@ -30,6 +30,8 @@ struct
 
       include MapDomain.MapTop_LiftBot (ValueDomain.Addr) (Count)
 
+      let name () = "multiplicity"
+
       let increment v x =
         let current = find v x in
         if current = max_count () then
@@ -155,7 +157,7 @@ struct
     let remove' ctx ~warn l =
       let s, m = ctx.local in
       let rm s = Lockset.remove (l, true) (Lockset.remove (l, false) s) in
-      if warn &&  (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex which may not be held";
+      if warn &&  (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex (%a) which may not be held" Addr.pretty l;
       match Addr.to_mval l with
       | Some mval when MutexTypeAnalysis.must_be_recursive ctx mval ->
         let m',rmed = Multiplicity.decrement l m in
@@ -233,21 +235,15 @@ struct
       Mutexes.leq mutex_lockset protecting
     | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
-      let ls = Mutexes.fold (fun addr ls ->
-          match Addr.to_mval addr with
-          | Some (var, offs) -> Queries.LS.add (var, Addr.Offs.to_exp offs) ls
-          | None -> ls
-        ) held_locks (Queries.LS.empty ())
-      in
-      ls
+      Mutexes.fold (fun addr ls -> Queries.AD.add addr ls) held_locks (Queries.AD.empty ())
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       Mutexes.mem (LockDomain.Addr.of_var LF.verifier_atomic_var) held_locks
     | Queries.MustProtectedVars {mutex = m; write} ->
       let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
-          Queries.LS.add (v, `NoOffset) acc
-        ) protected (Queries.LS.empty ())
+          Queries.VS.add v acc
+        ) protected (Queries.VS.empty ())
     | Queries.IterSysVars (Global g, f) ->
       f (Obj.repr (V.protecting g)) (* TODO: something about V.protected? *)
     | WarnGlobal g ->
@@ -293,10 +289,10 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp; ad; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       let is_recovered_to_st = not (ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx)) in
       (* must use original (pre-assign, etc) ctx queries *)
-      let old_access var_opt offs_opt =
+      let old_access var_opt =
         (* TODO: this used to use ctx instead of octx, why? *)
         (*privatization*)
         match var_opt with
@@ -306,6 +302,7 @@ struct
             let write = match kind with
               | Write | Free -> true
               | Read -> false
+              | Call
               | Spawn -> false (* TODO: nonsense? *)
             in
             let s = GProtecting.make ~write ~recovered:is_recovered_to_st locks in
@@ -324,24 +321,21 @@ struct
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
-      let module LS = Queries.LS in
+      let module AD = Queries.AD in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
-      let on_lvals ls =
-        let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-        let f (var, offs) =
-          let coffs = Offset.Exp.to_cil offs in
-          if CilType.Varinfo.equal var dummyFunDec.svar then
-            old_access None (Some coffs)
-          else
-            old_access (Some var) (Some coffs)
+      let on_ad ad =
+        let f = function
+          | AD.Addr.Addr (g,_) when g.vglob || has_escaped g -> old_access (Some g)
+          | UnknownPtr -> old_access None
+          | _ -> ()
         in
-        LS.iter f ls
+        AD.iter f ad
       in
-      begin match lvals with
-        | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+      begin match ad with
+        | ad when not (AD.is_top ad) ->
           (* the case where the points-to set is non top and does not contain unknown values *)
-          on_lvals ls
-        | ls when not (LS.is_top ls) ->
+          on_ad ad
+        | ad ->
           (* the case where the points-to set is non top and contains unknown values *)
           (* now we need to access all fields that might be pointed to: is this correct? *)
           begin match octx.ask (ReachableUkTypes exp) with
@@ -353,11 +347,11 @@ struct
                 | _ -> false
               in
               if Queries.TS.exists f ts then
-                old_access None None
+                old_access None
           end;
-          on_lvals ls
-        | _ ->
-          old_access None None
+          on_ad ad
+          (* | _ ->
+             old_access None None *) (* TODO: what about this case? *)
       end;
       ctx.local
     | _ ->

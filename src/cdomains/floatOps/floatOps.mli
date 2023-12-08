@@ -38,6 +38,7 @@ module type CFloatType = sig
   val sub: round_mode -> t -> t -> t
   val mul: round_mode -> t -> t -> t
   val div: round_mode -> t -> t -> t
+  val sqrt: round_mode -> t -> t
   val atof: round_mode -> string -> t
 end
 

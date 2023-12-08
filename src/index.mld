@@ -1,0 +1,66 @@
+{0 goblint index}
+
+{1 Goblint}
+The following libraries make up Goblint's main codebase.
+
+{2 Library goblint.lib}
+{!modules:Goblint_lib}
+This library currently contains the majority of Goblint and is in the process of being split into smaller libraries.
+
+{2 Library goblint.config}
+This {{!page-config}unwrapped library} contains various configuration modules extracted from {!Goblint_lib}.
+
+{2 Library goblint.common}
+This {{!page-common}unwrapped library} contains various common modules extracted from {!Goblint_lib}.
+
+{2 Library goblint.domain}
+This {{!page-domain}unwrapped library} contains various domain modules extracted from {!Goblint_lib}.
+
+{2 Library goblint.library}
+This {{!page-library}unwrapped library} contains various library specification modules extracted from {!Goblint_lib}.
+
+{2 Library goblint.incremental}
+This {{!page-incremental}unwrapped library} contains various incremental modules extracted from {!Goblint_lib}.
+
+
+{1 Library extensions}
+The following libraries provide extensions to other OCaml libraries.
+
+{2 Library goblint.std}
+{!modules:Goblint_std}
+
+
+{1 Package utilities}
+The following libraries provide [goblint] package metadata for executables.
+
+{2 Library goblint.build-info}
+{!modules:Goblint_build_info}
+This library is virtual and has the following implementations
+- goblint.build-info.dune for native executables,
+- goblint.build-info.js for js_of_ocaml executables.
+
+{2 Library goblint.sites}
+{!modules:Goblint_sites}
+This library is virtual and has the following implementations
+- goblint.sites.dune for native executables,
+- goblint.sites.js for js_of_ocaml executables.
+
+
+{1 Independent utilities}
+The following libraries provide utilities which are completely independent of Goblint.
+
+{2 Library goblint.backtrace}
+{!modules:Goblint_backtrace}
+
+{2 Library goblint.timing}
+{!modules:Goblint_timing}
+
+{2 Library goblint.tracing}
+{!modules:Goblint_tracing}
+
+
+{1 Vendored}
+The following libraries are vendored in Goblint.
+
+{2 Library goblint.zarith.mlgmpidl}
+{!modules:Z_mlgmpidl}

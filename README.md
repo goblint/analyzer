@@ -13,6 +13,7 @@ Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/e
 
 ## Installing
 Both for using an up-to-date version of Goblint or developing it, the best way is to install from source by cloning this repository.
+For benchmarking Goblint, please follow the [Benchmarking guide on Read the Docs](https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/).
 
 ### Linux
 1. Install [opam](https://opam.ocaml.org/doc/Install.html).

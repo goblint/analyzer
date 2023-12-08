@@ -82,10 +82,13 @@ module Verify: F =
 
     let complain_constraint x ~lhs ~rhs =
       AnalysisState.verified := Some false;
+      M.msg_final Error ~category:Unsound "Fixpoint not reached";
       ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let complain_side x y ~lhs ~rhs =
       AnalysisState.verified := Some false;
+
+      M.msg_final Error ~category:Unsound "Fixpoint not reached";
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let one_side ~vh ~x ~y ~d =
@@ -151,13 +154,7 @@ struct
 
   module VH = Hashtbl.Make (S.Var)
   (* starts as Hashtbl for quick lookup *)
-  let starth =
-    (* VH.of_list S.starts *) (* TODO: BatHashtbl.Make.of_list is broken, use after new Batteries release *)
-    let starth = VH.create (List.length S.starts) in
-    List.iter (fun (x, d) ->
-        VH.replace starth x d
-      ) S.starts;
-    starth
+  let starth = VH.of_list S.starts
 
   let system x =
     match S.system x, VH.find_option starth x with

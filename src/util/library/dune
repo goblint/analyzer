@@ -1,0 +1,18 @@
+(include_subdirs no)
+
+(library
+ (name goblint_library)
+ (public_name goblint.library)
+ (wrapped false) ; TODO: wrap
+ (libraries
+   batteries.unthreaded
+   goblint_common
+   goblint_domain
+   goblint_config
+   goblint-cil)
+ (preprocess
+  (pps
+    ppx_deriving.std
+    ppx_deriving_hash)))
+
+(documentation)
