@@ -35,6 +35,7 @@ exclude_module_names = set([
     "Goblint_std",
     "Goblint_timing",
     "Goblint_backtrace",
+    "Goblint_tracing",
     "Goblint_sites",
     "Goblint_build_info",
     "Dune_build_info",
