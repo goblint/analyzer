@@ -259,6 +259,7 @@ struct
 end
 
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)
+(* TODO: currently hardcoded to assume_idempotent *)
 module HConsed (M: S) : S with
   type key = M.key and
   type value = M.value =
