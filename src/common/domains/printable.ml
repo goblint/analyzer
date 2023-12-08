@@ -506,6 +506,41 @@ module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) = struct
   let arbitrary () = QCheck.quad (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
 end
 
+
+module Queue (Base: S) = 
+struct
+  type t = Base.t Queue.t
+  include Std
+  
+  let queue_map f q =
+    let mapped_queue = Queue.create () in
+    Queue.iter (fun x -> Queue.push (f x) mapped_queue) q;
+    mapped_queue
+
+  let show x = 
+    let elem = Queue.fold (fun acc elem -> elem :: acc) [] x |> List.rev in
+    "[" ^ (String.concat ", " elem) ^ "]"
+
+  let pretty () x = text (show x)
+  let name () = Base.name () ^ "queue"
+  (* TODO more efficient impl*)
+
+  let relift x = queue_map Base.relift x
+
+  let printXml f xs =
+    let xs_copy = Queue.copy xs in
+    let rec loop n q =
+      if Queue.is_empty q then ()
+      else
+        let x = Queue.pop q in 
+        BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x;
+        loop (n+1) (xs_copy)
+    in
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    loop 0 xs_copy; 
+    BatPrintf.fprintf f "</map>\n</value>\n"
+end
+
 module Liszt (Base: S) =
 struct
   type t = Base.t list [@@deriving eq, ord, hash, to_yojson]

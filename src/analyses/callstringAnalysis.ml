@@ -26,7 +26,7 @@ struct
     let length (stack_first, stack_last) = List.length stack_first + List.length stack_last
 
     let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
-    match elem with
+      match elem with
       | None -> stack
       | Some e -> 
         match (length stack >= depth), stack with
@@ -93,9 +93,30 @@ module Stmt:Callstack_Type = struct
     printf "\n\n"
 end
 
+
+module Location:Callstack_Type = struct
+  include CilType.Location
+  let stackTypeName = "loc"
+  let pushElem f args ctx = 
+    let q = Queue.create () in
+    Queue.push 1 q; 
+    Some !Tracing.current_loc
+
+  let printStack f expL (listA1, listA2) (listB1, listB2) = 
+    printf "fundec: %s\n" (CilType.Fundec.show f);
+    printf "List alt: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) listA1;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) (List.rev listA2);
+    printf "\nList neu: ";
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) listB1;
+    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) (List.rev listB2);
+    printf "\n\n"
+end
+
 (* Lifters for the Callstring approach with different Callstack element types*)
 let _ =
   MCP.register_analysis (module Spec (Fundec) : MCPSpec); (* name: callstring_fundec*)
-  MCP.register_analysis (module Spec (Stmt) : MCPSpec) (* name: callstring_stmt*)
+  MCP.register_analysis (module Spec (Stmt) : MCPSpec); (* name: callstring_stmt*)
+  MCP.register_analysis (module Spec (Location) : MCPSpec) (* name: callstring_loc*)
 
 
