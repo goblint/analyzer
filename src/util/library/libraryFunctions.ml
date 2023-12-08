@@ -159,6 +159,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wscanf", unknown (drop "fmt" [r] :: VarArgs (drop' [w])));
     ("fwscanf", unknown (drop "stream" [r_deep; w_deep] :: drop "fmt" [r] :: VarArgs (drop' [w])));
     ("swscanf", unknown (drop "buffer" [r] :: drop "fmt" [r] :: VarArgs (drop' [w])));
+    ("remove", unknown [drop "pathname" [r]]);
+    ("raise", unknown [drop "sig" []]); (* safe-ish, we don't handle signal handlers for now *)
   ]
 
 (** C POSIX library functions.
@@ -418,6 +420,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("random", special [] Rand);
     ("posix_memalign", unknown [drop "memptr" [w]; drop "alignment" []; drop "size" []]); (* TODO: Malloc *)
     ("stpcpy", unknown [drop "dest" [w]; drop "src" [r]]);
+    ("dup", unknown [drop "oldfd" []]);
+    ("readdir_r", unknown [drop "dirp" [r_deep]; drop "entry" [r_deep]; drop "result" [w]]);
+    ("pipe", unknown [drop "pipefd" [w_deep]]);
+    ("waitpid", unknown [drop "pid" []; drop "wstatus" [w]; drop "options" []]);
   ]
 
 (** Pthread functions. *)
@@ -1246,16 +1252,12 @@ let invalidate_actions = [
   "__errno_location", readsAll;(*safe*)
   "__strdup", readsAll;(*safe*)
   "strtoul__extinline", readsAll;(*safe*)
-  "readdir_r", writesAll;(*unsafe*)
   "atoi__extinline", readsAll;(*safe*)
   "_IO_getc", writesAll;(*unsafe*)
-  "pipe", writesAll;(*unsafe*)
   "strerror_r", writesAll;(*unsafe*)
-  "raise", writesAll;(*unsafe*)
   "_strlen", readsAll;(*safe*)
   "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
   "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-  "waitpid", readsAll;(*safe*)
   "__open_alias", readsAll;(*safe*)
   "__open_2", readsAll;(*safe*)
   "ioctl", writesAll;(*unsafe*)
@@ -1280,7 +1282,6 @@ let invalidate_actions = [
   "svcudp_create", readsAll;(*safe*)
   "svc_register", writesAll;(*unsafe*)
   "svc_run", writesAll;(*unsafe*)
-  "dup", readsAll; (*safe*)
   "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
   "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
   "__error", readsAll; (*safe*)
@@ -1294,7 +1295,6 @@ let invalidate_actions = [
   "uncompress", writes [3;4]; (*keep [3;4]*)
   "__xstat", writes [3]; (*keep [1]*)
   "__lxstat", writes [3]; (*keep [1]*)
-  "remove", readsAll;
   "BZ2_bzBuffToBuffCompress", writes [3;4]; (*keep [3;4]*)
   "compress2", writes [3]; (*keep [3]*)
   "__toupper", readsAll; (*safe*)
