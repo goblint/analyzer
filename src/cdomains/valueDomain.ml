@@ -5,7 +5,6 @@ open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Offset.MakeLattice (IndexDomain)
 module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
@@ -215,14 +214,23 @@ struct
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind), []
     | TPtr (t, _) ->
       let target_and_address_from_type t =
-        (* Assumes type-based target. *)
         let target = TypeVarinfoMap.to_varinfo t in
         target, AD.of_var ~is_modular:true target
       in
+      let target_and_address_from_array t =
+        let target = TypeVarinfoMap.to_varinfo t in
+        let offset = `Index (PreValueDomain.IndexDomain.top (), `NoOffset) in
+        let mval = target, offset in
+        target, AD.of_mval ~is_modular:true mval
+      in
       let target, target_address = target_and_address_from_type t in
+
+      let tarray = TArray (t, None, []) in
+      let target_array, target_array_address = target_and_address_from_array tarray in
+
       let null_ptr = AD.null_ptr in
-      let address = AD.join target_address null_ptr in
-      Address address, [target]
+      let address = AD.join (AD.join target_address null_ptr) target_array_address in
+      Address address, [target; target_array]
     | TComp ({cstruct=true; _} as ci,_) ->
       let init_field s fd =
         let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
