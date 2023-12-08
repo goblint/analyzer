@@ -27,7 +27,7 @@ module EvalAssert = struct
   let surroundByAtomic = true
 
   (* variable for generating __goblint_check(exp) instead of __VERIFIER_assert(exp) *)
-  let goblintCheck () = GobConfig.get_bool "trans.goblint-check"
+  let goblintCheck () = GobConfig.get_bool "trans.assert.goblint-check"
 
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
   let ass () = if goblintCheck () then makeVarinfo true "__goblint_check" (TVoid []) else makeVarinfo true "__VERIFIER_assert" (TVoid [])

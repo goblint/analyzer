@@ -1493,11 +1493,19 @@
           "type":"string",
           "default": "transformed.c"
         },
-        "goblint-check" : {
-          "title": "trans.goblint-check",
-          "description": "Write __goblint_check(exp) in the file instead of __VERIFIER_assert(exp).",
-          "type": "boolean",
-          "default": false
+        "assert" : {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "goblint-check": {
+              "title": "trans.assert.goblint-check",
+              "description":
+                "Write __goblint_check(exp) in the file instead of __VERIFIER_assert(exp).",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
