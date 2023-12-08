@@ -552,11 +552,9 @@ struct
     | y, Blob (x,s,o) -> Blob (join (x:t) y, s, o)
     | (Thread x, Thread y) -> Thread (Threads.join x y)
     | (Int x, Thread y)
-    | (Thread y, Int x) ->
-      Thread y (* TODO: ignores int! *)
+    | (Thread y, Int x) -> Thread (Threads.join y (Threads.top ()))
     | (Address x, Thread y)
-    | (Thread y, Address x) ->
-      Thread y (* TODO: ignores address! *)
+    | (Thread y, Address x) -> Thread (Threads.join y (Threads.top ()))
     | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.join x y)
     | (Mutex, Mutex) -> Mutex
     | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.join x y)
@@ -585,11 +583,9 @@ struct
     | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
-    | (Thread y, Int x) ->
-      Thread y (* TODO: ignores int! *)
+    | (Thread y, Int x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
     | (Address x, Thread y)
-    | (Thread y, Address x) ->
-      Thread y (* TODO: ignores address! *)
+    | (Thread y, Address x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
     | (Mutex, Mutex) -> Mutex
     | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.widen x y)
     | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.widen x y)
@@ -708,7 +704,7 @@ struct
       let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
       Array (CArrays.set ask n (array_idx_top) v)
     |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
-    |                 _ , Thread _     -> state (* TODO: no top thread ID set! *)
+    |                 _ , Thread tid   -> Thread (Threads.join (Threads.top ()) tid)
     |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t

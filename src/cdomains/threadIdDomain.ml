@@ -280,6 +280,79 @@ struct
   let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
 end
 
-module Thread = FlagConfiguredTID
+type thread =
+  | Thread of FlagConfiguredTID.t
+  | UnknownThread
+[@@deriving eq, ord, hash]
+
+module Thread : Stateful with type t = thread =
+struct
+  include Printable.Std
+  type t = thread [@@deriving eq, ord, hash]
+
+  let name () = "Thread id"
+  let pretty () t =
+    match t with
+    | Thread tid -> FlagConfiguredTID.pretty () tid
+    | UnknownThread -> Pretty.text "Unknown thread id"
+
+  let show t =
+    match t with
+    | Thread tid -> FlagConfiguredTID.show tid
+    | UnknownThread -> "Unknown thread id"
+
+  let printXml f t =
+    match t with
+    | Thread tid -> FlagConfiguredTID.printXml f tid
+    | UnknownThread -> BatPrintf.fprintf f "<value>\n<data>\nUnknown thread id\n</data>\n</value>\n"
+
+  let to_yojson t =
+    match t with
+    | Thread tid -> FlagConfiguredTID.to_yojson tid
+    | UnknownThread -> `String "Unknown thread id"
+
+  let relift t =
+    match t with
+    | Thread tid -> Thread (FlagConfiguredTID.relift tid)
+    | UnknownThread -> UnknownThread
+
+  let lift t = Thread t
+
+  let threadinit v ~multiple = Thread (FlagConfiguredTID.threadinit v ~multiple)
+
+  let is_main t =
+    match t with
+    | Thread tid -> FlagConfiguredTID.is_main tid
+    | UnknownThread -> false
+
+  let is_unique t =
+    match t with
+    | Thread tid -> FlagConfiguredTID.is_unique tid
+    | UnknownThread -> false
+
+  let may_create t1 t2 =
+    match t1, t2 with
+    | Thread tid1, Thread tid2 -> FlagConfiguredTID.may_create tid1 tid2
+    | _, _ -> true
+
+  let is_must_parent t1 t2 =
+    match t1, t2 with
+    | Thread tid1, Thread tid2 -> FlagConfiguredTID.is_must_parent tid1 tid2
+    | _, _ -> false
+
+  module D = FlagConfiguredTID.D
+
+  let threadenter ~multiple (t, d) node i v =
+    match t with
+    | Thread tid -> List.map lift (FlagConfiguredTID.threadenter ~multiple (tid, d) node i v)
+    | UnknownThread -> assert false
+
+  let threadspawn = FlagConfiguredTID.threadspawn
+
+  let created t d =
+    match t with
+    | Thread tid -> Option.map (List.map lift) (FlagConfiguredTID.created tid d)
+    | UnknownThread -> None
+end
 
 module ThreadLifted = Lift (Thread)
