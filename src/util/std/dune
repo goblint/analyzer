@@ -9,7 +9,8 @@
    goblint-cil
    fpath
    yojson
-   yaml)
+   yaml
+   qcheck-core)
  (preprocess
   (pps
    ppx_deriving.std

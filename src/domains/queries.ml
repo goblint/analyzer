@@ -32,7 +32,11 @@ module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
     let bot_name = "bot yojson"
   end)
 
-module SD = Basetype.Strings
+module SD: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
+  Lattice.Flat (Basetype.RawStrings) (struct
+    let top_name = "?"
+    let bot_name = "-"
+  end)
 module VD = ValueDomain.Compound
 module AD = ValueDomain.AD
 

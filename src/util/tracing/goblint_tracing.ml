@@ -4,6 +4,7 @@
  * large domains we output. The original code generated the document object
  * even when the subsystem is not activated. *)
 
+open Goblint_std
 open GoblintCil
 open Pretty
 
@@ -67,13 +68,6 @@ let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
  * c: continue/normal print w/o indent-change
 *)
 
-let tracel sys ?var fmt =
-  let loc = !current_loc in
-  let docloc sys doc =
-    printtrace sys (dprintf "(%a)@?" CilType.Location.pretty loc ++ indent 2 doc);
-  in
-  gtrace true docloc sys var ~loc ignore fmt
-
 let tracei (sys:string) ?var ?(subsys=[]) fmt =
   let f sys d = printtrace sys d; traceIndent () in
   let g () = activate sys subsys in
@@ -85,13 +79,3 @@ let traceu sys fmt =
   let f sys d = printtrace sys d; traceOutdent () in
   let g () = deactivate sys in
   gtrace true f sys None g fmt
-
-
-let traceli sys ?var ?(subsys=[]) fmt =
-  let loc = !current_loc in
-  let g () = activate sys subsys in
-  let docloc sys doc: unit =
-    printtrace sys (dprintf "(%a)" CilType.Location.pretty loc ++ indent 2 doc);
-    traceIndent ()
-  in
-  gtrace true docloc sys var ~loc g fmt

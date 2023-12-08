@@ -53,7 +53,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_string l = let f str = l := str :: !l in Arg_complete.String (f, Arg_complete.empty) in
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
-    if Messages.tracing then Tracing.addsystem sys
+    if Messages.tracing then Goblint_tracing.addsystem sys
     else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
@@ -112,8 +112,8 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "--print_options"      , Arg_complete.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg_complete.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg_complete.String (set_trace, Arg_complete.empty), ""
-  ; "--tracevars"          , add_string Tracing.tracevars, ""
-  ; "--tracelocs"          , add_int Tracing.tracelocs, ""
+  ; "--tracevars"          , add_string Goblint_tracing.tracevars, ""
+  ; "--tracelocs"          , add_int Goblint_tracing.tracelocs, ""
   ; "--help"               , Arg_complete.Unit (fun _ -> print_help stdout),""
   ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
   ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""

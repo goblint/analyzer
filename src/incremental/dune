@@ -1,20 +1,17 @@
-(include_subdirs unqualified)
+(include_subdirs no)
 
 (library
- (name goblint_common)
- (public_name goblint.common)
+ (name goblint_incremental)
+ (public_name goblint.incremental)
  (wrapped false) ; TODO: wrap
  (libraries
    batteries.unthreaded
    zarith
    goblint_std
    goblint_config
-   goblint_tracing
+   goblint_common
    goblint-cil
-   fpath
-   yojson
-   goblint_timing
-   qcheck-core.runner)
+   fpath)
  (flags :standard -open Goblint_std)
  (preprocess
   (pps

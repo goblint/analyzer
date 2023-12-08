@@ -259,11 +259,12 @@ struct
 end
 
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)
+(* TODO: currently hardcoded to assume_idempotent *)
 module HConsed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  include Lattice.HConsed (M)
+  include Lattice.HConsed (M) (struct let assume_idempotent = false end)
 
   type key = M.key
   type value = M.value

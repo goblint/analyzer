@@ -51,7 +51,7 @@ module VarQuery = VarQuery
 (** {2 Configuration}
 
     Runtime configuration is represented as JSON.
-    Options are specified and documented by the JSON schema [src/common/util/options.schema.json]. *)
+    Options are specified and documented by the JSON schema [src/config/options.schema.json]. *)
 
 module GobConfig = GobConfig
 module AfterConfig = AfterConfig
@@ -325,7 +325,6 @@ module SolverBox = SolverBox
     Various input/output interfaces and formats. *)
 
 module Messages = Messages
-module Tracing = Tracing
 
 (** {2 Front-end}
 
@@ -462,9 +461,3 @@ module ApronPrecCompareUtil = ApronPrecCompareUtil
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
-
-(** {2 Other libraries}
-
-    External library extensions. *)
-
-module MyCheck = MyCheck

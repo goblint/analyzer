@@ -230,7 +230,7 @@ struct
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
      let (cpa', v) as r = read_global ask getg cpa x in
-     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" CilType.Varinfo.pretty x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
+     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" CilType.Varinfo.pretty x CilType.Location.pretty !Goblint_tracing.current_loc (is_unprotected ask x) VD.pretty v);
      r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
@@ -1665,7 +1665,7 @@ struct
   let read_global ask getg st x =
     let v = Priv.read_global ask getg st x in
     if !AnalysisState.postsolving && !is_dumping then
-      LVH.modify_def (VD.bot ()) (!Tracing.current_loc, x) (VD.join v) lvh;
+      LVH.modify_def (VD.bot ()) (!Goblint_tracing.current_loc, x) (VD.join v) lvh;
     v
 
   let dump () =

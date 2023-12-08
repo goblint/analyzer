@@ -142,12 +142,12 @@ struct
     if List.mem "termination" @@ get_string_list "ana.activated" then (
       (* check if we have upjumping gotos *)
       let open Cilfacade in
-      let warn_for_upjumps fundec gotos = 
+      let warn_for_upjumps fundec gotos =
         if FunSet.mem live_funs fundec then (
           (* set nortermiantion flag *)
           AnalysisState.svcomp_may_not_terminate := true;
           (* iterate through locations to produce warnings *)
-          LocSet.iter (fun l _ -> 
+          LocSet.iter (fun l _ ->
               M.warn ~loc:(M.Location.CilLocation l) ~category:Termination "The program might not terminate! (Upjumping Goto)"
             ) gotos
         )
@@ -313,7 +313,7 @@ struct
         if M.tracing then M.trace "con" "Initializer %a\n" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-        Tracing.current_loc := loc;
+        Goblint_tracing.current_loc := loc;
         match edge with
         | MyCFG.Entry func        ->
           if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
@@ -335,9 +335,9 @@ struct
       in
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
-      let old_loc = !Tracing.current_loc in
+      let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      Tracing.current_loc := old_loc;
+      Goblint_tracing.current_loc := old_loc;
       if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
       result, !funs
     in
