@@ -1480,9 +1480,8 @@ struct
         (* Projection globals to highest Precision *)
         let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
         let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
-        (* TODO: Not clear why doing IsMultiple query instead of checking WeakUpdates leads to imprecision in 44/20 *)
-        let is_multiple = if is_modular then a.f (Q.IsMultiple x) else WeakUpdates.mem x st.weak in
-        if is_multiple then
+        let weak_update = if is_modular then is_global a x else WeakUpdates.mem x st.weak in
+        if weak_update then
           VD.join old_value new_value
         else if invariant then (
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
@@ -1967,8 +1966,10 @@ struct
     let globals = (List.filter_map (fun g -> match g with GVar (v,_,_) -> if not (isFunctionType v.vtype) then Some v else None | _ -> None)) (!Cilfacade.current_file).globals in
     globals
 
-  let make_canonical_entry (f: fundec) : D.t =
+  let make_modular_entry (f: fundec) : D.t =
     let params = f.sformals in
+    let referenced_locals = List.filter (fun x -> x.vreferenced) f.slocals in
+    let params = params @ referenced_locals in
 
     let params = List.map (fun x -> (x, VD.top_value_typed_address_targets x.vtype)) params in
     let params_targets = List.concat_map (fun (_, (_, ts)) -> ts) params |> VS.of_list in
@@ -2038,7 +2039,7 @@ struct
 
   let enter ctx lval fn args : (D.t * D.t) list =
     let entry_state = if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:fn  then
-        make_canonical_entry fn
+        make_modular_entry fn
       else
         make_entry ctx fn args
     in

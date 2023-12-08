@@ -1,4 +1,4 @@
-//SKIP PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
+//SKIP PARAM: --set ana.modular.funs "['set_to_new_memory', 'set_to_z']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
 #include<goblint.h>
 #include<stdlib.h>
 
@@ -12,7 +12,7 @@ void set_to_z(int **i){
 	*i = &z;
 }
 
-void foo(){
+void main(){
 	int j = 0;
 	int *p = &j;
 

@@ -1,4 +1,4 @@
-//PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
+//PARAM: --set ana.modular.funs "['prepend', 'prepend2']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
 #include<goblint.h>
 #include<stdlib.h>
 
@@ -55,4 +55,10 @@ void call_prepend2(){
 	__goblint_check(n.next != m.next); //UNKNOWN
 	__goblint_check(n.next != &o);
 	__goblint_check(n.next != NULL);
+}
+
+int main(){
+	call_prepend();
+	call_prepend2();
+	return 0;
 }

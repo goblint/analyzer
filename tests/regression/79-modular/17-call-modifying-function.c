@@ -1,4 +1,4 @@
-//PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
+//PARAM: --set ana.modular.funs "['change_param', 'call_change_param']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
 #include<stdlib.h>
 
 void change_param(int* p){
@@ -11,7 +11,7 @@ void call_change_param(int *p){
 }
 
 // Test to check whether the write through call of call_change_param is handled
-void test_call_change_param(){
+void main(){
 	int x = 0;
 
 	__goblint_check(x == 0);

@@ -1,4 +1,4 @@
-// PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
+// PARAM: --set ana.modular.funs "['write_node']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
 #include <stdlib.h>
 #include <goblint.h>
 
@@ -25,7 +25,7 @@ void write_node(int_or_node u, int is_node){
 }
 
 int main(){
-	int is_node = __VERIFIER_nondet_int();
+	int is_node;
 	int_or_node ptr = {0};
 	node_t n = {0};
 	int i = 0;

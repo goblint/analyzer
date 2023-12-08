@@ -1,4 +1,4 @@
-//PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
+//PARAM: --set ana.modular.funs "['allocate_int', 'allocate_node', 'init_node', 'add_node']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
 #include<goblint.h>
 #include<stdlib.h>
 
@@ -33,7 +33,7 @@ node_t *add_node(node_t *n){
     }
 }
 
-void create_some_nodes(){
+int main(){
     node_t first = {0};
 
     __goblint_check(first.next == NULL);
@@ -44,4 +44,5 @@ void create_some_nodes(){
     node_t *succ = first.next;
     __goblint_check(succ != &first);
     __goblint_check(succ == first.next); //UNKNOWN
+    return 0;
 }
