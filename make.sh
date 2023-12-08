@@ -37,9 +37,7 @@ rule() {
       eval $(opam config env)
       dune build gobview &&
       rm -f goblint-http &&
-      cp ./_build/default/gobview/goblint-http-server/goblint_http.exe goblint-http &&
-      mkdir -p gobview/dist &&
-      cp -R ./_build/default/gobview/dist/* ./gobview/dist/
+      cp ./_build/default/gobview/goblint-http-server/goblint_http.exe goblint-http
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
     ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
       dune build $TARGET.bc.js &&
