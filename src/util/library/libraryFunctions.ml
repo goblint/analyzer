@@ -161,6 +161,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("swscanf", unknown (drop "buffer" [r] :: drop "fmt" [r] :: VarArgs (drop' [w])));
     ("remove", unknown [drop "pathname" [r]]);
     ("raise", unknown [drop "sig" []]); (* safe-ish, we don't handle signal handlers for now *)
+    ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
   ]
 
 (** C POSIX library functions.
@@ -427,6 +428,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strerror_r", unknown [drop "errnum" []; drop "buff" [w]; drop "buflen" []]);
     ("umask", unknown [drop "mask" []]);
     ("openlog", unknown [drop "ident" [r]; drop "option" []; drop "facility" []]);
+    ("times", unknown [drop "buf" [w]])
   ]
 
 (** Pthread functions. *)
@@ -1272,6 +1274,7 @@ let invalidate_actions = [
   "__getdelim", writes [3];(*keep [3]*)
   "__h_errno_location", readsAll;(*safe*)
   "__fxstat", readsAll;(*safe*)
+  (* RPC library start *)
   "clntudp_create", writesAllButFirst 3 readsAll;(*drop 3*)
   "svctcp_create", readsAll;(*safe*)
   "clntudp_bufcreate", writesAll;(*unsafe*)
@@ -1282,12 +1285,11 @@ let invalidate_actions = [
   "svcudp_create", readsAll;(*safe*)
   "svc_register", writesAll;(*unsafe*)
   "svc_run", writesAll;(*unsafe*)
+  (* RPC library end *)
   "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
   "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
   "__error", readsAll; (*safe*)
   "__maskrune", writesAll; (*unsafe*)
-  "times", writesAll; (*unsafe*)
-  "timespec_get", writes [1];
   "__tolower", readsAll; (*safe*)
   "signal", writesAll; (*unsafe*)
   "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
