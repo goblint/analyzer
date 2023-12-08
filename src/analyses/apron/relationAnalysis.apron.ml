@@ -70,7 +70,7 @@ struct
     let visitor = object
       inherit nopCilVisitor
       method! vlval = function
-        | (Var v, NoOffset) when v.vglob || ThreadEscape.has_escaped ask v ->
+        | (Var v, NoOffset) when (v.vglob || ThreadEscape.has_escaped ask v) && RD.Tracked.varinfo_tracked v ->
           let v_in =
             if VH.mem v_ins v then
               VH.find v_ins v
@@ -196,7 +196,7 @@ struct
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
-    | ik when not (IntDomain.should_ignore_overflow ik) -> (* don't add type bounds for signed when assume_none *)
+    | ik ->
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
@@ -204,7 +204,6 @@ struct
       let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
       let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
       rel
-    | _
     | exception Invalid_argument _ ->
       rel
 
@@ -284,8 +283,9 @@ struct
   let pass_to_callee fundec any_local_reachable var =
     (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
+    (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    let vname = RD.Var.to_string var in
+    let vname = Apron.Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
     match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
@@ -296,8 +296,7 @@ struct
     let st = ctx.local in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
-      |> List.map (Tuple2.map1 RV.arg)
+      |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
@@ -319,7 +318,7 @@ struct
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
-        | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
@@ -405,7 +404,7 @@ struct
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
-    if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
@@ -647,7 +646,7 @@ struct
 
   (* Thread transfer functions. *)
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let st = ctx.local in
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
@@ -665,7 +664,7 @@ struct
       (* TODO: do something like base? *)
       failwith "relation.threadenter: unknown function"
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     ctx.local
 
   let event ctx e octx =

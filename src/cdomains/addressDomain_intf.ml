@@ -7,7 +7,7 @@ sig
       | Addr of Mval.t (** Pointer to mvalue. *)
       | NullPtr (** NULL pointer. *)
       | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-      | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
+      | StrPtr of StringDomain.t (** String literal pointer. [StrPtr None] abstracts any string pointer *)
     include Printable.S with type t := t (** @closed *)
 
     val of_string: string -> t
@@ -15,8 +15,6 @@ sig
 
     val to_string: t -> string option
     (** Convert {!StrPtr} to string if possible. *)
-
-    (** C strings are different from OCaml strings as they are not processed after the first [NUL] byte, even though the OCaml string (and a C string literal) may be longer. *)
 
     val to_c_string: t -> string option
     (** Convert {!StrPtr} to C string if possible. *)
@@ -71,7 +69,7 @@ sig
       - Each {!Addr}, modulo precise index expressions in the offset, is a sublattice with ordering induced by {!Mval}.
       - {!NullPtr} is a singleton sublattice.
       - {!UnknownPtr} is a singleton sublattice.
-      - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
+      - If [ana.base.strings.domain] is disjoint, then each {!StrPtr} is a singleton sublattice. Otherwise, all {!StrPtr} are together in one sublattice with flat ordering. *)
   module AddressLattice (Mval: Mval.Lattice):
   sig
     include module type of AddressPrintable (Mval)

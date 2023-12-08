@@ -15,11 +15,7 @@
     live: 7
     dead: 0
     total lines: 7
-  [Info][Unsound] Unknown address in {&tmp} has escaped. (77-type-nested-fields.c:31:3-31:20)
-  [Info][Unsound] Unknown value in {?} could be an escaped pointer address! (77-type-nested-fields.c:31:3-31:20)
   [Info][Unsound] Write to unknown address: privatization is unsound. (77-type-nested-fields.c:31:3-31:20)
-  [Info][Unsound] Unknown address in {&tmp} has escaped. (77-type-nested-fields.c:38:3-38:22)
-  [Info][Unsound] Unknown value in {?} could be an escaped pointer address! (77-type-nested-fields.c:38:3-38:22)
   [Info][Unsound] Write to unknown address: privatization is unsound. (77-type-nested-fields.c:38:3-38:22)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (77-type-nested-fields.c:31:3-31:20)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (77-type-nested-fields.c:31:3-31:20)
