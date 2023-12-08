@@ -2397,6 +2397,7 @@ struct
     (* handling thread joins... sort of *)
     | ThreadJoin { thread = id; ret_var }, _ ->
       let st' =
+        (* TODO: should invalidate shallowly? https://github.com/goblint/analyzer/pull/1224#discussion_r1405826773 *)
         match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
         | Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
         | Address ret_a ->
