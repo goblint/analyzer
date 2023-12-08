@@ -440,6 +440,7 @@ module WideningThresholds = WideningThresholds
 
 module VectorMatrix = VectorMatrix
 module SharedFunctions = SharedFunctions
+module GobApron = GobApron
 
 (** {2 Precision comparison} *)
 

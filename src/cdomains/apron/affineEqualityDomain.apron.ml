@@ -10,7 +10,7 @@ open Batteries
 open GoblintCil
 open Pretty
 module M = Messages
-open Apron
+open GobApron
 open VectorMatrix
 
 module Mpqf = struct
@@ -26,14 +26,12 @@ module Mpqf = struct
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
 end
 
-module Var = SharedFunctions.Var
-module V = RelationDomain.V(Var)
+module V = RelationDomain.V
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
-  include SharedFunctions.EnvOps
   module Vector = Vec (Mpqf)
   module Matrix = Mx(Mpqf) (Vec)
 
@@ -78,16 +76,18 @@ struct
 
   let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
 
+  let vars x = Environment.ivars_only x.env
+
   let add_vars t vars =
     let t = copy t in
-    let env' = add_vars t.env vars in
+    let env' = Environment.add_vars t.env vars in
     change_d t env' true false
 
   let add_vars t vars = timing_wrap "add_vars" (add_vars t) vars
 
   let drop_vars t vars del =
     let t = copy t in
-    let env' = remove_vars t.env vars in
+    let env' = Environment.remove_vars t.env vars in
     change_d t env' false del
 
   let drop_vars t vars = timing_wrap "drop_vars" (drop_vars t) vars
@@ -102,7 +102,7 @@ struct
     t.env <- t'.env
 
   let remove_filter t f =
-    let env' = remove_filter t.env f in
+    let env' = Environment.remove_filter t.env f in
     change_d t env' false false
 
   let remove_filter t f = timing_wrap "remove_filter" (remove_filter t) f
@@ -114,19 +114,18 @@ struct
 
   let keep_filter t f =
     let t = copy t in
-    let env' = keep_filter t.env f in
+    let env' = Environment.keep_filter t.env f in
     change_d t env' false false
 
   let keep_filter t f = timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let t = copy t in
-    let env' = keep_vars t.env vs in
+    let env' = Environment.keep_vars t.env vs in
     change_d t env' false false
 
   let keep_vars t vs = timing_wrap "keep_vars" (keep_vars t) vs
 
-  let vars t = vars t.env
 
   let mem_var t var = Environment.mem_var t.env var
 
@@ -462,6 +461,7 @@ struct
 
   let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
+    (* TODO: Do we need to do a constant folding here? It happens for texpr1_of_cil_exp *)
     match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
