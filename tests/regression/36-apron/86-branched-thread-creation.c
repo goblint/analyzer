@@ -40,7 +40,7 @@ int main(void) {
 
   if(!mt) {
     pthread_mutex_lock(&mutex);
-    __goblint_check(g==h); //MAY FAIL
+    __goblint_check(g==h); //FAIL
     pthread_mutex_unlock(&mutex);
   }
 
