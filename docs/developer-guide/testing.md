@@ -54,7 +54,6 @@ Comments at the end of other lines indicate the behavior on that line:
 | `NOWARN` | No warning | — | Precision |
 | `WARN` | Some warning | — | Soundness |
 | `NOFAIL` | Assertion is unknown <br> or succeeds | Everything except fail | Incremental analysis |
-| `NOTINPRECISE` | Assertion succeeds <br> or fails | Everything except unknown | Incremental analysis <br> precision |
 
 #### Other
 Other useful constructs are the following:

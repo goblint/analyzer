@@ -204,9 +204,7 @@ class Tests
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
       when "nofail"
-        check.call(warnings[idx] != "fail")    
-      when "notinprecise"
-        check.call(warnings[idx] != "unknown")    
+        check.call(warnings[idx] != "fail")
       end
     end
   end
@@ -289,9 +287,7 @@ class Project
       todo << i if obj =~ /(\b|\/)(TODO|SKIP)/
       tests_line[i] = obj
       if obj =~ /(\b|\/)NOFAIL/ then
-        tests[i] = "nofail" 
-      elsif obj =~ /(\b|\/)NOTINPRECISE/ then
-        tests[i] = "notinprecise"
+        tests[i] = "nofail"
       elsif obj =~ /(\b|\/)RACE/ then
         tests[i] = "race"
       elsif obj =~ /(\b|\/)NORACE/ then
