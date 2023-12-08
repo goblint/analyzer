@@ -22,7 +22,7 @@ struct
     include CilType.Exp
     let name () = "exp index"
 
-    let any = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
+    let any = Cilfacade.any_index_exp
     let all = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
 
     (* Override output *)

@@ -444,6 +444,8 @@ let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
   | Read, Read -> false (* two read/read accesses do not race *)
   | Free, _
   | _, Free when not (get_bool "ana.race.free") -> false
+  | Call, _
+  | _, Call when not (get_bool "ana.race.call") -> false
   | _, _ -> MCPAccess.A.may_race acc acc2 (* analysis-specific information excludes race *)
 
 (** Access sets for race detection and warnings. *)

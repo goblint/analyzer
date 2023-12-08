@@ -11,7 +11,6 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module AD = AffineEqualityDomain.D2 (VectorMatrix.ArrayVector) (VectorMatrix.ArrayMatrix) in
     let module RD: RelationDomain.RD =
     struct
-      module Var = AffineEqualityDomain.Var
       module V = AffineEqualityDomain.V
       include AD
     end

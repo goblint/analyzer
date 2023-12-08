@@ -183,8 +183,7 @@ module EqualitiesArray = struct
 end
 
 
-module Var = SharedFunctions.Var
-module V = RelationDomain.V(Var)
+module V = RelationDomain.V
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)

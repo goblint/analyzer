@@ -10,12 +10,11 @@ open Batteries
 open GoblintCil
 open Pretty
 module M = Messages
-open Apron
+open GobApron
 open VectorMatrix
 
 module Mpqf = SharedFunctions.Mpqf
-module Var = SharedFunctions.Var
-module V = RelationDomain.V(Var)
+module V = RelationDomain.V
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
@@ -356,6 +355,7 @@ struct
 
   let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
+    (* TODO: Do we need to do a constant folding here? It happens for texpr1_of_cil_exp *)
     match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->

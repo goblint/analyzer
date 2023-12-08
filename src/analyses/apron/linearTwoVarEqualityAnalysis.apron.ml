@@ -14,7 +14,6 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module AD = LinearTwoVarEqualityDomain.D2  in
     let module RD: RelationDomain.RD =
     struct
-      module Var = LinearTwoVarEqualityDomain.Var
       module V = LinearTwoVarEqualityDomain.V
       include AD
     end
