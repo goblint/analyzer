@@ -162,6 +162,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("remove", unknown [drop "pathname" [r]]);
     ("raise", unknown [drop "sig" []]); (* safe-ish, we don't handle signal handlers for now *)
     ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
+    ("signal", unknown [drop "signum" []; drop "handler" [s]]);
   ]
 
 (** C POSIX library functions.
@@ -428,7 +429,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strerror_r", unknown [drop "errnum" []; drop "buff" [w]; drop "buflen" []]);
     ("umask", unknown [drop "mask" []]);
     ("openlog", unknown [drop "ident" [r]; drop "option" []; drop "facility" []]);
-    ("times", unknown [drop "buf" [w]])
+    ("times", unknown [drop "buf" [w]]);
+    ("mmap", unknown [drop "addr" []; drop "length" []; drop "prot" []; drop "flags" []; drop "fd" []; drop "offset" []]);
+    ("munmap", unknown [drop "addr" []; drop "length" []]);
   ]
 
 (** Pthread functions. *)
@@ -1291,7 +1294,6 @@ let invalidate_actions = [
   "__error", readsAll; (*safe*)
   "__maskrune", writesAll; (*unsafe*)
   "__tolower", readsAll; (*safe*)
-  "signal", writesAll; (*unsafe*)
   "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
   "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
   "uncompress", writes [3;4]; (*keep [3;4]*)
@@ -1303,8 +1305,6 @@ let invalidate_actions = [
   "BF_set_key", writes [3]; (*keep [3]*)
   "PL_NewHashTable", readsAll; (*safe*)
   "assert_failed", readsAll; (*safe*)
-  "munmap", readsAll;(*safe*)
-  "mmap", readsAll;(*safe*)
   "__builtin_va_arg_pack_len", readsAll;
   "__open_too_many_args", readsAll;
   "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
