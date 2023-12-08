@@ -718,8 +718,8 @@ struct
   let singleton k v = `Lifted (M.singleton k v)
   let empty () = `Lifted (M.empty ())
   let is_empty = function
-  | `Bot -> false
-  | `Lifted x -> M.is_empty x
+    | `Bot -> false
+    | `Lifted x -> M.is_empty x
   let exists f = function
     | `Bot -> raise (Fn_over_All "exists")
     | `Lifted x -> M.exists f x

@@ -134,13 +134,15 @@ struct
   let equal x y = leq x y && leq y x
   let hash xs = fold (fun v a -> a + E.hash v) xs 0
   let compare x y =
-    if equal x y
-      then 0
+    if equal x y then
+      0
+    else (
+      let caridnality_comp = compare (cardinal x) (cardinal y) in
+      if caridnality_comp <> 0 then
+        caridnality_comp
       else
-        let caridnality_comp = compare (cardinal x) (cardinal y) in
-        if caridnality_comp <> 0
-          then caridnality_comp
-          else Map.compare (List.compare E.compare) x y
+        Map.compare (List.compare E.compare) x y
+    )
   let show x : string =
     let all_elems : string list = List.map E.show (elements x) in
     Printable.get_short_list "{" "}" all_elems
@@ -234,8 +236,8 @@ struct
             ) s2 nil
       with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
-        (cardinal s1)
-        (cardinal s2)
+          (cardinal s1)
+          (cardinal s2)
     end
 end
 
@@ -339,8 +341,8 @@ struct
             ) s2 nil
       with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
-        (cardinal s1)
-        (cardinal s2)
+          (cardinal s1)
+          (cardinal s2)
     end
 end
 [@@deprecated]
