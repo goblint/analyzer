@@ -25,8 +25,8 @@
     things to implement:
     - leq
     - join
-    done: assignment
-    done: meet_tcons
+      done: assignment
+      done: meet_tcons
 
     HOW TO RUN THE REGRESSION TESTS:
     Method 1: regression test ./regtest.sh numberofdirectory numberoftest
@@ -394,50 +394,50 @@ struct
     print_string "end\n";
     let subst_var ts x t = 
       match !ts with
-        | None -> ()
-        | Some ts' ->
-          if Array.length ts' <> 0 then
+      | None -> ()
+      | Some ts' ->
+        if Array.length ts' <> 0 then
           for i = 0 to Array.length ts' - 1 do
             match ts'.(i) with
-              | (None, _) -> ()
-              | (Some x', b') -> if x = x' then
+            | (None, _) -> ()
+            | (Some x', b') -> if x = x' then
                 (match t with 
-                  | (None, bt) -> ts'.(i) <- (None, Z.(b' + bt))
-                  | (Some xt, bt) -> ts'.(i) <- (Some xt, Z.(b' + bt)))
+                 | (None, bt) -> ts'.(i) <- (None, Z.(b' + bt))
+                 | (Some xt, bt) -> ts'.(i) <- (Some xt, Z.(b' + bt)))
           done
     in
     let add_conj ts t i = 
       match !ts with
-        | None -> ()
-        | Some ts' ->
-          (match t with
-            | (None, b) -> 
-              (match ts'.(i) with
-                | (None, b') -> if b <> b' then ts := None;
-                | (Some j, b') -> subst_var ts j (None, Z.(b - b')))
-            | (Some j, b) ->
-                (match ts'.(i) with
-                | (None, b1) -> subst_var ts j (None, Z.(b1 - b))
-                | (Some h1, b1) -> 
-                  (match ts'.(j) with
-                    | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
-                    | (Some h2, b2) -> 
-                      if h1 = h2 then 
-                        (if Z.(b1 <> (b2 + b)) then ts := None)
-                      else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
-                      else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))))
+      | None -> ()
+      | Some ts' ->
+        (match t with
+         | (None, b) -> 
+           (match ts'.(i) with
+            | (None, b') -> if b <> b' then ts := None;
+            | (Some j, b') -> subst_var ts j (None, Z.(b - b')))
+         | (Some j, b) ->
+           (match ts'.(i) with
+            | (None, b1) -> subst_var ts j (None, Z.(b1 - b))
+            | (Some h1, b1) -> 
+              (match ts'.(j) with
+               | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
+               | (Some h2, b2) -> 
+                 if h1 = h2 then 
+                   (if Z.(b1 <> (b2 + b)) then ts := None)
+                 else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
+                 else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))))
     in 
     match t1.d, t2.d with
-      | None, _ -> { d = None; env = sup_env} 
-      | _, None -> { d = None; env = sup_env} 
-      | Some d1', Some d2' -> 
-        let ds = ref (Some (Array.copy d1')) in
-        if Array.length d2' <> 0 then
+    | None, _ -> { d = None; env = sup_env} 
+    | _, None -> { d = None; env = sup_env} 
+    | Some d1', Some d2' -> 
+      let ds = ref (Some (Array.copy d1')) in
+      if Array.length d2' <> 0 then
         for j = 0 to Array.length d2' - 1 do
           add_conj ds d2'.(j) j
         done; 
-        {d = !ds; env = sup_env} 
-          
+      {d = !ds; env = sup_env} 
+
         (*
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
@@ -463,18 +463,18 @@ struct
   (* TODO: check implementation for less equal *)
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
-let implies ts t i : bool =
+    let implies ts t i : bool =
       match t with
       | (None, b) ->  
         (match ts.(i) with
-        | (None, b') -> Z.equal b b'
-        | _ -> false)
+         | (None, b') -> Z.equal b b'
+         | _ -> false)
       | (Some j, b) ->  
         (match ts.(i), ts.(j) with
-        | (None, _), (_, _) -> false
-        | (_, _), (None, _) -> false
-        | (Some h1, b1), (Some h2, b2) ->
-          h1 = h2 && Z.equal b1 (Z.add b2 b)) 
+         | (None, _), (_, _) -> false
+         | (_, _), (None, _) -> false
+         | (Some h1, b1), (Some h2, b2) ->
+           h1 = h2 && Z.equal b1 (Z.add b2 b)) 
     in  
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot t1 || is_top_env t2 then true else
@@ -497,16 +497,16 @@ let implies ts t i : bool =
 
   let join a b = 
     let ts_zip t1 t2 =
-    if Array.length t1 <> Array.length t2 then None else
-      let zts = Array.init (Array.length t1) (fun (i : int) -> (i, t1.(i), t2.(i))) in
-      Some zts
+      if Array.length t1 <> Array.length t2 then None else
+        let zts = Array.init (Array.length t1) (fun (i : int) -> (i, t1.(i), t2.(i))) in
+        Some zts
     in
     let const_offset t = match t with
       | (_, b) -> b 
     in
     let diff t1 t2 = Z.((const_offset t1) - (const_offset t2))
     in
-      let cmp_z x y = 
+    let cmp_z x y = 
       let cmp_z_ref x y: int =
         match x, y with
         | (None, _), (None, _) -> 0
@@ -519,15 +519,15 @@ let implies ts t i : bool =
         let diff_e1 = cmp_z_ref t1i t1j in
         if diff_e1 <> 0 then diff_e1 else
           let diff_e2 = cmp_z_ref t2i t2j in
-        if diff_e2 <> 0 then diff_e2 else 
-        Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
+          if diff_e2 <> 0 then diff_e2 else 
+            Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
     in
     let sort_z_by_expr zts =
       match zts with
       | None -> ()
       | Some zts' -> Array.stable_sort cmp_z zts'
     in
-          let sort_annotated ats = 
+    let sort_annotated ats = 
       let cmp_annotated x y : int = 
         match x, y with
         | (i, _), (j, _) -> i - j
@@ -536,32 +536,32 @@ let implies ts t i : bool =
       | None -> ()
       | Some ats' -> Array.stable_sort cmp_annotated ats'
     in
-          let process_eq_classes zts = 
+    let process_eq_classes zts = 
       let is_const x =
         match x with
         | (_, (None, _), (None, _)) -> true
         | _ -> false
       in
-          let size_of_eq_class zts (start : int) : int =
-          let ref_elem = zts.(start) in
+      let size_of_eq_class zts (start : int) : int =
+        let ref_elem = zts.(start) in
         let remaining = (Array.length zts) - start - 1 in
-          let result = ref 0 in
+        let result = ref 0 in
         for i = 0 to remaining do
           let current_elem = zts.(start + i) in
           if cmp_z ref_elem current_elem = 0 then result := !result + 1
         done;
         !result
       in
-          let least_index_var_in_eq_class zts start size : int * Z.t =
+      let least_index_var_in_eq_class zts start size : int * Z.t =
         let result = ref (0, Z.of_int 0) in 
         match zts.(start) with
-          | (i, (_, b), (_, _)) -> result := (i, b);
-        for i = start + 1 to start + size - 1 do
-          match zts.(i) with
-          | (j, (_, b), (_, _)) ->
-            if j < fst !result then result := (j, b)
-        done;
-        !result
+        | (i, (_, b), (_, _)) -> result := (i, b);
+          for i = start + 1 to start + size - 1 do
+            match zts.(i) with
+            | (j, (_, b), (_, _)) ->
+              if j < fst !result then result := (j, b)
+          done;
+          !result
       in
       let all_are_const_in_eq_class zts start size : bool = 
         let result = ref true in
@@ -601,10 +601,10 @@ let implies ts t i : bool =
                  result.(!i) <- (i', (None, const_offset t1))
                else result.(!i) <- (i', (Some i', Z.of_int 0))
            else
-            let (least_i, least_b) = least_index_var_in_eq_class zts' !i n in
-            (if all_are_const_in_eq_class zts' !i n then
-              assign_vars_in_const_eq_class result zts' !i n least_i least_b
-            else assign_vars_in_non_const_eq_class result zts' !i n least_i least_b);
+             let (least_i, least_b) = least_index_var_in_eq_class zts' !i n in
+             (if all_are_const_in_eq_class zts' !i n then
+                assign_vars_in_const_eq_class result zts' !i n least_i least_b
+              else assign_vars_in_non_const_eq_class result zts' !i n least_i least_b);
           ); 
           i := !i + n;
         done;
@@ -612,8 +612,8 @@ let implies ts t i : bool =
     in
     let strip_annotation ats = 
       match ats with
-        | None -> None
-        | Some ats' -> Some (Array.map snd ats')
+      | None -> None
+      | Some ats' -> Some (Array.map snd ats')
     in
     let join_d t1 t2 =
       let zipped = ts_zip t1 t2 in
@@ -624,16 +624,16 @@ let implies ts t i : bool =
       result
     in
     if is_bot a then b else if is_bot b then a else
-    match Option.get a.d, Option.get b.d with
-    | x, y when is_top_env a || is_top_env b -> {d = Some (EArray.empty ()); env = Environment.lce a.env b.env}
-    | x, y when (Environment.compare a.env b.env <> 0) ->
-      let sup_env = Environment.lce a.env b.env in
-      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-      {d = join_d mod_x mod_y; env = sup_env}
-    | x, y when EArray.equal x y -> {d = Some x; env = a.env}
-    | x, y  -> {d = join_d x y; env = a.env}
-  
+      match Option.get a.d, Option.get b.d with
+      | x, y when is_top_env a || is_top_env b -> {d = Some (EArray.empty ()); env = Environment.lce a.env b.env}
+      | x, y when (Environment.compare a.env b.env <> 0) ->
+        let sup_env = Environment.lce a.env b.env in
+        let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+        let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+        {d = join_d mod_x mod_y; env = sup_env}
+      | x, y when EArray.equal x y -> {d = Some x; env = a.env}
+      | x, y  -> {d = join_d x y; env = a.env}
+
   let join a b = timing_wrap "join" (join a) b
 
   let join a b =
@@ -708,6 +708,9 @@ let implies ts t i : bool =
 
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
+  (* no_ov -> no overflow
+     if it's true then there is no overflow
+      -> Convert.texpr1_expr_of_cil_exp handles overflow (TODO: test)*)
   let assign_exp (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
@@ -743,12 +746,12 @@ let implies ts t i : bool =
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-      | Some arr when not @@ is_top_env multi_t -> 
-        let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
-        let res = drop_vars switched_arr primed_vars true in
-        let x = Option.get res.d in
-        {d = Some x; env = res.env} 
-      | _ -> t
+    | Some arr when not @@ is_top_env multi_t -> 
+      let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
+      let res = drop_vars switched_arr primed_vars true in
+      let x = Option.get res.d in
+      {d = Some x; env = res.env} 
+    | _ -> t
 
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
@@ -809,27 +812,27 @@ let implies ts t i : bool =
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     let expr_init = Array.init ((Environment.size t.env) +1) (fun _ -> Z.zero) in 
     match t.d with 
-      | None -> t
-      | Some d ->
-        let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
-        let update (expr : Z.t Array.t)( c , v) = 
-          match v with 
-            | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
-            | Some idx -> match d.(idx) with 
-              | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c_i) ; expr
-              | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
-        in 
-        let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
-        let is_constant = List.fold_left (fun b a -> if Z.equal a Z.zero then b else false) true @@ List.tl @@ Array.to_list final_expr in
-        let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) @@ List.tl @@ Array.to_list final_expr 
+    | None -> t
+    | Some d ->
+      let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
+      let update (expr : Z.t Array.t)( c , v) = 
+        match v with 
+        | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
+        | Some idx -> match d.(idx) with 
+          | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c_i) ; expr
+          | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
+      in 
+      let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
+      let is_constant = List.fold_left (fun b a -> if Z.equal a Z.zero then b else false) true @@ List.tl @@ Array.to_list final_expr in
+      let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) @@ List.tl @@ Array.to_list final_expr 
       in if is_constant then 
         match Tcons1.get_typ tcons with 
-          | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot()
-          | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else bot()
-          | SUP -> if Z.gt final_expr.(0) Z.zero then t else bot()
-          | DISEQ ->  if Z.equal final_expr.(0) Z.zero then bot() else t
-          | EQMOD scalar -> t (*Not supported right now
-             if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
+        | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot()
+        | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else bot()
+        | SUP -> if Z.gt final_expr.(0) Z.zero then t else bot()
+        | DISEQ ->  if Z.equal final_expr.(0) Z.zero then bot() else t
+        | EQMOD scalar -> t (*Not supported right now
+                              if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
       else if var_count == 1 then
         let var = List.findi (fun i a -> if Z.equal a Z.zero then false else true) @@ Array.to_list final_expr in
         let c = if Z.divisible final_expr.(0) @@ Tuple2.second var then Some (Z.(- final_expr.(0) / (Tuple2.second var))) else None in
@@ -845,8 +848,8 @@ let implies ts t i : bool =
         let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
         let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
         match Tcons1.get_typ tcons with 
-          | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (top_env t.env) var1 var2) else t
-          | _-> t (*Not supported right now*)
+        | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (top_env t.env) var1 var2) else t
+        | _-> t (*Not supported right now*)
       else 
         t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
 
