@@ -506,19 +506,18 @@ module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) = struct
   let arbitrary () = QCheck.quad (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
 end
 
-
 module Queue (Base: S) = 
 struct
   type t = Base.t Queue.t
   include Std
-  
+
   let queue_map f q =
     let mapped_queue = Queue.create () in
     Queue.iter (fun x -> Queue.push (f x) mapped_queue) q;
     mapped_queue
 
   let show x = 
-    let elem = Queue.fold (fun acc elem -> elem :: acc) [] x |> List.rev in
+    let elem = Queue.fold (fun acc elem -> Base.show elem :: acc) [] x |> List.rev in
     "[" ^ (String.concat ", " elem) ^ "]"
 
   let pretty () x = text (show x)
@@ -539,6 +538,26 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs_copy; 
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let rec equal_helper a b = 
+    if Queue.is_empty a then true 
+    else (
+      let a_v = Queue.pop a in 
+      let b_v = Queue.pop b in
+      if Base.equal a_v b_v 
+      then equal_helper a b
+      else false)
+
+  let equal a b = 
+    if Queue.length a <> Queue.length b then false
+    else 
+      let a_copy = Queue.copy a in
+      let b_copy = Queue.copy b in
+      equal_helper a_copy b_copy
+
+  let to_yojson x = `String (show x)
+  let hash = Hashtbl.hash
+  let compare = Stdlib.compare
 end
 
 module Liszt (Base: S) =
