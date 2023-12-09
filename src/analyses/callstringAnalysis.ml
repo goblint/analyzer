@@ -90,7 +90,7 @@ module Location:Callstack_Type = struct
   include CilType.Location
   let stackTypeName = "loc"
   let pushElem f args ctx =
-    Some !Tracing.current_loc
+    Some !Goblint_tracing.current_loc
 
   let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);

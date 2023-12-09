@@ -23,3 +23,4 @@ module GobQCheck = GobQCheck
 module GobYaml = GobYaml
 module GobYojson = GobYojson
 module GobZ = GobZ
+module Queue2L = Queue2L
