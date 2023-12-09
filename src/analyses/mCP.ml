@@ -76,8 +76,8 @@ struct
       List.map f
     in
     let xs = get_string_list "ana.activated" in
-    let callstring_enabled = (mem "callstring_fundec" xs) || (mem "callstring_stmt" xs) in
-    let cont_callstring = filter (fun x -> x <> "callstring_fundec" && x <> "callstring_stmt") xs in (*the contexts that are insensitive due to the callstring approach*)
+    let callstring_enabled = (mem "callstring_fundec" xs) || (mem "callstring_stmt" xs) ||(mem "callstring_loc" xs) in
+    let cont_callstring = filter (fun x -> x <> "callstring_fundec" && x <> "callstring_stmt" && x <> "callstring_loc") xs in (*the contexts that are insensitive due to the callstring approach*)
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;

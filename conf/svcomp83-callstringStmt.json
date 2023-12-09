@@ -31,7 +31,7 @@
       "region",
       "thread",
       "threadJoins",
-      "callstring_loc"
+      "callstring_stmt"
     ],
     "path_sens": [
       "mutex",
@@ -73,6 +73,22 @@
     "race": {
       "free": false,
       "call": false
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "singleThreaded",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "octagon",
+        "wideningThresholds",
+        "loopUnrollHeuristic",
+        "memsafetySpecification",
+        "termination",
+        "tmpSpecialAnalysis"
+      ]
     }
   },
   "exp": {
@@ -93,7 +109,38 @@
   "witness": {
     "graphml": {
       "enabled": true,
-      "id": "enumerate"
+      "id": "enumerate",
+      "unknown": false
+    },
+    "yaml": {
+      "enabled": true,
+      "format-version": "2.0",
+      "entry-types": [
+        "invariant_set"
+      ],
+      "invariant-types": [
+        "loop_invariant"
+      ]
+    },
+    "invariant": {
+      "loop-head": true,
+      "after-lock": false,
+      "other": false,
+      "accessed": false,
+      "exact": true,
+      "exclude-vars": [
+        "tmp\\(___[0-9]+\\)?",
+        "cond",
+        "RETURN",
+        "__\\(cil_\\)?tmp_?[0-9]*\\(_[0-9]+\\)?",
+        ".*____CPAchecker_TMP_[0-9]+",
+        "__VERIFIER_assert__cond",
+        "__ksymtab_.*",
+        "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+"
+      ]
     }
+  },
+  "pre": {
+    "enabled": false
   }
 }

@@ -506,58 +506,34 @@ module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) = struct
   let arbitrary () = QCheck.quad (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
 end
 
-module Queue (Base: S) = 
+module PQueue (Base: S) = 
 struct
-  type t = Base.t Queue.t
+  type t = Base.t Queue2L.t [@@deriving eq, ord]
   include Std
 
-  let queue_map f q =
-    let mapped_queue = Queue.create () in
-    Queue.iter (fun x -> Queue.push (f x) mapped_queue) q;
-    mapped_queue
-
   let show x = 
-    let elem = Queue.fold (fun acc elem -> Base.show elem :: acc) [] x |> List.rev in
-    "[" ^ (String.concat ", " elem) ^ "]"
+    let elem = Queue2L.map_to_list Base.show x in
+    "[" ^ (String.concat ", " elem) ^ "]"  (* TODO more efficient impl*)
 
   let pretty () x = text (show x)
   let name () = Base.name () ^ "queue"
-  (* TODO more efficient impl*)
 
-  let relift x = queue_map Base.relift x
+  let relift x =Queue2L.map Base.relift x
 
   let printXml f xs =
-    let xs_copy = Queue.copy xs in
     let rec loop n q =
-      if Queue.is_empty q then ()
-      else
-        let x = Queue.pop q in 
-        BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x;
-        loop (n+1) (xs_copy)
+      let (x, xs) = Queue2L.dequeue_tup_opt q in 
+      match x with
+      | None -> ()
+      | Some x -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x; 
+                   loop (n+1) (xs))
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
-    loop 0 xs_copy; 
+    loop 0 xs; 
     BatPrintf.fprintf f "</map>\n</value>\n"
 
-  let rec equal_helper a b = 
-    if Queue.is_empty a then true 
-    else (
-      let a_v = Queue.pop a in 
-      let b_v = Queue.pop b in
-      if Base.equal a_v b_v 
-      then equal_helper a b
-      else false)
-
-  let equal a b = 
-    if Queue.length a <> Queue.length b then false
-    else 
-      let a_copy = Queue.copy a in
-      let b_copy = Queue.copy b in
-      equal_helper a_copy b_copy
-
   let to_yojson x = `String (show x)
-  let hash = Hashtbl.hash
-  let compare = Stdlib.compare
+  let hash q = Hashtbl.hash(Queue2L.list_of_queue q) (*TODO*)
 end
 
 module Liszt (Base: S) =

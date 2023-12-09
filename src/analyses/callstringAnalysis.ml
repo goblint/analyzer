@@ -9,7 +9,7 @@ sig
   include CilType.S
   val stackTypeName: string
   val pushElem: fundec -> exp list -> ('d,'g,'c,'v) ctx -> t option (* returns a list of elements that should be pushed to the Callstack *) (*pushElem could be currently also a single element*)
-  val printStack: fundec -> exp list -> (t list * t list) -> (t list * t list) -> unit (* a helper function to print the callstack *)
+  val printStack: fundec -> exp list -> t Queue2L.t -> t Queue2L.t -> unit (* a helper function to print the callstack *)
 end
 
 (** Lifts a [Spec] to analyse with the k-callsting approach. For this the last k callstack elements are used as context
@@ -21,20 +21,16 @@ struct
 
   (* simulates a call stack of depth k*)
   module CallStack = struct
-    include Printable.Prod (Printable.Liszt (CT)) (Printable.Liszt (CT))
+    include Printable.PQueue (CT)
     let depth = get_int "ana.context.callStack_height" (* must be >= 0 *)
-    let length (stack_first, stack_last) = List.length stack_first + List.length stack_last
 
     let push stack elem = (* pushes elem to the stack, guarantees stack depth of k*)
       match elem with
       | None -> stack
       | Some e -> 
-        match (length stack >= depth), stack with
-        | _, ([], []) -> [e], []
-        | false, ([], last) -> List.rev last, [e]
-        | false, (stack_first, stack_last) -> stack_first @ List.rev stack_last, [e]  
-        | true, ([], last) -> List.tl(List.rev(last)), [e]
-        | true, (s::stack_first, stack_last) -> stack_first @ List.rev stack_last, [e]
+        let new_stack = Queue2L.push e stack in (* pushes new element to stack*)         
+        (* remove elements from stack, till the depth k is guaranteed*)
+        Queue2L.del_n_elem (Queue2L.length new_stack - depth) new_stack
   end
 
   module D = Lattice.Fake(CallStack)
@@ -43,13 +39,13 @@ struct
   module G = Lattice.Unit
 
   let name () = "callstring_"^ CT.stackTypeName
-  let startstate v = ([],[])
-  let exitstate v = ([],[])
+  let startstate v = Queue2L.create ()
+  let exitstate v =  Queue2L.create ()
 
   let enter ctx r f args = 
-    let elem: CT.t option = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
-    let new_stack: CallStack.t = CallStack.push ctx.local elem in
-    if not !AnalysisState.postsolving then CT.printStack f args (ctx.local) new_stack; (* just for debugging purpose*)
+    let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
+    let new_stack = CallStack.push ctx.local elem in
+    if not !AnalysisState.postsolving then CT.printStack f args ctx.local new_stack; (* just for debugging purpose*)
     [ctx.local, new_stack]
 
   let combine_env ctx lval fexp f args fc au f_ask = 
@@ -62,16 +58,15 @@ module Fundec:Callstack_Type = struct
   let stackTypeName = "fundec"
   let pushElem f args ctx = Some f
 
-  let printStack f expL (listA1, listA2) (listB1, listB2) = 
+  let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listA1;
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (List.rev listA2);
+    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listA;
     printf "\nList neu: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listB1;
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) (List.rev listB2);
+    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listB;
     printf "\n\n"
 end
+
 
 module Stmt:Callstack_Type = struct
   include CilType.Stmt
@@ -81,15 +76,12 @@ module Stmt:Callstack_Type = struct
     | Statement stmt -> Some stmt
     | _ -> None (* first statement is filtered*)
 
-
-  let printStack f expL (listA1, listA2) (listB1, listB2) = 
+  let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listA1;
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) (List.rev listA2);
+    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listA;
     printf "\nList neu: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listB1;
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) (List.rev listB2);
+    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listB;
     printf "\n\n"
 end
 
@@ -97,19 +89,15 @@ end
 module Location:Callstack_Type = struct
   include CilType.Location
   let stackTypeName = "loc"
-  let pushElem f args ctx = 
-    let q = Queue.create () in
-    Queue.push 1 q; 
+  let pushElem f args ctx =
     Some !Tracing.current_loc
 
-  let printStack f expL (listA1, listA2) (listB1, listB2) = 
+  let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) listA1;
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) (List.rev listA2);
+    Queue2L.iter (fun x -> Printf.printf "%s;\n " (CilType.Location.show x)) listA;
     printf "\nList neu: ";
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) listB1;
-    List.iter (fun x -> Printf.printf "%s; " (CilType.Location.show x)) (List.rev listB2);
+    Queue2L.iter (fun x -> Printf.printf "%s;\n " (CilType.Location.show x)) listB;
     printf "\n\n"
 end
 
