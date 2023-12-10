@@ -68,8 +68,8 @@ let test2 () =
   let test = D.assign_texpr varM_test x1 (Texpr1.Cst (Coeff.s_of_int 5)) in (*x1 = 5*)
   let test = D.assign_var test x3 x2 in (*x3 = x2*)
   let test = D.assign_var test x4 x2 in (*x4 = x2*)
-  let test'  = D.assign_texpr varM_test' x1' (Texpr1.Cst (Coeff.s_of_int 3)) in (*x1' = 5*)
-  let test'  = D.assign_var test' x2 x1' in (*x2'  = x1'*)
+  let test'  = D.assign_texpr varM_test' x1' (Texpr1.Cst (Coeff.s_of_int 3)) in (*x1' = 3*)
+  let test'  = D.assign_var test' x2 x1' in (*x2  = x1'*)
   (*let test = D.assign_texpr test x2 (Texpr1.Cst (Coeff.s_of_int 5)) in (*x2 = 5*)*)
   print_string "Test2:\n";
   print_string "Original variable setup:\n";
@@ -82,6 +82,16 @@ let test2 () =
   print_string @@ D.show test';
   print_string "Meet environments:\n";
   print_string @@ D.show (D.meet test test'); 
+  print_string "change_d:\n";
+  let sup_env = Environment.lce test.env test'.env in
+  print_string @@ D.show (VarManagement.change_d test sup_env true false);
+  print_string "reduce_col:\n";
+  let sup_env = Environment.lce test.env test'.env in
+  let after_change_d = VarManagement.change_d test sup_env true false in
+  print_string @@ D.show ({d = Some ((EqualitiesArray.reduce_col (Option.get after_change_d.d) 3)); env = sup_env}); 
+  print_string "drop_vars:\n";
+  let sup_env = Environment.lce test.env test'.env in
+  print_string @@ D.show (VarManagement.drop_vars (VarManagement.change_d test sup_env true false) [x1'; x2'] true); 
   print_string "Test2 completed\n"
 
 let after_config () =(*

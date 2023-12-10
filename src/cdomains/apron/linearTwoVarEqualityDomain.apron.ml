@@ -110,10 +110,15 @@ module EqualitiesArray = struct
     if nnc = 0 then m else
       let nc = length m in
       let m' = make_empty_array (nc + nnc) in
+      let offset_map = Array.make nc 0 in
+      let add_offset_to_array_entry (var, offs) = match var with
+        | None -> (var, offs)
+        | Some var_index -> (Some (var_index + offset_map.(var_index)), offs) in
       let offset = ref 0 in
       for j = 0 to nc - 1 do
-        while  !offset < nnc &&  !offset + j = indexes.(!offset) do incr offset done;
-        m'.(j + !offset) <- m.(j);
+        while !offset < nnc && !offset + j = indexes.(!offset) do incr offset; done;
+        offset_map.(j) <- !offset;
+        m'.(j + !offset) <- add_offset_to_array_entry m.(j);
       done;
       m'
 
@@ -124,10 +129,15 @@ module EqualitiesArray = struct
       let m_c = length m in
       if m_c = n_c then [||] else
         let m' = make_empty_array (m_c - n_c) in
+        let offset_map = Array.make m_c 0 in
+        let remove_offset_from_array_entry (var, offs) = match var with
+          | None -> (var, offs)
+          | Some var_index -> (Some (var_index - offset_map.(var_index)), offs) in
         let offset = ref 0 in
         for j = 0 to (m_c - n_c) - 1 do
-          while  !offset < n_c &&  !offset + j = cols.(!offset) do incr offset done;
-          m'.(j) <- m.(j + !offset);
+          while !offset < n_c && !offset + j = cols.(!offset) do incr offset; done;
+          offset_map.(j + !offset) <- !offset;
+          m'.(j) <- remove_offset_from_array_entry m.(j + !offset);
         done;
         m'
 
@@ -164,12 +174,12 @@ module EqualitiesArray = struct
           let dim_of_var = Some var in
           let connected_component = find_vars_in_the_connected_component d dim_of_var in
           if length connected_component = 1 
-          then ()  (* x_i is the only element of its connected component *) 
+          then ()   (* x_i is the only element of its connected component *) 
           else
             (* x_i is the reference variable -> we need to find a new reference variable *)
             let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index connected_component ref_var in
             let (_, off) = d.(var_least_index) in 
-            iteri (fun _ x -> let (_, off2) = d.(x) in d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
+            iteri (fun _ x -> let (_, off2) = d.(x) in if x <> ref_var then d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
     end
 
   (* Forget information about variable i but not in-place *)
