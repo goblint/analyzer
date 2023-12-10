@@ -45,7 +45,7 @@ struct
   let enter ctx r f args = 
     let elem = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
     let new_stack = CallStack.push ctx.local elem in
-    if not !AnalysisState.postsolving then CT.printStack f args ctx.local new_stack; (* just for debugging purpose*)
+    (*if not !AnalysisState.postsolving then CT.printStack f args ctx.local new_stack; *)(* just for debugging purpose*)
     [ctx.local, new_stack]
 
   let combine_env ctx lval fexp f args fc au f_ask = 
@@ -61,9 +61,9 @@ module Fundec:Callstack_Type = struct
   let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listA;
+    Queue2L.iter (fun x -> printf "%s; " (CilType.Fundec.show x)) listA;
     printf "\nList neu: ";
-    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Fundec.show x)) listB;
+    Queue2L.iter (fun x -> printf "%s; " (CilType.Fundec.show x)) listB;
     printf "\n\n"
 end
 
@@ -79,9 +79,9 @@ module Stmt:Callstack_Type = struct
   let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listA;
+    Queue2L.iter (fun x -> printf "%s; " (CilType.Stmt.show x)) listA;
     printf "\nList neu: ";
-    Queue2L.iter (fun x -> Printf.printf "%s; " (CilType.Stmt.show x)) listB;
+    Queue2L.iter (fun x -> printf "%s; " (CilType.Stmt.show x)) listB;
     printf "\n\n"
 end
 
@@ -95,9 +95,9 @@ module Location:Callstack_Type = struct
   let printStack f expL listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
-    Queue2L.iter (fun x -> Printf.printf "%s;\n " (CilType.Location.show x)) listA;
+    Queue2L.iter (fun x -> printf "%s;\n " (CilType.Location.show x)) listA;
     printf "\nList neu: ";
-    Queue2L.iter (fun x -> Printf.printf "%s;\n " (CilType.Location.show x)) listB;
+    Queue2L.iter (fun x -> printf "%s;\n " (CilType.Location.show x)) listB;
     printf "\n\n"
 end
 
