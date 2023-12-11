@@ -5,7 +5,7 @@ module Offs = struct
   include Offset.MakeLattice (IndexDomain)
 
   (** Add the [additional_offset] to the [base_offset]. In case [additional_offset] starts with an index offset, merge this index with the index occurring at the end of [base_offset], if any. *)
-  let rec add_offset_merge_index_offset ~(base_offset: t) ~(additional_offset: t): t =
+  let add_offset_merge_index_offset ~(base_offset: t) ~(additional_offset: t): t =
     match additional_offset with
     | `NoOffset -> base_offset
     | `Field (f,o) -> add_offset base_offset additional_offset
