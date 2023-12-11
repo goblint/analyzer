@@ -1,4 +1,4 @@
-//PARAM: --set ana.modular.funs "['compare_to_global_addr', 'call_compare_to_global_addr']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
+//PARAM: --enable modular --set ana.modular.funs "['compare_to_global_addr', 'call_compare_to_global_addr']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
 
 #include<goblint.h>
 #include<stdlib.h>

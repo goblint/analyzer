@@ -373,6 +373,20 @@
                 "type": "string"
               },
               "default": []
+            },
+            "auto-funs": {
+              "title": "ana.modular.auto-funs",
+              "description":
+                "Automatically detect functions that are to be analayzed modularly.",
+              "type": "boolean",
+              "default": false
+            },
+            "only": {
+              "title": "ana.modular.only",
+              "description":
+                "Only analyze functions that are to be analayzed modularly.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

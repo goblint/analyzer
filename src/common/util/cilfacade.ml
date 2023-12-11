@@ -155,12 +155,40 @@ let is_exit = in_section (fun s -> s = ".exit.text")
 
 type startfuns = fundec list * fundec list * fundec list
 
+module VarinfoH = Hashtbl.Make (CilType.Varinfo)
+
+let varinfo_fundecs: fundec VarinfoH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let h = VarinfoH.create 111 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            VarinfoH.replace h fd.svar fd
+          | _ -> ()
+        );
+      h
+    )
+
+(** Find [fundec] by the function's [varinfo] (has the function name and type). *)
+let find_varinfo_fundec vi = VarinfoH.find (ResettableLazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+let find_varinfo_fundec_option f =
+  match find_varinfo_fundec f with
+  | v -> Some v
+  | exception Not_found -> None
+
+
+module StringSet = BatSet.Make (String)
 let getFuns fileAST : startfuns =
   let add_main f (m,e,o) = (f::m,e,o) in
   let add_exit f (m,e,o) = (m,f::e,o) in
   let add_other f (m,e,o) = (m,e,f::o) in
-  let modular_funs = get_string_list "ana.modular.funs" in
-  let only_modular_funs = get_bool "modular" && not (modular_funs = []) in
+
+  let modular_funs = StringSet.of_list (get_string_list "ana.modular.funs") in
+  ModularHeuristics.compute_auto_modular_funs find_varinfo_fundec_option fileAST;
+  let auto_modular_functions = ModularHeuristics.auto_modular_funs () in
+  let modular_funs = StringSet.union modular_funs auto_modular_functions in
+  let only_modular_funs = get_bool "ana.modular.only" in
+
   let f acc glob =
     match glob with
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "mainfun") && not only_modular_funs -> add_main def acc
@@ -172,7 +200,7 @@ let getFuns fileAST : startfuns =
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; vattr; _}; _} as def, _) when get_bool "nonstatic" && not (Cil.hasAttribute "goblint_stub" vattr) -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
-    | GFun ({svar={vattr; vname; _}; _} as def, _) when (get_bool "modular" && (not only_modular_funs || List.mem vname modular_funs))  && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_main def  acc
+    | GFun ({svar={vattr; vname; _}; _} as def, _) when (get_bool "modular" && StringSet.mem vname modular_funs)  && not (Cil.hasAttribute "goblint_stub" vattr) -> add_main def acc
     | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
@@ -541,22 +569,6 @@ let find_stmt_fundec stmt =
   try StmtH.find pseudo_return_to_fun stmt
   with Not_found -> StmtH.find (ResettableLazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
 
-
-module VarinfoH = Hashtbl.Make (CilType.Varinfo)
-
-let varinfo_fundecs: fundec VarinfoH.t ResettableLazy.t =
-  ResettableLazy.from_fun (fun () ->
-      let h = VarinfoH.create 111 in
-      iterGlobals !current_file (function
-          | GFun (fd, _) ->
-            VarinfoH.replace h fd.svar fd
-          | _ -> ()
-        );
-      h
-    )
-
-(** Find [fundec] by the function's [varinfo] (has the function name and type). *)
-let find_varinfo_fundec vi = VarinfoH.find (ResettableLazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 
 module StringH = Hashtbl.Make (Printable.Strings)
