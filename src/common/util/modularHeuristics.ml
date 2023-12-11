@@ -18,9 +18,8 @@ let contains_function_call_through_pointer (f : fundec) : bool =
       | _ -> DoChildren
   end in
   ignore (visitCilFunction visitor f);
-  let result = !contains_call in
-  Printf.printf "contains_function_call_through_pointer: %s -> %b\n" f.svar.vname result;
-  result
+  !contains_call
+
 
 let collect_functions_without_call_through_pointers (file : file) : fundec list =
   let functions_without_call_through_pointers = ref [] in
@@ -54,11 +53,9 @@ let get_called_functions (f : Cil.fundec) : Cil.varinfo list =
 (* TODO: Mark function that are passed to pthread_create as non-modular, or automatically analyze them non-modularly if they are created as threads *)
 let collect_functions_without_function_pointers (find_varinfo_fundec) (file : Cil.file) : Cil.fundec list =
   let functions_without_call_through_pointers = collect_functions_without_call_through_pointers file in
-  Printf.printf "functions_without_call_through_pointers: %s\n" (String.concat ", " (List.map (fun f -> f.svar.vname) functions_without_call_through_pointers));
   let only_good_callees (f: fundec) : bool =
     let callees = get_called_functions f in
     let callees = (List.map find_varinfo_fundec) callees in
-    Printf.printf "callees: %s\n" (String.concat ", " (List.map (fun f -> BatOption.map_default  (fun f -> f.svar.vname) "None" f) callees));
     let is_good g = match g with
       | None ->
         (* Assume unknown functions do not spawn / execute function pointers *)
@@ -66,13 +63,9 @@ let collect_functions_without_function_pointers (find_varinfo_fundec) (file : Ci
       | Some g ->
         List.mem g functions_without_call_through_pointers
     in
-    let result = List.for_all is_good callees in
-    Printf.printf "only_good_callees: %s -> %b\n" f.svar.vname result;
-    result
+    List.for_all is_good callees
   in
-  let result = List.filter only_good_callees functions_without_call_through_pointers in
-  Printf.printf "functions_without_function_pointers: %s\n" (String.concat ", " (List.map (fun f -> f.svar.vname) result));
-  result
+  List.filter only_good_callees functions_without_call_through_pointers
 
 module StringSet = BatSet.Make(String)
 
