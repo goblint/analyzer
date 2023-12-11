@@ -43,7 +43,10 @@ struct
   let startstate v = false
   let threadenter ctx ~multiple lval f args =
     let is_modular = ModularUtil0.is_modular_fun f in
-    [is_modular]
+    if is_modular then
+      M.warn ~category:MessageCategory.Analyzer "Create thread %a is not analyzed modularly." CilType.Varinfo.pretty f;
+    (* Do not analyze thread creation modularly *)
+    [false]
 
   let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = false

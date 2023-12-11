@@ -1,4 +1,4 @@
-//SKIP PARAM: --enable modular --set ana.modular.funs "['write_global']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
+//PARAM: --enable modular --set ana.modular.funs "['write_global']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
 #include <stdlib.h>
 #include <pthread.h>
 #include <goblint.h>
@@ -12,8 +12,9 @@ void *write_global(void *p){
 
 int main(){
 	pthread_t t;
-	// Creation of thread of modularly analyzed function.
-	// Not handled for now.
+
+	// Creation of threads of functions that should be analyzed modularly.
+	// The analysis does then analyzes these functions non-modularly.
 	pthread_create(&t, NULL, write_global, NULL);
 
 	int j = g;

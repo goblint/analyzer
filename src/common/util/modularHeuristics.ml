@@ -7,6 +7,7 @@ let contains_function_call_through_pointer (f : fundec) : bool =
 
     method! vinst (i : instr) : instr list visitAction =
       match i with
+      (* Detect calls via function pointers *)
       | Call (_, Lval (Mem _, _), _, _, _)  ->
         (* TODO: Does this detect all calls via function pointer? *)
         contains_call := true;

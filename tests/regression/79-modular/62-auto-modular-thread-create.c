@@ -1,4 +1,4 @@
-//PARAM: --enable modular --set ana.modular.funs "['change_pointer', 'write_through_pointer']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
+//PARAM: --enable modular --enable ana.modular.auto-funs --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
 #include <stdlib.h>
 #include <pthread.h>
 #include <goblint.h>
@@ -22,8 +22,8 @@ int main(){
 	pp = malloc(sizeof(int*));
 	*pp = NULL;
 
-	// Creation of threads of functions that should be analyzed modularly.
-	// The analysis does then analyzes these functions non-modularly.
+	// Creation of threads of modularly analyzed functions.
+	// Not handled for now.
 	pthread_create(&t1, NULL, change_pointer, NULL);
 	pthread_create(&t2, NULL, write_through_pointer, NULL);
 
