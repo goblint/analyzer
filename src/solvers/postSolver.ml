@@ -154,13 +154,7 @@ struct
 
   module VH = Hashtbl.Make (S.Var)
   (* starts as Hashtbl for quick lookup *)
-  let starth =
-    (* VH.of_list S.starts *) (* TODO: BatHashtbl.Make.of_list is broken, use after new Batteries release *)
-    let starth = VH.create (List.length S.starts) in
-    List.iter (fun (x, d) ->
-        VH.replace starth x d
-      ) S.starts;
-    starth
+  let starth = VH.of_list S.starts
 
   let system x =
     match S.system x, VH.find_option starth x with

@@ -51,7 +51,7 @@ module VarQuery = VarQuery
 (** {2 Configuration}
 
     Runtime configuration is represented as JSON.
-    Options are specified and documented by the JSON schema [src/common/util/options.schema.json]. *)
+    Options are specified and documented by the JSON schema [src/config/options.schema.json]. *)
 
 module GobConfig = GobConfig
 module AfterConfig = AfterConfig
@@ -130,7 +130,7 @@ module ExtractPthread = ExtractPthread
     Analyses related to [longjmp] and [setjmp]. *)
 
 module ActiveSetjmp = ActiveSetjmp
-module ModifiedSinceLongjmp = ModifiedSinceLongjmp
+module ModifiedSinceSetjmp = ModifiedSinceSetjmp
 module ActiveLongjmp = ActiveLongjmp
 module PoisonVariables = PoisonVariables
 module Vla = Vla
@@ -147,12 +147,10 @@ module UnitAnalysis = UnitAnalysis
 (** {2 Other} *)
 
 module Assert = Assert
-module FileUse = FileUse
 module LoopTermination = LoopTermination
 module Uninit = Uninit
 module Expsplit = Expsplit
 module StackTrace = StackTrace
-module Spec = Spec
 
 (** {2 Helper}
 
@@ -263,11 +261,7 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module FileDomain = FileDomain
 module StackDomain = StackDomain
-
-module MvalMapDomain = MvalMapDomain
-module SpecDomain = SpecDomain
 
 (** {2 Testing}
 
@@ -331,7 +325,6 @@ module SolverBox = SolverBox
     Various input/output interfaces and formats. *)
 
 module Messages = Messages
-module Tracing = Tracing
 
 (** {2 Front-end}
 
@@ -447,6 +440,7 @@ module WideningThresholds = WideningThresholds
 
 module VectorMatrix = VectorMatrix
 module SharedFunctions = SharedFunctions
+module GobApron = GobApron
 
 (** {2 Precision comparison} *)
 
@@ -467,9 +461,3 @@ module ApronPrecCompareUtil = ApronPrecCompareUtil
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
-
-(** {2 Other libraries}
-
-    External library extensions. *)
-
-module MyCheck = MyCheck
