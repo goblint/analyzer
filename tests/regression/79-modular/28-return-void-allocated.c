@@ -9,7 +9,7 @@ typedef struct node {
 
 node_t *allocate_node(){
     // Changing the pointer type to node_t* resolves the issue
-    node_t* n = malloc(sizeof(node_t));
+    int* n = malloc(sizeof(node_t));
     return (node_t*) n;
 }
 
