@@ -733,6 +733,7 @@ struct
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
+  (* TODO: why is this separately needed? *)
   let rec invalidate_abstract_value = function
     | Top -> Top
     | Int i -> Int (ID.top_of (ID.ikind i))

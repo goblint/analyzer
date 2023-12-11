@@ -2191,6 +2191,7 @@ struct
     in
     let address_from_value (v:value) = match v with
       | Address a ->
+        (* TODO: is it fine to just drop the last index unconditionally? https://github.com/goblint/analyzer/pull/1076#discussion_r1408975611 *)
         let rec lo = function
           | `Index (i, `NoOffset) -> `NoOffset
           | `NoOffset -> `NoOffset
@@ -2210,6 +2211,7 @@ struct
       let s2_a = address_from_value s2_v in
       let s2_typ = AD.type_of s2_a in
       (* compute value in string literals domain if s1 and s2 are both string literals *)
+      (* TODO: is this reliable? there could be a char* which isn't StrPtr *)
       if CilType.Typ.equal s1_typ charPtrType && CilType.Typ.equal s2_typ charPtrType then
         begin match lv, op_addr with
           | Some lv_val, Some f ->
@@ -2304,7 +2306,8 @@ struct
           let a = address_from_value v in
           let value:value =
             (* if s string literal, compute strlen in string literals domain *)
-            if AD.type_of a = charPtrType then
+            (* TODO: is this reliable? there could be a char* which isn't StrPtr *)
+            if CilType.Typ.equal (AD.type_of a) charPtrType then
               Int (AD.to_string_length a)
               (* else compute strlen in array domain *)
             else
