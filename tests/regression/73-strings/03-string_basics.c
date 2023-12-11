@@ -84,7 +84,7 @@ int main() {
     cmp = strstr(s1, "0");
     __goblint_check(cmp == NULL); // UNKNOWN
 
-    free(s1);
+    free(s5);
 
     return 0;
 }
