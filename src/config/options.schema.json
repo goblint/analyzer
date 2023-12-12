@@ -689,6 +689,12 @@
                   "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
                   "type": "integer",
                   "default": 0
+                },
+                "nullbytes": {
+                  "title": "ana.base.arrays.nullbytes",
+                  "description": "Whether the Null Byte array domain should be activated.",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
