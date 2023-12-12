@@ -2215,21 +2215,21 @@ struct
       if CilType.Typ.equal s1_typ charPtrType && CilType.Typ.equal s2_typ charPtrType then
         begin match lv, op_addr with
           | Some lv_val, Some f ->
-          (* when whished types coincide, compute result of operation op_addr, otherwise use top *)
-          let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
-          let lv_typ = Cilfacade.typeOfLval lv_val in
-          if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
-            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (f s1_a s2_a)
-          else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
-            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (f s1_a s2_a)
-          else
-            set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+            (* when whished types coincide, compute result of operation op_addr, otherwise use top *)
+            let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+            let lv_typ = Cilfacade.typeOfLval lv_val in
+            if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
+              set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (f s1_a s2_a)
+            else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
+              set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (f s1_a s2_a)
+            else
+              set ~ctx (Analyses.ask_of_ctx ctx) gs st lv_a lv_typ (VD.top_value (unrollType lv_typ))
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
             set ~ctx (Analyses.ask_of_ctx ctx) gs st s1_a s1_typ (VD.top_value (unrollType s1_typ))
         end
-      (* else compute value in array domain *)
+        (* else compute value in array domain *)
       else
         let lv_a, lv_typ = match lv with
           | Some lv_val -> eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
@@ -2326,11 +2326,11 @@ struct
              if needle is substring, assign the substring of haystack starting at the first occurrence of needle to dest,
              if it surely isn't, assign a null_ptr *)
           string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address (AD.substring_extraction h_a n_a)))
-              (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
-                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
-                | CArrays.IsSubstrAtIndex0 -> Address (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
-                | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st
-                                           (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
+            (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
+               | CArrays.IsNotSubstr -> Address (AD.null_ptr)
+               | CArrays.IsSubstrAtIndex0 -> Address (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
+               | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st
+                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
     | Strcmp { s1; s2; n }, _ ->

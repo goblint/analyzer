@@ -148,10 +148,10 @@ module MustMaySet = struct
     match mode with
     | Definitely -> failwith "todo"
     | Possibly ->
-        if Z.equal l Z.zero && Z.geq u min_size then
-          (MustSet.top (), mays)
-        else
-          (MustSet.filter ~min_size (fun x -> (Z.lt x l || Z.gt x u) && Z.lt x min_size) musts, mays)
+      if Z.equal l Z.zero && Z.geq u min_size then
+        (MustSet.top (), mays)
+      else
+        (MustSet.filter ~min_size (fun x -> (Z.lt x l || Z.gt x u) && Z.lt x min_size) musts, mays)
 
   let add_all mode (musts, mays) =
     match mode with

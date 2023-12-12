@@ -1074,21 +1074,21 @@ struct
       (* if size has no upper limit *)
       | None ->
         (match Val.is_null v with
-        | NotNull ->
-          Nulls.remove (if Nulls.is_full_set Possibly nulls then Possibly else Definitely) i nulls min_size
-          (* ... and value <> null, remove i from must_nulls_set and also from may_nulls_set if not top *)
-        | Null ->
-          Nulls.add (if i <. min_size then Definitely else Possibly) i nulls
-          (* i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
-          (* i >= minimal size and value = null, add i only to may_nulls_set *)
-        | Maybe ->
-          let removed = Nulls.remove Possibly i nulls min_size in
-          Nulls.add Possibly i removed)
+         | NotNull ->
+           Nulls.remove (if Nulls.is_full_set Possibly nulls then Possibly else Definitely) i nulls min_size
+         (* ... and value <> null, remove i from must_nulls_set and also from may_nulls_set if not top *)
+         | Null ->
+           Nulls.add (if i <. min_size then Definitely else Possibly) i nulls
+         (* i < minimal size and value = null, add i to must_nulls_set and may_nulls_set *)
+         (* i >= minimal size and value = null, add i only to may_nulls_set *)
+         | Maybe ->
+           let removed = Nulls.remove Possibly i nulls min_size in
+           Nulls.add Possibly i removed)
       | Some max_size ->
         (match Val.is_null v with
          | NotNull ->
            Nulls.remove Definitely i nulls min_size
-           (* if value <> null, remove i from must_nulls_set and may_nulls_set *)
+         (* if value <> null, remove i from must_nulls_set and may_nulls_set *)
          | Null when i <. min_size ->
            Nulls.add Definitely i nulls
          | Null when i <. max_size ->
@@ -1114,43 +1114,43 @@ struct
     (* warn if index is (potentially) out of bounds *)
     array_oob_check (module Idx) (Nulls.get_set Possibly, size) (e, i);
     let nulls = match max_i with
-    (* if no maximum number in index interval *)
-    | None ->
-      (* ..., value = null *)
-      (if Val.is_null v = Null && Idx.maximal size = None then
-         match Idx.maximal size with
-         (* ... and there is no maximal size, modify may_nulls_set to top *)
-         | None ->  Nulls.add_all Possibly nulls
-         (* ... and there is a maximal size, add all i from minimal index to maximal size to may_nulls_set *)
-         | Some max_size -> Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
-         (* ... and value <> null, only keep indexes < minimal index in must_nulls_set *)
-       else if Val.is_null v = NotNull then
-         Nulls.filter_musts (Z.gt min_i) min_size nulls
-         (*..., value unknown *)
-       else
-         match Idx.minimal size, Idx.maximal size with
-         (* ... and size unknown, modify both sets to top *)
-         | None, None -> Nulls.top ()
-         (* ... and only minimal size known, remove all indexes < minimal size from must_nulls_set and modify may_nulls_set to top *)
-         | Some min_size, None ->
-            let nulls = Nulls.add_all Possibly nulls in
-            Nulls.filter_musts (Z.gt min_size) min_size nulls
-         (* ... and only maximal size known, modify must_nulls_set to top and add all i from minimal index to maximal size to may_nulls_set *)
-         | None, Some max_size ->
-            let nulls = Nulls.remove_all Possibly nulls in
-            Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
-         (* ... and size is known, remove all indexes < minimal size from must_nulls_set and add all i from minimal index to maximal size to may_nulls_set *)
-         | Some min_size, Some max_size ->
-            let nulls = Nulls.filter_musts (Z.gt min_size) min_size nulls in
-            Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
-      )
-    | Some max_i when max_i >=. Z.zero ->
-      if min_i =. max_i then
-        set_exact_nulls min_i
-      else
-        set_interval min_i max_i
-    (* if maximum number in interval is invalid, i.e. negative, return tuple unmodified *)
-    | _ -> nulls
+      (* if no maximum number in index interval *)
+      | None ->
+        (* ..., value = null *)
+        (if Val.is_null v = Null && Idx.maximal size = None then
+           match Idx.maximal size with
+           (* ... and there is no maximal size, modify may_nulls_set to top *)
+           | None ->  Nulls.add_all Possibly nulls
+           (* ... and there is a maximal size, add all i from minimal index to maximal size to may_nulls_set *)
+           | Some max_size -> Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
+           (* ... and value <> null, only keep indexes < minimal index in must_nulls_set *)
+         else if Val.is_null v = NotNull then
+           Nulls.filter_musts (Z.gt min_i) min_size nulls
+           (*..., value unknown *)
+         else
+           match Idx.minimal size, Idx.maximal size with
+           (* ... and size unknown, modify both sets to top *)
+           | None, None -> Nulls.top ()
+           (* ... and only minimal size known, remove all indexes < minimal size from must_nulls_set and modify may_nulls_set to top *)
+           | Some min_size, None ->
+             let nulls = Nulls.add_all Possibly nulls in
+             Nulls.filter_musts (Z.gt min_size) min_size nulls
+           (* ... and only maximal size known, modify must_nulls_set to top and add all i from minimal index to maximal size to may_nulls_set *)
+           | None, Some max_size ->
+             let nulls = Nulls.remove_all Possibly nulls in
+             Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
+           (* ... and size is known, remove all indexes < minimal size from must_nulls_set and add all i from minimal index to maximal size to may_nulls_set *)
+           | Some min_size, Some max_size ->
+             let nulls = Nulls.filter_musts (Z.gt min_size) min_size nulls in
+             Nulls.add_interval Possibly (min_i, Z.pred max_size) nulls
+        )
+      | Some max_i when max_i >=. Z.zero ->
+        if min_i =. max_i then
+          set_exact_nulls min_i
+        else
+          set_interval min_i max_i
+      (* if maximum number in interval is invalid, i.e. negative, return tuple unmodified *)
+      | _ -> nulls
     in
     (nulls, size)
 
@@ -1236,7 +1236,7 @@ struct
       let nulls =
         if min_must_null =. min_may_null then
           Nulls.precise_singleton min_must_null
-        (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
+          (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
         else
           match Idx.maximal size with
           | Some max_size ->
@@ -1263,59 +1263,59 @@ struct
           M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
         else
           (match min_must_null with
-          | Some min_must_null when not (min_must_null >=. n || min_must_null >. min_may_null) -> ()
-          | _ ->
-            M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
+           | Some min_must_null when not (min_must_null >=. n || min_must_null >. min_may_null) -> ()
+           | _ ->
+             M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
           )
       in
       (match Idx.minimal size, Idx.maximal size with
-          | Some min_size, Some max_size ->
-            if n >. max_size then
-              warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
-            else if n >. min_size then
-              warn_past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
-          | Some min_size, None ->
-            if n >. min_size then
-              warn_past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
-          | None, Some max_size ->
-            if n >. max_size then
-              warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
-          | None, None -> ());
+       | Some min_size, Some max_size ->
+         if n >. max_size then
+           warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
+         else if n >. min_size then
+           warn_past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
+       | Some min_size, None ->
+         if n >. min_size then
+           warn_past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
+       | None, Some max_size ->
+         if n >. max_size then
+           warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
+       | None, None -> ());
       let nulls =
-       (* if definitely no null byte in array, i.e. must_nulls_set = may_nulls_set = empty set *)
-       if Nulls.is_empty Definitely nulls then
-         (warn_past_end
-            "Resulting string might not be null-terminated because src doesn't contain a null byte";
-          match Idx.maximal size with
-          (* ... there *may* be null bytes from maximal size to n - 1 if maximal size < n (i.e. past end) *)
-          | Some max_size when Z.geq max_size Z.zero -> Nulls.add_interval Possibly (max_size, Z.pred n) nulls
-          | _ -> nulls)
-         (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1;
-          * warn as in any case, resulting array not guaranteed to contain null byte *)
-       else if Nulls.is_empty Possibly nulls then
-         let min_may_null = Nulls.min_elem Possibly nulls in
-         warn_no_null None min_may_null;
-         if min_may_null =. Z.zero then
-          Nulls.add_all Possibly nulls
-         else
-          let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-          Nulls.filter (fun x -> x <. n) nulls
-       else
-         let min_must_null = Nulls.min_elem Definitely nulls in
-         let min_may_null = Nulls.min_elem Possibly nulls in
-         (* warn if resulting array may not contain null byte *)
-         warn_no_null (Some min_must_null) min_may_null;
-         (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
-         if min_must_null =. min_may_null then
-          if min_must_null =. Z.zero then
-            Nulls.full_set ()
+        (* if definitely no null byte in array, i.e. must_nulls_set = may_nulls_set = empty set *)
+        if Nulls.is_empty Definitely nulls then
+          (warn_past_end
+             "Resulting string might not be null-terminated because src doesn't contain a null byte";
+           match Idx.maximal size with
+           (* ... there *may* be null bytes from maximal size to n - 1 if maximal size < n (i.e. past end) *)
+           | Some max_size when Z.geq max_size Z.zero -> Nulls.add_interval Possibly (max_size, Z.pred n) nulls
+           | _ -> nulls)
+          (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1;
+           * warn as in any case, resulting array not guaranteed to contain null byte *)
+        else if Nulls.is_empty Possibly nulls then
+          let min_may_null = Nulls.min_elem Possibly nulls in
+          warn_no_null None min_may_null;
+          if min_may_null =. Z.zero then
+            Nulls.add_all Possibly nulls
           else
-            let nulls = Nulls.add_interval Definitely (min_must_null, Z.pred n) nulls in
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
             Nulls.filter (fun x -> x <. n) nulls
-         else if min_may_null =. Z.zero then
+        else
+          let min_must_null = Nulls.min_elem Definitely nulls in
+          let min_may_null = Nulls.min_elem Possibly nulls in
+          (* warn if resulting array may not contain null byte *)
+          warn_no_null (Some min_must_null) min_may_null;
+          (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
+          if min_must_null =. min_may_null then
+            if min_must_null =. Z.zero then
+              Nulls.full_set ()
+            else
+              let nulls = Nulls.add_interval Definitely (min_must_null, Z.pred n) nulls in
+              let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
+              Nulls.filter (fun x -> x <. n) nulls
+          else if min_may_null =. Z.zero then
             Nulls.top ()
-         else
+          else
             let nulls = Nulls.remove_all Possibly nulls in
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
             Nulls.filter (fun x -> x <. n) nulls
@@ -1328,11 +1328,11 @@ struct
       (warn_past_end "Array doesn't contain a null byte: buffer overflow";
        Idx.starting !Cil.kindOfSizeOf (BatOption.default Z.zero (Idx.minimal size))
       )
-    (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
+      (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "Array might not contain a null byte: potential buffer overflow";
        Idx.starting !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls))
-    (* else return interval [minimal may null, minimal must null] *)
+      (* else return interval [minimal may null, minimal must null] *)
     else
       Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)
 
@@ -1441,13 +1441,13 @@ struct
     let update_sets min_size1 max_size1 minlen1 maxlen1 minlen2 (maxlen2: Z.t option) nulls2' =
       (* track any potential buffer overflow and issue warning if needed *)
       (if GobOption.exists (fun x -> x <=. (minlen1 +. minlen2)) max_size1 then
-        warn_past_end
+         warn_past_end
            "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
        else
-        (match maxlen1, maxlen2 with
-        | Some maxlen1, Some maxlen2 when min_size1 >. (maxlen1 +. maxlen2) -> ()
-        | _ -> warn_past_end
-            "The length of the concatenation of the strings in src and dest may be greater than the allocated size for dest")
+         (match maxlen1, maxlen2 with
+          | Some maxlen1, Some maxlen2 when min_size1 >. (maxlen1 +. maxlen2) -> ()
+          | _ -> warn_past_end
+                   "The length of the concatenation of the strings in src and dest may be greater than the allocated size for dest")
       );
       (* if any must_nulls_set empty, result must_nulls_set also empty;
        * for all i1, i2 in may_nulls_set1, may_nulls_set2: add i1 + i2 if it is <= strlen(dest) + strlen(src) to new may_nulls_set
@@ -1473,21 +1473,21 @@ struct
           (r, size1)
         | None when Nulls.may_can_benefit_from_filter nulls1 && Nulls.may_can_benefit_from_filter nulls2 ->
           (match maxlen1, maxlen2 with
-          | Some maxlen1, Some maxlen2->
-            let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
-            let r =
-              nulls1_no_must
-              (* filter ensures we have the concete representation *)
-              |> Nulls.filter (fun x -> x <=. (maxlen1 +. maxlen2))
-              |> Nulls.elements Possibly
-              |> BatList.cartesian_product (Nulls.elements Possibly nulls2')
-              |> List.map (fun (i1, i2) -> i1 +. i2)
-              |> (fun x -> Nulls.add_list Possibly x (Nulls.filter (Z.lt (minlen1 +. minlen2)) nulls1_no_must))
-            in
-            (r, size1)
-          | _ -> (Nulls.top (), size1))
+           | Some maxlen1, Some maxlen2->
+             let nulls1_no_must = Nulls.remove_all Possibly nulls1 in
+             let r =
+               nulls1_no_must
+               (* filter ensures we have the concete representation *)
+               |> Nulls.filter (fun x -> x <=. (maxlen1 +. maxlen2))
+               |> Nulls.elements Possibly
+               |> BatList.cartesian_product (Nulls.elements Possibly nulls2')
+               |> List.map (fun (i1, i2) -> i1 +. i2)
+               |> (fun x -> Nulls.add_list Possibly x (Nulls.filter (Z.lt (minlen1 +. minlen2)) nulls1_no_must))
+             in
+             (r, size1)
+           | _ -> (Nulls.top (), size1))
         |  _ -> (Nulls.top (), size1)
-      (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
+        (* if minimal must null = minimal may null in ar1 and ar2, add them together and keep indexes > strlen(dest) + strlen(src) of ar1 *)
       else if Nulls.min_elem_precise nulls1 && Nulls.min_elem_precise nulls2' then
         let min_i1 = Nulls.min_elem Definitely nulls1 in
         let min_i2 = Nulls.min_elem Definitely nulls2' in
@@ -1616,14 +1616,14 @@ struct
           let min_must1 = Nulls.min_elem Definitely nulls1 in
           let min_must2 = Nulls.min_elem Definitely nulls2 in
           if not (min_must1 =. min_must2)
-              && min_must1 =.(Nulls.min_elem Possibly nulls1)
-              && min_must2 =. (Nulls.min_elem Possibly nulls2)
-              && (BatOption.map_default (fun x -> min_must1 <. x || min_must2 <. x) true n)
+          && min_must1 =.(Nulls.min_elem Possibly nulls1)
+          && min_must2 =. (Nulls.min_elem Possibly nulls2)
+          && (BatOption.map_default (fun x -> min_must1 <. x || min_must2 <. x) true n)
           then
             (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
             Idx.of_excl_list IInt [Z.zero]
           else
-             Idx.top_of IInt
+            Idx.top_of IInt
         with Not_found -> Idx.top_of IInt
     in
 
