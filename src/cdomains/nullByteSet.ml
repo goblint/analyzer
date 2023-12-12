@@ -1,3 +1,5 @@
+(** Abstract domains for tracking [NULL] bytes in C arrays. *)
+
 module MustSet = struct
   module M = SetDomain.Reverse (SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All Null" end))
   include M
@@ -109,7 +111,7 @@ module MustMaySet = struct
     | Definitely -> MustSet.interval_mem (l,u) musts
     | Possibly -> failwith "not implemented"
 
-  let remove mode i (musts, mays) min_size = 
+  let remove mode i (musts, mays) min_size =
     match mode with
     | Definitely -> (MustSet.remove i musts min_size, MaySet.remove i mays min_size)
     | Possibly -> (MustSet.remove i musts min_size, mays)
@@ -133,7 +135,7 @@ module MustMaySet = struct
     in
     let mays =
       match maxfull with
-      | Some Some maxfull when Z.equal l Z.zero && Z.geq u maxfull -> 
+      | Some Some maxfull when Z.equal l Z.zero && Z.geq u maxfull ->
         MaySet.top ()
       | _ ->
         add_indexes l u mays
@@ -141,12 +143,12 @@ module MustMaySet = struct
     match mode with
     | Definitely -> (add_indexes l u musts, mays)
     | Possibly -> (musts, mays)
-    
+
   let remove_interval mode (l,u) min_size (musts, mays) =
     match mode with
     | Definitely -> failwith "todo"
     | Possibly ->
-        if Z.equal l Z.zero && Z.geq u min_size then 
+        if Z.equal l Z.zero && Z.geq u min_size then
           (MustSet.top (), mays)
         else
           (MustSet.filter ~min_size (fun x -> (Z.lt x l || Z.gt x u) && Z.lt x min_size) musts, mays)
@@ -164,8 +166,8 @@ module MustMaySet = struct
   let is_full_set mode (musts, mays) =
     match mode with
     | Definitely -> MustSet.is_bot musts
-    | Possibly -> MaySet.is_top mays 
-  
+    | Possibly -> MaySet.is_top mays
+
   let get_set mode (musts, mays) =
     match mode with
     | Definitely -> musts
@@ -174,10 +176,10 @@ module MustMaySet = struct
   let elements ?max_size ?min_size mode (musts, mays) =
     match mode with
     | Definitely ->failwith "todo"
-    | Possibly -> MaySet.elements ?max_size mays 
+    | Possibly -> MaySet.elements ?max_size mays
 
   let union_mays (must,mays) (_,mays2) = (must, MaySet.join mays mays2)
-  
+
 
   let precise_singleton i =
     (MustSet.singleton i, MaySet.singleton i)
