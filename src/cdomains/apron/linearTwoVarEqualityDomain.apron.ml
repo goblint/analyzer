@@ -476,19 +476,26 @@ struct
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
     let implies ts t i : bool =
-      match t with
-      | (None, b) ->  
-        (match ts.(i) with
-         | (None, b') -> Z.equal b b'
+    match t with
+    | (None, b) -> 
+      (match ts.(i) with
+       | (None, b') -> Z.equal b b'
+       | (Some j, b') -> (match ts.(j) with
+           | (None, bj) -> Z.equal bj (Z.sub b b')
+           | _ -> false
+         ))
+    | (Some j, b) -> 
+      (match ts.(i), ts.(j) with
+       | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
+       | (Some h1, b1), (None, b2) -> (match ts.(h1) with
+         | (None, bh1) -> Z.equal (Z.add bh1 b1) (Z.add b2 b)
          | _ -> false)
-      | (Some j, b) ->  
-        (match ts.(i), ts.(j) with
-         | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
-         | (None, _), (_, _) -> false
-         | (_, _), (None, _) -> false
-         | (Some h1, b1), (Some h2, b2) ->
-           h1 = h2 && Z.equal b1 (Z.add b2 b)) 
-    in  
+       | (None, b1), (Some h2, b2) -> (match ts.(h2) with
+         | (None, bh2) -> Z.equal (Z.sub b1 bh2) (Z.add b2 b)
+         | _ -> false)
+       | (Some h1, b1), (Some h2, b2) ->
+         h1 = h2 && Z.equal b1 (Z.add b2 b))
+  in
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot t1 || is_top_env t2 then true else
     if is_bot t2 || is_top_env t1 then false else (
