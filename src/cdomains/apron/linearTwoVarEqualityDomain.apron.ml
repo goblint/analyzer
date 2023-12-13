@@ -850,7 +850,7 @@ struct
           match v with 
           | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
           | Some idx -> match d.(idx) with 
-            | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) Z.one) ; expr
+            | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c) ; expr
             | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
         in 
         let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
