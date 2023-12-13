@@ -94,10 +94,27 @@ let test2 () =
   print_string @@ D.show (VarManagement.drop_vars (VarManagement.change_d test sup_env true false) [x1'; x2'] true); 
   print_string "Test2 completed\n"
 
+  let test3 () = 
+    let x = Apron.Var.of_string "x" in
+    let y = Apron.Var.of_string "y" in
+    let env_test = Apron.Environment.make (Array.of_list [x; y]) @@ Array.of_list []  in
+    let varM_test = D.top_env env_test in
+    let test = D.assign_texpr varM_test x (Texpr1.Cst (Coeff.s_of_int 1)) in (*x = 1*)
+    let test = D.assign_texpr test y (Texpr1.Cst (Coeff.s_of_int 1)) in (*y = 1*)
+    let tcons1 = Apron.Tcons1.make (Texpr1.of_expr env_test  (Binop (Sub, Var x, Var y, Int, Near ))) EQ in
+    print_string "Test1:\n";
+    print_string "Original variable setup:\n";
+    print_string @@ D.show varM_test ;
+    print_string "After x = 1 and y=1:\n";
+    print_string @@ D.show test;
+    print_string "Tcons:\n";
+    print_string @@ D.show @@ D.meet_tcons test tcons1 " ";
+    print_string "Test1 completed\n"
+
 let after_config () =(*
-  test2();
+  test3();
   failwith "No error Test completed";
-  *)
+*)
   let module Spec = (val get_spec ()) in
   MCP.register_analysis (module Spec : MCPSpec);
   GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())

@@ -358,6 +358,26 @@ struct
   module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) 
 
   type var = V.t
+  let name () = "lin2vareq"
+
+  let to_yojson _ = failwith "ToDo Implement in future"
+  
+  let is_bot t = equal t (bot ())
+  let is_bot_env t = t.d = None
+
+
+  let top_env env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
+
+  (*Would the top not be the identity matrix in affineEq? 
+     i.e. the array where each variable is assigned itself with no other coeffcients? *)
+  let top () = failwith "D.top ()"
+
+  let is_top varM = if Option.is_some varM.d then 
+      EArray.fold_lefti (fun b i (a, e) -> if Z.(e == Z.zero) && Option.is_some a && Option.get a == i then b else false) true (Option.get varM.d)
+    else false
+
+  let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists EArray.is_empty t.d
+
   (* prints the current variable equalities with resolved variable names *)
   let show varM =
     let lookup i = Var.to_string (Environment.var_of_dim varM.env i) in
@@ -365,33 +385,13 @@ struct
       match tuple with
       | (None, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ Z.to_string offset ^ "\n"
       | (Some index, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ lookup index ^ " + " ^ Z.to_string offset ^ "\n"
-    in match varM.d with
-    | None -> "No equalities available"
-    | Some arr -> Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
+    in if is_top varM then "⊤\n" else 
+    match varM.d with
+    | None -> "Bot Env\n"
+    | Some arr -> if EArray.is_empty arr then "Bot \n" else Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
 
-
-  let pretty () (x:t) = text (show x)
+    let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
-
-  let name () = "lin2vareq"
-
-  let to_yojson _ = failwith "ToDo Implement in future"
-
-
-  let is_bot t = equal t (bot ())
-
-  let bot_env = {d = None; env = Environment.make [||] [||]}
-
-  let top_env env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
-
-  let is_bot_env t = t.d = None
-  (*Would the top not be the identity matrix in affineEq? 
-     i.e. the array where each variable is assigned itself with no other coeffcients? *)
-  let top () = failwith "D.top ()"
-
-  let is_top _ = false
-
-  let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists EArray.is_empty t.d
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -815,15 +815,24 @@ struct
      tcons -> tree constraint (expression < 0)
      -> does not have types (overflow is type dependent)
   *)
+  let print_coeff_vec l (env : Environment.t) = 
+    let print_element _ e = match e with 
+      | (a, Some x) -> print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ") 
+      | (a, None) -> print_string ((Z.to_string a) ^ "+") in
+      List.fold_left print_element () l; print_newline ()
 
+  let print_final_expr l (env : Environment.t) =
+    let print_element _ i a = if i == 0 then print_string ((Z.to_string a) ^ " + ") else 
+      print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in 
+    List.fold_lefti print_element () l; print_newline ()
 
-  let meet_tcons t tcons expr = 
+  let meet_tcons t tcons _ = 
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables 
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     let expr_init = Array.init ((Environment.size t.env) +1) (fun _ -> Z.zero) in 
     match t.d with 
-    | None -> t
-    | Some d ->
+    | None -> bot ()
+    | Some d -> if is_bot t then bot () else
       let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
       let update (expr : Z.t Array.t)( c , v) = 
         match v with 
@@ -833,14 +842,19 @@ struct
           | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
       in 
       let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
-      let is_constant = List.fold_left (fun b a -> if Z.equal a Z.zero then b else false) true @@ List.tl @@ Array.to_list final_expr in
-      let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) @@ List.tl @@ Array.to_list final_expr 
-      in if is_constant then 
+      let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) ( List.tl ( Array.to_list final_expr)) 
+      in (*
+      print_string "Meet_tcons:\n";
+      print_coeff_vec cv's t.env;
+      print_final_expr (Array.to_list final_expr) t.env;
+      print_string ("Meet_tcons var_count is " ^ (Int.to_string var_count) ^ " and the type is " ^(Lincons0.string_of_typ (Tcons1.get_typ tcons)) ^"\n");
+      *)
+      if var_count == 0 then 
         match Tcons1.get_typ tcons with 
-        | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot()
-        | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else bot()
-        | SUP -> if Z.gt final_expr.(0) Z.zero then t else bot()
-        | DISEQ ->  if Z.equal final_expr.(0) Z.zero then bot() else t
+        | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot_env
+        | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else bot_env
+        | SUP -> if Z.gt final_expr.(0) Z.zero then t else bot_env
+        | DISEQ ->  if Z.equal final_expr.(0) Z.zero then bot_env else t
         | EQMOD scalar -> t (*Not supported right now
                               if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
       else if var_count == 1 then
@@ -922,10 +936,10 @@ struct
   *)
   let assert_cons d e negate no_ov =
     let no_ov = Lazy.force no_ov in
-    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b" d_exp e no_ov;
+    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b\n" d_exp e no_ov;
     match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1 e
-    | exception Convert.Unsupported_CilExp _ -> d
+    | tcons1 -> let t = meet_tcons d tcons1 e in Pretty.printf "assert_cons with expr: %a\n" d_exp e; print_string @@ show t;t    
+      | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov
 
