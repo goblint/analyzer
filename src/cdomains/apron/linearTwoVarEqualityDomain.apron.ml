@@ -145,7 +145,7 @@ module EqualitiesArray = struct
 
   let is_empty m = length m = 0
 
-  let is_top_array m = m = make_empty_array (length m)
+  let is_top_array m = Array.fold_lefti (fun b i (a, e) -> if e == Z.zero && Option.is_some a && Option.get a == i then b else false) true m
 
   let find_reference_variable d var_index = fst d.(var_index)
 
@@ -364,22 +364,18 @@ struct
   let name () = "lin2vareq"
 
   let to_yojson _ = failwith "ToDo Implement in future"
-
+  
   let is_bot t = equal t (bot ())
   let is_bot_env t = t.d = None
 
+(*this shows "top" for a specific environment to enable the calculations. It is the identity of all equalities*)
+  let identity env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
 
-  let top_env env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
+  (*Should never be called but implemented for completeness *)
+  let top () = {d = Some (EArray.empty()); env = empty_env}
 
-  (*Would the top not be the identity matrix in affineEq? 
-     i.e. the array where each variable is assigned itself with no other coeffcients? *)
-  let top () = failwith "D.top ()"
-
-  let is_top varM = if Option.is_some varM.d then 
-      EArray.fold_lefti (fun b i (a, e) -> if Z.(e == Z.zero) && Option.is_some a && Option.get a == i then b else false) true (Option.get varM.d)
-    else false
-
-  let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists EArray.is_top_array t.d
+(*is_top returns true for identity array and empty array *)
+  let is_top t = GobOption.exists EArray.is_top_array t.d
 
   (* prints the current variable equalities with resolved variable names *)
   let show varM =
@@ -388,10 +384,10 @@ struct
       match tuple with
       | (None, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ Z.to_string offset ^ "\n"
       | (Some index, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ lookup index ^ " + " ^ Z.to_string offset ^ "\n"
-    in (*if is_top varM then "⊤\n" else *)
+    in if is_top varM then "⊤\n" else 
       match varM.d with
-      | None -> "Bot Env\n"
-      | Some arr -> if EArray.is_empty arr then "Bot \n" else Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
+      | None -> "⊥\n"
+      | Some arr -> if is_bot varM then "Bot \n" else Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -476,29 +472,29 @@ struct
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
     let implies ts t i : bool =
-    match t with
-    | (None, b) -> 
-      (match ts.(i) with
-       | (None, b') -> Z.equal b b'
-       | (Some j, b') -> (match ts.(j) with
+      match t with
+      | (None, b) ->  
+        (match ts.(i) with
+         | (None, b') -> Z.equal b b'
+         | (Some j, b') -> (match ts.(j) with
            | (None, bj) -> Z.equal bj (Z.sub b b')
            | _ -> false
          ))
-    | (Some j, b) -> 
-      (match ts.(i), ts.(j) with
-       | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
-       | (Some h1, b1), (None, b2) -> (match ts.(h1) with
+      | (Some j, b) ->  
+        (match ts.(i), ts.(j) with
+         | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
+         | (Some h1, b1), (None, b2) -> (match ts.(h1) with
          | (None, bh1) -> Z.equal (Z.add bh1 b1) (Z.add b2 b)
          | _ -> false)
-       | (None, b1), (Some h2, b2) -> (match ts.(h2) with
+         | (None, b1), (Some h2, b2) -> (match ts.(h2) with
          | (None, bh2) -> Z.equal (Z.sub b1 bh2) (Z.add b2 b)
          | _ -> false)
-       | (Some h1, b1), (Some h2, b2) ->
-         h1 = h2 && Z.equal b1 (Z.add b2 b))
-  in
+         | (Some h1, b1), (Some h2, b2) ->
+           h1 = h2 && Z.equal b1 (Z.add b2 b)) 
+    in  
     if env_comp = -2 || env_comp > 0 then false else
-    if is_bot t1 || is_top_env t2 then true else
-    if is_bot t2 || is_top_env t1 then false else (
+    if is_bot_env t1 || is_top t2 then true else
+    if is_bot_env t2 || is_top t1 then false else (
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
       let result : bool ref = ref true in
@@ -643,10 +639,10 @@ struct
       let result = strip_annotation annotated in
       result
     in
-    if is_bot a then b else if is_bot b then a else
+    if is_bot_env a then b else if is_bot_env b then a else
       match Option.get a.d, Option.get b.d with
-      | x, y when is_top_env a || is_top_env b -> let new_env = Environment.lce a.env b.env 
-        in (top_env new_env)
+      | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env 
+        in (identity new_env)
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -679,7 +675,7 @@ struct
   (* TODO: I'm not sure if forget_vars should remove the variable from the data structure, 
      or just forget the information we currently have about the variable. Until now, the second possibility is implemented.*)
   let forget_vars t vars = 
-    if is_bot t || is_top_env t then t
+    if is_bot_env t || is_top t then t
     else
       let m = Option.get t.d in
       if List.is_empty vars then t else
@@ -724,7 +720,7 @@ struct
             end
 
         end 
-      | None -> bot () end 
+      | None -> bot_env end 
 
 
 
@@ -738,7 +734,7 @@ struct
     match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
-      if is_bot t then t else forget_vars t [var]
+      if is_bot_env t then t else forget_vars t [var]
 
   let assign_exp t var exp no_ov =
     let res = assign_exp t var exp no_ov in
@@ -768,7 +764,7 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some arr when not @@ is_top_env multi_t -> 
+    | Some arr when not @@ is_top multi_t -> 
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
       let res = drop_vars switched_arr primed_vars true in
       let x = Option.get res.d in
@@ -843,8 +839,8 @@ struct
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     let expr_init = Array.init ((Environment.size t.env) +1) (fun _ -> Z.zero) in 
     match t.d with 
-    | None -> bot ()
-    | Some d -> if is_bot t then bot () else
+    | None -> bot_env
+    | Some d -> if is_bot_env t then bot_env else
         let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
         let update (expr : Z.t Array.t)( c , v) = 
           match v with 
@@ -875,7 +871,7 @@ struct
           match Tcons1.get_typ tcons with 
           | EQ -> if Option.is_none c then t else  
               let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int (Option.get c)) in 
-              meet t (assign_texpr (top_env t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
+              meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
           | _ -> t (*Not supported right now*)
         else if var_count == 2 then 
           let v12 =  List.fold_righti (fun i a l -> if Z.equal a Z.zero then l else (i,a)::l) (List.tl @@ Array.to_list final_expr) [] in
@@ -884,7 +880,7 @@ struct
           let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
           let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
           match Tcons1.get_typ tcons with 
-          | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (top_env t.env) var1 var2) else t
+          | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (identity t.env) var1 var2) else t
           | _-> t (*Not supported right now*)
         else 
           t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
@@ -950,7 +946,7 @@ struct
     let no_ov = Lazy.force no_ov in
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b\n" d_exp e no_ov;
     match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1 e  
+    | tcons1 -> meet_tcons d tcons1 e    
     | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov

@@ -36,10 +36,8 @@ let test1 () =
   let x2 = Apron.Var.of_string "x2" in
   let x3 = Apron.Var.of_string "x3" in
   let x4 = Apron.Var.of_string "x4" in
-  let x2' = Apron.Var.of_string "x2'" in
-  let x1' = Apron.Var.of_string "x1'" in
   let env_test = Apron.Environment.make (Array.of_list [x1; x2; x3; x4]) @@ Array.of_list []  in
-  let varM_test = D.top_env env_test in
+  let varM_test = D.identity env_test in
   let test = D.assign_texpr varM_test x1 (Texpr1.Cst (Coeff.s_of_int 5)) in (*x1 = 5*)
   let test = D.assign_var test x3 x2 in (*x3 = x2*)
   let test = D.assign_var test x4 x2 in (*x4 = x2*)
@@ -63,8 +61,8 @@ let test2 () =
   let x1' = Apron.Var.of_string "x1'" in
   let env_test = Apron.Environment.make (Array.of_list [x1; x2; x3; x4]) @@ Array.of_list []  in
   let env_test'  = Apron.Environment.make (Array.of_list [x1'; x2';x2 ]) @@ Array.of_list []  in
-  let varM_test = D.top_env env_test in
-  let varM_test' = D.top_env env_test' in
+  let varM_test = D.identity env_test in
+  let varM_test' = D.identity env_test' in
   let test = D.assign_texpr varM_test x1 (Texpr1.Cst (Coeff.s_of_int 5)) in (*x1 = 5*)
   let test = D.assign_var test x3 x2 in (*x3 = x2*)
   let test = D.assign_var test x4 x2 in (*x4 = x2*)
@@ -98,7 +96,7 @@ let test2 () =
     let x = Apron.Var.of_string "x" in
     let y = Apron.Var.of_string "y" in
     let env_test = Apron.Environment.make (Array.of_list [x; y]) @@ Array.of_list []  in
-    let varM_test = D.top_env env_test in
+    let varM_test = D.identity env_test in
     let test = D.assign_texpr varM_test x (Texpr1.Cst (Coeff.s_of_int 1)) in (*x = 1*)
     let test = D.assign_texpr test y (Texpr1.Cst (Coeff.s_of_int 1)) in (*y = 1*)
     let tcons1 = Apron.Tcons1.make (Texpr1.of_expr env_test  (Binop (Sub, Var x, Var y, Int, Near ))) EQ in
