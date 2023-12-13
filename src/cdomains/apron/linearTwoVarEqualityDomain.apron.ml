@@ -337,7 +337,7 @@ module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement
 struct
   include VarManagement
 
-  let bound_texpr t texpr = Some (Z.of_int (-1000)), Some (Z.of_int (1000)) (*TODO*)
+  let bound_texpr t texpr = None, None(*Some (Z.of_int (-1000)), Some (Z.of_int (1000)) TODO*)
 
 
   let bound_texpr d texpr1 =
@@ -388,7 +388,7 @@ struct
       match tuple with
       | (None, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ Z.to_string offset ^ "\n"
       | (Some index, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ lookup index ^ " + " ^ Z.to_string offset ^ "\n"
-    in if is_top varM then "⊤\n" else 
+    in (*if is_top varM then "⊤\n" else *)
       match varM.d with
       | None -> "Bot Env\n"
       | Some arr -> if EArray.is_empty arr then "Bot \n" else Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
@@ -399,11 +399,11 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
-    print_string "t1 after change_d\n";
+    (*print_string "t1 after change_d\n";
     print_string @@ show t1;
     print_string "t2 after change_d\n";
     print_string @@ show t2;
-    print_string "end\n";
+    print_string "end\n";*)
     let subst_var ts x t = 
       match !ts with
       | None -> ()
@@ -646,7 +646,7 @@ struct
     if is_bot a then b else if is_bot b then a else
       match Option.get a.d, Option.get b.d with
       | x, y when is_top_env a || is_top_env b -> let new_env = Environment.lce a.env b.env 
-        in {d = Some (EArray.make_empty_array @@ Environment.size new_env); env = new_env}
+        in (top_env new_env)
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -850,7 +850,7 @@ struct
           match v with 
           | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
           | Some idx -> match d.(idx) with 
-            | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c_i) ; expr
+            | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) Z.one) ; expr
             | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
         in 
         let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
@@ -950,7 +950,7 @@ struct
     let no_ov = Lazy.force no_ov in
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b\n" d_exp e no_ov;
     match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> let t = meet_tcons d tcons1 e in print_string @@ show t;t    
+    | tcons1 -> meet_tcons d tcons1 e  
     | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov
