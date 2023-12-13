@@ -480,6 +480,7 @@ struct
          | _ -> false)
       | (Some j, b) ->  
         (match ts.(i), ts.(j) with
+         | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
          | (None, _), (_, _) -> false
          | (_, _), (None, _) -> false
          | (Some h1, b1), (Some h2, b2) ->
