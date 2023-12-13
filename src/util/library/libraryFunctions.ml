@@ -750,7 +750,7 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
     ("kzalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Calloc {count = Cil.one; size});
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
-    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r])));
+    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
 
 (** Goblint functions. *)
