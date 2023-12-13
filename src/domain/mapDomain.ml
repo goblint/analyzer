@@ -138,7 +138,7 @@ end
 
 module PMap (Domain: Printable.S) (Range: Lattice.S) : PS with
   type key = Domain.t and
-type value = Range.t =
+  type value = Range.t =
 struct
   module M = Map.Make (Domain)
 
@@ -212,7 +212,7 @@ end
 (* TODO: why is HashCached.hash significantly slower as a functor compared to being inlined into PMap? *)
 module HashCached (M: S) : S with
   type key = M.key and
-type value = M.value =
+  type value = M.value =
 struct
   include Lattice.HashCached (M)
 
@@ -262,7 +262,7 @@ end
 (* TODO: currently hardcoded to assume_idempotent *)
 module HConsed (M: S) : S with
   type key = M.key and
-type value = M.value =
+  type value = M.value =
 struct
   include Lattice.HConsed (M) (struct let assume_idempotent = false end)
 
@@ -311,7 +311,7 @@ end
 
 module Timed (M: S) : S with
   type key = M.key and
-type value = M.value =
+  type value = M.value =
 struct
   let time str f arg = Timing.wrap (M.name ()) (Timing.wrap str f) arg
 
@@ -385,7 +385,7 @@ end
 
 module MapBot (Domain: Printable.S) (Range: Lattice.S) : S with
   type key = Domain.t and
-type value = Range.t =
+  type value = Range.t =
 struct
   include PMap (Domain) (Range)
 
@@ -434,7 +434,7 @@ end
 
 module MapTop (Domain: Printable.S) (Range: Lattice.S) : S with
   type key = Domain.t and
-type value = Range.t =
+  type value = Range.t =
 struct
   include PMap (Domain) (Range)
 
@@ -486,7 +486,7 @@ exception Fn_over_All of string
 
 module LiftTop (Range: Lattice.S) (M: S with type value = Range.t): S with
   type key = M.key and
-type value = Range.t =
+  type value = Range.t =
 struct
   include Lattice.LiftTop (M)
 
@@ -605,7 +605,7 @@ end
 
 module MapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) : S with
   type key = Domain.t and
-type value = Range.t =
+  type value = Range.t =
 struct
   module M = MapBot (Domain) (Range)
   include LiftTop (Range) (M)
@@ -614,7 +614,7 @@ end
 
 module LiftBot (Range: Lattice.S) (M: S with type value = Range.t): S with
   type key = M.key and
-type value = Range.t =
+  type value = Range.t =
 struct
   include Lattice.LiftBot (M)
 
@@ -733,7 +733,7 @@ end
 
 module MapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S): S with
   type key = Domain.t and
-type value = Range.t =
+  type value = Range.t =
 struct
   module M = MapTop (Domain) (Range)
   include LiftBot (Range) (M)

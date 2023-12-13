@@ -43,7 +43,6 @@ void example2() {
     char* s1 = "abcde";
     char* s2 = "abcdfg";
     char* s3 = hello_world();
-
     
     size_t len = strlen(s1);
     __goblint_check(len == 5);

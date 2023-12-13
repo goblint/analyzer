@@ -159,7 +159,7 @@ end
   * calling [top ()] will raise an exception *)
 module Make (Base: Printable.S): S with
   type elt = Base.t and
-type t = BatSet.Make (Base).t = (* TODO: remove, only needed in VarEq for some reason... *)
+  type t = BatSet.Make (Base).t = (* TODO: remove, only needed in VarEq for some reason... *)
 struct
   include Printable.Std
   include BatSet.Make(Base)
@@ -259,7 +259,7 @@ end
 
 module LiftTop (S: S) (N: ToppedSetNames): S with
   type elt = S.elt and
-type t = [`Top | `Lifted of S.t] = (* Expose t for HoareDomain.Set_LiftTop *)
+  type t = [`Top | `Lifted of S.t] = (* Expose t for HoareDomain.Set_LiftTop *)
 struct
   include Printable.Std
 
@@ -396,7 +396,7 @@ end
 (** Functor for creating artificially topped set domains. *)
 module ToppedSet (Base: Printable.S) (N: ToppedSetNames): S with
   type elt = Base.t and
-type t = [`Top | `Lifted of Make (Base).t] = (* TODO: don't expose t *)
+  type t = [`Top | `Lifted of Make (Base).t] = (* TODO: don't expose t *)
 struct
   module S = Make (Base)
   include LiftTop (S) (N)
