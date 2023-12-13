@@ -1,6 +1,25 @@
 (** Domains for thread sets and their uniqueness. *)
 
-module ThreadSet = SetDomain.ToppedSet (ThreadIdDomain.Thread) (struct let topname = "All Threads" end)
+module ThreadSet = 
+struct 
+  include SetDomain.Make (ThreadIdDomain.Thread)
+
+  let is_top = mem UnknownThread
+
+  let top () = singleton UnknownThread
+
+  let merge uop cop x y =
+    match is_top x, is_top y with
+    | true, true -> uop x y
+    | false, true -> x
+    | true, false -> y
+    | false, false -> cop x y
+
+  let meet x y = merge join meet x y
+
+  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+
+end
 module MustThreadSet = SetDomain.Reverse(ThreadSet)
 
 module CreatedThreadSet = ThreadSet

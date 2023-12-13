@@ -255,6 +255,7 @@ struct
   include CilOfApron (V)
 end
 
+
 (* Abstraction for the domain representations of the relational analyses:
    affineEqualityDomain (uses a matrix) and linearTwoVarEqualityDomain (uses an Array)*)
 module type AbstractRelationalDomainRepresentation =
@@ -374,6 +375,7 @@ struct
   let mem_var t var = Environment.mem_var t.env var
 
 end
+
 
 
 (** A more specific module type for RelationDomain.RelD2 with ConvBounds integrated and various apron elements.

@@ -19,11 +19,12 @@ sig
   include Lattice.S
   type offs
   val eval_offset: VDQ.t -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
-  val update_offset: VDQ.t -> t -> offs -> t -> exp option -> lval -> typ -> t
+  val update_offset: ?blob_destructive:bool -> VDQ.t -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> VDQ.t -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
   val invalidate_value: VDQ.t -> typ -> t -> t
+  val invalidate_abstract_value: t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t ->  t
@@ -38,6 +39,8 @@ sig
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
+  include ArrayDomain.Null with type t := t
+
   val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
 end
@@ -49,6 +52,7 @@ sig
   type origin
   include Lattice.S with type t = value * size * origin
 
+  val map: (value -> value) -> t -> t
   val value: t -> value
   val invalidate_value: VDQ.t -> typ -> t -> t
 end
@@ -68,6 +72,7 @@ struct
   type size = Size.t
   type origin = ZeroInit.t
 
+  let map f (v, s, o) = f v, s, o
   let value (a, b, c) = a
   let relift (a, b, c) = Value.relift a, b, c
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
@@ -250,7 +255,6 @@ struct
 
   let tag_name : t -> string = function
     | Top -> "Top" | Int _ -> "Int" | Float _ -> "Float" | Address _ -> "Address" | Struct _ -> "Struct" | Union _ -> "Union" | Array _ -> "Array" | Blob _ -> "Blob" | Thread _ -> "Thread" | Mutex -> "Mutex" | MutexAttr _ -> "MutexAttr" | JmpBuf _ -> "JmpBuf" | Bot -> "Bot"
-
   include Printable.Std
   let name () = "compound"
 
@@ -263,6 +267,22 @@ struct
   let top () = Top
   let is_top x = x = Top
   let top_name = "Unknown"
+
+  let null () = Int (ID.of_int IChar Z.zero)
+
+  type retnull = Null | NotNull | Maybe
+  let is_null = function
+    | Int n  when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Null
+    | Int n ->
+      let zero_ik = ID.of_int (ID.ikind n) Z.zero in
+      if ID.to_bool (ID.ne n zero_ik) = Some true then NotNull else Maybe
+    | _ -> Maybe
+
+  let get_ikind = function
+    | Int n -> Some (ID.ikind n)
+    | _ -> None
+  let zero_of_ikind ik = Int(ID.of_int ik Z.zero)
+  let not_zero_of_ikind ik = Int(ID.of_excl_list ik [Z.zero])
 
   let pretty () state =
     match state with
@@ -552,11 +572,9 @@ struct
     | y, Blob (x,s,o) -> Blob (join (x:t) y, s, o)
     | (Thread x, Thread y) -> Thread (Threads.join x y)
     | (Int x, Thread y)
-    | (Thread y, Int x) ->
-      Thread y (* TODO: ignores int! *)
+    | (Thread y, Int x) -> Thread (Threads.join y (Threads.top ()))
     | (Address x, Thread y)
-    | (Thread y, Address x) ->
-      Thread y (* TODO: ignores address! *)
+    | (Thread y, Address x) -> Thread (Threads.join y (Threads.top ()))
     | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.join x y)
     | (Mutex, Mutex) -> Mutex
     | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.join x y)
@@ -585,11 +603,9 @@ struct
     | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
-    | (Thread y, Int x) ->
-      Thread y (* TODO: ignores int! *)
+    | (Thread y, Int x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
     | (Address x, Thread y)
-    | (Thread y, Address x) ->
-      Thread y (* TODO: ignores address! *)
+    | (Thread y, Address x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
     | (Mutex, Mutex) -> Mutex
     | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.widen x y)
     | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.widen x y)
@@ -708,10 +724,26 @@ struct
       let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
       Array (CArrays.set ask n (array_idx_top) v)
     |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
-    |                 _ , Thread _     -> state (* TODO: no top thread ID set! *)
+    |                 _ , Thread tid   -> Thread (Threads.join (Threads.top ()) tid)
     |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
+
+  (* TODO: why is this separately needed? *)
+  let rec invalidate_abstract_value = function
+    | Top -> Top
+    | Int i -> Int (ID.top_of (ID.ikind i))
+    | Float f -> Float (FD.top_of (FD.get_fkind f))
+    | Address _ -> Address (AD.top_ptr)
+    | Struct s -> Struct (Structs.map invalidate_abstract_value s)
+    | Union u -> Union (Unions.top ()) (* More precise invalidate does not make sense, as it is not clear which component is accessed. *)
+    | Array a -> Array (CArrays.map invalidate_abstract_value a)
+    | Blob b -> Blob (Blobs.map invalidate_abstract_value b)
+    | Thread _ -> Thread (Threads.top ())
+    | JmpBuf _ -> JmpBuf (JmpBufs.top ())
+    | Mutex -> Mutex
+    | MutexAttr _ -> MutexAttr (MutexAttrDomain.top ())
+    | Bot -> Bot
 
 
   (* take the last offset in offset and move it over to left *)
@@ -898,7 +930,7 @@ struct
     in
     do_eval_offset ask f x offs exp l o v t
 
-  let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
+  let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
@@ -946,9 +978,11 @@ struct
               | (Var var, _) ->
                 let blob_size_opt = ID.to_int s in
                 not @@ ask.is_multiple var
-                && not @@ Cil.isVoidType t      (* Size of value is known *)
                 && Option.is_some blob_size_opt (* Size of blob is known *)
-                && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
+                && ((
+                    not @@ Cil.isVoidType t     (* Size of value is known *)
+                    && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
+                  ) || blob_destructive)
               | _ -> false
             end
           in
@@ -1234,7 +1268,7 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
+and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
 

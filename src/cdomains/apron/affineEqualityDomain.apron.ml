@@ -14,6 +14,7 @@ open GobApron
 open VectorMatrix
 
 module Mpqf = SharedFunctions.Mpqf
+
 module V = RelationDomain.V
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
@@ -23,6 +24,7 @@ struct
   module Vector = Vec (Mpqf)
   module Matrix = Mx(Mpqf) (Vec)
   include SharedFunctions.VarManagementOps (Mx(Mpqf) (Vec))
+
   include ConvenienceOps(Mpqf)
 
   let get_c v = match Vector.findi (fun x -> x <>: Mpqf.zero) v with
