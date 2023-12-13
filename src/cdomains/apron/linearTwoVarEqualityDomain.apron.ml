@@ -638,7 +638,8 @@ struct
     in
     if is_bot a then b else if is_bot b then a else
       match Option.get a.d, Option.get b.d with
-      | x, y when is_top_env a || is_top_env b -> {d = Some (EArray.empty ()); env = Environment.lce a.env b.env}
+      | x, y when is_top_env a || is_top_env b -> let new_env = Environment.lce a.env b.env 
+        in {d = Some (EArray.make_empty_array @@ Environment.size new_env); env = new_env}
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -942,7 +943,7 @@ struct
     let no_ov = Lazy.force no_ov in
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b\n" d_exp e no_ov;
     match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> let t = meet_tcons d tcons1 e in Pretty.printf "assert_cons with expr: %a\n" d_exp e; print_string @@ show t;t    
+    | tcons1 -> let t = meet_tcons d tcons1 e in print_string @@ show t;t    
     | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov
