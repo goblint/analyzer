@@ -29,8 +29,6 @@ struct
     else
       D.add l ctx.local
 
-  let warn_remove_unknown = ref true
-
   let remove ctx l =
     if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
     match D.Addr.to_mval l with
@@ -40,6 +38,8 @@ struct
        | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
        | _ -> ctx.local (* we cannot remove them here *))
     | None -> ctx.local (* we cannot remove them here *)
+
+  let is_held ctx l = D.mem l ctx.local
 end
 
 module Spec =

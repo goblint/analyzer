@@ -643,8 +643,10 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    M.msg_final Info ~category:Unsound "ASM ignored";
-    M.info ~category:Unsound "ASM statement ignored.";
+    if get_bool "asm_is_nop" then begin
+      M.msg_final Info ~category:Unsound "ASM ignored";
+      M.info ~category:Unsound "ASM statement ignored.";
+    end else ();
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)

@@ -37,11 +37,15 @@ struct
         ) ctx.local;
       D.add after ctx.local
 
-    let warn_remove_unknown = ref true
-
     let remove ctx l =
       let inLockAddrs (e, _, _) = Lock.equal l e in
       D.filter (neg inLockAddrs) ctx.local
+
+    let is_held ctx l =
+      let inLockAddrs (e, _, _) = Lock.equal l e in
+      M.msg_group Error ~category:Deadlock "FUCK" [];
+      D.exists inLockAddrs ctx.local
+      
   end
 
   include LocksetAnalysis.MakeMay (Arg)

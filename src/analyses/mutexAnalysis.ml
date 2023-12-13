@@ -154,12 +154,14 @@ struct
         (s', Multiplicity.increment (fst l) m)
       | _ -> (s', m)
 
-    let warn_remove_unknown = ref true
+    let is_held ctx l =
+      let s, _ = ctx.local in
+      Lockset.mem (l, true) s || Lockset.mem(l, false) s
 
     let remove' ctx ~warn l =
       let s, m = ctx.local in
       let rm s = Lockset.remove (l, true) (Lockset.remove (l, false) s) in
-      if warn && !warn_remove_unknown &&  (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex (%a) which may not be held" Addr.pretty l;
+      if warn && (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex (%a) which may not be held" Addr.pretty l;
       match Addr.to_mval l with
       | Some mval when MutexTypeAnalysis.must_be_recursive ctx mval ->
         let m',rmed = Multiplicity.decrement l m in
