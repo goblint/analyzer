@@ -46,9 +46,6 @@ type category =
   | Imprecise
   | Witness
   | Program
-  | Expsplit
-  | Multiplicity
-  | Maylocks
 [@@deriving eq, ord, hash]
 
 type t = category [@@deriving eq, ord, hash]
@@ -207,9 +204,6 @@ let should_warn e =
     | Imprecise -> "imprecise"
     | Witness -> "witness"
     | Program -> "program"
-    | Expsplit -> "expsplit"
-    | Multiplicity -> "multiplicity"
-    | Maylocks -> "maylocks"
     (* Don't forget to add option to schema! *)
   in get_bool ("warn." ^ (to_string e))
 
@@ -230,9 +224,6 @@ let path_show e =
   | Imprecise -> ["Imprecise"]
   | Witness -> ["Witness"]
   | Program -> ["Program"]
-  | Expsplit -> ["Expsplit"]
-  | Multiplicity -> ["Multiplicity"]
-  | Maylocks -> ["Maylocks"]
 
 let show x = String.concat " > " (path_show x)
 
@@ -272,9 +263,6 @@ let categoryName = function
       | Overflow -> "Overflow";
       | DivByZero -> "DivByZero")
   | Float -> "Float"
-  | Expsplit -> "Expsplit"
-  | Multiplicity -> "Multiplicity"
-  | Maylocks -> "Maylocks"
 
 
 let from_string_list (s: string list) =
@@ -295,7 +283,6 @@ let from_string_list (s: string list) =
     | "imprecise" -> Imprecise
     | "witness" -> Witness
     | "program" -> Program
-    | "expsplit" -> Expsplit
     | _ -> Unknown
 
 let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))

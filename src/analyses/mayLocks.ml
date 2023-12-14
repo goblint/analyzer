@@ -29,12 +29,7 @@ struct
     else
       D.add l ctx.local
 
-  let remove ?(warn_clobber=false) ctx l =
-    if warn_clobber then
-      M.warn
-        ~category:MessageCategory.Maylocks
-        "Can't make assumptions about %a due to clobber" D.Addr.pretty l
-    else ();
+  let remove ctx l =
     if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
     match D.Addr.to_mval l with
     | Some (v,o) ->
