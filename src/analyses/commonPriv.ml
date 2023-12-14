@@ -74,14 +74,12 @@ struct
   struct
     include LockDomain.Addr
     let name () = "mutex"
-    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
   end
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
   module VGlobal =
   struct
     include VarinfoV
     let name () = "global"
-    let show x = show x ^ ":global" (* distinguishable variant names for html *)
   end
   module V =
   struct
