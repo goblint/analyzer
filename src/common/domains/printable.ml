@@ -370,7 +370,7 @@ struct
   let relift = Option.map Base.relift
 end
 
-module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
+module Lift2Conf (Conf: EitherConf) (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
   type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, hash]
   include Std
@@ -378,6 +378,7 @@ struct
 
   let pretty () (state:t) =
     match state with
+    (* TODO: expand *)
     | `Lifted1 n ->  Base1.pretty () n
     | `Lifted2 n ->  Base2.pretty () n
     | `Bot -> text bot_name
@@ -385,6 +386,7 @@ struct
 
   let show state =
     match state with
+    (* TODO: expand *)
     | `Lifted1 n ->  Base1.show n
     | `Lifted2 n ->  Base2.show n
     | `Bot -> bot_name
@@ -399,15 +401,21 @@ struct
   let printXml f = function
     | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.bot_name
     | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
-    | `Lifted1 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted1\n</key>\n%a</map>\n</value>\n" Base1.printXml x
-    | `Lifted2 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+    | `Lifted1 x when Conf.expand1 -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted1\n</key>\n%a</map>\n</value>\n" Base1.printXml x
+    | `Lifted1 x -> Base1.printXml f x
+    | `Lifted2 x when Conf.expand2 -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+    | `Lifted2 x -> Base2.printXml f x
 
   let to_yojson = function
     | `Bot -> `String N.bot_name
     | `Top -> `String N.top_name
-    | `Lifted1 x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
-    | `Lifted2 x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+    | `Lifted1 x when Conf.expand1 -> `Assoc [ Base1.name (), Base1.to_yojson x ]
+    | `Lifted1 x -> Base1.to_yojson x
+    | `Lifted2 x when Conf.expand2 -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+    | `Lifted2 x -> Base2.to_yojson x
 end
+
+module Lift2 = Lift2Conf (struct let expand1 = true let expand2 = true end)
 
 module type ProdConfiguration =
 sig

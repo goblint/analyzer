@@ -336,9 +336,9 @@ struct
     | _ -> x
 end
 
-module Lift2 (Base1: S) (Base2: S) (N: Printable.LiftingNames) =
+module Lift2Conf (Conf: Printable.EitherConf) (Base1: S) (Base2: S) (N: Printable.LiftingNames) =
 struct
-  include Printable.Lift2 (Base1) (Base2) (N)
+  include Printable.Lift2Conf (Conf) (Base1) (Base2) (N)
 
   let bot () = `Bot
   let is_bot x = x = `Bot
@@ -407,6 +407,8 @@ struct
     | _ -> x
 
 end
+
+module Lift2 = Lift2Conf (struct let expand1 = true let expand2 = true end)
 
 module ProdConf (C: Printable.ProdConfiguration) (Base1: S) (Base2: S) =
 struct

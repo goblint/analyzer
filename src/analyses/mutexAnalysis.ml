@@ -132,7 +132,7 @@ struct
 
     module G =
     struct
-      include Lattice.Lift2 (GProtecting) (GProtected) (Printable.DefaultNames)
+      include Lattice.Lift2Conf (struct let expand1 = false let expand2 = false end) (GProtecting) (GProtected) (Printable.DefaultNames)
 
       let protecting = function
         | `Bot -> GProtecting.bot ()

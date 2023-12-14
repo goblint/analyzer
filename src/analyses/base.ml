@@ -54,7 +54,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (Priv.G) (VD) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct let expand1 = false let expand2 = false end) (Priv.G) (VD) (Printable.DefaultNames)
 
     let priv = function
       | `Bot -> Priv.G.bot ()
