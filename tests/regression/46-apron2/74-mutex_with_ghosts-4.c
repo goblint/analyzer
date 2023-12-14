@@ -1,4 +1,4 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid --set ana.path_sens[+] threadflag --set sem.int.signed_overflow assume_none --enable ana.apron.strengthening
+// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid-cluster12 --set ana.path_sens[+] threadflag --set sem.int.signed_overflow assume_none --enable ana.apron.strengthening
 /*-----------------------------------------------------------------------------
  * mutex_with_ghosts.c - Annotated concurrent program with ghost variables for
  *                       witness validation using locking to access a shared
@@ -47,7 +47,7 @@ int main()
   __VERIFIER_atomic_begin();
   int g2 = g;
   int used2 = used;
-  __goblint_check(used2 == 0); // UNKNOWN!
+  __goblint_check(used2 == 0); // UNKNOWN! (currently unsound)
   __goblint_check(g2 == 1 || used2 == 0); // TODO (unprotected invariant precision loss?)
   __VERIFIER_atomic_end();
 
