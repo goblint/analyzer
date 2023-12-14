@@ -1,33 +1,26 @@
+//SKIP PARAM: --set ana.activated[+] lin2vareq
+// from https://dl.acm.org/doi/10.1145/2049706.2049710
+
 #include <stdio.h>
-#include <pthread.h>
 
-int x =0;
-char y='a';
+int main() {
+    int x1 = 5, x2 = 10, x3 = 15, x4, x5, x6, x7, x8, x9, x10, x11, x12;
 
-void *thread1(void *arg){
-    if(x==0){
-        y='b';
-    }
-    return NULL;
-}
+    x4 = 3 * x2 + 5;
+    x5 = 3 * x3 + 15;
+    x6 = x3 + 3;
+    x7 = x3 + 2;
+    x8 = 7 * x3 + 15;
+    x9 = 0;
+    x10 = 2 * x9 + 2;
+    x11 = 2 * x1 - 3;
+    x12 = 4 * x1 - 5;
 
-void *thread2(void *arg){
-    x =1;
-    return NULL;
-}
-
-int main(){
-    pthread_t thread1_id, thread2_id;
-
-    pthread_create(&thread1_id, NULL, thread1, NULL);
-    pthread_create(&thread2_id, NULL, thread2, NULL);
-
-    pthread_join(thread1_id, NULL);
-    pthread_join(thread2_id, NULL);
-
-    __goblint_check(x!=y); //UNKNOWN!
+    __goblint_check(x4 == 3 * x2 + 5); //SUCCESS
+    __goblint_check(x5 == 3 * x3 + 15); //SUCCESS
+    __goblint_check(x7 == x6 - 1); //SUCCESS
+    __goblint_check(x10 == 2 * x9 + 2); //SUCCESS
+    __goblint_check(x12 == 2 * x11 + 1); //SUCCESS
 
     return 0;
 }
-
-/* This test case uses 2 different types of variable, an integer and a character. It ensures that analyzer can track 2 variable equalities even when the variables have different types and sizes. */

@@ -952,25 +952,47 @@ struct
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
-  let invariant t = [] 
-  (*TODO
+  (*TODO*)
+  let invariant t = []
+  (*let invariant t = 
     match t.d with
     | None -> []
     | Some m ->
-      let eEqualitiesArray = Lincons1.EqualitiesArray_make t.env (Matrix.num_rows m) in
-      for i = 0 to Lincons1.EqualitiesArray_length eEqualitiesArray do
-        let row = Matrix.get_row m i in
-        let coeff_vars = List.map (fun x ->  Coeff.s_of_mpqf @@ Vector.nth row (Environment.dim_of_var t.env x), x) (vars t) in
-        let cst = Coeff.s_of_mpqf @@ Vector.nth row (Vector.length row - 1) in
-        Lincons1.set_list (Lincons1.EqualitiesArray_get eEqualitiesArray i) coeff_vars (Some cst)
-      done;
-      let {lincons0_EqualitiesArray; EqualitiesArray_env}: Lincons1.eEqualitiesArray = eEqualitiesArray in
-      EqualitiesArray.enum lincons0_EqualitiesArray
-      |> Enum.map (fun (lincons0: Lincons0.t) ->
-          Lincons1.{lincons0; env = EqualitiesArray_env}
-        )
-      |> List.of_enum
-  *)
+      let linear_constraints =
+        EArray.fold_left
+        (fun acc row ->
+          let coeff_vars = List.map (fun(var,off) -> Coeff.s_of_int off, Some var) row in
+          let cst = Coeff.s_of_int (snd (List.hd row)) in 
+          Lincons1.make (Linexpr1.make t.env) Lincons1.EQ
+          |> Lincons1.set_list coeff_vars (Some cst)
+          |> (fun lc -> Lincons1.{lincons0 = Lincons0.of_lincons1 lc; env = t.env})
+          :: acc)
+        [] m
+      in 
+      List.rev linear_constraints *)
+      
+     (* let invariant t =
+        match t.d with
+        | None -> []
+        | Some m ->
+          let linear_constraints =
+            EArray.fold_left
+              (fun acc row ->
+                let lc =
+                  List.fold_left
+                    (fun lc (var, off) ->
+                      let coeff = Coeff.s_of_int off in
+                      let var_opt = Some var in
+                      Lincons1.set_coeff lc var_opt coeff)
+                    (Lincons1.make (Linexpr1.make t.env) Lincons1.EQ)
+                    row
+                  |> fun lc -> Lincons1.set_cst lc (Coeff.s_of_int (snd (List.hd row)))
+                in
+                Lincons1.{ lincons0 = Lincons0.of_lincons1 lc; env = t.env } :: acc)
+              [] m
+          in
+          List.rev linear_constraints    *)     
+      
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 

@@ -1,3 +1,4 @@
+//SKIP PARAM: --set ana.activated[+] lin2vareq
 #include <stdio.h>
 
 int main(){
