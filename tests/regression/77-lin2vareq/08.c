@@ -13,4 +13,4 @@ int main() {
     return 0;
 }
 
-//This test case includes variable with unknown values
+//This test case includes variable with unknown value by not initializing the variable
