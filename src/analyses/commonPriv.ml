@@ -113,7 +113,11 @@ end
 
 module Locksets =
 struct
-  module Lock = LockDomain.Addr
+  module Lock =
+  struct
+    include LockDomain.Addr
+    let name () = "lock"
+  end
 
   module Lockset = SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
 
@@ -183,7 +187,7 @@ struct
 
   module LLock =
   struct
-    include Printable.Either (Locksets.Lock) (CilType.Varinfo)
+    include Printable.Either (Locksets.Lock) (struct include CilType.Varinfo let name () = "global" end)
     let mutex m = `Left m
     let global x = `Right x
   end
@@ -195,7 +199,11 @@ struct
   end
 
   (* Map from locks to last written values thread-locally *)
-  module L = MapDomain.MapBot_LiftTop (LLock) (LD)
+  module L =
+  struct
+    include MapDomain.MapBot_LiftTop (LLock) (LD)
+    let name () = "L"
+  end
   module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LD)
   module GThread = Lattice.Prod (LMust) (L)
 
