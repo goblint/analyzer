@@ -8,7 +8,7 @@ int main() {
     for (i = 0; i < size; ++i) {
         j = i;
 
-       __goblint_check(i == j); //UNKNOWN!
+       __goblint_check(i == j); //SUCESS
      }
 
     return 0;
