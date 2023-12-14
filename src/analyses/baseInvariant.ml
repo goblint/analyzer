@@ -243,7 +243,7 @@ struct
       refine_lv_fallback ctx a gs st lval value tv
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_plainexp exp;
+      M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
 
   let invariant ctx a gs st exp tv: D.t =
