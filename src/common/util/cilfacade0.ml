@@ -30,6 +30,7 @@ let get_instrLoc = function
   | Set (_, _, loc, eloc) -> eloc_fallback ~eloc ~loc
   | Call (_, _, _, loc, eloc) -> eloc_fallback ~eloc ~loc
   | VarDecl (_, loc) -> loc
+  
 
 (** Get expression location for [Cil.stmt]. *)
 (* confusingly CIL.get_stmtLoc works on stmtkind instead *)

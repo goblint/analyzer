@@ -9,7 +9,12 @@ struct
   include Analyses.IdentitySpec
 
   (* must fresh variables *)
-  module D = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All variables" end)) (* need bot (top) for hoare widen *)
+  (*module D = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All variables" end)) (* need bot (top) for hoare widen *)
+  *)
+  module D = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All variables" end)
+
+  
+  
   module C = D
 
   let name () = "mallocFresh"
@@ -21,7 +26,12 @@ struct
     match ask.f (MayPointTo (AddrOf lval)) with
     | ad when Queries.AD.is_top ad -> D.empty ()
     | ad when Queries.AD.exists (function
-        | Queries.AD.Addr.Addr (v,_) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)
+        (*| Queries.AD.Addr.Addr (v,_) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)*)
+        | Queries.AD.Addr.Addr (v,_) ->
+          if D.mem (v, false) local then
+            D.add (v, true) local  (* Invalidate the variable *)
+          else
+            local
         | _ -> false
       ) ad -> D.empty ()
     | _ -> local
