@@ -1472,7 +1472,7 @@ struct
 
   module V =
   struct
-    include Printable.Either3 (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
+    include Printable.Either3Conf (struct let expand1 = false let expand2 = true let expand3 = true end) (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
     let name () = "longjmp"
     let s x = `Left x
     let longjmpto x = `Middle x
