@@ -16,8 +16,8 @@
     total lines: 7
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:21:3-21:21)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (49-type-invariants.c:21:3-21:21)
+  [Info][Imprecise] Invalidating expressions: & s (49-type-invariants.c:21:3-21:21)
+  [Info][Imprecise] Invalidating expressions: & tmp (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing
 
@@ -39,7 +39,7 @@
     total lines: 7
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:21:3-21:21)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (49-type-invariants.c:21:3-21:21)
+  [Info][Imprecise] Invalidating expressions: & s (49-type-invariants.c:21:3-21:21)
+  [Info][Imprecise] Invalidating expressions: & tmp (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing
