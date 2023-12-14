@@ -1,3 +1,4 @@
+//SKIP PARAM: --set ana.activated[+] lin2vareq
 #include <stdio.h>
 
 int main() {
@@ -12,3 +13,6 @@ int main() {
 
     return 0;
 }
+
+
+//This test case checks the associative property

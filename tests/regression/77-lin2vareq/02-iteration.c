@@ -13,3 +13,5 @@ int main() {
 
     return 0;
 }
+
+//This test case checks whether the value of variable i is always equal to the value of variable j within the loop.
