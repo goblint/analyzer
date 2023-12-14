@@ -31,7 +31,7 @@ struct
 
   module N =
   struct
-    include Lattice.Flat (struct include Printable.DefaultConf let bot_name = "unknown node" let top_name = "unknown node" end) (VNI)
+    include Lattice.FlatConf (struct include Printable.DefaultConf let bot_name = "unknown node" let top_name = "unknown node" end) (VNI)
     let name () = "wrapper call"
   end
   module TD = Thread.D

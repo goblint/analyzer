@@ -1713,7 +1713,7 @@ end
 module Flat (Base: IkindUnawareS) = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
 struct
   type int_t = Base.int_t
-  include Lattice.Flat (struct
+  include Lattice.FlatConf (struct
       include Printable.DefaultConf
       let top_name = "Unknown int"
       let bot_name = "Error int"

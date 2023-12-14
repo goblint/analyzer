@@ -183,7 +183,7 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
 end
 
-module Flat (Conf: Printable.LiftConf) (Base: Printable.S) =
+module FlatConf (Conf: Printable.LiftConf) (Base: Printable.S) =
 struct
   include Printable.LiftConf (Conf) (Base)
   let bot () = `Bot
@@ -227,8 +227,10 @@ struct
 
 end
 
+module Flat = FlatConf (Printable.DefaultConf)
 
-module Lift (Conf: Printable.LiftConf) (Base: S) =
+
+module LiftConf (Conf: Printable.LiftConf) (Base: S) =
 struct
   include Printable.LiftConf (Conf) (Base)
 
@@ -277,6 +279,8 @@ struct
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
     | _ -> x
 end
+
+module Lift = LiftConf (Printable.DefaultConf)
 
 module LiftPO (Conf: Printable.LiftConf) (Base: PO) =
 struct

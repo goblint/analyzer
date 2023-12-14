@@ -36,7 +36,7 @@ module ThreadCreateUniqueCount =
   MakeUniqueCount (val unique_count_args_from_config "ana.thread.unique_thread_id_count")
 
 (* since the query also references NodeFlatLattice, it also needs to reside here *)
-module NodeFlatLattice = Lattice.Flat (struct
+module NodeFlatLattice = Lattice.FlatConf (struct
     include Printable.DefaultConf
     let top_name = "Unknown node"
     let bot_name = "Unreachable node"

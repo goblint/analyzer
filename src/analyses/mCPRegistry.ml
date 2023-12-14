@@ -426,7 +426,7 @@ end
 
 module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
 struct
-  include Lattice.Lift (Printable.DefaultConf) (DomVariantLattice0 (DLSpec))
+  include Lattice.Lift (DomVariantLattice0 (DLSpec))
   let name () = "MCP.G"
 end
 

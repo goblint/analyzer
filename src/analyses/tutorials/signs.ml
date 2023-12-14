@@ -36,7 +36,7 @@ end
  * We then lift the above operations to the lattice. *)
 module SL =
 struct
-  include Lattice.Flat (Printable.DefaultConf) (Signs)
+  include Lattice.Flat (Signs)
   let of_int i = `Lifted (Signs.of_int i)
 
   let lt x y = match x, y with

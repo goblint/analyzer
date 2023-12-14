@@ -202,7 +202,7 @@ module ThreadLiftNames = struct
 end
 module Lift (Thread: S) =
 struct
-  include Lattice.Flat (ThreadLiftNames) (Thread)
+  include Lattice.FlatConf (ThreadLiftNames) (Thread)
   let name () = "Thread"
 end
 

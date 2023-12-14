@@ -142,7 +142,7 @@ exception Deadcode
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) =
 struct
-  include Lattice.Lift (struct
+  include Lattice.LiftConf (struct
       include Printable.DefaultConf
       let bot_name = "Dead code"
       let top_name = "Totally unknown and messed up"

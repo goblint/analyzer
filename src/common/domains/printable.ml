@@ -197,6 +197,7 @@ struct
   let top_name = "top"
   let expand1 = true
   let expand2 = true
+  let expand3 = true
 end
 
 module LiftConf (Conf: LiftConf) (Base: S) =
@@ -291,7 +292,7 @@ struct
     | `Right x -> `Right (Base2.relift x)
 end
 
-module Either = EitherConf (struct let expand1 = true let expand2 = true end)
+module Either = EitherConf (DefaultConf)
 
 module type Either3Conf =
 sig
@@ -345,7 +346,7 @@ struct
     | `Right x -> `Right (Base3.relift x)
 end
 
-module Either3 = Either3Conf (struct let expand1 = true let expand2 = true let expand3 = true end)
+module Either3 = Either3Conf (DefaultConf)
 
 module Option (Base: S) (N: Name) =
 struct
@@ -424,8 +425,6 @@ struct
     | `Lifted2 x when Conf.expand2 -> `Assoc [ Base2.name (), Base2.to_yojson x ]
     | `Lifted2 x -> Base2.to_yojson x
 end
-
-module Lift2 = Lift2Conf (DefaultConf)
 
 module type ProdConfiguration =
 sig

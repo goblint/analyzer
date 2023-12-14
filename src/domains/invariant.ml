@@ -33,7 +33,7 @@ struct
   let top_name = "true"
 end
 
-include Lattice.Lift (N) (ExpLat)
+include Lattice.LiftConf (N) (ExpLat)
 
 let none = top ()
 let of_exp = lift
