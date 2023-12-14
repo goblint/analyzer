@@ -1,32 +1,22 @@
-(** OCaml implementation of the affine equalities domain.
+(** OCaml implementation of the linear two-Variable equalitie domain.
 
     @see <http://doi.acm.org/10.1145/2049706.2049710> A. Flexeder, M. Petter, and H. Seidl Fast Interprocedural Linear Two-Variable Equalities. *)
 
-(** TODO: description 
+(** Abstract states in this domain are represented by structs containing an array and an apron environment.
+    The arrays are modeled as proposed in the paper: Each variable is assigned to an index and each array element represents a linear relationship that must hold at the corresponding program point.
+    The apron environment is hereby used to organize the order of columns and variables.
 
     APRON:
     To get the index of a variable if you have a variable, use:
     Environment.dim_of_var env variable 
 
     Function naming:
-    _with -> in place changes
+    _with -> in-place changes
     no _with -> make a copy 
 
-    TODO while developing: 
-    assert that the output doesnt have the same address as the input
-    (but it may return an unchanged version without making a copy)
-    in order to check if the function that don't have "with" really create a copy
-    Hot o check address equality in OCaml:
     == compares address equality 
     != for unequal addresses
 
-    TODO for next week: 
-    minimal working product
-    things to implement:
-    - leq
-    - join
-      done: assignment
-      done: meet_tcons
 
     HOW TO RUN THE REGRESSION TESTS:
     Method 1: regression test ./regtest.sh numberofdirectory numberoftest
@@ -395,11 +385,6 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
-    (*print_string "t1 after change_d\n";
-    print_string @@ show t1;
-    print_string "t2 after change_d\n";
-    print_string @@ show t2;
-    print_string "end\n";*)
     let subst_var ts x t = 
       match !ts with
       | None -> ()
@@ -446,21 +431,6 @@ struct
         done; 
       {d = !ds; env = sup_env} 
 
-        (*
-    let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
-    if is_bot t1 || is_bot t2 then bot() else
-      let m1, m2 = Option.get t1.d, Option.get t2.d in
-      match m1, m2 with
-      | x, y when is_top_env t1-> {d = Some (dim_add (Environment.dimchange t2.env sup_env) y); env = sup_env}
-      | x, y when is_top_env t2 -> {d = Some (dim_add (Environment.dimchange t1.env sup_env) x); env = sup_env}
-      | x, y -> bot()
-      *)
-  (*let rref_matr = Matrix.rref_matrix_with (Matrix.copy x) (Matrix.copy y) in
-    if Option.is_none rref_matr then bot () else
-    {d = rref_matr; env = sup_env}*)
-
-
   let meet t1 t2 =
     let res = meet t1 t2 in
     if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s \n" (show t1) (show t2) (show res) ;
@@ -468,7 +438,6 @@ struct
 
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
-  (* TODO: check implementation for less equal *)
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
     let implies ts t i : bool =
@@ -666,8 +635,6 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  (* TODO: I'm not sure if forget_vars should remove the variable from the data structure, 
-     or just forget the information we currently have about the variable. Until now, the second possibility is implemented.*)
   let forget_vars t vars = 
     if is_bot_env t || is_top t then t
     else
@@ -686,7 +653,7 @@ struct
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
   (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" 
-     This makes a copy of the data structure, it doesn't change t in-place. *)
+     This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     let assigned_var = Environment.dim_of_var t.env var  (* this is the variable we are assigning to *) in
     begin match t.d with 
@@ -722,7 +689,7 @@ struct
 
   (* no_ov -> no overflow
      if it's true then there is no overflow
-      -> Convert.texpr1_expr_of_cil_exp handles overflow (TODO: test)*)
+      -> Convert.texpr1_expr_of_cil_exp handles overflow *)
   let assign_exp (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
@@ -744,7 +711,6 @@ struct
     let res = assign_var t v v' in
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
-  (* from here on TODO till end of module*)
   (* This functionality is not common to C and is used for assignments of the form: x = y, y=x; which is not legitimate C grammar
      x and y should be assigned to the value of x and y before the assignment respectively.
      ==> x = y_old , y = x_old;
@@ -845,12 +811,7 @@ struct
         in 
         let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
         let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) ( List.tl ( Array.to_list final_expr)) 
-        in (*
-      print_string "Meet_tcons:\n";
-      print_coeff_vec cv's t.env;
-      print_final_expr (Array.to_list final_expr) t.env;
-      print_string ("Meet_tcons var_count is " ^ (Int.to_string var_count) ^ " and the type is " ^(Lincons0.string_of_typ (Tcons1.get_typ tcons)) ^"\n");
-      *)
+        in 
         if var_count == 0 then 
           match Tcons1.get_typ tcons with 
           | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot_env
@@ -878,42 +839,6 @@ struct
           | _-> t (*Not supported right now*)
         else 
           t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
-
-
-
-  (*TODO 
-    let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
-    in
-    let meet_vec e =
-      (*Flip the sign of the const. val in coeff vec*)
-      Vector.mapi_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e;
-      let res = if is_bot t then bot () else
-          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e
-          in if Option.is_none opt_m then bot () else {d = opt_m; env = t.env} in
-      meet_tcons_one_var_eq res expr
-    in
-    match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-    | Some v ->
-      begin match get_c v, Tcons1.get_typ tcons with
-        | Some c, DISEQ -> check_const (=:) c
-        | Some c, SUP -> check_const (<=:) c
-        | Some c, EQ -> check_const (<>:) c
-        | Some c, SUPEQ -> check_const (<:) c
-        | None, DISEQ
-        | None, SUP ->
-          begin match meet_vec v with
-            | exception NotRefinable -> t
-            | res -> if equal res t then bot_env else t
-          end
-        | None, EQ ->
-          begin match meet_vec v with
-            | exception NotRefinable -> t
-            | res -> if is_bot res then bot_env else res
-          end
-        | _, _ -> t
-      end
-    | None -> t
-  *)
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
