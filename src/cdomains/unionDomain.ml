@@ -16,10 +16,11 @@ sig
 end
 
 module Field = struct
-  include Lattice.Flat (CilType.Fieldinfo) (struct
+  include Lattice.Flat (struct
+      include Printable.DefaultConf
       let top_name = "Unknown field"
       let bot_name = "If you see this, you are special!"
-    end)
+    end) (CilType.Fieldinfo)
 
   let meet f g =
     if equal f g then

@@ -252,4 +252,4 @@ struct
 end
 
 (* TODO: remove Lift *)
-module RegionDom = Lattice.Lift (RegMap) (struct let top_name = "Unknown" let bot_name = "Error" end)
+module RegionDom = Lattice.Lift (struct include Printable.DefaultConf let top_name = "Unknown" let bot_name = "Error" end) (RegMap)

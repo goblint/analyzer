@@ -103,18 +103,6 @@ struct
 end
 module Unit = UnitConf (struct let name = "()" end)
 
-module type LiftingNames =
-sig
-  val bot_name: string
-  val top_name: string
-end
-
-module DefaultNames =
-struct
-  let bot_name = "bot"
-  let top_name = "top"
-end
-
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
 module HConsed (Base:S) =
 struct
@@ -195,11 +183,27 @@ struct
   let tag = lift_f M.tag
 end
 
-module Lift (Base: S) (N: LiftingNames) =
+
+module type LiftConf =
+sig
+  val bot_name: string
+  val top_name: string
+  val expand1: bool
+end
+
+module DefaultConf =
+struct
+  let bot_name = "bot"
+  let top_name = "top"
+  let expand1 = true
+  let expand2 = true
+end
+
+module LiftConf (Conf: LiftConf) (Base: S) =
 struct
   type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, hash]
   include Std
-  include N
+  open Conf
 
   let lift x = `Lifted x
 
@@ -217,13 +221,13 @@ struct
 
   let name () = "lifted " ^ Base.name ()
   let printXml f = function
-    | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.bot_name)
-    | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.top_name)
+    | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape bot_name)
+    | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape top_name)
     | `Lifted x -> Base.printXml f x
 
   let to_yojson = function
-    | `Bot -> `String N.bot_name
-    | `Top -> `String N.top_name
+    | `Bot -> `String bot_name
+    | `Top -> `String top_name
     | `Lifted x -> Base.to_yojson x
 
   let relift x = match x with
@@ -370,11 +374,17 @@ struct
   let relift = Option.map Base.relift
 end
 
-module Lift2Conf (Conf: EitherConf) (Base1: S) (Base2: S) (N: LiftingNames) =
+module type Lift2Conf =
+sig
+  include LiftConf
+  val expand2: bool
+end
+
+module Lift2Conf (Conf: Lift2Conf) (Base1: S) (Base2: S) =
 struct
   type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, hash]
   include Std
-  include N
+  open Conf
 
   let pretty () (state:t) =
     match state with
@@ -399,23 +409,23 @@ struct
 
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let printXml f = function
-    | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.bot_name
-    | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
+    | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" bot_name
+    | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" top_name
     | `Lifted1 x when Conf.expand1 -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted1\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Lifted1 x -> Base1.printXml f x
     | `Lifted2 x when Conf.expand2 -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
     | `Lifted2 x -> Base2.printXml f x
 
   let to_yojson = function
-    | `Bot -> `String N.bot_name
-    | `Top -> `String N.top_name
+    | `Bot -> `String bot_name
+    | `Top -> `String top_name
     | `Lifted1 x when Conf.expand1 -> `Assoc [ Base1.name (), Base1.to_yojson x ]
     | `Lifted1 x -> Base1.to_yojson x
     | `Lifted2 x when Conf.expand2 -> `Assoc [ Base2.name (), Base2.to_yojson x ]
     | `Lifted2 x -> Base2.to_yojson x
 end
 
-module Lift2 = Lift2Conf (struct let expand1 = true let expand2 = true end)
+module Lift2 = Lift2Conf (DefaultConf)
 
 module type ProdConfiguration =
 sig

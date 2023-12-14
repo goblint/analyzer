@@ -117,7 +117,7 @@ struct
     let name () = "contexts"
   end
 
-  include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
+  include Lattice.Lift2 (G) (CSet)
 
   let spec = function
     | `Bot -> G.bot ()
@@ -142,10 +142,11 @@ exception Deadcode
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) =
 struct
-  include Lattice.Lift (LD) (struct
+  include Lattice.Lift (struct
+      include Printable.DefaultConf
       let bot_name = "Dead code"
       let top_name = "Totally unknown and messed up"
-    end)
+    end) (LD)
 
   let lift (x:LD.t) : t = `Lifted x
 
@@ -155,7 +156,7 @@ struct
     | _ -> raise Deadcode
 
   let printXml f = function
-    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape top_name)
+    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape Printable.DefaultConf.top_name)
     | `Bot -> ()
     | `Lifted x -> LD.printXml f x
 end

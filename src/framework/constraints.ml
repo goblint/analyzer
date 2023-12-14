@@ -1075,15 +1075,15 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqSolver): GenericEqIncrSolver =
 (** Translate a [GlobConstrSys] into a [EqConstrSys] *)
 module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
   : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
-                   and type d = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames).t
+                   and type d = Lattice.Lift2(S.G)(S.D).t
                    and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
+                   and module Dom = Lattice.Lift2(S.G)(S.D)
 =
 struct
   module Var = Var2(S.LVar)(S.GVar)
   module Dom =
   struct
-    include Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (S.D)
     let printXml f = function
       | `Lifted1 a -> S.G.printXml f a
       | `Lifted2 a -> S.D.printXml f a
@@ -1355,7 +1355,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (EM)
     let name () = "deadbranch"
 
     let s = function
@@ -1484,7 +1484,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (S.D) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (S.D)
 
     let s = function
       | `Bot -> S.G.bot ()
@@ -1737,7 +1737,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (G) (CallerSet) (Printable.DefaultNames)
+    include Lattice.Lift2 (G) (CallerSet)
 
     let spec = function
       | `Bot -> G.bot ()

@@ -799,7 +799,7 @@ struct
   struct
     (* weak: G -> (2^M -> WeakRange) *)
     (* sync: M -> (2^M -> SyncRange) *)
-    include Lattice.Lift2Conf (struct let expand1 = false let expand2 = false end) (GWeak) (GSync) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GWeak) (GSync)
 
     let weak = function
       | `Bot -> GWeak.bot ()

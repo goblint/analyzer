@@ -198,7 +198,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2Conf (struct let expand1 = false let expand2 = false end) (GMutex) (GThread) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GMutex) (GThread)
 
     let mutex = function
       | `Bot -> GMutex.bot ()

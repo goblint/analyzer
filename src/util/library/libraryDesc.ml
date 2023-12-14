@@ -184,7 +184,8 @@ module MathPrintable = struct
     )
 end
 
-module MathLifted = Lattice.Flat (MathPrintable) (struct
+module MathLifted = Lattice.Flat (struct
+    include Printable.DefaultConf
     let top_name = "Unknown or no math desc"
     let bot_name = "Nonexistent math desc"
-  end)
+  end) (MathPrintable)

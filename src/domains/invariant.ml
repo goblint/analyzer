@@ -28,11 +28,12 @@ end
 
 module N =
 struct
+  include Printable.DefaultConf
   let bot_name = "false"
   let top_name = "true"
 end
 
-include Lattice.Lift (ExpLat) (N)
+include Lattice.Lift (N) (ExpLat)
 
 let none = top ()
 let of_exp = lift

@@ -183,9 +183,9 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
 end
 
-module Flat (Base: Printable.S) (N: Printable.LiftingNames) =
+module Flat (Conf: Printable.LiftConf) (Base: Printable.S) =
 struct
-  include Printable.Lift (Base) (N)
+  include Printable.LiftConf (Conf) (Base)
   let bot () = `Bot
   let is_bot x = x = `Bot
   let top () = `Top
@@ -228,9 +228,9 @@ struct
 end
 
 
-module Lift (Base: S) (N: Printable.LiftingNames) =
+module Lift (Conf: Printable.LiftConf) (Base: S) =
 struct
-  include Printable.Lift (Base) (N)
+  include Printable.LiftConf (Conf) (Base)
 
   let bot () = `Bot
   let is_bot x = x = `Bot
@@ -278,9 +278,9 @@ struct
     | _ -> x
 end
 
-module LiftPO (Base: PO) (N: Printable.LiftingNames) =
+module LiftPO (Conf: Printable.LiftConf) (Base: PO) =
 struct
-  include Printable.Lift (Base) (N)
+  include Printable.LiftConf (Conf) (Base)
 
   let bot () = `Bot
   let is_bot x = x = `Bot
@@ -336,9 +336,9 @@ struct
     | _ -> x
 end
 
-module Lift2Conf (Conf: Printable.EitherConf) (Base1: S) (Base2: S) (N: Printable.LiftingNames) =
+module Lift2Conf (Conf: Printable.Lift2Conf) (Base1: S) (Base2: S) =
 struct
-  include Printable.Lift2Conf (Conf) (Base1) (Base2) (N)
+  include Printable.Lift2Conf (Conf) (Base1) (Base2)
 
   let bot () = `Bot
   let is_bot x = x = `Bot
@@ -408,7 +408,7 @@ struct
 
 end
 
-module Lift2 = Lift2Conf (struct let expand1 = true let expand2 = true end)
+module Lift2 = Lift2Conf (Printable.DefaultConf)
 
 module ProdConf (C: Printable.ProdConfiguration) (Base1: S) (Base2: S) =
 struct

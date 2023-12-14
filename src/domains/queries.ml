@@ -17,26 +17,29 @@ module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
 module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
 module ML = LibraryDesc.MathLifted
 
-module VI = Lattice.Flat (Basetype.Variables) (struct
+module VI = Lattice.Flat (struct
+    include Printable.DefaultConf
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
-  end)
+  end) (Basetype.Variables)
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
 let compare_itervar _ _ = 0
 let compare_iterprevvar _ _ = 0
 
-module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
+module FlatYojson = Lattice.Flat (struct
+    include Printable.DefaultConf
     let top_name = "top yojson"
     let bot_name = "bot yojson"
-  end)
+  end) (Printable.Yojson)
 
 module SD: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
-  Lattice.Flat (Basetype.RawStrings) (struct
+  Lattice.Flat (struct
+    include Printable.DefaultConf
     let top_name = "?"
     let bot_name = "-"
-  end)
+  end) (Basetype.RawStrings)
 module VD = ValueDomain.Compound
 module AD = ValueDomain.AD
 
