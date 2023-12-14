@@ -173,7 +173,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (MutexGlobals.V) (TID)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (MutexGlobals.V) (TID)
     let mutex x = `Left (MutexGlobals.V.mutex x)
     let mutex_inits = `Left MutexGlobals.V.mutex_inits
     let global x = `Left (MutexGlobals.V.global x)

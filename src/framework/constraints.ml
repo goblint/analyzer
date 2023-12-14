@@ -1338,7 +1338,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (S.V) (Node)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (S.V) (Node)
     let name () = "DeadBranch"
     let s x = `Left x
     let node x = `Right x

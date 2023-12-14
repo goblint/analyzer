@@ -244,34 +244,50 @@ struct
     ] (* S TODO: decide frequencies *)
 end
 
-module Either (Base1: S) (Base2: S) =
+module type EitherConf =
+sig
+  val expand1: bool
+  val expand2: bool
+end
+
+module EitherConf (Conf: EitherConf) (Base1: S) (Base2: S) =
 struct
   type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, hash]
   include Std
 
   let pretty () (state:t) =
     match state with
-    | `Left n -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
-    | `Right n -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
+    | `Left n when Conf.expand1 -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
+    | `Left n -> Base1.pretty () n
+    | `Right n when Conf.expand2 -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
+    | `Right n -> Base2.pretty () n
 
   let show state =
     match state with
-    | `Left n -> (Base1.name ()) ^ ":" ^ Base1.show n
-    | `Right n -> (Base2.name ()) ^ ":" ^ Base2.show n
+    | `Left n when Conf.expand1 -> (Base1.name ()) ^ ":" ^ Base1.show n
+    | `Left n -> Base1.show n
+    | `Right n when Conf.expand2 -> (Base2.name ()) ^ ":" ^ Base2.show n
+    | `Right n -> Base2.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let printXml f = function
-    | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
-    | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+    | `Left x when Conf.expand1 -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
+    | `Left x -> Base1.printXml f x
+    | `Right x when Conf.expand2 -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+    | `Right x -> Base2.printXml f x
 
   let to_yojson = function
-    | `Left x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
-    | `Right x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+    | `Left x when Conf.expand1 -> `Assoc [ Base1.name (), Base1.to_yojson x ]
+    | `Left x -> Base1.to_yojson x
+    | `Right x when Conf.expand2 -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+    | `Right x -> Base2.to_yojson x
 
   let relift = function
     | `Left x -> `Left (Base1.relift x)
     | `Right x -> `Right (Base2.relift x)
 end
+
+module Either = EitherConf (struct let expand1 = true let expand2 = true end)
 
 module Either3 (Base1: S) (Base2: S) (Base3: S) =
 struct

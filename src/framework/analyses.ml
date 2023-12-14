@@ -74,7 +74,7 @@ end
 
 module GVarF (V: SpecSysVar) =
 struct
-  include Printable.Either (V) (CilType.Fundec)
+  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (CilType.Fundec)
   let name () = "FromSpec"
   let spec x = `Left x
   let contexts x = `Right x
@@ -90,7 +90,7 @@ end
 
 module GVarFC (V:SpecSysVar) (C:Printable.S) =
 struct
-  include Printable.Either (V) (Printable.Prod (CilType.Fundec) (C))
+  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (Printable.Prod (CilType.Fundec) (C))
   let name () = "FromSpec"
   let spec x = `Left x
   let call (x, c) = `Right (x, c)
