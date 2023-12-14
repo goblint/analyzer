@@ -37,13 +37,17 @@ struct
         ) ctx.local;
       D.add after ctx.local
 
-    let remove ctx l =
+    let remove ?(warn_clobber=false) ctx l =
+      if warn_clobber then
+        Messages.warn
+          ~category:MessageCategory.Deadlock
+          "Can't make assumptions about %a due to clobber" Lock.pretty l
+      else ();
       let inLockAddrs (e, _, _) = Lock.equal l e in
       D.filter (neg inLockAddrs) ctx.local
 
     let is_held ctx l =
       let inLockAddrs (e, _, _) = Lock.equal l e in
-      M.msg_group Error ~category:Deadlock "FUCK" [];
       D.exists inLockAddrs ctx.local
       
   end

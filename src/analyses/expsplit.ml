@@ -96,6 +96,17 @@ struct
       D.add exp value ctx.local
     | Longjmped _ ->
       emit_splits_ctx ctx
+    | Invalidate {lvals} ->
+      let handle_lval local lval =
+        let exp = Lval lval in
+        if D.mem exp local then begin
+          Messages.warn
+            ~category:MessageCategory.Expsplit
+            "Can't make assumptions about %a due to clobber" Cil.d_lval lval;
+          D.remove exp local
+        end else local
+      in
+      List.fold handle_lval ctx.local lvals
     | _ ->
       ctx.local
 end

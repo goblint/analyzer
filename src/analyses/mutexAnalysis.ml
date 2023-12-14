@@ -158,7 +158,12 @@ struct
       let s, _ = ctx.local in
       Lockset.mem (l, true) s || Lockset.mem(l, false) s
 
-    let remove' ctx ~warn l =
+    let remove' ?(warn_clobber=false) ctx ~warn l =
+      if warn && warn_clobber then
+        M.warn
+          ~category:MessageCategory.Multiplicity
+          "Can't make assumptions about %a due to clobber" Addr.pretty l
+      else ();
       let s, m = ctx.local in
       let rm s = Lockset.remove (l, true) (Lockset.remove (l, false) s) in
       if warn && (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex (%a) which may not be held" Addr.pretty l;

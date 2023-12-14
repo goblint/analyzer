@@ -31,11 +31,9 @@ sig
   module V: SpecSysVar
 
   val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
-  val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
+  val remove: ?warn_clobber:bool -> (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
   val is_held: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> bool
 end
-
-let print_addr_set addr_set = Pretty.fprint stdout ~width:39 (ValueDomain.AD.pretty () addr_set)
 
 let addr_set_of_lval (a: Queries.ask) lval =
   let exp = AddrOf lval in
@@ -76,7 +74,7 @@ struct
       let locks = locks_of_lvals ctx lvals in
       let is_held lock = Arg.is_held ctx lock in
       let locks = List.filter is_held locks in
-      let remove_lock ctx lock = {ctx with local = Arg.remove ctx lock} in
+      let remove_lock ctx lock = {ctx with local = Arg.remove ~warn_clobber:true ctx lock} in
       let ctx = List.fold_left remove_lock ctx locks in
       ctx.local
     | _ ->
@@ -114,7 +112,7 @@ struct
       let locks = locks_of_lvals ctx lvals in
       let is_held lock = Arg.is_held ctx lock in
       let locks = List.filter is_held locks in
-      let remove_lock ctx lock = {ctx with local = Arg.remove ctx lock} in
+      let remove_lock ctx lock = {ctx with local = Arg.remove ~warn_clobber:true ctx lock} in
       let ctx = List.fold_left remove_lock ctx locks in
       ctx.local
     | _ ->

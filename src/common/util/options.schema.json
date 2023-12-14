@@ -2111,6 +2111,24 @@
           "type": "boolean",
           "default": true
         },
+        "expsplit": {
+          "title": "warn.expsplit",
+          "description": "Expsplit messages",
+          "type": "boolean",
+          "default": true
+        },
+        "multiplicity": {
+          "title": "warn.multiplicity",
+          "description": "Multiplicity messages",
+          "type": "boolean",
+          "default": true
+        },
+        "maylocks": {
+          "title": "warn.maylocks",
+          "description": "Maylocks messages",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",

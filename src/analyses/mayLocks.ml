@@ -29,13 +29,19 @@ struct
     else
       D.add l ctx.local
 
-  let remove ctx l =
+  let remove ?(warn_clobber=false) ctx l =
+    if warn_clobber then
+      M.warn
+        ~category:MessageCategory.Maylocks
+        "Can't make assumptions about %a due to clobber" D.Addr.pretty l
+    else ();
     if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
     match D.Addr.to_mval l with
     | Some (v,o) ->
       (let mtype = ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
        match mtype with
        | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
+       (* todo: it's not removed -> ask supervisor about that *)
        | _ -> ctx.local (* we cannot remove them here *))
     | None -> ctx.local (* we cannot remove them here *)
 
