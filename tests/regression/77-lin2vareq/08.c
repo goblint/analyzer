@@ -14,4 +14,5 @@ void main(void) {
         k = k + 3;
     }
     __goblint_check(3 * i - k == 1); //UNKNOWN!
+    
 }
