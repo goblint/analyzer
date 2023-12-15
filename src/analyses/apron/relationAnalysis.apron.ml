@@ -609,7 +609,7 @@ struct
     |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
         (* filter one-vars and exact *)
         (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
-        if (one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
+        if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
