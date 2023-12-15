@@ -237,6 +237,10 @@ end
 
 module LiftConf (Conf: LiftConf) (Base: S) =
 struct
+  open struct
+    module Base = PrefixName (struct let expand = Conf.expand1 end) (Base)
+  end
+
   type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, hash]
   include Std
   open Conf
