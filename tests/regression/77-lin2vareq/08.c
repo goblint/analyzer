@@ -1,16 +1,17 @@
 //SKIP PARAM: --set ana.activated[+] lin2vareq
-#include <stdio.h>
+// Example from https://link.springer.com/content/pdf/10.1007/BF00268497.pdf
+#include <goblint.h>
 
-int main() {
-    int x;
-    int y = 5; 
+void main(void) {
+    int i;
+    int k;
+    i = 2;
+    k = 0;
 
-    int result1 = x + y;
-    int result2 = y + x;
-
-    __goblint_check(result1 == result2); //SUCCESS
-
-    return 0;
+    while (i < 100) {
+        __goblint_check(3 * i - k == 1); //UNKNOWN!
+        i = i + 1;
+        k = k + 3;
+    }
+    __goblint_check(3 * i - k == 1); //UNKNOWN!
 }
-
-//This test case includes variable with unknown value by not initializing the variable
