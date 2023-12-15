@@ -215,6 +215,15 @@ struct
     | None -> Some off
     | _ -> None
 
+
+  let get_variable_value_if_it_is_a_constant t var =
+    match t.d with
+    | None -> None
+    | Some d -> match d.(var) with
+      | (None, constant) -> Some constant
+      | _ -> None
+
+
   let get_coeff_vec (t: t) texp =
     (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. 
     *)
@@ -251,7 +260,11 @@ struct
                          | Mpqf x -> [(mpqf_to_Z x, None)]
                          | Mpfrf x -> raise NotIntegerOffset end in of_union x
         | Var x -> 
-          let var_dim = Environment.dim_of_var t.env x in [(Z.one, Some var_dim)]
+          let var_dim = Environment.dim_of_var t.env x in 
+          begin match get_variable_value_if_it_is_a_constant t var_dim with
+            | None -> [(Z.one, Some var_dim)]
+            | Some constant -> [(constant, None)]
+          end
         | Unop (u, e, _, _) ->
           begin match u with
             | Neg -> negate (convert_texpr e)
@@ -270,26 +283,29 @@ struct
     (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
       Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
     *)
-    let number_vars cv's = List.count_matching (fun (_, v)-> match v with | None -> false | Some x -> true) cv's in
+    let exception Not2VarExpr in
     let sum_coefficients summands_list =
       List.fold_left (fun (var, current_var_offset, curr_offset) (next_coeff, next_var) -> 
           begin match next_var with
             | None -> (* this element represents a constant offset *)
               (var, current_var_offset, Z.(curr_offset + next_coeff))
             | Some same_var -> (* this element represents a variable with a coefficient 
-                                  -> it must be always the same variable because we only call this function if number_vars summands_list < 2*)
-              (Some same_var, Z.(current_var_offset + next_coeff), curr_offset) end)
+                                  -> it must be always the same variable, else it's not a two-variable equality*)
+              begin if Option.is_none var || Some same_var = var then
+                  (Some same_var, Z.(current_var_offset + next_coeff), curr_offset) 
+                else raise Not2VarExpr end 
+          end)
         (None, Z.zero, Z.zero) summands_list
     in
     match get_coeff_vec t texp with
     | exception _ -> None
-    | summands_list -> if number_vars summands_list < 2 then
-        let (var, var_coeff, offset) = sum_coefficients summands_list in
+    | summands_list -> 
+      match sum_coefficients summands_list with
+      | exception _ -> None 
+      |  (var, var_coeff, offset) ->
         if var = None then Some (None, offset)
         else if var_coeff = Z.one then Some (var, offset)
         else None
-      else
-        None
 
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
@@ -354,17 +370,17 @@ struct
   let name () = "lin2vareq"
 
   let to_yojson _ = failwith "ToDo Implement in future"
-  
+
   let is_bot t = equal t (bot ())
   let is_bot_env t = t.d = None
 
-(*this shows "top" for a specific environment to enable the calculations. It is the identity of all equalities*)
+  (*this shows "top" for a specific environment to enable the calculations. It is the identity of all equalities*)
   let identity env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
 
   (*Should never be called but implemented for completeness *)
   let top () = {d = Some (EArray.empty()); env = empty_env}
 
-(*is_top returns true for identity array and empty array *)
+  (*is_top returns true for identity array and empty array *)
   let is_top t = GobOption.exists EArray.is_top_array t.d
 
   (* prints the current variable equalities with resolved variable names *)
@@ -453,7 +469,7 @@ struct
            h1 = h2 && Z.equal b1 (Z.add b2 b)
          | (Some _, _), (_, _) -> false
          | (_, _), (Some _, _) -> false
-       )
+        )
     in  
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true else
@@ -657,29 +673,25 @@ struct
   let assign_texpr (t: VarManagement.t) var texp =
     let assigned_var = Environment.dim_of_var t.env var  (* this is the variable we are assigning to *) in
     begin match t.d with 
-      | Some d ->   
-        begin match d.(assigned_var) with
-          | rhs -> (* rhs is the current equality with assigned_var on the left hand side *) 
-            let abstract_exists_var = abstract_exists var t in
-            begin match get_coeff t texp with
-              | None -> (* Statement "assigned_var = ?" (non-linear assignment) *) abstract_exists_var
-              | Some (exp_var_opt, off) -> 
-                begin match exp_var_opt with
-                  | None -> (* Statement "assigned_var = off" (constant assignment) *) 
-                    assign_const abstract_exists_var assigned_var off
-                  | Some exp_var (* Statement "assigned_var = exp_var + off" (linear assignment) *) 
-                    -> begin if assigned_var = exp_var then 
-                          (* Statement "assigned_var = assigned_var + off" *)
-                          subtract_const_from_var t assigned_var off
-                        else
-                          (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *) 
-                          let empty_array = EqualitiesArray.make_empty_array (VarManagement.size t) in
-                          let added_equality = empty_array.(assigned_var) <- (Some exp_var, off); empty_array in
-                          meet abstract_exists_var {d = Some added_equality; env = t.env} 
-                      end 
-                end
+      | Some d -> 
+        let abstract_exists_var = abstract_exists var t in
+        begin match get_coeff t texp with
+          | None -> (* Statement "assigned_var = ?" (non-linear assignment) *) abstract_exists_var
+          | Some (exp_var_opt, off) -> 
+            begin match exp_var_opt with
+              | None -> (* Statement "assigned_var = off" (constant assignment) *) 
+                assign_const abstract_exists_var assigned_var off
+              | Some exp_var (* Statement "assigned_var = exp_var + off" (linear assignment) *) 
+                -> begin if assigned_var = exp_var then 
+                      (* Statement "assigned_var = assigned_var + off" *)
+                      subtract_const_from_var t assigned_var off
+                    else
+                      (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *) 
+                      let empty_array = EqualitiesArray.make_empty_array (VarManagement.size t) in
+                      let added_equality = empty_array.(assigned_var) <- (Some exp_var, off); empty_array in
+                      meet abstract_exists_var {d = Some added_equality; env = t.env} 
+                  end 
             end
-
         end 
       | None -> bot_env end 
 
@@ -895,29 +907,29 @@ struct
         [] m
       in 
       List.rev linear_constraints *)
-      
-     (* let invariant t =
-        match t.d with
-        | None -> []
-        | Some m ->
-          let linear_constraints =
-            EArray.fold_left
-              (fun acc row ->
-                let lc =
-                  List.fold_left
-                    (fun lc (var, off) ->
-                      let coeff = Coeff.s_of_int off in
-                      let var_opt = Some var in
-                      Lincons1.set_coeff lc var_opt coeff)
-                    (Lincons1.make (Linexpr1.make t.env) Lincons1.EQ)
-                    row
-                  |> fun lc -> Lincons1.set_cst lc (Coeff.s_of_int (snd (List.hd row)))
-                in
-                Lincons1.{ lincons0 = Lincons0.of_lincons1 lc; env = t.env } :: acc)
-              [] m
-          in
-          List.rev linear_constraints    *)     
-      
+
+  (* let invariant t =
+     match t.d with
+     | None -> []
+     | Some m ->
+       let linear_constraints =
+         EArray.fold_left
+           (fun acc row ->
+             let lc =
+               List.fold_left
+                 (fun lc (var, off) ->
+                   let coeff = Coeff.s_of_int off in
+                   let var_opt = Some var in
+                   Lincons1.set_coeff lc var_opt coeff)
+                 (Lincons1.make (Linexpr1.make t.env) Lincons1.EQ)
+                 row
+               |> fun lc -> Lincons1.set_cst lc (Coeff.s_of_int (snd (List.hd row)))
+             in
+             Lincons1.{ lincons0 = Lincons0.of_lincons1 lc; env = t.env } :: acc)
+           [] m
+       in
+       List.rev linear_constraints    *)     
+
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
