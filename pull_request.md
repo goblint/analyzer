@@ -10,3 +10,5 @@ The length of the array always corresponds to the number of variables in the env
 If for example in the array at index j we store the element (Some i, k), this means that our analysis found out that x_i = x_j + k. If the array entry at index j is (None, k), it means that x_j = k, where k is a constant and x_i and x_j are variables.
 
 In order to have less code duplication, we moved some functions from affineEqualityDomain to sharedFunctions, such that affineEqualityDomain and our linearTwoVarEqualityDomain can both use them.
+
+This draft currently only supports equalities of the form `x = y + x`. We will extend it to support equalities of the form `a * x = b * y + c` where `x` and `y` are arbitrary variables, `a` and `b` are constants and `c` can be linear expression of various constants and variables which are equal to a constant i.e. the linear expression must be equal to a constant.
