@@ -199,6 +199,7 @@ module ThreadLiftNames = struct
   include Printable.DefaultConf
   let bot_name = "Bot Threads"
   let top_name = "Top Threads"
+  let expand1 = false
 end
 module Lift (Thread: S) =
 struct
