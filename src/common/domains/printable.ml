@@ -184,6 +184,41 @@ struct
 end
 
 
+module type PrefixNameConf =
+sig
+  val expand: bool
+end
+
+module PrefixName (Conf: PrefixNameConf) (Base: S): S with type t = Base.t =
+struct
+  include Base
+
+  let pretty () x =
+    if Conf.expand then
+      Pretty.dprintf "%s:%a" (Base.name ()) Base.pretty x
+    else
+      Base.pretty () x
+
+  let show x =
+    if Conf.expand then
+      Base.name () ^ ":" ^ Base.show x
+    else
+      Base.show x
+
+  let printXml f x =
+    if Conf.expand then
+      BatPrintf.fprintf f "<value><map>\n<key>\n%s\n</key>\n%a</map>\n</value>\n" (Base.name ()) Base.printXml x
+    else
+      Base.printXml f x
+
+  let to_yojson x =
+    if Conf.expand then
+      `Assoc [(Base.name (), Base.to_yojson x)]
+    else
+      Base.to_yojson x
+end
+
+
 module type LiftConf =
 sig
   val bot_name: string
@@ -257,34 +292,31 @@ end
 
 module EitherConf (Conf: EitherConf) (Base1: S) (Base2: S) =
 struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+  end
+
   type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, hash]
   include Std
 
   let pretty () (state:t) =
     match state with
-    | `Left n when Conf.expand1 -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
     | `Left n -> Base1.pretty () n
-    | `Right n when Conf.expand2 -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
     | `Right n -> Base2.pretty () n
 
   let show state =
     match state with
-    | `Left n when Conf.expand1 -> (Base1.name ()) ^ ":" ^ Base1.show n
     | `Left n -> Base1.show n
-    | `Right n when Conf.expand2 -> (Base2.name ()) ^ ":" ^ Base2.show n
     | `Right n -> Base2.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let printXml f = function
-    | `Left x when Conf.expand1 -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Left x -> Base1.printXml f x
-    | `Right x when Conf.expand2 -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
     | `Right x -> Base2.printXml f x
 
   let to_yojson = function
-    | `Left x when Conf.expand1 -> `Assoc [ Base1.name (), Base1.to_yojson x ]
     | `Left x -> Base1.to_yojson x
-    | `Right x when Conf.expand2 -> `Assoc [ Base2.name (), Base2.to_yojson x ]
     | `Right x -> Base2.to_yojson x
 
   let relift = function
@@ -302,42 +334,36 @@ end
 
 module Either3Conf (Conf: Either3Conf) (Base1: S) (Base2: S) (Base3: S) =
 struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+    module Base3 = PrefixName (struct let expand = Conf.expand3 end) (Base3)
+  end
+
   type t = [`Left of Base1.t | `Middle of Base2.t | `Right of Base3.t] [@@deriving eq, ord, hash]
   include Std
 
   let pretty () (state:t) =
     match state with
-    | `Left n when Conf.expand1 -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
     | `Left n -> Base1.pretty () n
-    | `Middle n when Conf.expand2 -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
     | `Middle n -> Base2.pretty () n
-    | `Right n when Conf.expand3 -> Pretty.dprintf "%s:%a" (Base3.name ()) Base3.pretty n
     | `Right n -> Base3.pretty () n
 
   let show state =
     match state with
-    | `Left n when Conf.expand1 -> (Base1.name ()) ^ ":" ^ Base1.show n
     | `Left n -> Base1.show n
-    | `Middle n when Conf.expand2 -> (Base2.name ()) ^ ":" ^ Base2.show n
     | `Middle n -> Base2.show n
-    | `Right n when Conf.expand3 -> (Base3.name ()) ^ ":" ^ Base3.show n
     | `Right n -> Base3.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name () ^ " or " ^ Base3.name ()
   let printXml f = function
-    | `Left x when Conf.expand1 -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Left x  -> Base1.printXml f x
-    | `Middle x when Conf.expand2 -> BatPrintf.fprintf f "<value><map>\n<key>\nMiddle\n</key>\n%a</map>\n</value>\n" Base2.printXml x
     | `Middle x  -> Base2.printXml f x
-    | `Right x when Conf.expand3 -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base3.printXml x
     | `Right x -> Base3.printXml f x
 
   let to_yojson = function
-    | `Left x when Conf.expand1 -> `Assoc [ Base1.name (), Base1.to_yojson x ]
     | `Left x -> Base1.to_yojson x
-    | `Middle x when Conf.expand2 -> `Assoc [ Base2.name (), Base2.to_yojson x ]
     | `Middle x -> Base2.to_yojson x
-    | `Right x when Conf.expand3 -> `Assoc [ Base3.name (), Base3.to_yojson x ]
     | `Right x -> Base3.to_yojson x
 
   let relift = function
@@ -383,13 +409,17 @@ end
 
 module Lift2Conf (Conf: Lift2Conf) (Base1: S) (Base2: S) =
 struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+  end
+
   type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, hash]
   include Std
   open Conf
 
   let pretty () (state:t) =
     match state with
-    (* TODO: expand *)
     | `Lifted1 n ->  Base1.pretty () n
     | `Lifted2 n ->  Base2.pretty () n
     | `Bot -> text bot_name
@@ -397,7 +427,6 @@ struct
 
   let show state =
     match state with
-    (* TODO: expand *)
     | `Lifted1 n ->  Base1.show n
     | `Lifted2 n ->  Base2.show n
     | `Bot -> bot_name
@@ -412,17 +441,13 @@ struct
   let printXml f = function
     | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" bot_name
     | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" top_name
-    | `Lifted1 x when Conf.expand1 -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted1\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Lifted1 x -> Base1.printXml f x
-    | `Lifted2 x when Conf.expand2 -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
     | `Lifted2 x -> Base2.printXml f x
 
   let to_yojson = function
     | `Bot -> `String bot_name
     | `Top -> `String top_name
-    | `Lifted1 x when Conf.expand1 -> `Assoc [ Base1.name (), Base1.to_yojson x ]
     | `Lifted1 x -> Base1.to_yojson x
-    | `Lifted2 x when Conf.expand2 -> `Assoc [ Base2.name (), Base2.to_yojson x ]
     | `Lifted2 x -> Base2.to_yojson x
 end
 
