@@ -18,6 +18,7 @@
  (preprocess
   (pps
     ppx_blob))
- (preprocessor_deps (file options.schema.json)))
+ (preprocessor_deps (file options.schema.json))
+ (instrumentation (backend bisect_ppx)))
 
 (documentation)
