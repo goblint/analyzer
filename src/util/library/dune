@@ -13,6 +13,7 @@
  (preprocess
   (pps
     ppx_deriving.std
-    ppx_deriving_hash)))
+    ppx_deriving_hash))
+ (instrumentation (backend bisect_ppx)))
 
 (documentation)
