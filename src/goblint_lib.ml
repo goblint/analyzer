@@ -220,6 +220,7 @@ module AddressDomain = AddressDomain
 module StructDomain = StructDomain
 module UnionDomain = UnionDomain
 module ArrayDomain = ArrayDomain
+module NullByteSet = NullByteSet
 module JmpBufDomain = JmpBufDomain
 
 (** {5 Combined}

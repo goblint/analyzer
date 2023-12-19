@@ -142,15 +142,11 @@ struct
     | TPtr (t,_), `Index (i,o) -> type_of ~base:t o
     | TComp (ci,_), `Field (f,o) ->
       let fi = try getCompField ci f.fname
-        with Not_found ->
-          let s = GobPretty.sprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
-          raise (Type_of_error (t, s))
+        with Not_found -> raise (Type_of_error (t, show o))
       in type_of ~base:fi.ftype o
     (* TODO: Why? Imprecise on zstd-thread-pool regression tests. *)
     (* | TComp _, `Index (_,o) -> type_of ~base:t o (* this happens (hmmer, perlbench). safe? *) *)
-    | t,o ->
-      let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t pretty o in
-      raise (Type_of_error (t, s))
+    | t, o -> raise (Type_of_error (t, show o))
 
   let rec prefix (x: t) (y: t): t option = match x,y with
     | `Index (x, xs), `Index (y, ys) when Idx.equal x y -> prefix xs ys
@@ -261,3 +257,9 @@ struct
     | `Index (i,o) -> Index (i, to_cil o)
     | `Field (f,o) -> Field (f, to_cil o)
 end
+
+
+let () = Printexc.register_printer (function
+    | Type_of_error (t, o) -> Some (GobPretty.sprintf "Offset.Type_of_error(%a, %s)" d_plaintype t o)
+    | _ -> None (* for other exceptions *)
+  )
