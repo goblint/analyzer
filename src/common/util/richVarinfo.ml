@@ -1,9 +1,9 @@
 open GoblintCil
 
-let create_var name = Cilfacade.create_var @@ makeGlobalVar name voidType
+let create_var isGlobal name typ = Cilfacade.create_var @@ makeVarinfo isGlobal name typ
 
-let single ~name =
-  let vi = lazy (create_var name) in
+let single ~name typ =
+  let vi = lazy (create_var true name typ) in
   fun () ->
     Lazy.force vi
 
@@ -29,7 +29,13 @@ sig
   val describe_varinfo: varinfo -> t -> string
 end
 
-module Make (X: G) =
+module type Setup = 
+sig 
+  val varType : typ
+  val isGlobal : bool
+end 
+
+module Make (X: G) (VT : Setup)=
 struct
   (* Mapping from X.t to varinfo *)
   module XH = Hashtbl.Make (X)
@@ -47,7 +53,7 @@ struct
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var (X.name_varinfo x) in
+      let vi = create_var VT.isGlobal (X.name_varinfo x) VT.varType in
       store_f x vi;
       vi
 
@@ -104,9 +110,9 @@ struct
 
   (** For technical resaons, this functor cannot register the module it creates in [Collection] itself.
       Thus this functor is private to this file, and should only be used through the [Make] defined below. *)
-  module PrivateMake (X: H) =
+  module PrivateMake (X: H) (VT: Setup)=
   struct
-    module M = Make(X)
+    module M = Make(X) (VT)
     (* Mapping from varinfo to X.t *)
     module VH = Hashtbl.Make (CilType.Varinfo)
     type t = M.t
@@ -142,9 +148,9 @@ struct
   end
 
   (** Create a BiVarinfoMap and register it in the collection *)
-  module Make (X: H) =
+  module Make (X: H) (VT:Setup)=
   struct
-    module BiVarinfoMap = PrivateMake(X)
+    module BiVarinfoMap = PrivateMake(X) (VT)
     include BiVarinfoMap
     let () =
       let m = (module BiVarinfoMap: S) in

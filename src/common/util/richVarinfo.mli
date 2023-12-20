@@ -2,7 +2,7 @@
 
 open GoblintCil
 
-val single: name:string -> (unit -> varinfo)
+val single: name:string -> typ -> (unit -> varinfo) 
 
 module type VarinfoMap =
 sig
@@ -26,8 +26,14 @@ sig
   val describe_varinfo: varinfo -> t -> string
 end
 
+module type Setup = 
+sig 
+  val varType : typ
+  val isGlobal : bool
+end 
+
 module Make:
-  functor (X: G) ->
+  functor (X: G) (VT:Setup)->
     VarinfoMap with type t = X.t
 
 module BiVarinfoMap:
@@ -48,6 +54,6 @@ sig
   end
 
   module Make:
-    functor (X: H) ->
+    functor (X: H) (VT:Setup) ->
       S with type t = X.t
 end

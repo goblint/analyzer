@@ -135,12 +135,18 @@ module MallocWrapper : MCPSpec = struct
 
   end
 
-  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
+  module PointerType = struct 
+    let varType = voidType
+    let isGlobal = false
+  end
+
+  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode) (PointerType)
 
   let name () = "mallocWrapper"
 
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     let wrapper_node, counter = ctx.local in
+    (* Variable von Allozierten Block zurückgeben -> block in dieser Zeile zu repräsentieren*)
     match q with
     | Q.AllocVar {on_stack = on_stack} ->
       let node = match wrapper_node with

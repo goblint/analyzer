@@ -913,7 +913,7 @@ struct
   (* sync: M -> (2^M -> (G -> D)) *)
   include AbstractLockCenteredBase (ThreadMap) (LockCenteredBase.CPA)
 
-  let global_init_thread = RichVarinfo.single ~name:"global_init"
+  let global_init_thread = RichVarinfo.single ~name:"global_init" voidType
   let current_thread (ask: Q.ask): Thread.t =
     if !AnalysisState.global_initialization then
       ThreadIdDomain.Thread.threadinit (global_init_thread ()) ~multiple:false
