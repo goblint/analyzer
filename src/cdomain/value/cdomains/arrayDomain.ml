@@ -44,6 +44,9 @@ sig
   type idx
   type value
 
+  val domain_of_t: t -> domain
+
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> (lval option * int) option -> value
   val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
   val length: t -> idx option
@@ -137,7 +140,7 @@ struct
   let show x = "Array: " ^ Val.show x
   let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let get ?(checkBounds=true) (ask: VDQ.t) a i = a
+  let get ?(checkBounds=true) (ask: VDQ.t) a i _ = a
   let set (ask: VDQ.t) a (ie, i) v =
     match ie with
     | Some ie when CilType.Exp.equal ie Offset.Index.Exp.all ->
@@ -205,7 +208,7 @@ struct
   let extract x default = match x with
     | Some c -> c
     | None -> default
-  let get ?(checkBounds=true)  (ask: VDQ.t) (xl, xr) (_,i) =
+  let get ?(checkBounds=true)  (ask: VDQ.t) (xl, xr) (_,i) arr =
     let search_unrolled_values min_i max_i =
       let rec subjoin l i = match l with
         | [] -> Val.bot ()
@@ -399,7 +402,7 @@ struct
                ("m", Val.to_yojson xm);
                ("r", Val.to_yojson xr) ]
 
-  let get ?(checkBounds=true) (ask:VDQ.t) (x:t) (i,_) =
+  let get ?(checkBounds=true) (ask:VDQ.t) (x:t) (i,_) _ =
     match x, i with
     | Joint v, _ -> v
     | Partitioned (e, (xl, xm, xr)), Some i' ->
@@ -831,7 +834,7 @@ struct
 end
 
 (* This is the main array out of bounds check *)
-let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) (c : (lval option*int)option) (ask:VDQ.t) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
@@ -865,9 +868,9 @@ struct
 
   let domain_of_t _ = TrivialDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
-    Base.get ask x (e, v)
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (c: (lval option * int ) option)=
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) c ask);
+    Base.get ask x (e, v) c
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
@@ -909,9 +912,9 @@ struct
 
   let domain_of_t _ = PartitionedDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
-    Base.get ask x (e, v)
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (c) =
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) c ask);
+    Base.get ask x (e, v) c
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
@@ -963,9 +966,9 @@ struct
 
   let domain_of_t _ = UnrolledDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
-    Base.get ask x (e, v)
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (c)=
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) c ask);
+    Base.get ask x (e, v) c
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
   let length (_,l) = Some l
@@ -1701,13 +1704,14 @@ struct
   let unop_to_t' opp opt opu = unop_to_t opp (I.unop_to_t opt opu)
 
   (* Simply call appropriate function for component that is not None *)
-  let get ?(checkBounds=true) a x (e,i) = unop' (fun x ->
+  let get ?(checkBounds=true) a x (e,i) c = 
+    unop' (fun x ->
       if e = None then
         let e' = BatOption.map (fun x -> Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x) (Idx.to_int i) in
-        P.get ~checkBounds a x (e', i)
+        P.get ~checkBounds a x (e', i) c
       else
-        P.get ~checkBounds a x (e, i)
-    ) (fun x -> T.get ~checkBounds a x (e,i)) (fun x -> U.get ~checkBounds a x (e,i)) x
+        P.get ~checkBounds a x (e, i) c
+    ) (fun x -> T.get ~checkBounds a x (e,i) c) (fun x -> U.get ~checkBounds a x (e,i) c) x
   let set (ask:VDQ.t) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
   let length = unop' P.length T.length U.length
   let map f = unop_to_t' (P.map f) (T.map f) (U.map f)
@@ -1739,31 +1743,31 @@ struct
   (* convert to another domain *)
   let index_as_expression i = (Some (Cil.integer i), Idx.of_int IInt (Z.of_int i))
 
-  let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
+  let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0) None)
 
   let partitioned_of_unroll ask u =
     (* We end with a partition at "ana.base.arrays.unrolling-factor", which keeps the most information. Maybe first element is more commonly useful? *)
-    let rest = (U.get ~checkBounds:false ask u (index_as_expression (factor ()))) in
+    let rest = (U.get ~checkBounds:false ask u (index_as_expression (factor ())) None) in
     let p = P.make (Option.value (U.length u) ~default:(Idx.top ())) rest in
-    let get_i i = (i, P.get ~checkBounds:false ask p (index_as_expression i)) in
+    let get_i i = (i, P.get ~checkBounds:false ask p (index_as_expression i) None) in
     let set_i p (i,v) =  P.set ask p (index_as_expression i) v in
     List.fold_left set_i p @@ List.init (factor ()) get_i
 
   let trivial_of_partitioned ask p =
-    let element = (P.get ~checkBounds:false ask p (None, Idx.top ()))
+    let element = (P.get ~checkBounds:false ask p (None, Idx.top ()) None)
     in T.make (Option.value (P.length p) ~default:(Idx.top ())) element
 
   let trivial_of_unroll ask u =
-    let get_i i = U.get ~checkBounds:false ask u (index_as_expression i) in
+    let get_i i = U.get ~checkBounds:false ask u (index_as_expression i) None in
     let element = List.fold_left Val.join (get_i (factor ())) @@ List.init (factor ()) get_i in (*join all single elements and the element at  *)
     T.make (Option.value (U.length u) ~default:(Idx.top ())) element
 
-  let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
+  let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0) None)
 
   let unroll_of_partitioned ask p =
-    let unrolledValues = List.init (factor ()) (fun i ->(i, P.get ~checkBounds:false ask p (index_as_expression i))) in
+    let unrolledValues = List.init (factor ()) (fun i ->(i, P.get ~checkBounds:false ask p (index_as_expression i) None)) in
     (* This could be more precise if we were able to compare this with the partition index, but we can not access it here *)
-    let rest = (P.get ~checkBounds:false ask p (None, Idx.top ())) in
+    let rest = (P.get ~checkBounds:false ask p (None, Idx.top ()) None) in
     let u = U.make (Option.value (P.length p) ~default:(Idx.top ())) (Val.bot ()) in
     let set_i u (i,v) =  U.set ask u (index_as_expression i) v in
     set_i (List.fold_left set_i u unrolledValues) (factor (), rest)

@@ -639,7 +639,7 @@ struct
         | Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | Address adrs -> (adrs,TS.bot (), AD.may_be_unknown adrs)
         | Union (t,e) -> with_field (reachable_from_value e) t
-        | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()))
+        | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()) None)
         | Blob (e,_,_) -> reachable_from_value e
         | Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
