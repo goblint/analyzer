@@ -126,6 +126,7 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | MayBeOutOfBounds: varinfo * int * exp * binop -> ID.t t
 
 type 'a result = 'a
 
@@ -195,6 +196,7 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
+    | MayBeOutOfBounds _ -> (module ID)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -263,6 +265,7 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
+    | MayBeOutOfBounds _ -> ID.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -323,11 +326,9 @@ struct
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
-    | Any (MustTermLoop _) -> 53
-    | Any MustTermAllLoops -> 54
-    | Any IsEverMultiThreaded -> 55
-    | Any (TmpSpecial _) -> 56
-    | Any (IsAllocVar _) -> 57
+    | Any (TmpSpecial _) -> 53
+    | Any (IsAllocVar _) -> 54
+    | Any (MayBeOutOfBounds _) -> 55
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -381,6 +382,18 @@ struct
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
+      | Any (MayBeOutOfBounds (v1, s1, exp1, binop1)), Any (MayBeOutOfBounds (v2, s2 ,exp2, binop2)) ->
+        let r = CilType.Varinfo.compare v1 v2 in
+        if r <> 0 then 
+          r
+        else if s1 <> s2  then 
+          s1 - s2  
+        else 
+          let r3 = CilType.Exp.compare exp1 exp2 in 
+          if r3 <> 0 then
+            r3 
+          else
+            CilType.Binop.compare binop1 binop2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -422,6 +435,7 @@ struct
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
+    | Any (MayBeOutOfBounds (v,s, exp, bin)) -> 127 * CilType.Varinfo.hash v  + 67 * Hashtbl.hash s  + 31 * CilType.Exp.hash exp + CilType.Binop.hash bin
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -484,13 +498,15 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any (MayBeOutOfBounds (v,s, e, b)) -> Pretty.dprintf "EvalExp %a %a %a" CilType.Varinfo.pretty v  CilType.Binop.pretty b CilType.Exp.pretty e 
 end
 
 let to_value_domain_ask (ask: ask) =
   let eval_int e = ask.f (EvalInt e) in
   let may_point_to e = ask.f (MayPointTo e) in
   let is_multiple v = ask.f (IsMultiple v) in
-  { VDQ.eval_int; may_point_to; is_multiple }
+  let may_be_out_of_bounds (v,s) e b= ask.f (MayBeOutOfBounds (v, s, e, b)) in
+  { VDQ.eval_int; may_point_to; is_multiple; may_be_out_of_bounds}
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
   let eval_int e = ask.f (EvalInt e) in

@@ -47,12 +47,14 @@ end
 type eval_int = exp -> ID.t
 type may_point_to = exp -> AD.t
 type is_multiple = varinfo -> bool
+type may_be_out_of_bounds = (varinfo * int) -> exp -> binop -> ID.t
 
 (** Subset of queries used by the valuedomain, using a simpler representation. *)
 type t = {
   eval_int: eval_int;
   may_point_to: may_point_to;
   is_multiple: is_multiple;
+  may_be_out_of_bounds: may_be_out_of_bounds;
 }
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (eval_int: eval_int) e1 e2: Bool.t =
