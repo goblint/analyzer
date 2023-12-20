@@ -45,6 +45,17 @@ struct
     if f.svar.vname = "main" then check_for_mem_leak ctx;
     ctx.local
 
+  let heapvar_from_ptr_opt ctx ptr = 
+    begin match ctx.ask (Queries.MayPointTo ptr) with
+      | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad = 1 ->
+        (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
+        begin match Queries.AD.choose ad with
+          | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) (* todo: ask supervisor && not @@ ctx.ask (Queries.IsMultiple v) *) -> Some v
+          | _ -> None
+        end
+      | _ -> None
+    end
+
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = ctx.local in
     let desc = LibraryFunctions.find f in
@@ -59,14 +70,9 @@ struct
         | _ -> state
       end
     | Free ptr ->
-      begin match ctx.ask (Queries.MayPointTo ptr) with
-        | ad when not (Queries.AD.is_top ad) && Queries.AD.cardinal ad = 1 ->
-          (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
-          begin match Queries.AD.choose ad with
-            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> D.remove v state (* Unique pointed to heap vars *)
-            | _ -> state
-          end
-        | _ -> state
+      begin match heapvar_from_ptr_opt ctx ptr with
+        | Some v -> D.remove v state
+        | None -> state
       end
     | Abort ->
       (* An "Abort" special function indicates program exit => need to check for memory leaks *)
@@ -89,6 +95,22 @@ struct
       warn_for_assert_exp;
       state
     | _ -> state
+
+  let event ctx e octx =
+    match e with
+    | Events.Invalidate {lvals} ->
+      let old_state = ctx.local in
+      let handle_lval ctx lval =
+        let state = ctx.local in
+        match heapvar_from_ptr_opt ctx (Lval lval) with
+        | Some v -> {ctx with local = D.remove v state}
+        | None -> ctx
+      in
+      let ctx = List.fold_left handle_lval ctx lvals in
+      let ctx' = {ctx with local = D.diff old_state ctx.local} in
+      check_for_mem_leak ctx';
+      ctx.local
+    | _ -> ctx.local
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
