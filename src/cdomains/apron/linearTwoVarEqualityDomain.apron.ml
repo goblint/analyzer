@@ -235,12 +235,12 @@ struct
       List.map (fun (coeff, var) -> (Z.(number * coeff, var))) coeff_var_list in
     let multiply a b = 
       (* if one of them is a constant, then multiply. Otherwise, the expression is not linear*)
-      if List.length a = 1 then
+      if List.compare_length_with a 1 = 0 then
         match List.nth a 0 with
         | (a_coeff, None) -> multiply_with_Z a_coeff b
         | _ -> raise NotLinearExpr
       else 
-      if List.length b = 1 then
+      if List.compare_length_with a 1 = 0 then
         match List.nth b 0 with
         | (b_coeff, None) -> multiply_with_Z b_coeff a
         | _ -> raise NotLinearExpr
@@ -329,9 +329,10 @@ struct
           | None -> d.(index) <- (None, Z.(off2 + const))
           | Some eq_var -> begin if eq_var <> index then d.(index) <- (None, Z.(off2 + const)) end
         else 
-          begin if Option.is_some eq_var_opt
-            then let eq_var = Option.get eq_var_opt
-              in begin if eq_var = var then d.(index) <- (Some eq_var, Z.(off2 - const)) end
+          begin match eq_var_opt with 
+            | Some eq_var ->
+              if eq_var = var then d.(index) <- (Some eq_var, Z.(off2 - const))
+            | None -> () 
           end
       in
       EArray.iteri (subtract_const_from_var_for_single_equality const) d; {d = Some d; env = t.env}
@@ -548,7 +549,7 @@ struct
         !result
       in
       let least_index_var_in_eq_class zts start size : int * Z.t =
-        let result = ref (0, Z.of_int 0) in 
+        let result = ref (0, Z.zero) in 
         match zts.(start) with
         | (i, (_, b), (_, _)) -> result := (i, b);
           for i = start + 1 to start + size - 1 do
@@ -568,7 +569,7 @@ struct
       let assign_vars_in_const_eq_class ats zts start size least_i least_b =     
         for i = start to start + size - 1 do
           match zts.(i) with
-          | (ai, t1, t2) -> if Z.equal (diff t1 t2) (Z.of_int 0) then ats.(i) <- (ai, t1)
+          | (ai, t1, t2) -> if Z.equal (diff t1 t2) (Z.zero) then ats.(i) <- (ai, t1)
             else
               match t1 with
               | (_, bj) -> ats.(i) <- (ai, (Some least_i, Z.sub bj least_b))
@@ -585,16 +586,16 @@ struct
       match zts with
       | None -> None
       | Some zts' ->
-        let result = Array.make (Array.length zts') (0, (None, Z.of_int 0)) in
+        let result = Array.make (Array.length zts') (0, (None, Z.zero)) in
         let i = ref 0 in
         while !i < Array.length zts' do 
           let n = size_of_eq_class zts' !i in 
           (if n = 1 then
              let ztsi = zts'.(!i) in
              match ztsi with
-             | (i', t1, t2) -> if is_const ztsi && Z.equal (diff t1 t2) (Z.of_int 0) then 
+             | (i', t1, t2) -> if is_const ztsi && Z.equal (diff t1 t2) (Z.zero) then 
                  result.(!i) <- (i', (None, const_offset t1))
-               else result.(!i) <- (i', (Some i', Z.of_int 0))
+               else result.(!i) <- (i', (Some i', Z.zero))
            else
              let (least_i, least_b) = least_index_var_in_eq_class zts' !i n in
              (if all_are_const_in_eq_class zts' !i n then
