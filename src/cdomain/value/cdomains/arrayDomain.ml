@@ -838,6 +838,13 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+
+    if idx_before_end = None then 
+      let idx_before_end =  match c, e with (* Only ask the relational Domain if the value Domain doesn't work *)
+        | Some (Some(Var arr_lval, _),counter ), Some exp ->
+          ValueDomainQueries.ID.to_bool (ask.may_be_out_of_bounds (arr_lval, counter ) exp Lt )
+        |_ ,_  -> None in
+
     (* For an explanation of the warning types check the Pull Request #255 *)
     match(idx_after_start, idx_before_end) with
     | Some true, Some true -> (* Certainly in bounds on both sides.*)

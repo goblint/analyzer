@@ -242,6 +242,31 @@ struct
     in
     inner e
 
+  (* Mapping lval to varinfo *)
+  module LvalMapping = struct 
+    type t = varinfo * int 
+
+    let equal: t -> t -> bool = fun (v,s) (v2,s2) ->  
+      CilType.Varinfo.equal v v2 && s = s2 
+
+    let hash: t -> int = fun (v,s) ->
+      31 * CilType.Varinfo.hash v + Hashtbl.hash s
+    let name_varinfo : t -> string = fun (v,s) -> 
+      v.vname ^ string_of_int s ^ "$len"
+
+    let describe_varinfo : varinfo -> t -> string = 
+      fun v (var,s) -> 
+        v.vname ^ "->" ^  name_varinfo (var,s)
+
+  end 
+
+  module PointerType = struct 
+    let varType  = TInt(!kindOfSizeOf, []) 
+    let isGlobal = true
+  end
+
+  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(LvalMapping) (PointerType)
+
   (* Basic transfer functions. *)
 
   let assign ctx (lv:lval) e =
@@ -265,6 +290,20 @@ struct
       if M.tracing then M.traceu "relation" "-> %a\n" D.pretty r;
       r
     )
+
+  let vdecl (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx)  (e:varinfo) = 
+    let rec helper (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx ) typ counter = match typ with
+    | TArray (new_typ, (Some exp), attr )-> 
+      let lenArray = NodeVarinfoMap.to_varinfo (e,counter) in 
+      let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
+      let new_ctx = 
+        { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
+      let ctx' =  assign new_ctx (Var lenArray, NoOffset) exp in
+      let new_ctx = { ctx with  local = ctx'; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in  
+      helper new_ctx new_typ (counter+1)
+    | _ -> ctx.local
+    in 
+    helper ctx e.vtype 0
 
   let branch ctx e b =
     let st = ctx.local in
@@ -634,8 +673,9 @@ struct
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let no_overflow ctx' exp' =
-      IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in (* TODO: separate no_overflow? *)
+    (* let no_overflow ctx' exp' = 
+       IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in  TODO: separate no_overflow? *)
+    let ask = Analyses.ask_of_ctx ctx in
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
@@ -649,13 +689,28 @@ struct
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)\n" d_exp e d_plainexp e;
       if M.tracing then M.trace "evalint" "relation st: %a\n" D.pretty ctx.local;
-      let r = eval_int e (lazy(no_overflow ctx e)) in
+      (* let r = eval_int e (lazy(no_overflow ctx e)) in *)
+      let r = eval_int e (no_overflow ask e) in
       if M.tracing then M.traceu "evalint" "relation query %a -> %a\n" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context -> query_invariant ctx context
+
+    (* the lval arr has the length of the arr we now want to check if the expression index is within the bounds of arr please use relational Analysis *)
+    | Queries.MayBeOutOfBounds (v ,t , exp, binop) -> 
+          let newVar = NodeVarinfoMap.to_varinfo (v,t ) in 
+
+          let comp = Cilfacade.makeBinOp binop  exp (Lval (Var newVar,NoOffset)) in
+          if M.tracing then M.trace "relationalArray" "EvalExp: %a\n" d_exp comp;
+          if M.tracing then M.trace "malloc" "EvalExp: %a\n" d_exp comp;
+
+         (* let i = eval_int comp (lazy (no_overflow ctx comp )) in  *)
+         let i = eval_int comp (no_overflow ask comp ) in 
+        if M.tracing then M.trace  "relationalArray" "EvalExp: %a\n" ID.pretty i;
+        if M.tracing then M.trace  "malloc" "EvalExp: %a\n" ID.pretty i;
+         i 
     | _ -> Result.top q
 
 
