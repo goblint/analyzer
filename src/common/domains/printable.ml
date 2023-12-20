@@ -508,21 +508,21 @@ end
 
 module PQueue (Base: S) = 
 struct
-  type t = Base.t Queue2L.t [@@deriving eq, ord]
+  type t = Base.t QueueImmut.t [@@deriving eq, ord]
   include Std
 
   let show x = 
-    let elem = Queue2L.map_to_list Base.show x in
-    "[" ^ (String.concat ", " elem) ^ "]"  (* TODO more efficient impl*)
+    let elem = QueueImmut.map_to_list Base.show x in
+    "[" ^ (String.concat ", " elem) ^ "]"
 
   let pretty () x = text (show x)
   let name () = Base.name () ^ "queue"
 
-  let relift x =Queue2L.map Base.relift x
+  let relift x = QueueImmut.map Base.relift x
 
   let printXml f xs =
     let rec loop n q =
-      let (x, xs) = Queue2L.dequeue_tup_opt q in 
+      let (x, xs) = QueueImmut.dequeue_tup_opt q in 
       match x with
       | None -> ()
       | Some x -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x; 
@@ -532,8 +532,8 @@ struct
     loop 0 xs; 
     BatPrintf.fprintf f "</map>\n</value>\n"
 
-  let to_yojson x = `String (show x)
-  let hash q = Hashtbl.hash(Queue2L.list_of_queue q) (*TODO*)
+  let to_yojson q = `List (QueueImmut.map_to_list (Base.to_yojson) q)
+  let hash (q: Base.t QueueImmut.t) = QueueImmut.fold_left (fun acc x -> (acc + 71) * (Base.hash x)) 11 q
 end
 
 module Liszt (Base: S) =

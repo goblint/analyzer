@@ -6,7 +6,6 @@ open GoblintCil
 open MyCFG
 open Analyses
 open GobConfig
-include Printf
 
 module M = Messages
 
@@ -566,7 +565,7 @@ struct
 
   let enter ctx r f args =
     let ctx_dec = dec_context_gas ctx in 
-    (*if not !AnalysisState.postsolving then printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
+    (*if not !AnalysisState.postsolving then Printf.printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
     liftmap_tup (S.enter (conv ctx_dec) r f args)
 
