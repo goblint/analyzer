@@ -824,7 +824,7 @@ struct
         let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
         let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) ( List.tl ( Array.to_list final_expr)) 
         in 
-        if var_count == 0 then 
+        if var_count = 0 then 
           match Tcons1.get_typ tcons with 
           | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot_env
           | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else bot_env
