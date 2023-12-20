@@ -5,52 +5,6 @@
 (** Abstract states in this domain are represented by structs containing an array and an apron environment.
     The arrays are modeled as proposed in the paper: Each variable is assigned to an index and each array element represents a linear relationship that must hold at the corresponding program point.
     The apron environment is hereby used to organize the order of columns and variables.
-
-    APRON:
-    To get the index of a variable if you have a variable, use:
-    Environment.dim_of_var env variable 
-
-    Function naming:
-    _with -> in-place changes
-    no _with -> make a copy 
-
-    == compares address equality 
-    != for unequal addresses
-
-
-    HOW TO RUN THE REGRESSION TESTS:
-    Method 1: regression test ./regtest.sh numberofdirectory numberoftest
-    Method 2: make test -> run entire test suite
-    -> the two methods have a different behaviour w.r.t. unreachable code 
-    script update suite.rb argumentgroupname ???? No idea 
-    - test with different flags 
-    - gobview doesnt work with apron
-      -Visualize test:
-      ./regtest.sh 63 01
-      python3 -m http.server
-      open http://localhost:8000/ on a browser
-      go to /result folder
-      index.xml -> main (printxml uses show)
-      click on program points 
-      orange nodes: dead code
-      state at the beginning of the line
-      multiple paths-> line was divided in two parts by the analysis
-
-    TODO:
-    12. January or earlier pull request -> all features implemented 
-            -> run on svcomp benchmarks -> to check runtime and unsoundness and crashes
-
-    DEBUG:
-    1. print stack trace while executing ./goblint:
-      -v option for goblint -> prints stack trace
-    2. Print the debug information defined with M.tracel:
-      https://goblint.readthedocs.io/en/latest/developer-guide/debugging/#tracing
-      ./script/trace_on
-      --trace name1 --trace name2
-    3. Debug OCaml
-      gdb debug for OCaml
-      or with EarlyBird (apparently it will maybe not work)
-      or with ocamldebug
 *)
 
 open Batteries
@@ -91,8 +45,11 @@ module EqualitiesArray = struct
     let num_vars = length arr in
     if index > num_vars then failwith "n too large" else
       let new_array = make (num_vars + 1) (Equality.var_zero index) in
-      if index = 0 then blit arr 0 new_array 1 (num_vars - 1) else
-        blit arr 0 new_array 0 index; if index <> num_vars then blit arr index new_array (index + 1) (num_vars - index);
+      if index = 0 
+      then blit arr 0 new_array 1 (num_vars - 1) 
+      else blit arr 0 new_array 0 index; 
+      if index <> num_vars 
+      then blit arr index new_array (index + 1) (num_vars - index);
       new_array
 
   let add_empty_columns m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
