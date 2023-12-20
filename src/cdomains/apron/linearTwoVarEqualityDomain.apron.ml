@@ -810,41 +810,44 @@ struct
   let meet_tcons t tcons _ = 
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables 
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
-    let expr_init = Array.init ((Environment.size t.env) +1) (fun _ -> Z.zero) in 
+    let expr = Array.init ((Environment.size t.env) +1) (fun _ -> Z.zero) in 
     match t.d with 
     | None -> bot_env
     | Some d -> if is_bot_env t then bot_env else
         let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
         let update (expr : Z.t Array.t)( c , v) = 
           match v with 
-          | None -> Array.set expr 0 (Z.add expr.(0) c) ; expr 
+          | None -> Array.set expr 0 (Z.add expr.(0) c) 
           | Some idx -> match d.(idx) with 
-            | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c) ; expr
-            | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; expr
+            | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c) 
+            | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i))
         in 
-        let final_expr = List.fold_left (fun expr cv -> update expr cv ) expr_init cv's in 
-        let var_count = List.count_matching (fun a -> if Z.equal a Z.zero then false else true) ( List.tl ( Array.to_list final_expr)) 
+        List.iter (update expr) cv's ;
+        let counting count i a = if i = 0 || Z.equal a Z.zero then count else count+1 in
+        let var_count = Array.fold_lefti counting 0 expr
         in 
         if var_count = 0 then 
           match Tcons1.get_typ tcons with 
-          | EQ -> if Z.equal final_expr.(0) Z.zero then t else bot_env
-          | SUPEQ -> if Z.geq final_expr.(0) Z.zero then t else bot_env
-          | SUP -> if Z.gt final_expr.(0) Z.zero then t else bot_env
-          | DISEQ ->  if Z.equal final_expr.(0) Z.zero then bot_env else t
-          | EQMOD scalar -> t (*Not supported right now
-                                if Float.equal ( Float.modulo (Z.to_float final_expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
+          | EQ when Z.equal expr.(0) Z.zero -> t
+          | SUPEQ when Z.geq expr.(0) Z.zero -> t 
+          | SUP when Z.gt expr.(0) Z.zero -> t 
+          | DISEQ when not @@ Z.equal expr.(0) Z.zero -> t 
+          | EQMOD scalar -> t
+          | _ -> bot_env (*Not supported right now
+                                if Float.equal ( Float.modulo (Z.to_float expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
         else if var_count == 1 then
-          let var = List.findi (fun i a -> if Z.equal a Z.zero then false else true) @@ Array.to_list final_expr in
-          let c = if Z.divisible final_expr.(0) @@ Tuple2.second var then Some (Z.(- final_expr.(0) / (Tuple2.second var))) else None in
+          let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
+          let var = ( index, expr.(index)) in
+          let c = if Z.divisible expr.(0) @@ Tuple2.second var then Some (Z.(- expr.(0) / (Tuple2.second var))) else None in
           match Tcons1.get_typ tcons with 
           | EQ -> if Option.is_none c then t else  
               let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int (Option.get c)) in 
               meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
           | _ -> t (*Not supported right now*)
         else if var_count == 2 then 
-          let v12 =  List.fold_righti (fun i a l -> if Z.equal a Z.zero then l else (i,a)::l) (List.tl @@ Array.to_list final_expr) [] in
+          let v12 =  Array.fold_righti (fun i a l -> if Z.equal a Z.zero || i = 0 then l else (i,a)::l) expr [] in
           let a1 = Tuple2.second (List.hd v12) in  
-          let a2 = Tuple2.second (List.hd v12) in
+          let a2 = Tuple2.second (List.hd @@ List.tl v12) in
           let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
           let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
           match Tcons1.get_typ tcons with 
