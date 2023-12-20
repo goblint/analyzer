@@ -23,9 +23,9 @@ wget -O lib/LICENSE.APRON https://raw.githubusercontent.com/antoinemine/apron/ma
 # done outside to ensure archive contains goblint/ directory
 cd ..
 
-rm goblint/sv-comp/goblint.zip
+rm goblint/scripts/sv-comp/goblint.zip
 
-zip goblint/sv-comp/goblint.zip \
+zip goblint/scripts/sv-comp/goblint.zip \
     goblint/goblint \
     goblint/lib/libapron.so \
     goblint/lib/liboctD.so \
