@@ -1,19 +1,21 @@
+//PARAM: --enable ana.arrayoob    --set ana.activated[+] apron   
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-int main() {
-
+int main() 
+{
     srand(time(NULL));
-    unsigned int length =  100 ;
-    int arr[100];
-    for (int i = 0; i < 100; i++) {
-        arr[i] = 1;
+    unsigned int len =   (rand()%32) +3;
+    int arr[len];
+
+    for (unsigned int i = 0 ; i < len  -1; i++) {
+        int t = arr[i] +3;
+        arr[i ] =   32;
     }
     
-    // for (int i = 0; i < length; i++) {
-    //     printf("%d ", arr[i]);
-    // }
+    for (unsigned int i = 0; i < len+1; i++) {
+        printf("%d ", arr[i]); //WARN
+    }
     return 0;
-
 }
