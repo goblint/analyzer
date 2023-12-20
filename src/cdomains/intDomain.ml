@@ -1713,10 +1713,11 @@ end
 module Flat (Base: IkindUnawareS) = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
 struct
   type int_t = Base.int_t
-  include Lattice.Flat (Base) (struct
+  include Lattice.FlatConf (struct
+      include Printable.DefaultConf
       let top_name = "Unknown int"
       let bot_name = "Error int"
-    end)
+    end) (Base)
 
   let top_of ik = top ()
   let bot_of ik = bot ()
@@ -1792,10 +1793,11 @@ end
 
 module Lift (Base: IkindUnawareS) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
-  include Lattice.LiftPO (Base) (struct
+  include Lattice.LiftPO (struct
+      include Printable.DefaultConf
       let top_name = "MaxInt"
       let bot_name = "MinInt"
-    end)
+    end) (Base)
   type int_t = Base.int_t
   let top_of ik = top ()
   let bot_of ik = bot ()

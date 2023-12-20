@@ -30,7 +30,7 @@ struct
 
   module VarLat = Lattice.Fake (Basetype.Variables)
 
-  module Var = Lattice.Lift (VarLat) (struct let top_name="top" let bot_name="⊥" end)
+  module Var = Lattice.LiftConf (struct include Printable.DefaultConf let top_name="top" let bot_name="⊥" end) (VarLat)
   include Lattice.Liszt (Var)
 
   let top () : t = []

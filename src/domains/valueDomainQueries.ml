@@ -9,7 +9,7 @@ module AD = PreValueDomain.AD
 module ID =
 struct
   module I = IntDomain.IntDomTuple
-  include Lattice.Lift (I) (Printable.DefaultNames)
+  include Lattice.Lift (I)
 
   let lift op x = `Lifted (op x)
   let unlift op x = match x with
