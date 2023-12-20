@@ -159,6 +159,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wscanf", unknown (drop "fmt" [r] :: VarArgs (drop' [w])));
     ("fwscanf", unknown (drop "stream" [r_deep; w_deep] :: drop "fmt" [r] :: VarArgs (drop' [w])));
     ("swscanf", unknown (drop "buffer" [r] :: drop "fmt" [r] :: VarArgs (drop' [w])));
+    ("remove", unknown [drop "pathname" [r]]);
+    ("raise", unknown [drop "sig" []]); (* safe-ish, we don't handle signal handlers for now *)
+    ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
+    ("signal", unknown [drop "signum" []; drop "handler" [s]]);
   ]
 
 (** C POSIX library functions.
@@ -418,6 +422,16 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("random", special [] Rand);
     ("posix_memalign", unknown [drop "memptr" [w]; drop "alignment" []; drop "size" []]); (* TODO: Malloc *)
     ("stpcpy", unknown [drop "dest" [w]; drop "src" [r]]);
+    ("dup", unknown [drop "oldfd" []]);
+    ("readdir_r", unknown [drop "dirp" [r_deep]; drop "entry" [r_deep]; drop "result" [w]]);
+    ("pipe", unknown [drop "pipefd" [w_deep]]);
+    ("waitpid", unknown [drop "pid" []; drop "wstatus" [w]; drop "options" []]);
+    ("strerror_r", unknown [drop "errnum" []; drop "buff" [w]; drop "buflen" []]);
+    ("umask", unknown [drop "mask" []]);
+    ("openlog", unknown [drop "ident" [r]; drop "option" []; drop "facility" []]);
+    ("times", unknown [drop "buf" [w]]);
+    ("mmap", unknown [drop "addr" []; drop "length" []; drop "prot" []; drop "flags" []; drop "fd" []; drop "offset" []]);
+    ("munmap", unknown [drop "addr" []; drop "length" []]);
   ]
 
 (** Pthread functions. *)
@@ -638,6 +652,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strchrnul", unknown [drop "s" [r]; drop "c" []]);
     ("getdtablesize", unknown []);
     ("daemon", unknown [drop "nochdir" []; drop "noclose" []]);
+    ("putw", unknown [drop "w" []; drop "stream" [r_deep; w_deep]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -735,6 +750,7 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
     ("kzalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Calloc {count = Cil.one; size});
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
+    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
 
 (** Goblint functions. *)
@@ -1246,30 +1262,22 @@ let invalidate_actions = [
   "__errno_location", readsAll;(*safe*)
   "__strdup", readsAll;(*safe*)
   "strtoul__extinline", readsAll;(*safe*)
-  "readdir_r", writesAll;(*unsafe*)
   "atoi__extinline", readsAll;(*safe*)
   "_IO_getc", writesAll;(*unsafe*)
-  "pipe", writesAll;(*unsafe*)
-  "strerror_r", writesAll;(*unsafe*)
-  "raise", writesAll;(*unsafe*)
   "_strlen", readsAll;(*safe*)
   "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
   "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-  "waitpid", readsAll;(*safe*)
   "__open_alias", readsAll;(*safe*)
   "__open_2", readsAll;(*safe*)
-  "ioctl", writesAll;(*unsafe*)
   "fstat__extinline", writesAll;(*unsafe*)
   "scandir", writes [1;3;4];(*keep [1;3;4]*)
   "bindtextdomain", readsAll;(*safe*)
   "textdomain", readsAll;(*safe*)
   "dcgettext", readsAll;(*safe*)
-  "putw", readsAll;(*safe*)
   "__getdelim", writes [3];(*keep [3]*)
   "__h_errno_location", readsAll;(*safe*)
   "__fxstat", readsAll;(*safe*)
-  "openlog", readsAll;(*safe*)
-  "umask", readsAll;(*safe*)
+  (* RPC library start *)
   "clntudp_create", writesAllButFirst 3 readsAll;(*drop 3*)
   "svctcp_create", readsAll;(*safe*)
   "clntudp_bufcreate", writesAll;(*unsafe*)
@@ -1280,29 +1288,23 @@ let invalidate_actions = [
   "svcudp_create", readsAll;(*safe*)
   "svc_register", writesAll;(*unsafe*)
   "svc_run", writesAll;(*unsafe*)
-  "dup", readsAll; (*safe*)
+  (* RPC library end *)
   "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
   "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
   "__error", readsAll; (*safe*)
   "__maskrune", writesAll; (*unsafe*)
-  "times", writesAll; (*unsafe*)
-  "timespec_get", writes [1];
   "__tolower", readsAll; (*safe*)
-  "signal", writesAll; (*unsafe*)
   "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
   "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
   "uncompress", writes [3;4]; (*keep [3;4]*)
   "__xstat", writes [3]; (*keep [1]*)
   "__lxstat", writes [3]; (*keep [1]*)
-  "remove", readsAll;
   "BZ2_bzBuffToBuffCompress", writes [3;4]; (*keep [3;4]*)
   "compress2", writes [3]; (*keep [3]*)
   "__toupper", readsAll; (*safe*)
   "BF_set_key", writes [3]; (*keep [3]*)
   "PL_NewHashTable", readsAll; (*safe*)
   "assert_failed", readsAll; (*safe*)
-  "munmap", readsAll;(*safe*)
-  "mmap", readsAll;(*safe*)
   "__builtin_va_arg_pack_len", readsAll;
   "__open_too_many_args", readsAll;
   "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
