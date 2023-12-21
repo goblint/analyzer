@@ -36,11 +36,8 @@ sig
 end
 
 let addr_set_of_lval (a: Queries.ask) lval =
-  let exp = AddrOf lval in
+  let exp = Cil.mkAddrOrStartOf lval in
   let addr_set = a.f (Queries.MayPointTo exp) in
-  (* this doesn't work as I am forced to use AddrOf, otherwise MayPointTo returns garbage *)
-  (* if Queries.VD.is_mutex_type (ValueDomain.AD.type_of addr_set) then None
-  else Some addr_set *)
   addr_set
 
 let locks_of_lvals ctx lvals =

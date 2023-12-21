@@ -2828,6 +2828,9 @@ struct
           {st' with cpa = CPA.remove !longjmp_return st'.cpa}
         | None -> ctx.local
       end
+    | Events.Invalidate {lvals} ->
+      let exps = List.map Cil.mkAddrOrStartOf lvals in
+      invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st exps
     | _ ->
       ctx.local
 end
