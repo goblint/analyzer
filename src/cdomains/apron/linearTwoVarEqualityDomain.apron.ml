@@ -13,7 +13,6 @@ open Pretty
 module M = Messages
 open Apron
 open VectorMatrix
-open Printf
 
 
 
@@ -151,35 +150,20 @@ struct
   module EArray = EqualitiesArray
   include SharedFunctions.VarManagementOps (EArray)
 
-  (* For debugging *)
-  let print_env = Environment.print (Format.std_formatter)
-  let print_opt x = match x with
-    | Some x -> printf "%d " x
-    | None -> printf "None "
-  let print_d = Array.iter (fun (var, off) -> print_opt var; Z.print off; printf "; ")
-  let print_t t = begin match t.d with
-    | Some x -> (print_d x; print_endline "")
-    | None -> printf "None " end; print_env t.env; print_endline ""
-
 
   let size t = match t.d with
     | None -> 0 
     | Some d -> EArray.length d
 
-  (* Returns the constant represented by an equality, if the equality represents a constant without a variable.
+  (* Returns the constant value of a variable, 
+     if we know the constant value of this variable.
      Else it returns None. *)
-  let get_constant (var, off) = match var with
-    | None -> Some off
-    | _ -> None
-
-
   let get_variable_value_if_it_is_a_constant t var =
-    match t.d with
-    | None -> None
-    | Some d -> match d.(var) with
-      | (None, constant) -> Some constant
+    let get_constant (var, off) = match var with
+      | None -> Some off
       | _ -> None
-
+    in
+    Option.bind t.d (fun d -> get_constant d.(var))
 
   let get_coeff_vec (t: t) texp =
     (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. 
@@ -358,7 +342,7 @@ struct
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
+    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
     let subst_var ts x t = 
       match !ts with
       | None -> ()
@@ -696,7 +680,7 @@ struct
     match multi_t.d with
     | Some arr when not @@ is_top multi_t -> 
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
-      let res = drop_vars switched_arr primed_vars true in
+      let res = drop_vars switched_arr primed_vars ~del:true in
       let x = Option.get res.d in
       {d = Some x; env = res.env} 
     | _ -> t

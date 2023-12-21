@@ -187,7 +187,7 @@ struct
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false
+    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false
     in if is_bot t1 || is_bot t2 then bot() else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       match m1, m2 with
@@ -390,7 +390,7 @@ struct
                                                  Matrix.set_col_with m col_x dim_y in
       let m_cp = Matrix.copy m in
       let switched_m = List.fold_left2 (fun m' x y -> replace_col m' x y) m_cp primed_vars assigned_vars in
-      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
+      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars ~del:true in
       let x = Option.get res.d in
       if Matrix.normalize_with x then {d = Some x; env = res.env} else bot ()
     | _ -> t

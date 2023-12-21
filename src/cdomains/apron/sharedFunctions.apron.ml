@@ -261,7 +261,6 @@ end
 module type AbstractRelationalDomainRepresentation =
 sig
   type t
-  val hash: t -> int
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val hash : t -> int
@@ -304,41 +303,41 @@ struct
 
   let dim_add ch m = VectorMatrix.timing_wrap "dim add" (dim_add ch) m
 
-  let dim_remove (ch: Apron.Dim.change) m del =
+  let dim_remove (ch: Apron.Dim.change) m ~del =
     if Array.length ch.dim = 0 || RelDomain.is_empty m then m else (
       Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
       let m' = if not del then let m = RelDomain.copy m in Array.fold_left (fun y x -> RelDomain.reduce_col_with y x; y) m ch.dim else m in
       RelDomain.remove_zero_rows @@ RelDomain.del_cols m' ch.dim)
 
-  let dim_remove ch m del = VectorMatrix.timing_wrap "dim remove" (dim_remove ch m) del
+  let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
 
 
-  let change_d t new_env add del =
+  let change_d t new_env ~add ~del =
     if Environment.equal t.env new_env then t else
       let dim_change = if add then Environment.dimchange t.env new_env
         else Environment.dimchange new_env t.env
       in match t.d with
       | None -> bot_env
-      | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
+      | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m ~del:del); env = new_env}
 
-  let change_d t new_env add del = VectorMatrix.timing_wrap "dimension change" (change_d t new_env add) del
+  let change_d t new_env ~add ~del = VectorMatrix.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
 
   let vars x = Environment.ivars_only x.env
   let add_vars t vars =
     let t = copy t in
     let env' = Environment.add_vars t.env vars in
-    change_d t env' true false
+    change_d t env' ~add:true ~del:false
 
   let add_vars t vars = VectorMatrix.timing_wrap "add_vars" (add_vars t) vars
 
-  let drop_vars t vars del =
+  let drop_vars t vars ~del =
     let t = copy t in
     let env' = Environment.remove_vars t.env vars in
-    change_d t env' false del
+    change_d t env' ~add:false ~del:del
 
   let drop_vars t vars = VectorMatrix.timing_wrap "drop_vars" (drop_vars t) vars
 
-  let remove_vars t vars = drop_vars t vars false
+  let remove_vars t vars = drop_vars t vars ~del:false
 
   let remove_vars t vars = VectorMatrix.timing_wrap "remove_vars" (remove_vars t) vars
 
@@ -349,7 +348,7 @@ struct
 
   let remove_filter t f =
     let env' = Environment.remove_filter t.env f in
-    change_d t env' false false
+    change_d t env' ~add:false ~del:false
 
   let remove_filter t f = VectorMatrix.timing_wrap "remove_filter" (remove_filter t) f
 
@@ -361,14 +360,14 @@ struct
   let keep_filter t f =
     let t = copy t in
     let env' = Environment.keep_filter t.env f in
-    change_d t env' false false
+    change_d t env' ~add:false ~del:false
 
   let keep_filter t f = VectorMatrix.timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let t = copy t in
     let env' = Environment.keep_vars t.env vs in
-    change_d t env' false false
+    change_d t env' ~add:false ~del:false
 
   let keep_vars t vs = VectorMatrix.timing_wrap "keep_vars" (keep_vars t) vs
 
