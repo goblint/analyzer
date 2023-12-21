@@ -238,15 +238,12 @@ struct
           end)
         (None, Z.zero, Z.zero) summands_list
     in
-    match get_coeff_vec t texp with
-    | exception _ -> None
-    | summands_list -> 
-      match sum_coefficients summands_list with
-      | exception _ -> None 
-      |  (var, var_coeff, offset) ->
-        if var = None then Some (None, offset)
-        else if var_coeff = Z.one then Some (var, offset)
-        else None
+    match sum_coefficients (get_coeff_vec t texp) with
+    | exception _ -> None 
+    |  (var, var_coeff, offset) ->
+      if var = None then Some (None, offset)
+      else if var_coeff = Z.one then Some (var, offset)
+      else None
 
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
