@@ -18,7 +18,7 @@ struct
     end)
 end
 
-include Lattice.Flat(MutexKind) (struct let bot_name = "Uninitialized" let top_name = "Top" end)
+include Lattice.FlatConf (struct include Printable.DefaultConf let bot_name = "Uninitialized" let top_name = "Top" end) (MutexKind)
 
 (* Needed because OS X is weird and assigns different constants than normal systems... :( *)
 let recursive_int = lazy (

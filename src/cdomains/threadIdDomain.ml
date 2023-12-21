@@ -196,12 +196,14 @@ struct
 end
 
 module ThreadLiftNames = struct
+  include Printable.DefaultConf
   let bot_name = "Bot Threads"
   let top_name = "Top Threads"
+  let expand1 = false
 end
 module Lift (Thread: S) =
 struct
-  include Lattice.Flat (Thread) (ThreadLiftNames)
+  include Lattice.FlatConf (ThreadLiftNames) (Thread)
   let name () = "Thread"
 end
 
@@ -217,7 +219,7 @@ struct
       let name = "FlagConfiguredTID"
     end)
 
-  module D = Lattice.Lift2(H.D)(P.D)(struct let bot_name = "bot" let top_name = "top" end)
+  module D = Lattice.Lift2 (H.D) (P.D)
 
   let history_enabled () =
     match GobConfig.get_string "ana.thread.domain" with

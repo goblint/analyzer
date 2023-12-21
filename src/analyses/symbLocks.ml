@@ -106,13 +106,12 @@ struct
 
   module A =
   struct
-    module E = struct
-      include Printable.Either (CilType.Offset) (ILock)
+    module PLock =
+    struct
+      include CilType.Offset
+      let name () = "p-lock"
 
-      let pretty () = function
-        | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
-        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr
-
+      let pretty = d_offset (text "*")
       include Printable.SimplePretty (
         struct
           type nonrec t = t
@@ -120,6 +119,7 @@ struct
         end
         )
     end
+    module E = Printable.Either (PLock) (ILock)
     include SetDomain.Make (E)
 
     let name () = "symblock"

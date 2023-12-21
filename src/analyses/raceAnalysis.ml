@@ -194,7 +194,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (OffsetTrie) (MemoSet) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (OffsetTrie) (MemoSet)
 
     let access = function
       | `Bot -> OffsetTrie.bot ()
