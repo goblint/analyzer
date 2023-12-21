@@ -55,43 +55,34 @@ module EqualitiesArray = struct
     let nnc = length indexes in
     if nnc = 0 then m else
       let nc = length m in
-      let m' = make_empty_array (nc + nnc) in
-      let offset_map = Array.make nc 0 in
-      let add_offset_to_array_entry (var, offs) = match var with
-        | None -> (var, offs)
-        | Some var_index -> (Some (var_index + offset_map.(var_index)), offs) in
       let offset = ref 0 in
-      for j = 0 to nc - 1 do
-        while !offset < nnc && !offset + j = indexes.(!offset) do incr offset; done;
-        offset_map.(j) <- !offset;
-        m'.(j + !offset) <- add_offset_to_array_entry m.(j);
-      done;
+      let offset_map = Array.init nc (fun j ->
+          while !offset < nnc && !offset + j = indexes.(!offset) do incr offset; done;
+          !offset)
+      in let add_offset_to_array_entry (var, offs) = 
+           Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
+      let m' = make_empty_array (nc + nnc) 
+      in Array.iteri (fun j eq -> m'.(j + offset_map.(j)) <- add_offset_to_array_entry eq) m;
       m'
 
-  let del_cols m cols =
-    let n_c = length cols in
-    if n_c = 0 || length m = 0 then m
+  let del_cols m indexes =
+    let nrc = length indexes in
+    if nrc = 0 || length m = 0 then m
     else
-      let m_c = length m in
-      if m_c = n_c then [||] else
-        let m' = make_empty_array (m_c - n_c) in
-        let offset_map = Array.make m_c 0 in
-        let remove_offset_from_array_entry (var, offs) = match var with
-          | None -> (var, offs)
-          | Some var_index -> (Some (var_index - offset_map.(var_index)), offs) in
+      let nc = length m in
+      if nc = nrc then [||] else
         let offset = ref 0 in
-        for j = 0 to (m_c - n_c) - 1 do
-          while !offset < n_c && !offset + j = cols.(!offset) do incr offset; done;
-          offset_map.(j + !offset) <- !offset;
-          m'.(j) <- remove_offset_from_array_entry m.(j + !offset);
-        done;
-        m'
+        let offset_map = Array.init nc (fun j ->
+            if indexes.(!offset) = j then (incr offset; 0) else !offset)
+        in let remove_offset_from_array_entry (var, offs) = 
+             Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
+        Array.init (nc - nrc) (fun j -> remove_offset_from_array_entry m.(j + offset_map.(j)))
 
   let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
   let is_empty m = length m = 0
 
-  let is_top_array m = Array.fold_lefti (fun b i (a, e) -> if e == Z.zero && Option.is_some a && Option.get a == i then b else false) true m
+  let is_top_array m = Array.fold_lefti (fun b i (a, e) -> if Z.(e = zero) && Option.is_some a && Option.get a = i then b else false) true m
 
   let find_reference_variable d var_index = fst d.(var_index)
 
@@ -242,7 +233,7 @@ struct
     | exception _ -> None 
     |  (var, var_coeff, offset) ->
       if var = None then Some (None, offset)
-      else if var_coeff = Z.one then Some (var, offset)
+      else if Z.(var_coeff = one) then Some (var, offset)
       else None
 
 
@@ -607,30 +598,28 @@ struct
     res
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
+
   (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" 
      This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
-    let assigned_var = Environment.dim_of_var t.env var  (* this is the variable we are assigning to *) in
+    let assigned_var = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
     begin match t.d with 
       | Some d -> 
         let abstract_exists_var = abstract_exists var t in
         begin match get_coeff t texp with
-          | None -> (* Statement "assigned_var = ?" (non-linear assignment) *) abstract_exists_var
-          | Some (exp_var_opt, off) -> 
-            begin match exp_var_opt with
-              | None -> (* Statement "assigned_var = off" (constant assignment) *) 
-                assign_const abstract_exists_var assigned_var off
-              | Some exp_var (* Statement "assigned_var = exp_var + off" (linear assignment) *) 
-                -> begin if assigned_var = exp_var then 
-                      (* Statement "assigned_var = assigned_var + off" *)
-                      subtract_const_from_var t assigned_var off
-                    else
-                      (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *) 
-                      let empty_array = EqualitiesArray.make_empty_array (VarManagement.size t) in
-                      let added_equality = empty_array.(assigned_var) <- (Some exp_var, off); empty_array in
-                      meet abstract_exists_var {d = Some added_equality; env = t.env} 
-                  end 
-            end
+          | None -> (* Statement "assigned_var = ?" (non-linear assignment) *) 
+            abstract_exists_var
+          | Some (None, off) -> 
+            (* Statement "assigned_var = off" (constant assignment) *) 
+            assign_const abstract_exists_var assigned_var off
+          | Some (Some exp_var, off) when assigned_var = exp_var -> 
+            (* Statement "assigned_var = assigned_var + off" *)
+            subtract_const_from_var t assigned_var off
+          | Some (Some exp_var, off) -> 
+            (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *) 
+            let added_equality = EqualitiesArray.make_empty_array (VarManagement.size t) in
+            added_equality.(assigned_var) <- (Some exp_var, off); 
+            meet abstract_exists_var {d = Some added_equality; env = t.env} 
         end 
       | None -> bot_env end 
 
@@ -741,7 +730,7 @@ struct
     List.fold_left print_element () l; print_newline ()
 
   let print_final_expr l (env : Environment.t) =
-    let print_element _ i a = if i == 0 then print_string ((Z.to_string a) ^ " + ") else 
+    let print_element _ i a = if i = 0 then print_string ((Z.to_string a) ^ " + ") else 
         print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in 
     List.fold_lefti print_element () l; print_newline ()
 
@@ -773,7 +762,7 @@ struct
           | EQMOD scalar -> t
           | _ -> bot_env (*Not supported right now
                                 if Float.equal ( Float.modulo (Z.to_float expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
-        else if var_count == 1 then
+        else if var_count = 1 then
           let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
           let var = ( index, expr.(index)) in
           let c = if Z.divisible expr.(0) @@ Tuple2.second var then Some (Z.(- expr.(0) / (Tuple2.second var))) else None in
@@ -782,7 +771,7 @@ struct
               let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int (Option.get c)) in 
               meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
           | _ -> t (*Not supported right now*)
-        else if var_count == 2 then 
+        else if var_count = 2 then 
           let v12 =  Array.fold_righti (fun i a l -> if Z.equal a Z.zero || i = 0 then l else (i,a)::l) expr [] in
           let a1 = Tuple2.second (List.hd v12) in  
           let a2 = Tuple2.second (List.hd @@ List.tl v12) in
