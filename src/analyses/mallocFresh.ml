@@ -29,6 +29,23 @@ struct
   let assign ctx lval rval =
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
+    let is_relevant_variable v =
+      (* Check if the variable is a global variable *)
+      v.vglob
+    
+    let event ctx e octx =
+        match e with
+        | Events.Invalidate {lvals} ->
+          (* Perform invalidation for mallocFresh analysis *)
+          let updated_locals = List.fold_left (fun acc lval ->
+            (* Check if lval is relevant to mallocFresh analysis and update the domain accordingly *)
+            match lval with
+            | (Var v, _) when is_relevant_variable v -> D.remove v acc
+            | _ -> acc
+          ) ctx.local lvals in
+          updated_locals
+        | _ -> ctx.local  
+
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
