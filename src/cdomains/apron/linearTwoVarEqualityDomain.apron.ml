@@ -181,7 +181,7 @@ struct
         | (a_coeff, None) -> multiply_with_Z a_coeff b
         | _ -> raise NotLinearExpr
       else 
-      if List.compare_length_with a 1 = 0 then
+      if List.compare_length_with b 1 = 0 then
         match List.nth b 0 with
         | (b_coeff, None) -> multiply_with_Z b_coeff a
         | _ -> raise NotLinearExpr
