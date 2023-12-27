@@ -230,39 +230,41 @@ struct
 
   let show t =
     let conv_to_ints row =
-      let module BI = IntOps.BigIntOps in
-      let row = Array.copy @@ Vector.to_array row
-      in
-      for i = 0 to Array.length row -1 do
-        let val_i = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ Mpqf.get_den row.(i)
-        in Array.iteri(fun j x -> row.(j) <- val_i *: x)  row
-      done;
-      let int_arr = Array.init (Array.length row) (fun i -> Mpqf.get_num row.(i))
-      in let div = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ Array.fold_left BI.gcd int_arr.(0) int_arr
-      in Array.iteri (fun i x -> row.(i) <- x /: div) row;
-      Vector.of_array @@ row
+      let row = Array.copy @@ Vector.to_array row in
+      let mpqf_of_z x = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z x in
+      let lcm = mpqf_of_z @@ Array.fold_left (fun x y -> Z.lcm x (Mpqf.get_den y)) Z.one row in
+      Array.modify (fun x -> x *: lcm) row;
+      let int_arr = Array.map (fun x -> Mpqf.get_num x) row in
+      let div = Array.fold_left Z.gcd int_arr.(0) int_arr in
+      Array.modify (fun x -> Z.div x div) int_arr;
+      int_arr
     in
-    let vec_to_constraint vec env =
+    let vec_to_constraint arr env =
       let vars, _ = Environment.vars env in 
       let dim_to_str var =
-        let vl =  Vector.nth vec (Environment.dim_of_var env var) in 
+        let vl =  arr.(Environment.dim_of_var env var) in 
         let var_str = Var.to_string var in 
-        if vl =: Mpqf.one then "+" ^ var_str
-        else if vl =: Mpqf.mone then "-" ^ var_str
-        else if vl <: Mpqf.mone then Mpqf.to_string vl ^ var_str
-        else if vl >: Mpqf.one then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
-        else ""
+        if Z.equal vl Z.zero then 
+          ""
+        else if Z.equal vl Z.one then 
+          "+" ^ var_str
+        else if Z.equal vl Z.minus_one then 
+          "-" ^ var_str
+        else if Z.lt vl Z.minus_one then
+          Z.to_string vl ^ var_str
+        else
+          Format.asprintf "+%s" (Z.to_string vl) ^ var_str
       in
-      let c_to_str vl =
-        if vl =: Mpqf.zero then 
+      let const_to_str vl =
+        if Z.equal vl Z.zero then 
           ""
         else
-          let negated = vl *: Mpqf.mone in
-          if negated >: Mpqf.zero then "+" ^ Mpqf.to_string negated
-          else Mpqf.to_string negated
+          let negated = Z.mul vl Z.minus_one in
+          if Z.gt negated Z.zero then "+" ^ Z.to_string negated
+          else Z.to_string negated
       in
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
-                ^ (c_to_str @@ Vector.nth vec (Vector.length vec - 1)) ^ "=0" in 
+                ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in 
       if String.starts_with res "+" then 
         String.sub res 1 (String.length res - 1)
       else
