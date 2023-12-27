@@ -291,15 +291,21 @@ struct
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false
-    in if is_bot t1 || is_bot t2 then bot() else
+    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
+    if is_bot t1 || is_bot t2 then 
+      bot ()
+    else
+      (* TODO: Why can I be sure that m1 && m2 are all Some here? *)
       let m1, m2 = Option.get t1.d, Option.get t2.d in
-      match m1, m2 with
-      | x, y when is_top_env t1-> {d = Some (dim_add (Environment.dimchange t2.env sup_env) y); env = sup_env}
-      | x, y when is_top_env t2 -> {d = Some (dim_add (Environment.dimchange t1.env sup_env) x); env = sup_env}
-      | x, y ->
-        let rref_matr = Matrix.rref_matrix_with (Matrix.copy x) (Matrix.copy y) in
-        if Option.is_none rref_matr then bot () else
+      if is_top_env t1 then 
+        {d = Some (dim_add (Environment.dimchange t2.env sup_env) m2); env = sup_env} 
+      else if is_top_env t2 then 
+        {d = Some (dim_add (Environment.dimchange t1.env sup_env) m1); env = sup_env}
+      else
+        let rref_matr = Matrix.rref_matrix_with (Matrix.copy m1) (Matrix.copy m2) in
+        if Option.is_none rref_matr then 
+          bot ()
+        else
           {d = rref_matr; env = sup_env}
 
 
@@ -312,12 +318,20 @@ struct
 
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
-    if env_comp = -2 || env_comp > 0 then false else
-    if is_bot t1 || is_top_env t2 then true else
-    if is_bot t2 || is_top_env t1 then false else (
+    if env_comp = -2 || env_comp > 0 then
+      (* -2:  environments are not compatible (a variable has different types in the 2 environements *)
+      (* -1: if env1 is a subset of env2,  (OK)  *)
+      (*  0:  if equality,  (OK) *)
+      (* +1: if env1 is a superset of env2, and +2 otherwise (the lce exists and is a strict superset of both) *) 
+      false
+    else if is_bot t1 || is_top_env t2 then 
+      true
+    else if is_bot t2 || is_top_env t1 then 
+      false 
+    else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
-      Matrix.is_covered_by m2 m1')
+      Matrix.is_covered_by m2 m1'
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -371,7 +385,11 @@ struct
               lin_disjunc new_r (s + 1) new_a new_b
             | _      -> failwith "Matrix not in rref form" end
     in
-    if is_bot a then b else if is_bot b then a else
+    if is_bot a then 
+      b
+    else if is_bot b then 
+      a
+    else
       match Option.get a.d, Option.get b.d with
       | x, y when is_top_env a || is_top_env b -> {d = Some (Matrix.empty ()); env = Environment.lce a.env b.env}
       | x, y when (Environment.compare a.env b.env <> 0) ->
@@ -388,33 +406,34 @@ struct
     let res = join a b in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
+
   let widen a b =
-    let a_env = a.env in
-    let b_env = b.env in
-    if Environment.equal a_env b_env  then
+    if Environment.equal a.env b.env then
       join a b
-    else b
+    else
+      b
 
   let narrow a b = a
+
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let remove_rels_with_var x var env imp =
+  let remove_rels_with_var x var env inplace =
     let j0 = Environment.dim_of_var env var in
-    if imp then (Matrix.reduce_col_with x j0; x) else Matrix.reduce_col x j0
+    if inplace then 
+      (Matrix.reduce_col_with x j0; x) 
+    else 
+      Matrix.reduce_col x j0
 
-  let remove_rels_with_var x var env imp = timing_wrap "remove_rels_with_var" (remove_rels_with_var x var env) imp
+  let remove_rels_with_var x var env inplace = timing_wrap "remove_rels_with_var" (remove_rels_with_var x var env) inplace
 
   let forget_vars t vars =
-    if is_bot t || is_top_env t then t
+    if is_bot t || is_top_env t || List.is_empty vars then 
+      t
     else
       let m = Option.get t.d in
-      if List.is_empty vars then t else
-        let rec rem_vars m vars' =
-          begin match vars' with
-            |            [] -> m
-            | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
-        in {d = Some (Matrix.remove_zero_rows @@ rem_vars (Matrix.copy m) vars); env = t.env}
+      let rem_from m = List.fold_left (fun m' x -> remove_rels_with_var m' x t.env true) m vars in
+      {d = Some (Matrix.remove_zero_rows @@ rem_from (Matrix.copy m)); env = t.env}
 
   let forget_vars t vars =
     let res = forget_vars t vars in
@@ -472,6 +491,7 @@ struct
     if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
         (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
+
   let assign_var (t: VarManagement(Vc)(Mx).t) v v' =
     let t = add_vars t [v; v'] in
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
@@ -489,14 +509,20 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t -> let replace_col m x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
-                                                 let col_x = Matrix.get_col m dim_x in
-                                                 Matrix.set_col_with m col_x dim_y in
+    | Some m when not @@ is_top_env multi_t -> 
+      let replace_col m x y = 
+        let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
+        let col_x = Matrix.get_col m dim_x in
+        Matrix.set_col_with m col_x dim_y
+      in
       let m_cp = Matrix.copy m in
-      let switched_m = List.fold_left2 (fun m' x y -> replace_col m' x y) m_cp primed_vars assigned_vars in
+      let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
       let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
       let x = Option.get res.d in
-      if Matrix.normalize_with x then {d = Some x; env = res.env} else bot ()
+      if Matrix.normalize_with x then 
+        {d = Some x; env = res.env} 
+      else 
+        bot ()
     | _ -> t
 
   let assign_var_parallel t vv's =
@@ -561,14 +587,17 @@ struct
       | _, _ -> overflow_res res
 
   let meet_tcons t tcons expr =
-    let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
-    in
+    let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
     let meet_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       Vector.mapi_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e;
-      let res = if is_bot t then bot () else
-          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e
-          in if Option.is_none opt_m then bot () else {d = opt_m; env = t.env} in
+      let res =
+        if is_bot t then 
+          bot () 
+        else
+          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e in 
+          if Option.is_none opt_m then bot () else {d = opt_m; env = t.env}
+      in
       meet_tcons_one_var_eq res expr
     in
     match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
@@ -615,9 +644,7 @@ struct
   let relift t = t
 
   let invariant t =
-    match t.d with
-    | None -> []
-    | Some m ->
+    let invariant m =
       let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
       for i = 0 to Lincons1.array_length earray do
         let row = Matrix.get_row m i in
@@ -631,6 +658,8 @@ struct
           Lincons1.{lincons0; env = array_env}
         )
       |> List.of_enum
+    in
+    BatOption.map_default invariant [] t.d
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
