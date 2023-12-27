@@ -1007,16 +1007,16 @@ struct
 
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
-  and eval_fv ~ctx a (gs:glob_fun) st (exp:exp): AD.t =
+  and eval_fv ~ctx (exp:exp): AD.t =
     match exp with
     | Lval lval -> eval_lv ~ctx lval
-    | _ -> eval_tv ~ctx a gs st exp
+    | _ -> eval_tv ~ctx exp
   (* Used also for thread creation: *)
-  and eval_tv ~ctx a (gs:glob_fun) st (exp:exp): AD.t =
+  and eval_tv ~ctx (exp:exp): AD.t =
     match eval_rv ~ctx exp with
     | Address x -> x
     | _          -> failwith "Problems evaluating expression to function calls!"
-  and eval_int ~ctx a gs st exp =
+  and eval_int ~ctx exp =
     match eval_rv ~ctx exp with
     | Int x -> x
     | _ -> ID.top_of (Cilfacade.get_ikind_exp exp)
@@ -1137,7 +1137,7 @@ struct
     | _ -> None
 
   let eval_funvar ctx fval: Queries.AD.t =
-    let fp = eval_fv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
+    let fp = eval_fv ~ctx fval in
     if AD.is_top fp then (
       if AD.cardinal fp = 1 then
         M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval
@@ -2009,7 +2009,7 @@ struct
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx `Thread;
         (* Collect the threads. *)
-        let start_addr = eval_tv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local start in
+        let start_addr = eval_tv ~ctx start in
         let start_funvars = AD.to_var_may start_addr in
         let start_funvars_with_unknown =
           if AD.mem Addr.UnknownPtr start_addr then
@@ -2508,7 +2508,7 @@ struct
         | Some lv ->
           let heap_var = AD.of_var (heap_var true ctx) in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size, true));
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx size, true));
                             (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2521,7 +2521,7 @@ struct
             else AD.of_var (heap_var false ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size, true));
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx size, true));
                             (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2534,8 +2534,8 @@ struct
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           let ik = Cilfacade.ptrdiff_ikind () in
-          let sizeval = eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size in
-          let countval = eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st n in
+          let sizeval = eval_int ~ctx size in
+          let countval = eval_int ~ctx n in
           if ID.to_int countval = Some Z.one then (
             set_many ~ctx st [
               (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
@@ -2569,7 +2569,7 @@ struct
           in
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
           let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
-          let size_int = eval_int ~ctx ask gs st size in
+          let size_int = eval_int ~ctx size in
           let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
           let heap_addr = AD.of_var (heap_var false ctx) in
           let heap_addr' =
