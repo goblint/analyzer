@@ -1243,6 +1243,7 @@ struct
       Invariant.none
 
   let query ctx (type a) (q: a Q.t): a Q.result =
+    let ask = Analyses.ask_of_ctx ctx in
     match q with
     | Q.EvalFunvar e ->
       eval_funvar ctx e
@@ -1251,7 +1252,7 @@ struct
         | Address jmp_buf ->
           if AD.mem Addr.UnknownPtr jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
-          begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
+          begin match get ~top:(VD.bot ()) ask ctx.global ctx.local jmp_buf None with
             | JmpBuf (x, copied) ->
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
@@ -1268,7 +1269,7 @@ struct
           JmpBufDomain.JmpBufSet.top ()
       end
     | Q.EvalInt e ->
-      query_evalint ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+      query_evalint ~ctx ask ctx.global ctx.local e
     | Q.EvalMutexAttr e -> begin
         let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
         match eval_rv ~ctx e with
@@ -1312,12 +1313,12 @@ struct
               else
                 a
             in
-            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a None in
+            let r = get ~full:true ask ctx.global ctx.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
              | Array a ->
                (* unroll into array for Calloc calls *)
-               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
                 | Blob (_,s,_) -> `Lifted s
                 | _ -> Queries.Result.top q
                )
@@ -1347,7 +1348,7 @@ struct
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
+          let addrs = reachable_vars ask [a'] ctx.global ctx.local in
           let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
           if AD.may_be_unknown a then
             AD.add UnknownPtr addrs' (* add unknown back *)
@@ -1783,14 +1784,15 @@ struct
   let branch ctx (exp:exp) (tv:bool) : store =
     let valu = eval_rv ~ctx exp in
     let refine () =
-      let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
+      let ask = Analyses.ask_of_ctx ctx in
+      let res = invariant ctx ask ctx.global ctx.local exp tv in
       if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
       if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
       if M.tracing then M.traceu "branch" "Invariant enforced!\n";
       match ctx.ask (Queries.CondVars exp) with
       | s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
-        invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
+        invariant ctx ask ctx.global res e tv
       | _ -> res
     in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
@@ -1835,6 +1837,7 @@ struct
   let return ctx exp fundec: store =
     if Cil.hasAttribute "noreturn" fundec.svar.vattr then
       M.warn ~category:(Behavior (Undefined Other)) "Function declared 'noreturn' could return";
+    let ask = Analyses.ask_of_ctx ctx in
     let st: store = ctx.local in
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
@@ -1842,11 +1845,11 @@ struct
       publish_all ctx `Init;
       (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
       (* TODO: move into sync `Init *)
-      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
+      Priv.enter_multithreaded ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | _ ->
       let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
-      let nst_part = rem_many_partitioning (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) ctx.local locals in
-      let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
+      let nst_part = rem_many_partitioning (Queries.to_value_domain_ask ask) ctx.local locals in
+      let nst: store = rem_many ask nst_part locals in
       match exp with
       | None -> nst
       | Some exp ->
@@ -1856,13 +1859,13 @@ struct
         in
         let rv = eval_rv ~ctx exp in
         let st' = set ~ctx ~t_override nst (return_var ()) t_override rv in
-        match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-        | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+        match ThreadId.get_current ask with
+        | `Lifted tid when ThreadReturn.is_current ask ->
           (* Evaluate exp and cast the resulting value to the void-pointer-type.
               Casting to the right type here avoids precision loss on joins. *)
           let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
           ctx.sideg (V.thread tid) (G.create_thread rv);
-          Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st'
+          Priv.thread_return ask (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st'
         | _ -> st'
 
   let vdecl ctx (v:varinfo) =
@@ -1930,6 +1933,7 @@ struct
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
+    let ask = Analyses.ask_of_ctx ctx in
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ~ctx) args in
@@ -1942,12 +1946,12 @@ struct
            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
-          ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st);
-        Priv.threadenter (Analyses.ask_of_ctx ctx) st
+        if not (ThreadFlag.has_ever_been_multi ask) then
+          ignore (Priv.enter_multithreaded ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st);
+        Priv.threadenter ask st
       ) else
         (* use is_global to account for values that became globals because they were saved into global variables *)
-        let globals = CPA.filter (fun k v -> is_global (Analyses.ask_of_ctx ctx) k) st.cpa in
+        let globals = CPA.filter (fun k v -> is_global ask k) st.cpa in
         (* let new_cpa = if !earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
         let new_cpa = globals in
         {st with cpa = new_cpa}
@@ -1957,13 +1961,13 @@ struct
     add_to_array_map fundec pa;
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
-    let reachable = List.concat_map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st) in
+    let reachable = List.concat_map AD.to_var_may (reachable_vars ask (get_ptrs vals) ctx.global st) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in
-    let new_cpa = project (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (Some p) new_cpa fundec in
+    let new_cpa = project (Queries.to_value_domain_ask ask) (Some p) new_cpa fundec in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2375,9 +2379,10 @@ struct
             (* TODO: emit thread return event so other analyses are aware? *)
             (* TODO: publish still needed? *)
             publish_all ctx `Return; (* like normal return *)
-            match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-            | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
-              ignore @@ Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st
+            let ask = Analyses.ask_of_ctx ctx in
+            match ThreadId.get_current ask with
+            | `Lifted tid when ThreadReturn.is_current ask ->
+              ignore @@ Priv.thread_return ask (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st
             | _ -> ())
         | _ -> ()
       end;
@@ -2648,7 +2653,7 @@ struct
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
   let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : AD.t) : store =
-    let ask = (Analyses.ask_of_ctx ctx) in
+    let ask = Analyses.ask_of_ctx ctx in
     AD.fold (fun addr (st: store) ->
         match addr with
         | Addr.Addr (v,o) ->
@@ -2691,7 +2696,7 @@ struct
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
-        let ask = (Analyses.ask_of_ctx ctx) in
+        let ask = Analyses.ask_of_ctx ctx in
         let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname AD.pretty tainted;
         if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
@@ -2911,21 +2916,22 @@ struct
     D.join ctx.local e_d'
 
   let event ctx e octx =
+    let ask = Analyses.ask_of_ctx ctx in
     let st: store = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
-      Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
-    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+      Priv.lock ask (priv_getg ctx.global) st addr
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->
-          Priv.unlock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
+          Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
         )
     | Events.Escape escaped ->
-      Priv.escape (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st escaped
+      Priv.escape ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st escaped
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
+      Priv.enter_multithreaded ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx ctx.local (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
