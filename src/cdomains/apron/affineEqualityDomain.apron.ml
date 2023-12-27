@@ -243,31 +243,37 @@ struct
       Vector.of_array @@ row
     in
     let vec_to_constraint vec env =
-      let vars, _ = Environment.vars env
-      in let dim_to_str var =
-           let vl =  Vector.nth vec (Environment.dim_of_var env var)
-           in let var_str = Var.to_string var
-           in if vl =: Mpqf.one then "+" ^ var_str
-           else if vl =: Mpqf.mone then "-" ^ var_str
-           else if vl <: Mpqf.mone then Mpqf.to_string vl ^ var_str
-           else if vl >: Mpqf.one then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
-           else ""
-      in
-      let c_to_str vl =
-        if vl >: Mpqf.zero then "-" ^ Mpqf.to_string vl
-        else if vl <: Mpqf.zero then "+" ^ Mpqf.to_string vl
+      let vars, _ = Environment.vars env in 
+      let dim_to_str var =
+        let vl =  Vector.nth vec (Environment.dim_of_var env var) in 
+        let var_str = Var.to_string var in 
+        if vl =: Mpqf.one then "+" ^ var_str
+        else if vl =: Mpqf.mone then "-" ^ var_str
+        else if vl <: Mpqf.mone then Mpqf.to_string vl ^ var_str
+        else if vl >: Mpqf.one then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
         else ""
       in
+      let c_to_str vl =
+        if vl =: Mpqf.zero then 
+          ""
+        else
+          let negated = vl *: Mpqf.mone in
+          if negated >: Mpqf.zero then "+" ^ Mpqf.to_string negated
+          else Mpqf.to_string negated
+      in
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
-                ^ (c_to_str @@ Vector.nth vec (Vector.length vec - 1)) ^ "=0"
-      in if String.starts_with res "+" then String.sub res 1 (String.length res - 1) else res
+                ^ (c_to_str @@ Vector.nth vec (Vector.length vec - 1)) ^ "=0" in 
+      if String.starts_with res "+" then 
+        String.sub res 1 (String.length res - 1)
+      else
+        res
     in
     match t.d with
     | None -> "Bottom Env"
     | Some m when Matrix.is_empty m -> "⊤"
     | Some m ->
-      let constraint_list = List.init (Matrix.num_rows m) (fun i -> vec_to_constraint (conv_to_ints @@ Matrix.get_row m i) t.env)
-      in Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]")
+      let constraint_list = List.init (Matrix.num_rows m) (fun i -> vec_to_constraint (conv_to_ints @@ Matrix.get_row m i) t.env) in
+      Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]")
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
