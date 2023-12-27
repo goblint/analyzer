@@ -512,7 +512,7 @@ struct
     in
     List.fold_right f vals []
 
-  let rec reachable_from_value ~ctx (ask: Q.ask) (gs:glob_fun) st (value: value) (t: typ) (description: string)  =
+  let rec reachable_from_value ~ctx (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
     if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
     match value with
@@ -524,12 +524,12 @@ struct
     (* The main thing is to track where pointers go: *)
     | Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
-    | Union (f,e) -> reachable_from_value ~ctx ask gs st e t description
+    | Union (f,e) -> reachable_from_value ~ctx e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | Array a -> reachable_from_value ~ctx ask gs st (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
-    | Blob (e,_,_) -> reachable_from_value ~ctx ask gs st e t description
-    | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ~ctx ask gs st v t description) acc) s empty
+    | Array a -> reachable_from_value ~ctx (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | Blob (e,_,_) -> reachable_from_value ~ctx e t description
+    | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ~ctx v t description) acc) s empty
     | Int _ -> empty
     | Float _ -> empty
     | MutexAttr _ -> empty
@@ -540,9 +540,9 @@ struct
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
-  let reachable_from_address ~ctx (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
+  let reachable_from_address ~ctx (adr: address): address =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
-    let res = reachable_from_value ~ctx ask gs st (get ask gs st adr None) (AD.type_of adr) (AD.show adr) in
+    let res = reachable_from_value ~ctx (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None) (AD.type_of adr) (AD.show adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -550,7 +550,7 @@ struct
    * This section is very confusing, because I use the same construct, a set of
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
    * and the workset of visited addresses. *)
-  let reachable_vars ~ctx (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
+  let reachable_vars ~ctx (args: address list): address list =
     if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (d_list ", " AD.pretty) args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
@@ -563,7 +563,7 @@ struct
       (* ok, let's visit all the variables in the workset and collect the new variables *)
       let visit_and_collect var (acc: address): address =
         let var = AD.singleton var in (* Very bad hack! Pathetic really! *)
-        AD.union (reachable_from_address ~ctx ask gs st var) acc in
+        AD.union (reachable_from_address ~ctx var) acc in
       let collected = AD.fold visit_and_collect !workset empty in
       (* And here we remove the already visited variables *)
       workset := AD.diff collected !visited
@@ -572,7 +572,7 @@ struct
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
 
-  let reachable_vars ~ctx ask args gs st = Timing.wrap "reachability" (reachable_vars ~ctx ask args gs) st
+  let reachable_vars ~ctx args = Timing.wrap "reachability" (reachable_vars ~ctx) args
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
@@ -1348,7 +1348,7 @@ struct
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars ~ctx ask [a'] ctx.global ctx.local in
+          let addrs = reachable_vars ~ctx [a'] in
           let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
           if AD.may_be_unknown a then
             AD.add UnknownPtr addrs' (* add unknown back *)
@@ -1883,12 +1883,9 @@ struct
 
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ~ctx ?(warn=false) (exps: exp list) =
-    let ask = Analyses.ask_of_ctx ctx in
-    let gs = ctx.global in
-    let st = ctx.local in
     let do_exp e =
-      let immediately_reachable = reachable_from_value ~ctx ask gs st (eval_rv ~ctx e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
-      reachable_vars ~ctx ask [immediately_reachable] gs st
+      let immediately_reachable = reachable_from_value ~ctx (eval_rv ~ctx e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      reachable_vars ~ctx [immediately_reachable]
     in
     List.concat_map do_exp exps
 
@@ -1964,7 +1961,7 @@ struct
     add_to_array_map fundec pa;
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
-    let reachable = List.concat_map AD.to_var_may (reachable_vars ~ctx ask (get_ptrs vals) ctx.global st) in
+    let reachable = List.concat_map AD.to_var_may (reachable_vars ~ctx (get_ptrs vals)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
