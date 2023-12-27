@@ -679,14 +679,14 @@ struct
     !collected
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
-  let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let rec eval_rv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a\n" d_exp exp;
     let r =
       (* we have a special expression that should evaluate to top ... *)
       if exp = MyCFG.unknown_exp then
         VD.top ()
       else
-        eval_rv_ask_evalint a gs st exp
+        eval_rv_ask_evalint ~ctx a gs st exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
     r
@@ -695,8 +695,8 @@ struct
       Base itself also answers EvalInt, so recursion goes indirectly through queries.
       This allows every subexpression to also meet more precise value from other analyses.
       Non-integer expression just delegate to next eval_rv function. *)
-  and eval_rv_ask_evalint a gs st exp =
-    let eval_next () = eval_rv_no_ask_evalint a gs st exp in
+  and eval_rv_ask_evalint ~ctx a gs st exp =
+    let eval_next () = eval_rv_no_ask_evalint ~ctx a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
     let r:value =
       match Cilfacade.typeOf exp with
@@ -719,24 +719,24 @@ struct
   (** Evaluate expression without EvalInt query on outermost expression.
       This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
       Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
-  and eval_rv_no_ask_evalint a gs st exp =
-    eval_rv_base a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
+  and eval_rv_no_ask_evalint ~ctx a gs st exp =
+    eval_rv_base ~ctx a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
 
-  and eval_rv_back_up a gs st exp =
+  and eval_rv_back_up ~ctx a gs st exp =
     if get_bool "ana.base.eval.deep-query" then
-      eval_rv a gs st exp
+      eval_rv ~ctx a gs st exp
     else (
       (* duplicate unknown_exp check from eval_rv since we're bypassing it now *)
       if exp = MyCFG.unknown_exp then
         VD.top ()
       else
-        eval_rv_base a gs st exp (* bypass all queries *)
+        eval_rv_base ~ctx a gs st exp (* bypass all queries *)
     )
 
   (** Evaluate expression structurally by base.
       This handles constants directly and variables using CPA.
       Subexpressions delegate to [eval_rv], which may use queries on them. *)
-  and eval_rv_base (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  and eval_rv_base ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     let eval_rv = eval_rv_back_up in
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 =
@@ -758,7 +758,7 @@ struct
       match constFold true exp with
       (* Integer literals *)
       (* seems like constFold already converts CChr to CInt *)
-      | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
+      | Const (CChr x) -> eval_rv ~ctx a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) ->
         (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
         Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
@@ -774,12 +774,12 @@ struct
       | Const _ -> VD.top ()
       (* Variables and address expressions *)
       | Lval lv ->
-        eval_rv_base_lval ~eval_lv a gs st exp lv
+        eval_rv_base_lval ~eval_lv ~ctx a gs st exp lv
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
-        let a1 = eval_rv a gs st e1 in
-        let a2 = eval_rv a gs st e2 in
+        let a1 = eval_rv ~ctx a gs st e1 in
+        let a2 = eval_rv ~ctx a gs st e2 in
         let extra_is_safe =
           match evalbinop_base a st op t1 a1 t2 a2 typ with
           | Int i -> ID.to_bool i = Some true
@@ -788,7 +788,7 @@ struct
         in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
-        evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
+        evalbinop ~ctx a gs st op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
         let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
@@ -821,8 +821,8 @@ struct
         let eqs_value: value option =
           let* eqs = split exp in
           let* (e, es) = find_common eqs in
-          let v = eval_rv a gs st e in (* value of common exp *)
-          let vs = List.map (eval_rv a gs st) es in (* values of other sides *)
+          let v = eval_rv ~ctx a gs st e in (* value of common exp *)
+          let vs = List.map (eval_rv ~ctx a gs st) es in (* values of other sides *)
           let ik = Cilfacade.get_ikind typ in
           match v with
           | Address a ->
@@ -864,25 +864,25 @@ struct
         in
         begin match eqs_value with
           | Some x -> x
-          | None -> evalbinop a gs st LOr ~e1 ~e2 typ (* fallback to general case *)
+          | None -> evalbinop ~ctx a gs st LOr ~e1 ~e2 typ (* fallback to general case *)
         end
       | BinOp (op,e1,e2,typ) ->
-        evalbinop a gs st op ~e1 ~e2 typ
+        evalbinop ~ctx a gs st op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
-        let a1 = eval_rv a gs st arg1 in
+        let a1 = eval_rv ~ctx a gs st arg1 in
         evalunop op typ a1
       (* The &-operator: we create the address abstract element *)
-      | AddrOf lval -> Address (eval_lv a gs st lval)
+      | AddrOf lval -> Address (eval_lv ~ctx a gs st lval)
       (* CIL's very nice implicit conversion of an array name [a] to a pointer
         * to its first element [&a[0]]. *)
       | StartOf lval ->
         let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
         let array_start = add_offset_varinfo array_ofs in
-        Address (AD.map array_start (eval_lv a gs st lval))
-      | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv a gs st (Const (CStr (x,e))) (* TODO safe? *)
+        Address (AD.map array_start (eval_lv ~ctx a gs st lval))
+      | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~ctx a gs st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
-        let v = eval_rv a gs st exp in
+        let v = eval_rv ~ctx a gs st exp in
         VD.cast ~torg:(Cilfacade.typeOf exp) t v
       | SizeOf _
       | Real _
@@ -898,9 +898,9 @@ struct
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
 
-  and eval_rv_base_lval ~eval_lv (a: Q.ask) (gs:glob_fun) (st: store) (exp: exp) (lv: lval): value =
+  and eval_rv_base_lval ~eval_lv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp: exp) (lv: lval): value =
     match lv with
-    | (Var v, ofs) -> get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)
+    | (Var v, ofs) -> get a gs st (eval_lv ~ctx a gs st (Var v, ofs)) (Some exp)
     (*| Lval (Mem e, ofs) -> get a gs st (eval_lv a gs st (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
@@ -913,7 +913,7 @@ struct
       in
       let b = Mem e, NoOffset in (* base pointer *)
       let t = Cilfacade.typeOfLval b in (* static type of base *)
-      let p = eval_lv a gs st b in (* abstract base addresses *)
+      let p = eval_lv ~ctx a gs st b in (* abstract base addresses *)
       (* pre VLA: *)
       (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
       let cast_ok a =
@@ -951,19 +951,19 @@ struct
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' (convert_offset ~ctx a gs st ofs) (Some exp) None t in (* handle offset *)
         v'
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
 
-  and evalbinop (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
-    evalbinop_mustbeequal a gs st op ~e1 ?t1 ~e2 ?t2 t
+  and evalbinop ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    evalbinop_mustbeequal ~ctx a gs st op ~e1 ?t1 ~e2 ?t2 t
 
   (** Evaluate BinOp using MustBeEqual query as fallback. *)
-  and evalbinop_mustbeequal (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+  and evalbinop_mustbeequal ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
     (* Evaluate structurally using base at first. *)
-    let a1 = eval_rv a gs st e1 in
-    let a2 = eval_rv a gs st e2 in
+    let a1 = eval_rv ~ctx a gs st e1 in
+    let a2 = eval_rv ~ctx a gs st e2 in
     let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
     let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
     let r = evalbinop_base a st op t1 a1 t2 a2 t in
@@ -1002,48 +1002,48 @@ struct
 
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
-  and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
+  and eval_fv ~ctx a (gs:glob_fun) st (exp:exp): AD.t =
     match exp with
-    | Lval lval -> eval_lv a gs st lval
-    | _ -> eval_tv a gs st exp
+    | Lval lval -> eval_lv ~ctx a gs st lval
+    | _ -> eval_tv ~ctx a gs st exp
   (* Used also for thread creation: *)
-  and eval_tv a (gs:glob_fun) st (exp:exp): AD.t =
-    match (eval_rv a gs st exp) with
+  and eval_tv ~ctx a (gs:glob_fun) st (exp:exp): AD.t =
+    match (eval_rv ~ctx a gs st exp) with
     | Address x -> x
     | _          -> failwith "Problems evaluating expression to function calls!"
-  and eval_int a gs st exp =
-    match eval_rv a gs st exp with
+  and eval_int ~ctx a gs st exp =
+    match eval_rv ~ctx a gs st exp with
     | Int x -> x
     | _ -> ID.top_of (Cilfacade.get_ikind_exp exp)
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
-  and convert_offset a (gs:glob_fun) (st: store) (ofs: offset) =
+  and convert_offset ~ctx a (gs:glob_fun) (st: store) (ofs: offset) =
     let eval_rv = eval_rv_back_up in
     match ofs with
     | NoOffset -> `NoOffset
-    | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
+    | Field (fld, ofs) -> `Field (fld, convert_offset ~ctx a gs st ofs)
     | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
-      `Index (IdxDom.top (), convert_offset a gs st ofs)
+      `Index (IdxDom.top (), convert_offset ~ctx a gs st ofs)
     | Index (exp, ofs) ->
-      match eval_rv a gs st exp with
-      | Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
-      | Address add -> `Index (AD.to_int add, convert_offset a gs st ofs)
-      | Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs)
-      | Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
+      match eval_rv ~ctx a gs st exp with
+      | Int i -> `Index (iDtoIdx i, convert_offset ~ctx a gs st ofs)
+      | Address add -> `Index (AD.to_int add, convert_offset ~ctx a gs st ofs)
+      | Top   -> `Index (IdxDom.top (), convert_offset ~ctx a gs st ofs)
+      | Bot -> `Index (IdxDom.bot (), convert_offset ~ctx a gs st ofs)
       | _ -> failwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
-  and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t =
+  and eval_lv ~ctx (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t =
     let eval_rv = eval_rv_back_up in
     match lval with
     (* The simpler case with an explicit variable, e.g. for [x.field] we just
      * create the address { (x,field) } *)
     | Var x, ofs ->
-      AD.singleton (Addr.of_mval (x, convert_offset a gs st ofs))
+      AD.singleton (Addr.of_mval (x, convert_offset ~ctx a gs st ofs))
     (* The more complicated case when [exp = & x.field] and we are asked to
      * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
      * and then add the subfield to it: { (x,field.subfield) }. *)
     | Mem n, ofs -> begin
-        match (eval_rv a gs st n) with
+        match (eval_rv ~ctx a gs st n) with
         | Address adr ->
           (
             if AD.is_null adr then (
@@ -1063,7 +1063,7 @@ struct
               M.warn "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
             )
           );
-          AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
+          AD.map (add_offset_varinfo (convert_offset ~ctx a gs st ofs)) adr
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
           AD.unknown_ptr
@@ -1075,17 +1075,17 @@ struct
 
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
-  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let eval_rv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     try
-      let r = eval_rv a gs st exp in
+      let r = eval_rv ~ctx a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
       if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
       ValueDomain.Compound.top_value (Cilfacade.typeOf exp)
 
-  let query_evalint ask gs st e =
+  let query_evalint ~ctx ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
-    let r = match eval_rv_no_ask_evalint ask gs st e with
+    let r = match eval_rv_no_ask_evalint ~ctx ask gs st e with
       | Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
       | Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       | Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
@@ -1107,17 +1107,32 @@ struct
       else (
         let asked' = Queries.Set.add anyq asked in
         match q with
-        | EvalInt e -> query_evalint (ask asked') gs st e (* mimic EvalInt query since eval_rv needs it *)
+        | EvalInt e -> query_evalint ~ctx (ask asked') gs st e (* mimic EvalInt query since eval_rv needs it *)
         | _ -> Queries.Result.top q
       )
     and ask asked = { Queries.f = fun (type a) (q: a Queries.t) -> query asked q } (* our version of ask *)
-    and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) in (* the expression is guaranteed to not contain globals *)
-    match (eval_rv (ask Queries.Set.empty) gs st exp) with
+    and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) (* the expression is guaranteed to not contain globals *)
+    and ctx =
+      { ask = (fun (type a) (q: a Queries.t) -> query Queries.Set.empty q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in base eval_exp context.")
+      ; node    = MyCFG.dummy_node
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = (fun () -> ctx_failwith "Base eval_exp has no context.")
+      ; context = (fun () -> ctx_failwith "Base eval_exp has no context.")
+      ; edge    = MyCFG.Skip
+      ; local   = st
+      ; global  = gs
+      ; spawn   = (fun ?(multiple=false) _ -> failwith "Base eval_exp should never spawn threads. What is going on?")
+      ; split   = (fun _ -> failwith "Base eval_exp trying to split paths.")
+      ; sideg   = (fun g d -> failwith "Base eval_exp trying to side effect.")
+      }
+    in
+    match (eval_rv ~ctx (ask Queries.Set.empty) gs st exp) with
     | Int x -> ValueDomain.ID.to_int x
     | _ -> None
 
   let eval_funvar ctx fval: Queries.AD.t =
-    let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
+    let fp = eval_fv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
     if AD.is_top fp then (
       if AD.cardinal fp = 1 then
         M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval
@@ -1128,14 +1143,14 @@ struct
 
   (** Evaluate expression as address.
       Avoids expensive Apron EvalInt if the Int result would be useless to us anyway. *)
-  let eval_rv_address ask gs st e =
+  let eval_rv_address ~ctx ask gs st e =
     (* no way to do eval_rv with expected type, so filter expression beforehand *)
     match Cilfacade.typeOf e with
     | t when Cil.isArithmeticType t -> (* definitely not address *)
       VD.top_value t
     | exception Cilfacade.TypeOfError _ (* something weird, might be address *)
     | _ ->
-      eval_rv ask gs st e
+      eval_rv ~ctx ask gs st e
 
   (* interpreter end *)
 
@@ -1227,7 +1242,7 @@ struct
     | Q.EvalFunvar e ->
       eval_funvar ctx e
     | Q.EvalJumpBuf e ->
-      begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+      begin match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address jmp_buf ->
           if AD.mem Addr.UnknownPtr jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
@@ -1248,15 +1263,15 @@ struct
           JmpBufDomain.JmpBufSet.top ()
       end
     | Q.EvalInt e ->
-      query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+      query_evalint ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalMutexAttr e -> begin
         let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | MutexAttr a -> a
         | v -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
           let lenOf = function
@@ -1271,9 +1286,9 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.EvalValue e ->
-      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+      eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
-        let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        let p = eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
@@ -1307,14 +1322,14 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.MayPointTo e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Int i -> AD.of_int i
         | _ -> Queries.Result.top q
       end
     | Q.EvalThread e -> begin
-        let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        let v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
         match v with
         | Thread a -> a
@@ -1322,7 +1337,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.ReachableFrom e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
@@ -1342,7 +1357,7 @@ struct
         | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
@@ -1352,7 +1367,7 @@ struct
         | _ -> Q.TS.empty ()
       end
     | Q.EvalStr e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)
         | Address a when List.compare_length_with (AD.to_string a) 1 = 0 -> (* exactly one string *)
           `Lifted (List.hd (AD.to_string a))
@@ -1645,7 +1660,7 @@ struct
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
-    let eval_rv_lval_refine a gs st exp lval = eval_rv a gs st (Lval lval)
+    let eval_rv_lval_refine ~ctx a gs st exp lval = eval_rv ~ctx a gs st (Lval lval)
 
     let id_meet_down ~old ~c = ID.meet old c
     let fd_meet_down ~old ~c = FD.meet old c
@@ -1705,9 +1720,9 @@ struct
       | _ -> ()
     in
     char_array_hack ();
-    let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
+    let rval_val = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
     let rval_val = VD.mark_jmpbufs_as_copied rval_val in
-    let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+    let lval_val = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
     (* M.debug ~category:Analyzer @@ sprint ~width:max_int @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs =
@@ -1739,7 +1754,7 @@ struct
           assert (offs = NoOffset);
           VD.Bot
         end else
-          eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
+          eval_rv_keep_bot ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
       in
       begin match current_val with
         | Bot -> (* current value is VD Bot *)
@@ -1761,7 +1776,7 @@ struct
 
 
   let branch ctx (exp:exp) (tv:bool) : store =
-    let valu = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+    let valu = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
     let refine () =
       let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
       if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
@@ -1834,7 +1849,7 @@ struct
           | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
           | ret -> ret
         in
-        let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+        let rv = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
         let st' = set ~ctx ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
@@ -1849,9 +1864,9 @@ struct
     if not (Cil.isArrayType v.vtype) then
       ctx.local
     else
-      let lval = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Var v, NoOffset) in
-      let current_value = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
-      let new_value = VD.update_array_lengths (eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local) current_value v.vtype in
+      let lval = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Var v, NoOffset) in
+      let current_value = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
+      let new_value = VD.update_array_lengths (eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local) current_value v.vtype in
       set ~ctx ctx.local lval v.vtype new_value
 
   (**************************************************************************
@@ -1859,18 +1874,18 @@ struct
    **************************************************************************)
 
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
-  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+  let collect_funargs ~ctx ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     let do_exp e =
-      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      let immediately_reachable = reachable_from_value ask gs st (eval_rv ~ctx ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ask [immediately_reachable] gs st
     in
     List.concat_map do_exp exps
 
-  let collect_invalidate ~deep ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+  let collect_invalidate ~deep ~ctx ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     if deep then
-      collect_funargs ask ~warn gs st exps
+      collect_funargs ~ctx ask ~warn gs st exps
     else (
-      let mpt e = match eval_rv_address ask gs st e with
+      let mpt e = match eval_rv_address ~ctx ask gs st e with
         | Address a -> AD.remove NullPtr a
         | _ -> AD.empty ()
       in
@@ -1893,7 +1908,7 @@ struct
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
     let invalidate_exp exps =
-      let args = collect_invalidate ~deep ~warn:true ask gs st exps in
+      let args = collect_invalidate ~deep ~ctx ~warn:true ask gs st exps in
       List.map (invalidate_address st) args
     in
     let invalids = invalidate_exp exps in
@@ -1912,7 +1927,7 @@ struct
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
+    let vals = List.map (eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st) args in
     (* generate the entry states *)
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
@@ -1989,7 +2004,7 @@ struct
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx `Thread;
         (* Collect the threads. *)
-        let start_addr = eval_tv (Analyses.ask_of_ctx ctx) ctx.global ctx.local start in
+        let start_addr = eval_tv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local start in
         let start_funvars = AD.to_var_may start_addr in
         let start_funvars_with_unknown =
           if AD.mem Addr.UnknownPtr start_addr then
@@ -2006,8 +2021,8 @@ struct
          Need this to not have memmove spawn in SV-COMP. *)
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
-      let shallow_flist = collect_invalidate ~deep:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
-      let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
+      let shallow_flist = collect_invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
+      let deep_flist = collect_invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
       let flist = shallow_flist @ deep_flist in
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
@@ -2056,7 +2071,7 @@ struct
         | Addr (_,o) -> Offs.cmp_zero_offset o <> `MustZero
         | _ -> false)
     in
-    match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
+    match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
     | Address a ->
       if AD.is_top a then (
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;
@@ -2140,7 +2155,7 @@ struct
     in
     let addr_type_of_exp exp =
       let lval = mkMem ~addr:(Cil.stripCasts exp) ~off:NoOffset in
-      let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+      let addr = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
       (addr, AD.type_of addr)
     in
     let forks, multiple = forkfun ctx lv f args in
@@ -2167,12 +2182,12 @@ struct
       in
       let dest_a, dest_typ = addr_type_of_exp dst in
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
+      let src_typ = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st src_lval
                     |> AD.type_of in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+          eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
         else
           VD.top_value (unrollType dest_typ)
       in
@@ -2181,7 +2196,7 @@ struct
     let eval_n = function
       (* if only n characters of a given string are needed, evaluate expression n to an integer option *)
       | Some n ->
-        begin match eval_rv (Analyses.ask_of_ctx ctx) gs st n with
+        begin match eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st n with
           | Int i ->
             begin match ID.to_int i with
               | Some x -> Some (Z.to_int x)
@@ -2207,10 +2222,10 @@ struct
       | _ -> raise (Failure "String function: not an address")
     in
     let string_manipulation s1 s2 lv all op_addr op_array =
-      let s1_v = eval_rv (Analyses.ask_of_ctx ctx) gs st s1 in
+      let s1_v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st s1 in
       let s1_a = address_from_value s1_v in
       let s1_typ = AD.type_of s1_a in
-      let s2_v = eval_rv (Analyses.ask_of_ctx ctx) gs st s2 in
+      let s2_v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st s2 in
       let s2_a = address_from_value s2_v in
       let s2_typ = AD.type_of s2_a in
       (* compute value in string literals domain if s1 and s2 are both string literals *)
@@ -2219,7 +2234,7 @@ struct
         begin match lv, op_addr with
           | Some lv_val, Some f ->
             (* when whished types coincide, compute result of operation op_addr, otherwise use top *)
-            let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+            let lv_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv_val in
             let lv_typ = Cilfacade.typeOfLval lv_val in
             if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
               set ~ctx st lv_a lv_typ (f s1_a s2_a)
@@ -2235,7 +2250,7 @@ struct
         (* else compute value in array domain *)
       else
         let lv_a, lv_typ = match lv with
-          | Some lv_val -> eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
+          | Some lv_val -> eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
           | None -> s1_a, s1_typ in
         begin match (get (Analyses.ask_of_ctx ctx) gs st s1_a None), get (Analyses.ask_of_ctx ctx) gs st s2_a None with
           | Array array_s1, Array array_s2 -> set ~ctx ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
@@ -2280,7 +2295,7 @@ struct
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
-      let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
+      let eval_ch = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st ch in
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value =
         match eval_ch with
@@ -2303,9 +2318,9 @@ struct
     | Strlen s, _ ->
       begin match lv with
         | Some lv_val ->
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+          let dest_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv_val in
           let dest_typ = Cilfacade.typeOfLval lv_val in
-          let v = eval_rv (Analyses.ask_of_ctx ctx) gs st s in
+          let v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st s in
           let a = address_from_value v in
           let value:value =
             (* if s string literal, compute strlen in string literals domain *)
@@ -2331,8 +2346,8 @@ struct
           string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address (AD.substring_extraction h_a n_a)))
             (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
-               | CArrays.IsSubstrAtIndex0 -> Address (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
-               | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv (Analyses.ask_of_ctx ctx) gs st
+               | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
+               | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st
                                                               (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
@@ -2350,7 +2365,7 @@ struct
       begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid ->
           (
-            let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+            let rv = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
             ctx.sideg (V.thread tid) (G.create_thread rv);
             (* TODO: emit thread return event so other analyses are aware? *)
             (* TODO: publish still needed? *)
@@ -2365,13 +2380,13 @@ struct
     | MutexAttrSetType {attr = attr; typ = mtyp}, _ ->
       begin
         let get_type lval =
-          let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+          let address = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lval in
           AD.type_of address
         in
         let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
         let dest_typ = get_type dst_lval in
-        let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
-        match eval_rv (Analyses.ask_of_ctx ctx) gs st mtyp with
+        let dest_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st dst_lval in
+        match eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st mtyp with
         | Int x ->
           begin
             match ID.to_int x with
@@ -2390,22 +2405,22 @@ struct
     (**Floating point classification and trigonometric functions defined in c99*)
     | Math { fun_args; }, _ ->
       let apply_unary fk float_fun x =
-        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        let eval_x = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st x in
         begin match eval_x with
           | Float float_x -> float_fun (FD.cast_to fk float_x)
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
       let apply_binary fk float_fun x y =
-        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
-        let eval_y = eval_rv (Analyses.ask_of_ctx ctx) gs st y in
+        let eval_x = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st x in
+        let eval_y = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st y in
         begin match eval_x, eval_y with
           | Float float_x, Float float_y -> float_fun (FD.cast_to fk float_x) (FD.cast_to fk float_y)
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
       let apply_abs ik x =
-        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        let eval_x = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st x in
         begin match eval_x with
           | Int int_x ->
             let xcast = ID.cast_to ik int_x in
@@ -2455,7 +2470,7 @@ struct
         end
       in
       begin match lv with
-        | Some lv_val -> set ~ctx st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
+        | Some lv_val -> set ~ctx st (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
         | None -> st
       end
     (* handling thread creations *)
@@ -2465,10 +2480,10 @@ struct
     | ThreadJoin { thread = id; ret_var }, _ ->
       let st' =
         (* TODO: should invalidate shallowly? https://github.com/goblint/analyzer/pull/1224#discussion_r1405826773 *)
-        match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
+        match (eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st ret_var) with
         | Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
         | Address ret_a ->
-          begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
+          begin match eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st id with
             | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx st [ret_var]
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
@@ -2488,8 +2503,8 @@ struct
         | Some lv ->
           let heap_var = AD.of_var (heap_var true ctx) in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
-                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size, true));
+                            (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
     | Malloc size, _ -> begin
@@ -2501,8 +2516,8 @@ struct
             else AD.of_var (heap_var false ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
-                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size, true));
+                            (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
     | Calloc { count = n; size }, _ ->
@@ -2514,12 +2529,12 @@ struct
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           let ik = Cilfacade.ptrdiff_ikind () in
-          let sizeval = eval_int (Analyses.ask_of_ctx ctx) gs st size in
-          let countval = eval_int (Analyses.ask_of_ctx ctx) gs st n in
+          let sizeval = eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size in
+          let countval = eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st n in
           if ID.to_int countval = Some Z.one then (
             set_many ~ctx st [
               (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
-              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
+              (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
             ]
           )
           else (
@@ -2527,7 +2542,7 @@ struct
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             set_many ~ctx st [
               (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
-              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
+              (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
             ]
           )
         | _ -> st
@@ -2538,7 +2553,7 @@ struct
       begin match lv with
         | Some lv ->
           let ask = Analyses.ask_of_ctx ctx in
-          let p_rv = eval_rv ask gs st p in
+          let p_rv = eval_rv ~ctx ask gs st p in
           let p_addr =
             match p_rv with
             | Address a -> a
@@ -2549,7 +2564,7 @@ struct
           in
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
           let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
-          let size_int = eval_int ask gs st size in
+          let size_int = eval_int ~ctx ask gs st size in
           let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
           let heap_addr = AD.of_var (heap_var false ctx) in
           let heap_addr' =
@@ -2558,7 +2573,7 @@ struct
             else
               heap_addr
           in
-          let lv_addr = eval_lv ask gs st lv in
+          let lv_addr = eval_lv ~ctx ask gs st lv in
           set_many ~ctx st [
             (heap_addr, TVoid [], heap_val);
             (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr');
@@ -2573,7 +2588,7 @@ struct
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
       let ask = Analyses.ask_of_ctx ctx in
-      let st' = match eval_rv ask gs st env with
+      let st' = match eval_rv ~ctx ask gs st env with
         | Address jmp_buf ->
           let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
           let r = set ~ctx st jmp_buf (Cilfacade.typeOf env) value in
@@ -2583,7 +2598,7 @@ struct
       in
       begin match lv with
         | Some lv ->
-          set ~ctx st' (eval_lv ask ctx.global st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
+          set ~ctx st' (eval_lv ~ctx ask ctx.global st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
         | None -> st'
       end
     | Longjmp {env; value}, _ ->
@@ -2604,14 +2619,14 @@ struct
           M.warn ~category:Program "Arguments to longjmp are strange!";
           rv
       in
-      let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
+      let rv = ensure_not_zero @@ eval_rv ~ctx ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
       set ~ctx ~t_override:t ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | Rand, _ ->
       begin match lv with
         | Some x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in
-          set ~ctx st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
+          set ~ctx st (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
         | None -> st
       end
     | _, _ ->
@@ -2636,7 +2651,7 @@ struct
         | Addr.Addr (v,o) ->
           if CPA.mem v fun_st.cpa then
             let lval = Addr.Mval.to_cil (v,o) in
-            let address = eval_lv ask ctx.global st lval in
+            let address = eval_lv ~ctx ask ctx.global st lval in
             let lval_type = Addr.type_of addr in
             if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Addr.Mval.pretty (v,o) d_type lval_type;
             match (CPA.find_opt v (fun_st.cpa)), lval_type with
@@ -2735,7 +2750,7 @@ struct
 
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
+      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
     in
     combine_one ctx.local after
 
@@ -2837,10 +2852,10 @@ struct
           let ost = octx.local
 
           (* all evals happen in octx with non-top values *)
-          let eval_rv a gs st e = eval_rv oa gs ost e
-          let eval_rv_address a gs st e = eval_rv_address oa gs ost e
-          let eval_lv a gs st lv = eval_lv oa gs ost lv
-          let convert_offset a gs st o = convert_offset oa gs ost o
+          let eval_rv ~ctx a gs st e = eval_rv ~ctx oa gs ost e
+          let eval_rv_address ~ctx a gs st e = eval_rv_address ~ctx oa gs ost e
+          let eval_lv ~ctx a gs st lv = eval_lv ~ctx oa gs ost lv
+          let convert_offset ~ctx a gs st o = convert_offset ~ctx oa gs ost o
 
           (* all updates happen in ctx with top values *)
           let get_var = get_var
@@ -2850,9 +2865,9 @@ struct
           let refine_entire_var = false
           let map_oldval oldval t_lval =
             if VD.is_bot oldval then VD.top_value t_lval else oldval
-          let eval_rv_lval_refine a gs st exp lv =
+          let eval_rv_lval_refine ~ctx a gs st exp lv =
             (* new, use different ctx for eval_lv (for Mem): *)
-            eval_rv_base_lval ~eval_lv a gs st exp lv
+            eval_rv_base_lval ~eval_lv ~ctx a gs st exp lv
 
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c
@@ -2913,7 +2928,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~ctx ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
+      set ~ctx ctx.local (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
     | Events.Unassume {exp; uuids} ->
