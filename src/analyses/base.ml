@@ -905,7 +905,7 @@ struct
   and eval_rv_base_lval ~eval_lv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp: exp) (lv: lval): value =
     match lv with
     | (Var v, ofs) -> get a gs st (eval_lv ~ctx (Var v, ofs)) (Some exp)
-    (*| Lval (Mem e, ofs) -> get a gs st (eval_lv a gs st (Mem e, ofs)) *)
+    (* | Lval (Mem e, ofs) -> get a gs st (eval_lv ~ctx (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
       let rec contains_vla (t:typ) = match t with
@@ -2515,7 +2515,7 @@ struct
         match lv with
         | Some lv ->
           let heap_var = AD.of_var (heap_var true ctx) in
-          (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+          (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~ctx size); *)
           set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx size, true));
                             (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
@@ -2528,7 +2528,7 @@ struct
             then AD.join (AD.of_var (heap_var false ctx)) AD.null_ptr
             else AD.of_var (heap_var false ctx)
           in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ~ctx size); *)
           set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx size, true));
                             (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
