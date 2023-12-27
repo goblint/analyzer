@@ -1877,12 +1877,13 @@ struct
       List.map mpt exps
     )
 
-  let invalidate ?(deep=true) ~ctx ask (st:store) (exps: exp list): store =
+  let invalidate ?(deep=true) ~ctx (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let gs = ctx.global in
+    let ask = Analyses.ask_of_ctx ctx in
     let invalidate_address st a =
       let t = AD.type_of a in
       let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
@@ -2043,8 +2044,8 @@ struct
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) st shallow_addrs in
-    invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) st' deep_addrs
+    let st' = invalidate ~deep:false ~ctx st shallow_addrs in
+    invalidate ~deep:true ~ctx st' deep_addrs
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
@@ -2134,7 +2135,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
-        invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) st [Cil.mkAddrOrStartOf lv]
+        invalidate ~deep:false ~ctx st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2468,14 +2469,14 @@ struct
         | Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
         | Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
-            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx (Analyses.ask_of_ctx ctx) st [ret_var]
+            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx st [ret_var]
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx st ret_a (Cilfacade.typeOf ret_var) v
-            | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) st [ret_var]
+            | _      -> invalidate ~ctx st [ret_var]
           end
-        | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) st [ret_var]
+        | _      -> invalidate ~ctx st [ret_var]
       in
       let st' = invalidate_ret_lv st' in
       Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
