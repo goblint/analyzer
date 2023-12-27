@@ -369,7 +369,7 @@ struct
   let special ctx (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* perform shallow and deep invalidate according to Library descriptors *)
     let desc = LibraryFunctions.find f in
-    if List.mem LibraryDesc.ThreadUnsafe desc.attrs then (
+    if List.mem LibraryDesc.ThreadUnsafe desc.attrs && not (ctx.ask (Queries.MustBeSingleThreaded {since_start=true})) then (
       let exp = Lval (Var f, NoOffset) in
       let conf = 110 in
       let kind = AccessKind.Call in
