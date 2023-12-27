@@ -686,7 +686,7 @@ struct
       if exp = MyCFG.unknown_exp then
         VD.top ()
       else
-        eval_rv_ask_evalint ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp
+        eval_rv_ask_evalint ~ctx exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
     r
@@ -695,14 +695,15 @@ struct
       Base itself also answers EvalInt, so recursion goes indirectly through queries.
       This allows every subexpression to also meet more precise value from other analyses.
       Non-integer expression just delegate to next eval_rv function. *)
-  and eval_rv_ask_evalint ~ctx a gs st exp =
-    let eval_next () = eval_rv_no_ask_evalint ~ctx a gs st exp in
+  and eval_rv_ask_evalint ~ctx exp =
+    let ask = Analyses.ask_of_ctx ctx in
+    let eval_next () = eval_rv_no_ask_evalint ~ctx exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
     let r:value =
       match Cilfacade.typeOf exp with
       | typ when Cil.isIntegralType typ && not (Cil.isConstant exp) -> (* don't EvalInt integer constants, base can do them precisely itself *)
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
-        let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
+        let a = ask.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
@@ -719,10 +720,10 @@ struct
   (** Evaluate expression without EvalInt query on outermost expression.
       This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
       Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
-  and eval_rv_no_ask_evalint ~ctx a gs st exp =
-    eval_rv_base ~ctx a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
+  and eval_rv_no_ask_evalint ~ctx exp =
+    eval_rv_base ~ctx exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
 
-  and eval_rv_back_up ~ctx a gs st exp =
+  and eval_rv_back_up ~ctx exp =
     if get_bool "ana.base.eval.deep-query" then
       eval_rv ~ctx exp
     else (
@@ -730,13 +731,16 @@ struct
       if exp = MyCFG.unknown_exp then
         VD.top ()
       else
-        eval_rv_base ~ctx a gs st exp (* bypass all queries *)
+        eval_rv_base ~ctx exp (* bypass all queries *)
     )
 
   (** Evaluate expression structurally by base.
       This handles constants directly and variables using CPA.
       Subexpressions delegate to [eval_rv], which may use queries on them. *)
-  and eval_rv_base ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  and eval_rv_base ~ctx (exp:exp): value =
+    let a = Analyses.ask_of_ctx ctx in
+    let gs = ctx.global in
+    let st = ctx.local in
     let eval_rv = eval_rv_back_up in
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 =
@@ -758,7 +762,7 @@ struct
       match constFold true exp with
       (* Integer literals *)
       (* seems like constFold already converts CChr to CInt *)
-      | Const (CChr x) -> eval_rv ~ctx a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
+      | Const (CChr x) -> eval_rv ~ctx (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) ->
         (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
         Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
@@ -778,8 +782,8 @@ struct
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
-        let a1 = eval_rv ~ctx a gs st e1 in
-        let a2 = eval_rv ~ctx a gs st e2 in
+        let a1 = eval_rv ~ctx e1 in
+        let a2 = eval_rv ~ctx e2 in
         let extra_is_safe =
           match evalbinop_base a st op t1 a1 t2 a2 typ with
           | Int i -> ID.to_bool i = Some true
@@ -821,8 +825,8 @@ struct
         let eqs_value: value option =
           let* eqs = split exp in
           let* (e, es) = find_common eqs in
-          let v = eval_rv ~ctx a gs st e in (* value of common exp *)
-          let vs = List.map (eval_rv ~ctx a gs st) es in (* values of other sides *)
+          let v = eval_rv ~ctx e in (* value of common exp *)
+          let vs = List.map (eval_rv ~ctx) es in (* values of other sides *)
           let ik = Cilfacade.get_ikind typ in
           match v with
           | Address a ->
@@ -870,7 +874,7 @@ struct
         evalbinop ~ctx a gs st op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
-        let a1 = eval_rv ~ctx a gs st arg1 in
+        let a1 = eval_rv ~ctx arg1 in
         evalunop op typ a1
       (* The &-operator: we create the address abstract element *)
       | AddrOf lval -> Address (eval_lv ~ctx a gs st lval)
@@ -880,9 +884,9 @@ struct
         let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
         let array_start = add_offset_varinfo array_ofs in
         Address (AD.map array_start (eval_lv ~ctx a gs st lval))
-      | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~ctx a gs st (Const (CStr (x,e))) (* TODO safe? *)
+      | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~ctx (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
-        let v = eval_rv ~ctx a gs st exp in
+        let v = eval_rv ~ctx exp in
         VD.cast ~torg:(Cilfacade.typeOf exp) t v
       | SizeOf _
       | Real _
@@ -1025,7 +1029,7 @@ struct
     | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset ~ctx a gs st ofs)
     | Index (exp, ofs) ->
-      match eval_rv ~ctx a gs st exp with
+      match eval_rv ~ctx exp with
       | Int i -> `Index (iDtoIdx i, convert_offset ~ctx a gs st ofs)
       | Address add -> `Index (AD.to_int add, convert_offset ~ctx a gs st ofs)
       | Top   -> `Index (IdxDom.top (), convert_offset ~ctx a gs st ofs)
@@ -1043,7 +1047,7 @@ struct
      * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
      * and then add the subfield to it: { (x,field.subfield) }. *)
     | Mem n, ofs -> begin
-        match (eval_rv ~ctx a gs st n) with
+        match eval_rv ~ctx n with
         | Address adr ->
           (
             if AD.is_null adr then (
@@ -1085,7 +1089,7 @@ struct
 
   let query_evalint ~ctx ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
-    let r = match eval_rv_no_ask_evalint ~ctx ask gs st e with
+    let r = match eval_rv_no_ask_evalint ~ctx e with
       | Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
       | Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       | Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
