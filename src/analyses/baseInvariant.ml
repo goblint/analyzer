@@ -17,7 +17,7 @@ sig
 
   val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
   val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
-  val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
+  val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> lval -> AD.t
   val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> offset -> ID.t Offset.t
 
   val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
@@ -64,7 +64,7 @@ struct
 
   let refine_lv_fallback ctx a gs st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-    let addr = eval_lv ~ctx a gs st lval in
+    let addr = eval_lv ~ctx lval in
     if (AD.is_top addr) then st
     else
       let old_val = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
@@ -92,7 +92,7 @@ struct
       else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let refine_lv ctx a gs st c x c' pretty exp =
-    let set' lval v st = set a gs st (eval_lv ~ctx a gs st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+    let set' lval v st = set a gs st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)

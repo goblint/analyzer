@@ -877,13 +877,13 @@ struct
         let a1 = eval_rv ~ctx arg1 in
         evalunop op typ a1
       (* The &-operator: we create the address abstract element *)
-      | AddrOf lval -> Address (eval_lv ~ctx a gs st lval)
+      | AddrOf lval -> Address (eval_lv ~ctx lval)
       (* CIL's very nice implicit conversion of an array name [a] to a pointer
         * to its first element [&a[0]]. *)
       | StartOf lval ->
         let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
         let array_start = add_offset_varinfo array_ofs in
-        Address (AD.map array_start (eval_lv ~ctx a gs st lval))
+        Address (AD.map array_start (eval_lv ~ctx lval))
       | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~ctx (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
         let v = eval_rv ~ctx exp in
@@ -904,7 +904,7 @@ struct
 
   and eval_rv_base_lval ~eval_lv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp: exp) (lv: lval): value =
     match lv with
-    | (Var v, ofs) -> get a gs st (eval_lv ~ctx a gs st (Var v, ofs)) (Some exp)
+    | (Var v, ofs) -> get a gs st (eval_lv ~ctx (Var v, ofs)) (Some exp)
     (*| Lval (Mem e, ofs) -> get a gs st (eval_lv a gs st (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
@@ -917,7 +917,7 @@ struct
       in
       let b = Mem e, NoOffset in (* base pointer *)
       let t = Cilfacade.typeOfLval b in (* static type of base *)
-      let p = eval_lv ~ctx a gs st b in (* abstract base addresses *)
+      let p = eval_lv ~ctx b in (* abstract base addresses *)
       (* pre VLA: *)
       (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
       let cast_ok a =
@@ -1008,7 +1008,7 @@ struct
    * address, e.g. when calling functions. *)
   and eval_fv ~ctx a (gs:glob_fun) st (exp:exp): AD.t =
     match exp with
-    | Lval lval -> eval_lv ~ctx a gs st lval
+    | Lval lval -> eval_lv ~ctx lval
     | _ -> eval_tv ~ctx a gs st exp
   (* Used also for thread creation: *)
   and eval_tv ~ctx a (gs:glob_fun) st (exp:exp): AD.t =
@@ -1036,7 +1036,10 @@ struct
       | Bot -> `Index (IdxDom.bot (), convert_offset ~ctx a gs st ofs)
       | _ -> failwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
-  and eval_lv ~ctx (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t =
+  and eval_lv ~ctx (lval:lval): AD.t =
+    let a = Analyses.ask_of_ctx ctx in
+    let gs = ctx.global in
+    let st = ctx.local in
     let eval_rv = eval_rv_back_up in
     match lval with
     (* The simpler case with an explicit variable, e.g. for [x.field] we just
@@ -1726,7 +1729,7 @@ struct
     char_array_hack ();
     let rval_val = eval_rv ~ctx rval in
     let rval_val = VD.mark_jmpbufs_as_copied rval_val in
-    let lval_val = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+    let lval_val = eval_lv ~ctx lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
     (* M.debug ~category:Analyzer @@ sprint ~width:max_int @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs =
@@ -1868,7 +1871,7 @@ struct
     if not (Cil.isArrayType v.vtype) then
       ctx.local
     else
-      let lval = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Var v, NoOffset) in
+      let lval = eval_lv ~ctx (Var v, NoOffset) in
       let current_value = eval_rv ~ctx (Lval (Var v, NoOffset)) in
       let new_value = VD.update_array_lengths (eval_rv ~ctx) current_value v.vtype in
       set ~ctx ctx.local lval v.vtype new_value
@@ -2159,7 +2162,7 @@ struct
     in
     let addr_type_of_exp exp =
       let lval = mkMem ~addr:(Cil.stripCasts exp) ~off:NoOffset in
-      let addr = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+      let addr = eval_lv ~ctx lval in
       (addr, AD.type_of addr)
     in
     let forks, multiple = forkfun ctx lv f args in
@@ -2186,7 +2189,7 @@ struct
       in
       let dest_a, dest_typ = addr_type_of_exp dst in
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-      let src_typ = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st src_lval
+      let src_typ = eval_lv ~ctx src_lval
                     |> AD.type_of in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
@@ -2238,7 +2241,7 @@ struct
         begin match lv, op_addr with
           | Some lv_val, Some f ->
             (* when whished types coincide, compute result of operation op_addr, otherwise use top *)
-            let lv_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv_val in
+            let lv_a = eval_lv ~ctx lv_val in
             let lv_typ = Cilfacade.typeOfLval lv_val in
             if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
               set ~ctx st lv_a lv_typ (f s1_a s2_a)
@@ -2254,7 +2257,7 @@ struct
         (* else compute value in array domain *)
       else
         let lv_a, lv_typ = match lv with
-          | Some lv_val -> eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
+          | Some lv_val -> eval_lv ~ctx lv_val, Cilfacade.typeOfLval lv_val
           | None -> s1_a, s1_typ in
         begin match (get (Analyses.ask_of_ctx ctx) gs st s1_a None), get (Analyses.ask_of_ctx ctx) gs st s2_a None with
           | Array array_s1, Array array_s2 -> set ~ctx ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
@@ -2322,7 +2325,7 @@ struct
     | Strlen s, _ ->
       begin match lv with
         | Some lv_val ->
-          let dest_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv_val in
+          let dest_a = eval_lv ~ctx lv_val in
           let dest_typ = Cilfacade.typeOfLval lv_val in
           let v = eval_rv ~ctx s in
           let a = address_from_value v in
@@ -2350,8 +2353,8 @@ struct
           string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address (AD.substring_extraction h_a n_a)))
             (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
-               | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
-               | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st
+               | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~ctx (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
+               | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~ctx
                                                               (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
@@ -2384,12 +2387,12 @@ struct
     | MutexAttrSetType {attr = attr; typ = mtyp}, _ ->
       begin
         let get_type lval =
-          let address = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lval in
+          let address = eval_lv ~ctx lval in
           AD.type_of address
         in
         let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
         let dest_typ = get_type dst_lval in
-        let dest_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st dst_lval in
+        let dest_a = eval_lv ~ctx dst_lval in
         match eval_rv ~ctx mtyp with
         | Int x ->
           begin
@@ -2474,7 +2477,7 @@ struct
         end
       in
       begin match lv with
-        | Some lv_val -> set ~ctx st (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
+        | Some lv_val -> set ~ctx st (eval_lv ~ctx lv_val) (Cilfacade.typeOfLval lv_val) result
         | None -> st
       end
     (* handling thread creations *)
@@ -2508,7 +2511,7 @@ struct
           let heap_var = AD.of_var (heap_var true ctx) in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size, true));
-                            (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
+                            (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
     | Malloc size, _ -> begin
@@ -2521,7 +2524,7 @@ struct
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx (Analyses.ask_of_ctx ctx) gs st size, true));
-                            (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
+                            (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
     | Calloc { count = n; size }, _ ->
@@ -2538,7 +2541,7 @@ struct
           if ID.to_int countval = Some Z.one then (
             set_many ~ctx st [
               (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
-              (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
+              (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
             ]
           )
           else (
@@ -2546,7 +2549,7 @@ struct
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             set_many ~ctx st [
               (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
-              (eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
+              (eval_lv ~ctx lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
             ]
           )
         | _ -> st
@@ -2577,7 +2580,7 @@ struct
             else
               heap_addr
           in
-          let lv_addr = eval_lv ~ctx ask gs st lv in
+          let lv_addr = eval_lv ~ctx lv in
           set_many ~ctx st [
             (heap_addr, TVoid [], heap_val);
             (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr');
@@ -2591,7 +2594,6 @@ struct
       st
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
-      let ask = Analyses.ask_of_ctx ctx in
       let st' = match eval_rv ~ctx env with
         | Address jmp_buf ->
           let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
@@ -2602,7 +2604,7 @@ struct
       in
       begin match lv with
         | Some lv ->
-          set ~ctx st' (eval_lv ~ctx ask ctx.global st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
+          set ~ctx st' (eval_lv ~ctx lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
         | None -> st'
       end
     | Longjmp {env; value}, _ ->
@@ -2629,7 +2631,7 @@ struct
       begin match lv with
         | Some x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in
-          set ~ctx st (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
+          set ~ctx st (eval_lv ~ctx x) (Cilfacade.typeOfLval x) result
         | None -> st
       end
     | _, _ ->
@@ -2649,12 +2651,12 @@ struct
 
   let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : AD.t) : store =
     let ask = (Analyses.ask_of_ctx ctx) in
-    AD.fold (fun addr st ->
+    AD.fold (fun addr (st: store) ->
         match addr with
         | Addr.Addr (v,o) ->
           if CPA.mem v fun_st.cpa then
             let lval = Addr.Mval.to_cil (v,o) in
-            let address = eval_lv ~ctx ask ctx.global st lval in
+            let address = eval_lv ~ctx lval in
             let lval_type = Addr.type_of addr in
             if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Addr.Mval.pretty (v,o) d_type lval_type;
             match (CPA.find_opt v (fun_st.cpa)), lval_type with
@@ -2753,7 +2755,7 @@ struct
 
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
+      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) return_val
     in
     combine_one ctx.local after
 
@@ -2928,7 +2930,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~ctx ctx.local (eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
+      set ~ctx ctx.local (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
     | Events.Unassume {exp; uuids} ->
