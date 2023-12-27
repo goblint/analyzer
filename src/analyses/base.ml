@@ -1678,7 +1678,7 @@ struct
   let invariant = Invariant.invariant
 
 
-  let set_savetop ~ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
+  let set_savetop ~ctx ?lval_raw ?rval_raw st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
     | Top -> set ~ctx st adr lval_t (VD.top_value (AD.type_of adr)) ?lval_raw ?rval_raw
@@ -1769,15 +1769,15 @@ struct
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
               let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-              set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
+              set_savetop ~ctx  ctx.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | None ->
-              set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+              set_savetop ~ctx ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           end
         | _ ->
-          set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+          set_savetop ~ctx ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
       end
     | _ ->
-      set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+      set_savetop ~ctx ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
 
 
   let branch ctx (exp:exp) (tv:bool) : store =
@@ -2666,7 +2666,7 @@ struct
             | _, _ -> begin
                 let new_val = get ask ctx.global fun_st address None in
                 if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
-                let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
+                let st' = set_savetop ~ctx st address lval_type new_val in
                 let partDep = Dep.find_opt v fun_st.deps in
                 match partDep with
                 | None -> st'
@@ -2753,7 +2753,7 @@ struct
 
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) return_val
+      | Some lval -> set_savetop ~ctx st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) return_val
     in
     combine_one ctx.local after
 
