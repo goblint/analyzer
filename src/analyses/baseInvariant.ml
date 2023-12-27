@@ -18,7 +18,7 @@ sig
   val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
   val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
   val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> lval -> AD.t
-  val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> offset -> ID.t Offset.t
+  val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> offset -> ID.t Offset.t
 
   val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
   val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
@@ -98,7 +98,7 @@ struct
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
       let old_val = get_var a gs st var in
       let old_val = map_oldval old_val var.vtype in
-      let offs = convert_offset ~ctx a gs st o in
+      let offs = convert_offset ~ctx o in
       let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st

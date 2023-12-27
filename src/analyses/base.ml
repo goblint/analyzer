@@ -955,7 +955,7 @@ struct
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' (convert_offset ~ctx a gs st ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' (convert_offset ~ctx ofs) (Some exp) None t in (* handle offset *)
         v'
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
@@ -1021,31 +1021,28 @@ struct
     | _ -> ID.top_of (Cilfacade.get_ikind_exp exp)
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
-  and convert_offset ~ctx a (gs:glob_fun) (st: store) (ofs: offset) =
+  and convert_offset ~ctx (ofs: offset) =
     let eval_rv = eval_rv_back_up in
     match ofs with
     | NoOffset -> `NoOffset
-    | Field (fld, ofs) -> `Field (fld, convert_offset ~ctx a gs st ofs)
+    | Field (fld, ofs) -> `Field (fld, convert_offset ~ctx ofs)
     | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
-      `Index (IdxDom.top (), convert_offset ~ctx a gs st ofs)
+      `Index (IdxDom.top (), convert_offset ~ctx ofs)
     | Index (exp, ofs) ->
       match eval_rv ~ctx exp with
-      | Int i -> `Index (iDtoIdx i, convert_offset ~ctx a gs st ofs)
-      | Address add -> `Index (AD.to_int add, convert_offset ~ctx a gs st ofs)
-      | Top   -> `Index (IdxDom.top (), convert_offset ~ctx a gs st ofs)
-      | Bot -> `Index (IdxDom.bot (), convert_offset ~ctx a gs st ofs)
+      | Int i -> `Index (iDtoIdx i, convert_offset ~ctx ofs)
+      | Address add -> `Index (AD.to_int add, convert_offset ~ctx ofs)
+      | Top   -> `Index (IdxDom.top (), convert_offset ~ctx ofs)
+      | Bot -> `Index (IdxDom.bot (), convert_offset ~ctx ofs)
       | _ -> failwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv ~ctx (lval:lval): AD.t =
-    let a = Analyses.ask_of_ctx ctx in
-    let gs = ctx.global in
-    let st = ctx.local in
     let eval_rv = eval_rv_back_up in
     match lval with
     (* The simpler case with an explicit variable, e.g. for [x.field] we just
      * create the address { (x,field) } *)
     | Var x, ofs ->
-      AD.singleton (Addr.of_mval (x, convert_offset ~ctx a gs st ofs))
+      AD.singleton (Addr.of_mval (x, convert_offset ~ctx ofs))
     (* The more complicated case when [exp = & x.field] and we are asked to
      * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
      * and then add the subfield to it: { (x,field.subfield) }. *)
@@ -1063,14 +1060,14 @@ struct
             );
             (* Warn if any of the addresses contains a non-local and non-global variable *)
             if AD.exists (function
-                | AD.Addr.Addr (v, _) -> not (CPA.mem v st.cpa) && not (is_global a v)
+                | AD.Addr.Addr (v, _) -> not (CPA.mem v ctx.local.cpa) && not (is_global (Analyses.ask_of_ctx ctx) v)
                 | _ -> false
               ) adr then (
               AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
               M.warn "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
             )
           );
-          AD.map (add_offset_varinfo (convert_offset ~ctx a gs st ofs)) adr
+          AD.map (add_offset_varinfo (convert_offset ~ctx ofs)) adr
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
           AD.unknown_ptr
