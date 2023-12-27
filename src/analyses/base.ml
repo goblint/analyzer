@@ -1088,7 +1088,7 @@ struct
     with IntDomain.ArithmeticOnIntegerBot _ ->
       ValueDomain.Compound.top_value (Cilfacade.typeOf exp)
 
-  let query_evalint ~ctx ask gs st e =
+  let query_evalint ~ctx e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ~ctx e with
       | Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
@@ -1110,12 +1110,10 @@ struct
       if Queries.Set.mem anyq asked then
         Queries.Result.top q (* query cycle *)
       else (
-        let asked' = Queries.Set.add anyq asked in
         match q with
-        | EvalInt e -> query_evalint ~ctx (ask asked') gs st e (* mimic EvalInt query since eval_rv needs it *)
+        | EvalInt e -> query_evalint ~ctx e (* mimic EvalInt query since eval_rv needs it *)
         | _ -> Queries.Result.top q
       )
-    and ask asked = { Queries.f = fun (type a) (q: a Queries.t) -> query asked q } (* our version of ask *)
     and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) (* the expression is guaranteed to not contain globals *)
     and ctx =
       { ask = (fun (type a) (q: a Queries.t) -> query Queries.Set.empty q)
@@ -1269,7 +1267,7 @@ struct
           JmpBufDomain.JmpBufSet.top ()
       end
     | Q.EvalInt e ->
-      query_evalint ~ctx ask ctx.global ctx.local e
+      query_evalint ~ctx e
     | Q.EvalMutexAttr e -> begin
         let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
         match eval_rv ~ctx e with
