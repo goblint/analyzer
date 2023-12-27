@@ -1417,7 +1417,7 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val]
    * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
    * precise information about arrays. *)
-  let set (a: Q.ask) ~(ctx: _ ctx) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+  let set ~(ctx: _ ctx) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x t y z in (* refers to defintion that is outside of set *)
@@ -1430,6 +1430,7 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) (st: store): store =
+      let a = (Analyses.ask_of_ctx ctx) in
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
@@ -1590,7 +1591,7 @@ struct
   let set_many ~ctx a (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
-      set ~ctx a acc lval typ value
+      set ~ctx acc lval typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f st lval_value_list
@@ -1640,7 +1641,7 @@ struct
 
     let get_var = get_var
     let get a gs st addrs exp = get a gs st addrs exp
-    let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:true st lval lval_type ?lval_raw value
+    let set a ~ctx gs st lval lval_type ?lval_raw value = set ~ctx ~invariant:true st lval lval_type ?lval_raw value
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
@@ -1660,8 +1661,8 @@ struct
   let set_savetop ~ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
-    | Top -> set ~ctx ask st adr lval_t (VD.top_value (AD.type_of adr)) ?lval_raw ?rval_raw
-    | v -> set ~ctx ask st adr lval_t v ?lval_raw ?rval_raw
+    | Top -> set ~ctx st adr lval_t (VD.top_value (AD.type_of adr)) ?lval_raw ?rval_raw
+    | v -> set ~ctx st adr lval_t v ?lval_raw ?rval_raw
 
 
   (**************************************************************************
@@ -1834,7 +1835,7 @@ struct
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-        let st' = set ~ctx ~t_override (Analyses.ask_of_ctx ctx) nst (return_var ()) t_override rv in
+        let st' = set ~ctx ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
           (* Evaluate exp and cast the resulting value to the void-pointer-type.
@@ -1851,7 +1852,7 @@ struct
       let lval = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Var v, NoOffset) in
       let current_value = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
       let new_value = VD.update_array_lengths (eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local) current_value v.vtype in
-      set ~ctx (Analyses.ask_of_ctx ctx) ctx.local lval v.vtype new_value
+      set ~ctx ctx.local lval v.vtype new_value
 
   (**************************************************************************
    * Function calls
@@ -2174,7 +2175,7 @@ struct
         else
           VD.top_value (unrollType dest_typ)
       in
-      set ~ctx (Analyses.ask_of_ctx ctx) st dest_a dest_typ value in
+      set ~ctx st dest_a dest_typ value in
     (* for string functions *)
     let eval_n = function
       (* if only n characters of a given string are needed, evaluate expression n to an integer option *)
@@ -2220,15 +2221,15 @@ struct
             let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
             let lv_typ = Cilfacade.typeOfLval lv_val in
             if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
-              set ~ctx (Analyses.ask_of_ctx ctx) st lv_a lv_typ (f s1_a s2_a)
+              set ~ctx st lv_a lv_typ (f s1_a s2_a)
             else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
-              set ~ctx (Analyses.ask_of_ctx ctx) st lv_a lv_typ (f s1_a s2_a)
+              set ~ctx st lv_a lv_typ (f s1_a s2_a)
             else
-              set ~ctx (Analyses.ask_of_ctx ctx) st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+              set ~ctx st lv_a lv_typ (VD.top_value (unrollType lv_typ))
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
-            set ~ctx (Analyses.ask_of_ctx ctx) st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            set ~ctx st s1_a s1_typ (VD.top_value (unrollType s1_typ))
         end
         (* else compute value in array domain *)
       else
@@ -2236,11 +2237,11 @@ struct
           | Some lv_val -> eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
           | None -> s1_a, s1_typ in
         begin match (get (Analyses.ask_of_ctx ctx) gs st s1_a None), get (Analyses.ask_of_ctx ctx) gs st s2_a None with
-          | Array array_s1, Array array_s2 -> set ~ctx ~blob_destructive:true (Analyses.ask_of_ctx ctx) st lv_a lv_typ (op_array array_s1 array_s2)
+          | Array array_s1, Array array_s2 -> set ~ctx ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
           | Array array_s1, _ when CilType.Typ.equal s2_typ charPtrType ->
             let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
             let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
-            set ~ctx ~blob_destructive:true (Analyses.ask_of_ctx ctx) st lv_a lv_typ (op_array array_s1 array_s2)
+            set ~ctx ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
           | Bot, Array array_s2 ->
             (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
             let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
@@ -2249,7 +2250,7 @@ struct
               try ValueDomainQueries.ID.unlift (ID.cast_to ptrdiff_ik) size
               with Failure _ -> ID.top_of ptrdiff_ik in
             let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
-            set ~ctx (Analyses.ask_of_ctx ctx) st lv_a lv_typ (op_array empty_array array_s2)
+            set ~ctx st lv_a lv_typ (op_array empty_array array_s2)
           | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
             (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
             let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
@@ -2260,19 +2261,19 @@ struct
             let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
             let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
             let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
-            set ~ctx (Analyses.ask_of_ctx ctx) st lv_a lv_typ (op_array empty_array array_s2)
+            set ~ctx st lv_a lv_typ (op_array empty_array array_s2)
           | _, Array array_s2 when CilType.Typ.equal s1_typ charPtrType ->
             (* if s1 is string literal, str(n)cpy and str(n)cat are undefined *)
             if op_addr = None then
               (* triggers warning, function only evaluated for side-effects *)
               let _ = AD.string_writing_defined s1_a in
-              set ~ctx (Analyses.ask_of_ctx ctx) st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+              set ~ctx st s1_a s1_typ (VD.top_value (unrollType s1_typ))
             else
               let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
               let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
-              set ~ctx (Analyses.ask_of_ctx ctx) st lv_a lv_typ (op_array array_s1 array_s2)
+              set ~ctx st lv_a lv_typ (op_array array_s1 array_s2)
           | _ ->
-            set ~ctx (Analyses.ask_of_ctx ctx) st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+            set ~ctx st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
     in
     let st = match desc.special args, f.vname with
@@ -2287,13 +2288,13 @@ struct
         | _ ->
           VD.top_value dest_typ
       in
-      set ~ctx (Analyses.ask_of_ctx ctx) st dest_a dest_typ value
+      set ~ctx st dest_a dest_typ value
     | Bzero { dest; count; }, _ ->
       (* TODO: share something with memset special case? *)
       (* TODO: check count *)
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
-      set ~ctx (Analyses.ask_of_ctx ctx) st dest_a dest_typ value
+      set ~ctx st dest_a dest_typ value
     | Memcpy { dest = dst; src; n; }, _ -> (* TODO: use n *)
       memory_copying dst src (Some n)
     | Strcpy { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_copy ar1 ar2 (eval_n n)))
@@ -2316,7 +2317,7 @@ struct
                 | Array array_s -> Int (CArrays.to_string_length array_s)
                 | _ -> VD.top_value (unrollType dest_typ)
               end in
-          set ~ctx (Analyses.ask_of_ctx ctx) st dest_a dest_typ value
+          set ~ctx st dest_a dest_typ value
         | None -> st
       end
     | Strstr { haystack; needle }, _ ->
@@ -2375,10 +2376,10 @@ struct
             match ID.to_int x with
             | Some z ->
               if M.tracing then M.tracel "attr" "setting\n";
-              set ~ctx (Analyses.ask_of_ctx ctx) st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.of_int z))
-            | None -> set ~ctx (Analyses.ask_of_ctx ctx) st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
+              set ~ctx st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.of_int z))
+            | None -> set ~ctx st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
           end
-        | _ -> set ~ctx (Analyses.ask_of_ctx ctx) st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
+        | _ -> set ~ctx st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
       end
     | Identity e, _ ->
       begin match lv with
@@ -2453,7 +2454,7 @@ struct
         end
       in
       begin match lv with
-        | Some lv_val -> set ~ctx (Analyses.ask_of_ctx ctx) st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
+        | Some lv_val -> set ~ctx st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
         | None -> st
       end
     (* handling thread creations *)
@@ -2471,7 +2472,7 @@ struct
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
-              set ~ctx (Analyses.ask_of_ctx ctx) st ret_a (Cilfacade.typeOf ret_var) v
+              set ~ctx st ret_a (Cilfacade.typeOf ret_var) v
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) st [ret_var]
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) st [ret_var]
@@ -2574,14 +2575,14 @@ struct
       let st' = match eval_rv ask gs st env with
         | Address jmp_buf ->
           let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
-          let r = set ~ctx ask st jmp_buf (Cilfacade.typeOf env) value in
+          let r = set ~ctx st jmp_buf (Cilfacade.typeOf env) value in
           if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
           r
         | _ -> failwith "problem?!"
       in
       begin match lv with
         | Some lv ->
-          set ~ctx ask st' (eval_lv ask ctx.global st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
+          set ~ctx st' (eval_lv ask ctx.global st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
         | None -> st'
       end
     | Longjmp {env; value}, _ ->
@@ -2604,12 +2605,12 @@ struct
       in
       let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t ask ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+      set ~ctx ~t_override:t ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | Rand, _ ->
       begin match lv with
         | Some x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in
-          set ~ctx (Analyses.ask_of_ctx ctx) st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
+          set ~ctx st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st x) (Cilfacade.typeOfLval x) result
         | None -> st
       end
     | _, _ ->
@@ -2844,7 +2845,7 @@ struct
           (* all updates happen in ctx with top values *)
           let get_var = get_var
           let get a gs st addrs exp = get a gs st addrs exp
-          let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:false st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+          let set a ~ctx gs st lval lval_type ?lval_raw value = set ~ctx ~invariant:false st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false
           let map_oldval oldval t_lval =
@@ -2888,7 +2889,7 @@ struct
       WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
               let addr: AD.t = AD.of_mval (x, `NoOffset) in
-              set (Analyses.ask_of_ctx ctx) ~ctx ~invariant:false acc addr x.vtype v
+              set ~ctx ~invariant:false acc addr x.vtype v
             ) e_d.cpa ctx.local
         )
     in
@@ -2912,7 +2913,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~ctx (Analyses.ask_of_ctx ctx) ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
+      set ~ctx ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
     | Events.Unassume {exp; uuids} ->
