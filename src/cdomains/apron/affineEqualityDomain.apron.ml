@@ -59,7 +59,9 @@ struct
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
   let dim_remove (ch: Apron.Dim.change) m del =
-    if Array.length ch.dim = 0 || Matrix.is_empty m then m else (
+    if Array.length ch.dim = 0 || Matrix.is_empty m then 
+      m 
+    else (
       Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
       let m' = if not del then let m = Matrix.copy m in Array.fold_left (fun y x -> Matrix.reduce_col_with y x; y) m ch.dim else m in
       Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
@@ -146,47 +148,46 @@ struct
     let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
         Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
     in
-    let rec convert_texpr texp =
-      begin match texp with
-        (*If x is a constant, replace it with its const. val. immediately*)
-        | Cst x -> let of_union union =
-                     let open Coeff in
-                     match union with
-                     | Interval _ -> failwith "Not a constant"
-                     | Scalar x -> (match x with
-                         | Float x -> Mpqf.of_float x
-                         | Mpqf x -> x
-                         | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
-        | Var x ->
-          let zero_vec_cp = Vector.copy zero_vec in
-          let entry_only v = Vector.set_val_with v (Environment.dim_of_var t.env x) Mpqf.one; v in
-          begin match t.d with
-            | Some m -> let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
-              begin match row with
-                | Some v when is_const_vec v ->
-                  Vector.set_val_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1)); zero_vec_cp
-                | _ -> entry_only zero_vec_cp end
-            | None -> entry_only zero_vec_cp end
-        | Unop (u, e, _, _) ->
-          begin match u with
-            | Neg -> neg @@ convert_texpr e
-            | Cast -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
-            | Sqrt -> raise NotLinear end
-        | Binop (b, e1, e2, _, _) ->
-          begin match b with
-            | Add -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (convert_texpr e2); v1
-            | Sub -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (neg @@ convert_texpr e2); v1
-            | Mul ->
-              let x1, x2 = convert_texpr e1, convert_texpr e2 in
-              begin match get_c x1, get_c x2 with
-                | _, Some c -> Vector.apply_with_c_with ( *:) c x1; x1
-                | Some c, _ -> Vector.apply_with_c_with ( *:) c x2; x2
-                | _, _ -> raise NotLinear end
-            | _ -> raise NotLinear end
-      end
-    in match convert_texpr texp with
-    | exception NotLinear -> None
-    | x -> Some(x)
+    let rec convert_texpr = function
+      (*If x is a constant, replace it with its const. val. immediately*)
+      | Cst x -> 
+        let of_union = function
+          | Coeff.Interval _ -> failwith "Not a constant"
+          | Scalar Float x -> Mpqf.of_float x
+          | Scalar Mpqf x -> x
+          | Scalar Mpfrf x -> Mpfr.to_mpq x
+        in 
+        Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
+      | Var x ->
+        let zero_vec_cp = Vector.copy zero_vec in
+        let entry_only v = Vector.set_val_with v (Environment.dim_of_var t.env x) Mpqf.one; v in
+        begin match t.d with
+          | Some m -> 
+            let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
+            begin match row with
+              | Some v when is_const_vec v ->
+                Vector.set_val_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1)); zero_vec_cp
+              | _ -> entry_only zero_vec_cp
+            end
+          | None -> entry_only zero_vec_cp end
+      | Unop (Neg, e, _, _) -> neg @@ convert_texpr e
+      | Unop (Cast, e, _, _) -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
+      | Unop (Sqrt, e, _, _) -> raise NotLinear
+      | Binop (b, e1, e2, _, _) ->
+        begin match b with
+          | Add -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (convert_texpr e2); v1
+          | Sub -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (neg @@ convert_texpr e2); v1
+          | Mul ->
+            let x1, x2 = convert_texpr e1, convert_texpr e2 in
+            begin match get_c x1, get_c x2 with
+              | _, Some c -> Vector.apply_with_c_with ( *:) c x1; x1
+              | Some c, _ -> Vector.apply_with_c_with ( *:) c x2; x2
+              | _, _ -> raise NotLinear end
+          | _ -> raise NotLinear end
+    in 
+    try
+      Some (convert_texpr texp)
+    with NotLinear -> None
 
   let get_coeff_vec t texp = timing_wrap "coeff_vec" (get_coeff_vec t) texp
 end
