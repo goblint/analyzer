@@ -1882,16 +1882,19 @@ struct
    **************************************************************************)
 
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
-  let collect_funargs ~ctx ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+  let collect_funargs ~ctx ?(warn=false) (exps: exp list) =
+    let ask = Analyses.ask_of_ctx ctx in
+    let gs = ctx.global in
+    let st = ctx.local in
     let do_exp e =
       let immediately_reachable = reachable_from_value ask gs st (eval_rv ~ctx e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ask [immediately_reachable] gs st
     in
     List.concat_map do_exp exps
 
-  let collect_invalidate ~deep ~ctx ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+  let collect_invalidate ~deep ~ctx ?(warn=false) (exps: exp list) =
     if deep then
-      collect_funargs ~ctx ask ~warn gs st exps
+      collect_funargs ~ctx ~warn exps
     else (
       let mpt e = match eval_rv_address ~ctx e with
         | Address a -> AD.remove NullPtr a
@@ -1916,7 +1919,7 @@ struct
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
     let invalidate_exp exps =
-      let args = collect_invalidate ~deep ~ctx ~warn:true ask gs st exps in
+      let args = collect_invalidate ~deep ~ctx ~warn:true exps in
       List.map (invalidate_address st) args
     in
     let invalids = invalidate_exp exps in
@@ -2030,8 +2033,8 @@ struct
          Need this to not have memmove spawn in SV-COMP. *)
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
-      let shallow_flist = collect_invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
-      let deep_flist = collect_invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
+      let shallow_flist = collect_invalidate ~deep:false ~ctx shallow_args in
+      let deep_flist = collect_invalidate ~deep:true ~ctx deep_args in
       let flist = shallow_flist @ deep_flist in
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
