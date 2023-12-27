@@ -2023,7 +2023,7 @@ struct
       newst
     end
 
-  let special_unknown_invalidate ctx st f args =
+  let special_unknown_invalidate ctx f args =
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called");
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
@@ -2044,7 +2044,7 @@ struct
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    let st' = invalidate ~deep:false ~ctx st shallow_addrs in
+    let st' = invalidate ~deep:false ~ctx ctx.local shallow_addrs in
     invalidate ~deep:true ~ctx st' deep_addrs
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
@@ -2616,7 +2616,7 @@ struct
       end
     | _, _ ->
       let st =
-        special_unknown_invalidate ctx st f args
+        special_unknown_invalidate ctx f args
         (*
           *  TODO: invalidate vars reachable via args
           *  publish globals
@@ -2745,8 +2745,7 @@ struct
       [make_entry ~thread:true ctx fd args]
     | exception Not_found ->
       (* Unknown functions *)
-      let st = ctx.local in
-      let st = special_unknown_invalidate ctx st f args in
+      let st = special_unknown_invalidate ctx f args in
       [st]
 
   let threadspawn ctx ~multiple (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
