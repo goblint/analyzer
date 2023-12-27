@@ -1430,12 +1430,12 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) (st: store): store =
-      let a = (Analyses.ask_of_ctx ctx) in
+      let ask = Analyses.ask_of_ctx ctx in
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
         | None ->
-          if a.f (Q.IsAllocVar x) then
+          if ask.f (Q.IsAllocVar x) then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
             lval_type
@@ -1450,8 +1450,8 @@ struct
       in
       let update_offset old_value =
         (* Projection globals to highest Precision *)
-        let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
-        let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
+        let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
+        let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
         else if invariant then (
@@ -1475,20 +1475,20 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then begin
+      if (!earlyglobs || ThreadFlag.has_ever_been_multi ask) && is_global ask x then begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg ctx.global in
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
-        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsAllocVar x)) && offs = `NoOffset then begin
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (ask.f (IsAllocVar x)) && offs = `NoOffset then begin
             VD.bot_value ~varAttr:x.vattr lval_type
           end else
-            Priv.read_global a priv_getg st x
+            Priv.read_global ask priv_getg st x
         in
         let new_value = update_offset old_value in
         if M.tracing then M.tracel "set" "update_offset %a -> %a\n" VD.pretty old_value VD.pretty new_value;
-        let r = Priv.write_global ~invariant a priv_getg (priv_sideg ctx.sideg) st x new_value in
+        let r = Priv.write_global ~invariant ask priv_getg (priv_sideg ctx.sideg) st x new_value in
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
@@ -1565,7 +1565,7 @@ struct
         else
           let x_updated = update_variable x t new_value st.cpa in
           let with_dep = add_partitioning_dependencies x new_value {st with cpa = x_updated } in
-          effect_on_arrays a with_dep
+          effect_on_arrays ask with_dep
       end
     in
     let update_one x store =
