@@ -69,12 +69,19 @@ struct
   let dim_remove ch m del = timing_wrap "dim remove" (dim_remove ch m) del
 
   let change_d t new_env add del =
-    if Environment.equal t.env new_env then t else
-      let dim_change = if add then Environment.dimchange t.env new_env
-        else Environment.dimchange new_env t.env
-      in match t.d with
+    if Environment.equal t.env new_env then 
+      t
+    else
+      match t.d with
       | None -> bot_env
-      | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
+      | Some m -> 
+        let dim_change = 
+          if add then 
+            Environment.dimchange t.env new_env
+          else 
+            Environment.dimchange new_env t.env
+        in
+        {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
 
   let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
 
@@ -133,7 +140,8 @@ struct
 
   include ConvenienceOps(Mpqf)
 
-  let get_c v = match Vector.findi (fun x -> x <>: Mpqf.zero) v with
+  (** Get the constant from the vector if it is a constant *)
+  let get_c v = match Vector.findi ((<>:) Mpqf.zero) v with
     | exception Not_found -> Some Mpqf.zero
     | i when Vector.compare_length_with v (i + 1) = 0 -> Some (Vector.nth v i)
     | _ -> None
@@ -202,8 +210,8 @@ struct
     match get_coeff_vec t texpr  with
     | Some v -> begin match get_c v with
         | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
-          let int_val = Mpqf.get_num c
-          in Some int_val, Some int_val
+          let int_val = Mpqf.get_num c in 
+          Some int_val, Some int_val
         | _ -> None, None end
     | _ -> None, None
 
