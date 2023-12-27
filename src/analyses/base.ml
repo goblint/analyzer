@@ -1587,7 +1587,7 @@ struct
       (* if M.tracing then M.tracel "set" ~var:firstvar "set got an exception '%s'\n" x; *)
       M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
 
-  let set_many ~ctx a (gs:glob_fun) (st: store) lval_value_list: store =
+  let set_many ~ctx a (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
       set ~ctx a acc lval typ value
@@ -1809,7 +1809,7 @@ struct
     let init_var v = (AD.of_var v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-    set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
+    set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.local inits
 
   let return ctx exp fundec: store =
     if Cil.hasAttribute "noreturn" fundec.svar.vattr then
@@ -1903,7 +1903,7 @@ struct
       let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
-    set_many ~ctx ask gs st invalids'
+    set_many ~ctx ask st invalids'
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
@@ -2485,7 +2485,7 @@ struct
         | Some lv ->
           let heap_var = AD.of_var (heap_var true ctx) in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
+          set_many ~ctx (Analyses.ask_of_ctx ctx) st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
                                                          (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2498,7 +2498,7 @@ struct
             else AD.of_var (heap_var false ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
+          set_many ~ctx (Analyses.ask_of_ctx ctx) st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
                                                          (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2514,7 +2514,7 @@ struct
           let sizeval = eval_int (Analyses.ask_of_ctx ctx) gs st size in
           let countval = eval_int (Analyses.ask_of_ctx ctx) gs st n in
           if ID.to_int countval = Some Z.one then (
-            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
+            set_many ~ctx (Analyses.ask_of_ctx ctx) st [
               (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
               (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
             ]
@@ -2522,7 +2522,7 @@ struct
           else (
             let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
+            set_many ~ctx (Analyses.ask_of_ctx ctx) st [
               (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
               (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
             ]
@@ -2556,7 +2556,7 @@ struct
               heap_addr
           in
           let lv_addr = eval_lv ask gs st lv in
-          set_many ~ctx ask gs st [
+          set_many ~ctx ask st [
             (heap_addr, TVoid [], heap_val);
             (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr');
           ] (* TODO: free (i.e. invalidate) old blob if successful? *)
