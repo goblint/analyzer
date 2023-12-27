@@ -1143,7 +1143,7 @@ struct
 
   (** Evaluate expression as address.
       Avoids expensive Apron EvalInt if the Int result would be useless to us anyway. *)
-  let eval_rv_address ~ctx ask gs st e =
+  let eval_rv_address ~ctx e =
     (* no way to do eval_rv with expected type, so filter expression beforehand *)
     match Cilfacade.typeOf e with
     | t when Cil.isArithmeticType t -> (* definitely not address *)
@@ -1242,7 +1242,7 @@ struct
     | Q.EvalFunvar e ->
       eval_funvar ctx e
     | Q.EvalJumpBuf e ->
-      begin match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+      begin match eval_rv_address ~ctx e with
         | Address jmp_buf ->
           if AD.mem Addr.UnknownPtr jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
@@ -1271,7 +1271,7 @@ struct
         | v -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
-        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx e with
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
           let lenOf = function
@@ -1288,7 +1288,7 @@ struct
     | Q.EvalValue e ->
       eval_rv ~ctx e
     | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
-        let p = eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        let p = eval_rv_address ~ctx e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
@@ -1322,7 +1322,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.MayPointTo e -> begin
-        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx e with
         | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Int i -> AD.of_int i
@@ -1337,7 +1337,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.ReachableFrom e -> begin
-        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx e with
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
@@ -1357,7 +1357,7 @@ struct
         | _ -> AD.empty ()
       end
     | Q.ReachableUkTypes e -> begin
-        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx e with
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
@@ -1367,7 +1367,7 @@ struct
         | _ -> Q.TS.empty ()
       end
     | Q.EvalStr e -> begin
-        match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address ~ctx e with
         (* exactly one string in the set (works for assignments of string constants) *)
         | Address a when List.compare_length_with (AD.to_string a) 1 = 0 -> (* exactly one string *)
           `Lifted (List.hd (AD.to_string a))
@@ -1885,7 +1885,7 @@ struct
     if deep then
       collect_funargs ~ctx ask ~warn gs st exps
     else (
-      let mpt e = match eval_rv_address ~ctx ask gs st e with
+      let mpt e = match eval_rv_address ~ctx e with
         | Address a -> AD.remove NullPtr a
         | _ -> AD.empty ()
       in
@@ -2071,7 +2071,7 @@ struct
         | Addr (_,o) -> Offs.cmp_zero_offset o <> `MustZero
         | _ -> false)
     in
-    match eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local ptr with
+    match eval_rv_address ~ctx ptr with
     | Address a ->
       if AD.is_top a then (
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;

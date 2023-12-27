@@ -16,7 +16,7 @@ sig
   module G: Lattice.S
 
   val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
-  val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
+  val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
   val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
   val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> offset -> ID.t Offset.t
 
@@ -147,7 +147,7 @@ struct
             end
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
-              match eval_rv_address ~ctx a gs st (Lval x) with
+              match eval_rv_address ~ctx (Lval x) with
               | Address a when AD.is_definite n ->
                 Some (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
