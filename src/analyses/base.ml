@@ -679,14 +679,14 @@ struct
     !collected
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
-  let rec eval_rv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let rec eval_rv ~(ctx: _ ctx) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a\n" d_exp exp;
     let r =
       (* we have a special expression that should evaluate to top ... *)
       if exp = MyCFG.unknown_exp then
         VD.top ()
       else
-        eval_rv_ask_evalint ~ctx a gs st exp
+        eval_rv_ask_evalint ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
     r
@@ -724,7 +724,7 @@ struct
 
   and eval_rv_back_up ~ctx a gs st exp =
     if get_bool "ana.base.eval.deep-query" then
-      eval_rv ~ctx a gs st exp
+      eval_rv ~ctx exp
     else (
       (* duplicate unknown_exp check from eval_rv since we're bypassing it now *)
       if exp = MyCFG.unknown_exp then
@@ -962,8 +962,8 @@ struct
   (** Evaluate BinOp using MustBeEqual query as fallback. *)
   and evalbinop_mustbeequal ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
     (* Evaluate structurally using base at first. *)
-    let a1 = eval_rv ~ctx a gs st e1 in
-    let a2 = eval_rv ~ctx a gs st e2 in
+    let a1 = eval_rv ~ctx e1 in
+    let a2 = eval_rv ~ctx e2 in
     let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
     let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
     let r = evalbinop_base a st op t1 a1 t2 a2 t in
@@ -1008,11 +1008,11 @@ struct
     | _ -> eval_tv ~ctx a gs st exp
   (* Used also for thread creation: *)
   and eval_tv ~ctx a (gs:glob_fun) st (exp:exp): AD.t =
-    match (eval_rv ~ctx a gs st exp) with
+    match eval_rv ~ctx exp with
     | Address x -> x
     | _          -> failwith "Problems evaluating expression to function calls!"
   and eval_int ~ctx a gs st exp =
-    match eval_rv ~ctx a gs st exp with
+    match eval_rv ~ctx exp with
     | Int x -> x
     | _ -> ID.top_of (Cilfacade.get_ikind_exp exp)
   (* A function to convert the offset to our abstract representation of
@@ -1075,9 +1075,9 @@ struct
 
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
-  let eval_rv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let eval_rv ~ctx (st: store) (exp:exp): value =
     try
-      let r = eval_rv ~ctx a gs st exp in
+      let r = eval_rv ~ctx exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
       if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
@@ -1127,7 +1127,7 @@ struct
       ; sideg   = (fun g d -> failwith "Base eval_exp trying to side effect.")
       }
     in
-    match (eval_rv ~ctx (ask Queries.Set.empty) gs st exp) with
+    match eval_rv ~ctx st exp with
     | Int x -> ValueDomain.ID.to_int x
     | _ -> None
 
@@ -1150,7 +1150,7 @@ struct
       VD.top_value t
     | exception Cilfacade.TypeOfError _ (* something weird, might be address *)
     | _ ->
-      eval_rv ~ctx ask gs st e
+      eval_rv ~ctx st e
 
   (* interpreter end *)
 
@@ -1266,7 +1266,7 @@ struct
       query_evalint ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalMutexAttr e -> begin
         let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
-        match eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv ~ctx ctx.local e with
         | MutexAttr a -> a
         | v -> MutexAttrDomain.top ()
       end
@@ -1286,7 +1286,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.EvalValue e ->
-      eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+      eval_rv ~ctx ctx.local e
     | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
         let p = eval_rv_address ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
@@ -1329,7 +1329,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.EvalThread e -> begin
-        let v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        let v = eval_rv ~ctx ctx.local e in
         (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
         match v with
         | Thread a -> a
@@ -1660,7 +1660,7 @@ struct
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
-    let eval_rv_lval_refine ~ctx a gs st exp lval = eval_rv ~ctx a gs st (Lval lval)
+    let eval_rv_lval_refine ~ctx st exp lval = eval_rv ~ctx st (Lval lval)
 
     let id_meet_down ~old ~c = ID.meet old c
     let fd_meet_down ~old ~c = FD.meet old c
@@ -1720,7 +1720,7 @@ struct
       | _ -> ()
     in
     char_array_hack ();
-    let rval_val = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
+    let rval_val = eval_rv ~ctx ctx.local rval in
     let rval_val = VD.mark_jmpbufs_as_copied rval_val in
     let lval_val = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
@@ -1754,7 +1754,7 @@ struct
           assert (offs = NoOffset);
           VD.Bot
         end else
-          eval_rv_keep_bot ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
+          eval_rv_keep_bot ~ctx (Lval (Var v, NoOffset))
       in
       begin match current_val with
         | Bot -> (* current value is VD Bot *)
@@ -1776,7 +1776,7 @@ struct
 
 
   let branch ctx (exp:exp) (tv:bool) : store =
-    let valu = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+    let valu = eval_rv ~ctx ctx.local exp in
     let refine () =
       let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
       if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
@@ -1849,7 +1849,7 @@ struct
           | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
           | ret -> ret
         in
-        let rv = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+        let rv = eval_rv ~ctx ctx.local exp in
         let st' = set ~ctx ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
@@ -1865,8 +1865,8 @@ struct
       ctx.local
     else
       let lval = eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Var v, NoOffset) in
-      let current_value = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
-      let new_value = VD.update_array_lengths (eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local) current_value v.vtype in
+      let current_value = eval_rv ~ctx ctx.local (Lval (Var v, NoOffset)) in
+      let new_value = VD.update_array_lengths (eval_rv ~ctx ctx.local) current_value v.vtype in
       set ~ctx ctx.local lval v.vtype new_value
 
   (**************************************************************************
@@ -1876,7 +1876,7 @@ struct
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ~ctx ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     let do_exp e =
-      let immediately_reachable = reachable_from_value ask gs st (eval_rv ~ctx ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      let immediately_reachable = reachable_from_value ask gs st (eval_rv ~ctx st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ask [immediately_reachable] gs st
     in
     List.concat_map do_exp exps
@@ -1927,7 +1927,7 @@ struct
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st) args in
+    let vals = List.map (eval_rv ~ctx st) args in
     (* generate the entry states *)
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
@@ -2187,7 +2187,7 @@ struct
       (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-          eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+          eval_rv ~ctx st (Lval src_cast_lval)
         else
           VD.top_value (unrollType dest_typ)
       in
@@ -2196,7 +2196,7 @@ struct
     let eval_n = function
       (* if only n characters of a given string are needed, evaluate expression n to an integer option *)
       | Some n ->
-        begin match eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st n with
+        begin match eval_rv ~ctx st n with
           | Int i ->
             begin match ID.to_int i with
               | Some x -> Some (Z.to_int x)
@@ -2222,10 +2222,10 @@ struct
       | _ -> raise (Failure "String function: not an address")
     in
     let string_manipulation s1 s2 lv all op_addr op_array =
-      let s1_v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st s1 in
+      let s1_v = eval_rv ~ctx st s1 in
       let s1_a = address_from_value s1_v in
       let s1_typ = AD.type_of s1_a in
-      let s2_v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st s2 in
+      let s2_v = eval_rv ~ctx st s2 in
       let s2_a = address_from_value s2_v in
       let s2_typ = AD.type_of s2_a in
       (* compute value in string literals domain if s1 and s2 are both string literals *)
@@ -2295,7 +2295,7 @@ struct
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
-      let eval_ch = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st ch in
+      let eval_ch = eval_rv ~ctx st ch in
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value =
         match eval_ch with
@@ -2320,7 +2320,7 @@ struct
         | Some lv_val ->
           let dest_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st lv_val in
           let dest_typ = Cilfacade.typeOfLval lv_val in
-          let v = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st s in
+          let v = eval_rv ~ctx st s in
           let a = address_from_value v in
           let value:value =
             (* if s string literal, compute strlen in string literals domain *)
@@ -2365,7 +2365,7 @@ struct
       begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid ->
           (
-            let rv = eval_rv ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+            let rv = eval_rv ~ctx ctx.local exp in
             ctx.sideg (V.thread tid) (G.create_thread rv);
             (* TODO: emit thread return event so other analyses are aware? *)
             (* TODO: publish still needed? *)
@@ -2386,7 +2386,7 @@ struct
         let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
         let dest_typ = get_type dst_lval in
         let dest_a = eval_lv ~ctx (Analyses.ask_of_ctx ctx) gs st dst_lval in
-        match eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st mtyp with
+        match eval_rv ~ctx st mtyp with
         | Int x ->
           begin
             match ID.to_int x with
@@ -2405,22 +2405,22 @@ struct
     (**Floating point classification and trigonometric functions defined in c99*)
     | Math { fun_args; }, _ ->
       let apply_unary fk float_fun x =
-        let eval_x = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st x in
+        let eval_x = eval_rv ~ctx st x in
         begin match eval_x with
           | Float float_x -> float_fun (FD.cast_to fk float_x)
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
       let apply_binary fk float_fun x y =
-        let eval_x = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st x in
-        let eval_y = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st y in
+        let eval_x = eval_rv ~ctx st x in
+        let eval_y = eval_rv ~ctx st y in
         begin match eval_x, eval_y with
           | Float float_x, Float float_y -> float_fun (FD.cast_to fk float_x) (FD.cast_to fk float_y)
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
       let apply_abs ik x =
-        let eval_x = eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st x in
+        let eval_x = eval_rv ~ctx st x in
         begin match eval_x with
           | Int int_x ->
             let xcast = ID.cast_to ik int_x in
@@ -2480,10 +2480,10 @@ struct
     | ThreadJoin { thread = id; ret_var }, _ ->
       let st' =
         (* TODO: should invalidate shallowly? https://github.com/goblint/analyzer/pull/1224#discussion_r1405826773 *)
-        match (eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st ret_var) with
+        match eval_rv ~ctx st ret_var with
         | Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
         | Address ret_a ->
-          begin match eval_rv ~ctx (Analyses.ask_of_ctx ctx) gs st id with
+          begin match eval_rv ~ctx st id with
             | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx st [ret_var]
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
@@ -2553,7 +2553,7 @@ struct
       begin match lv with
         | Some lv ->
           let ask = Analyses.ask_of_ctx ctx in
-          let p_rv = eval_rv ~ctx ask gs st p in
+          let p_rv = eval_rv ~ctx st p in
           let p_addr =
             match p_rv with
             | Address a -> a
@@ -2588,7 +2588,7 @@ struct
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
       let ask = Analyses.ask_of_ctx ctx in
-      let st' = match eval_rv ~ctx ask gs st env with
+      let st' = match eval_rv ~ctx st env with
         | Address jmp_buf ->
           let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
           let r = set ~ctx st jmp_buf (Cilfacade.typeOf env) value in
@@ -2602,7 +2602,6 @@ struct
         | None -> st'
       end
     | Longjmp {env; value}, _ ->
-      let ask = Analyses.ask_of_ctx ctx in
       let ensure_not_zero (rv:value) = match rv with
         | Int i ->
           begin match ID.to_bool i with
@@ -2619,7 +2618,7 @@ struct
           M.warn ~category:Program "Arguments to longjmp are strange!";
           rv
       in
-      let rv = ensure_not_zero @@ eval_rv ~ctx ask ctx.global ctx.local value in
+      let rv = ensure_not_zero @@ eval_rv ~ctx ctx.local value in
       let t = Cilfacade.typeOf value in
       set ~ctx ~t_override:t ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | Rand, _ ->
@@ -2848,14 +2847,11 @@ struct
           module V = V
           module G = G
 
-          let oa = Analyses.ask_of_ctx octx
-          let ost = octx.local
-
           (* all evals happen in octx with non-top values *)
-          let eval_rv ~ctx a gs st e = eval_rv ~ctx oa gs ost e
-          let eval_rv_address ~ctx a gs st e = eval_rv_address ~ctx oa gs ost e
-          let eval_lv ~ctx a gs st lv = eval_lv ~ctx oa gs ost lv
-          let convert_offset ~ctx a gs st o = convert_offset ~ctx oa gs ost o
+          let eval_rv ~ctx e = eval_rv ~ctx:octx e
+          let eval_rv_address ~ctx e = eval_rv_address ~ctx:octx e
+          let eval_lv ~ctx lv = eval_lv ~ctx:octx lv
+          let convert_offset ~ctx o = convert_offset ~ctx:octx o
 
           (* all updates happen in ctx with top values *)
           let get_var = get_var
@@ -2865,9 +2861,9 @@ struct
           let refine_entire_var = false
           let map_oldval oldval t_lval =
             if VD.is_bot oldval then VD.top_value t_lval else oldval
-          let eval_rv_lval_refine ~ctx a gs st exp lv =
+          let eval_rv_lval_refine ~ctx st exp lv =
             (* new, use different ctx for eval_lv (for Mem): *)
-            eval_rv_base_lval ~eval_lv ~ctx a gs st exp lv
+            eval_rv_base_lval ~eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st exp lv
 
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c
