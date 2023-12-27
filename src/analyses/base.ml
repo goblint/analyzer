@@ -792,7 +792,7 @@ struct
         in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
-        evalbinop ~ctx a gs st op ~e1 ~t1 ~e2 ~t2 typ
+        evalbinop ~ctx op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
         let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
@@ -868,10 +868,10 @@ struct
         in
         begin match eqs_value with
           | Some x -> x
-          | None -> evalbinop ~ctx a gs st LOr ~e1 ~e2 typ (* fallback to general case *)
+          | None -> evalbinop ~ctx LOr ~e1 ~e2 typ (* fallback to general case *)
         end
       | BinOp (op,e1,e2,typ) ->
-        evalbinop ~ctx a gs st op ~e1 ~e2 typ
+        evalbinop ~ctx op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv ~ctx arg1 in
@@ -960,24 +960,25 @@ struct
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
 
-  and evalbinop ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
-    evalbinop_mustbeequal ~ctx a gs st op ~e1 ?t1 ~e2 ?t2 t
+  and evalbinop ~ctx (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    evalbinop_mustbeequal ~ctx op ~e1 ?t1 ~e2 ?t2 t
 
   (** Evaluate BinOp using MustBeEqual query as fallback. *)
-  and evalbinop_mustbeequal ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+  and evalbinop_mustbeequal ~ctx (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
     (* Evaluate structurally using base at first. *)
+    let ask = Analyses.ask_of_ctx ctx in
     let a1 = eval_rv ~ctx e1 in
     let a2 = eval_rv ~ctx e2 in
     let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
     let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
-    let r = evalbinop_base a op t1 a1 t2 a2 t in
+    let r = evalbinop_base ask op t1 a1 t2 a2 t in
     if Cil.isIntegralType t then (
       match r with
       | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
       | _ ->
         (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
         let must_be_equal () =
-          let r = Q.must_be_equal a e1 e2 in
+          let r = Q.must_be_equal ask e1 e2 in
           if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
           r
         in
