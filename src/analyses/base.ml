@@ -2647,8 +2647,7 @@ struct
         match addr with
         | Addr.Addr (v,o) ->
           if CPA.mem v fun_st.cpa then
-            let lval = Addr.Mval.to_cil (v,o) in
-            let address = eval_lv ~ctx lval in
+            let address = AD.singleton addr in
             let lval_type = Addr.type_of addr in
             if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Addr.Mval.pretty (v,o) d_type lval_type;
             match (CPA.find_opt v (fun_st.cpa)), lval_type with
