@@ -152,7 +152,7 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg v = Vector.map_with (( *:) Mpqf.mone) v; v in
+    let neg v = Vector.map_with Mpqf.neg v; v in
     let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
         Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
     in
@@ -485,7 +485,7 @@ struct
     let assign_invertible_rels x var b env = timing_wrap "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
       let b_length = Vector.length b in
-      Vector.mapi_with (fun i z -> if i < b_length - 1 then Mpqf.mone *: z else z) b;
+      Vector.mapi_with (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b;
       Vector.set_val_with b (Environment.dim_of_var env var) Mpqf.one;
       let opt_m = Matrix.rref_vec_with x b in
       if Option.is_none opt_m then bot () else
@@ -620,8 +620,9 @@ struct
   let meet_tcons t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
     let meet_vec e =
-      (*Flip the sign of the const. val in coeff vec*)
-      Vector.mapi_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e;
+      (* Flip the sign of the const. val in coeff vec *)
+      let coeff = Vector.nth e (Vector.length e - 1) in
+      Vector.set_val_with e (Vector.length e - 1) (Mpqf.neg coeff);
       let res =
         if is_bot t then
           bot ()
@@ -631,27 +632,30 @@ struct
       in
       meet_tcons_one_var_eq res expr
     in
-    match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-    | Some v ->
-      begin match to_constant_opt v, Tcons1.get_typ tcons with
-        | Some c, DISEQ -> check_const (=:) c
-        | Some c, SUP -> check_const (<=:) c
-        | Some c, EQ -> check_const (<>:) c
-        | Some c, SUPEQ -> check_const (<:) c
-        | None, DISEQ
-        | None, SUP ->
-          begin match meet_vec v with
-            | exception NotRefinable -> t
-            | res -> if equal res t then bot_env else t
-          end
-        | None, EQ ->
-          begin match meet_vec v with
-            | exception NotRefinable -> t
-            | res -> if is_bot res then bot_env else res
-          end
-        | _, _ -> t
-      end
-    | None -> t
+    try
+      match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+      | Some v ->
+        begin match to_constant_opt v, Tcons1.get_typ tcons with
+          | Some c, DISEQ -> check_const (=:) c
+          | Some c, SUP -> check_const (<=:) c
+          | Some c, EQ -> check_const (<>:) c
+          | Some c, SUPEQ -> check_const (<:) c
+          | None, DISEQ
+          | None, SUP ->
+            if equal (meet_vec v) t then
+              bot_env
+            else
+              t
+          | None, EQ ->
+            let res = meet_vec v in
+            if is_bot res then
+              bot_env
+            else
+              res
+          | _ -> t
+        end
+      | None -> t
+    with NotRefinable -> t
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
