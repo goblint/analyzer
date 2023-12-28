@@ -152,7 +152,7 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg v = Vector.map_with (fun x -> Mpqf.mone *: x) v; v in
+    let neg v = Vector.map_with (( *:) Mpqf.mone) v; v in
     let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
         Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
     in
@@ -250,8 +250,8 @@ struct
       let row = Array.copy @@ Vector.to_array row in
       let mpqf_of_z x = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z x in
       let lcm = mpqf_of_z @@ Array.fold_left (fun x y -> Z.lcm x (Mpqf.get_den y)) Z.one row in
-      Array.modify (fun x -> x *: lcm) row;
-      let int_arr = Array.map (fun x -> Mpqf.get_num x) row in
+      Array.modify (( *:) lcm) row;
+      let int_arr = Array.map Mpqf.get_num row in
       let div = Array.fold_left Z.gcd int_arr.(0) int_arr in
       Array.modify (fun x -> Z.div x div) int_arr;
       int_arr
@@ -379,12 +379,12 @@ struct
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
           if Vector.equal col_a col_b then (a, b, max) else
             let a_rev, b_rev = (Vector.rev_with col_a; col_a), (Vector.rev_with col_b; col_b) in
-            let i = Vector.find2i (fun x y -> x <>: y) a_rev b_rev in
+            let i = Vector.find2i (<>:) a_rev b_rev in
             let (x, y) = Vector.nth a_rev i, Vector.nth b_rev i in
             let r, diff = Vector.length a_rev - (i + 1), x -: y  in
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
             let sub_col =
-              Vector.map2_with (fun x y -> x -: y) a_rev b_rev;
+              Vector.map2_with (-:) a_rev b_rev;
               Vector.rev_with a_rev;
               a_rev
             in
@@ -581,8 +581,8 @@ struct
     forget_vars res [var]
 
   let substitute_exp t var exp ov =
-    let res = substitute_exp t var exp ov
-    in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
+    let res = substitute_exp t var exp ov in
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
   let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
