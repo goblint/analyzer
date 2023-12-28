@@ -739,7 +739,6 @@ struct
       Subexpressions delegate to [eval_rv], which may use queries on them. *)
   and eval_rv_base ~ctx (exp:exp): value =
     let a = Analyses.ask_of_ctx ctx in
-    let gs = ctx.global in
     let st = ctx.local in
     let eval_rv = eval_rv_back_up in
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
@@ -778,7 +777,7 @@ struct
       | Const _ -> VD.top ()
       (* Variables and address expressions *)
       | Lval lv ->
-        eval_rv_base_lval ~eval_lv ~ctx a gs st exp lv
+        eval_rv_base_lval ~eval_lv ~ctx a st exp lv
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
@@ -902,7 +901,7 @@ struct
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
 
-  and eval_rv_base_lval ~eval_lv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp: exp) (lv: lval): value =
+  and eval_rv_base_lval ~eval_lv ~ctx (a: Q.ask) (st: store) (exp: exp) (lv: lval): value =
     match lv with
     | (Var v, ofs) -> get ~ctx st (eval_lv ~ctx (Var v, ofs)) (Some exp)
     (* | Lval (Mem e, ofs) -> get a gs st (eval_lv ~ctx (Mem e, ofs)) *)
@@ -2866,7 +2865,7 @@ struct
             if VD.is_bot oldval then VD.top_value t_lval else oldval
           let eval_rv_lval_refine ~ctx st exp lv =
             (* new, use different ctx for eval_lv (for Mem): *)
-            eval_rv_base_lval ~eval_lv ~ctx (Analyses.ask_of_ctx ctx) ctx.global st exp lv
+            eval_rv_base_lval ~eval_lv ~ctx (Analyses.ask_of_ctx ctx) st exp lv
 
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c
