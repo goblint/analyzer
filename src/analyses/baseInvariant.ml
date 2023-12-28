@@ -62,7 +62,7 @@ struct
       VD.meet old_val new_val
     with Lattice.Uncomparable -> old_val
 
-  let refine_lv_fallback ctx gs st lval value tv =
+  let refine_lv_fallback ctx st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
     let addr = eval_lv ~ctx lval in
     if (AD.is_top addr) then st
@@ -79,7 +79,7 @@ struct
           old_val
       in
       let ask = Analyses.ask_of_ctx ctx in
-      let state_with_excluded = set ask gs st addr t_lval value ~ctx in
+      let state_with_excluded = set ask ctx.global st addr t_lval value ~ctx in
       let value =  get ~ctx state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -89,8 +89,8 @@ struct
         contra st
       )
       else if VD.is_bot new_val
-      then set ask gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
-      else set ask gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
+      then set ask ctx.global st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
+      else set ask ctx.global st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let refine_lv ctx st c x c' pretty exp =
     let set' lval v st = set (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
@@ -241,7 +241,7 @@ struct
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
-      refine_lv_fallback ctx ctx.global st lval value tv
+      refine_lv_fallback ctx st lval value tv
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
