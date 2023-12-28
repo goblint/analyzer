@@ -443,7 +443,7 @@ struct
   let publish_all ctx reason =
     ignore (sync' reason ctx)
 
-  let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
+  let get_var ~ctx (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then
       Priv.read_global a (priv_getg gs) st x
     else begin
@@ -463,7 +463,7 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = get_var a gs st x in
+        let var = get_var ~ctx a gs st x in
         let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get ~ctx a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
         if full then var else match v with
@@ -1172,7 +1172,7 @@ struct
     struct
       let context = context
       let scope = Node.find_fundec ctx.node
-      let find v = get_var ask ctx.global ctx.local v
+      let find v = get_var ~ctx ask ctx.global ctx.local v
     end
     in
     let module I = ValueDomain.ValueInvariant (Arg) in

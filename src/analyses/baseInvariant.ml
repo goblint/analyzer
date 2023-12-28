@@ -20,7 +20,7 @@ sig
   val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> lval -> AD.t
   val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> offset -> ID.t Offset.t
 
-  val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
+  val get_var: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
   val get: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
   val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
@@ -96,7 +96,7 @@ struct
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-      let old_val = get_var a gs st var in
+      let old_val = get_var ~ctx a gs st var in
       let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset ~ctx o in
       let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
