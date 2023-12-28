@@ -1780,14 +1780,14 @@ struct
     let valu = eval_rv ~ctx exp in
     let refine () =
       let ask = Analyses.ask_of_ctx ctx in
-      let res = invariant ctx ask ctx.global ctx.local exp tv in
+      let res = invariant ctx ask ctx.local exp tv in
       if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
       if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
       if M.tracing then M.traceu "branch" "Invariant enforced!\n";
       match ctx.ask (Queries.CondVars exp) with
       | s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
-        invariant ctx ask ctx.global res e tv
+        invariant ctx ask res e tv
       | _ -> res
     in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
@@ -2034,7 +2034,7 @@ struct
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
     if not refine then ctx.local else begin
-      let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
+      let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.local e true in
       (* if check_assert e newst <> `Lifted true then
           M.warn ~category:Assert ~msg:("Invariant \"" ^ expr ^ "\" does not stick.") (); *)
       newst
@@ -2873,7 +2873,7 @@ struct
         in
         let module Unassume = BaseInvariant.Make (UnassumeEval) in
         try
-          Unassume.invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
+          Unassume.invariant ctx (Analyses.ask_of_ctx ctx) ctx.local e true
         with Deadcode -> (* contradiction in unassume *)
           D.bot ()
       in

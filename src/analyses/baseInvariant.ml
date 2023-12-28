@@ -91,8 +91,8 @@ struct
       then set a gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
       else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
-  let refine_lv ctx a gs st c x c' pretty exp =
-    let set' lval v st = set a gs st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+  let refine_lv ctx a st c x c' pretty exp =
+    let set' lval v st = set a ctx.global st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
@@ -120,7 +120,7 @@ struct
         set' x v st
       )
 
-  let invariant_fallback ctx a (gs:V.t -> G.t) st exp tv =
+  let invariant_fallback ctx a st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): (lval * VD.t) option =
@@ -240,16 +240,16 @@ struct
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
-      refine_lv_fallback ctx a gs st lval value tv
+      refine_lv_fallback ctx a ctx.global st lval value tv
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
 
-  let invariant ctx a gs st exp tv: D.t =
+  let invariant ctx a st exp tv: D.t =
     let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%t\n" d_plainexp exp reason;
-      invariant_fallback ctx a gs st exp tv
+      invariant_fallback ctx a st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
@@ -696,7 +696,7 @@ struct
               | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
               | _ -> failwith "unreachable")
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
-          let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
+          let update_lval c x c' pretty = refine_lv ctx a st c x c' pretty exp in
           let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
           if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a\n" d_lval x VD.pretty c_typed d_type t;
           begin match c_typed with
