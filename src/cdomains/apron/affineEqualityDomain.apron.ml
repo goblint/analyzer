@@ -528,7 +528,7 @@ struct
     res
 
   let assign_var_parallel t vv's =
-    let assigned_vars = List.map (function (v, _) -> v) vv's in
+    let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
     let t_primed = add_vars t primed_vars in
