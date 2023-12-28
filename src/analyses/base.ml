@@ -777,7 +777,7 @@ struct
       | Const _ -> VD.top ()
       (* Variables and address expressions *)
       | Lval lv ->
-        eval_rv_base_lval ~eval_lv ~ctx a st exp lv
+        eval_rv_base_lval ~eval_lv ~ctx st exp lv
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
@@ -901,7 +901,7 @@ struct
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
 
-  and eval_rv_base_lval ~eval_lv ~ctx (a: Q.ask) (st: store) (exp: exp) (lv: lval): value =
+  and eval_rv_base_lval ~eval_lv ~ctx (st: store) (exp: exp) (lv: lval): value =
     match lv with
     | (Var v, ofs) -> get ~ctx st (eval_lv ~ctx (Var v, ofs)) (Some exp)
     (* | Lval (Mem e, ofs) -> get a gs st (eval_lv ~ctx (Mem e, ofs)) *)
@@ -954,7 +954,7 @@ struct
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get ~ctx st x (Some exp)) v' (convert_offset ~ctx ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (fun x -> get ~ctx st x (Some exp)) v' (convert_offset ~ctx ofs) (Some exp) None t in (* handle offset *)
         v'
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
@@ -2865,7 +2865,7 @@ struct
             if VD.is_bot oldval then VD.top_value t_lval else oldval
           let eval_rv_lval_refine ~ctx st exp lv =
             (* new, use different ctx for eval_lv (for Mem): *)
-            eval_rv_base_lval ~eval_lv ~ctx (Analyses.ask_of_ctx ctx) st exp lv
+            eval_rv_base_lval ~eval_lv ~ctx st exp lv
 
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c
