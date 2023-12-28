@@ -62,7 +62,7 @@ struct
       VD.meet old_val new_val
     with Lattice.Uncomparable -> old_val
 
-  let refine_lv_fallback ctx a gs st lval value tv =
+  let refine_lv_fallback ctx gs st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
     let addr = eval_lv ~ctx lval in
     if (AD.is_top addr) then st
@@ -78,7 +78,8 @@ struct
         else
           old_val
       in
-      let state_with_excluded = set a gs st addr t_lval value ~ctx in
+      let ask = Analyses.ask_of_ctx ctx in
+      let state_with_excluded = set ask gs st addr t_lval value ~ctx in
       let value =  get ~ctx state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -88,18 +89,18 @@ struct
         contra st
       )
       else if VD.is_bot new_val
-      then set a gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
-      else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
+      then set ask gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
+      else set ask gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
-  let refine_lv ctx a st c x c' pretty exp =
-    let set' lval v st = set a ctx.global st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+  let refine_lv ctx st c x c' pretty exp =
+    let set' lval v st = set (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
       let old_val = get_var ~ctx st var in
       let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset ~ctx o in
-      let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) old_val offs c' (Some exp) x (var.vtype) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
@@ -120,7 +121,7 @@ struct
         set' x v st
       )
 
-  let invariant_fallback ctx a st exp tv =
+  let invariant_fallback ctx st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): (lval * VD.t) option =
@@ -240,16 +241,16 @@ struct
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
-      refine_lv_fallback ctx a ctx.global st lval value tv
+      refine_lv_fallback ctx ctx.global st lval value tv
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
 
-  let invariant ctx a st exp tv: D.t =
+  let invariant ctx st exp tv: D.t =
     let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%t\n" d_plainexp exp reason;
-      invariant_fallback ctx a st exp tv
+      invariant_fallback ctx st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
@@ -696,7 +697,7 @@ struct
               | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
               | _ -> failwith "unreachable")
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
-          let update_lval c x c' pretty = refine_lv ctx a st c x c' pretty exp in
+          let update_lval c x c' pretty = refine_lv ctx st c x c' pretty exp in
           let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
           if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a\n" d_lval x VD.pretty c_typed d_type t;
           begin match c_typed with
