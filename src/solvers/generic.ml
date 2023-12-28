@@ -30,7 +30,7 @@ module LoadRunSolver: GenericEqSolver =
   end
 
 module LoadRunIncrSolver: GenericEqIncrSolver =
-  Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
+  PostSolver.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct

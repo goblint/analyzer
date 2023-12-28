@@ -2,7 +2,6 @@
 
 open Batteries
 open ConstrSys
-open Constraints
 open Messages
 
 exception SolverCannotDoGlobals
@@ -164,4 +163,4 @@ module TD3 =
   end
 
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module EqIncrSolverFromEqSolver (TD3)));
+  Selector.add_solver ("topdown_deprecated", (module PostSolver.EqIncrSolverFromEqSolver (TD3)));

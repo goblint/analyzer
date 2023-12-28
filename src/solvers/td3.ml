@@ -194,7 +194,7 @@ module Base =
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
-    module CurrentVarS = Constraints.CurrentVarEqConstrSys (S)
+    module CurrentVarS = ConstrSys.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
 
     let solve st vs marshal =

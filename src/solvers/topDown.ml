@@ -3,7 +3,6 @@
 
 open Batteries
 open ConstrSys
-open Constraints
 open Messages
 
 module WP =
@@ -155,4 +154,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown", (module EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown", (module PostSolver.EqIncrSolverFromEqSolver (WP)));

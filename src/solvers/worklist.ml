@@ -2,7 +2,6 @@
 
 open Batteries
 open ConstrSys
-open Constraints
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -63,4 +62,4 @@ module Make =
 
 
 let _ =
-  Selector.add_solver ("WL",  (module EqIncrSolverFromEqSolver (Make)));
+  Selector.add_solver ("WL",  (module PostSolver.EqIncrSolverFromEqSolver (Make)));
