@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated[+] memOutOfBounds --enable ana.int.interval 08-memset-memcpy-array.c
+  $ goblint --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info 08-memset-memcpy-array.c
   Option warning: The memOutOfBounds analysis enables cil.addNestedScopeAttr.
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of (void *)b in function memset is 168 (in bytes) with an address offset of 0 (in bytes). Count is 169 (in bytes). Memory out-of-bounds access must occur (08-memset-memcpy-array.c:14:5-14:22)
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of (void *)b in function memset is 168 (in bytes) with an address offset of 0 (in bytes). Count is 169 (in bytes). Memory out-of-bounds access must occur (08-memset-memcpy-array.c:15:5-15:34)
@@ -24,7 +24,3 @@
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare size of dest ((Not {0}([0,8]),[4,168])) with address offset (0) count (168) in function memcpy. Memory out-of-bounds access may occur (08-memset-memcpy-array.c:37:5-37:30)
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare size of dest ((Not {0}([0,8]),[4,168])) with address offset (0) count (5) in function memset. Memory out-of-bounds access may occur (08-memset-memcpy-array.c:40:5-40:34)
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare size of dest ((Not {0}([0,8]),[4,168])) with address offset (0) count (5) in function memcpy. Memory out-of-bounds access may occur (08-memset-memcpy-array.c:41:5-41:34)
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 27
-    dead: 0
-    total lines: 27
