@@ -8,6 +8,7 @@ src_root_path = Path("./src")
 
 goblint_lib_paths = [
     src_root_path / "goblint_lib.ml",
+    src_root_path / "solvers" / "goblint_solver.ml",
     src_root_path / "util" / "std" / "goblint_std.ml",
 ]
 goblint_lib_modules = set()
@@ -33,6 +34,7 @@ exclude_module_names = set([
 
     # libraries
     "Goblint_std",
+    "Goblint_solver",
     "Goblint_timing",
     "Goblint_backtrace",
     "Goblint_tracing",

@@ -85,7 +85,7 @@ struct
       let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
       save_run <> ""
   end
-  module Slvr  = (GlobSolverFromEqSolver (Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
+  module Slvr  = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
   module CompareGlobSys = Constraints.CompareGlobSys (SpecSys)
 
@@ -476,7 +476,7 @@ struct
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
-          let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let module S2' = (GlobSolverFromEqSolver (Goblint_solver.Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
           r2
         ) else if compare_runs <> [] then (
@@ -582,7 +582,7 @@ struct
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
           CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
-        compare_with (Selector.choose_solver (get_string "comparesolver"))
+        compare_with (Goblint_solver.Selector.choose_solver (get_string "comparesolver"))
       );
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)

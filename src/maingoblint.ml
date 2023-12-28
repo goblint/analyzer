@@ -513,7 +513,7 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
     print_newline ();
-    SolverStats.print ();
+    Goblint_solver.SolverStats.print ();
     print_newline ();
     print_string "Timings:\n";
     Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
@@ -521,7 +521,7 @@ let do_stats () =
   )
 
 let reset_stats () =
-  SolverStats.reset ();
+  Goblint_solver.SolverStats.reset ();
   Timing.Default.reset ();
   Timing.Program.reset ()
 
