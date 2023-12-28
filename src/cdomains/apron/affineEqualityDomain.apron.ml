@@ -608,7 +608,7 @@ struct
         | Some min, Some max ->
           assert (Z.equal min max); (* other bounds impossible in affeq *)
           let (min_ik, max_ik) = IntDomain.Size.range ik in
-          if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
+          if Z.lt min min_ik || Z.gt max max_ik then
             if IntDomain.should_ignore_overflow ik then
               bot ()
             else
