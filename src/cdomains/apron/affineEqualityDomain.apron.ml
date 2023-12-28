@@ -260,23 +260,22 @@ struct
       let vars, _ = Environment.vars env in
       let dim_to_str var =
         let coeff =  arr.(Environment.dim_of_var env var) in
-        let var_str = Var.to_string var in
         if Z.equal coeff Z.zero then
           ""
-        else if Z.equal coeff Z.one then
-          "+" ^ var_str
-        else if Z.equal coeff Z.minus_one then
-          "-" ^ var_str
-        else if Z.lt coeff Z.minus_one then
-          Z.to_string coeff ^ var_str
         else
-          Format.asprintf "+%s" (Z.to_string coeff) ^ var_str
+          let coeff_str =
+            if Z.equal coeff Z.one then "+"
+            else if Z.equal coeff Z.minus_one then "-"
+            else if Z.lt coeff Z.minus_one then Z.to_string coeff
+            else Format.asprintf "+%s" (Z.to_string coeff)
+          in
+          coeff_str ^ Var.to_string var
       in
       let const_to_str vl =
         if Z.equal vl Z.zero then
           ""
         else
-          let negated = Z.mul vl Z.minus_one in
+          let negated = Z.neg vl in
           if Z.gt negated Z.zero then "+" ^ Z.to_string negated
           else Z.to_string negated
       in
