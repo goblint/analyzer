@@ -903,7 +903,7 @@ struct
   and eval_rv_base_lval ~eval_lv ~ctx (st: store) (exp: exp) (lv: lval): value =
     match lv with
     | (Var v, ofs) -> get ~ctx st (eval_lv ~ctx (Var v, ofs)) (Some exp)
-    (* | Lval (Mem e, ofs) -> get a gs st (eval_lv ~ctx (Mem e, ofs)) *)
+    (* | Lval (Mem e, ofs) -> get ~ctx st (eval_lv ~ctx (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
       let rec contains_vla (t:typ) = match t with
