@@ -45,6 +45,7 @@ module Events = Events
 
     The following modules help query the constraint system solution using semantic information. *)
 
+module AnalysisResult = AnalysisResult
 module ResultQuery = ResultQuery
 module VarQuery = VarQuery
 
