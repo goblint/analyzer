@@ -3590,6 +3590,13 @@ module IntDomTupleImpl = struct
     in
     mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
+  let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
+    if n = 1 then Some (List.hd xs)
+    else (
+      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
+      None
+    )
+  let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_int }
 
   let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
@@ -3688,13 +3695,6 @@ module IntDomTupleImpl = struct
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top
-  let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
-    if n = 1 then Some (List.hd xs)
-    else (
-      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
-      None
-    )
-  let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_int }
   let to_bool = same string_of_bool % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.to_bool }
   let minimal = flat (List.max ~cmp:BI.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.minimal }
   let maximal = flat (List.min ~cmp:BI.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.maximal }
