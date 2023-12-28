@@ -259,18 +259,18 @@ struct
     let vec_to_constraint arr env =
       let vars, _ = Environment.vars env in
       let dim_to_str var =
-        let vl =  arr.(Environment.dim_of_var env var) in
+        let coeff =  arr.(Environment.dim_of_var env var) in
         let var_str = Var.to_string var in
-        if Z.equal vl Z.zero then
+        if Z.equal coeff Z.zero then
           ""
-        else if Z.equal vl Z.one then
+        else if Z.equal coeff Z.one then
           "+" ^ var_str
-        else if Z.equal vl Z.minus_one then
+        else if Z.equal coeff Z.minus_one then
           "-" ^ var_str
-        else if Z.lt vl Z.minus_one then
-          Z.to_string vl ^ var_str
+        else if Z.lt coeff Z.minus_one then
+          Z.to_string coeff ^ var_str
         else
-          Format.asprintf "+%s" (Z.to_string vl) ^ var_str
+          Format.asprintf "+%s" (Z.to_string coeff) ^ var_str
       in
       let const_to_str vl =
         if Z.equal vl Z.zero then
