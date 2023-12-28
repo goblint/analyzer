@@ -2645,23 +2645,23 @@ struct
   let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : AD.t) : store =
     AD.fold (fun addr (st: store) ->
         match addr with
-        | Addr.Addr (v,o) ->
-          if CPA.mem v fun_st.cpa then
-            let address = AD.singleton addr in
+        | Addr.Addr (v,o) when CPA.mem v fun_st.cpa ->
+          begin
             let lval_type = Addr.type_of addr in
             if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Addr.Mval.pretty (v,o) d_type lval_type;
-            match (CPA.find_opt v (fun_st.cpa)), lval_type with
-            | None, _ -> st
+            match CPA.find_opt v (fun_st.cpa) with
+            | None -> st
             (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
-            | Some (Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (Array a) st.cpa}
+            | Some (Array a) when CArrays.domain_of_t a = PartitionedDomain -> {st with cpa = CPA.add v (Array a) st.cpa}
             (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
-            | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
-            | _, _ -> begin
+            | Some voidVal when Addr.type_of addr = voidType -> {st with cpa = CPA.add v voidVal st.cpa}
+            | _ ->
+              begin
+                let address = AD.singleton addr in
                 let new_val = get ~ctx fun_st address None in
                 if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
                 let st' = set_savetop ~ctx st address lval_type new_val in
-                let partDep = Dep.find_opt v fun_st.deps in
-                match partDep with
+                match Dep.find_opt v fun_st.deps with
                 | None -> st'
                 (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
                 | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
@@ -2669,7 +2669,7 @@ struct
                                                                   | None -> accCPA
                                                                   | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
               end
-          else st
+          end
         | _ -> st
       ) tainted_lvs local_st
 
