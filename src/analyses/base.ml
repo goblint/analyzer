@@ -738,7 +738,6 @@ struct
       This handles constants directly and variables using CPA.
       Subexpressions delegate to [eval_rv], which may use queries on them. *)
   and eval_rv_base ~ctx (exp:exp): value =
-    let a = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     let eval_rv = eval_rv_back_up in
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
@@ -784,7 +783,7 @@ struct
         let a1 = eval_rv ~ctx e1 in
         let a2 = eval_rv ~ctx e2 in
         let extra_is_safe =
-          match evalbinop_base a op t1 a1 t2 a2 typ with
+          match evalbinop_base (Analyses.ask_of_ctx ctx) op t1 a1 t2 a2 typ with
           | Int i -> ID.to_bool i = Some true
           | _
           | exception IntDomain.IncompatibleIKinds _ -> false
@@ -1240,7 +1239,6 @@ struct
       Invariant.none
 
   let query ctx (type a) (q: a Q.t): a Q.result =
-    let ask = Analyses.ask_of_ctx ctx in
     match q with
     | Q.EvalFunvar e ->
       eval_funvar ctx e
@@ -1315,7 +1313,7 @@ struct
             (match r with
              | Array a ->
                (* unroll into array for Calloc calls *)
-               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
                 | Blob (_,s,_) -> `Lifted s
                 | _ -> Queries.Result.top q
                )
@@ -1902,11 +1900,10 @@ struct
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
-    let ask = Analyses.ask_of_ctx ctx in
     let invalidate_address st a =
       let t = AD.type_of a in
       let v = get ~ctx st a None in (* None here is ok, just causes us to be a bit less precise *)
-      let nv =  VD.invalidate_value (Queries.to_value_domain_ask ask) t v in
+      let nv =  VD.invalidate_value (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) t v in
       (a, t, nv)
     in
     (* We define the function that invalidates all the values that an address
