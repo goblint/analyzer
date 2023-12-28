@@ -15,8 +15,10 @@
  *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open Messages
+
+module M = Messages
 
 module type Hooks =
 sig

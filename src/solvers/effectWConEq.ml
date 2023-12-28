@@ -1,7 +1,7 @@
 (** ([effectWConEq]). *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open Constraints
 
 module Make =

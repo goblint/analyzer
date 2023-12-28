@@ -1,7 +1,7 @@
 (** Deprecated top-down solver ([topdown_deprecated]). *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open Constraints
 open Messages
 

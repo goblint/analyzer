@@ -21,6 +21,7 @@ module CfgTools = CfgTools
     A dynamic composition of analyses is combined with CFGs to produce a constraint system. *)
 
 module Analyses = Analyses
+module ConstrSys = ConstrSys
 module Constraints = Constraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil

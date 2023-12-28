@@ -1,7 +1,7 @@
 (** Two-phased terminating SLR3 solver ([slr3tp]). *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open Constraints
 open Messages
 open SLR

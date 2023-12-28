@@ -2,7 +2,7 @@
     Simpler version of {!SLRphased} without phases. *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open Constraints
 open Messages
 open SLR
