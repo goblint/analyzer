@@ -22,7 +22,7 @@ sig
 
   val get_var: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> varinfo -> VD.t
   val get: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> AD.t -> exp option -> VD.t
-  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
+  val set: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
   val refine_entire_var: bool
   val map_oldval: VD.t -> typ -> VD.t
@@ -78,8 +78,7 @@ struct
         else
           old_val
       in
-      let ask = Analyses.ask_of_ctx ctx in
-      let state_with_excluded = set ask ctx.global st addr t_lval value ~ctx in
+      let state_with_excluded = set st addr t_lval value ~ctx in
       let value =  get ~ctx state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -89,11 +88,11 @@ struct
         contra st
       )
       else if VD.is_bot new_val
-      then set ask ctx.global st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
-      else set ask ctx.global st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
+      then set st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
+      else set st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let refine_lv ctx st c x c' pretty exp =
-    let set' lval v st = set (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+    let set' lval v st = set st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)

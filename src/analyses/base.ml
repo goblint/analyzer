@@ -1657,7 +1657,7 @@ struct
 
     let get_var = get_var
     let get ~ctx st addrs exp = get ~ctx st addrs exp
-    let set a ~ctx gs st lval lval_type ?lval_raw value = set ~ctx ~invariant:true st lval lval_type ?lval_raw value
+    let set ~ctx st lval lval_type ?lval_raw value = set ~ctx ~invariant:true st lval lval_type ?lval_raw value
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
@@ -2854,7 +2854,7 @@ struct
           (* all updates happen in ctx with top values *)
           let get_var = get_var
           let get ~ctx st addrs exp = get ~ctx st addrs exp
-          let set a ~ctx gs st lval lval_type ?lval_raw value = set ~ctx ~invariant:false st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+          let set ~ctx st lval lval_type ?lval_raw value = set ~ctx ~invariant:false st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false
           let map_oldval oldval t_lval =
