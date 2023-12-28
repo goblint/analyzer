@@ -213,20 +213,22 @@ struct
 
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
-    match get_coeff_vec t texpr  with
-    | Some v -> begin match to_constant_opt v with
-        | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
-          let int_val = Mpqf.get_num c in
-          Some int_val, Some int_val
-        | _ -> None, None end
+    match Option.bind (get_coeff_vec t texpr) to_constant_opt with
+    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
+      let int_val = Mpqf.get_num c in
+      Some int_val, Some int_val
     | _ -> None, None
 
 
   let bound_texpr d texpr1 =
     let res = bound_texpr d texpr1 in
-    match res with
-    | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
-    | _ -> res
+    (if M.tracing then
+       match res with
+       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
+       | _ -> ()
+    );
+    res
+
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
 end
