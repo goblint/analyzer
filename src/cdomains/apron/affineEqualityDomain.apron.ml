@@ -141,7 +141,7 @@ struct
   include ConvenienceOps(Mpqf)
 
   (** Get the constant from the vector if it is a constant *)
-  let get_c v = match Vector.findi ((<>:) Mpqf.zero) v with
+  let to_constant_opt v = match Vector.findi ((<>:) Mpqf.zero) v with
     | exception Not_found -> Some Mpqf.zero
     | i when Vector.compare_length_with v (i + 1) = 0 -> Some (Vector.nth v i)
     | _ -> None
@@ -192,7 +192,7 @@ struct
       | Binop (Mul, e1, e2, _, _) ->
         let v1 = convert_texpr e1 in
         let v2 = convert_texpr e2 in
-        begin match get_c v1, get_c v2 with
+        begin match to_constant_opt v1, to_constant_opt v2 with
           | _, Some c -> Vector.apply_with_c_with ( *:) c v1; v1
           | Some c, _ -> Vector.apply_with_c_with ( *:) c v2; v2
           | _, _ -> raise NotLinear
@@ -214,7 +214,7 @@ struct
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
     match get_coeff_vec t texpr  with
-    | Some v -> begin match get_c v with
+    | Some v -> begin match to_constant_opt v with
         | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
           let int_val = Mpqf.get_num c in
           Some int_val, Some int_val
@@ -625,7 +625,7 @@ struct
     in
     match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
     | Some v ->
-      begin match get_c v, Tcons1.get_typ tcons with
+      begin match to_constant_opt v, Tcons1.get_typ tcons with
         | Some c, DISEQ -> check_const (=:) c
         | Some c, SUP -> check_const (<=:) c
         | Some c, EQ -> check_const (<>:) c
