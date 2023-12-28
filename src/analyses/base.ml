@@ -697,14 +697,13 @@ struct
       This allows every subexpression to also meet more precise value from other analyses.
       Non-integer expression just delegate to next eval_rv function. *)
   and eval_rv_ask_evalint ~ctx exp =
-    let ask = Analyses.ask_of_ctx ctx in
     let eval_next () = eval_rv_no_ask_evalint ~ctx exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
     let r:value =
       match Cilfacade.typeOf exp with
       | typ when Cil.isIntegralType typ && not (Cil.isConstant exp) -> (* don't EvalInt integer constants, base can do them precisely itself *)
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
-        let a = ask.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
+        let a = ctx.ask (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
@@ -1455,7 +1454,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          if ask.f (Q.IsAllocVar x) then
+          if ctx.ask (Q.IsAllocVar x) then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
             lval_type
@@ -1501,7 +1500,7 @@ struct
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
-        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (ask.f (IsAllocVar x)) && offs = `NoOffset then begin
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (ctx.ask (IsAllocVar x)) && offs = `NoOffset then begin
             VD.bot_value ~varAttr:x.vattr lval_type
           end else
             Priv.read_global ask priv_getg st x
