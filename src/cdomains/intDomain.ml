@@ -3598,8 +3598,19 @@ module IntDomTupleImpl = struct
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_int }
 
-  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
-
+  let pretty () x =
+    match to_int x with
+    | Some v -> Pretty.text (BI.to_string v)
+    | None ->
+      mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> (* assert sf==I.short; *) I.pretty () } x
+      |> to_list
+      |> (fun xs ->
+          text "(" ++ (
+            try
+              List.reduce (fun a b -> a ++ text "," ++ b) xs
+            with Invalid_argument _ ->
+              nil)
+          ++ text ")") (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
   let refine_functions ik : (t -> t) list =
     let maybe reffun ik domtup dom =
