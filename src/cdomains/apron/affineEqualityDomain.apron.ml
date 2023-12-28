@@ -601,16 +601,21 @@ struct
     | None -> overflow_res res
     | Some v ->
       let ik = Cilfacade.get_ikind v.vtype in
-      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
-      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable (* TODO: unsigned w/o bounds handled differently? *)
-      | Some min, Some max ->
-        assert (Z.equal min max); (* other bounds impossible in affeq *)
-        let (min_ik, max_ik) = IntDomain.Size.range ik in
-        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
-          if IntDomain.should_ignore_overflow ik then bot () else raise NotRefinable
-        else res
-      | exception Convert.Unsupported_CilExp _
-      | _, _ -> overflow_res res
+      if not (Cil.isSigned ik) then
+        raise NotRefinable (* TODO: unsigned w/o bounds handled differently? *)
+      else
+        match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
+        | Some min, Some max ->
+          assert (Z.equal min max); (* other bounds impossible in affeq *)
+          let (min_ik, max_ik) = IntDomain.Size.range ik in
+          if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
+            if IntDomain.should_ignore_overflow ik then
+              bot ()
+            else
+              raise NotRefinable
+          else res
+        | exception Convert.Unsupported_CilExp _
+        | _ -> overflow_res res
 
   let meet_tcons t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
