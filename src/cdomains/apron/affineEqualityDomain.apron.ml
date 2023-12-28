@@ -59,8 +59,8 @@ struct
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
   let dim_remove (ch: Apron.Dim.change) m del =
-    if Array.length ch.dim = 0 || Matrix.is_empty m then 
-      m 
+    if Array.length ch.dim = 0 || Matrix.is_empty m then
+      m
     else (
       Array.modifyi (fun i x -> x + i) ch.dim;
       let m' = if not del then let m = Matrix.copy m in Array.fold_left (fun y x -> Matrix.reduce_col_with y x; y) m ch.dim else m in
@@ -69,16 +69,16 @@ struct
   let dim_remove ch m del = timing_wrap "dim remove" (dim_remove ch m) del
 
   let change_d t new_env add del =
-    if Environment.equal t.env new_env then 
+    if Environment.equal t.env new_env then
       t
     else
       match t.d with
       | None -> bot_env
-      | Some m -> 
-        let dim_change = 
-          if add then 
+      | Some m ->
+        let dim_change =
+          if add then
             Environment.dimchange t.env new_env
-          else 
+          else
             Environment.dimchange new_env t.env
         in
         {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
@@ -158,19 +158,19 @@ struct
     in
     let rec convert_texpr = function
       (*If x is a constant, replace it with its const. val. immediately*)
-      | Cst x -> 
+      | Cst x ->
         let of_union = function
           | Coeff.Interval _ -> failwith "Not a constant"
           | Scalar Float x -> Mpqf.of_float x
           | Scalar Mpqf x -> x
           | Scalar Mpfrf x -> Mpfr.to_mpq x
-        in 
+        in
         Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
       | Var x ->
         let zero_vec_cp = Vector.copy zero_vec in
         let entry_only v = Vector.set_val_with v (Environment.dim_of_var t.env x) Mpqf.one; v in
         begin match t.d with
-          | Some m -> 
+          | Some m ->
             let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
             begin match row with
               | Some v when is_const_vec v ->
@@ -181,18 +181,24 @@ struct
       | Unop (Neg, e, _, _) -> neg @@ convert_texpr e
       | Unop (Cast, e, _, _) -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
       | Unop (Sqrt, e, _, _) -> raise NotLinear
-      | Binop (b, e1, e2, _, _) ->
-        begin match b with
-          | Add -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (convert_texpr e2); v1
-          | Sub -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (neg @@ convert_texpr e2); v1
-          | Mul ->
-            let x1, x2 = convert_texpr e1, convert_texpr e2 in
-            begin match get_c x1, get_c x2 with
-              | _, Some c -> Vector.apply_with_c_with ( *:) c x1; x1
-              | Some c, _ -> Vector.apply_with_c_with ( *:) c x2; x2
-              | _, _ -> raise NotLinear end
-          | _ -> raise NotLinear end
-    in 
+      | Binop (Add, e1, e2, _, _) ->
+        let v1 = convert_texpr e1 in
+        let v2 = convert_texpr e2 in
+        Vector.map2_with (+:) v1 v2; v1
+      | Binop (Sub, e1, e2, _, _) ->
+        let v1 = convert_texpr e1 in
+        let v2 = convert_texpr e2 in
+        Vector.map2_with (+:) v1 (neg @@ v2); v1
+      | Binop (Mul, e1, e2, _, _) ->
+        let v1 = convert_texpr e1 in
+        let v2 = convert_texpr e2 in
+        begin match get_c v1, get_c v2 with
+          | _, Some c -> Vector.apply_with_c_with ( *:) c v1; v1
+          | Some c, _ -> Vector.apply_with_c_with ( *:) c v2; v2
+          | _, _ -> raise NotLinear
+        end
+      | Binop _ -> raise NotLinear
+    in
     try
       Some (convert_texpr texp)
     with NotLinear -> None
@@ -210,7 +216,7 @@ struct
     match get_coeff_vec t texpr  with
     | Some v -> begin match get_c v with
         | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
-          let int_val = Mpqf.get_num c in 
+          let int_val = Mpqf.get_num c in
           Some int_val, Some int_val
         | _ -> None, None end
     | _ -> None, None
@@ -249,15 +255,15 @@ struct
       int_arr
     in
     let vec_to_constraint arr env =
-      let vars, _ = Environment.vars env in 
+      let vars, _ = Environment.vars env in
       let dim_to_str var =
-        let vl =  arr.(Environment.dim_of_var env var) in 
-        let var_str = Var.to_string var in 
-        if Z.equal vl Z.zero then 
+        let vl =  arr.(Environment.dim_of_var env var) in
+        let var_str = Var.to_string var in
+        if Z.equal vl Z.zero then
           ""
-        else if Z.equal vl Z.one then 
+        else if Z.equal vl Z.one then
           "+" ^ var_str
-        else if Z.equal vl Z.minus_one then 
+        else if Z.equal vl Z.minus_one then
           "-" ^ var_str
         else if Z.lt vl Z.minus_one then
           Z.to_string vl ^ var_str
@@ -265,7 +271,7 @@ struct
           Format.asprintf "+%s" (Z.to_string vl) ^ var_str
       in
       let const_to_str vl =
-        if Z.equal vl Z.zero then 
+        if Z.equal vl Z.zero then
           ""
         else
           let negated = Z.mul vl Z.minus_one in
@@ -273,8 +279,8 @@ struct
           else Z.to_string negated
       in
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
-                ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in 
-      if String.starts_with res "+" then 
+                ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in
+      if String.starts_with res "+" then
         String.sub res 1 (String.length res - 1)
       else
         res
@@ -309,18 +315,18 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
-    if is_bot t1 || is_bot t2 then 
+    if is_bot t1 || is_bot t2 then
       bot ()
     else
       (* TODO: Why can I be sure that m1 && m2 are all Some here? *)
       let m1, m2 = Option.get t1.d, Option.get t2.d in
-      if is_top_env t1 then 
-        {d = Some (dim_add (Environment.dimchange t2.env sup_env) m2); env = sup_env} 
-      else if is_top_env t2 then 
+      if is_top_env t1 then
+        {d = Some (dim_add (Environment.dimchange t2.env sup_env) m2); env = sup_env}
+      else if is_top_env t2 then
         {d = Some (dim_add (Environment.dimchange t1.env sup_env) m1); env = sup_env}
       else
         let rref_matr = Matrix.rref_matrix_with (Matrix.copy m1) (Matrix.copy m2) in
-        if Option.is_none rref_matr then 
+        if Option.is_none rref_matr then
           bot ()
         else
           {d = rref_matr; env = sup_env}
@@ -339,12 +345,12 @@ struct
       (* -2:  environments are not compatible (a variable has different types in the 2 environements *)
       (* -1: if env1 is a subset of env2,  (OK)  *)
       (*  0:  if equality,  (OK) *)
-      (* +1: if env1 is a superset of env2, and +2 otherwise (the lce exists and is a strict superset of both) *) 
+      (* +1: if env1 is a superset of env2, and +2 otherwise (the lce exists and is a strict superset of both) *)
       false
-    else if is_bot t1 || is_top_env t2 then 
+    else if is_bot t1 || is_top_env t2 then
       true
-    else if is_bot t2 || is_top_env t1 then 
-      false 
+    else if is_bot t2 || is_top_env t1 then
+      false
     else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
@@ -402,9 +408,9 @@ struct
               lin_disjunc new_r (s + 1) new_a new_b
             | _      -> failwith "Matrix not in rref form" end
     in
-    if is_bot a then 
+    if is_bot a then
       b
-    else if is_bot b then 
+    else if is_bot b then
       a
     else
       match Option.get a.d, Option.get b.d with
@@ -437,15 +443,15 @@ struct
 
   let remove_rels_with_var x var env inplace =
     let j0 = Environment.dim_of_var env var in
-    if inplace then 
-      (Matrix.reduce_col_with x j0; x) 
-    else 
+    if inplace then
+      (Matrix.reduce_col_with x j0; x)
+    else
       Matrix.reduce_col x j0
 
   let remove_rels_with_var x var env inplace = timing_wrap "remove_rels_with_var" (remove_rels_with_var x var env) inplace
 
   let forget_vars t vars =
-    if is_bot t || is_top_env t || List.is_empty vars then 
+    if is_bot t || is_top_env t || List.is_empty vars then
       t
     else
       let m = Option.get t.d in
@@ -526,8 +532,8 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t -> 
-      let replace_col m x y = 
+    | Some m when not @@ is_top_env multi_t ->
+      let replace_col m x y =
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
         let col_x = Matrix.get_col m dim_x in
         Matrix.set_col_with m col_x dim_y
@@ -536,9 +542,9 @@ struct
       let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
       let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
       let x = Option.get res.d in
-      if Matrix.normalize_with x then 
-        {d = Some x; env = res.env} 
-      else 
+      if Matrix.normalize_with x then
+        {d = Some x; env = res.env}
+      else
         bot ()
     | _ -> t
 
@@ -609,10 +615,10 @@ struct
       (*Flip the sign of the const. val in coeff vec*)
       Vector.mapi_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e;
       let res =
-        if is_bot t then 
-          bot () 
+        if is_bot t then
+          bot ()
         else
-          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e in 
+          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e in
           if Option.is_none opt_m then bot () else {d = opt_m; env = t.env}
       in
       meet_tcons_one_var_eq res expr
