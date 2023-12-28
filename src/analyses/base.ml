@@ -443,9 +443,9 @@ struct
   let publish_all ctx reason =
     ignore (sync' reason ctx)
 
-  let get_var ~ctx (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
+  let get_var ~ctx (a: Q.ask) (st: store) (x: varinfo): value =
     if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then
-      Priv.read_global a (priv_getg gs) st x
+      Priv.read_global a (priv_getg ctx.global) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
       CPA.find x st.cpa
@@ -455,7 +455,7 @@ struct
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  let rec get ~ctx ?(top=VD.top ()) ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
+  let rec get ~ctx ?(top=VD.top ()) ?(full=false) a (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.type_of addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
@@ -463,8 +463,8 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = get_var ~ctx a gs st x in
-        let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get ~ctx a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+        let var = get_var ~ctx a st x in
+        let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get ~ctx a st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
         if full then var else match v with
           | Blob (c,s,_) -> c
@@ -542,7 +542,7 @@ struct
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_address ~ctx (adr: address): address =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
-    let res = reachable_from_value ~ctx (get ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None) (AD.type_of adr) (AD.show adr) in
+    let res = reachable_from_value ~ctx (get ~ctx (Analyses.ask_of_ctx ctx) ctx.local adr None) (AD.type_of adr) (AD.show adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -659,7 +659,7 @@ struct
         | JmpBuf _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | Mutex -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
-      reachable_from_value (get ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
+      reachable_from_value (get ~ctx (Analyses.ask_of_ctx ctx) ctx.local adr None)
     in
     let visited = ref empty in
     let work = ref ps in
@@ -904,7 +904,7 @@ struct
 
   and eval_rv_base_lval ~eval_lv ~ctx (a: Q.ask) (gs:glob_fun) (st: store) (exp: exp) (lv: lval): value =
     match lv with
-    | (Var v, ofs) -> get ~ctx a gs st (eval_lv ~ctx (Var v, ofs)) (Some exp)
+    | (Var v, ofs) -> get ~ctx a st (eval_lv ~ctx (Var v, ofs)) (Some exp)
     (* | Lval (Mem e, ofs) -> get a gs st (eval_lv ~ctx (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
@@ -949,13 +949,13 @@ struct
       let lookup_with_offs addr =
         let v = (* abstract base value *)
           if cast_ok addr then
-            get ~ctx ~top:(VD.top_value t) a gs st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
+            get ~ctx ~top:(VD.top_value t) a st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
           else
             VD.top () (* upcasts not! *)
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get ~ctx a gs st x (Some exp)) v' (convert_offset ~ctx ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get ~ctx a st x (Some exp)) v' (convert_offset ~ctx ofs) (Some exp) None t in (* handle offset *)
         v'
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
@@ -1172,7 +1172,7 @@ struct
     struct
       let context = context
       let scope = Node.find_fundec ctx.node
-      let find v = get_var ~ctx ask ctx.global ctx.local v
+      let find v = get_var ~ctx ask ctx.local v
     end
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
@@ -1250,7 +1250,7 @@ struct
         | Address jmp_buf ->
           if AD.mem Addr.UnknownPtr jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
-          begin match get ~ctx ~top:(VD.bot ()) ask ctx.global ctx.local jmp_buf None with
+          begin match get ~ctx ~top:(VD.bot ()) ask ctx.local jmp_buf None with
             | JmpBuf (x, copied) ->
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
@@ -1311,7 +1311,7 @@ struct
               else
                 a
             in
-            let r = get ~ctx ~full:true ask ctx.global ctx.local a None in
+            let r = get ~ctx ~full:true ask ctx.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
              | Array a ->
@@ -1659,7 +1659,7 @@ struct
     let convert_offset = convert_offset
 
     let get_var = get_var
-    let get ~ctx a gs st addrs exp = get ~ctx a gs st addrs exp
+    let get ~ctx a st addrs exp = get ~ctx a st addrs exp
     let set a ~ctx gs st lval lval_type ?lval_raw value = set ~ctx ~invariant:true st lval lval_type ?lval_raw value
 
     let refine_entire_var = true
@@ -1903,11 +1903,10 @@ struct
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
-    let gs = ctx.global in
     let ask = Analyses.ask_of_ctx ctx in
     let invalidate_address st a =
       let t = AD.type_of a in
-      let v = get ~ctx ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
+      let v = get ~ctx ask st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask ask) t v in
       (a, t, nv)
     in
@@ -2169,7 +2168,6 @@ struct
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry (ctx.spawn ~multiple)) forks;
     let st: store = ctx.local in
-    let gs = ctx.global in
     let desc = LF.find f in
     let memory_copying dst src n =
       let dest_size = get_size_of_ptr_target ctx dst in
@@ -2259,7 +2257,7 @@ struct
         let lv_a, lv_typ = match lv with
           | Some lv_val -> eval_lv ~ctx lv_val, Cilfacade.typeOfLval lv_val
           | None -> s1_a, s1_typ in
-        begin match (get ~ctx (Analyses.ask_of_ctx ctx) gs st s1_a None), get ~ctx (Analyses.ask_of_ctx ctx) gs st s2_a None with
+        begin match (get ~ctx (Analyses.ask_of_ctx ctx) st s1_a None), get ~ctx (Analyses.ask_of_ctx ctx) st s2_a None with
           | Array array_s1, Array array_s2 -> set ~ctx ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
           | Array array_s1, _ when CilType.Typ.equal s2_typ charPtrType ->
             let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
@@ -2336,7 +2334,7 @@ struct
               Int (AD.to_string_length a)
               (* else compute strlen in array domain *)
             else
-              begin match get ~ctx (Analyses.ask_of_ctx ctx) gs st a None with
+              begin match get ~ctx (Analyses.ask_of_ctx ctx) st a None with
                 | Array array_s -> Int (CArrays.to_string_length array_s)
                 | _ -> VD.top_value (unrollType dest_typ)
               end in
@@ -2571,7 +2569,7 @@ struct
             | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
           in
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
-          let p_addr_get = get ~ctx ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
+          let p_addr_get = get ~ctx ask st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ~ctx size in
           let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
           let heap_addr = AD.of_var (heap_var false ctx) in
@@ -2667,7 +2665,7 @@ struct
             (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
             | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
             | _, _ -> begin
-                let new_val = get ~ctx ask ctx.global fun_st address None in
+                let new_val = get ~ctx ask fun_st address None in
                 if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
                 let st' = set_savetop ~ctx st address lval_type new_val in
                 let partDep = Dep.find_opt v fun_st.deps in
@@ -2742,7 +2740,7 @@ struct
       let return_var = return_var () in
       let return_val =
         if CPA.mem (return_varinfo ()) fun_st.cpa
-        then get ~ctx (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
+        then get ~ctx (Analyses.ask_of_ctx ctx) fun_st return_var None
         else VD.top ()
       in
 
@@ -2862,7 +2860,7 @@ struct
 
           (* all updates happen in ctx with top values *)
           let get_var = get_var
-          let get ~ctx a gs st addrs exp = get ~ctx a gs st addrs exp
+          let get ~ctx a st addrs exp = get ~ctx a st addrs exp
           let set a ~ctx gs st lval lval_type ?lval_raw value = set ~ctx ~invariant:false st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false

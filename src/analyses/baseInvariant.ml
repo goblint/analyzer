@@ -20,8 +20,8 @@ sig
   val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> lval -> AD.t
   val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> offset -> ID.t Offset.t
 
-  val get_var: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
-  val get: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
+  val get_var: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> D.t -> varinfo -> VD.t
+  val get: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> D.t -> AD.t -> exp option -> VD.t
   val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
   val refine_entire_var: bool
@@ -67,7 +67,7 @@ struct
     let addr = eval_lv ~ctx lval in
     if (AD.is_top addr) then st
     else
-      let old_val = get ~ctx a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+      let old_val = get ~ctx a st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
       let t_lval = Cilfacade.typeOfLval lval in
       let old_val = map_oldval old_val t_lval in
       let old_val =
@@ -79,7 +79,7 @@ struct
           old_val
       in
       let state_with_excluded = set a gs st addr t_lval value ~ctx in
-      let value =  get ~ctx a gs state_with_excluded addr None in
+      let value =  get ~ctx a state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -96,7 +96,7 @@ struct
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-      let old_val = get_var ~ctx a gs st var in
+      let old_val = get_var ~ctx a st var in
       let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset ~ctx o in
       let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
