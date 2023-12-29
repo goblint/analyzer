@@ -1,8 +1,7 @@
 (** Worklist solver ([WL]). *)
 
 open Batteries
-open Analyses
-open Constraints
+open ConstrSys
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -63,4 +62,4 @@ module Make =
 
 
 let _ =
-  Selector.add_solver ("WL",  (module EqIncrSolverFromEqSolver (Make)));
+  Selector.add_solver ("WL",  (module PostSolver.EqIncrSolverFromEqSolver (Make)));

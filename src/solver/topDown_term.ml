@@ -2,8 +2,7 @@
     Simpler version of {!Td3} without space-efficiency and incremental. *)
 
 open Batteries
-open Analyses
-open Constraints
+open ConstrSys
 open Messages
 
 module WP =
@@ -134,4 +133,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown_term", (module EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown_term", (module PostSolver.EqIncrSolverFromEqSolver (WP)));
