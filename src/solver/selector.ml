@@ -1,7 +1,7 @@
 (** Solver, which delegates at runtime to the configured solver. *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open GobConfig
 
 (* Registered solvers. *)

@@ -1,8 +1,7 @@
 (** Two-phased terminating SLR3 solver ([slr3tp]). *)
 
 open Batteries
-open Analyses
-open Constraints
+open ConstrSys
 open Messages
 open SLR
 
@@ -205,4 +204,4 @@ module Make =
   end
 
 let _ =
-  Selector.add_solver ("slr3tp", (module EqIncrSolverFromEqSolver (Make))); (* two-phased slr3t *)
+  Selector.add_solver ("slr3tp", (module PostSolver.EqIncrSolverFromEqSolver (Make))); (* two-phased slr3t *)

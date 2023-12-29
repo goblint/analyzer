@@ -2871,7 +2871,7 @@ struct
         | "once" ->
           f (D.bot ())
         | "fixpoint" ->
-          let module DFP = LocalFixpoint.Make (D) in
+          let module DFP = Goblint_solver.LocalFixpoint.Make (D) in
           DFP.lfp f
         | _ ->
           assert false

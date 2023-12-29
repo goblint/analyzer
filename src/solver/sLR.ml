@@ -3,8 +3,7 @@
     @see <http://www2.in.tum.de/bib/files/apinis14diss.pdf> Apinis, K. Frameworks for analyzing multi-threaded C. *)
 
 open Batteries
-open Analyses
-open Constraints
+open ConstrSys
 open Messages
 
 let narrow f = if GobConfig.get_bool "exp.no-narrow" then (fun a b -> a) else f
@@ -522,29 +521,29 @@ let _ =
   let module W1 = JustWiden (struct let ver = 1 end) in
   let module W2 = JustWiden (struct let ver = 2 end) in
   let module W3 = JustWiden (struct let ver = 3 end) in
-  Selector.add_solver ("widen1",  (module EqIncrSolverFromEqSolver (W1)));
-  Selector.add_solver ("widen2",  (module EqIncrSolverFromEqSolver (W2)));
-  Selector.add_solver ("widen3",  (module EqIncrSolverFromEqSolver (W3)));
+  Selector.add_solver ("widen1",  (module PostSolver.EqIncrSolverFromEqSolver (W1)));
+  Selector.add_solver ("widen2",  (module PostSolver.EqIncrSolverFromEqSolver (W2)));
+  Selector.add_solver ("widen3",  (module PostSolver.EqIncrSolverFromEqSolver (W3)));
   let module S2 = TwoPhased (struct let ver = 1 end) in
-  Selector.add_solver ("two",  (module EqIncrSolverFromEqSolver (S2)));
+  Selector.add_solver ("two",  (module PostSolver.EqIncrSolverFromEqSolver (S2)));
   let module S1 = Make (struct let ver = 1 end) in
-  Selector.add_solver ("new",  (module EqIncrSolverFromEqSolver (S1)));
-  Selector.add_solver ("slr+", (module EqIncrSolverFromEqSolver (S1)))
+  Selector.add_solver ("new",  (module PostSolver.EqIncrSolverFromEqSolver (S1)));
+  Selector.add_solver ("slr+", (module PostSolver.EqIncrSolverFromEqSolver (S1)))
 
 let _ =
   let module S1 = Make (struct let ver = 1 end) in
   let module S2 = Make (struct let ver = 2 end) in
   let module S3 = SLR3 in
   let module S4 = Make (struct let ver = 4 end) in
-  Selector.add_solver ("slr1", (module EqIncrSolverFromEqSolver (S1))); (* W&N at every program point *)
-  Selector.add_solver ("slr2", (module EqIncrSolverFromEqSolver (S2))); (* W&N dynamic at certain points, growing number of W-points *)
-  Selector.add_solver ("slr3", (module EqIncrSolverFromEqSolver (S3))); (* same as S2 but number of W-points may also shrink *)
-  Selector.add_solver ("slr4", (module EqIncrSolverFromEqSolver (S4))); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
+  Selector.add_solver ("slr1", (module PostSolver.EqIncrSolverFromEqSolver (S1))); (* W&N at every program point *)
+  Selector.add_solver ("slr2", (module PostSolver.EqIncrSolverFromEqSolver (S2))); (* W&N dynamic at certain points, growing number of W-points *)
+  Selector.add_solver ("slr3", (module PostSolver.EqIncrSolverFromEqSolver (S3))); (* same as S2 but number of W-points may also shrink *)
+  Selector.add_solver ("slr4", (module PostSolver.EqIncrSolverFromEqSolver (S4))); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
   let module S1p = PrintInfluence (Make (struct let ver = 1 end)) in
   let module S2p = PrintInfluence (Make (struct let ver = 2 end)) in
   let module S3p = PrintInfluence (Make (struct let ver = 3 end)) in
   let module S4p = PrintInfluence (Make (struct let ver = 4 end)) in
-  Selector.add_solver ("slr1p", (module EqIncrSolverFromEqSolver (S1p))); (* same as S1-4 above but with side-effects *)
-  Selector.add_solver ("slr2p", (module EqIncrSolverFromEqSolver (S2p)));
-  Selector.add_solver ("slr3p", (module EqIncrSolverFromEqSolver (S3p)));
-  Selector.add_solver ("slr4p", (module EqIncrSolverFromEqSolver (S4p)));
+  Selector.add_solver ("slr1p", (module PostSolver.EqIncrSolverFromEqSolver (S1p))); (* same as S1-4 above but with side-effects *)
+  Selector.add_solver ("slr2p", (module PostSolver.EqIncrSolverFromEqSolver (S2p)));
+  Selector.add_solver ("slr3p", (module PostSolver.EqIncrSolverFromEqSolver (S3p)));
+  Selector.add_solver ("slr4p", (module PostSolver.EqIncrSolverFromEqSolver (S4p)));
