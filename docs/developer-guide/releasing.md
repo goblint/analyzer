@@ -70,7 +70,7 @@
 
     This is required such that the created archive would have everything in a single directory called `goblint`.
 
-4. Update SV-COMP year in `sv-comp/archive.sh`.
+4. Update SV-COMP year in `scripts/sv-comp/archive.sh`.
 
     This includes: git tag name, git tag message and zipped conf file.
 
@@ -83,9 +83,9 @@
 
 2. Make sure you have nothing valuable that would be deleted by `make clean`.
 3. Delete git tag from previous prerun: `git tag -d svcompXY`.
-4. Create archive: `./sv-comp/archive.sh`.
+4. Create archive: `./scripts/sv-comp/archive.sh`.
 
-    The resulting archive is `sv-comp/goblint.zip`.
+    The resulting archive is `scripts/sv-comp/goblint.zip`.
 
 5. Check unextracted archive in latest SV-COMP container image: <https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image>.
 

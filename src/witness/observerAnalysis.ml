@@ -29,7 +29,7 @@ struct
     let n () = -1
     let names x = "state " ^ string_of_int x
   end
-  module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
+  module D = Lattice.Flat (Printable.Chain (ChainParams))
   module C = D
   module P = IdentityP (D) (* fully path-sensitive *)
 

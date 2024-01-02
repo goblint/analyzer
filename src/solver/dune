@@ -1,0 +1,23 @@
+(include_subdirs no)
+
+(library
+ (name goblint_solver)
+ (public_name goblint.solver)
+ (libraries
+   batteries.unthreaded
+   goblint_std
+   goblint_common
+   goblint_config
+   goblint_domain
+   goblint_constraint
+   goblint_incremental
+   goblint-cil)
+ (flags :standard -open Goblint_std)
+ (preprocess
+  (pps
+    ppx_deriving.std
+    ppx_deriving_hash
+    ppx_deriving_yojson))
+ (instrumentation (backend bisect_ppx)))
+
+(documentation)

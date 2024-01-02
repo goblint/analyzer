@@ -37,7 +37,7 @@ struct
 
   end
 
-  module D = Lattice.Flat (CallStack) (Printable.DefaultNames)
+  module D = Lattice.Flat (CallStack)
   module C = CallStack
   module V = EmptyV
   module G = Lattice.Unit

@@ -16,6 +16,8 @@
    goblint_timing
    qcheck-core.runner)
  (flags :standard -open Goblint_std)
+ (foreign_stubs (language c) (names stubs))
+ (ocamlopt_flags :standard -no-float-const-prop)
  (preprocess
   (pps
     ppx_deriving.std
