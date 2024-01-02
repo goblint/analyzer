@@ -3714,7 +3714,12 @@ module IntDomTupleImpl = struct
   let minimal = flat (List.max ~cmp:BI.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.minimal }
   let maximal = flat (List.min ~cmp:BI.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.maximal }
   (* others *)
-  let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
+  let show x =
+    match to_int x with
+    | Some v -> BI.to_string v
+    | None -> mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) } x
+              |> to_list
+              |> String.concat "; "
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.to_yojson x }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.hash }
 
