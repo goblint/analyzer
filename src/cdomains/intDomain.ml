@@ -407,7 +407,11 @@ struct
   let widen = lift2 I.widen
   let narrow = lift2 I.narrow
 
-  let show x = I.show x.v  (* TODO add ikind to output *)
+  let show x =
+    if I.is_top_of x.ikind x.v then
+      "⊤"
+    else
+      I.show x.v  (* TODO add ikind to output *)
   let pretty () x =
     if I.is_top_of x.ikind x.v then
       Pretty.text "⊤"
