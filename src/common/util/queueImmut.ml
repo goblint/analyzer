@@ -21,10 +21,10 @@ let is_empty = function
 let clear (Queue (q_first, q_last)) = Queue ([], [])
 
 (** The queue is internally stored as two lists. [get_first_list q] with [q] equal to [Queue (q_first, q_last)] returns [q_first]*)
-let get_first_list (Queue (q_first, q_last)) =  q_first
+let get_first_list (Queue (q_first, q_last)) = q_first
 
 (** The queue is internally stored as two lists. [get_first_list q] with [q] equal to [Queue (q_first, q_last)] returns [q_last]*)
-let get_last_list (Queue (q_first, q_last)) =  q_last
+let get_last_list (Queue (q_first, q_last)) = q_last
 
 (** Converts a queue into a list. *)
 let list_of_queue = function 
@@ -34,9 +34,26 @@ let list_of_queue = function
 (** Converts a list into a queue. *)
 let queue_of_list list = Queue (list,[])
 
-let equal eq q1 q2 = List.equal eq (list_of_queue q1) (list_of_queue q2)
+let rec equal eq q1 q2 =
+  match q1, q2 with
+  | Queue ([], []), Queue ([], []) -> true
+  | Queue ([], []), Queue ([], x) | Queue ([], []), Queue (x, []) 
+  | Queue (x, []), Queue ([], []) | Queue ([], x), Queue ([], []) -> false
+  | Queue ([], q1_last), Queue (q2_first, q2_last) -> equal eq (Queue (List.rev q1_last, [])) (Queue (q2_first, q2_last))
+  | Queue (q1_first, q1_last), Queue ([], q2_last) -> equal eq (Queue (q1_first, q1_last)) (Queue (List.rev q2_last, []))
+  | Queue (x1::q1_first, q1_last), Queue (x2::q2_first, q2_last) -> eq x1 x2 && equal eq (Queue (q1_first, q1_last)) (Queue (q2_first, q2_last)) 
 
-let compare cmp q1 q2 = List.compare cmp (list_of_queue q1) (list_of_queue q2)
+let rec compare cmp q1 q2 = 
+  match q1, q2 with
+  | Queue ([], []), Queue ([], []) -> 0
+  | Queue ([], []), Queue ([], x) | Queue ([], []), Queue (x, []) -> -1
+  | Queue (x, []), Queue ([], []) | Queue ([], x), Queue ([], []) -> 1 
+  | Queue ([], q1_last), Queue (q2_first, q2_last) -> compare cmp (Queue (List.rev q1_last, [])) (Queue (q2_first, q2_last))
+  | Queue (q1_first, q1_last), Queue ([], q2_last) -> compare cmp (Queue (q1_first, q1_last)) (Queue (List.rev q2_last, []))
+  | Queue (x1::q1_first, q1_last), Queue (x2::q2_first, q2_last) -> 
+    let c = cmp x1 x2 in
+    if c <> 0 then c 
+    else compare cmp (Queue (q1_first, q1_last)) (Queue (q2_first, q2_last)) 
 
 (** [add x q] adds the element [x] at the end of the queue [q] and returns the resulting queue*)
 let add ele (Queue (q_first, q_last)) = Queue (q_first, ele :: q_last)
@@ -125,14 +142,13 @@ let map f (Queue (q_first, q_last)) =
 
 (** [map_to_list f q] is equivalent to [map f l], but returns a list instead of a queue*)
 let map_to_list f (Queue (q_first, q_last)) = 
-  List.map f q_first @ List.rev (List.map f q_last)
+  List.map f q_first @ List.rev_map f q_last
 
 (** [fold_left f accu [b1; ...; bn]] is 
     [f (... (f (f accu b1) b2) ...) bn].*)
 let fold_left f accu (Queue (q_first, q_last)) = 
   let res = List.fold_left f accu q_first in
   List.fold_left f res (List.rev q_last)
-
 
 (** [fold_right f [a1; ...; an] accu] is
     [f a1 (f a2 (... (f an accu) ...))]. Not tail-recursive.*)

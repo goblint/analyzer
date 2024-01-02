@@ -13,10 +13,11 @@
     "runArgs": ["--init", "--env-file", ".devcontainer/devcontainer.env"], // TODO: why --init added by default?
 
     "extensions": [
-		"ocamllabs.ocaml-platform",
-		"hackwaly.ocamlearlybird",
-		"zepalmer.ocaml-indentation"
-	],
+        "ocamllabs.ocaml-platform",
+        "hackwaly.ocamlearlybird",
+        "zepalmer.ocaml-indentation",
+        "AllanBlanchard.ocp-indent"
+    ],
 
     "settings": {},
 }
