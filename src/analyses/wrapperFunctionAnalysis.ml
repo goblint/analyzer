@@ -131,7 +131,10 @@ module MallocWrapper : MCPSpec = struct
       CilType.Location.show loc
 
     let name_varinfo (t, node, c) =
-      Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (UniqueCount.show c)
+      if UniqueCount.is_top c then
+        Format.asprintf "(alloc@sid:%s@tid:%s)" (Node.show_id node) (ThreadLifted.show t)
+      else
+        Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (UniqueCount.show c)
 
   end
 
