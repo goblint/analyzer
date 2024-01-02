@@ -408,7 +408,11 @@ struct
   let narrow = lift2 I.narrow
 
   let show x = I.show x.v  (* TODO add ikind to output *)
-  let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
+  let pretty () x =
+    if I.is_top_of x.ikind x.v then
+      Pretty.text "⊤"
+    else
+      I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
   let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
