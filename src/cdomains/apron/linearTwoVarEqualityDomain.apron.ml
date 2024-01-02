@@ -406,12 +406,7 @@ struct
     if is_bot_env t2 || is_top t1 then false else (
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
-      let result : bool ref = ref true in
-      for i = 0 to Array.length m2 - 1 do
-        let t = m2.(i) in
-        if not (implies m1' t i) then result := false;
-      done;
-      !result)
+      Array.fold_lefti (fun b i t -> b && implies m1' t i) true m2)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -489,11 +484,7 @@ struct
           !result
       in
       let all_are_const_in_eq_class zts start size : bool = 
-        let result = ref true in
-        for i = start to start + size - 1 do
-          if not (is_const zts.(i)) then result := false;
-        done;
-        !result
+        Array.fold_left (fun b e -> b && (is_const e)) true zts
       in
       let assign_vars_in_const_eq_class ats zts start size least_i least_b =     
         for i = start to start + size - 1 do
@@ -506,8 +497,7 @@ struct
       in
       let assign_vars_in_non_const_eq_class ats zts start size least_i least_b = 
         for i = start to start + size - 1 do
-          match zts.(i) with
-          | (ai, t1, _) -> 
+          let (ai, t1, _) = zts.(i) in
             let bj = const_offset t1 in
             ats.(i) <- (ai, (Some least_i, Z.sub bj least_b))
         done
