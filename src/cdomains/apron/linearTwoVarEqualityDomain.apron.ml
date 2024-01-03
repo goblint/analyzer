@@ -330,6 +330,14 @@ struct
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
     let subst_var ts x t = 
+      let adjust e = match e with
+      | (None, b') -> (None, b')
+      | (Some x', b') -> if x = x' then
+          (match t with 
+           | (None, bt) -> (None, Z.(b' + bt))
+           | (Some xt, bt) -> (Some xt, Z.(b' + bt))) 
+          else (Some x', b')in
+      Stdlib.Option.iter (BatArray.modify adjust) !ts (*
       match !ts with
       | None -> ()
       | Some ts' ->
@@ -341,16 +349,14 @@ struct
                 (match t with 
                  | (None, bt) -> ts'.(i) <- (None, Z.(b' + bt))
                  | (Some xt, bt) -> ts'.(i) <- (Some xt, Z.(b' + bt)))
-          done
+          done*)
     in
     let add_conj ts t i = 
-      match !ts with
-      | None -> ()
-      | Some ts' ->
+      let adjust ts' =
         (match t with
          | (None, b) -> 
            (match ts'.(i) with
-            | (None, b') -> if b <> b' then ts := None;
+            | (None, b') -> if Z.(b <> b') then ts := None;
             | (Some j, b') -> subst_var ts j (None, Z.(b - b')))
          | (Some j, b) ->
            (match ts'.(i) with
@@ -363,17 +369,19 @@ struct
                    (if Z.(b1 <> (b2 + b)) then ts := None)
                  else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
                  else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))))
+                in
+       Stdlib.Option.iter adjust !ts
     in 
     match t1.d, t2.d with
-    | None, _ -> { d = None; env = sup_env} 
-    | _, None -> { d = None; env = sup_env} 
-    | Some d1', Some d2' -> 
+    | Some d1', Some d2' -> (
       let ds = ref (Some (Array.copy d1')) in
+      Array.iteri (fun j e -> add_conj ds e j) d2'; (*
       if Array.length d2' <> 0 then
         for j = 0 to Array.length d2' - 1 do
           add_conj ds d2'.(j) j
-        done; 
-      {d = !ds; env = sup_env} 
+        done; *)
+      {d = !ds; env = sup_env} )
+    | _ -> { d = None; env = sup_env} 
 
   let meet t1 t2 =
     let res = meet t1 t2 in
@@ -388,15 +396,14 @@ struct
       match t with
       | (None, b) -> 
         (match ts.(i) with
-         | (None, b') -> Z.equal b b'
+         | (None, b') -> Z.(b = b')
          | _ -> false)
       | (Some j, b) -> 
         (match ts.(i), ts.(j) with
          | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
          | (Some h1, b1), (Some h2, b2) ->
            h1 = h2 && Z.equal b1 (Z.add b2 b)
-         | (Some _, _), (_, _) -> false
-         | (_, _), (Some _, _) -> false
+         | _ -> false
         )
     in  
     if env_comp = -2 || env_comp > 0 then false else
@@ -419,12 +426,11 @@ struct
         let zts = Array.init (Array.length t1) (fun (i : int) -> (i, t1.(i), t2.(i))) in
         Some zts
     in
-    let const_offset t = match t with
-      | (_, b) -> b 
+    let const_offset t = Tuple2.second t
     in
     let diff t1 t2 = Z.((const_offset t1) - (const_offset t2))
     in
-    let cmp_z x y = 
+    let cmp_z (_, t1i, t2i) (_, t1j, t2j) = 
       let cmp_z_ref x y: int =
         match x, y with
         | (None, _), (None, _) -> 0
@@ -432,27 +438,23 @@ struct
         | (Some _, _), (None, _) -> 1
         | (Some ii, _), (Some ij, _) -> ii - ij 
       in
-      match x, y with
-      | (_, t1i, t2i), (_, t1j, t2j) -> 
-        let diff_e1 = cmp_z_ref t1i t1j in
-        if diff_e1 <> 0 then diff_e1 else
+      let diff_e1 = cmp_z_ref t1i t1j in
+        if diff_e1 <> 0 then diff_e1 
+        else
           let diff_e2 = cmp_z_ref t2i t2j in
           if diff_e2 <> 0 then diff_e2 else 
             Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
     in
     let sort_z_by_expr zts =
+      Stdlib.Option.iter (Array.stable_sort cmp_z) zts (*
       match zts with
       | None -> ()
-      | Some zts' -> Array.stable_sort cmp_z zts'
+      | Some zts' -> Array.stable_sort cmp_z zts'*)
     in
     let sort_annotated ats = 
-      let cmp_annotated x y : int = 
-        match x, y with
-        | (i, _), (j, _) -> i - j
+      let cmp_annotated x y : int = (Tuple2.first x) - (Tuple2.first y) 
       in
-      match ats with
-      | None -> ()
-      | Some ats' -> Array.stable_sort cmp_annotated ats'
+      Stdlib.Option.iter (Array.stable_sort cmp_annotated) ats
     in
     let process_eq_classes zts = 
       let is_const x =
@@ -461,16 +463,17 @@ struct
         | _ -> false
       in
       let size_of_eq_class zts (start : int) : int =
-        let ref_elem = zts.(start) in
-        let remaining = (Array.length zts) - start - 1 in
-        let result = ref 0 in
-        for i = 0 to remaining do
-          let current_elem = zts.(start + i) in
-          if cmp_z ref_elem current_elem = 0 then result := !result + 1
-        done;
-        !result
+        let iterate result i e =
+           if i >= start && cmp_z zts.(start) e == 0 then result + 1
+           else result in
+        Array.fold_lefti iterate 0 zts
       in
       let least_index_var_in_eq_class zts start size : int * Z.t =
+        let (i, (_, b), (_, _)) = zts.(start)in
+        let result = (i,b) in
+        let iterate (a, b) i (j, (_, bj), (_, _))=
+         if i > start && j < a then (j,bj) else (a,b) in
+        Array.fold_lefti iterate result zts (*
         let result = ref (0, Z.zero) in 
         match zts.(start) with
         | (i, (_, b), (_, _)) -> result := (i, b);
@@ -479,19 +482,27 @@ struct
             | (j, (_, b), (_, _)) ->
               if j < fst !result then result := (j, b)
           done;
-          !result
+          !result*)
       in
       let all_are_const_in_eq_class zts start size : bool = 
         Array.fold_left (fun b e -> b && (is_const e)) true zts
       in
-      let assign_vars_in_const_eq_class ats zts start size least_i least_b =     
+      let assign_vars_in_const_eq_class ats zts start size least_i least_b =  
+        let adjust i e =  if i < start then e 
+        else 
+          let (ai, t1, t2) = zts.(i)in
+          if Z.equal (diff t1 t2) (Z.zero) then (ai, t1)
+          else
+             (ai, (Some least_i, Z.sub (Tuple2.second t1) least_b))
+        (*  
         for i = start to start + size - 1 do
-          match zts.(i) with
-          | (ai, t1, t2) -> if Z.equal (diff t1 t2) (Z.zero) then ats.(i) <- (ai, t1)
-            else
-              match t1 with
-              | (_, bj) -> ats.(i) <- (ai, (Some least_i, Z.sub bj least_b))
-        done
+          let (ai, t1, t2) = zts.(i) in
+          if Z.equal (diff t1 t2) (Z.zero) then ats.(i) <- (ai, t1)
+          else
+            ats.(i) <- (ai, (Some least_i, Z.sub (Tuple2.second t1) least_b))
+        done*)
+        in
+        BatArray.modifyi adjust ats 
       in
       let assign_vars_in_non_const_eq_class ats zts start size least_i least_b = 
         for i = start to start + size - 1 do
@@ -508,9 +519,8 @@ struct
         while !i < Array.length zts' do 
           let n = size_of_eq_class zts' !i in 
           (if n = 1 then
-             let ztsi = zts'.(!i) in
-             match ztsi with
-             | (i', t1, t2) -> if is_const ztsi && Z.equal (diff t1 t2) (Z.zero) then 
+             let (i', t1, t2) = zts'.(!i) in
+             if is_const (i', t1, t2) && Z.equal (diff t1 t2) (Z.zero) then 
                  result.(!i) <- (i', (None, const_offset t1))
                else result.(!i) <- (i', (Some i', Z.zero))
            else
@@ -524,9 +534,10 @@ struct
         Some result
     in
     let strip_annotation ats = 
+      Option.map (Array.map snd) ats (*
       match ats with
       | None -> None
-      | Some ats' -> Some (Array.map snd ats')
+      | Some ats' -> Some (Array.map snd ats')*)
     in
     let join_d t1 t2 =
       let zipped = ts_zip t1 t2 in
@@ -758,7 +769,8 @@ struct
                 meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
             | _ -> t (*Not supported right now*)
           else if var_count = 2 then 
-            let v12 =  Array.fold_righti (fun i a l -> if Z.equal a Z.zero || i = 0 then l else (i,a)::l) expr [] in
+            let get_vars i a l = if Z.equal a Z.zero || i = 0 then l else (i,a)::l in
+          let v12 =  Array.fold_righti get_vars expr [] in
             let a1 = Tuple2.second (List.hd v12) in  
             let a2 = Tuple2.second (List.hd @@ List.tl v12) in
             let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
