@@ -167,16 +167,11 @@ struct
       List.map (fun (coeff, var) -> (Z.(number * coeff, var))) coeff_var_list in
     let multiply a b = 
       (* if one of them is a constant, then multiply. Otherwise, the expression is not linear*)
-      if List.compare_length_with a 1 = 0 then
-        match List.nth a 0 with
-        | (a_coeff, None) -> multiply_with_Z a_coeff b
-        | _ -> raise NotLinearExpr
-      else 
-      if List.compare_length_with b 1 = 0 then
-        match List.nth b 0 with
-        | (b_coeff, None) -> multiply_with_Z b_coeff a
-        | _ -> raise NotLinearExpr
-      else raise NotLinearExpr in
+      match a, b with
+      | [(a_coeff, None)], b -> multiply_with_Z a_coeff b
+      | a, [(b_coeff, None)] -> multiply_with_Z b_coeff a
+      | _ -> raise NotLinearExpr
+    in
     let mpqf_to_Z x = 
       if not(Z.equal (Mpqf.get_den x) Z.one) then raise NotIntegerOffset
       else Mpqf.get_num x in
@@ -209,30 +204,33 @@ struct
             | Mul -> multiply (convert_texpr e1) (convert_texpr e2)
             | _ -> raise NotLinearExpr end
       end
-    in convert_texpr texp 
+    in match convert_texpr texp with
+    | exception NotLinearExpr -> None
+    | x -> Some(x)
 
   let get_coeff (t: t) texp =
     (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
       Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
     *)
     let exception Not2VarExpr in
-    let sum_coefficients summands_list =
-      List.fold_left (fun (var, current_var_offset, curr_offset) (next_coeff, next_var) -> 
-          begin match next_var with
-            | None -> (* this element represents a constant offset *)
-              (var, current_var_offset, Z.(curr_offset + next_coeff))
-            | Some same_var -> (* this element represents a variable with a coefficient 
-                                  -> it must be always the same variable, else it's not a two-variable equality*)
-              begin if Option.is_none var || Some same_var = var then
-                  (Some same_var, Z.(current_var_offset + next_coeff), curr_offset) 
-                else raise Not2VarExpr end 
-          end)
-        (None, Z.zero, Z.zero) summands_list
+    let sum_next_coefficient (var, current_var_offset, curr_offset) (next_coeff, next_var) = 
+      begin match next_var with
+        | None -> (* this element represents a constant offset *)
+          (var, current_var_offset, Z.(curr_offset + next_coeff))
+        | Some _ -> (* this element represents a variable with a coefficient 
+                              -> it must be always the same variable, else it's not a two-variable equality*)
+          begin if Option.is_none var || next_var = var then
+              (next_var, Z.(current_var_offset + next_coeff), curr_offset) 
+            else raise Not2VarExpr end 
+      end in
+    let sum_coefficients summands_list_opt =
+      Option.map (List.fold_left sum_next_coefficient (None, Z.zero, Z.zero)) summands_list_opt
     in
     match sum_coefficients (get_coeff_vec t texp) with
     | exception _ -> None 
-    |  (var, var_coeff, offset) ->
-      if var = None then Some (None, offset)
+    | None -> None
+    | Some (var, var_coeff, offset) ->
+      if Option.is_none var then Some (None, offset)
       else if Z.(var_coeff = one) then Some (var, offset)
       else None
 
@@ -498,8 +496,8 @@ struct
       let assign_vars_in_non_const_eq_class ats zts start size least_i least_b = 
         for i = start to start + size - 1 do
           let (ai, t1, _) = zts.(i) in
-            let bj = const_offset t1 in
-            ats.(i) <- (ai, (Some least_i, Z.sub bj least_b))
+          let bj = const_offset t1 in
+          ats.(i) <- (ai, (Some least_i, Z.sub bj least_b))
         done
       in
       match zts with
@@ -698,21 +696,6 @@ struct
 
   let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
 
-  (** Assert a constraint expression.
-
-      Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
-      We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
-
-  exception NotRefinable
-
-  let meet_tcons_one_var_eq res expr = res
-
-  (* meet_tcons -> meet with guard in if statement
-     texpr -> tree expr (right hand side of equality)
-     -> expression used to derive tcons -> used to check for overflow
-     tcons -> tree constraint (expression < 0)
-     -> does not have types (overflow is type dependent)
-  *)
   let print_coeff_vec l (env : Environment.t) = 
     let print_element _ e = match e with 
       | (a, Some x) -> print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ") 
@@ -724,6 +707,17 @@ struct
         print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in 
     List.fold_lefti print_element () l; print_newline ()
 
+  (** Assert a constraint expression.
+
+      Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
+      We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
+
+  (* meet_tcons -> meet with guard in if statement
+     texpr -> tree expr (right hand side of equality)
+     -> expression used to derive tcons -> used to check for overflow
+     tcons -> tree constraint (expression < 0)
+     -> does not have types (overflow is type dependent)
+  *)
   let meet_tcons t tcons _ = 
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables 
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
@@ -731,47 +725,49 @@ struct
     match t.d with 
     | None -> bot_env
     | Some d -> if is_bot_env t then bot_env else
-        let cv's = get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
-        let update (expr : Z.t Array.t)( c , v) = 
-          match v with 
-          | None -> Array.set expr 0 (Z.add expr.(0) c) 
-          | Some idx -> match d.(idx) with 
-            | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c) 
-            | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i))
-        in 
-        List.iter (update expr) cv's ;
-        let counting count i a = if i = 0 || Z.equal a Z.zero then count else count+1 in
-        let var_count = Array.fold_lefti counting 0 expr
-        in 
-        if var_count = 0 then 
-          match Tcons1.get_typ tcons with 
-          | EQ when Z.equal expr.(0) Z.zero -> t
-          | SUPEQ when Z.geq expr.(0) Z.zero -> t 
-          | SUP when Z.gt expr.(0) Z.zero -> t 
-          | DISEQ when not @@ Z.equal expr.(0) Z.zero -> t 
-          | EQMOD scalar -> t
-          | _ -> bot_env (*Not supported right now
-                                if Float.equal ( Float.modulo (Z.to_float expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
-        else if var_count = 1 then
-          let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
-          let var = ( index, expr.(index)) in
-          let c = if Z.divisible expr.(0) @@ Tuple2.second var then Some (Z.(- expr.(0) / (Tuple2.second var))) else None in
-          match Tcons1.get_typ tcons with 
-          | EQ -> if Option.is_none c then t else  
-              let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int (Option.get c)) in 
-              meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
-          | _ -> t (*Not supported right now*)
-        else if var_count = 2 then 
-          let v12 =  Array.fold_righti (fun i a l -> if Z.equal a Z.zero || i = 0 then l else (i,a)::l) expr [] in
-          let a1 = Tuple2.second (List.hd v12) in  
-          let a2 = Tuple2.second (List.hd @@ List.tl v12) in
-          let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
-          let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
-          match Tcons1.get_typ tcons with 
-          | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (identity t.env) var1 var2) else t
-          | _-> t (*Not supported right now*)
-        else 
-          t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
+        match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+        | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
+        | Some cv's ->
+          let update (expr : Z.t Array.t)( c , v) = 
+            match v with 
+            | None -> Array.set expr 0 (Z.add expr.(0) c) 
+            | Some idx -> match d.(idx) with 
+              | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c) 
+              | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i))
+          in 
+          List.iter (update expr) cv's ;
+          let counting count i a = if i = 0 || Z.equal a Z.zero then count else count+1 in
+          let var_count = Array.fold_lefti counting 0 expr
+          in 
+          if var_count = 0 then 
+            match Tcons1.get_typ tcons with 
+            | EQ when Z.equal expr.(0) Z.zero -> t
+            | SUPEQ when Z.geq expr.(0) Z.zero -> t 
+            | SUP when Z.gt expr.(0) Z.zero -> t 
+            | DISEQ when not @@ Z.equal expr.(0) Z.zero -> t 
+            | EQMOD scalar -> t
+            | _ -> bot_env (*Not supported right now
+                                  if Float.equal ( Float.modulo (Z.to_float expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
+          else if var_count = 1 then
+            let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
+            let var = ( index, expr.(index)) in
+            let c = if Z.divisible expr.(0) @@ Tuple2.second var then Some (Z.(- expr.(0) / (Tuple2.second var))) else None in
+            match Tcons1.get_typ tcons with 
+            | EQ -> if Option.is_none c then t else  
+                let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int (Option.get c)) in 
+                meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
+            | _ -> t (*Not supported right now*)
+          else if var_count = 2 then 
+            let v12 =  Array.fold_righti (fun i a l -> if Z.equal a Z.zero || i = 0 then l else (i,a)::l) expr [] in
+            let a1 = Tuple2.second (List.hd v12) in  
+            let a2 = Tuple2.second (List.hd @@ List.tl v12) in
+            let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
+            let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
+            match Tcons1.get_typ tcons with 
+            | EQ -> if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (identity t.env) var1 var2) else t
+            | _-> t (*Not supported right now*)
+          else 
+            t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
