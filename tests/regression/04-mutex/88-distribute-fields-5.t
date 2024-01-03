@@ -1,7 +1,7 @@
   $ goblint --enable warn.deterministic --enable allglobs 88-distribute-fields-5.c
   [Warning][Race] Memory location t.s (race with conf. 110): (88-distribute-fields-5.c:15:10-15:11)
-    write with thread:[main, t_fun@88-distribute-fields-5.c:25:3-25:40#top] (conf. 110)  (exp: & t.s) (88-distribute-fields-5.c:19:3-19:11)
-    write with [mhp:{created={[main, t_fun@88-distribute-fields-5.c:25:3-25:40#top]}}, thread:[main]] (conf. 110)  (exp: & t.s) (88-distribute-fields-5.c:27:3-27:11)
+    write with thread:[main, t_fun@88-distribute-fields-5.c:25:3-25:40] (conf. 110)  (exp: & t.s) (88-distribute-fields-5.c:19:3-19:11)
+    write with [mhp:{created={[main, t_fun@88-distribute-fields-5.c:25:3-25:40]}}, thread:[main]] (conf. 110)  (exp: & t.s) (88-distribute-fields-5.c:27:3-27:11)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

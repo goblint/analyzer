@@ -6,10 +6,10 @@
     dead: 0
     total lines: 23
   [Warning][Race] Memory location (alloc@sid:29@tid:[main])[?].datum (race with conf. 110): (14-list_entry_rc.c:41:3-41:35)
-    write with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40#top] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-    write with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40#top]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-    read with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40#top] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-    read with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40#top]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    write with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    write with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    read with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    read with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
