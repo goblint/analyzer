@@ -88,7 +88,7 @@ struct
 end
 
 (** As it is specifically used for the new affine equality domain, it can only provide bounds if the expression contains known constants only and in that case, min and max are the same. *)
-module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc) (Mx).t) =
+module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ExtendedConvBounds with type t = VarManagement(Vc) (Mx).t) =
 struct
   include VarManagement (Vc) (Mx)
 
@@ -437,24 +437,7 @@ struct
       Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
       We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
 
-  exception NotRefinable
-
-  let meet_tcons_one_var_eq res expr =
-    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
-    match Convert.find_one_var expr with
-    | None -> overflow_res res
-    | Some v ->
-      let ik = Cilfacade.get_ikind v.vtype in
-      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
-      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable (* TODO: unsigned w/o bounds handled differently? *)
-      | Some min, Some max ->
-        assert (Z.equal min max); (* other bounds impossible in affeq *)
-        let (min_ik, max_ik) = IntDomain.Size.range ik in
-        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
-          if IntDomain.should_ignore_overflow ik then bot () else raise NotRefinable
-        else res
-      | exception Convert.Unsupported_CilExp _
-      | _, _ -> overflow_res res
+  module BoundsCheck = SharedFunctions.BoundsCheckMeetTcons (Bounds) (V)
 
   let meet_tcons t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
@@ -465,7 +448,7 @@ struct
       let res = if is_bot t then bot () else
           let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e
           in if Option.is_none opt_m then bot () else {d = opt_m; env = t.env} in
-      meet_tcons_one_var_eq res expr
+      BoundsCheck.meet_tcons_one_var_eq res expr
     in
     match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
     | Some v ->
@@ -477,12 +460,12 @@ struct
         | None, DISEQ
         | None, SUP ->
           begin match meet_vec v with
-            | exception NotRefinable -> t
+            | exception BoundsCheck.NotRefinable -> t
             | res -> if equal res t then bot_env else t
           end
         | None, EQ ->
           begin match meet_vec v with
-            | exception NotRefinable -> t
+            | exception BoundsCheck.NotRefinable -> t
             | res -> if is_bot res then bot_env else res
           end
         | _, _ -> t

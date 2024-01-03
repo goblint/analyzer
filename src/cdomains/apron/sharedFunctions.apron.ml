@@ -291,6 +291,7 @@ struct
   let bot () =
     {d = Some (RelDomain.empty ()); env = empty_env}
 
+  let get_env t = t.env
   let bot_env = {d = None; env = empty_env}
 
   let is_bot_env t = t.d = None
@@ -487,4 +488,37 @@ module Mpqf = struct
 
   let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
+end
+
+
+(** Overflow handling for meet_tcons in affineEqualityDomain and linearTwoVarEqualityDomain.
+
+    It refines after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
+    We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either raise the exception "NotRefinable" or set it to bottom. *)
+module type ExtendedConvBounds =
+sig
+  include ConvBounds
+  val get_env: t -> Environment.t
+  val bot : unit -> t
+end
+module BoundsCheckMeetTcons (Bounds: ExtendedConvBounds) (V: SV) = struct
+  exception NotRefinable
+  module Convert = Convert (V) (Bounds) (struct let allow_global = true end) (Tracked)
+
+  let meet_tcons_one_var_eq res expr =
+    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
+    match Convert.find_one_var expr with
+    | None -> overflow_res res
+    | Some v ->
+      let ik = Cilfacade.get_ikind v.vtype in
+      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res (Bounds.get_env res) (Lval (Cil.var v)) true) with
+      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable 
+      | Some min, Some max ->
+        assert (Z.equal min max); (* other bounds impossible in affeq *)
+        let (min_ik, max_ik) = IntDomain.Size.range ik in
+        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
+          if IntDomain.should_ignore_overflow ik then Bounds.bot () else raise NotRefinable
+        else res
+      | exception Convert.Unsupported_CilExp _
+      | _, _ -> overflow_res res
 end
