@@ -56,10 +56,13 @@ struct
         (struct let name = "no node" end))
 
   let show = function
-    | (f, Some (n, i)) ->
+    | (f, Some (n, Some i)) ->
       f.vname
-      ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
-      ^ "#" ^ Option.fold ~none:"top" ~some:string_of_int i
+      ^ "@" ^ CilType.Location.show (UpdateCil.getLoc n)
+      ^ "#" ^ string_of_int i
+    | (f, Some (n, None)) ->
+      f.vname
+      ^ "@" ^ CilType.Location.show (UpdateCil.getLoc n)
     | (f, None) -> f.vname
 
   include Printable.SimpleShow (
