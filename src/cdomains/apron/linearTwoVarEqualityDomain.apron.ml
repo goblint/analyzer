@@ -743,9 +743,9 @@ struct
             let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
             let var = ( index, expr.(index)) in
             let c = if Z.divisible expr.(0) @@ Tuple2.second var then Some (Z.(- expr.(0) / (Tuple2.second var))) else None in
-            match Tcons1.get_typ tcons with 
-            | EQ -> if Option.is_none c then t else  
-                let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int (Option.get c)) in 
+            match Tcons1.get_typ tcons, c with 
+            | EQ, Some c-> 
+                let expr = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int c) in 
                 meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expr) 
             | _ -> t (*Not supported right now*)
           else if var_count = 2 then 
