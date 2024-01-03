@@ -248,20 +248,20 @@ struct
     match t.d with 
     | None -> t
     | Some t_d -> let d = EArray.copy t_d in
-      let subtract_const_from_var_for_single_equality const index element =
+      let subtract_const_from_var_for_single_equality index element =
         let (eq_var_opt, off2) = d.(index) in 
         if index = var then
           match eq_var_opt with
           | None -> d.(index) <- (None, Z.(off2 + const))
-          | Some eq_var -> begin if eq_var <> index then d.(index) <- (None, Z.(off2 + const)) end
+          | Some eq_var -> begin if eq_var <> index then d.(index) <- (eq_var_opt, Z.(off2 + const)) end
         else 
           begin match eq_var_opt with 
             | Some eq_var ->
-              if eq_var = var then d.(index) <- (Some eq_var, Z.(off2 - const))
+              if eq_var = var then d.(index) <- (eq_var_opt, Z.(off2 - const))
             | None -> () 
           end
       in
-      EArray.iteri (subtract_const_from_var_for_single_equality const) d; {d = Some d; env = t.env}
+      EArray.iteri (subtract_const_from_var_for_single_equality) d; {d = Some d; env = t.env}
 end
 
 

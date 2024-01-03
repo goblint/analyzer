@@ -11,6 +11,12 @@ int main() {
 
   __goblint_check(x == k + 1); // SUCCESS
 
+  for (int i = 0; i < 7; i++) {
+    x++;
+    k++;
+  }
+
+  __goblint_check(x == k + 1); // SUCCESS
 
   return 0;
 }
