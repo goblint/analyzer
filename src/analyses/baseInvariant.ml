@@ -15,8 +15,8 @@ sig
   module V: Analyses.SpecSysVar
   module G: Lattice.S
 
-  val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
-  val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> exp -> VD.t
+  val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
+  val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
   val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> lval -> AD.t
   val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> offset -> ID.t Offset.t
 
@@ -147,7 +147,7 @@ struct
             end
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
-              match eval_rv_address ~ctx (Lval x) with
+              match eval_rv_address ~ctx st (Lval x) with
               | Address a when AD.is_definite n ->
                 Some (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
@@ -211,12 +211,12 @@ struct
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~ctx rval)) tv
+      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~ctx st rval)) tv
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
-        (match eval_rv ~ctx (Lval x) with
+        (match eval_rv ~ctx st (Lval x) with
          | Int v ->
            (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
              * If there is one domain that knows this to be true and the other does not, we
@@ -555,7 +555,7 @@ struct
           a, b
       with FloatDomain.ArithmeticOnFloatBot _ -> raise Analyses.Deadcode
     in
-    let eval e st = eval_rv ~ctx e in
+    let eval e st = eval_rv ~ctx st e in
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
     let unroll_fk_of_exp e =
       match unrollType (Cilfacade.typeOf e) with
