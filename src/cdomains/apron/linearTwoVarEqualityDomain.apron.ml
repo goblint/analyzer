@@ -38,7 +38,8 @@ module EqualitiesArray = struct
 
   let empty () = [||]
 
-  let make_empty_array len = Array.mapi (fun i (x, y) -> (Some i, Z.zero)) (make len Equality.zero)
+  let make_empty_array len = let array = (make len Equality.zero) in
+      BatArray.modifyi (fun i (x, y) -> (Some i, Z.zero)) array; array
 
   let add_empty_column arr index = 
     let num_vars = length arr in
@@ -142,9 +143,7 @@ struct
   include SharedFunctions.VarManagementOps (EArray)
 
 
-  let size t = match t.d with
-    | None -> 0 
-    | Some d -> EArray.length d
+  let size t = BatOption.map_default (fun d -> EArray.length d) 0 t.d
 
   (* Returns the constant value of a variable, 
      if we know the constant value of this variable.
@@ -375,11 +374,7 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' -> (
       let ds = ref (Some (Array.copy d1')) in
-      Array.iteri (fun j e -> add_conj ds e j) d2'; (*
-      if Array.length d2' <> 0 then
-        for j = 0 to Array.length d2' - 1 do
-          add_conj ds d2'.(j) j
-        done; *)
+      Array.iteri (fun j e -> add_conj ds e j) d2'; 
       {d = !ds; env = sup_env} )
     | _ -> { d = None; env = sup_env} 
 
@@ -446,10 +441,7 @@ struct
             Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
     in
     let sort_z_by_expr zts =
-      Stdlib.Option.iter (Array.stable_sort cmp_z) zts (*
-      match zts with
-      | None -> ()
-      | Some zts' -> Array.stable_sort cmp_z zts'*)
+      Stdlib.Option.iter (Array.stable_sort cmp_z) zts 
     in
     let sort_annotated ats = 
       let cmp_annotated x y : int = (Tuple2.first x) - (Tuple2.first y) 
@@ -473,16 +465,7 @@ struct
         let result = (i,b) in
         let iterate (a, b) i (j, (_, bj), (_, _))=
          if i > start && j < a then (j,bj) else (a,b) in
-        Array.fold_lefti iterate result zts (*
-        let result = ref (0, Z.zero) in 
-        match zts.(start) with
-        | (i, (_, b), (_, _)) -> result := (i, b);
-          for i = start + 1 to start + size - 1 do
-            match zts.(i) with
-            | (j, (_, b), (_, _)) ->
-              if j < fst !result then result := (j, b)
-          done;
-          !result*)
+        Array.fold_lefti iterate result zts 
       in
       let all_are_const_in_eq_class zts start size : bool = 
         Array.fold_left (fun b e -> b && (is_const e)) true zts
@@ -534,10 +517,7 @@ struct
         Some result
     in
     let strip_annotation ats = 
-      Option.map (Array.map snd) ats (*
-      match ats with
-      | None -> None
-      | Some ats' -> Some (Array.map snd ats')*)
+      Option.map (Array.map snd) ats 
     in
     let join_d t1 t2 =
       let zipped = ts_zip t1 t2 in
@@ -708,15 +688,15 @@ struct
   let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
 
   let print_coeff_vec l (env : Environment.t) = 
-    let print_element _ e = match e with 
+    let print_element e = match e with 
       | (a, Some x) -> print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ") 
       | (a, None) -> print_string ((Z.to_string a) ^ "+") in
-    List.fold_left print_element () l; print_newline ()
+    List.iter print_element  l; print_newline ()
 
   let print_final_expr l (env : Environment.t) =
-    let print_element _ i a = if i = 0 then print_string ((Z.to_string a) ^ " + ") else 
+    let print_element i a = if i = 0 then print_string ((Z.to_string a) ^ " + ") else 
         print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in 
-    List.fold_lefti print_element () l; print_newline ()
+    List.iteri print_element l; print_newline ()
 
   (** Assert a constraint expression.
 
