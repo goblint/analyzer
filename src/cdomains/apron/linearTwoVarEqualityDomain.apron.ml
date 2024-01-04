@@ -427,7 +427,8 @@ struct
       let diff t1 t2 = Z.(const_offset t1 - const_offset t2) in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t1i, t2i) (_, t1j, t2j) =
-        Tuple3.compare (fst t1i, fst t2i, diff t1i t2i) (fst t1j, fst t2j, diff t1j t2j)
+        let cmp_ref = Option.compare Int.compare in
+        Tuple3.compare ~cmp1:cmp_ref ~cmp2:cmp_ref ~cmp3:Z.compare (fst t1i, fst t2i, diff t1i t2i) (fst t1j, fst t2j, diff t1j t2j)
       in
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
