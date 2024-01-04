@@ -242,7 +242,7 @@ let focusOnMemSafetySpecification () =
 let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
-    let terminationAnas = ["termination"; "threadflag"; "apron"] in
+    let terminationAnas = ["termination"; "threadflag"] in
     print_endline @@ "Specification: Termination -> enabling termination analyses \"" ^ (String.concat ", " terminationAnas) ^ "\"";
     enableAnalyses terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
@@ -446,9 +446,9 @@ let apronOctagonOption factors file =
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
     print_endline @@ "Octagon: " ^ string_of_int cost;
-    set_bool "annotation.goblint_relation_track" true;
+    (*set_bool "annotation.goblint_relation_track" true;*)
     set_string "ana.apron.domain" "octagon";
-    set_auto "ana.activated[+]" "apron";
+    (*set_auto "ana.activated[+]" "apron";*)
     set_bool "ana.apron.threshold_widening" true;
     set_string "ana.apron.threshold_widening_constants" "comparisons";
     print_endline "Enabled octagon domain for:";
