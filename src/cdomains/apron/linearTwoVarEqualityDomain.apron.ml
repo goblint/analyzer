@@ -779,48 +779,52 @@ struct
   let meet_tcons t tcons original_expr = 
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables 
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
-    let overflow_handling res original_expr =
-      match BoundsCheck.meet_tcons_one_var_eq res original_expr with
-      | exception BoundsCheck.NotRefinable -> t
-      | res -> res
-    in
-    let expr = Array.init ((Environment.size t.env) + 1) (fun _ -> Z.zero) in 
     match t.d with 
     | None -> bot_env
-    | Some d -> if is_bot_env t then bot_env else
+    | Some d ->
+      let overflow_handling res original_expr =
+        match BoundsCheck.meet_tcons_one_var_eq res original_expr with
+        | exception BoundsCheck.NotRefinable -> t
+        | res -> res
+      in
+      let expr = Array.init (Environment.size t.env) (fun _ -> Z.zero) in
+      let constant = ref (Z.zero) in
+      if is_bot_env t then bot_env else
         match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
         | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
         | Some cv's ->
-          let update (expr : Z.t Array.t)( c , v) = 
+          let update (c, v) = 
             match v with 
-            | None -> Array.set expr 0 (Z.add expr.(0) c) 
+            | None -> constant := Z.(!constant + c) 
             | Some idx -> match d.(idx) with 
-              | (Some idx_i,c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i)) ; Array.set expr (idx_i + 1) (Z.add expr.(idx_i + 1) c) 
-              | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i))
+              | (Some idx_i, c_i) -> constant := Z.(!constant + (c * c_i));
+                expr.(idx_i) <- Z.(expr.(idx_i) + c) 
+              | (None, c_i) -> constant := Z.(!constant + (c * c_i))
           in 
-          List.iter (update expr) cv's ;
-          let var_count = GobArray.count_matchingi (fun i a -> i <> 0 && not (Z.equal a Z.zero)) expr in
+          List.iter update cv's;
+          let var_count = GobArray.count_matchingi (fun _ a -> a <> Z.zero) expr in
           if var_count = 0 then 
             match Tcons1.get_typ tcons with 
-            | EQ when Z.equal expr.(0) Z.zero -> t
-            | SUPEQ when Z.geq expr.(0) Z.zero -> t 
-            | SUP when Z.gt expr.(0) Z.zero -> t 
-            | DISEQ when not @@ Z.equal expr.(0) Z.zero -> t 
+            | EQ when Z.equal !constant Z.zero -> t
+            | SUPEQ when Z.geq !constant Z.zero -> t 
+            | SUP when Z.gt !constant Z.zero -> t 
+            | DISEQ when not @@ Z.equal !constant Z.zero -> t 
             | EQMOD scalar -> t
             | _ -> bot_env (*Not supported right now
                                   if Float.equal ( Float.modulo (Z.to_float expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
           else if var_count = 1 then
             let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
-            let var = ( index, expr.(index)) in
-            let c = if Z.divisible expr.(0) @@ Tuple2.second var then Some (Z.(- expr.(0) / (Tuple2.second var))) else None in
+            let var = (index, expr.(index)) in
+            let c = if Z.divisible !constant @@ Tuple2.second var then Some (Z.(-(!constant) / (Tuple2.second var))) 
+              else None in
             match Tcons1.get_typ tcons, c with 
-            | EQ, Some c-> 
-              let expression = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int c) in 
+            | EQ, Some c -> 
+              let expression = Texpr1.to_expr @@ Texpr1.cst t.env (Coeff.s_of_int @@ Z.to_int c) in 
               let res = meet t (assign_texpr (top_of t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expression) 
               in overflow_handling res original_expr
             | _ -> t (*Not supported right now*)
           else if var_count = 2 then 
-            let get_vars i a l = if Z.equal a Z.zero || i = 0 then l else (i - 1,a)::l in
+            let get_vars i a l = if Z.equal a Z.zero then l else (i, a)::l in
             let v12 = Array.fold_righti get_vars expr [] in
             let a1 = Tuple2.second (List.hd v12) in  
             let a2 = Tuple2.second (List.hd @@ List.tl v12) in
@@ -828,7 +832,9 @@ struct
             let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
             match Tcons1.get_typ tcons with 
             | EQ -> 
-              let res = if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (top_of t.env) var1 var2) else t
+              let res = if Z.equal a1 Z.one && Z.equal a2 Z.one 
+                then meet t (assign_var (top_of t.env) var1 var2) 
+                else t
               in overflow_handling res original_expr
             | _-> t (*Not supported right now*)
           else 
