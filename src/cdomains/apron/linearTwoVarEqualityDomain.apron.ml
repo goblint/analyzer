@@ -38,8 +38,7 @@ module EqualitiesArray = struct
 
   let empty () = [||]
 
-  let make_empty_array len = let array = (make len Equality.zero) in
-    BatArray.modifyi (fun i (x, y) -> (Some i, Z.zero)) array; array
+  let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero)) 
 
   let add_empty_column arr index = 
     let num_vars = length arr in
@@ -418,7 +417,54 @@ struct
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show t1) (show t2) res ;
     res
 
-  let join a b = 
+  let join a b =     
+    let join_d ad bd = 
+      let table = BatList.map2i (fun i a b -> (i,a,b)) (Array.to_list ad) (Array.to_list bd) in
+      let const_offset t = Tuple2.second t in
+      let diff t1 t2 = Z.((const_offset t1) - (const_offset t2)) in
+      let cmp_z (_, t1i, t2i) (_, t1j, t2j) = 
+        let cmp_z_ref (x,_) (y,_): int =
+          match x, y with
+          | None, None -> 0
+          | None, Some _ -> -1
+          | Some _, None -> 1
+          | Some ii, Some ij -> ii - ij 
+        in
+        let diff_e1 = cmp_z_ref t1i t1j in
+        if diff_e1 <> 0 then diff_e1 
+        else
+          let diff_e2 = cmp_z_ref t2i t2j in
+          if diff_e2 <> 0 then diff_e2 else 
+            Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
+      in
+      let new_components = BatList.group cmp_z table in
+      let modify idx_h b_h (idx, (opt1, z1), (opt2, z2)) =
+        if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
+        else if Option.(opt1 = opt2) && Z.(z1 = z2) then ()
+        else ad.(idx) <- (Some idx_h, Z.(z1 - b_h))
+      in
+      let iterate l =
+        match l with 
+        | (idx_h, (_, b_h), _) :: t -> List.iter (modify idx_h b_h) l
+        | [] -> () (*This should not happen, consider throughing exception*)       
+    in
+    List.iter iterate new_components; Some ad in
+    if is_bot_env a then b else if is_bot_env b then a else
+      match Option.get a.d, Option.get b.d with
+      | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env 
+        in (identity new_env)
+      | x, y when (Environment.compare a.env b.env <> 0) ->
+        let sup_env = Environment.lce a.env b.env in
+        let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+        let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+        {d = join_d mod_x mod_y; env = sup_env}
+      | x, y when EArray.equal x y -> {d = Some x; env = a.env}
+      | x, y  -> {d = join_d x y; env = a.env}
+  
+
+
+  (*
+  let join' a b = 
     let ts_zip t1 t2 =
       if Array.length t1 <> Array.length t2 then None else
         let zts = Array.init (Array.length t1) (fun (i : int) -> (i, t1.(i), t2.(i))) in
@@ -480,26 +526,32 @@ struct
             if Z.equal (diff t1 t2) (Z.zero) then (ai, t1)
             else
               (ai, (Some least_i, Z.sub (Tuple2.second t1) least_b))
-              (*  
-        for i = start to start + size - 1 do
-          let (ai, t1, t2) = zts.(i) in
-          if Z.equal (diff t1 t2) (Z.zero) then ats.(i) <- (ai, t1)
-          else
-            ats.(i) <- (ai, (Some least_i, Z.sub (Tuple2.second t1) least_b))
-        done*)
         in
         BatArray.modifyi adjust ats 
       in
       let assign_vars_in_non_const_eq_class ats zts start size least_i least_b = 
-        for i = start to start + size - 1 do
-          let (ai, t1, _) = zts.(i) in
-          let bj = const_offset t1 in
-          ats.(i) <- (ai, (Some least_i, Z.sub bj least_b))
-        done
+        let adjust i e = if i < start then e
+          else (
+            let (ai, t1, _) = zts.(i) in
+            let bj = const_offset t1 in
+            (ai, (Some least_i, Z.sub bj least_b))) 
+        in
+        BatArray.modifyi adjust ats
       in
-      match zts with
-      | None -> None
-      | Some zts' ->
+      let adjust_zts zts' =
+        (*
+        let mapi_zts i e = 
+          let n = size_of_eq_class zts' i in
+          if n = 1 then
+            let (i', t1, t2) = zts'.(i) in
+            if is_const (i', t1, t2) && Z.equal (diff t1 t2) (Z.zero) then 
+              (i', (None, const_offset t1))
+            else (i', (Some i', Z.zero))
+          else
+            let (least_i, least_b) = least_index_var_in_eq_class zts' i n in
+            (if all_are_const_in_eq_class zts' i n then
+               assign_vars_in_const_eq_class result zts' i n least_i least_b
+             else assign_vars_in_non_const_eq_class result zts'); e*)
         let result = Array.make (Array.length zts') (0, (None, Z.zero)) in
         let i = ref 0 in
         while !i < Array.length zts' do 
@@ -517,7 +569,9 @@ struct
           ); 
           i := !i + n;
         done;
-        Some result
+        result 
+      in
+      Stdlib.Option.map adjust_zts zts
     in
     let strip_annotation ats = 
       Option.map (Array.map snd) ats 
@@ -541,7 +595,7 @@ struct
         {d = join_d mod_x mod_y; env = sup_env}
       | x, y when EArray.equal x y -> {d = Some x; env = a.env}
       | x, y  -> {d = join_d x y; env = a.env}
-
+*)
   let join a b = timing_wrap "join" (join a) b
 
   let join a b =
