@@ -419,6 +419,8 @@ struct
 
   let join a b =     
     let join_d ad bd = 
+      (*use copy of ad because result is later saved in there*)
+      let ad = Array.copy ad in
       (*This is the table which is later grouped*)
       let table = BatList.map2i (fun i a b -> (i,a,b)) (Array.to_list ad) (Array.to_list bd) in
       let const_offset t = Tuple2.second t in
