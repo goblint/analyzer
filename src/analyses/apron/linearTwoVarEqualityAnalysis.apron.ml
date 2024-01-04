@@ -32,5 +32,5 @@ let after_config () =
   MCP.register_analysis (module Spec : MCPSpec);
   GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())
 
-let _ = 
+let _ =
   AfterConfig.register after_config

@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 typedef int dataX_t;
-typedef int dataY_t; 
+typedef int dataY_t;
 
 dataX_t x_arr[100];
 dataY_t y_arr[100];
@@ -23,7 +23,7 @@ int main() {
 
     for (i = 0; i < 100; i++) {
         access();
-        
+
         __goblint_check(i == 8 * i + 0); //UNKNOWN!
         __goblint_check(x_ptr == 8 * i + x_arr); //UNKNOWN!
         __goblint_check(y_ptr == 4 * i + y_arr); //UNKNOWN!

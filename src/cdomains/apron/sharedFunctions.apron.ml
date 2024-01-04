@@ -477,7 +477,7 @@ end
 
 (* Multi-precision rational numbers, defined by Apron.
    Used by affineEqualityDomain and linearTwoVarEqualityDomain *)
-module Mpqf = struct 
+module Mpqf = struct
   include Mpqf
   let compare = cmp
   let zero = of_int 0
@@ -512,7 +512,7 @@ module BoundsCheckMeetTcons (Bounds: ExtendedConvBounds) (V: SV) = struct
     | Some v ->
       let ik = Cilfacade.get_ikind v.vtype in
       match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res (Bounds.get_env res) (Lval (Cil.var v)) true) with
-      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable 
+      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable
       | Some min, Some max ->
         assert (Z.equal min max); (* other bounds impossible in affeq *)
         let (min_ik, max_ik) = IntDomain.Size.range ik in

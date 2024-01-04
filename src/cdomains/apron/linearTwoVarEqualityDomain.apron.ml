@@ -38,16 +38,16 @@ module EqualitiesArray = struct
 
   let empty () = [||]
 
-  let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero)) 
+  let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero))
 
-  let add_empty_column arr index = 
+  let add_empty_column arr index =
     let num_vars = length arr in
     if index > num_vars then failwith "n too large" else
       let new_array = make (num_vars + 1) (Equality.var_zero index) in
-      if index = 0 
-      then blit arr 0 new_array 1 (num_vars - 1) 
-      else blit arr 0 new_array 0 index; 
-      if index <> num_vars 
+      if index = 0
+      then blit arr 0 new_array 1 (num_vars - 1)
+      else blit arr 0 new_array 0 index;
+      if index <> num_vars
       then blit arr index new_array (index + 1) (num_vars - index);
       new_array
 
@@ -59,9 +59,9 @@ module EqualitiesArray = struct
       let offset_map = Array.init nc (fun j ->
           while !offset < nnc && !offset + j = indexes.(!offset) do incr offset; done;
           !offset)
-      in let add_offset_to_array_entry (var, offs) = 
+      in let add_offset_to_array_entry (var, offs) =
            Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
-      let m' = make_empty_array (nc + nnc) 
+      let m' = make_empty_array (nc + nnc)
       in Array.iteri (fun j eq -> m'.(j + offset_map.(j)) <- add_offset_to_array_entry eq) m;
       m'
 
@@ -74,7 +74,7 @@ module EqualitiesArray = struct
         let offset = ref 0 in
         let offset_map = Array.init nc (fun j ->
             if indexes.(!offset) = j then (incr offset; 0) else !offset)
-        in let remove_offset_from_array_entry (var, offs) = 
+        in let remove_offset_from_array_entry (var, offs) =
              Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
         Array.init (nc - nrc) (fun j -> remove_offset_from_array_entry m.(j + offset_map.(j)))
 
@@ -87,24 +87,24 @@ module EqualitiesArray = struct
   let find_reference_variable d var_index = fst d.(var_index)
 
 
-  let find_vars_in_the_connected_component d ref_var = 
+  let find_vars_in_the_connected_component d ref_var =
     filter (fun i -> let (var, _) = d.(i) in var = ref_var) (mapi const d)
 
   (* find a variable in the connected component with the least index, but not the reference variable. *)
-  let find_var_in_the_connected_component_with_least_index connected_component ref_var = 
+  let find_var_in_the_connected_component_with_least_index connected_component ref_var =
     fold_left (fun curr_min i -> match curr_min with
         | None -> if i <> ref_var then Some i else None
         | Some curr_min -> if i < curr_min && i <> ref_var then Some i else Some curr_min) None connected_component
 
   (* Forget information about variable var in-place.
      The name reduce_col_with is because the affineEqualitiesDomain also defines this function,
-     and it represents the equalities with a matrix, not like in this case with an array. 
-     We could think about changing this name, then we would need to change it also in 
+     and it represents the equalities with a matrix, not like in this case with an array.
+     We could think about changing this name, then we would need to change it also in
      shared_Functions.apron.ml and vectorMatrix.ml and affineEqualitiesDomain.ml *)
-  let reduce_col_with d var = 
+  let reduce_col_with d var =
     let ref_var_opt = find_reference_variable d var in
     d.(var) <- Equality.var_zero var;
-    begin match ref_var_opt with 
+    begin match ref_var_opt with
       | None -> (* the variable is equal to a constant *) ()
       | Some ref_var ->
         if ref_var <> var then ()
@@ -112,22 +112,22 @@ module EqualitiesArray = struct
           (* x_i is the reference variable of its connected component *)
           let dim_of_var = Some var in
           let connected_component = find_vars_in_the_connected_component d dim_of_var in
-          if length connected_component = 1 
-          then ()   (* x_i is the only element of its connected component *) 
+          if length connected_component = 1
+          then ()   (* x_i is the only element of its connected component *)
           else
             (* x_i is the reference variable -> we need to find a new reference variable *)
             let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index connected_component ref_var in
-            let (_, off) = d.(var_least_index) in 
+            let (_, off) = d.(var_least_index) in
             iteri (fun _ x -> let (_, off2) = d.(x) in if x <> ref_var then d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
     end
 
   (* Forget information about variable i but not in-place *)
-  let reduce_col m j = 
+  let reduce_col m j =
     let copy = copy m in
     reduce_col_with copy j;
-    copy 
+    copy
 
-  let remove_zero_rows t = t 
+  let remove_zero_rows t = t
 
 end
 
@@ -144,7 +144,7 @@ struct
 
   let size t = BatOption.map_default (fun d -> EArray.length d) 0 t.d
 
-  (* Returns the constant value of a variable, 
+  (* Returns the constant value of a variable,
      if we know the constant value of this variable.
      Else it returns None. *)
   let get_variable_value_if_it_is_a_constant t var =
@@ -155,22 +155,22 @@ struct
     Option.bind t.d (fun d -> get_constant d.(var))
 
   let get_coeff_vec (t: t) texp =
-    (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. 
+    (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset.
     *)
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
     let exception NotIntegerOffset in
     let negate coeff_var_list = List.map (fun (coeff, var) -> (Z.(-coeff), var)) coeff_var_list in
-    let multiply_with_Z number coeff_var_list = 
+    let multiply_with_Z number coeff_var_list =
       List.map (fun (coeff, var) -> (Z.(number * coeff, var))) coeff_var_list in
-    let multiply a b = 
+    let multiply a b =
       (* if one of them is a constant, then multiply. Otherwise, the expression is not linear*)
       match a, b with
       | [(a_coeff, None)], b -> multiply_with_Z a_coeff b
       | a, [(b_coeff, None)] -> multiply_with_Z b_coeff a
       | _ -> raise NotLinearExpr
     in
-    let mpqf_to_Z x = 
+    let mpqf_to_Z x =
       if not(Z.equal (Mpqf.get_den x) Z.one) then raise NotIntegerOffset
       else Mpqf.get_num x in
     let rec convert_texpr texp =
@@ -184,8 +184,8 @@ struct
                          | Float x -> raise NotIntegerOffset
                          | Mpqf x -> [(mpqf_to_Z x, None)]
                          | Mpfrf x -> raise NotIntegerOffset end in of_union x
-        | Var x -> 
-          let var_dim = Environment.dim_of_var t.env x in 
+        | Var x ->
+          let var_dim = Environment.dim_of_var t.env x in
           begin match get_variable_value_if_it_is_a_constant t var_dim with
             | None -> [(Z.one, Some var_dim)]
             | Some constant -> [(constant, None)]
@@ -208,24 +208,24 @@ struct
 
   let get_coeff (t: t) texp =
     (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
-      Returns None if the expression is not a sum between a variable (without coefficient) and a constant. 
+      Returns None if the expression is not a sum between a variable (without coefficient) and a constant.
     *)
     let exception Not2VarExpr in
-    let sum_next_coefficient (var, current_var_offset, curr_offset) (next_coeff, next_var) = 
+    let sum_next_coefficient (var, current_var_offset, curr_offset) (next_coeff, next_var) =
       begin match next_var with
         | None -> (* this element represents a constant offset *)
           (var, current_var_offset, Z.(curr_offset + next_coeff))
-        | Some _ -> (* this element represents a variable with a coefficient 
+        | Some _ -> (* this element represents a variable with a coefficient
                               -> it must be always the same variable, else it's not a two-variable equality*)
           begin if Option.is_none var || next_var = var then
-              (next_var, Z.(current_var_offset + next_coeff), curr_offset) 
-            else raise Not2VarExpr end 
+              (next_var, Z.(current_var_offset + next_coeff), curr_offset)
+            else raise Not2VarExpr end
       end in
     let sum_coefficients summands_list_opt =
       Option.map (List.fold_left sum_next_coefficient (None, Z.zero, Z.zero)) summands_list_opt
     in
     match sum_coefficients (get_coeff_vec t texp) with
-    | exception _ -> None 
+    | exception _ -> None
     | None -> None
     | Some (var, var_coeff, offset) ->
       if Option.is_none var then Some (None, offset)
@@ -235,29 +235,29 @@ struct
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
 
-  let abstract_exists var t = match t.d with 
+  let abstract_exists var t = match t.d with
     | Some d -> {t with d = Some (EArray.reduce_col d (Environment.dim_of_var t.env var))}
     | None -> t (* there are no  variables in the current environment *)
 
-  let assign_const t var const = match t.d with 
+  let assign_const t var const = match t.d with
     | None -> t
     | Some t_d -> let d = EArray.copy t_d in d.(var) <- (None, const);  {d = Some d; env = t.env}
 
-  let subtract_const_from_var t var const = 
-    match t.d with 
+  let subtract_const_from_var t var const =
+    match t.d with
     | None -> t
     | Some t_d -> let d = EArray.copy t_d in
       let subtract_const_from_var_for_single_equality index element =
-        let (eq_var_opt, off2) = d.(index) in 
+        let (eq_var_opt, off2) = d.(index) in
         if index = var then
           match eq_var_opt with
           | None -> d.(index) <- (None, Z.(off2 + const))
           | Some eq_var -> begin if eq_var <> index then d.(index) <- (eq_var_opt, Z.(off2 + const)) end
-        else 
-          begin match eq_var_opt with 
+        else
+          begin match eq_var_opt with
             | Some eq_var ->
               if eq_var = var then d.(index) <- (eq_var_opt, Z.(off2 - const))
-            | None -> () 
+            | None -> ()
           end
       in
       EArray.iteri (subtract_const_from_var_for_single_equality) d; {d = Some d; env = t.env}
@@ -288,11 +288,11 @@ module D =
 struct
   include Printable.Std
   include ConvenienceOps (Mpqf)
-  include VarManagement 
+  include VarManagement
 
   module Bounds = ExpressionBounds
 
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked) 
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
 
   type var = V.t
 
@@ -319,10 +319,10 @@ struct
       match tuple with
       | (None, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ Z.to_string offset ^ "\n"
       | (Some index, offset) -> "Variable " ^ string_of_int i ^ " named " ^ (lookup i) ^ " equals " ^ lookup index ^ " + " ^ Z.to_string offset ^ "\n"
-    in if is_top varM then "⊤\n" else 
+    in if is_top varM then "⊤\n" else
       match varM.d with
       | None -> "⊥\n"
-      | Some arr -> if is_bot varM then "Bot \n" else Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)  
+      | Some arr -> if is_bot varM then "Bot \n" else Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -330,13 +330,13 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
-    let subst_var ts x t = 
+    let subst_var ts x t =
       let adjust e = match e with
         | (None, b') -> (None, b')
         | (Some x', b') -> if x = x' then
-            (match t with 
+            (match t with
              | (None, bt) -> (None, Z.(b' + bt))
-             | (Some xt, bt) -> (Some xt, Z.(b' + bt))) 
+             | (Some xt, bt) -> (Some xt, Z.(b' + bt)))
           else (Some x', b')in
       Stdlib.Option.iter (BatArray.modify adjust) !ts (*
       match !ts with
@@ -347,38 +347,38 @@ struct
             match ts'.(i) with
             | (None, _) -> ()
             | (Some x', b') -> if x = x' then
-                (match t with 
+                (match t with
                  | (None, bt) -> ts'.(i) <- (None, Z.(b' + bt))
                  | (Some xt, bt) -> ts'.(i) <- (Some xt, Z.(b' + bt)))
           done*)
     in
-    let add_conj ts t i = 
+    let add_conj ts t i =
       let adjust ts' =
         (match t with
-         | (None, b) -> 
+         | (None, b) ->
            (match ts'.(i) with
             | (None, b') -> if not @@ Z.equal b b' then ts := None;
             | (Some j, b') -> subst_var ts j (None, Z.(b - b')))
          | (Some j, b) ->
            (match ts'.(i) with
             | (None, b1) -> subst_var ts j (None, Z.(b1 - b))
-            | (Some h1, b1) -> 
+            | (Some h1, b1) ->
               (match ts'.(j) with
                | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
-               | (Some h2, b2) -> 
-                 if h1 = h2 then 
+               | (Some h2, b2) ->
+                 if h1 = h2 then
                    (if Z.(b1 <> (b2 + b)) then ts := None)
                  else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
                  else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))))
       in
       Stdlib.Option.iter adjust !ts
-    in 
+    in
     match t1.d, t2.d with
     | Some d1', Some d2' -> (
         let ds = ref (Some (Array.copy d1')) in
-        Array.iteri (fun j e -> add_conj ds e j) d2'; 
+        Array.iteri (fun j e -> add_conj ds e j) d2';
         {d = !ds; env = sup_env} )
-    | _ -> { d = None; env = sup_env} 
+    | _ -> { d = None; env = sup_env}
 
   let meet t1 t2 =
     let res = meet t1 t2 in
@@ -391,21 +391,21 @@ struct
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
     let implies ts t i : bool =
       match t with
-      | (None, b) -> 
+      | (None, b) ->
         (match ts.(i) with
          | (None, b') -> Z.equal b b'
          | _ -> false)
-      | (Some j, b) -> 
+      | (Some j, b) ->
         (match ts.(i), ts.(j) with
          | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
          | (Some h1, b1), (Some h2, b2) ->
            h1 = h2 && Z.equal b1 (Z.add b2 b)
          | _ -> false
         )
-    in  
+    in
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true else
-    if is_bot_env t2 || is_top t1 then false else 
+    if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
       GobArray.for_alli (fun i t -> implies m1' t i) m2
@@ -417,8 +417,8 @@ struct
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show t1) (show t2) res ;
     res
 
-  let join a b =     
-    let join_d ad bd = 
+  let join a b =
+    let join_d ad bd =
       (*use copy of ad because result is later saved in there*)
       let ad = Array.copy ad in
       (*This is the table which is later grouped*)
@@ -426,19 +426,19 @@ struct
       let const_offset t = Tuple2.second t in
       let diff t1 t2 = Z.((const_offset t1) - (const_offset t2)) in
       (*compare two variables for grouping depending on delta function and reference index*)
-      let cmp_z (_, t1i, t2i) (_, t1j, t2j) = 
+      let cmp_z (_, t1i, t2i) (_, t1j, t2j) =
         let cmp_z_ref (x,_) (y,_): int =
           match x, y with
           | None, None -> 0
           | None, Some _ -> -1
           | Some _, None -> 1
-          | Some ii, Some ij -> ii - ij 
+          | Some ii, Some ij -> ii - ij
         in
         let diff_e1 = cmp_z_ref t1i t1j in
-        if diff_e1 <> 0 then diff_e1 
+        if diff_e1 <> 0 then diff_e1
         else
           let diff_e2 = cmp_z_ref t2i t2j in
-          if diff_e2 <> 0 then diff_e2 else 
+          if diff_e2 <> 0 then diff_e2 else
             Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
       in
       (*Calculate new components as groups*)
@@ -450,16 +450,16 @@ struct
         else ad.(idx) <- (Some idx_h, Z.(z1 - b_h))
       in
       let iterate l =
-        match l with 
+        match l with
         | (idx_h, (_, b_h), _) :: t -> List.iter (modify idx_h b_h) l
-        | [] -> () (*This should not happen, consider throughing exception*)       
+        | [] -> () (*This should not happen, consider throughing exception*)
       in
       List.iter iterate new_components; Some ad in
     (*Normalize the two domains a and b such that both talk about the same variables*)
-    if is_bot_env a then b else if is_bot_env b then a 
+    if is_bot_env a then b else if is_bot_env b then a
     else
       match Option.get a.d, Option.get b.d with
-      | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env 
+      | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env
         in (top_of new_env)
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
@@ -472,7 +472,7 @@ struct
 
 
   (*
-  let join' a b = 
+  let join' a b =
     let ts_zip t1 t2 =
       if Array.length t1 <> Array.length t2 then None else
         let zts = Array.init (Array.length t1) (fun (i : int) -> (i, t1.(i), t2.(i))) in
@@ -482,30 +482,30 @@ struct
     in
     let diff t1 t2 = Z.((const_offset t1) - (const_offset t2))
     in
-    let cmp_z (_, t1i, t2i) (_, t1j, t2j) = 
+    let cmp_z (_, t1i, t2i) (_, t1j, t2j) =
       let cmp_z_ref x y: int =
         match x, y with
         | (None, _), (None, _) -> 0
         | (None, _), (Some _, _) -> -1
         | (Some _, _), (None, _) -> 1
-        | (Some ii, _), (Some ij, _) -> ii - ij 
+        | (Some ii, _), (Some ij, _) -> ii - ij
       in
       let diff_e1 = cmp_z_ref t1i t1j in
-      if diff_e1 <> 0 then diff_e1 
+      if diff_e1 <> 0 then diff_e1
       else
         let diff_e2 = cmp_z_ref t2i t2j in
-        if diff_e2 <> 0 then diff_e2 else 
+        if diff_e2 <> 0 then diff_e2 else
           Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
     in
     let sort_z_by_expr zts =
-      Stdlib.Option.iter (Array.stable_sort cmp_z) zts 
+      Stdlib.Option.iter (Array.stable_sort cmp_z) zts
     in
-    let sort_annotated ats = 
-      let cmp_annotated x y : int = (Tuple2.first x) - (Tuple2.first y) 
+    let sort_annotated ats =
+      let cmp_annotated x y : int = (Tuple2.first x) - (Tuple2.first y)
       in
       Stdlib.Option.iter (Array.stable_sort cmp_annotated) ats
     in
-    let process_eq_classes zts = 
+    let process_eq_classes zts =
       let is_const x =
         match x with
         | (_, (None, _), (None, _)) -> true
@@ -522,37 +522,37 @@ struct
         let result = (i,b) in
         let iterate (a, b) i (j, (_, bj), (_, _))=
           if i > start && j < a then (j,bj) else (a,b) in
-        Array.fold_lefti iterate result zts 
+        Array.fold_lefti iterate result zts
       in
-      let all_are_const_in_eq_class zts start size : bool = 
+      let all_are_const_in_eq_class zts start size : bool =
         Array.fold_left (fun b e -> b && (is_const e)) true zts
       in
-      let assign_vars_in_const_eq_class ats zts start size least_i least_b =  
-        let adjust i e =  if i < start then e 
-          else 
+      let assign_vars_in_const_eq_class ats zts start size least_i least_b =
+        let adjust i e =  if i < start then e
+          else
             let (ai, t1, t2) = zts.(i)in
             if Z.equal (diff t1 t2) (Z.zero) then (ai, t1)
             else
               (ai, (Some least_i, Z.sub (Tuple2.second t1) least_b))
         in
-        BatArray.modifyi adjust ats 
+        BatArray.modifyi adjust ats
       in
-      let assign_vars_in_non_const_eq_class ats zts start size least_i least_b = 
+      let assign_vars_in_non_const_eq_class ats zts start size least_i least_b =
         let adjust i e = if i < start then e
           else (
             let (ai, t1, _) = zts.(i) in
             let bj = const_offset t1 in
-            (ai, (Some least_i, Z.sub bj least_b))) 
+            (ai, (Some least_i, Z.sub bj least_b)))
         in
         BatArray.modifyi adjust ats
       in
       let adjust_zts zts' =
         (*
-        let mapi_zts i e = 
+        let mapi_zts i e =
           let n = size_of_eq_class zts' i in
           if n = 1 then
             let (i', t1, t2) = zts'.(i) in
-            if is_const (i', t1, t2) && Z.equal (diff t1 t2) (Z.zero) then 
+            if is_const (i', t1, t2) && Z.equal (diff t1 t2) (Z.zero) then
               (i', (None, const_offset t1))
             else (i', (Some i', Z.zero))
           else
@@ -562,11 +562,11 @@ struct
              else assign_vars_in_non_const_eq_class result zts'); e*)
         let result = Array.make (Array.length zts') (0, (None, Z.zero)) in
         let i = ref 0 in
-        while !i < Array.length zts' do 
-          let n = size_of_eq_class zts' !i in 
+        while !i < Array.length zts' do
+          let n = size_of_eq_class zts' !i in
           (if n = 1 then
              let (i', t1, t2) = zts'.(!i) in
-             if is_const (i', t1, t2) && Z.equal (diff t1 t2) (Z.zero) then 
+             if is_const (i', t1, t2) && Z.equal (diff t1 t2) (Z.zero) then
                result.(!i) <- (i', (None, const_offset t1))
              else result.(!i) <- (i', (Some i', Z.zero))
            else
@@ -574,15 +574,15 @@ struct
              (if all_are_const_in_eq_class zts' !i n then
                 assign_vars_in_const_eq_class result zts' !i n least_i least_b
               else assign_vars_in_non_const_eq_class result zts' !i n least_i least_b);
-          ); 
+          );
           i := !i + n;
         done;
-        result 
+        result
       in
       Stdlib.Option.map adjust_zts zts
     in
-    let strip_annotation ats = 
-      Option.map (Array.map snd) ats 
+    let strip_annotation ats =
+      Option.map (Array.map snd) ats
     in
     let join_d t1 t2 =
       let zipped = ts_zip t1 t2 in
@@ -594,7 +594,7 @@ struct
     in
     if is_bot_env a then b else if is_bot_env b then a else
       match Option.get a.d, Option.get b.d with
-      | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env 
+      | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env
         in (top_of new_env)
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
@@ -625,7 +625,7 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let forget_vars t vars = 
+  let forget_vars t vars =
     if is_bot_env t || is_top t then t
     else
       let m = Option.get t.d in
@@ -633,7 +633,7 @@ struct
         let rec rem_vars m vars' =
           begin match vars' with
             |            [] -> m
-            | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end 
+            | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
         in {d = Some (EArray.remove_zero_rows @@ rem_vars (EArray.copy m) vars); env = t.env}
 
   let forget_vars t vars =
@@ -643,29 +643,29 @@ struct
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
 
-  (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements" 
+  (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
      This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     let assigned_var = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
-    begin match t.d with 
-      | Some d -> 
+    begin match t.d with
+      | Some d ->
         let abstract_exists_var = abstract_exists var t in
         begin match get_coeff t texp with
-          | None -> (* Statement "assigned_var = ?" (non-linear assignment) *) 
+          | None -> (* Statement "assigned_var = ?" (non-linear assignment) *)
             abstract_exists_var
-          | Some (None, off) -> 
-            (* Statement "assigned_var = off" (constant assignment) *) 
+          | Some (None, off) ->
+            (* Statement "assigned_var = off" (constant assignment) *)
             assign_const abstract_exists_var assigned_var off
-          | Some (Some exp_var, off) when assigned_var = exp_var -> 
+          | Some (Some exp_var, off) when assigned_var = exp_var ->
             (* Statement "assigned_var = assigned_var + off" *)
             subtract_const_from_var t assigned_var off
-          | Some (Some exp_var, off) -> 
-            (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *) 
+          | Some (Some exp_var, off) ->
+            (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
             let added_equality = EqualitiesArray.make_empty_array (VarManagement.size t) in
-            added_equality.(assigned_var) <- (Some exp_var, off); 
-            meet abstract_exists_var {d = Some added_equality; env = t.env} 
-        end 
-      | None -> bot_env end 
+            added_equality.(assigned_var) <- (Some exp_var, off);
+            meet abstract_exists_var {d = Some added_equality; env = t.env}
+        end
+      | None -> bot_env end
 
 
 
@@ -698,21 +698,21 @@ struct
   (* This functionality is not common to C and is used for assignments of the form: x = y, y=x; which is not legitimate C grammar
      x and y should be assigned to the value of x and y before the assignment respectively.
      ==> x = y_old , y = x_old;
-     Therefore first apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y 
+     Therefore first apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y
      and in a second round assign x' to x and y' to y
   *)
-  let assign_var_parallel t vv's = 
+  let assign_var_parallel t vv's =
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some arr when not @@ is_top multi_t -> 
+    | Some arr when not @@ is_top multi_t ->
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
       let res = drop_vars switched_arr primed_vars ~del:true in
       let x = Option.get res.d in
-      {d = Some x; env = res.env} 
+      {d = Some x; env = res.env}
     | _ -> t
 
   let assign_var_parallel t vv's =
@@ -752,15 +752,15 @@ struct
 
   let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
 
-  let print_coeff_vec l (env : Environment.t) = 
-    let print_element e = match e with 
-      | (a, Some x) -> print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ") 
+  let print_coeff_vec l (env : Environment.t) =
+    let print_element e = match e with
+      | (a, Some x) -> print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ")
       | (a, None) -> print_string ((Z.to_string a) ^ "+") in
     List.iter print_element  l; print_newline ()
 
   let print_final_expr l (env : Environment.t) =
-    let print_element i a = if i = 0 then print_string ((Z.to_string a) ^ " + ") else 
-        print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in 
+    let print_element i a = if i = 0 then print_string ((Z.to_string a) ^ " + ") else
+        print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in
     List.iteri print_element l; print_newline ()
 
   (** Assert a constraint expression.
@@ -776,10 +776,10 @@ struct
   *)
   module BoundsCheck = SharedFunctions.BoundsCheckMeetTcons (Bounds) (V)
 
-  let meet_tcons t tcons original_expr = 
-    (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables 
+  let meet_tcons t tcons original_expr =
+    (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
-    match t.d with 
+    match t.d with
     | None -> bot_env
     | Some d ->
       let overflow_handling res original_expr =
@@ -793,51 +793,51 @@ struct
         match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
         | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
         | Some cv's ->
-          let update (c, v) = 
-            match v with 
-            | None -> constant := Z.(!constant + c) 
-            | Some idx -> match d.(idx) with 
+          let update (c, v) =
+            match v with
+            | None -> constant := Z.(!constant + c)
+            | Some idx -> match d.(idx) with
               | (Some idx_i, c_i) -> constant := Z.(!constant + (c * c_i));
-                expr.(idx_i) <- Z.(expr.(idx_i) + c) 
+                expr.(idx_i) <- Z.(expr.(idx_i) + c)
               | (None, c_i) -> constant := Z.(!constant + (c * c_i))
-          in 
+          in
           List.iter update cv's;
           let var_count = GobArray.count_matchingi (fun _ a -> a <> Z.zero) expr in
-          if var_count = 0 then 
-            match Tcons1.get_typ tcons with 
+          if var_count = 0 then
+            match Tcons1.get_typ tcons with
             | EQ when Z.equal !constant Z.zero -> t
-            | SUPEQ when Z.geq !constant Z.zero -> t 
-            | SUP when Z.gt !constant Z.zero -> t 
-            | DISEQ when not @@ Z.equal !constant Z.zero -> t 
+            | SUPEQ when Z.geq !constant Z.zero -> t
+            | SUP when Z.gt !constant Z.zero -> t
+            | DISEQ when not @@ Z.equal !constant Z.zero -> t
             | EQMOD scalar -> t
             | _ -> bot_env (*Not supported right now
                                   if Float.equal ( Float.modulo (Z.to_float expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
           else if var_count = 1 then
             let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
             let var = (index, expr.(index)) in
-            let c = if Z.divisible !constant @@ Tuple2.second var then Some (Z.(-(!constant) / (Tuple2.second var))) 
+            let c = if Z.divisible !constant @@ Tuple2.second var then Some (Z.(-(!constant) / (Tuple2.second var)))
               else None in
-            match Tcons1.get_typ tcons, c with 
-            | EQ, Some c -> 
-              let expression = Texpr1.to_expr @@ Texpr1.cst t.env (Coeff.s_of_int @@ Z.to_int c) in 
-              let res = meet t (assign_texpr (top_of t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expression) 
+            match Tcons1.get_typ tcons, c with
+            | EQ, Some c ->
+              let expression = Texpr1.to_expr @@ Texpr1.cst t.env (Coeff.s_of_int @@ Z.to_int c) in
+              let res = meet t (assign_texpr (top_of t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expression)
               in overflow_handling res original_expr
             | _ -> t (*Not supported right now*)
-          else if var_count = 2 then 
+          else if var_count = 2 then
             let get_vars i a l = if Z.equal a Z.zero then l else (i, a)::l in
             let v12 = Array.fold_righti get_vars expr [] in
-            let a1 = Tuple2.second (List.hd v12) in  
+            let a1 = Tuple2.second (List.hd v12) in
             let a2 = Tuple2.second (List.hd @@ List.tl v12) in
-            let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in 
+            let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in
             let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
-            match Tcons1.get_typ tcons with 
-            | EQ -> 
-              let res = if Z.equal a1 Z.one && Z.equal a2 Z.one 
-                then meet t (assign_var (top_of t.env) var1 var2) 
+            match Tcons1.get_typ tcons with
+            | EQ ->
+              let res = if Z.equal a1 Z.one && Z.equal a2 Z.one
+                then meet t (assign_var (top_of t.env) var1 var2)
                 else t
               in overflow_handling res original_expr
             | _-> t (*Not supported right now*)
-          else 
+          else
             t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
@@ -852,12 +852,12 @@ struct
 
   (* Assert a constraint expression. Defined in apronDomain.apron.ml
 
-     If the constraint is never fulfilled, then return bottom. 
+     If the constraint is never fulfilled, then return bottom.
      Else the domain can be modified with the new information given by the constraint.
 
      It basically just calls the function meet_tcons.
 
-     It is called by eval (defined in sharedFunctions), but also when a guard in 
+     It is called by eval (defined in sharedFunctions), but also when a guard in
      e.g. an if statement is encountered in the C code.
 
   *)
@@ -865,21 +865,21 @@ struct
     let no_ov = Lazy.force no_ov in
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b\n" d_exp e no_ov;
     match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1 e    
+    | tcons1 -> meet_tcons d tcons1 e
     | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov
 
   let relift t = t
 
-  (* representation as C expression 
+  (* representation as C expression
 
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
   (*TODO*)
   let invariant t = []
-  (*let invariant t = 
+  (*let invariant t =
     match t.d with
     | None -> []
     | Some m ->
@@ -887,13 +887,13 @@ struct
         EArray.fold_left
         (fun acc row ->
           let coeff_vars = List.map (fun(var,off) -> Coeff.s_of_int off, Some var) row in
-          let cst = Coeff.s_of_int (snd (List.hd row)) in 
+          let cst = Coeff.s_of_int (snd (List.hd row)) in
           Lincons1.make (Linexpr1.make t.env) Lincons1.EQ
           |> Lincons1.set_list coeff_vars (Some cst)
           |> (fun lc -> Lincons1.{lincons0 = Lincons0.of_lincons1 lc; env = t.env})
           :: acc)
         [] m
-      in 
+      in
       List.rev linear_constraints *)
 
   (* let invariant t =
@@ -916,7 +916,7 @@ struct
              Lincons1.{ lincons0 = Lincons0.of_lincons1 lc; env = t.env } :: acc)
            [] m
        in
-       List.rev linear_constraints    *)     
+       List.rev linear_constraints    *)
 
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
@@ -933,8 +933,7 @@ end
 
 module D2: RelationDomain.S3 with type var = Var.t =
 struct
-  module D = D 
+  module D = D
   include SharedFunctions.AssertionModule (V) (D)
   include D
 end
-
