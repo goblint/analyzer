@@ -441,7 +441,7 @@ struct
       in
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
-    (*Adjust the domain array to represent the new components*)
+      (*Adjust the domain array to represent the new components*)
       let modify idx_h b_h (idx, (opt1, z1), (opt2, z2)) =
         if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
         else if Option.(opt1 = opt2) && Z.(z1 = z2) then ()
@@ -451,8 +451,8 @@ struct
         match l with 
         | (idx_h, (_, b_h), _) :: t -> List.iter (modify idx_h b_h) l
         | [] -> () (*This should not happen, consider throughing exception*)       
-    in
-    List.iter iterate new_components; Some ad in
+      in
+      List.iter iterate new_components; Some ad in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     if is_bot_env a then b else if is_bot_env b then a 
     else
@@ -466,7 +466,7 @@ struct
         {d = join_d mod_x mod_y; env = sup_env}
       | x, y when EArray.equal x y -> {d = Some x; env = a.env}
       | x, y  -> {d = join_d x y; env = a.env}
-  
+
 
 
   (*
