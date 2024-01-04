@@ -304,7 +304,7 @@ struct
   let is_bot_env t = t.d = None
 
   (*this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities*)
-  let top_of env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
+  let top_of env = {d = Some (EArray.make_empty_array (Environment.size env)); env = env}
 
   (*Should never be called but implemented for completeness *)
   let top () = {d = Some (EArray.empty()); env = empty_env}
@@ -422,24 +422,12 @@ struct
       (*use copy of ad because result is later saved in there*)
       let ad = Array.copy ad in
       (*This is the table which is later grouped*)
-      let table = BatList.map2i (fun i a b -> (i,a,b)) (Array.to_list ad) (Array.to_list bd) in
+      let table = BatList.map2i (fun i a b -> (i, a, b)) (Array.to_list ad) (Array.to_list bd) in
       let const_offset t = Tuple2.second t in
-      let diff t1 t2 = Z.((const_offset t1) - (const_offset t2)) in
+      let diff t1 t2 = Z.(const_offset t1 - const_offset t2) in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t1i, t2i) (_, t1j, t2j) =
-        let cmp_z_ref (x,_) (y,_): int =
-          match x, y with
-          | None, None -> 0
-          | None, Some _ -> -1
-          | Some _, None -> 1
-          | Some ii, Some ij -> ii - ij
-        in
-        let diff_e1 = cmp_z_ref t1i t1j in
-        if diff_e1 <> 0 then diff_e1
-        else
-          let diff_e2 = cmp_z_ref t2i t2j in
-          if diff_e2 <> 0 then diff_e2 else
-            Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
+        Tuple3.compare (fst t1i, fst t2i, diff t1i t2i) (fst t1j, fst t2j, diff t1j t2j)
       in
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
@@ -452,7 +440,7 @@ struct
       let iterate l =
         match l with
         | (idx_h, (_, b_h), _) :: t -> List.iter (modify idx_h b_h) l
-        | [] -> () (*This should not happen, consider throughing exception*)
+        | [] -> () (*This should not happen, consider throwing exception*)
       in
       List.iter iterate new_components; Some ad in
     (*Normalize the two domains a and b such that both talk about the same variables*)
