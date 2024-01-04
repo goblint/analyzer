@@ -82,7 +82,7 @@ module EqualitiesArray = struct
 
   let is_empty m = length m = 0
 
-  let is_top_array m = Array.fold_lefti (fun b i (a, e) -> if Z.(e = zero) && Option.is_some a && Option.get a = i then b else false) true m
+  let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.(e = zero))
 
   let find_reference_variable d var_index = fst d.(var_index)
 
@@ -405,10 +405,10 @@ struct
     in  
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true else
-    if is_bot_env t2 || is_top t1 then false else (
+    if is_bot_env t2 || is_top t1 then false else 
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
-      Array.fold_lefti (fun b i t -> b && implies m1' t i) true m2)
+      GobArray.for_alli (fun i t -> implies m1' t i) m2
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -446,7 +446,7 @@ struct
       (*Adjust the domain array to represent the new components*)
       let modify idx_h b_h (idx, (opt1, z1), (opt2, z2)) =
         if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
-        else if Option.(opt1 = opt2) && Z.(z1 = z2) then ()
+        else if opt1 = opt2 && z1 = z2 then ()
         else ad.(idx) <- (Some idx_h, Z.(z1 - b_h))
       in
       let iterate l =
@@ -799,9 +799,7 @@ struct
               | (None, c_i) -> Array.set expr 0 (Z.add expr.(0)  (Z.mul c  c_i))
           in 
           List.iter (update expr) cv's ;
-          let counting count i a = if i = 0 || Z.equal a Z.zero then count else count + 1 in
-          let var_count = Array.fold_lefti counting 0 expr
-          in 
+          let var_count = GobArray.count_matchingi (fun i a -> i <> 0 && not (Z.equal a Z.zero)) expr in
           if var_count = 0 then 
             match Tcons1.get_typ tcons with 
             | EQ when Z.equal expr.(0) Z.zero -> t
