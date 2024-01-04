@@ -303,13 +303,13 @@ struct
   let is_bot t = equal t (bot ())
   let is_bot_env t = t.d = None
 
-  (*this shows "top" for a specific environment to enable the calculations. It is the identity of all equalities*)
-  let identity env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
+  (*this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities*)
+  let top_of env = {d = Some (Array.init (Environment.size env) (fun i -> (Some i, Z.zero))); env = env}
 
   (*Should never be called but implemented for completeness *)
   let top () = {d = Some (EArray.empty()); env = empty_env}
 
-  (*is_top returns true for identity array and empty array *)
+  (*is_top returns true for top_of array and empty array *)
   let is_top t = GobOption.exists EArray.is_top_array t.d
 
   (* prints the current variable equalities with resolved variable names *)
@@ -460,7 +460,7 @@ struct
     else
       match Option.get a.d, Option.get b.d with
       | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env 
-        in (identity new_env)
+        in (top_of new_env)
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -595,7 +595,7 @@ struct
     if is_bot_env a then b else if is_bot_env b then a else
       match Option.get a.d, Option.get b.d with
       | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env 
-        in (identity new_env)
+        in (top_of new_env)
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -818,7 +818,7 @@ struct
             match Tcons1.get_typ tcons, c with 
             | EQ, Some c-> 
               let expression = Texpr1.to_expr @@ Texpr1.cst t.env  (Coeff.s_of_int @@ Z.to_int c) in 
-              let res = meet t (assign_texpr (identity t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expression) 
+              let res = meet t (assign_texpr (top_of t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expression) 
               in overflow_handling res original_expr
             | _ -> t (*Not supported right now*)
           else if var_count = 2 then 
@@ -830,7 +830,7 @@ struct
             let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
             match Tcons1.get_typ tcons with 
             | EQ -> 
-              let res = if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (identity t.env) var1 var2) else t
+              let res = if Z.equal a1 Z.one && Z.equal a2  Z.one then meet t (assign_var (top_of t.env) var1 var2) else t
               in overflow_handling res original_expr
             | _-> t (*Not supported right now*)
           else 
