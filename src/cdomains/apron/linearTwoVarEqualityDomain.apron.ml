@@ -419,9 +419,11 @@ struct
 
   let join a b =     
     let join_d ad bd = 
+      (*This is the table which is later grouped*)
       let table = BatList.map2i (fun i a b -> (i,a,b)) (Array.to_list ad) (Array.to_list bd) in
       let const_offset t = Tuple2.second t in
       let diff t1 t2 = Z.((const_offset t1) - (const_offset t2)) in
+      (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t1i, t2i) (_, t1j, t2j) = 
         let cmp_z_ref (x,_) (y,_): int =
           match x, y with
@@ -437,7 +439,9 @@ struct
           if diff_e2 <> 0 then diff_e2 else 
             Z.to_int (Z.((diff t1i t2i) - (diff t1j t2j)))
       in
+      (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
+    (*Adjust the domain array to represent the new components*)
       let modify idx_h b_h (idx, (opt1, z1), (opt2, z2)) =
         if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
         else if Option.(opt1 = opt2) && Z.(z1 = z2) then ()
@@ -449,7 +453,9 @@ struct
         | [] -> () (*This should not happen, consider throughing exception*)       
     in
     List.iter iterate new_components; Some ad in
-    if is_bot_env a then b else if is_bot_env b then a else
+    (*Normalize the two domains a and b such that both talk about the same variables*)
+    if is_bot_env a then b else if is_bot_env b then a 
+    else
       match Option.get a.d, Option.get b.d with
       | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env 
         in (identity new_env)
