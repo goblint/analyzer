@@ -29,5 +29,5 @@ int main()
 {
     int x = __VERIFIER_nondet_int();
     int res = g(x);
-    __goblint_check(res == 0); // UNKNOWN
+    __goblint_check(res == 0); 
 }
