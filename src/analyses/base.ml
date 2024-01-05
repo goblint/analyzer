@@ -249,7 +249,7 @@ struct
     | _ -> false
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop_base (a: Q.ask) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop_base ~ctx (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -346,7 +346,7 @@ struct
             let ax = AD.choose x in
             let ay = AD.choose y in
             let handle_address_is_multiple addr = begin match Addr.to_var addr with
-              | Some v when a.f (Q.IsMultiple v) ->
+              | Some v when ctx.ask (Q.IsMultiple v) ->
                 if M.tracing then M.tracel "addr" "IsMultiple %a\n" CilType.Varinfo.pretty v;
                 None
               | _ ->
@@ -782,7 +782,7 @@ struct
         let a1 = eval_rv ~ctx st e1 in
         let a2 = eval_rv ~ctx st e2 in
         let extra_is_safe =
-          match evalbinop_base (Analyses.ask_of_ctx ctx) op t1 a1 t2 a2 typ with
+          match evalbinop_base ~ctx op t1 a1 t2 a2 typ with
           | Int i -> ID.to_bool i = Some true
           | _
           | exception IntDomain.IncompatibleIKinds _ -> false
@@ -963,19 +963,18 @@ struct
   (** Evaluate BinOp using MustBeEqual query as fallback. *)
   and evalbinop_mustbeequal ~ctx (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
     (* Evaluate structurally using base at first. *)
-    let ask = Analyses.ask_of_ctx ctx in
     let a1 = eval_rv ~ctx st e1 in
     let a2 = eval_rv ~ctx st e2 in
     let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
     let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
-    let r = evalbinop_base ask op t1 a1 t2 a2 t in
+    let r = evalbinop_base ~ctx op t1 a1 t2 a2 t in
     if Cil.isIntegralType t then (
       match r with
       | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
       | _ ->
         (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
         let must_be_equal () =
-          let r = Q.must_be_equal ask e1 e2 in
+          let r = Q.must_be_equal (Analyses.ask_of_ctx ctx) e1 e2 in
           if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
           r
         in
