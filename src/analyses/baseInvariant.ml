@@ -17,8 +17,8 @@ sig
 
   val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
   val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
-  val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> lval -> AD.t
-  val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> offset -> ID.t Offset.t
+  val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> lval -> AD.t
+  val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> offset -> ID.t Offset.t
 
   val get_var: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> varinfo -> VD.t
   val get: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> AD.t -> exp option -> VD.t
@@ -64,7 +64,7 @@ struct
 
   let refine_lv_fallback ctx st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-    let addr = eval_lv ~ctx lval in
+    let addr = eval_lv ~ctx st lval in
     if (AD.is_top addr) then st
     else
       let old_val = get ~ctx st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
@@ -92,13 +92,13 @@ struct
       else set st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let refine_lv ctx st c x c' pretty exp =
-    let set' lval v st = set st (eval_lv ~ctx lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+    let set' lval v st = set st (eval_lv ~ctx st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
       let old_val = get_var ~ctx st var in
       let old_val = map_oldval old_val var.vtype in
-      let offs = convert_offset ~ctx o in
+      let offs = convert_offset ~ctx st o in
       let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) old_val offs c' (Some exp) x (var.vtype) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
