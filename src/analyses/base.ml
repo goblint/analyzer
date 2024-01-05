@@ -513,7 +513,7 @@ struct
     in
     List.fold_right f vals []
 
-  let rec reachable_from_value ~ctx (value: value) (t: typ) (description: string)  =
+  let rec reachable_from_value ask (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
     if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
     match value with
@@ -525,12 +525,12 @@ struct
     (* The main thing is to track where pointers go: *)
     | Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
-    | Union (f,e) -> reachable_from_value ~ctx e t description
+    | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | Array a -> reachable_from_value ~ctx (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ())) t description
-    | Blob (e,_,_) -> reachable_from_value ~ctx e t description
-    | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ~ctx v t description) acc) s empty
+    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | Blob (e,_,_) -> reachable_from_value ask e t description
+    | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask v t description) acc) s empty
     | Int _ -> empty
     | Float _ -> empty
     | MutexAttr _ -> empty
@@ -543,7 +543,7 @@ struct
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_address ~ctx (adr: address): address =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
-    let res = reachable_from_value ~ctx (get ~ctx ctx.local adr None) (AD.type_of adr) (AD.show adr) in
+    let res = reachable_from_value (Analyses.ask_of_ctx ctx) (get ~ctx ctx.local adr None) (AD.type_of adr) (AD.show adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -1876,7 +1876,7 @@ struct
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ~ctx ?(warn=false) (st:store) (exps: exp list) =
     let do_exp e =
-      let immediately_reachable = reachable_from_value ~ctx (eval_rv ~ctx st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      let immediately_reachable = reachable_from_value (Analyses.ask_of_ctx ctx) (eval_rv ~ctx st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ~ctx [immediately_reachable]
     in
     List.concat_map do_exp exps
