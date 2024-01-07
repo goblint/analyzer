@@ -1,4 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
+// example from the paper
 #include <stdio.h>
 #include <goblint.h>
 
@@ -13,7 +14,7 @@ if(x>5){
   x4 = x2 + 5;
   x5 = x1 + 5;
   x6 = x1 + 3;
-  x7 = x1 + 2;  
+  x7 = x1 + 2;
 } else {
   x1 = x1;
   x2 = x2;
@@ -30,4 +31,3 @@ __goblint_check(x7 == x6 - 1);
 
 return 0;
 }
-

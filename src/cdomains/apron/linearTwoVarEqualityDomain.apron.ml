@@ -34,6 +34,8 @@ module EqualitiesArray = struct
   include Array
   type t = Equality.t Array.t [@@deriving eq, ord]
 
+  let print = Array.iter (fun k -> Equality.print k)
+
   let hash : t -> int = Array.fold_left (fun acc a -> 31 * acc + Equality.hash a) 0
 
   let empty () = [||]
@@ -73,7 +75,7 @@ module EqualitiesArray = struct
       if nc = nrc then [||] else
         let offset = ref 0 in
         let offset_map = Array.init nc (fun j ->
-            if indexes.(!offset) = j then (incr offset; 0) else !offset)
+            if !offset < nrc && indexes.(!offset) = j then (incr offset; !offset) else !offset)
         in let remove_offset_from_array_entry (var, offs) =
              Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
         Array.init (nc - nrc) (fun j -> remove_offset_from_array_entry m.(j + offset_map.(j)))
@@ -338,19 +340,7 @@ struct
              | (None, bt) -> (None, Z.(b' + bt))
              | (Some xt, bt) -> (Some xt, Z.(b' + bt)))
           else (Some x', b')in
-      Stdlib.Option.iter (BatArray.modify adjust) !ts (*
-      match !ts with
-      | None -> ()
-      | Some ts' ->
-        if Array.length ts' <> 0 then
-          for i = 0 to Array.length ts' - 1 do
-            match ts'.(i) with
-            | (None, _) -> ()
-            | (Some x', b') -> if x = x' then
-                (match t with
-                 | (None, bt) -> ts'.(i) <- (None, Z.(b' + bt))
-                 | (Some xt, bt) -> ts'.(i) <- (Some xt, Z.(b' + bt)))
-          done*)
+      Stdlib.Option.iter (BatArray.modify adjust) !ts
     in
     let add_conj ts t i =
       let adjust ts' =
@@ -432,6 +422,9 @@ struct
       in
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
+      let only_equal_constants = List.for_all
+          (fun (_, (v_1, b_1), (v_2, b_2)) ->
+             Option.is_none v_1 && Option.is_none v_2 && b_1 == b_2) in
       (*Adjust the domain array to represent the new components*)
       let modify idx_h b_h (idx, (opt1, z1), (opt2, z2)) =
         if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
@@ -440,6 +433,9 @@ struct
       in
       let iterate l =
         match l with
+        (* Case 1 first part in the paper *)
+        | l when only_equal_constants l -> ()
+        (* Case 2 and second part of Case 1 in the paper *)
         | (idx_h, (_, b_h), _) :: t -> List.iter (modify idx_h b_h) l
         | [] -> () (*This should not happen, consider throwing exception*)
       in
