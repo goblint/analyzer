@@ -329,36 +329,48 @@ struct
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
 
-  let meet t1 t2 =
-    let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
+  exception Contradiction
+
+  let meet_with_one_conj_with ts i (var, b) =
     let subst_var ts x (vart, bt) =
       let adjust (vare, b') =
-        if Option.eq ~eq:Int.equal (Some x) vare then (vart, Z.(b' + bt)) else (vare, b') in Option.may (BatArray.modify adjust) !ts
+        if Option.eq ~eq:Int.equal (Some x) vare then (vart, Z.(b' + bt)) else (vare, b') in
+      BatArray.modify adjust ts in
+    let adjust ts' =
+      let (var1, b1) = ts'.(i) in
+      (match var, var1 with
+       | None, None -> if not @@ Z.equal b b1 then raise Contradiction
+       | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
+       | Some j, None -> subst_var ts j (None, Z.(b1 - b))
+       | Some j, Some h1 ->
+         (match ts'.(j) with
+          | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
+          | (Some h2, b2) ->
+            if h1 = h2 then
+              (if Z.(b1 <> (b2 + b)) then raise Contradiction)
+            else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
+            else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
     in
-    let add_conj ts (var, b) i =
-      let adjust ts' =
-        let (var1, b1) = ts'.(i) in
-        (match var, var1 with
-         | None, None -> if not @@ Z.equal b b1 then ts := None;
-         | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
-         | Some j, None -> subst_var ts j (None, Z.(b1 - b))
-         | Some j, Some h1 ->
-           (match ts'.(j) with
-            | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
-            | (Some h2, b2) ->
-              if h1 = h2 then
-                (if Z.(b1 <> (b2 + b)) then ts := None)
-              else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
-              else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
-      in
-      Stdlib.Option.iter adjust !ts
+    adjust ts
+
+  let meet_with_one_conj t i e =
+    match t.d with
+    | None -> t
+    | Some d -> let res_d = Array.copy d in
+      match meet_with_one_conj_with res_d i e with
+      | exception Contradiction -> {d = None; env = t.env}
+      | () -> {d = Some res_d; env = t.env}
+
+  let meet t1 t2 =
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false
     in
     match t1.d, t2.d with
     | Some d1', Some d2' -> (
-        let ds = ref (Some (Array.copy d1')) in
-        Array.iteri (fun j e -> add_conj ds e j) d2';
-        {d = !ds; env = sup_env} )
+        let res_d = Array.copy d1' in
+        match Array.iteri (meet_with_one_conj_with res_d) d2' with
+        | exception Contradiction -> {d = None; env = sup_env}
+        | () -> {d = Some res_d; env = sup_env} )
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
@@ -487,9 +499,7 @@ struct
             subtract_const_from_var t assigned_var off
           | Some (Some exp_var, off) ->
             (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
-            let added_equality = EqualitiesArray.make_empty_array (VarManagement.size t) in
-            added_equality.(assigned_var) <- (Some exp_var, off);
-            meet abstract_exists_var {d = Some added_equality; env = t.env}
+            meet_with_one_conj abstract_exists_var assigned_var (Some exp_var, off)
         end
       | None -> bot_env end
 
@@ -636,30 +646,31 @@ struct
             | SUP when Z.gt !constant Z.zero -> t
             | DISEQ when not @@ Z.equal !constant Z.zero -> t
             | EQMOD scalar -> t
-            | _ -> bot_env (*Not supported right now
-                                  if Float.equal ( Float.modulo (Z.to_float expr.(0)) (convert_scalar scalar )) 0. then t else {d = None; env = t.env}*)
+            | _ -> bot_env
           else if var_count = 1 then
             let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
             let var = (index, expr.(index)) in
-            let c = if Z.divisible !constant @@ Tuple2.second var then Some (Z.(-(!constant) / (Tuple2.second var)))
+            let c = if Z.divisible !constant @@ snd var then Some (Z.(-(!constant) / (snd var)))
               else None in
             match Tcons1.get_typ tcons, c with
             | EQ, Some c ->
-              let expression = Texpr1.to_expr @@ Texpr1.cst t.env (Coeff.s_of_int @@ Z.to_int c) in
-              let res = meet t (assign_texpr (top_of t.env) (Environment.var_of_dim t.env (Tuple2.first var)) expression)
+              let res = meet_with_one_conj t (fst var) (None, c)
               in overflow_handling res original_expr
             | _ -> t (*Not supported right now*)
           else if var_count = 2 then
             let get_vars i a l = if Z.equal a Z.zero then l else (i, a)::l in
             let v12 = Array.fold_righti get_vars expr [] in
-            let a1 = Tuple2.second (List.hd v12) in
-            let a2 = Tuple2.second (List.hd @@ List.tl v12) in
-            let var1 = Environment.var_of_dim t.env (Tuple2.first (List.hd v12)) in
-            let var2 = Environment.var_of_dim t.env (Tuple2.first (List.hd @@ List.tl v12)) in
+            let a1 = snd (List.hd v12) in
+            let a2 = snd (List.hd @@ List.tl v12) in
+            let var1 = fst (List.hd v12) in
+            let var2 = fst (List.hd @@ List.tl v12) in
             match Tcons1.get_typ tcons with
             | EQ ->
-              let res = if Z.equal a1 Z.one && Z.equal a2 Z.one
-                then meet t (assign_var (top_of t.env) var1 var2)
+              let res =
+                if Z.equal a1 Z.one && Z.equal a2 Z.(-one)
+                then meet_with_one_conj t var2 (Some var1, !constant)
+                else if Z.equal a1 Z.(-one) && Z.equal a2 Z.one
+                then meet_with_one_conj t var1 (Some var2, !constant)
                 else t
               in overflow_handling res original_expr
             | _-> t (*Not supported right now*)
