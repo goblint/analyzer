@@ -207,8 +207,14 @@ struct
         let (item_typ, item_size_in_bits) =
           match Option.map unrollType typ with
           | Some TArray(item_typ, _, _) ->
-            let item_size_in_bits = bitsSizeOf item_typ in
-            (Some item_typ, idx_of_int item_size_in_bits)
+            let item_size_in_bits =
+              match bitsSizeOf item_typ with
+              | bit_size -> idx_of_int bit_size
+              | exception SizeOfError _ ->
+                (* For abstract types we get an exception, treat as unknown bit size. *)
+                Idx.top ()
+            in
+            (Some item_typ, item_size_in_bits)
           | _ ->
             (None, Idx.top ())
         in
