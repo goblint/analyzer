@@ -332,34 +332,25 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
-    let subst_var ts x t =
-      let adjust e = match e with
-        | (None, b') -> (None, b')
-        | (Some x', b') -> if x = x' then
-            (match t with
-             | (None, bt) -> (None, Z.(b' + bt))
-             | (Some xt, bt) -> (Some xt, Z.(b' + bt)))
-          else (Some x', b')in
-      Stdlib.Option.iter (BatArray.modify adjust) !ts
+    let subst_var ts x (vart, bt) =
+      let adjust (vare, b') =
+        if Option.eq ~eq:Int.equal (Some x) vare then (vart, Z.(b' + bt)) else (vare, b') in Option.may (BatArray.modify adjust) !ts
     in
-    let add_conj ts t i =
+    let add_conj ts (var, b) i =
       let adjust ts' =
-        (match t with
-         | (None, b) ->
-           (match ts'.(i) with
-            | (None, b') -> if not @@ Z.equal b b' then ts := None;
-            | (Some j, b') -> subst_var ts j (None, Z.(b - b')))
-         | (Some j, b) ->
-           (match ts'.(i) with
-            | (None, b1) -> subst_var ts j (None, Z.(b1 - b))
-            | (Some h1, b1) ->
-              (match ts'.(j) with
-               | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
-               | (Some h2, b2) ->
-                 if h1 = h2 then
-                   (if Z.(b1 <> (b2 + b)) then ts := None)
-                 else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
-                 else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))))
+        let (var1, b1) = ts'.(i) in
+        (match var, var1 with
+         | None, None -> if not @@ Z.equal b b1 then ts := None;
+         | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
+         | Some j, None -> subst_var ts j (None, Z.(b1 - b))
+         | Some j, Some h1 ->
+           (match ts'.(j) with
+            | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
+            | (Some h2, b2) ->
+              if h1 = h2 then
+                (if Z.(b1 <> (b2 + b)) then ts := None)
+              else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
+              else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
       in
       Stdlib.Option.iter adjust !ts
     in
@@ -368,7 +359,7 @@ struct
         let ds = ref (Some (Array.copy d1')) in
         Array.iteri (fun j e -> add_conj ds e j) d2';
         {d = !ds; env = sup_env} )
-    | _ -> { d = None; env = sup_env}
+    | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
     let res = meet t1 t2 in
@@ -379,19 +370,11 @@ struct
 
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
-    let implies ts t i : bool =
-      match t with
-      | (None, b) ->
-        (match ts.(i) with
-         | (None, b') -> Z.equal b b'
-         | _ -> false)
-      | (Some j, b) ->
-        (match ts.(i), ts.(j) with
-         | (None, b1), (None, b2) -> Z.equal b1 (Z.add b2 b)
-         | (Some h1, b1), (Some h2, b2) ->
-           h1 = h2 && Z.equal b1 (Z.add b2 b)
-         | _ -> false
-        )
+    let implies ts (var, b) i =
+      let tuple_cmp = Tuple2.eq (Option.eq ~eq:Int.equal) (Z.equal) in
+      match var with
+      | None -> tuple_cmp (var, b) ts.(i)
+      | Some j -> tuple_cmp ts.(i) @@ Tuple2.map2 (Z.add b) ts.(j)
     in
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true else
@@ -421,24 +404,17 @@ struct
       in
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
-      (*let only_equal_constants = List.for_all
-          (fun (_, (v_1, b_1), (v_2, b_2)) ->
-             Option.is_none v_1 && Option.is_none v_2 && b_1 == b_2) in*)
       (*Adjust the domain array to represent the new components*)
       let modify idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) =
-        if opt1 = opt2 && Z.(z1 = z2) then ()
-        else if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
+        if opt1 = opt2 && Z.equal z1 z2 then ()
         else ad.(idx) <- (Some idx_h, Z.(z1 - b_h))
       in
       let iterate l =
         match l with
-        (* Case 1 first part in the paper 
-           | l when only_equal_constants l -> () *)
-        (* Case 2 and second part of Case 1 in the paper *)
         | (idx_h, _, (_, b_h), _) :: t ->  List.iter (modify idx_h b_h) l
         | [] -> () (*This should not happen, consider throwing exception*)
       in
-      List.iter iterate new_components; Some ad 
+      List.iter iterate new_components; Some ad
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     if is_bot_env a then b else if is_bot_env b then a
