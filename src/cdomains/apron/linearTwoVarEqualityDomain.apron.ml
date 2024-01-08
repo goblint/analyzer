@@ -413,8 +413,7 @@ struct
       let ad = Array.copy ad in
       (*This is the table which is later grouped*)
       let table = BatList.map2i (fun i a b -> (i, a, b)) (Array.to_list ad) (Array.to_list bd) in
-      let const_offset t = Tuple2.second t in
-      let diff t1 t2 = Z.(const_offset t1 - const_offset t2) in
+      let diff t1 t2 = Z.(snd t1 - snd t2) in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t1i, t2i) (_, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in

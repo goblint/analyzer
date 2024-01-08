@@ -1,8 +1,5 @@
 //SKIP PARAM: --set ana.activated[+] lin2vareq --set ana.relation.privatization top --set sem.int.signed_overflow assume_none
 void main(void) {
-   //int zero = 0;
-   //int x = 0;
-
    int a, b, c;
    if (a) {
        b = 20;
