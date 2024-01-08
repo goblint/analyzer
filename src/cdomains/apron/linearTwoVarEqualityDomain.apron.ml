@@ -412,12 +412,12 @@ struct
       (*use copy of ad because result is later saved in there*)
       let ad = Array.copy ad in
       (*This is the table which is later grouped*)
-      let table = BatList.map2i (fun i a b -> (i, a, b)) (Array.to_list ad) (Array.to_list bd) in
-      let diff t1 t2 = Z.(snd t1 - snd t2) in
+      let table = BatList.map2i (fun i (ai, aj) (bi,bj) -> (i, Z.(aj - bj), (ai, aj), (bi,bj))) (Array.to_list ad) (Array.to_list bd) in
+      (*let diff t1 t2 = Z.(snd t1 - snd t2) in*)
       (*compare two variables for grouping depending on delta function and reference index*)
-      let cmp_z (_, t1i, t2i) (_, t1j, t2j) =
+      let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in
-        Tuple3.compare ~cmp1:cmp_ref ~cmp2:cmp_ref ~cmp3:Z.compare (fst t1i, fst t2i, diff t1i t2i) (fst t1j, fst t2j, diff t1j t2j)
+        Tuple3.compare ~cmp1:cmp_ref ~cmp2:cmp_ref ~cmp3:Z.compare (fst t1i, fst t2i, t0i) (fst t1j, fst t2j, t0j)
       in
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
@@ -425,7 +425,7 @@ struct
           (fun (_, (v_1, b_1), (v_2, b_2)) ->
              Option.is_none v_1 && Option.is_none v_2 && b_1 == b_2) in*)
       (*Adjust the domain array to represent the new components*)
-      let modify idx_h b_h (idx, (opt1, z1), (opt2, z2)) =
+      let modify idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) =
         if opt1 = opt2 && Z.(z1 = z2) then ()
         else if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
         else ad.(idx) <- (Some idx_h, Z.(z1 - b_h))
@@ -435,10 +435,11 @@ struct
         (* Case 1 first part in the paper 
            | l when only_equal_constants l -> () *)
         (* Case 2 and second part of Case 1 in the paper *)
-        | (idx_h, (_, b_h), _) :: t ->  List.iter (modify idx_h b_h) l
+        | (idx_h, _, (_, b_h), _) :: t ->  List.iter (modify idx_h b_h) l
         | [] -> () (*This should not happen, consider throwing exception*)
       in
-      List.iter iterate new_components; Some ad in
+      List.iter iterate new_components; Some ad 
+    in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     if is_bot_env a then b else if is_bot_env b then a
     else
