@@ -715,45 +715,27 @@ struct
 
      Lincons -> linear constraint *)
   (*TODO*)
-  let invariant t = []
-  (*let invariant t =
+  let invariant t =
     match t.d with
     | None -> []
-    | Some m ->
-      let linear_constraints =
-        EArray.fold_left
-        (fun acc row ->
-          let coeff_vars = List.map (fun(var,off) -> Coeff.s_of_int off, Some var) row in
-          let cst = Coeff.s_of_int (snd (List.hd row)) in
-          Lincons1.make (Linexpr1.make t.env) Lincons1.EQ
-          |> Lincons1.set_list coeff_vars (Some cst)
-          |> (fun lc -> Lincons1.{lincons0 = Lincons0.of_lincons1 lc; env = t.env})
-          :: acc)
-        [] m
-      in
-      List.rev linear_constraints *)
-
-  (* let invariant t =
-     match t.d with
-     | None -> []
-     | Some m ->
-       let linear_constraints =
-         EArray.fold_left
-           (fun acc row ->
-             let lc =
-               List.fold_left
-                 (fun lc (var, off) ->
-                   let coeff = Coeff.s_of_int off in
-                   let var_opt = Some var in
-                   Lincons1.set_coeff lc var_opt coeff)
-                 (Lincons1.make (Linexpr1.make t.env) Lincons1.EQ)
-                 row
-               |> fun lc -> Lincons1.set_cst lc (Coeff.s_of_int (snd (List.hd row)))
-             in
-             Lincons1.{ lincons0 = Lincons0.of_lincons1 lc; env = t.env } :: acc)
-           [] m
-       in
-       List.rev linear_constraints    *)
+    | Some d ->
+      let earray = Lincons1.array_make t.env (Array.length d) in
+      for i = 0 to Array.length d - 1 do
+        let (var_opt, const) = d.(i) in
+        let coeff_vars = match var_opt with
+          | None -> []
+          | Some var_index ->
+            let var = Environment.var_of_dim t.env var_index in
+            [(Coeff.s_of_int 1, var)]
+        in
+        let cst = Coeff.s_of_int (Z.to_int const) in
+        Lincons1.set_list (Lincons1.array_get earray i) coeff_vars (Some cst)
+      done;
+      let {lincons0_array; array_env}: Lincons1.earray = earray in
+      Array.to_list lincons0_array
+      |> List.map (fun lincons0 ->
+          Lincons1.{lincons0; env = array_env}
+      )  
 
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
