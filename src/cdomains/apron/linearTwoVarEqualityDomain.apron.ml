@@ -422,21 +422,21 @@ struct
       in
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
-      let only_equal_constants = List.for_all
+      (*let only_equal_constants = List.for_all
           (fun (_, (v_1, b_1), (v_2, b_2)) ->
-             Option.is_none v_1 && Option.is_none v_2 && b_1 == b_2) in
+             Option.is_none v_1 && Option.is_none v_2 && b_1 == b_2) in*)
       (*Adjust the domain array to represent the new components*)
       let modify idx_h b_h (idx, (opt1, z1), (opt2, z2)) =
-        if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
-        else if opt1 = opt2 && z1 = z2 then ()
+        if opt1 = opt2 && Z.(z1 = z2) then ()
+        else if idx_h = idx then ad.(idx) <- (Some idx, Z.zero)
         else ad.(idx) <- (Some idx_h, Z.(z1 - b_h))
       in
       let iterate l =
         match l with
-        (* Case 1 first part in the paper *)
-        | l when only_equal_constants l -> ()
+        (* Case 1 first part in the paper 
+           | l when only_equal_constants l -> () *)
         (* Case 2 and second part of Case 1 in the paper *)
-        | (idx_h, (_, b_h), _) :: t -> List.iter (modify idx_h b_h) l
+        | (idx_h, (_, b_h), _) :: t ->  List.iter (modify idx_h b_h) l
         | [] -> () (*This should not happen, consider throwing exception*)
       in
       List.iter iterate new_components; Some ad in
