@@ -1875,8 +1875,9 @@ struct
 
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ~ctx ?(warn=false) (st:store) (exps: exp list) =
+    let ask = Analyses.ask_of_ctx ctx in
     let do_exp e =
-      let immediately_reachable = reachable_from_value (Analyses.ask_of_ctx ctx) (eval_rv ~ctx st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      let immediately_reachable = reachable_from_value ask (eval_rv ~ctx st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ~ctx st [immediately_reachable]
     in
     List.concat_map do_exp exps
