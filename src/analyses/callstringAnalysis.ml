@@ -8,8 +8,8 @@ module type Callstack_Type =
 sig
   include CilType.S
   val stackTypeName: string
-  val pushElem: fundec -> exp list -> ('d,'g,'c,'v) ctx -> t option (* returns a list of elements that should be pushed to the Callstack *)
-  val printStack: fundec -> exp list -> t QueueImmut.t -> t QueueImmut.t -> unit (* a helper function to print the callstack *)
+  val pushElem: fundec -> ('d,'g,'c,'v) ctx -> t option (* returns a list of elements that should be pushed to the Callstack *)
+  val printStack: fundec -> t QueueImmut.t -> t QueueImmut.t -> unit (* a helper function to print the callstack *)
 end
 
 (** Lifts a [Spec] to analyse with the k-callsting approach. For this the last k callstack elements are used as context
@@ -42,77 +42,84 @@ struct
   module V = EmptyV
   module G = Lattice.Unit
 
+  (*let unlift x = match x with
+    | `Lifted x -> x
+    | _ -> failwith "Callstring: Unlift error! The domain cannot be derived from Top or Bottom!"*)  (* TODO*)
+
   let name () = "callstring_"^ CT.stackTypeName
   let startstate v = `Lifted (QueueImmut.create ())
   let exitstate v =  `Lifted (QueueImmut.create ())
-
-  (*let threadenter ctx ~multiple lval f args = 
-    let elem: CT.t option = CT.pushElemVar f args ctx in
-    let new_stack: C.t = CallStack.push ctx.local elem in
-    CT.printStackVar f args ctx.local new_stack; (* just for debugging purpose*)
-    [new_stack]*)
 
   let context fd x = match x with 
     | `Lifted x -> x
     | _ -> failwith "Callstring: Context error! The context cannot be derived from Top or Bottom!" (* TODO*)
 
   let enter ctx r f args = 
-    let elem: CT.t option = CT.pushElem f args ctx in (* a list of elements that should be pushed onto the stack*)
+    let elem: CT.t option = CT.pushElem f ctx in (* a list of elements that should be pushed onto the stack*)
     let new_stack: C.t = CallStack.push (context f ctx.local) elem in
-    (*CT.printStack f args ctx.local new_stack; *)(* just for debugging purpose*)
+    (*CT.printStack f (unlift ctx.local) new_stack;*) (* just for debugging purpose*)
     [ctx.local, `Lifted new_stack]
 
   let combine_env ctx lval fexp f args fc au f_ask = 
     ctx.local
+
+  let threadenter ctx ~multiple lval v args = 
+    let elem: CT.t option = CT.pushElem (Cilfacade.find_varinfo_fundec v) ctx in (* a list of elements that should be pushed onto the stack*)
+    let new_stack: C.t = CallStack.push (context v ctx.local) elem in
+    (*CT.printStack (Cilfacade.find_varinfo_fundec v) (unlift ctx.local) new_stack; *)(* just for debugging purpose*)
+    [`Lifted new_stack]
 end
 
 
 module Fundec:Callstack_Type = struct
   include CilType.Fundec
   let stackTypeName = "fundec"
-  let pushElem f args ctx = Some f
+  let pushElem f ctx = Some f
 
-  let printStack f expL listA listB = 
+  let printStack f listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
     QueueImmut.iter (fun x -> printf "%s; " (CilType.Fundec.show x)) listA;
     printf "\nList neu: ";
     QueueImmut.iter (fun x -> printf "%s; " (CilType.Fundec.show x)) listB;
     printf "\n\n"
+
 end
 
 
 module Stmt:Callstack_Type = struct
   include CilType.Stmt
   let stackTypeName = "stmt"
-  let pushElem f args ctx = 
+  let pushElem f ctx = 
     match ctx.prev_node with (* TODO: Why do I need to use prev_node???*)
     | Statement stmt -> Some stmt
     | _ -> None (* first statement is filtered*)
 
-  let printStack f expL listA listB = 
+  let printStack f listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
     QueueImmut.iter (fun x -> printf "%s; " (CilType.Stmt.show x)) listA;
     printf "\nList neu: ";
     QueueImmut.iter (fun x -> printf "%s; " (CilType.Stmt.show x)) listB;
     printf "\n\n"
+
 end
 
 
 module Location:Callstack_Type = struct
   include CilType.Location
   let stackTypeName = "loc"
-  let pushElem f args ctx =
+  let pushElem f ctx =
     Some !Goblint_tracing.current_loc
 
-  let printStack f expL listA listB = 
+  let printStack f listA listB = 
     printf "fundec: %s\n" (CilType.Fundec.show f);
     printf "List alt: ";
     QueueImmut.iter (fun x -> printf "%s;\n " (CilType.Location.show x)) listA;
     printf "\nList neu: ";
     QueueImmut.iter (fun x -> printf "%s;\n " (CilType.Location.show x)) listB;
     printf "\n\n"
+
 end
 
 (* Lifters for the Callstring approach with different Callstack element types*)

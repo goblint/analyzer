@@ -559,18 +559,23 @@ struct
     else {ctx with context = (fun () -> (fst (ctx.context ()), cg_val ctx - 1)) (* context sensitive *)
                  ; local = (fst ctx.local, cg_val ctx - 1)} 
 
-  let rec showExprList args = (*TODO: delete, just here for printing*)
+  (*let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
-    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)
+    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)*)
 
   let enter ctx r f args =
     let ctx_dec = dec_context_gas ctx in
-    if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);
+    (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
-    liftmap_tup (S.enter (conv ctx_dec) r f args) (* TODO: hier ctx oder ctx_dec???*)
+    liftmap_tup (S.enter (conv ctx) r f args) (* TODO: hier ctx oder ctx_dec???*)
 
   let liftmap f ctx = List.map (fun (x) -> (x, cg_val ctx)) f
+
+  let threadenter ctx ~multiple lval f args       = 
+  let ctx_dec = dec_context_gas ctx in
+  (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterThreadCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Varinfo.show f) (showExprList args);*)
+  liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx_dec (* TODO: hier ctx oder ctx_dec???*)
 
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
   let query ctx q                                 = S.query (conv ctx) q
@@ -585,7 +590,6 @@ struct
   let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) (fst es) f_ask, cg_val ctx
   let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> fst x)) (fst es) f_ask, cg_val ctx
   let paths_as_set ctx                            = liftmap (S.paths_as_set (conv ctx)) ctx 
-  let threadenter ctx ~multiple lval f args       = liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx (*TODO: it's possible to decrease the counter also here*)
   let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
   let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx
 end
