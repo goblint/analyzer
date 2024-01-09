@@ -336,22 +336,19 @@ struct
       let adjust (vare, b') =
         if Option.eq ~eq:Int.equal (Some x) vare then (vart, Z.(b' + bt)) else (vare, b') in
       BatArray.modify adjust ts in
-    let adjust ts' =
-      let (var1, b1) = ts'.(i) in
-      (match var, var1 with
-       | None, None -> if not @@ Z.equal b b1 then raise Contradiction
-       | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
-       | Some j, None -> subst_var ts j (None, Z.(b1 - b))
-       | Some j, Some h1 ->
-         (match ts'.(j) with
-          | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
-          | (Some h2, b2) ->
-            if h1 = h2 then
-              (if Z.(b1 <> (b2 + b)) then raise Contradiction)
-            else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
-            else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
-    in
-    adjust ts
+    let (var1, b1) = ts.(i) in
+    (match var, var1 with
+     | None, None -> if not @@ Z.equal b b1 then raise Contradiction
+     | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
+     | Some j, None -> subst_var ts j (None, Z.(b1 - b))
+     | Some j, Some h1 ->
+       (match ts.(j) with
+        | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
+        | (Some h2, b2) ->
+          if h1 = h2 then
+            (if Z.(b1 <> (b2 + b)) then raise Contradiction)
+          else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
+          else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
 
   let meet_with_one_conj t i e =
     match t.d with
@@ -714,7 +711,6 @@ struct
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
-  (*TODO*)
   let invariant t =
     match t.d with
     | None -> []
@@ -735,7 +731,7 @@ struct
       Array.to_list lincons0_array
       |> List.map (fun lincons0 ->
           Lincons1.{lincons0; env = array_env}
-      )  
+        )
 
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
