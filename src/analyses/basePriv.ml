@@ -211,12 +211,12 @@ struct
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
-  let invariant_global getg g =
-    match g with
-    | `Left _ -> (* mutex *)
-      Invariant.none
+  let invariant_global getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g'
+    | _ -> (* mutex *)
+      Invariant.none
+
 end
 
 module PerMutexOplusPriv: S =
@@ -230,7 +230,7 @@ struct
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
      let (cpa', v) as r = read_global ask getg cpa x in
-     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" CilType.Varinfo.pretty x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
+     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" CilType.Varinfo.pretty x CilType.Location.pretty !Goblint_tracing.current_loc (is_unprotected ask x) VD.pretty v);
      r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
@@ -544,17 +544,17 @@ struct
       )
     )
     else (
-      match ConcDomain.ThreadSet.elements tids with
-      | [tid] ->
-        let lmust',l' = G.thread (getg (V.thread tid)) in
-        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-      | _ ->
-        (* To match the paper more closely, one would have to join in the non-definite case too *)
-        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+      if ConcDomain.ThreadSet.is_top tids then
         st
-      | exception SetDomain.Unsupported _ ->
-        (* elements throws if the thread set is top *)
-        st
+      else
+        match ConcDomain.ThreadSet.elements tids with
+        | [tid] ->
+          let lmust',l' = G.thread (getg (V.thread tid)) in
+          {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+        | _ ->
+          (* To match the paper more closely, one would have to join in the non-definite case too *)
+          (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+          st
     )
 
   let thread_return ask getg sideg tid (st: BaseComponents (D).t) =
@@ -625,13 +625,11 @@ struct
     let get_mutex_inits' = CPA.find x get_mutex_inits in
     VD.join get_mutex_global_x' get_mutex_inits'
 
-  let invariant_global getg g =
-    match g with
-    | `Left (`Left _) -> (* mutex *)
-      Invariant.none
-    | `Left (`Right g') -> (* global *)
-      ValueDomain.invariant_global (read_unprotected_global getg) g'
-    | `Right _ -> (* thread *)
+  let invariant_global getg = function
+    | `Middle  g -> (* global *)
+      ValueDomain.invariant_global (read_unprotected_global getg) g
+    | `Left _
+    | `Right _ -> (* mutex or thread *)
       Invariant.none
 end
 
@@ -662,21 +660,11 @@ struct
   struct
     include VarinfoV (* [g]' *)
     let name () = "unprotected"
-    let show x = show x ^ ":unprotected" (* distinguishable variant names for html *)
-    include Printable.SimpleShow (struct
-        type nonrec t = t
-        let show = show
-      end)
   end
   module VProt =
   struct
     include VarinfoV (* [g] *)
     let name () = "protected"
-    let show x = show x ^ ":protected" (* distinguishable variant names for html *)
-    include Printable.SimpleShow (struct
-        type nonrec t = t
-        let show = show
-      end)
   end
   module V =
   struct
@@ -811,7 +799,7 @@ struct
   struct
     (* weak: G -> (2^M -> WeakRange) *)
     (* sync: M -> (2^M -> SyncRange) *)
-    include Lattice.Lift2 (GWeak) (GSync) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GWeak) (GSync)
 
     let weak = function
       | `Bot -> GWeak.bot ()
@@ -847,16 +835,15 @@ struct
 
   open Locksets
 
-  let invariant_global getg g =
-    match g with
-    | `Left _ -> (* mutex *)
-      Invariant.none
+  let invariant_global getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (fun x ->
           GWeak.fold (fun s' tm acc ->
               WeakRange.fold_weak VD.join tm acc
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
+    | _ -> (* mutex *)
+      Invariant.none
 
   let invariant_vars ask getg st =
     let module VS = Set.Make (CilType.Varinfo) in
@@ -1668,7 +1655,7 @@ struct
   let read_global ask getg st x =
     let v = Priv.read_global ask getg st x in
     if !AnalysisState.postsolving && !is_dumping then
-      LVH.modify_def (VD.bot ()) (!Tracing.current_loc, x) (VD.join v) lvh;
+      LVH.modify_def (VD.bot ()) (!Goblint_tracing.current_loc, x) (VD.join v) lvh;
     v
 
   let dump () =

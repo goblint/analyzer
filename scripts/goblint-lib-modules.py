@@ -8,6 +8,7 @@ src_root_path = Path("./src")
 
 goblint_lib_paths = [
     src_root_path / "goblint_lib.ml",
+    src_root_path / "solver" / "goblint_solver.ml",
     src_root_path / "util" / "std" / "goblint_std.ml",
 ]
 goblint_lib_modules = set()
@@ -30,20 +31,19 @@ exclude_module_names = set([
     "MessagesCompare",
     "PrivPrecCompare",
     "ApronPrecCompare",
-    "Mainspec",
 
     # libraries
     "Goblint_std",
+    "Goblint_solver",
     "Goblint_timing",
     "Goblint_backtrace",
+    "Goblint_tracing",
     "Goblint_sites",
     "Goblint_build_info",
     "Dune_build_info",
 
     "MessageCategory", # included in Messages
     "PreValueDomain", # included in ValueDomain
-    "SpecCore", # spec stuff
-    "SpecUtil", # spec stuff
 
     "ConfigVersion",
     "ConfigProfile",

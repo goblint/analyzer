@@ -18,7 +18,7 @@
     total lines: 7
   [Info][Unsound] Write to unknown address: privatization is unsound. (93-distribute-fields-type-global.c:13:3-13:29)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (93-distribute-fields-type-global.c:13:3-13:29)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (93-distribute-fields-type-global.c:13:3-13:29)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (93-distribute-fields-type-global.c:13:3-13:29)
+  [Info][Imprecise] Invalidating expressions: & s (93-distribute-fields-type-global.c:13:3-13:29)
+  [Info][Imprecise] Invalidating expressions: & tmp (93-distribute-fields-type-global.c:13:3-13:29)
   [Error][Imprecise][Unsound] Function definition missing for getS (93-distribute-fields-type-global.c:13:3-13:29)
   [Error][Imprecise][Unsound] Function definition missing

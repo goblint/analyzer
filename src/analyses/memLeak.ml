@@ -205,12 +205,12 @@ struct
     | Malloc _
     | Calloc _
     | Realloc _ ->
-      (ctx.sideg () true;
+      ctx.sideg () true;
       begin match ctx.ask (Queries.AllocVar {on_stack = false}) with
         | `Lifted var ->
           ToppedVarInfoSet.add var state
         | _ -> state
-      end)
+      end
     | Free ptr ->
       begin match ctx.ask (Queries.MayPointTo ptr) with
         | ad when (not (Queries.AD.is_top ad)) && Queries.AD.cardinal ad = 1 ->
@@ -228,24 +228,20 @@ struct
       warn_for_multi_threaded_due_to_abort ctx;
       state
     | Assert { exp; _ } ->
-      let warn_for_assert_exp =
-        match ctx.ask (Queries.EvalInt exp) with
+      begin match ctx.ask (Queries.EvalInt exp) with
         | a when Queries.ID.is_bot a -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
         | a ->
           begin match Queries.ID.to_bool a with
-            | Some b -> (
+            | Some true -> ()
+            | Some false ->
               (* If we know for sure that the expression in "assert" is false => need to check for memory leaks *)
-                if b = false then (
-                  warn_for_multi_threaded_due_to_abort ctx;
-                  check_for_mem_leak ctx
-                )
-                else ())
+              warn_for_multi_threaded_due_to_abort ctx;
+              check_for_mem_leak ctx
             | None ->
-              (warn_for_multi_threaded_due_to_abort ctx;
-               check_for_mem_leak ctx ~assert_exp_imprecise:true ~exp:(Some exp))
+              warn_for_multi_threaded_due_to_abort ctx;
+              check_for_mem_leak ctx ~assert_exp_imprecise:true ~exp:(Some exp)
           end
-      in
-      warn_for_assert_exp;
+      end;
       state
     | ThreadExit _ ->
       begin match ctx.ask (Queries.CurrentThreadId) with

@@ -74,22 +74,19 @@ struct
   struct
     include LockDomain.Addr
     let name () = "mutex"
-    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
   end
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
   module VGlobal =
   struct
     include VarinfoV
     let name () = "global"
-    let show x = show x ^ ":global" (* distinguishable variant names for html *)
   end
   module V =
   struct
-    (* TODO: Either3? *)
-    include Printable.Either (struct include Printable.Either (VMutex) (VMutexInits) let name () = "mutex" end) (VGlobal)
+    include Printable.Either3Conf (struct include Printable.DefaultConf let expand2 = false end) (VMutex) (VMutexInits) (VGlobal)
     let name () = "MutexGlobals"
-    let mutex x: t = `Left (`Left x)
-    let mutex_inits: t = `Left (`Right ())
+    let mutex x: t = `Left x
+    let mutex_inits: t = `Middle ()
     let global x: t = `Right x
   end
 
@@ -174,7 +171,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (MutexGlobals.V) (TID)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (MutexGlobals.V) (TID)
     let mutex x = `Left (MutexGlobals.V.mutex x)
     let mutex_inits = `Left MutexGlobals.V.mutex_inits
     let global x = `Left (MutexGlobals.V.global x)
@@ -201,7 +198,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (GMutex) (GThread) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GMutex) (GThread)
 
     let mutex = function
       | `Bot -> GMutex.bot ()

@@ -9,8 +9,3 @@
     dead: 0
     total lines: 3
   SV-COMP result: true
-  [Info][Race] Memory locations race summary:
-    safe: 1
-    vulnerable: 0
-    unsafe: 0
-    total memory locations: 1
