@@ -1953,8 +1953,8 @@ struct
 
 
 
-  let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list * bool =
-    let create_thread lval arg v =
+  let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list * bool) list =
+    let create_thread ~multiple lval arg v =
       try
         (* try to get function declaration *)
         let fd = Cilfacade.find_varinfo_fundec v in
@@ -1963,7 +1963,7 @@ struct
           | Some x -> [x]
           | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
         in
-        Some (lval, v, args)
+        Some (lval, v, args, multiple)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then
@@ -1973,7 +1973,7 @@ struct
             | Some x -> [x]
             | None -> List.map (fun x -> MyCFG.unknown_exp) (Cil.argsToList v_args)
           in
-          Some (lval, v, args)
+          Some (lval, v, args, multiple)
         else (
           M.debug ~category:Analyzer "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
           None
@@ -1982,7 +1982,7 @@ struct
     let desc = LF.find f in
     match desc.special args, f.vname with
     (* handling thread creations *)
-    | ThreadCreate { thread = id; start_routine = start; arg = ptc_arg }, _ -> begin
+    | ThreadCreate { thread = id; start_routine = start; arg = ptc_arg; multiple }, _ -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx `Thread;
         (* Collect the threads. *)
@@ -1994,7 +1994,7 @@ struct
           else
             start_funvars
         in
-        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown, false
+        List.filter_map (create_thread ~multiple (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | _, _ when get_bool "sem.unknown_function.spawn" ->
       (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
@@ -2008,8 +2008,8 @@ struct
       let flist = shallow_flist @ deep_flist in
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
-      List.filter_map (create_thread None None) addrs, true
-    | _, _ -> [], false
+      List.filter_map (create_thread ~multiple:true None None) addrs
+    | _, _ -> []
 
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
@@ -2140,9 +2140,9 @@ struct
       let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
       (addr, AD.type_of addr)
     in
-    let forks, multiple = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple3.second forks);
-    List.iter (BatTuple.Tuple3.uncurry (ctx.spawn ~multiple)) forks;
+    let forks = forkfun ctx lv f args in
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple4.second forks);
+    List.iter (fun (lval, f, args, multiple) -> ctx.spawn ~multiple lval f args) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
     let desc = LF.find f in

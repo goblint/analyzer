@@ -29,7 +29,9 @@
       "escape",
       "expRelation",
       "mhp",
-      "assert"
+      "assert",
+      "var_eq",
+      "symb_locks"
     ],
     "malloc": {
       "wrappers": [
@@ -51,6 +53,19 @@
         "ldv_calloc"
       ]
     }
+  },
+  "lib": {
+    "activated": [
+      "c",
+      "posix",
+      "pthread",
+      "gcc",
+      "glibc",
+      "linux-userspace",
+      "goblint",
+      "ncurses",
+      "klever"
+    ]
   },
   "witness": {
     "graphml": {
