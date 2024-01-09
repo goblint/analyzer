@@ -602,7 +602,7 @@ struct
     | Some v ->
       let ik = Cilfacade.get_ikind v.vtype in
       if not (Cil.isSigned ik) then
-        raise NotRefinable (* TODO: unsigned w/o bounds handled differently? *)
+        raise NotRefinable
       else
         match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
         | Some min, Some max ->
