@@ -25,8 +25,18 @@ struct
   module V = VarinfoV
 
   let context _ _ = ()
-
-
+ 
+  
+  
+  let event_function (ctx: (D.t, G.t, C.t, V.t) ctx) (event: Events.t) : (D.t * D.t) =
+    match event with
+    | Events.Invalidate { lvals } ->
+      (* Remove invalidated or freed heap variables from the heSap state *)
+      let heap_state = snd ctx.local in
+      let updated_heap_state = List.fold_left (fun heap_state lval -> D.remove lval heap_state) heap_state lvals in
+      (fst ctx.local, updated_heap_state)
+    | _ -> ctx.local
+  
   (* HELPER FUNCTIONS *)
 
   let get_current_threadid ctx =
@@ -243,4 +253,5 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  
+  MCP.register_analysis ~events:[event_function] (module Spec : MCPSpec)

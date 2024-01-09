@@ -1,0 +1,16 @@
+#include <stdlib.h>
+
+int main() {
+    int *ptr = (int *)malloc(sizeof(int));
+
+    // Access allocated memory
+    *ptr = 42;
+
+    // Free the allocated memory
+    free(ptr);
+
+    // Access the freed memory (use-after-free)
+    int value = *ptr;  // This should trigger a use-after-free warning
+
+    return 0;
+}
