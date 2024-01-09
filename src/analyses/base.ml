@@ -1107,12 +1107,12 @@ struct
         Queries.Result.top q (* query cycle *)
       else (
         match q with
-        | EvalInt e -> query_evalint ~ctx st e (* mimic EvalInt query since eval_rv needs it *)
+        | EvalInt e -> query_evalint ~ctx:(ctx' (Queries.Set.add anyq asked)) st e (* mimic EvalInt query since eval_rv needs it *)
         | _ -> Queries.Result.top q
       )
     and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) (* the expression is guaranteed to not contain globals *)
-    and ctx =
-      { ask = (fun (type a) (q: a Queries.t) -> query Queries.Set.empty q)
+    and ctx' asked =
+      { ask = (fun (type a) (q: a Queries.t) -> query asked q)
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in base eval_exp context.")
       ; node    = MyCFG.dummy_node
       ; prev_node = MyCFG.dummy_node
@@ -1126,7 +1126,7 @@ struct
       ; sideg   = (fun g d -> failwith "Base eval_exp trying to side effect.")
       }
     in
-    match eval_rv ~ctx st exp with
+    match eval_rv ~ctx:(ctx' Queries.Set.empty) st exp with
     | Int x -> ValueDomain.ID.to_int x
     | _ -> None
 
