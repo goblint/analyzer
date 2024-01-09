@@ -1,4 +1,4 @@
-(** OCaml implementation of the linear two-Variable equalitie domain.
+(** OCaml implementation of the linear two-variable equality domain.
 
     @see <http://doi.acm.org/10.1145/2049706.2049710> A. Flexeder, M. Petter, and H. Seidl Fast Interprocedural Linear Two-Variable Equalities. *)
 
