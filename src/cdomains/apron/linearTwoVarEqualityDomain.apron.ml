@@ -711,28 +711,25 @@ struct
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
+  (*TODO*)
   let invariant t =
     match t.d with
     | None -> []
     | Some d ->
-      let earray = Lincons1.array_make t.env (Array.length d) in
-      for i = 0 to Array.length d - 1 do
-        let (var_opt, const) = d.(i) in
+      let acc = ref [] in
+      Array.iteri (fun i (var_opt, const) ->
         let coeff_vars = match var_opt with
           | None -> []
           | Some var_index ->
             let var = Environment.var_of_dim t.env var_index in
-            [(Coeff.s_of_int 1, var)]
+            [(Coeff.s_of_int (-1), var)]
         in
         let cst = Coeff.s_of_int (Z.to_int const) in
-        Lincons1.set_list (Lincons1.array_get earray i) coeff_vars (Some cst)
-      done;
-      let {lincons0_array; array_env}: Lincons1.earray = earray in
-      Array.to_list lincons0_array
-      |> List.map (fun lincons0 ->
-          Lincons1.{lincons0; env = array_env}
-        )
-
+        let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
+        Lincons1.set_list lincons coeff_vars (Some cst);
+        acc := lincons :: !acc
+      ) d;
+      List.rev !acc
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
