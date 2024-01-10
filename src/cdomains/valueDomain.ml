@@ -199,9 +199,8 @@ struct
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
       let len = array_length_idx (IndexDomain.top ()) length in
-      Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai) else Bot))
+      Array (CArrays.make ~varAttr ~typAttr len (top_value ai))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> Top
 
