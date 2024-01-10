@@ -140,11 +140,13 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
+  let do_spawns ctx (xs:(varinfo * (lval option * exp list * bool)) list) =
     let spawn_one v d =
-      List.iter (fun (lval, args) -> ctx.spawn lval v args) d
+      List.iter (fun (lval, args, multiple) -> ctx.spawn ~multiple lval v args) d
     in
-    if not (get_bool "exp.single-threaded") then
+    if get_bool "exp.single-threaded" then
+      M.msg_final Error ~category:Unsound "Thread not spawned"
+    else
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
   let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
@@ -322,8 +324,8 @@ struct
 
   and outer_ctx tfname ?spawns ?sides ?emits ctx =
     let spawn = match spawns with
-      | Some spawns -> (fun l v a  -> spawns := (v,(l,a)) :: !spawns)
-      | None -> (fun v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
+      | Some spawns -> (fun ?(multiple=false) l v a  -> spawns := (v,(l,a,multiple)) :: !spawns)
+      | None -> (fun ?(multiple=false) v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
       | Some sides -> (fun v g    -> sides  := (v, (!WideningTokens.side_tokens, g)) :: !sides)
@@ -565,20 +567,20 @@ struct
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
+  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a =
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in
     let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadenter" ctx'' n d in
-      map (fun d -> (n, repr d)) @@ S.threadenter ctx' lval f a
+      map (fun d -> (n, repr d)) @@ (S.threadenter ~multiple) ctx' lval f a
     in
     let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     (* TODO: this do_emits is now different from everything else *)
     map (fun d -> do_emits ctx !emits d false) @@ map topo_sort_an @@ n_cartesian_product css
 
-  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
+  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a fctx =
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadspawn" ~sides ~emits ctx in
@@ -586,7 +588,7 @@ struct
     let f post_all (n,(module S:MCPSpec),(d,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all ctx'' n d in
       let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all fctx'' n fd in
-      n, repr @@ S.threadspawn ctx' lval f a fctx'
+      n, repr @@ S.threadspawn ~multiple ctx' lval f a fctx'
     in
     let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
     do_sideg ctx !sides;

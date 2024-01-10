@@ -1,0 +1,21 @@
+(include_subdirs no)
+
+(library
+ (name goblint_constraint)
+ (public_name goblint.constraint)
+ (wrapped false) ; TODO: wrap
+ (libraries
+   batteries.unthreaded
+   goblint_std
+   goblint_common
+   goblint_domain
+   goblint-cil)
+ (flags :standard -open Goblint_std)
+ (preprocess
+  (pps
+    ppx_deriving.std
+    ppx_deriving_hash
+    ppx_deriving_yojson))
+ (instrumentation (backend bisect_ppx)))
+
+(documentation)

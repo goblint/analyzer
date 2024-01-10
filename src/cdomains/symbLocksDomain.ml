@@ -306,6 +306,7 @@ struct
   end
 
   include AddressDomain.AddressPrintable (Mval.MakePrintable (Offset.MakePrintable (Idx)))
+  let name () = "i-lock"
 
   let rec conv_const_offset x =
     match x with

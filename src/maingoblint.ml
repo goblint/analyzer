@@ -9,11 +9,11 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %s\n" Version.goblint; (* nosemgrep: print-not-logging *)
+  printf "Goblint version: %s\n" Goblint_build_info.version; (* nosemgrep: print-not-logging *)
   printf "Cil version:     %s\n" Cil.cilVersion; (* nosemgrep: print-not-logging *)
-  printf "Dune profile:    %s\n" ConfigProfile.profile; (* nosemgrep: print-not-logging *)
+  printf "Dune profile:    %s\n" Goblint_build_info.dune_profile; (* nosemgrep: print-not-logging *)
   printf "OCaml version:   %s\n" Sys.ocaml_version; (* nosemgrep: print-not-logging *)
-  printf "OCaml flambda:   %s\n" ConfigOcaml.flambda; (* nosemgrep: print-not-logging *)
+  printf "OCaml flambda:   %s\n" Goblint_build_info.ocaml_flambda; (* nosemgrep: print-not-logging *)
   if Logs.Level.should_log Debug then (
     printf "Library versions:\n"; (* nosemgrep: print-not-logging *)
     List.iter (fun (name, version) ->
@@ -53,7 +53,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_string l = let f str = l := str :: !l in Arg_complete.String (f, Arg_complete.empty) in
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
-    if Messages.tracing then Tracing.addsystem sys
+    if Messages.tracing then Goblint_tracing.addsystem sys
     else (Logs.error "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
@@ -112,8 +112,8 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "--print_options"      , Arg_complete.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg_complete.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg_complete.String (set_trace, Arg_complete.empty), ""
-  ; "--tracevars"          , add_string Tracing.tracevars, ""
-  ; "--tracelocs"          , add_int Tracing.tracelocs, ""
+  ; "--tracevars"          , add_string Goblint_tracing.tracevars, ""
+  ; "--tracelocs"          , add_int Goblint_tracing.tracelocs, ""
   ; "--help"               , Arg_complete.Unit (fun _ -> print_help stdout),""
   ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
   ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""
@@ -136,6 +136,7 @@ let check_arguments () =
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
+  if List.mem "memOutOfBounds" @@ get_string_list "ana.activated" && not @@ get_bool "cil.addNestedScopeAttr" then (set_bool "cil.addNestedScopeAttr" true; warn "The memOutOfBounds analysis enables cil.addNestedScopeAttr.");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
@@ -160,7 +161,14 @@ let check_arguments () =
         ^ String.concat " and " @@ List.map (fun s -> "'" ^ s ^ "'") imprecise_options)
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
-  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'"
+  if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if List.mem "termination" @@ get_string_list "ana.activated" then (
+    if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
+    set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
+    set_string "sem.int.signed_overflow" "assume_none";
+    warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none";
+  );
+  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -185,8 +193,10 @@ let handle_flags () =
 let handle_options () =
   Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
   check_arguments ();
-  AfterConfig.run ();
   Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+  if AutoTune.isActivated "memsafetySpecification" && get_string "ana.specification" <> "" then
+    AutoTune.focusOnMemSafetySpecification ();
+  AfterConfig.run ();
   Cilfacade.init_options ();
   handle_flags ()
 
@@ -253,6 +263,15 @@ let preprocess_files () =
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
+
+  if get_bool "ana.sv-comp.enabled" then (
+    let architecture_flag = match get_string "exp.architecture" with
+      | "32bit" -> "-m32"
+      | "64bit" -> "-m64"
+      | _ -> assert false
+    in
+    cppflags := architecture_flag :: !cppflags
+  );
 
   (* the base include directory *)
   (* TODO: any better way? dune executable promotion doesn't add _build sites *)
@@ -410,6 +429,10 @@ let preprocess_files () =
   );
   preprocessed
 
+(** Regex for special "paths" in cpp output:
+    <built-in>, <command-line>, but also translations! *)
+let special_path_regexp = Str.regexp "<.+>"
+
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
   (* get the AST *)
@@ -417,10 +440,10 @@ let parse_preprocessed preprocessed =
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
-    let transform_file (path_str, system_header) = match path_str with
-      | "<built-in>" | "<command-line>" ->
+    let transform_file (path_str, system_header) =
+      if Str.string_match special_path_regexp path_str 0 then
         (path_str, system_header) (* ignore special "paths" *)
-      | _ ->
+      else
         let path = Fpath.v path_str in
         let path' = if get_bool "pre.transform-paths" then (
             let cwd_opt =
@@ -479,7 +502,7 @@ let merge_parsed parsed =
 
   Cilfacade.current_file := merged_AST; (* Set before createCFG, so Cilfacade maps can be computed for loop unrolling. *)
   CilCfg.createCFG merged_AST; (* Create CIL CFG from CIL AST. *)
-  Cilfacade.reset_lazy (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling. *)
+  Cilfacade.reset_lazy ~keepupjumpinggotos:true (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling but keep gotos. *)
   merged_AST
 
 let preprocess_parse_merge () =
@@ -490,7 +513,7 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
     Logs.newline ();
-    SolverStats.print ();
+    Goblint_solver.SolverStats.print ();
     Logs.newline ();
     Logs.info "Timings:";
     Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
@@ -498,7 +521,7 @@ let do_stats () =
   )
 
 let reset_stats () =
-  SolverStats.reset ();
+  Goblint_solver.SolverStats.reset ();
   Timing.Default.reset ();
   Timing.Program.reset ()
 
@@ -582,19 +605,19 @@ let do_gobview cilfile =
       let file_dir = Fpath.(run_dir / "files") in
       GobSys.mkdir_or_exists file_dir;
       let file_loc = Hashtbl.create 113 in
-      let counter = ref 0 in
-      let copy path =
+      let copy (path, i) =
         let name, ext = Fpath.split_ext (Fpath.base path) in
-        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int !counter) name) in
-        counter := !counter + 1;
+        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int i) name) in
         let dest = Fpath.(file_dir // unique_name) in
         let gobview_path = match Fpath.relativize ~root:run_dir dest with
           | Some p -> Fpath.to_string p
           | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
         Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
-        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest) in
+        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest)
+      in
       let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
-      List.iter copy source_paths;
+      let source_file_paths = List.filteri_map (fun i e -> if Fpath.is_file_path e then Some (e, i) else None) source_paths in
+      List.iter copy source_file_paths;
       Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
       (* marshal timing statistics *)
       let stats = Fpath.(run_dir / "stats.marshalled") in

@@ -35,6 +35,8 @@ let main () =
 
     Logs.debug "%s" (GobUnix.localtime ());
     Logs.debug "%s" GobSys.command_line;
+    (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
+    if get_bool "ana.autotune.enabled" && AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =
@@ -70,7 +72,7 @@ let main () =
     exit 1
   | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
     do_stats ();
-    (* Printexc.print_backtrace BatInnerIO.stderr *)
+    Printexc.print_backtrace stderr;
     Logs.error "%s" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)

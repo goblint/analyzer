@@ -6,11 +6,15 @@
 (library
   (name goblint_lib)
   (public_name goblint.lib)
-  (modules :standard \ goblint mainspec privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint.build-info goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils
+  (modules :standard \ goblint privPrecCompare apronPrecCompare messagesCompare)
+  (libraries goblint.sites goblint.build-info goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
+    (select gobApron.ml from
+      (apron -> gobApron.apron.ml)
+      (-> gobApron.no-apron.ml)
+    )
     (select apronDomain.ml from
       (apron apron.octD apron.boxD apron.polkaMPQ zarith_mlgmpidl -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
@@ -56,11 +60,10 @@
       (-> violationZ3.no-z3.ml)
     )
   )
-  (foreign_stubs (language c) (names stubs))
+  (flags :standard -open Goblint_std -open Goblint_logs)
   (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
     (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
-  (preprocessor_deps (file util/options.schema.json))
   (instrumentation (backend bisect_ppx))
 )
 
@@ -73,54 +76,38 @@
 (copy_files# witness/z3/*.ml)
 
 (executables
-  (names goblint mainspec)
-  (public_names goblint -)
+  (names goblint)
+  (public_names goblint)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
-  (modules goblint mainspec)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (modules goblint)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name apronPrecCompare)
   (modules apronPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name messagesCompare)
   (modules messagesCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune)
+  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall)
+  (flags :standard -linkall -open Goblint_std)
 )
-
-(rule
-  (target configVersion.ml)
-  (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
-
-(rule
-  (target configProfile.ml)
-  (mode (promote (until-clean) (only configProfile.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
-
-(rule
-  (target configOcaml.ml)
-  (mode (promote (until-clean) (only configOcaml.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet flambda = \"%{ocaml-config:flambda}\"")))
 
 (rule
   (alias runtest)
@@ -141,3 +128,5 @@
     (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )
+
+(documentation)
