@@ -75,10 +75,11 @@ module EqualitiesArray = struct
       if nc = nrc then [||] else
         let offset = ref 0 in
         let offset_map = Array.init nc (fun j ->
-            if !offset < nrc && indexes.(!offset) = j then (incr offset; !offset) else !offset)
+            if !offset < nrc && indexes.(!offset) = j then (incr offset; 0) else !offset)
         in let remove_offset_from_array_entry (var, offs) =
              Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-        Array.init (nc - nrc) (fun j -> remove_offset_from_array_entry m.(j + offset_map.(j)))
+        Array.(copy m |>  filteri (fun i _ -> not @@ Array.mem i indexes)
+               |> map remove_offset_from_array_entry)
 
   let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
@@ -731,27 +732,27 @@ struct
       ) d;
       List.rev !acc *)
 
-      let invariant t =
-        match t.d with
-        | None -> []
-        | Some d ->
-          let acc = ref [] in
-          Array.iteri (fun i (var_opt, const) ->
-            let xi = Environment.var_of_dim t.env i in
-            let coeff_vars = 
-              [(Coeff.s_of_int (-1), xi)] @ (match var_opt with
+  let invariant t =
+    match t.d with
+    | None -> []
+    | Some d ->
+      let acc = ref [] in
+      Array.iteri (fun i (var_opt, const) ->
+          let xi = Environment.var_of_dim t.env i in
+          let coeff_vars =
+            [(Coeff.s_of_int (-1), xi)] @ (match var_opt with
                 | None -> []
                 | Some var_index ->
                   let var = Environment.var_of_dim t.env var_index in
                   [(Coeff.s_of_int 1, var)])
-            in
-            let cst = Coeff.s_of_int (Z.to_int const) in
-            let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
-            Lincons1.set_list lincons coeff_vars (Some cst);
-            acc := lincons :: !acc
-          ) d;
-          List.rev !acc
-    
+          in
+          let cst = Coeff.s_of_int (Z.to_int const) in
+          let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
+          Lincons1.set_list lincons coeff_vars (Some cst);
+          acc := lincons :: !acc
+        ) d;
+      List.rev !acc
+
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 

@@ -307,7 +307,7 @@ struct
   let dim_remove (ch: Apron.Dim.change) m ~del =
     if Array.length ch.dim = 0 || RelDomain.is_empty m then m else (
       Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
-      let m' = if not del then let m = RelDomain.copy m in Array.fold_left (fun y x -> RelDomain.reduce_col_with y x; y) m ch.dim else m in
+      let m' = Array.fold_left (fun y x -> RelDomain.reduce_col_with y x; y) (RelDomain.copy m) ch.dim in
       RelDomain.remove_zero_rows @@ RelDomain.del_cols m' ch.dim)
 
   let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
