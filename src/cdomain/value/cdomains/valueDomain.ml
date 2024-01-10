@@ -253,8 +253,11 @@ struct
     | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
     | _ -> Top
 
-  let tag_name : t -> string = function
+  let show_tag : t -> string = function
     | Top -> "Top" | Int _ -> "Int" | Float _ -> "Float" | Address _ -> "Address" | Struct _ -> "Struct" | Union _ -> "Union" | Array _ -> "Array" | Blob _ -> "Blob" | Thread _ -> "Thread" | Mutex -> "Mutex" | MutexAttr _ -> "MutexAttr" | JmpBuf _ -> "JmpBuf" | Bot -> "Bot"
+
+  let pretty_tag () x = Pretty.text (show_tag x)
+
   include Printable.Std
   let name () = "compound"
 
@@ -521,7 +524,7 @@ struct
 
 
   let warn_type op x y =
-    Logs.debug "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a" op (tag_name (x:t)) (tag_name (y:t)) CilType.Location.pretty !Goblint_tracing.current_loc pretty x pretty y
+    Logs.debug "warn_type %s: incomparable abstr. values %a and %a at %a: %a and %a" op pretty_tag x pretty_tag y CilType.Location.pretty !Goblint_tracing.current_loc pretty x pretty y
 
   let rec leq x y =
     match (x,y) with
