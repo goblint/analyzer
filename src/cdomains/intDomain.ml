@@ -418,7 +418,11 @@ struct
     else
       I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
-  let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
+  let printXml o x =
+    if I.is_top_of x.ikind x.v then
+      BatPrintf.fprintf o "<value>\n<data>\n⊤\n</data>\n</value>\n"
+    else
+      I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
@@ -3833,7 +3837,10 @@ module IntDomTupleImpl = struct
 
   (* printing boilerplate *)
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
+  let printXml f x =
+    match to_int x with
+    | Some v -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (BI.to_string v)
+    | None -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant_ikind e ik x =
     match to_int x with
