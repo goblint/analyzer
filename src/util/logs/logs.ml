@@ -7,6 +7,7 @@ struct
     | Info
     | Warning
     | Error
+    | Result
   [@@deriving eq, hash, show { with_path = false }, enum]
   (* TODO: fix ord Error: https://github.com/ocaml-ppx/ppx_deriving/issues/254 *)
 
@@ -17,6 +18,7 @@ struct
     | "info" -> Info
     | "warning" -> Warning
     | "error" -> Error
+    | "result" -> Result
     | _ -> invalid_arg "Logs.Level.of_string"
 
   let current = ref Debug
@@ -29,6 +31,12 @@ struct
     | Warning -> "yellow"
     | Info -> "blue"
     | Debug -> "white" (* non-bright white is actually some gray *)
+    | Result -> "reset"
+end
+
+module Result =
+struct
+  let use_stdout = ref true (* TODO: disable in server mode *)
 end
 
 
@@ -116,8 +124,52 @@ struct
     prerr_newline ()
 end
 
-module Pretty = MakeKind (PrettyKind)
-module Format = MakeKind (FormatKind)
-module Batteries = MakeKind (BatteriesKind)
+module Pretty =
+struct
+  include MakeKind (PrettyKind)
+
+  open GoblintCil
+
+  let result fmt =
+    if !Result.use_stdout then (
+      let finish doc =
+        Pretty.fprint stdout ~width:max_int doc;
+        print_newline ()
+      in
+      Pretty.gprintf finish fmt
+    )
+    else
+      log Result fmt
+end
+
+module Format =
+struct
+  include MakeKind (FormatKind)
+
+  let result fmt =
+    if !Result.use_stdout then (
+      let finish ppf =
+        Format.fprintf ppf "\n%!"
+      in
+      Format.kfprintf finish Format.std_formatter fmt
+    )
+    else
+      log Result fmt
+end
+
+module Batteries =
+struct
+  include MakeKind (BatteriesKind)
+
+  let result fmt =
+    if !Result.use_stdout then (
+      let finish out =
+        BatPrintf.fprintf out "\n%!"
+      in
+      BatPrintf.kfprintf finish BatIO.stdout fmt
+    )
+    else
+      log Result fmt
+end
 
 include Pretty (* current default *)
