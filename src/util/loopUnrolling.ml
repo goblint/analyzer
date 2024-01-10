@@ -449,7 +449,7 @@ class loopUnrollingVisitor(func, totalLoops) = object
       let duplicate_and_rem_labels s =
         let factor = loop_unrolling_factor s func totalLoops in
         if(factor > 0) then (
-          print_endline @@ "unrolling loop at " ^ CilType.Location.show loc ^" with factor " ^ string_of_int factor;
+          Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
           match s.skind with
           | Loop (b,loc, loc2, break , continue) ->
