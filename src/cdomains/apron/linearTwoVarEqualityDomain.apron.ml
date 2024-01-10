@@ -712,7 +712,7 @@ struct
 
      Lincons -> linear constraint *)
   (*TODO*)
-  let invariant t =
+  (*let invariant t =
     match t.d with
     | None -> []
     | Some d ->
@@ -729,7 +729,29 @@ struct
         Lincons1.set_list lincons coeff_vars (Some cst);
         acc := lincons :: !acc
       ) d;
-      List.rev !acc
+      List.rev !acc *)
+
+      let invariant t =
+        match t.d with
+        | None -> []
+        | Some d ->
+          let acc = ref [] in
+          Array.iteri (fun i (var_opt, const) ->
+            let xi = Environment.var_of_dim t.env i in
+            let coeff_vars = 
+              [(Coeff.s_of_int (-1), xi)] @ (match var_opt with
+                | None -> []
+                | Some var_index ->
+                  let var = Environment.var_of_dim t.env var_index in
+                  [(Coeff.s_of_int 1, var)])
+            in
+            let cst = Coeff.s_of_int (Z.to_int const) in
+            let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
+            Lincons1.set_list lincons coeff_vars (Some cst);
+            acc := lincons :: !acc
+          ) d;
+          List.rev !acc
+    
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
