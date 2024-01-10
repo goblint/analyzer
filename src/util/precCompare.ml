@@ -129,7 +129,7 @@ struct
     |> List.filter (fun ((i1, _), (i2, _)) -> i1 <> i2)
     |> List.map (Tuple2.map snd snd)
     |> List.map (uncurry compare_dumps)
-    |> List.iter (fun (_, msg) -> Logs.info "%t" (fun () -> msg));
+    |> List.iter (fun (_, msg) -> Logs.result "%t" (fun () -> msg));
     Logs.newline ();
-    Logs.info "Total locations: %d\nTotal %s: %d" locations_count (Key.name ()) location_vars_count
+    Logs.result "Total locations: %d\nTotal %s: %d" locations_count (Key.name ()) location_vars_count
 end

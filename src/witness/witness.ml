@@ -272,7 +272,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
 
 let print_svcomp_result (s: string): unit =
-  Logs.info "SV-COMP result: %s" s
+  Logs.result "SV-COMP result: %s" s
 
 let print_task_result (module TaskResult:TaskResult): unit =
   print_svcomp_result (Result.to_string TaskResult.result)

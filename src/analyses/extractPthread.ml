@@ -850,7 +850,7 @@ module Codegen = struct
 
     Writer.write "promela model" "pml" promela ;
     Writer.write "graph" "dot" dot_graph ;
-    Logs.info
+    Logs.result
       "Copy spin/pthread_base.pml to same folder and then do: spin -a \
        pthread.pml && cc -o pan pan.c && ./pan -a"
 end

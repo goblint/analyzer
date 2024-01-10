@@ -9,16 +9,16 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %s\n" Goblint_build_info.version; (* nosemgrep: print-not-logging *)
-  printf "Cil version:     %s\n" Cil.cilVersion; (* nosemgrep: print-not-logging *)
-  printf "Dune profile:    %s\n" Goblint_build_info.dune_profile; (* nosemgrep: print-not-logging *)
-  printf "OCaml version:   %s\n" Sys.ocaml_version; (* nosemgrep: print-not-logging *)
-  printf "OCaml flambda:   %s\n" Goblint_build_info.ocaml_flambda; (* nosemgrep: print-not-logging *)
+  Logs.result "Goblint version: %s" Goblint_build_info.version;
+  Logs.result "Cil version:     %s" Cil.cilVersion;
+  Logs.result "Dune profile:    %s" Goblint_build_info.dune_profile;
+  Logs.result "OCaml version:   %s" Sys.ocaml_version;
+  Logs.result "OCaml flambda:   %s" Goblint_build_info.ocaml_flambda;
   if Logs.Level.should_log Debug then (
-    printf "Library versions:\n"; (* nosemgrep: print-not-logging *)
+    Logs.result "Library versions:";
     List.iter (fun (name, version) ->
         let version = Option.default "[unknown]" version in
-        printf "  %s: %s\n" name version (* nosemgrep: print-not-logging *)
+        Logs.result "  %s: %s" name version
       ) Goblint_build_info.statically_linked_libraries
   );
   exit 0
