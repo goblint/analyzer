@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
 
-int myfunction(int x, int y, int z){
+int myfunction(int x, int y){
    if (x == 0) {
     __goblint_check(x == 0); // SUCCESS
   } else if (y - x == 3) {
@@ -15,6 +15,6 @@ int myfunction(int x, int y, int z){
 
 int main(void) {
   int x, y, z;
-  z = myfunction();
+  z = myfunction(x,y);
   return 0;
 }
