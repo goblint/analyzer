@@ -143,7 +143,7 @@ struct
     match lval with
     | Some lval when D.exists (fun v -> v.vglob || has_escaped ask v) (mpt ask (AddrOf lval)) ->
       let rval = Lval (ReturnUtil.return_lval ()) in
-      let escaped = escape_rval ctx f_ask rval in
+      let escaped = escape_rval ctx f_ask rval in (* Using f_ask because the return value is only accessible in the context of that function at this point *)
       D.join ctx.local escaped
     | _ -> ctx.local
 
