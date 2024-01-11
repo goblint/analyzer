@@ -6,6 +6,7 @@ open Pretty
 open Analyses
 open GobConfig
 open BaseUtil
+open ReturnUtil
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
@@ -142,13 +143,6 @@ struct
   (**************************************************************************
    * Initializing my variables
    **************************************************************************)
-
-  let return_varstore = ref dummyFunDec.svar
-  let return_varinfo () = !return_varstore
-  let return_var () = AD.of_var (return_varinfo ())
-  let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
-
-  let longjmp_return = ref dummyFunDec.svar
 
   let heap_var on_stack ctx =
     let info = match (ctx.ask (Q.AllocVar {on_stack})) with
@@ -2930,8 +2924,6 @@ end
 module type MainSpec = sig
   include MCPSpec
   include BaseDomain.ExpEvaluator
-  val return_lval: unit -> Cil.lval
-  val return_varinfo: unit -> Cil.varinfo
 end
 
 let main_module: (module MainSpec) Lazy.t =
