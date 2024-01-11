@@ -28,14 +28,7 @@ struct
  
   
   
-  let event_function (ctx: (D.t, G.t, C.t, V.t) ctx) (event: Events.t) : (D.t * D.t) =
-    match event with
-    | Events.Invalidate { lvals } ->
-      (* Remove invalidated or freed heap variables from the heSap state *)
-      let heap_state = snd ctx.local in
-      let updated_heap_state = List.fold_left (fun heap_state lval -> D.remove lval heap_state) heap_state lvals in
-      (fst ctx.local, updated_heap_state)
-    | _ -> ctx.local
+  
   
   (* HELPER FUNCTIONS *)
 
@@ -246,6 +239,25 @@ struct
         | _ -> state
       end
     | _ -> state
+    
+    
+
+    let event ctx e octx =
+      match e with
+      | Events.Invalidate { lvals } ->
+        let updated_heap_state =
+          (*let _, heap_state = ctx.local in*)
+          List.fold_left (fun (stack_state, heap_state) lval ->
+            match lval with
+            | Var var, _ -> (stack_state, HeapVars.remove var heap_state)  
+            | _ -> (stack_state, heap_state)
+            )  ctx.local lvals in
+               updated_heap_state
+      | _ -> ctx.local
+     
+      
+      
+    
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
@@ -254,4 +266,4 @@ end
 
 let _ =
   
-  MCP.register_analysis ~events:[event_function] (module Spec : MCPSpec)
+  MCP.register_analysis (module Spec : MCPSpec)

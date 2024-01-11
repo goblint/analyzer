@@ -82,17 +82,25 @@ struct
   let event ctx e octx =
     match e with
     | Events.Invalidate {lvals} ->
-      begin
-        match ctx.local with
-        | `Lifted reg ->
-          let invalidation_set = Lvals.of_list lvals in
-          let updated_reg = RegMap.mapi (fun v r ->
-            if Lvals.mem v invalidation_set then RegPart.top () else r
-          ) reg in
-          `Lifted updated_reg
-        | _ -> ctx.local
-      end
-    | _ -> ctx.local  
+        begin
+          match ctx.local with
+          | `Lifted reg ->
+            let old_regpart = ctx.global () in
+            let regpart, reg =
+              List.fold_left
+                (fun (regpart_acc, reg_acc) lval ->
+                  Reg.assign_bullet lval (regpart_acc, reg_acc)
+                )
+                (old_regpart, reg)
+                lvals
+            in
+            if not (RegPart.leq regpart old_regpart) then
+              ctx.sideg () regpart;
+            `Lifted reg
+          | _ -> ctx.local
+        end
+      | _ -> ctx.local
+    
 
   let access ctx (a: Queries.access) =
     match a with
@@ -204,4 +212,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~events:[Spec.event] (module Spec : MCPSpec)
+  MCP.register_analysis (module Spec : MCPSpec)
