@@ -12,9 +12,7 @@ module LoadRunSolver: GenericEqSolver =
       let solver_file = "solver.marshalled" in
       let load_run = Fpath.v (get_string "load_run") in
       let solver = Fpath.(load_run / solver_file) in
-      if Logs.Level.should_log Debug then
-        (* Do NOT replace with Printf because of GobView: https://github.com/goblint/gobview/issues/10 *)
-        print_endline ("Loading the solver result of a saved run from " ^ (Fpath.to_string solver));
+      Logs.debug "Loading the solver result of a saved run from %s" (Fpath.to_string solver);
       let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
         let vh' = VH.create (VH.length vh) in

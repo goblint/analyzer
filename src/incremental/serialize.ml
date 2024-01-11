@@ -27,9 +27,7 @@ let marshal obj fileName  =
   close_out chan
 
 let unmarshal fileName =
-  if Logs.Level.should_log Debug then
-    (* Do NOT replace with Printf because of GobView: https://github.com/goblint/gobview/issues/10 *)
-    print_endline ("Unmarshalling " ^ Fpath.to_string fileName ^ "... If type of content changed, this will result in a segmentation fault!");
+  Logs.debug "Unmarshalling %s... If type of content changed, this will result in a segmentation fault!" (Fpath.to_string fileName);
   Marshal.input (open_in_bin (Fpath.to_string fileName))
 
 let results_exist () =
