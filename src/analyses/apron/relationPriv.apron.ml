@@ -911,7 +911,7 @@ struct
 end
 
 (** Per-mutex meet with TIDs. *)
-module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (RD: RelationDomain.RD) ->
+module PerMutexMeetPrivTID (Param: AtomicParam) (Cluster: ClusterArg): S  = functor (RD: RelationDomain.RD) ->
 struct
   open CommonPerMutex(RD)
   include MutexGlobals
@@ -961,8 +961,14 @@ struct
   let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
-    let get_mutex_global_g = Cluster.keep_global g get_mutex_global_g in
+    let get_mutex_global_g =
+      if Param.handle_atomic then (
+        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex)
+        |> Cluster.keep_global g
+      )
+      else
+        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g)
+    in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
       if not inits then
@@ -976,7 +982,7 @@ struct
     if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
     r
 
-  let get_mutex_global_g_with_mutex_inits' inits ask getg =
+  let get_mutex_global_g_with_mutex_inits_atomic inits ask getg =
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
     if not inits then
       get_mutex_global_g
@@ -985,7 +991,7 @@ struct
       LRD.join get_mutex_global_g get_mutex_inits
 
   let read_global (ask: Q.ask) getg (st: relation_components_t) g x: RD.t =
-    let atomic = ask.f MustBeAtomic in
+    let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let _,lmust,l = st.priv in
     let rel = st.rel in
     let lm = LLock.global g in
@@ -996,7 +1002,7 @@ struct
       if atomic && RD.mem_var rel (AV.global g) then
         rel
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg)
       else
         Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
     in
@@ -1019,7 +1025,7 @@ struct
       rel_local
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
-    let atomic = ask.f MustBeAtomic in
+    let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let w,lmust,l = st.priv in
     let lm = LLock.global g in
     let rel = st.rel in
@@ -1030,7 +1036,7 @@ struct
       if atomic && RD.mem_var rel (AV.global g) then
         rel
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits' (not (LMust.mem lm lmust)) ask getg)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg)
       else
         Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
     in
@@ -1045,7 +1051,10 @@ struct
       let rel_side = Cluster.unlock (W.singleton g) rel_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid rel_side in
-      sideg (V.mutex atomic_mutex) (G.create_global sidev);
+      if Param.handle_atomic then
+        sideg (V.mutex atomic_mutex) (G.create_global sidev)
+      else
+        sideg (V.global g) (G.create_global sidev);
       let l' = L.add lm rel_side l in
       let rel_local' =
         if is_unprotected ask g then
@@ -1063,7 +1072,7 @@ struct
     )
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
     if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let _,lmust,l = st.priv in
@@ -1086,7 +1095,7 @@ struct
     RD.keep_filter oct protected
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
     let rel = st.rel in
     let w,lmust,l = st.priv in
     if not atomic then (
@@ -1381,13 +1390,14 @@ let priv_module: (module S) Lazy.t =
          | "top" -> (module Top : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
-         | "mutex-meet" -> (module PerMutexMeetPriv (struct let handle_atomic = false end))
+         | "mutex-meet" -> (module PerMutexMeetPriv (NoAtomic))
          | "mutex-meet-atomic" -> (module PerMutexMeetPriv (struct let handle_atomic = true end))
-         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoCluster))
-         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (Clustering12)))
-         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ArbitraryCluster (Clustering2)))
-         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (ArbitraryCluster (ClusteringMax)))
-         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (ClusteringPower)))
+         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoAtomic) (NoCluster))
+         | "mutex-meet-tid-atomic" -> (module PerMutexMeetPrivTID (struct let handle_atomic = true end) (NoCluster))
+         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (NoAtomic) (DownwardClosedCluster (Clustering12)))
+         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (NoAtomic) (ArbitraryCluster (Clustering2)))
+         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (NoAtomic) (ArbitraryCluster (ClusteringMax)))
+         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (NoAtomic) (DownwardClosedCluster (ClusteringPower)))
          | _ -> failwith "ana.relation.privatization: illegal value"
       )
     in

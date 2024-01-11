@@ -1,4 +1,5 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid --set sem.int.signed_overflow assume_none --enable ana.apron.threshold_widening --set ana.path_sens[+] threadflag --enable ana.apron.strengthening
+// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid-atomic --set sem.int.signed_overflow assume_none --enable ana.apron.threshold_widening --set ana.path_sens[+] threadflag --enable ana.apron.strengthening
+// TODO: -atomic unneeded?
 #include <pthread.h>
 #include <assert.h>
 

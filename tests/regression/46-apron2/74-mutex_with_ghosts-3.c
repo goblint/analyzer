@@ -1,4 +1,4 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid --set ana.path_sens[+] threadflag --set sem.int.signed_overflow assume_none --enable ana.apron.strengthening
+// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid-atomic --set ana.path_sens[+] threadflag --set sem.int.signed_overflow assume_none --enable ana.apron.strengthening
 /*-----------------------------------------------------------------------------
  * mutex_with_ghosts.c - Annotated concurrent program with ghost variables for
  *                       witness validation using locking to access a shared

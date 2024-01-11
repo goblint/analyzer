@@ -15,6 +15,11 @@ sig
   (** Whether to handle SV-COMP atomic blocks. *)
 end
 
+module NoAtomic: AtomicParam =
+struct
+  let handle_atomic = false
+end
+
 module ConfCheck =
 struct
   module RequireMutexActivatedInit =
