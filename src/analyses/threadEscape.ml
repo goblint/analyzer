@@ -117,8 +117,7 @@ struct
       end
     | _ -> Queries.Result.top q
 
-  let escape_rval ctx (rval:exp) =
-    let ask = Analyses.ask_of_ctx ctx in
+  let escape_rval ctx ask (rval:exp) =
     let escaped = reachable ask rval in
     let escaped = D.filter (fun v -> not v.vglob) escaped in
 
@@ -133,7 +132,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let vs = mpt ask (AddrOf lval) in
     if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
-      let escaped = escape_rval ctx rval in
+      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) rval in
       D.join ctx.local escaped
     ) else begin
       ctx.local
@@ -143,7 +142,7 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
     | _, "pthread_setspecific" , [key; pt_value] ->
-      let escaped = escape_rval ctx pt_value in
+      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) pt_value in
       D.join ctx.local escaped
     | _ -> ctx.local
 
