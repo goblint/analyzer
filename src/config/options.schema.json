@@ -1422,6 +1422,7 @@
               "linux-kernel",
               "goblint",
               "sv-comp",
+              "klever",
               "ncurses",
               "zstd",
               "pcre",

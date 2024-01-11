@@ -151,12 +151,38 @@ struct
   end
 end
 
-module type PerMutexTidCommonArg = sig
-  val exclude_not_started: unit -> bool
-  val exclude_must_joined: unit -> bool
+module type Digest =
+sig
+  include Printable.S
+
+  val current: Q.ask -> t
+  val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
 
-module PerMutexTidCommon (Conf:PerMutexTidCommonArg) (LD:Lattice.S) =
+module ThreadDigest: Digest =
+struct
+  include ThreadIdDomain.ThreadLifted
+
+  module TID = ThreadIdDomain.Thread
+
+  let current (ask: Q.ask) =
+    ThreadId.get_current ask
+
+  let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
+    match current, other with
+    | `Lifted current, `Lifted other ->
+      if TID.is_unique current && TID.equal current other then
+        true (* self-read *)
+      else if GobConfig.get_bool "ana.relation.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
+        true (* other is not started yet *)
+      else if GobConfig.get_bool "ana.relation.priv.must-joined" && MHP.must_be_joined other (ask.f Queries.MustJoinedThreads) then
+        true (* accounted for in local information *)
+      else
+        false
+    | _ -> false
+end
+
+module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 
@@ -193,7 +219,7 @@ struct
 
   (* Map from locks to last written values thread-locally *)
   module L = MapDomain.MapBot_LiftTop (LLock) (LD)
-  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LD)
+  module GMutex = MapDomain.MapBot_LiftTop (Digest) (LD)
   module GThread = Lattice.Prod (LMust) (L)
 
   module G =
@@ -215,24 +241,10 @@ struct
 
   module D = Lattice.Prod3 (W) (LMust) (L)
 
-  let compatible (ask:Q.ask) current must_joined other =
-    match current, other with
-    | `Lifted current, `Lifted other ->
-      if (TID.is_unique current) && (TID.equal current other) then
-        false (* self-read *)
-      else if Conf.exclude_not_started () && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
-        false (* other is not started yet *)
-      else if Conf.exclude_must_joined () && MHP.must_be_joined other must_joined then
-        false (* accounted for in local information *)
-      else
-        true
-    | _ -> true
-
   let get_relevant_writes_nofilter (ask:Q.ask) v =
-    let current = ThreadId.get_current ask in
-    let must_joined = ask.f Queries.MustJoinedThreads in
+    let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if compatible ask current must_joined k then
+        if not (Digest.accounted_for ask ~current ~other:k) then
           LD.join acc v
         else
           acc
