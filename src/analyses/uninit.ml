@@ -7,6 +7,7 @@ module Offs = ValueDomain.Offs
 
 open GoblintCil
 open Analyses
+open GobConfig
 
 module Spec =
 struct
@@ -28,6 +29,11 @@ struct
   let threadenter ctx lval f args = [D.empty ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
+
+  let ignore_asm = ref true
+
+  let init _ =
+    ignore_asm := get_bool "asm_is_nop"
 
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
@@ -222,6 +228,22 @@ struct
   let assign ctx (lval:lval) (rval:exp) : trans_out =
     ignore (is_expr_initd (Analyses.ask_of_ctx ctx) rval ctx.local);
     init_lval (Analyses.ask_of_ctx ctx) lval ctx.local
+
+  let asm ctx =
+    if not !ignore_asm then
+      let asm_out, asm_in = 
+        match ctx.edge with
+        | ASM (_, asm_out, asm_in, _) ->
+          let third (_, _, x) = x in
+          List.map third asm_out,
+          List.map third asm_in
+        | _ -> failwith "transfer function asm called on non-asm edge"
+      in
+      let handle_in exp = ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local) in
+      List.iter handle_in asm_in;
+      let handle_out local lval = init_lval (Analyses.ask_of_ctx ctx) lval local in
+      List.fold_left handle_out ctx.local asm_out
+    else ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : trans_out =
     ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local);

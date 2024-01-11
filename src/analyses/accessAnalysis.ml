@@ -85,14 +85,7 @@ struct
           List.map third asm_in
         | _ -> failwith "transfer function asm called on non-asm edge"
       in
-      let handle_in exp = 
-        match exp with
-        | Cil.Lval lval ->
-          if not (List.mem lval asm_out) then
-            access_one_top ~deref:true ctx Read false (AddrOf lval)
-          else ()
-        | _ -> access_one_top ctx Read false exp
-      in
+      let handle_in exp = access_one_top ~deref:true ctx Read false exp in
       List.iter handle_in asm_in;
       ctx.emit (Events.Invalidate {lvals=asm_out})
 

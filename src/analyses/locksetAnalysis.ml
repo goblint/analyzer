@@ -67,13 +67,6 @@ struct
       ctx.local (* don't remove non-unique lock *)
     | Events.Unlock l ->
       Arg.remove ctx l (* remove definite lock or none in parallel if ambiguous *)
-    | Events.Invalidate {lvals} ->
-      let locks = locks_of_lvals ctx lvals in
-      let is_held lock = Arg.is_held ctx lock in
-      let locks = List.filter is_held locks in
-      let remove_lock ctx lock = {ctx with local = Arg.remove ctx lock} in
-      let ctx = List.fold_left remove_lock ctx locks in
-      ctx.local
     | _ ->
       ctx.local
 end
