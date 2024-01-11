@@ -16,6 +16,15 @@ This {{!page-common}unwrapped library} contains various common modules extracted
 {2 Library goblint.domain}
 This {{!page-domain}unwrapped library} contains various domain modules extracted from {!Goblint_lib}.
 
+{2 Library goblint.cdomain.value}
+This {{!page-cdomain_value}unwrapped library} contains various value domain modules extracted from {!Goblint_lib}.
+
+{2 Library goblint.constraint}
+This {{!page-constraint}unwrapped library} contains various constraint system modules extracted from {!Goblint_lib}.
+
+{2 Library goblint.solver}
+{!modules:Goblint_solver}
+
 {2 Library goblint.library}
 This {{!page-library}unwrapped library} contains various library specification modules extracted from {!Goblint_lib}.
 

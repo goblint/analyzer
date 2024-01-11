@@ -1,9 +1,10 @@
 (** Extra constraint system evaluation pass for warning generation, verification, pruning, etc. *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open GobConfig
 module Pretty = GoblintCil.Pretty
+module M  = Messages
 
 (** Postsolver with hooks. *)
 module type S =
@@ -315,3 +316,22 @@ struct
     |> List.map snd
     |> List.map (fun (module F: F) -> (module F (S) (VH): M))
 end
+
+(* Here to avoid module cycle between ConstrSys and PostSolver. *)
+(** Convert a non-incremental solver into an "incremental" solver.
+    It will solve from scratch, perform standard postsolving and have no marshal data. *)
+module EqIncrSolverFromEqSolver (Sol: GenericEqSolver): GenericEqIncrSolver =
+  functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    module Sol = Sol (S) (VH)
+    module Post = MakeList (ListArgFromStdArg (S) (VH) (Arg))
+
+    type marshal = unit
+    let copy_marshal () = ()
+    let relift_marshal () = ()
+
+    let solve xs vs _ =
+      let vh = Sol.solve xs vs in
+      Post.post xs vs vh;
+      (vh, ())
+  end

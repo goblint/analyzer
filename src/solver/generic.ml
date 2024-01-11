@@ -2,7 +2,7 @@
 
 open Batteries
 open GobConfig
-open Analyses
+open ConstrSys
 
 module LoadRunSolver: GenericEqSolver =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
@@ -30,7 +30,7 @@ module LoadRunSolver: GenericEqSolver =
   end
 
 module LoadRunIncrSolver: GenericEqIncrSolver =
-  Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
+  PostSolver.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct

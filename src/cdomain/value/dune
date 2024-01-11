@@ -1,23 +1,19 @@
 (include_subdirs unqualified)
 
 (library
- (name goblint_common)
- (public_name goblint.common)
+ (name goblint_cdomain_value)
+ (public_name goblint.cdomain.value)
  (wrapped false) ; TODO: wrap
  (libraries
    batteries.unthreaded
-   zarith
    goblint_std
+   goblint_common
    goblint_config
-   goblint_tracing
-   goblint-cil
-   fpath
-   yojson
-   goblint_timing
-   qcheck-core.runner)
+   goblint_library
+   goblint_domain
+   goblint_incremental
+   goblint-cil)
  (flags :standard -open Goblint_std)
- (foreign_stubs (language c) (names stubs))
- (ocamlopt_flags :standard -no-float-const-prop)
  (preprocess
   (pps
     ppx_deriving.std

@@ -15,8 +15,10 @@
  *)
 
 open Batteries
-open Analyses
+open ConstrSys
 open Messages
+
+module M = Messages
 
 module type Hooks =
 sig
@@ -192,7 +194,7 @@ module Base =
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
-    module CurrentVarS = Constraints.CurrentVarEqConstrSys (S)
+    module CurrentVarS = ConstrSys.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
 
     let solve st vs marshal =
