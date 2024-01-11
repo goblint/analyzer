@@ -42,7 +42,8 @@ struct
     match desc.special args with
     | Malloc _
     | Calloc _
-    | Realloc _ ->
+    | Realloc _
+    | Alloca _ ->
       begin match ctx.ask (AllocVar {on_stack = false}) with
         | `Lifted var -> D.add var ctx.local
         | _ -> ctx.local
