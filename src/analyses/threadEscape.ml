@@ -138,6 +138,15 @@ struct
       ctx.local
     end
 
+  let combine_assign ctx (lval:lval option) (fexp:exp) f args fc au f_ask : D.t =
+    let ask = Analyses.ask_of_ctx ctx in
+    match lval with
+    | Some lval when D.exists (fun v -> v.vglob || has_escaped ask v) (mpt ask (AddrOf lval)) ->
+      let rval = Lval (ReturnUtil.return_lval ()) in
+      let escaped = escape_rval ctx f_ask rval in
+      D.join ctx.local escaped
+    | _ -> ctx.local
+
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
