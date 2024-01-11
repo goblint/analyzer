@@ -3,8 +3,10 @@
 ## Logging
 Instead of debug printing directly to `stdout`, all logging should be done using the `Logs` module.
 This allows for consistent pretty terminal output, as well as avoiding interference with server mode.
-There are four logging levels: error, warning, info and debug.
+There are five logging levels: result, error, warning, info and debug.
 Log output is controlled by the `dbg.level` option, which defaults to "info".
+
+Logs are written to `stderr`, except for result level, which go to `stdout` by default.
 
 Goblint extensively uses [CIL's `Pretty`](https://people.eecs.berkeley.edu/~necula/cil/api/Pretty.html) module for output due to many non-primitive values.
 
