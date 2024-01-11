@@ -355,6 +355,13 @@ let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 (** Convert [ctx] to [Queries.ask]. *)
 let ask_of_ctx ctx: Queries.ask = { Queries.f = fun (type a) (q: a Queries.t) -> ctx.ask q }
 
+let asm_extract_ins_outs ctx = 
+  match ctx.edge with
+  | ASM (_, asm_out, asm_in, _) ->
+    let third (_, _, x) = x in
+    List.map third asm_in,
+    List.map third asm_out
+  | _ -> failwith "can't call asm_extract_ins_outs outside of transfer function asm"
 
 module type Spec =
 sig
@@ -642,12 +649,12 @@ struct
 
   let vdecl ctx _ = ctx.local
 
-  let asm x =
+  let asm ctx =
     if get_bool "asm_is_nop" then begin
       M.msg_final Info ~category:Unsound "ASM ignored";
       M.info ~category:Unsound "ASM statement ignored.";
-    end else ();
-    x.local (* Just ignore. *)
+    end;
+    ctx.local
 
   let skip x = x.local (* Just ignore. *)
 

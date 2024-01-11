@@ -25,8 +25,6 @@ struct
   module V = VarinfoV
 
   let context _ _ = ()
-
-
   (* HELPER FUNCTIONS *)
 
   let get_current_threadid ctx =
@@ -171,8 +169,12 @@ struct
     warn_exp_might_contain_freed "assign" ctx rval;
     ctx.local
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    warn_exp_might_contain_freed "branch" ctx exp;
+  let asm ctx =
+    let ins, outs = Analyses.asm_extract_ins_outs ctx in
+    let handle_out lval = warn_lval_might_contain_freed "asm" ctx lval in
+    List.iter handle_out outs;
+    let handle_in exp = warn_exp_might_contain_freed "asm" ctx exp in
+    List.iter handle_in ins;
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -239,7 +241,6 @@ struct
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
-
 end
 
 let _ =

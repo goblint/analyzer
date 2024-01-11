@@ -25,11 +25,9 @@ struct
 
   let collect_local = ref false
   let emit_single_threaded = ref false
-  let ignore_asm = ref true
 
   let init _ =
     collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed";
-    ignore_asm := get_bool "asm_is_nop";
     let activated = get_string_list "ana.activated" in
     emit_single_threaded := List.mem (ModifiedSinceLongjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
 
@@ -75,19 +73,11 @@ struct
       ctx.local
     end
 
-  let asm (ctx: (D.t, G.t, C.t, V.t) ctx) : D.t =
-    if not !ignore_asm then
-      let asm_out, asm_in = 
-        match ctx.edge with
-        | ASM (_, asm_out, asm_in, _) ->
-          let third (_, _, x) = x in
-          List.map third asm_out,
-          List.map third asm_in
-        | _ -> failwith "transfer function asm called on non-asm edge"
-      in
-      let handle_in exp = access_one_top ~deref:true ctx Read false exp in
-      List.iter handle_in asm_in;
-      ctx.emit (Events.Invalidate {lvals=asm_out})
+  let asm_ins_outs ctx =
+    let ins, outs = Analyses.asm_extract_ins_outs ctx in
+    let handle_in exp = access_one_top ~deref:true ctx Read false exp in
+    List.iter handle_in ins;
+    ctx.emit (Events.Invalidate {lvals=outs})
 
   let branch ctx exp tv : D.t =
     access_one_top ctx Read false exp;
