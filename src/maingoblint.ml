@@ -168,7 +168,9 @@ let check_arguments () =
     set_string "sem.int.signed_overflow" "assume_none";
     warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none";
   );
-  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
+  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)";
+  if get_bool "dbg.print_wpoints" && not (Logs.Level.should_log Debug) then
+    warn "dbg.print_wpoints requires dbg.level debug"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
