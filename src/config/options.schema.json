@@ -1813,7 +1813,7 @@
           "title": "dbg.level",
           "description": "Logging level.",
           "type": "string",
-          "enum": ["debug", "info", "warning", "error"],
+          "enum": ["debug", "info", "warning", "error", "result"],
           "default": "info"
         },
         "timing": {
