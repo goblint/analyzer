@@ -108,26 +108,6 @@ let dequeue_tup_opt = function (* returns the removed element and the remaining 
       | x::xs -> (Some x , Queue(xs, [])))
   | Queue (x::q_first, q_last) -> (Some x, Queue (q_first, q_last))
 
-(** [del_n_elem n q] deletes the first n elements of the queue*)
-let del_n_elem n (Queue (q_first, q_last)) = 
-  let rec del n (Queue (q_first, q_last)) = 
-    if n = 0 then (Queue (q_first, q_last))
-    else
-      match q_first, q_last with
-      | [], [] -> Queue ([], [])
-      | [], xs -> del n (Queue (List.rev xs, []))
-      | x::xs, ys -> del (n-1) (Queue (xs, ys)) 
-  in
-  if n <= 0 then (Queue (q_first, q_last)) (* check if command is used correctly *)
-  else(
-    if length (Queue (q_first, q_last)) <= n (* check if everything is deleted *)
-    then Queue ([], [])
-    else 
-      let l_first = List.length q_first in 
-      if l_first <= n (* check if the whole first list is deleted *)
-      then del (n-l_first) (Queue (List.rev q_last, []))
-      else del n (Queue (q_first, q_last)))
-
 (** [iter f q] applies [f] in turn to all elements of [q],
     from the least recently entered to the most recently entered.*)
 let iter f (Queue (q_first, q_last)) =
@@ -154,21 +134,3 @@ let fold_left f accu (Queue (q_first, q_last)) =
     [f a1 (f a2 (... (f an accu) ...))]. Not tail-recursive.*)
 let fold_right f (Queue (q_first, q_last)) accu = 
   List.fold_right f (List.rev q_last) accu |> List.fold_right f q_first 
-
-(** [assoc a q] returns the value associated with key [a] in the queue of
-    pairs [q]. That is,
-    [assoc a { ...; (a,b); ...}= b]
-    if [(a,b)] is the leftmost binding of [a] in queue [q].
-    @raise Not_found if there is no value associated with [a] in the
-    queue [q].*)
-let assoc x (Queue (q_first, q_last)) = 
-  match List.assoc_opt x q_first, List.assoc_opt x q_last with
-  | None, None -> raise Not_found
-  | Some y, _ -> y
-  | None, Some y -> y
-
-(** Same as {!assoc}, but simply return [true] if a binding exists,
-    and [false] if no bindings exist for the given key.*)
-let mem_assoc x (Queue (q_first, q_last)) = List.mem_assoc x q_first || List.mem_assoc x q_last
-
-

@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" callstring_stmt --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_stmt --enable ana.int.interval_set
 // Checks proper handling of recursions in loops + shows that not all 200 iterations need to be analyzed
 #include <stdio.h>
 

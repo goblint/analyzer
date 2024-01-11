@@ -568,14 +568,14 @@ struct
     let ctx_dec = dec_context_gas ctx in
     (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
-    liftmap_tup (S.enter (conv ctx) r f args) (* TODO: hier ctx oder ctx_dec???*)
+    liftmap_tup (S.enter (conv ctx) r f args) 
 
   let liftmap f ctx = List.map (fun (x) -> (x, cg_val ctx)) f
 
   let threadenter ctx ~multiple lval f args       = 
-  let ctx_dec = dec_context_gas ctx in
-  (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterThreadCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Varinfo.show f) (showExprList args);*)
-  liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx_dec (* TODO: hier ctx oder ctx_dec???*)
+    let ctx_dec = dec_context_gas ctx in
+    (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterThreadCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Varinfo.show f) (showExprList args);*)
+    liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx_dec 
 
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
   let query ctx q                                 = S.query (conv ctx) q

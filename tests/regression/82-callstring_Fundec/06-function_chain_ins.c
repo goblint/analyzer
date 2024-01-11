@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
 // Checks if function chains are handled properly
 #include <stdio.h>
 

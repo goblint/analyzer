@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" callstring_loc --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_loc --enable ana.int.interval_set
 // Interesting if multiple recursions are handled properly
 #include <stdio.h>
 
