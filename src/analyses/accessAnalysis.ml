@@ -76,12 +76,16 @@ struct
     end
 
   let asm ctx =
-    let ins, outs = Analyses.asm_extract_ins_outs ctx in
-    let handle_in exp = access_one_top ctx Read false exp in
-    List.iter handle_in ins;
-    let handle_out lval = access_one_top ~deref:true ctx Write false (AddrOf lval) in
-    List.iter handle_out outs;
-    ctx.emit (Events.Invalidate {lvals=outs})
+    if not !ignore_asm then begin
+      let ins, outs = Analyses.asm_extract_ins_outs ctx in
+      let handle_in exp = access_one_top ctx Read false exp in
+      List.iter handle_in ins;
+      let handle_out lval = access_one_top ~deref:true ctx Write false (AddrOf lval) in
+      List.iter handle_out outs;
+      ctx.emit (Events.Invalidate {lvals=outs})
+    end;
+    ctx.local
+
 
   let branch ctx exp tv : D.t =
     access_one_top ctx Read false exp;
