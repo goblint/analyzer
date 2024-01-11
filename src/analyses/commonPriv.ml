@@ -9,6 +9,12 @@ module Q = Queries
 module IdxDom = ValueDomain.IndexDomain
 module VD     = BaseDomain.VD
 
+module type AtomicParam =
+sig
+  val handle_atomic: bool
+  (** Whether to handle SV-COMP atomic blocks. *)
+end
+
 module ConfCheck =
 struct
   module RequireMutexActivatedInit =

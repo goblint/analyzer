@@ -640,6 +640,8 @@ module type PerGlobalPrivParam =
 sig
   (** Whether to also check unprotectedness by reads for extra precision. *)
   val check_read_unprotected: bool
+
+  include AtomicParam
 end
 
 (** Protection-Based Reading. *)
@@ -690,7 +692,7 @@ struct
   let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
     if P.mem x st.priv then
       CPA.find x st.cpa
-    else if ask.f MustBeAtomic then
+    else if Param.handle_atomic && ask.f MustBeAtomic then
       VD.join (CPA.find x st.cpa) (getg (V.unprotected x))
     else if is_unprotected ask x then
       getg (V.unprotected x) (* CPA unnecessary because all values in GUnprot anyway *)
@@ -699,13 +701,13 @@ struct
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     if not invariant then (
-      if not (ask.f MustBeAtomic) then
+      if not (Param.handle_atomic && ask.f MustBeAtomic) then
         sideg (V.unprotected x) v;
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
         sideg (V.protected x) v
         (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
     );
-    if ask.f MustBeAtomic then
+    if Param.handle_atomic && ask.f MustBeAtomic then
       {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
     else if is_unprotected ask x then
       st
@@ -715,7 +717,7 @@ struct
   let lock ask getg st m = st
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
-    let atomic = LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
+    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_protected_by ask m x then ( (* is_in_Gm *)
@@ -1804,8 +1806,10 @@ let priv_module: (module S) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv)
-        | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
-        | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
+        | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = false end))
+        | "protection-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = true end))
+        | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = false end))
+        | "protection-read-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = true end))
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
