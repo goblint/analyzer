@@ -299,14 +299,16 @@ struct
   let copy t = {t with d = Option.map RelDomain.copy t.d}
 
   let dim_add (ch: Apron.Dim.change) m =
-    Array.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
+    Array.modifyi (fun i x -> x + i) ch.dim; (* could be written Array.modifyi (+) ch.dim; but that's too smart *)
     RelDomain.add_empty_columns m ch.dim
 
   let dim_add ch m = VectorMatrix.timing_wrap "dim add" (dim_add ch) m
 
   let dim_remove (ch: Apron.Dim.change) m ~del =
-    if Array.length ch.dim = 0 || RelDomain.is_empty m then m else (
-      Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
+    if Array.length ch.dim = 0 || RelDomain.is_empty m then
+      m
+    else (
+      Array.modifyi (fun i x -> x + i) ch.dim;
       let m' = Array.fold_left (fun y x -> RelDomain.reduce_col_with y x; y) (RelDomain.copy m) ch.dim in
       RelDomain.remove_zero_rows @@ RelDomain.del_cols m' ch.dim)
 
@@ -314,16 +316,24 @@ struct
 
 
   let change_d t new_env ~add ~del =
-    if Environment.equal t.env new_env then t else
-      let dim_change = if add then Environment.dimchange t.env new_env
-        else Environment.dimchange new_env t.env
-      in match t.d with
+    if Environment.equal t.env new_env then
+      t
+    else
+      match t.d with
       | None -> bot_env
-      | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m ~del:del); env = new_env}
+      | Some m ->
+        let dim_change =
+          if add then
+            Environment.dimchange t.env new_env
+          else
+            Environment.dimchange new_env t.env
+        in
+        {d = Some (if add then dim_add dim_change m else dim_remove dim_change m ~del:del); env = new_env}
 
   let change_d t new_env ~add ~del = VectorMatrix.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
 
   let vars x = Environment.ivars_only x.env
+
   let add_vars t vars =
     let t = copy t in
     let env' = Environment.add_vars t.env vars in
@@ -511,14 +521,19 @@ module BoundsCheckMeetTcons (Bounds: ExtendedConvBounds) (V: SV) = struct
     | None -> overflow_res res
     | Some v ->
       let ik = Cilfacade.get_ikind v.vtype in
-      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res (Bounds.get_env res) (Lval (Cil.var v)) true) with
-      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable
-      | Some min, Some max ->
-        assert (Z.equal min max); (* other bounds impossible in affeq *)
-        let (min_ik, max_ik) = IntDomain.Size.range ik in
-        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
-          if IntDomain.should_ignore_overflow ik then Bounds.bot () else raise NotRefinable
-        else res
-      | exception Convert.Unsupported_CilExp _
-      | _, _ -> overflow_res res
+      if not (Cil.isSigned ik) then
+        raise NotRefinable
+      else
+        match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res (Bounds.get_env res) (Lval (Cil.var v)) true) with
+        | Some min, Some max ->
+          assert (Z.equal min max); (* other bounds impossible in affeq *)
+          let (min_ik, max_ik) = IntDomain.Size.range ik in
+          if Z.lt min min_ik || Z.gt max max_ik then
+            if IntDomain.should_ignore_overflow ik then
+              Bounds.bot ()
+            else
+              raise NotRefinable
+          else res
+        | exception Convert.Unsupported_CilExp _
+        | _ -> overflow_res res
 end

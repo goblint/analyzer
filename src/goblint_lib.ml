@@ -402,6 +402,7 @@ module LibraryFunctions = LibraryFunctions
 module BaseUtil = BaseUtil
 module PrecisionUtil = PrecisionUtil
 module ContextUtil = ContextUtil
+module ReturnUtil = ReturnUtil
 module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds

@@ -18,7 +18,8 @@ A message consists of the following:
         3. **Context.** Optional. Currently completely abstract, so not very useful.
     * **Group.** For messages related to numerous locations with different texts. Contains the following:
         1. **Group text.** An overall description of the group message.
-        2. **Pieces.** A list of single messages as described above.
+        2. **Group location.** Optional. An overall location of the group message.
+        3. **Pieces.** A list of single messages as described above.
 
 ## Creating
 
