@@ -58,7 +58,20 @@ struct
         ls
     | _ -> Queries.Result.top q
 
-    
+    let event ctx e octx =
+      match e with
+      | Events.Invalidate {lvals} ->
+        begin
+          match ctx.local with
+          | `Lifted reg ->
+            let invalidation_set = Lvals.of_list lvals in
+            let updated_reg = RegMap.mapi (fun v r ->
+              if Lvals.mem v invalidation_set then RegPart.top () else r
+            ) reg in
+            `Lifted updated_reg
+          | _ -> ctx.local
+        end
+      | _ -> ctx.local  
 
   module Lvals = SetDomain.Make (Mval.Exp)
   module A =
@@ -77,23 +90,6 @@ struct
       | Some r when Lvals.is_empty r -> false
       | _ -> true
   end
-
-
-  let event ctx e octx =
-    match e with
-    | Events.Invalidate {lvals} ->
-      begin
-        match ctx.local with
-        | `Lifted reg ->
-          let invalidation_set = Lvals.of_list lvals in
-          let updated_reg = RegMap.mapi (fun v r ->
-            if Lvals.mem v invalidation_set then RegPart.top () else r
-          ) reg in
-          `Lifted updated_reg
-        | _ -> ctx.local
-      end
-    | _ -> ctx.local  
-
   let access ctx (a: Queries.access) =
     match a with
     | Point ->
