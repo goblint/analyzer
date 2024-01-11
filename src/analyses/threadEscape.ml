@@ -132,7 +132,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let vs = mpt ask (AddrOf lval) in
     if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
-      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) rval in
+      let escaped = escape_rval ctx ask rval in
       D.join ctx.local escaped
     ) else begin
       ctx.local
