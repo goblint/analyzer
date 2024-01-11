@@ -4,6 +4,7 @@ open GoblintCil
 open Analyses
 open MessageCategory
 open AnalysisStateUtil
+open GobConfig
 
 module AllocaVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All alloca() Variables" end)
 module HeapVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
@@ -23,6 +24,11 @@ struct
   module C = Lattice.Unit
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
+
+  let ignore_asm = ref true
+
+  let init _ =
+    ignore_asm := get_bool "asm_is_nop"
 
   let context _ _ = ()
   (* HELPER FUNCTIONS *)
@@ -170,11 +176,13 @@ struct
     ctx.local
 
   let asm ctx =
-    let ins, outs = Analyses.asm_extract_ins_outs ctx in
-    let handle_out lval = warn_lval_might_contain_freed "asm" ctx lval in
-    List.iter handle_out outs;
-    let handle_in exp = warn_exp_might_contain_freed "asm" ctx exp in
-    List.iter handle_in ins;
+    if not !ignore_asm then begin
+      let ins, outs = Analyses.asm_extract_ins_outs ctx in
+      let handle_out lval = warn_lval_might_contain_freed "asm" ctx lval in
+      List.iter handle_out outs;
+      let handle_in exp = warn_exp_might_contain_freed "asm" ctx exp in
+      List.iter handle_in ins;
+    end;
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =

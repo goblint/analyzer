@@ -7,6 +7,7 @@ module Offs = ValueDomain.Offs
 
 open GoblintCil
 open Analyses
+open GobConfig
 
 module Spec =
 struct
@@ -28,6 +29,11 @@ struct
   let threadenter ctx lval f args = [D.empty ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
+
+  let ignore_asm = ref true
+
+  let init _ = 
+    ignore_asm := get_bool "asm_is_nop"
 
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with

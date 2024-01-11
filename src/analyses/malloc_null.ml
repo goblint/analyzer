@@ -6,6 +6,7 @@ module Offs = ValueDomain.Offs
 
 open GoblintCil
 open Analyses
+open GobConfig
 
 module Spec =
 struct
@@ -15,6 +16,12 @@ struct
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
   module P = IdentityP (D)
+
+  let ignore_asm = ref true
+
+  (*TODO: why is this init not called??? *)
+  let init _ =
+    ignore_asm := get_bool "asm_is_nop"
 
   (*
     Addr set functions:
@@ -152,6 +159,18 @@ struct
     | Some rv, Some mval when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
       D.add (Addr.of_mval mval) ctx.local
     | _ -> ctx.local
+
+  let asm ctx =
+    (* tmp hack because init is broken *)
+    let ignore_asm = ref (get_bool "asm_is_nop") in
+    if not !ignore_asm then begin
+      let ins, outs = Analyses.asm_extract_ins_outs ctx in
+      let handle_in exp = warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local exp in
+      List.iter handle_in ins;
+      let handle_out lval = warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval lval) in
+      List.iter handle_out outs;
+    end;
+    ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local exp;
