@@ -20,9 +20,9 @@
   [Info][Unsound] Write to unknown address: privatization is unsound. (91-distribute-fields-type-2.c:32:3-32:17)
   [Info][Unsound] Write to unknown address: privatization is unsound. (91-distribute-fields-type-2.c:40:3-40:17)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (91-distribute-fields-type-2.c:32:3-32:17)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (91-distribute-fields-type-2.c:32:3-32:17)
+  [Info][Imprecise] Invalidating expressions: & tmp (91-distribute-fields-type-2.c:32:3-32:17)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (91-distribute-fields-type-2.c:40:3-40:17)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (91-distribute-fields-type-2.c:40:3-40:17)
+  [Info][Imprecise] Invalidating expressions: & tmp (91-distribute-fields-type-2.c:40:3-40:17)
   [Error][Imprecise][Unsound] Function definition missing for getS (91-distribute-fields-type-2.c:32:3-32:17)
   [Error][Imprecise][Unsound] Function definition missing for getT (91-distribute-fields-type-2.c:40:3-40:17)
   [Error][Imprecise][Unsound] Function definition missing

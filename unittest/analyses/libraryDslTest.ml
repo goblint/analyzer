@@ -11,7 +11,7 @@ let pthread_mutex_lock_desc: LibraryDesc.t = LibraryDsl.(
   )
 
 let pthread_create_desc: LibraryDesc.t = LibraryDsl.(
-    special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [r]; __ "arg" [r]] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }
+    special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [r]; __ "arg" [r]] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg; multiple = false }
   )
 
 let realloc_desc: LibraryDesc.t = LibraryDsl.(

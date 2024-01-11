@@ -10,27 +10,20 @@ For better context, see {!Goblint_lib} which also documents these modules.
 Node
 Edge
 MyCFG
+CfgTools
 }
 
 {2 Specification}
 {!modules:
 AnalysisState
+AnalysisStateUtil
 ControlSpecC
-}
-
-{2 Configuration}
-{!modules:
-GobConfig
-AfterConfig
-JsonSchema
-Options
 }
 
 
 {1 Domains}
 {!modules:
 Printable
-Lattice
 }
 
 {2 Analysis-specific}
@@ -42,7 +35,6 @@ Lattice
 {1 I/O}
 {!modules:
 Messages
-Tracing
 }
 
 
@@ -51,6 +43,7 @@ Tracing
 
 {2 General}
 {!modules:
+IntOps
 LazyEval
 ResettableLazy
 MessageUtil
@@ -64,11 +57,13 @@ Cilfacade
 RichVarinfo
 }
 
+{2 Analysis-specific}
+{!modules:
+ContextUtil
+}
+
 
 {1 Library extensions}
 
 {2 Standard library}
 {!modules:GobFormat}
-
-{2 Other libraries}
-{!modules:MyCheck}

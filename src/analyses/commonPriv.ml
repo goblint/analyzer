@@ -85,22 +85,19 @@ struct
   struct
     include LockDomain.Addr
     let name () = "mutex"
-    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
   end
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
   module VGlobal =
   struct
     include VarinfoV
     let name () = "global"
-    let show x = show x ^ ":global" (* distinguishable variant names for html *)
   end
   module V =
   struct
-    (* TODO: Either3? *)
-    include Printable.Either (struct include Printable.Either (VMutex) (VMutexInits) let name () = "mutex" end) (VGlobal)
+    include Printable.Either3Conf (struct include Printable.DefaultConf let expand2 = false end) (VMutex) (VMutexInits) (VGlobal)
     let name () = "MutexGlobals"
-    let mutex x: t = `Left (`Left x)
-    let mutex_inits: t = `Left (`Right ())
+    let mutex x: t = `Left x
+    let mutex_inits: t = `Middle ()
     let global x: t = `Right x
   end
 
@@ -169,12 +166,38 @@ struct
   end
 end
 
-module type PerMutexTidCommonArg = sig
-  val exclude_not_started: unit -> bool
-  val exclude_must_joined: unit -> bool
+module type Digest =
+sig
+  include Printable.S
+
+  val current: Q.ask -> t
+  val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
 
-module PerMutexTidCommon (Conf:PerMutexTidCommonArg) (LD:Lattice.S) =
+module ThreadDigest: Digest =
+struct
+  include ThreadIdDomain.ThreadLifted
+
+  module TID = ThreadIdDomain.Thread
+
+  let current (ask: Q.ask) =
+    ThreadId.get_current ask
+
+  let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
+    match current, other with
+    | `Lifted current, `Lifted other ->
+      if TID.is_unique current && TID.equal current other then
+        true (* self-read *)
+      else if GobConfig.get_bool "ana.relation.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
+        true (* other is not started yet *)
+      else if GobConfig.get_bool "ana.relation.priv.must-joined" && MHP.must_be_joined other (ask.f Queries.MustJoinedThreads) then
+        true (* accounted for in local information *)
+      else
+        false
+    | _ -> false
+end
+
+module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 
@@ -189,7 +212,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (MutexGlobals.V) (TID)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (MutexGlobals.V) (TID)
     let mutex x = `Left (MutexGlobals.V.mutex x)
     let mutex_inits = `Left MutexGlobals.V.mutex_inits
     let global x = `Left (MutexGlobals.V.global x)
@@ -215,12 +238,12 @@ struct
     include MapDomain.MapBot_LiftTop (LLock) (LD)
     let name () = "L"
   end
-  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LD)
+  module GMutex = MapDomain.MapBot_LiftTop (Digest) (LD)
   module GThread = Lattice.Prod (LMust) (L)
 
   module G =
   struct
-    include Lattice.Lift2 (GMutex) (GThread) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GMutex) (GThread)
 
     let mutex = function
       | `Bot -> GMutex.bot ()
@@ -237,24 +260,10 @@ struct
 
   module D = Lattice.Prod3 (W) (LMust) (L)
 
-  let compatible (ask:Q.ask) current must_joined other =
-    match current, other with
-    | `Lifted current, `Lifted other ->
-      if (TID.is_unique current) && (TID.equal current other) then
-        false (* self-read *)
-      else if Conf.exclude_not_started () && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
-        false (* other is not started yet *)
-      else if Conf.exclude_must_joined () && MHP.must_be_joined other must_joined then
-        false (* accounted for in local information *)
-      else
-        true
-    | _ -> true
-
   let get_relevant_writes_nofilter (ask:Q.ask) v =
-    let current = ThreadId.get_current ask in
-    let must_joined = ask.f Queries.MustJoinedThreads in
+    let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if compatible ask current must_joined k then
+        if not (Digest.accounted_for ask ~current ~other:k) then
           LD.join acc v
         else
           acc

@@ -117,8 +117,7 @@ struct
       end
     | _ -> Queries.Result.top q
 
-  let escape_rval ctx (rval:exp) =
-    let ask = Analyses.ask_of_ctx ctx in
+  let escape_rval ctx ask (rval:exp) =
     let escaped = reachable ask rval in
     let escaped = D.filter (fun v -> not v.vglob) escaped in
 
@@ -133,20 +132,29 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let vs = mpt ask (AddrOf lval) in
     if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
-      let escaped = escape_rval ctx rval in
+      let escaped = escape_rval ctx ask rval in
       D.join ctx.local escaped
     ) else begin
       ctx.local
     end
 
+  let combine_assign ctx (lval:lval option) (fexp:exp) f args fc au f_ask : D.t =
+    let ask = Analyses.ask_of_ctx ctx in
+    match lval with
+    | Some lval when D.exists (fun v -> v.vglob || has_escaped ask v) (mpt ask (AddrOf lval)) ->
+      let rval = Lval (ReturnUtil.return_lval ()) in
+      let escaped = escape_rval ctx f_ask rval in (* Using f_ask because the return value is only accessible in the context of that function at this point *)
+      D.join ctx.local escaped
+    | _ -> ctx.local
+
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
     | Globalize ptr, _, _ ->
-      let escaped = escape_rval ctx ptr in
+      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) ptr in
       D.join ctx.local escaped
     | _, "pthread_setspecific" , [key; pt_value] ->
-      let escaped = escape_rval ctx pt_value in
+      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) pt_value in
       D.join ctx.local escaped
     | _ -> ctx.local
 

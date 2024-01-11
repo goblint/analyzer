@@ -195,8 +195,7 @@ struct
   end
   module AV =
   struct
-    include RelationDomain.VarMetadataTbl (VM) (RD.Var)
-
+    include RelationDomain.VarMetadataTbl (VM)
 
     let local g = make_var (Local g)
     let unprot g = make_var (Unprot g)
@@ -911,7 +910,7 @@ struct
 end
 
 (** Per-mutex meet with TIDs. *)
-module PerMutexMeetPrivTID (Param: AtomicParam) (Cluster: ClusterArg): S  = functor (RD: RelationDomain.RD) ->
+module PerMutexMeetPrivTID (Param: AtomicParam) (Digest: Digest) (Cluster: ClusterArg): S  = functor (RD: RelationDomain.RD) ->
 struct
   open CommonPerMutex(RD)
   include MutexGlobals
@@ -921,10 +920,7 @@ struct
   module Cluster = NC
   module LRD = NC.LRD
 
-  include PerMutexTidCommon(struct
-      let exclude_not_started () = GobConfig.get_bool "ana.relation.priv.not-started"
-      let exclude_must_joined () = GobConfig.get_bool "ana.relation.priv.must-joined"
-    end)(LRD)
+  include PerMutexTidCommon (Digest) (LRD)
 
   module AV = RD.V
   module P = UnitP
@@ -932,10 +928,9 @@ struct
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.relation.priv.must-joined" then  ",join"  else "") ^ ")"
 
   let get_relevant_writes (ask:Q.ask) m v =
-    let current = ThreadId.get_current ask in
-    let must_joined = ask.f Queries.MustJoinedThreads in
+    let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if compatible ask current must_joined k then
+        if not (Digest.accounted_for ask ~current ~other:k) then
           LRD.join acc (Cluster.keep_only_protected_globals ask m v)
         else
           acc
@@ -1049,8 +1044,8 @@ struct
     if not atomic then (
       let rel_side = RD.keep_vars rel_local [g_var] in
       let rel_side = Cluster.unlock (W.singleton g) rel_side in
-      let tid = ThreadId.get_current ask in
-      let sidev = GMutex.singleton tid rel_side in
+      let digest = Digest.current ask in
+      let sidev = GMutex.singleton digest rel_side in
       if Param.handle_atomic then
         sideg (V.mutex atomic_mutex) (G.create_global sidev)
       else
@@ -1107,8 +1102,8 @@ struct
       else
         let rel_side = keep_only_protected_globals ask m rel in
         let rel_side = Cluster.unlock w rel_side in
-        let tid = ThreadId.get_current ask in
-        let sidev = GMutex.singleton tid rel_side in
+        let digest = Digest.current ask in
+        let sidev = GMutex.singleton digest rel_side in
         sideg (V.mutex m) (G.create_mutex sidev);
         let lm = LLock.mutex m in
         let l' = L.add lm rel_side l in
@@ -1119,8 +1114,8 @@ struct
       let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
       let rel_side = keep_only_globals ask m rel in
       let rel_side = Cluster.unlock w rel_side in
-      let tid = ThreadId.get_current ask in
-      let sidev = GMutex.singleton tid rel_side in
+      let digest = Digest.current ask in
+      let sidev = GMutex.singleton digest rel_side in
       sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
       let (lmust', l') = W.fold (fun g (lmust, l) ->
           let lm = LLock.global g in
@@ -1150,17 +1145,17 @@ struct
       )
     )
     else (
-      match ConcDomain.ThreadSet.elements tids with
-      | [tid] ->
-        let lmust',l' = G.thread (getg (V.thread tid)) in
-        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-      | _ ->
-        (* To match the paper more closely, one would have to join in the non-definite case too *)
-        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+      if ConcDomain.ThreadSet.is_top tids then
         st
-      | exception SetDomain.Unsupported _ ->
-        (* elements throws if the thread set is top *)
-        st
+      else
+        match ConcDomain.ThreadSet.elements tids with
+        | [tid] ->
+          let lmust',l' = G.thread (getg (V.thread tid)) in
+          {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+        | _ ->
+          (* To match the paper more closely, one would have to join in the non-definite case too *)
+          (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+          st
     )
 
   let thread_return ask getg sideg tid (st: relation_components_t) =
@@ -1208,8 +1203,8 @@ struct
     in
     let rel_side = RD.keep_vars rel g_vars in
     let rel_side = Cluster.unlock (W.top ()) rel_side in (* top W to avoid any filtering *)
-    let tid = ThreadId.get_current ask in
-    let sidev = GMutex.singleton tid rel_side in
+    let digest = Digest.current ask in
+    let sidev = GMutex.singleton digest rel_side in
     sideg V.mutex_inits (G.create_mutex sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
@@ -1392,12 +1387,12 @@ let priv_module: (module S) Lazy.t =
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv (NoAtomic))
          | "mutex-meet-atomic" -> (module PerMutexMeetPriv (struct let handle_atomic = true end))
-         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoAtomic) (NoCluster))
-         | "mutex-meet-tid-atomic" -> (module PerMutexMeetPrivTID (struct let handle_atomic = true end) (NoCluster))
-         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (NoAtomic) (DownwardClosedCluster (Clustering12)))
-         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (NoAtomic) (ArbitraryCluster (Clustering2)))
-         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (NoAtomic) (ArbitraryCluster (ClusteringMax)))
-         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (NoAtomic) (DownwardClosedCluster (ClusteringPower)))
+         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (NoCluster))
+         | "mutex-meet-tid-atomic" -> (module PerMutexMeetPrivTID (struct let handle_atomic = true end) (ThreadDigest) (NoCluster))
+         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (DownwardClosedCluster (Clustering12)))
+         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (ArbitraryCluster (Clustering2)))
+         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (ArbitraryCluster (ClusteringMax)))
+         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (DownwardClosedCluster (ClusteringPower)))
          | _ -> failwith "ana.relation.privatization: illegal value"
       )
     in
