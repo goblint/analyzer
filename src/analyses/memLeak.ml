@@ -204,7 +204,8 @@ struct
     match desc.special arglist with
     | Malloc _
     | Calloc _
-    | Realloc _ ->
+    | Realloc _
+    | Alloca _ ->
       ctx.sideg () true;
       begin match ctx.ask (Queries.AllocVar {on_stack = false}) with
         | `Lifted var ->
