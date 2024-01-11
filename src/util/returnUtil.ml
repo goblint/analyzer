@@ -1,3 +1,5 @@
+(** Special variable for return value. *)
+
 open GoblintCil
 module AD = ValueDomain.AD
 
