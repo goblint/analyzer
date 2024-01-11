@@ -37,13 +37,14 @@ struct
   let meet = inter
 end
 
-module JmpBufSetTaint =
+module JmpBufSetTaintInvalid =
 struct
   module Bufs = JmpBufSet
-  include Lattice.Prod(JmpBufSet)(BoolDomain.MayBool)
-  let buffers (a,_) = a
-  let copied (_,b) = b
-  let name () = "JumpbufferCopyTaint"
+  include Lattice.Prod3(JmpBufSet)(BoolDomain.MayBool)(BoolDomain.MayBool)
+  let buffers (buffer,_,_) = buffer
+  let copied (_,copied,_) = copied
+  let invalid (_,_,invalid) = invalid
+  let name () = "JumpbufferTaintOrInvalid"
 end
 
 

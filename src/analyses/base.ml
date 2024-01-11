@@ -1229,9 +1229,12 @@ struct
           if AD.mem Addr.UnknownPtr jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
           begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
-            | JmpBuf (x, copied) ->
+            | JmpBuf (x, copied, invalid) ->
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
+              (* M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a was modified by inline assembly. This is may lead to Undefined Behavior." d_exp e; *)
+              if invalid then
+                M.warn ~category:(Behavior (Undefined Other)) "The jump target %a may have been altered in an inline assembly block." d_exp e;
               x
             | Top
             | Bot ->
@@ -2477,7 +2480,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let st' = match eval_rv ask gs st env with
         | Address jmp_buf ->
-          let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
+          let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false, false) in
           let r = set ~ctx ask gs st jmp_buf (Cilfacade.typeOf env) value in
           if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
           r
