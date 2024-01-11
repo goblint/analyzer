@@ -2,6 +2,7 @@
 // TODO: -atomic unneeded?
 #include <pthread.h>
 #include <assert.h>
+#include <goblint.h>
 
 extern int  __VERIFIER_nondet_int();
 extern void __VERIFIER_atomic_begin();
@@ -27,11 +28,6 @@ void* inc()
   return 0;
 }
 
-void* dummy()
-{
-  return 0;
-}
-
 int main()
 {
   pthread_t tid;
@@ -39,7 +35,7 @@ int main()
 
   int val = __VERIFIER_nondet_int();
   __VERIFIER_atomic_begin();
-  pthread_create(&tid, 0, dummy, &val); // globalize val by escaping
+  __goblint_globalize(&val);
   g = val; x = val;
   __VERIFIER_atomic_end();
 
