@@ -452,7 +452,7 @@ struct
 end
 
 (** Per-mutex meet. *)
-module PerMutexMeetPriv : S = functor (RD: RelationDomain.RD) ->
+module PerMutexMeetPriv (Param: AtomicParam) : S = functor (RD: RelationDomain.RD) ->
 struct
   open CommonPerMutex(RD)
   include MutexGlobals
@@ -479,27 +479,32 @@ struct
     RD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
-    let get_mutex_global_g = getg (V.mutex atomic_mutex) in
-    let get_mutex_inits = getg V.mutex_inits in
     let g_var = AV.global g in
-    let get_mutex_global_g' = RD.keep_vars get_mutex_global_g [g_var] in
+    let get_mutex_global_g =
+      if Param.handle_atomic then (
+        RD.keep_vars (getg (V.mutex atomic_mutex)) [g_var]
+      )
+      else
+        getg (V.global g)
+    in
+    let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
-    RD.join get_mutex_global_g' get_mutex_inits'
+    RD.join get_mutex_global_g get_mutex_inits'
 
-  let get_mutex_global_g_with_mutex_inits' ask getg =
+  let get_mutex_global_g_with_mutex_inits_atomic ask getg =
     let get_mutex_global_g = getg (V.mutex atomic_mutex) in
     let get_mutex_inits = getg V.mutex_inits in
     RD.join get_mutex_global_g get_mutex_inits
 
   let read_global (ask: Q.ask) getg (st: relation_components_t) g x: RD.t =
-    let atomic = ask.f MustBeAtomic in
+    let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let rel = st.rel in
     (* lock *)
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
         rel
       else if atomic then
-        RD.meet rel (get_mutex_global_g_with_mutex_inits' ask getg)
+        RD.meet rel (get_mutex_global_g_with_mutex_inits_atomic ask getg)
       else
         RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
     in
@@ -522,14 +527,14 @@ struct
       rel_local
 
   let write_global ?(invariant=false) (ask: Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
-    let atomic = ask.f MustBeAtomic in
+    let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let rel = st.rel in
     (* lock *)
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
         rel
       else if atomic then
-        RD.meet rel (get_mutex_global_g_with_mutex_inits' ask getg)
+        RD.meet rel (get_mutex_global_g_with_mutex_inits_atomic ask getg)
       else
         RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
     in
@@ -541,7 +546,10 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_side = RD.keep_vars rel_local [g_var] in
-      sideg (V.mutex atomic_mutex) rel_side;
+      if Param.handle_atomic then
+        sideg (V.mutex atomic_mutex) rel_side
+      else
+        sideg (V.global g) rel_side;
       let rel_local' =
         if is_unprotected ask g then
           RD.remove_vars rel_local [g_var]
@@ -555,7 +563,7 @@ struct
 
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
     (* TODO: somehow actually unneeded here? *)
     if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
@@ -569,7 +577,7 @@ struct
       st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
     let rel = st.rel in
     if not atomic then (
       let rel_side = keep_only_protected_globals ask m rel in
@@ -1373,7 +1381,8 @@ let priv_module: (module S) Lazy.t =
          | "top" -> (module Top : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
-         | "mutex-meet" -> (module PerMutexMeetPriv)
+         | "mutex-meet" -> (module PerMutexMeetPriv (struct let handle_atomic = false end))
+         | "mutex-meet-atomic" -> (module PerMutexMeetPriv (struct let handle_atomic = true end))
          | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoCluster))
          | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (Clustering12)))
          | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ArbitraryCluster (Clustering2)))
