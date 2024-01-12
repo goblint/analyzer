@@ -69,17 +69,17 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-  let points_to_heap_only ctx ptr =
+  let points_to_alloc_only ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (Queries.AD.is_top a)->
       Queries.AD.for_all (function
-          | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
+          | Addr (v, o) -> ctx.ask (Queries.IsAllocVar v)
           | _ -> false
         ) a
     | _ -> false
 
   let get_size_of_ptr_target ctx ptr =
-    if points_to_heap_only ctx ptr then
+    if points_to_alloc_only ctx ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
       ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
     else

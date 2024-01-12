@@ -88,9 +88,9 @@ struct
     d
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.bot ()]
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     match lval with
     | Some lv -> taint_lval ctx lv
     | None -> ctx.local

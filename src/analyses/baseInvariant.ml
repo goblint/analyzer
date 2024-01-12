@@ -243,12 +243,12 @@ struct
       refine_lv_fallback ctx a gs st lval value tv
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_plainexp exp;
+      M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
 
   let invariant ctx a gs st exp tv: D.t =
     let fallback reason st =
-      if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
+      if M.tracing then M.tracel "inv" "Can't handle %a.\n%t\n" d_plainexp exp reason;
       invariant_fallback ctx a gs st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
@@ -689,7 +689,7 @@ struct
              (* Mixed Float and Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
              | Int _, Float _ | Float _, Int _ -> failwith "ill-typed program";
                (* | Address a, Address b -> ... *)
-             | a1, a2 -> fallback (GobPretty.sprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
+             | a1, a2 -> fallback (fun () -> Pretty.dprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
             (* use closures to avoid unused casts *)
           in (match c_typed with
               | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
@@ -709,18 +709,22 @@ struct
                 | _ -> Int c
               in
               (* handle special calls *)
-              begin match t with
-                | TInt (ik, _) ->
-                  begin match x with
-                    | ((Var v), offs) ->
-                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
-                      let tv_opt = ID.to_bool c in
-                      begin match tv_opt with
+              begin match x, t with
+                | (Var v, offs), TInt (ik, _) ->
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
+                    | `Lifted (Abs (ik, xInt)) ->
+                      let c' = ID.cast_to ik c in (* different ik! *)
+                      inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
+                    | tmpSpecial ->
+                      begin match ID.to_bool c with
                         | Some tv ->
-                          begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
+                          begin match tmpSpecial with
                             | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
                             | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
                             (* should be correct according to C99 standard*)
+                            (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
                             | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
                             | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
@@ -730,9 +734,8 @@ struct
                           end
                         | None -> update_lval c x c' ID.pretty
                       end
-                    | _ -> update_lval c x c' ID.pretty
                   end
-                | _ -> update_lval c x c' ID.pretty
+                | _, _ -> update_lval c x c' ID.pretty
               end
             | Float c ->
               let c' = match t with
@@ -744,22 +747,19 @@ struct
                 | _ -> Float c
               in
               (* handle special calls *)
-              begin match t with
-                | TFloat (fk, _) ->
-                  begin match x with
-                    | ((Var v), offs) ->
-                      if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)));
-                      begin match ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) with
-                        | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
-                        | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
-                        | `Lifted (Fabs (ret_fk, xFloat)) ->
-                          let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
-                          if FD.is_bot inv then
-                            raise Analyses.Deadcode
-                          else
-                            inv_exp (Float inv) xFloat st
-                        | _ -> update_lval c x c' FD.pretty
-                      end
+              begin match x, t with
+                | (Var v, offs), TFloat (fk, _) ->
+                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  begin match tmpSpecial with
+                    | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
+                    | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
+                    | `Lifted (Fabs (ret_fk, xFloat)) ->
+                      let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
+                      if FD.is_bot inv then
+                        raise Analyses.Deadcode
+                      else
+                        inv_exp (Float inv) xFloat st
                     | _ -> update_lval c x c' FD.pretty
                   end
                 | _ -> update_lval c x c' FD.pretty
@@ -778,7 +778,7 @@ struct
            | TFloat (fk, _), FLongDouble
            | TFloat (FDouble as fk, _), FDouble
            | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
-           | _ -> fallback ("CastE: incompatible types") st)
+           | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
         | CastE ((TInt (ik, _)) as t, e), Int c
         | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
           (match eval e st with
@@ -791,11 +791,11 @@ struct
                  let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
                  if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                  inv_exp (Int c') e st
-               | x -> fallback (GobPretty.sprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
+               | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
              else
-               fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
-           | v -> fallback (GobPretty.sprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
-        | e, _ -> fallback (GobPretty.sprintf "%a not implemented" d_plainexp e) st
+               fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+           | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
+        | e, _ -> fallback (fun () -> Pretty.dprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
     else

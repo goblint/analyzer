@@ -84,9 +84,9 @@ struct
     in
     emit_splits ctx d
 
-  let threadenter ctx lval f args = [ctx.local]
+  let threadenter ctx ~multiple lval f args = [ctx.local]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     emit_splits_ctx ctx
 
   let event ctx (event: Events.t) octx =
