@@ -101,6 +101,15 @@ struct
       of_expr true e >? of_lval >? of_clval |? Queries.Result.top q
     | _ -> Queries.Result.top q
 
+  let event ctx event octx = 
+    match event with
+    | Events.Invalidate {lvals} -> 
+      let mpts = List.map (fun lval -> mayPointTo ctx (AddrOf lval)) lvals in
+      let remove_mpt d mpt =
+        List.fold_left (fun d (v,o as k) -> D.remove k d |> D.remove_var v) d mpt in
+      List.fold_left remove_mpt ctx.local mpts
+    | _ -> ctx.local
+  
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     (* remove all keys lval may point to, and all exprs that contain the variables (TODO precision) *)
