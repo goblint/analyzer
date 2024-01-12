@@ -69,6 +69,14 @@ struct
     match e with
     | Access {ad; kind = Write; _} ->
       add_to_all_defined (relevants_from_ad ad) ctx.local
+    | Invalidate {lvals} ->
+      let lval_to_vs lval = 
+        let e = AddrOf lval in
+        let mpt: _ Queries.t = MayPointTo e in 
+        let ad = ctx.ask mpt in
+        relevants_from_ad ad in
+      let vss = List.map lval_to_vs lvals in
+      List.fold_left (fun d vs -> add_to_all_defined vs d) ctx.local vss
     | _ ->
       ctx.local
 end
