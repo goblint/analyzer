@@ -724,11 +724,10 @@ struct
                 let xi = Environment.var_of_dim t.env i in
                 let coeff_vars = 
                     (Coeff.s_of_int (-1), xi) :: (match var_opt with
-                        | None -> []
-                        | Some var_index ->
-                            let var = Environment.var_of_dim t.env var_index in
-                            if i = var_index then []
-                            else [(Coeff.s_of_int 1, var)])
+                      | Some var_index when i <> var_index ->
+                        let var = Environment.var_of_dim t.env var_index in
+                        [(Coeff.s_of_int 1, var)]
+                      | _ -> [] )
                 in
                 let cst = Coeff.s_of_int (Z.to_int const) in
                 let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
