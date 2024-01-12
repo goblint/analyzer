@@ -6,16 +6,21 @@ import sys
 
 src_root_path = Path("./src")
 
-goblint_lib_path = src_root_path / "goblint_lib.ml"
+goblint_lib_paths = [
+    src_root_path / "goblint_lib.ml",
+    src_root_path / "solver" / "goblint_solver.ml",
+    src_root_path / "util" / "std" / "goblint_std.ml",
+]
 goblint_lib_modules = set()
 
-with goblint_lib_path.open() as goblint_lib_file:
-    for line in goblint_lib_file:
-        line = line.strip()
-        m = re.match(r"module (.*) = .*", line)
-        if m is not None:
-            module_name = m.group(1)
-            goblint_lib_modules.add(module_name)
+for goblint_lib_path in goblint_lib_paths:
+    with goblint_lib_path.open() as goblint_lib_file:
+        for line in goblint_lib_file:
+            line = line.strip()
+            m = re.match(r"module (.*) = .*", line)
+            if m is not None:
+                module_name = m.group(1)
+                goblint_lib_modules.add(module_name)
 
 src_vendor_path = src_root_path / "vendor"
 exclude_module_names = set([
@@ -26,18 +31,23 @@ exclude_module_names = set([
     "MessagesCompare",
     "PrivPrecCompare",
     "ApronPrecCompare",
-    "Mainspec",
 
     # libraries
+    "Goblint_std",
+    "Goblint_solver",
     "Goblint_timing",
     "Goblint_backtrace",
+    "Goblint_tracing",
     "Goblint_sites",
     "Goblint_build_info",
+    "Dune_build_info",
 
     "MessageCategory", # included in Messages
     "PreValueDomain", # included in ValueDomain
-    "SpecCore", # spec stuff
-    "SpecUtil", # spec stuff
+
+    "ConfigVersion",
+    "ConfigProfile",
+    "ConfigOcaml",
 ])
 
 src_modules = set()
@@ -55,5 +65,5 @@ for ml_path in src_root_path.glob("**/*.ml"):
 
 missing_modules = src_modules - goblint_lib_modules
 if len(missing_modules) > 0:
-    print(f"Modules missing from {goblint_lib_path}: {missing_modules}")
+    print(f"Modules missing from {goblint_lib_paths[0]}: {missing_modules}")
     sys.exit(1)

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.sv-comp.functions
+// PARAM: --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic
 #include <pthread.h>
 #include <goblint.h>
 

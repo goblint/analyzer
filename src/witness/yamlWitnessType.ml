@@ -242,6 +242,103 @@ struct
     {location; loop_invariant; precondition}
 end
 
+module InvariantSet =
+struct
+  module LoopInvariant =
+  struct
+    type t = {
+      location: Location.t;
+      value: string;
+      format: string;
+    }
+
+    let invariant_type = "loop_invariant"
+
+    let to_yaml' {location; value; format} =
+      [
+        ("location", Location.to_yaml location);
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ location = y |> find "location" >>= Location.of_yaml
+      and+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {location; value; format}
+  end
+
+  module LocationInvariant =
+  struct
+    include LoopInvariant
+
+    let invariant_type = "location_invariant"
+  end
+
+  (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
+  module InvariantType =
+  struct
+    type t =
+      | LocationInvariant of LocationInvariant.t
+      | LoopInvariant of LoopInvariant.t
+
+    let invariant_type = function
+      | LocationInvariant _ -> LocationInvariant.invariant_type
+      | LoopInvariant _ -> LoopInvariant.invariant_type
+
+    let to_yaml' = function
+      | LocationInvariant x -> LocationInvariant.to_yaml' x
+      | LoopInvariant x -> LoopInvariant.to_yaml' x
+
+    let of_yaml y =
+      let open GobYaml in
+      let* invariant_type = y |> find "type" >>= to_string in
+      if invariant_type = LocationInvariant.invariant_type then
+        let+ x = y |> LocationInvariant.of_yaml in
+        LocationInvariant x
+      else if invariant_type = LoopInvariant.invariant_type then
+        let+ x = y |> LoopInvariant.of_yaml in
+        LoopInvariant x
+      else
+        Error (`Msg "type")
+  end
+
+  module Invariant =
+  struct
+    type t = {
+      invariant_type: InvariantType.t;
+    }
+
+    let to_yaml {invariant_type} =
+      `O [
+        ("invariant", `O ([
+             ("type", `String (InvariantType.invariant_type invariant_type));
+           ] @ InvariantType.to_yaml' invariant_type)
+        )
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ invariant_type = y |> find "invariant" >>= InvariantType.of_yaml in
+      {invariant_type}
+  end
+
+  type t = {
+    content: Invariant.t list;
+  }
+
+  let entry_type = "invariant_set"
+
+  let to_yaml' {content} =
+    [("content", `A (List.map Invariant.to_yaml content))]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ content = y |> find "content" >>= list >>= list_map Invariant.of_yaml in
+    {content}
+end
+
 module Target =
 struct
   type t = {
@@ -326,6 +423,7 @@ struct
     | PreconditionLoopInvariant of PreconditionLoopInvariant.t
     | LoopInvariantCertificate of LoopInvariantCertificate.t
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
+    | InvariantSet of InvariantSet.t
 
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type
@@ -334,6 +432,7 @@ struct
     | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
     | LoopInvariantCertificate _ -> LoopInvariantCertificate.entry_type
     | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
+    | InvariantSet _ -> InvariantSet.entry_type
 
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -342,6 +441,7 @@ struct
     | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
     | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
     | PreconditionLoopInvariantCertificate x -> PreconditionLoopInvariantCertificate.to_yaml' x
+    | InvariantSet x -> InvariantSet.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -364,6 +464,9 @@ struct
     else if entry_type = PreconditionLoopInvariantCertificate.entry_type then
       let+ x = y |> PreconditionLoopInvariantCertificate.of_yaml in
       PreconditionLoopInvariantCertificate x
+    else if entry_type = InvariantSet.entry_type then
+      let+ x = y |> InvariantSet.of_yaml in
+      InvariantSet x
     else
       Error (`Msg "entry_type")
 end

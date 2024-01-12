@@ -27,6 +27,9 @@ jobs:
           args: --validate
 
   zenodo-validate:
+    # Zenodo schema URL is dead
+    if: ${{ false }}
+
     strategy:
       matrix:
         node-version:
@@ -39,7 +42,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 

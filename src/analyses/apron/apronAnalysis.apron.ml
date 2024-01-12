@@ -13,10 +13,9 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module AD = ApronDomain.Hoare (AD) in
     let module RD: RelationDomain.RD =
     struct
-      module Var = ApronDomain.Var
       module V = ApronDomain.V
       include AD
-      type var = ApronDomain.Var.t
+      type var = Apron.Var.t
     end
     in
     let module Priv = (val RelationPriv.get_priv ()) in

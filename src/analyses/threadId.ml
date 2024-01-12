@@ -31,7 +31,7 @@ struct
 
   module N =
   struct
-    include Lattice.Flat (VNI) (struct let bot_name = "unknown node" let top_name = "unknown node" end)
+    include Lattice.FlatConf (struct include Printable.DefaultConf let bot_name = "unknown node" let top_name = "unknown node" end) (VNI)
     let name () = "wrapper call"
   end
   module TD = Thread.D
@@ -75,10 +75,10 @@ struct
       Hashtbl.replace !tids tid ();
     (N.bot (), `Lifted (tid), (TD.bot (), TD.bot ()))
 
-  let create_tid (_, current, (td, _)) ((node, index): Node.t * int option) v =
+  let create_tid ?(multiple=false) (_, current, (td, _)) ((node, index): Node.t * int option) v =
     match current with
     | `Lifted current ->
-      let+ tid = Thread.threadenter (current, td) node index v in
+      let+ tid = Thread.threadenter ~multiple (current, td) node index v in
       if GobConfig.get_bool "dbg.print_tids" then
         Hashtbl.replace !tids tid ();
       `Lifted tid
@@ -152,15 +152,15 @@ struct
     | `Lifted node, count -> node, Some count
     | (`Bot | `Top), _ -> ctx.prev_node, None
 
-  let threadenter ctx lval f args:D.t list =
+  let threadenter ctx ~multiple lval f args:D.t list =
     let n, i = indexed_node_for_ctx ctx in
-    let+ tid = create_tid ctx.local (n, i) f in
+    let+ tid = create_tid ~multiple ctx.local (n, i) f in
     (`Lifted (f, n, i), tid, (TD.bot (), TD.bot ()))
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     let (current_n, current, (td,tdl)) = ctx.local in
     let v, n, i = match fctx.local with `Lifted vni, _, _ -> vni | _ -> failwith "ThreadId.threadspawn" in
-    (current_n, current, (Thread.threadspawn td n i v, Thread.threadspawn tdl n i v))
+    (current_n, current, (Thread.threadspawn ~multiple td n i v, Thread.threadspawn ~multiple tdl n i v))
 
   type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
   let init (m:marshal option): unit =

@@ -3,6 +3,7 @@
 open GoblintCil
 open Analyses
 open MessageCategory
+open AnalysisStateUtil
 
 module AllocaVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All alloca() Variables" end)
 module HeapVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
@@ -14,7 +15,7 @@ module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "useAfterFree"
 
@@ -23,17 +24,10 @@ struct
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
 
-  (** TODO: Try out later in benchmarks to see how we perform with and without context-sensititivty *)
   let context _ _ = ()
 
 
   (* HELPER FUNCTIONS *)
-
-  let set_global_svcomp_var is_double_free =
-    if is_double_free then
-      AnalysisState.svcomp_may_invalid_free := true
-    else
-      AnalysisState.svcomp_may_invalid_deref := true
 
   let get_current_threadid ctx =
     ctx.ask Queries.CurrentThreadId
@@ -70,23 +64,23 @@ struct
       | `Lifted current ->
         let possibly_started = G.exists (possibly_started current) freeing_threads in
         if possibly_started then begin
-          set_global_svcomp_var is_double_free;
+          if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. %s might occur" CilType.Varinfo.pretty heap_var bug_name
         end
         else begin
           let current_is_unique = ThreadId.Thread.is_unique current in
           let any_equal_current threads = G.exists (equal_current current) threads in
           if not current_is_unique && any_equal_current freeing_threads then begin
-            set_global_svcomp_var is_double_free;
+            if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
             M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
           end
           else if HeapVars.mem heap_var (snd ctx.local) then begin
-            set_global_svcomp_var is_double_free;
-            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.FlagConfiguredTID.pretty current CilType.Varinfo.pretty heap_var
+            if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.Thread.pretty current CilType.Varinfo.pretty heap_var
           end
         end
       | `Top ->
-        set_global_svcomp_var is_double_free;
+        if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
         M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
       | `Bot ->
         M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom"
@@ -115,8 +109,10 @@ struct
       begin match ctx.ask (Queries.MayPointTo lval_to_query) with
         | ad when not (Queries.AD.is_top ad) ->
           let warn_for_heap_var v =
-            if HeapVars.mem v (snd state) then
+            if HeapVars.mem v (snd state) then begin
+              if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
+            end
           in
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr vars ->
@@ -179,9 +175,6 @@ struct
     warn_exp_might_contain_freed "branch" ctx exp;
     ctx.local
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     Option.iter (fun x -> warn_exp_might_contain_freed "return" ctx x) exp;
     ctx.local
@@ -189,17 +182,10 @@ struct
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" ctx arg) args;
-    if AllocaVars.is_empty (fst caller_state) && HeapVars.is_empty (snd caller_state) then
-      [caller_state, caller_state]
-    else (
-      let reachable_from_args = List.fold_left (fun ad arg -> Queries.AD.join ad (ctx.ask (ReachableFrom arg))) (Queries.AD.empty ()) args in
-      if Queries.AD.is_top reachable_from_args || D.is_top caller_state then
-        [caller_state, caller_state]
-      else
-        let reachable_vars = Queries.AD.to_var_may reachable_from_args in
-        let callee_state = (AllocaVars.empty (), HeapVars.filter (fun var -> List.mem var reachable_vars) (snd caller_state)) in (* TODO: use AD.mem directly *)
-        [caller_state, callee_state]
-    )
+    (* TODO: The 2nd component of the callee state needs to contain only the heap vars from the caller state which are reachable from: *)
+    (* * Global program variables *)
+    (* * The callee arguments *)
+    [caller_state, (AllocaVars.empty (), snd caller_state)]
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
     let (caller_stack_state, caller_heap_state) = ctx.local in
@@ -250,9 +236,6 @@ struct
         | _ -> state
       end
     | _ -> state
-
-  let threadenter ctx lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
