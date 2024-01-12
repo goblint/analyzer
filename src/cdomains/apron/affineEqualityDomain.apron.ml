@@ -688,7 +688,7 @@ struct
         Linexpr1.set_list e1 coeff_vars (Some cst);
         Lincons1.make e1 EQ
       in
-      List.init (Matrix.num_rows m) (one_constraint)
+      List.init (Matrix.num_rows m) one_constraint
     in
     BatOption.map_default invariant [] t.d
 
