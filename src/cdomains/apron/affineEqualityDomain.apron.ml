@@ -681,7 +681,7 @@ struct
   let invariant t =
     let invariant m =
       let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
-      for i = 0 to Lincons1.array_length earray do
+      for i = 0 to (Lincons1.array_length earray -1) do
         let row = Matrix.get_row m i in
         let coeff_vars = List.map (fun x ->  Coeff.s_of_mpqf @@ Vector.nth row (Environment.dim_of_var t.env x), x) (vars t) in
         let cst = Coeff.s_of_mpqf @@ Vector.nth row (Vector.length row - 1) in
