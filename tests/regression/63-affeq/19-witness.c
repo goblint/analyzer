@@ -15,4 +15,20 @@ void main(void) {
         j = j + 3;
     }
     __goblint_check(3 * i - j + k == 1);
+
+    // Represented with fractional coefficients and thus not put into witness yet
+
+    int a = 0;
+    int b = 0;
+    int z = 0;
+
+    while(z < 100) {
+        a++;
+        b += 2;
+        z++;
+
+        __goblint_check(2*z - b == 0);
+        // b == 2*z is put into the witness
+    }
+
 }
