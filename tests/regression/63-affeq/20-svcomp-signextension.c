@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
+// SKIP PARAM: --set ana.activated[+] affeq --set sem.int.signed_overflow assume_none
 
 #include <stdio.h>
 int main() {
