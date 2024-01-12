@@ -2890,6 +2890,11 @@ struct
     in
     D.join ctx.local e_d'
 
+  let asm ctx = 
+    let _, outs = Analyses.asm_extract_ins_outs ctx in
+    ctx.emit (Events.Invalidate {lvals=outs});
+    ctx.local
+
   let event ctx e octx =
     let st: store = ctx.local in
     match e with

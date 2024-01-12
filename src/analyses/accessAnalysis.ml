@@ -82,7 +82,6 @@ struct
       List.iter handle_in ins;
       let handle_out lval = access_one_top ~deref:true ctx Write false (AddrOf lval) in
       List.iter handle_out outs;
-      ctx.emit (Events.Invalidate {lvals=outs})
     end;
     ctx.local
 
