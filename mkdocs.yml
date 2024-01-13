@@ -30,7 +30,7 @@ nav:
     - 👶 Your first analysis: developer-guide/firstanalysis.md
     - 🏫 Extending library: developer-guide/extending-library.md
     - 📢 Messaging: developer-guide/messaging.md
-    - 🗃️ API reference: https://goblint.github.io/analyzer/
+    - 🗃️ API reference: https://goblint.github.io/analyzer/goblint/
     - 🚨 Testing: developer-guide/testing.md
     - 🪲 Debugging: developer-guide/debugging.md
     - 📉 Profiling: developer-guide/profiling.md

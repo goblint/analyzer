@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -64,8 +64,14 @@ jobs:
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test apron termination regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group termination -s
+
       - name: Test regression cram
         run: opam exec -- dune runtest tests/regression
+
+      - name: Test incremental cram
+        run: opam exec -- dune runtest tests/incremental
 
       - name: Test unit
         run: opam exec -- dune runtest unittest
@@ -76,10 +82,10 @@ jobs:
       - name: Test incremental regression with cfg comparison
         run: ruby scripts/update_suite.rb -c
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: suite_result
+          name: suite_result-${{ matrix.os }}
           path: tests/suite_result/
 
   extraction:
@@ -98,7 +104,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -138,7 +144,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -150,7 +156,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -171,5 +177,4 @@ jobs:
 
       - name: Test Gobview
         run: |
-          ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
           python3 scripts/test-gobview.py

@@ -1,3 +1,4 @@
+(** Main library. *)
 
 (** {1 Framework} *)
 
@@ -20,8 +21,10 @@ module CfgTools = CfgTools
     A dynamic composition of analyses is combined with CFGs to produce a constraint system. *)
 
 module Analyses = Analyses
+module ConstrSys = ConstrSys
 module Constraints = Constraints
 module AnalysisState = AnalysisState
+module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
 
 (** Master control program (MCP) is the analysis specification for the dynamic product of activated analyses. *)
@@ -43,13 +46,14 @@ module Events = Events
 
     The following modules help query the constraint system solution using semantic information. *)
 
+module AnalysisResult = AnalysisResult
 module ResultQuery = ResultQuery
 module VarQuery = VarQuery
 
 (** {2 Configuration}
 
     Runtime configuration is represented as JSON.
-    Options are specified and documented by the JSON schema [src/util/options.schema.json]. *)
+    Options are specified and documented by the JSON schema [src/config/options.schema.json]. *)
 
 module GobConfig = GobConfig
 module AfterConfig = AfterConfig
@@ -74,15 +78,18 @@ module ApronAnalysis = ApronAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
+module TmpSpecial = TmpSpecial
 
 (** {2 Heap}
 
     Analyses related to the heap. *)
 
-module MallocWrapperAnalysis = MallocWrapperAnalysis
 module Region = Region
 module MallocFresh = MallocFresh
 module Malloc_null = Malloc_null
+module MemLeak = MemLeak
+module UseAfterFree = UseAfterFree
+module MemOutOfBounds = MemOutOfBounds
 
 (** {2 Concurrency}
 
@@ -94,6 +101,7 @@ module Malloc_null = Malloc_null
 
 module MutexEventsAnalysis = MutexEventsAnalysis
 module LocksetAnalysis = LocksetAnalysis
+module MutexTypeAnalysis = MutexTypeAnalysis
 module MutexAnalysis = MutexAnalysis
 module MayLocks = MayLocks
 module SymbLocks = SymbLocks
@@ -124,7 +132,7 @@ module ExtractPthread = ExtractPthread
     Analyses related to [longjmp] and [setjmp]. *)
 
 module ActiveSetjmp = ActiveSetjmp
-module ModifiedSinceLongjmp = ModifiedSinceLongjmp
+module ModifiedSinceSetjmp = ModifiedSinceSetjmp
 module ActiveLongjmp = ActiveLongjmp
 module PoisonVariables = PoisonVariables
 module Vla = Vla
@@ -141,18 +149,17 @@ module UnitAnalysis = UnitAnalysis
 (** {2 Other} *)
 
 module Assert = Assert
-module FileUse = FileUse
+module LoopTermination = LoopTermination
 module Uninit = Uninit
-module Termination = Termination
 module Expsplit = Expsplit
 module StackTrace = StackTrace
-module Spec = Spec
 
 (** {2 Helper}
 
     Analyses which only support other analyses. *)
 
 module AccessAnalysis = AccessAnalysis
+module WrapperFunctionAnalysis = WrapperFunctionAnalysis
 module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
@@ -176,6 +183,7 @@ module Lattice = Lattice
 module BoolDomain = BoolDomain
 module SetDomain = SetDomain
 module MapDomain = MapDomain
+module TrieDomain = TrieDomain
 module DisjointDomain = DisjointDomain
 module HoareDomain = HoareDomain
 module PartitionDomain = PartitionDomain
@@ -191,15 +199,37 @@ module FlagHelper = FlagHelper
 
     Domains for {!Base} analysis. *)
 
-module BaseDomain = BaseDomain
-module ValueDomain = ValueDomain
+(** {5 Numeric} *)
+
 module IntDomain = IntDomain
 module FloatDomain = FloatDomain
+
+(** {5 Addresses}
+
+    Memory locations are identified by {{!Mval} mvalues}, which consist of a {{!GoblintCil.varinfo} variable} and an {{!Offset.t} offset}.
+    Mvalues are used throughout Goblint, not just the {!Base} analysis.
+
+    Addresses extend mvalues with [NULL], unknown pointers and string literals. *)
+
+module Mval = Mval
+module Offset = Offset
+module StringDomain = StringDomain
 module AddressDomain = AddressDomain
+
+(** {5 Complex} *)
+
 module StructDomain = StructDomain
 module UnionDomain = UnionDomain
 module ArrayDomain = ArrayDomain
+module NullByteSet = NullByteSet
 module JmpBufDomain = JmpBufDomain
+
+(** {5 Combined}
+
+    These combine the above domains together for {!Base} analysis. *)
+
+module BaseDomain = BaseDomain
+module ValueDomain = ValueDomain
 module ValueDomainQueries = ValueDomainQueries
 
 (** {4 Relational}
@@ -212,6 +242,7 @@ module AffineEqualityDomain = AffineEqualityDomain
 
 (** {3 Concurrency} *)
 
+module MutexAttrDomain = MutexAttrDomain
 module LockDomain = LockDomain
 module SymbLocksDomain = SymbLocksDomain
 module DeadlockDomain = DeadlockDomain
@@ -228,17 +259,12 @@ module PthreadDomain = PthreadDomain
 
 module Basetype = Basetype
 module Lval = Lval
-module CilLval = CilLval
 module Access = Access
 module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module FileDomain = FileDomain
 module StackDomain = StackDomain
-
-module LvalMapDomain = LvalMapDomain
-module SpecDomain = SpecDomain
 
 (** {2 Testing}
 
@@ -262,47 +288,11 @@ module Serialize = Serialize
 module CilMaps = CilMaps
 
 
-(** {1 Solvers}
-
-    Generic solvers are used to solve {{!Analyses.MonSystem} (side-effecting) constraint systems}. *)
-
-(** {2 Top-down}
-
-    The top-down solver family. *)
-
-module Td3 = Td3
-module TopDown = TopDown
-module TopDown_term = TopDown_term
-module TopDown_space_cache_term = TopDown_space_cache_term
-module TopDown_deprecated = TopDown_deprecated
-
-(** {2 SLR}
-
-    The SLR solver family. *)
-
-module SLRphased = SLRphased
-module SLRterm = SLRterm
-module SLR = SLR
-
-(** {2 Other} *)
-
-module EffectWConEq = EffectWConEq
-module Worklist = Worklist
-module Generic = Generic
-module Selector = Selector
-
-module PostSolver = PostSolver
-module LocalFixpoint = LocalFixpoint
-module SolverStats = SolverStats
-module SolverBox = SolverBox
-
-
 (** {1 I/O}
 
     Various input/output interfaces and formats. *)
 
 module Messages = Messages
-module Tracing = Tracing
 
 (** {2 Front-end}
 
@@ -311,6 +301,7 @@ module Tracing = Tracing
 module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
+module TerminationPreprocessing = TerminationPreprocessing
 
 (** {2 Witnesses}
 
@@ -411,12 +402,14 @@ module LibraryFunctions = LibraryFunctions
 module BaseUtil = BaseUtil
 module PrecisionUtil = PrecisionUtil
 module ContextUtil = ContextUtil
+module ReturnUtil = ReturnUtil
 module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
 module VectorMatrix = VectorMatrix
 module SharedFunctions = SharedFunctions
+module GobApron = GobApron
 
 (** {2 Precision comparison} *)
 
@@ -426,46 +419,14 @@ module PrivPrecCompareUtil = PrivPrecCompareUtil
 module RelationPrecCompareUtil = RelationPrecCompareUtil
 module ApronPrecCompareUtil = ApronPrecCompareUtil
 
-(** {2 Build info} *)
-
-(** OCaml compiler info. *)
-module ConfigOcaml = ConfigOcaml
-
-(** Dune profile info. *)
-module ConfigProfile = ConfigProfile
-
-(** Goblint version info. *)
-module Version = Version
-
-(** Goblint git version info. *)
-module ConfigVersion = ConfigVersion
-
-
 (** {1 Library extensions}
 
-    OCaml library extensions which are completely independent of Goblint. *)
+    OCaml library extensions which are completely independent of Goblint.
+
+    See {!Goblint_std}. *)
 
 (** {2 Standard library}
 
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
-module GobGc = GobGc
-module GobHashtbl = GobHashtbl
-module GobList = GobList
-module GobRef = GobRef
-module GobResult = GobResult
-module GobOption = GobOption
-module GobSys = GobSys
-module GobUnix = GobUnix
-
-(** {2 Other libraries}
-
-    External library extensions. *)
-
-module GobFpath = GobFpath
-module GobPretty = GobPretty
-module GobYaml = GobYaml
-module GobYojson = GobYojson
-module GobZ = GobZ
-module MyCheck = MyCheck

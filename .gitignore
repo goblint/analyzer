@@ -29,7 +29,6 @@ linux-headers
 .goblint*/
 goblint_temp_*/
 
-src/spec/graph
 .vagrant
 
 g2html.jar
@@ -94,3 +93,10 @@ transformed.c
 
 # docs
 site/
+
+# coverage
+
+# bisect_ppx
+*.coverage
+# bisect-ppx-report
+_coverage/*

@@ -209,9 +209,11 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: CompareCIL.global_col) _ _ _ = match glob.def with
-    | Some (Fun fdec) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
-    | _ -> Unchanged, None
+  let eq ?(matchVars=true) ?(matchFuns=true) ?(renameDetection=false) _ _ _ gc_old (gc_new: CompareCIL.global_col) ((change_info : CompareCIL.change_info), final_matches) = (match gc_new.def with
+      | Some (Fun fdec) when CompareCIL.should_reanalyze fdec ->
+        change_info.exclude_from_rel_destab <- CompareCIL.VarinfoSet.add fdec.svar change_info.exclude_from_rel_destab
+      | _ -> change_info.unchanged <- {old = gc_old; current= gc_new} :: change_info.unchanged);
+    change_info, final_matches
   in
   CompareCIL.compareCilFiles ~eq file file
 
@@ -262,6 +264,7 @@ let node_locator: Locator.t ResettableLazy.t =
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
+  Messages.(Table.MH.clear final_table);
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
@@ -277,6 +280,7 @@ let analyze ?(reset=false) (s: t) =
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
+  StringDomain.reset_lazy ();
   PrecisionUtil.reset_lazy ();
   ApronDomain.reset_lazy ();
   AutoTune.reset_lazy ();
@@ -287,7 +291,8 @@ let analyze ?(reset=false) (s: t) =
   Fun.protect ~finally:(fun () ->
       GobConfig.set_bool "incremental.load" true
     ) (fun () ->
-      Maingoblint.do_analyze increment_data (Option.get s.file)
+      Maingoblint.do_analyze increment_data (Option.get s.file);
+      Maingoblint.do_gobview (Option.get s.file);
     )
 
 let () =

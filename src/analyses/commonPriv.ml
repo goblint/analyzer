@@ -19,12 +19,14 @@ struct
       if not mutex_active then failwith "Privatization (to be useful) requires the 'mutex' analysis to be enabled (it is currently disabled)"
   end
 
-  module RequireMutexPathSensInit =
+  module RequireMutexPathSensOneMainInit =
   struct
     let init () =
       RequireMutexActivatedInit.init ();
       let mutex_path_sens = List.mem "mutex" (GobConfig.get_string_list "ana.path_sens") in
       if not mutex_path_sens then failwith "The activated privatization requires the 'mutex' analysis to be enabled & path sensitive (it is currently enabled, but not path sensitive)";
+      let mainfuns = List.length @@ GobConfig.get_list "mainfun" in
+      if not (mainfuns = 1) then failwith "The activated privatization requires exactly one main function to be specified";
       ()
   end
 
@@ -41,32 +43,29 @@ end
 
 module Protection =
 struct
-  let is_unprotected ask x: bool =
-    let multi = ThreadFlag.has_ever_been_multi ask in
+  open Q.Protection
+  let is_unprotected ask ?(protection=Strong) x: bool =
+    let multi = if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask in
     (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
-      ask.f (Q.MayBePublic {global=x; write=true})
+      ask.f (Q.MayBePublic {global=x; write=true; protection})
     )
 
-  let is_unprotected_without ask ?(write=true) x m: bool =
-    ThreadFlag.has_ever_been_multi ask &&
-    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m})
+  let is_unprotected_without ask ?(write=true) ?(protection=Strong) x m: bool =
+    (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
+    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m; protection})
 
-  let is_protected_by ask m x: bool =
+  let is_protected_by ask ?(protection=Strong) m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true})
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
-    let module VS = Set.Make (CilType.Varinfo) in
-    Q.LS.fold (fun (v, _) acc ->
-        let m = ValueDomain.Addr.from_var v in (* TODO: don't ignore offsets *)
-        Q.LS.fold (fun l acc ->
-            VS.add (fst l) acc (* always `NoOffset from mutex analysis *)
-          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
-      ) (ask.f Q.MustLockset) VS.empty
-    |> VS.elements
+    Q.AD.fold (fun m acc ->
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+      ) (ask.f Q.MustLockset) (Q.VS.empty ())
+    |> Q.VS.elements
 end
 
 module MutexGlobals =
@@ -75,22 +74,19 @@ struct
   struct
     include LockDomain.Addr
     let name () = "mutex"
-    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
   end
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
   module VGlobal =
   struct
     include VarinfoV
     let name () = "global"
-    let show x = show x ^ ":global" (* distinguishable variant names for html *)
   end
   module V =
   struct
-    (* TODO: Either3? *)
-    include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    include Printable.Either3Conf (struct include Printable.DefaultConf let expand2 = false end) (VMutex) (VMutexInits) (VGlobal)
     let name () = "MutexGlobals"
-    let mutex x: t = `Left (`Left x)
-    let mutex_inits: t = `Left (`Right ())
+    let mutex x: t = `Left x
+    let mutex_inits: t = `Middle ()
     let global x: t = `Right x
   end
 
@@ -116,29 +112,17 @@ module Locksets =
 struct
   module Lock = LockDomain.Addr
 
-  module Lockset =
-  struct
-    include Printable.Std (* To make it Groupable *)
-    include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-  end
+  module Lockset = SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
 
   module MustLockset = SetDomain.Reverse (Lockset)
-
-  let rec conv_offset = function
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, conv_offset o)
-    (* TODO: better indices handling *)
-    | `Index (_, o) -> `Index (IdxDom.top (), conv_offset o)
 
   let current_lockset (ask: Q.ask): Lockset.t =
     (* TODO: remove this global_init workaround *)
     if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
-      let ls = ask.f Queries.MustLockset in
-      Q.LS.fold (fun (var, offs) acc ->
-          Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
-        ) ls (Lockset.empty ())
+      let ad = ask.f Queries.MustLockset in
+      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ()) (* TODO: use AD as Lockset *)
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
@@ -167,12 +151,38 @@ struct
   end
 end
 
-module type PerMutexTidCommonArg = sig
-  val exclude_not_started: unit -> bool
-  val exclude_must_joined: unit -> bool
+module type Digest =
+sig
+  include Printable.S
+
+  val current: Q.ask -> t
+  val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
 
-module PerMutexTidCommon (Conf:PerMutexTidCommonArg) (LD:Lattice.S) =
+module ThreadDigest: Digest =
+struct
+  include ThreadIdDomain.ThreadLifted
+
+  module TID = ThreadIdDomain.Thread
+
+  let current (ask: Q.ask) =
+    ThreadId.get_current ask
+
+  let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
+    match current, other with
+    | `Lifted current, `Lifted other ->
+      if TID.is_unique current && TID.equal current other then
+        true (* self-read *)
+      else if GobConfig.get_bool "ana.relation.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
+        true (* other is not started yet *)
+      else if GobConfig.get_bool "ana.relation.priv.must-joined" && MHP.must_be_joined other (ask.f Queries.MustJoinedThreads) then
+        true (* accounted for in local information *)
+      else
+        false
+    | _ -> false
+end
+
+module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 
@@ -187,7 +197,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (MutexGlobals.V) (TID)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (MutexGlobals.V) (TID)
     let mutex x = `Left (MutexGlobals.V.mutex x)
     let mutex_inits = `Left MutexGlobals.V.mutex_inits
     let global x = `Left (MutexGlobals.V.global x)
@@ -209,12 +219,12 @@ struct
 
   (* Map from locks to last written values thread-locally *)
   module L = MapDomain.MapBot_LiftTop (LLock) (LD)
-  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LD)
+  module GMutex = MapDomain.MapBot_LiftTop (Digest) (LD)
   module GThread = Lattice.Prod (LMust) (L)
 
   module G =
   struct
-    include Lattice.Lift2 (GMutex) (GThread) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GMutex) (GThread)
 
     let mutex = function
       | `Bot -> GMutex.bot ()
@@ -231,24 +241,10 @@ struct
 
   module D = Lattice.Prod3 (W) (LMust) (L)
 
-  let compatible (ask:Q.ask) current must_joined other =
-    match current, other with
-    | `Lifted current, `Lifted other ->
-      if (TID.is_unique current) && (TID.equal current other) then
-        false (* self-read *)
-      else if Conf.exclude_not_started () && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
-        false (* other is not started yet *)
-      else if Conf.exclude_must_joined () && MHP.must_be_joined other must_joined then
-        false (* accounted for in local information *)
-      else
-        true
-    | _ -> true
-
   let get_relevant_writes_nofilter (ask:Q.ask) v =
-    let current = ThreadId.get_current ask in
-    let must_joined = ask.f Queries.MustJoinedThreads in
+    let current = Digest.current ask in
     GMutex.fold (fun k v acc ->
-        if compatible ask current must_joined k then
+        if not (Digest.accounted_for ask ~current ~other:k) then
           LD.join acc v
         else
           acc

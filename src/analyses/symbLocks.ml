@@ -29,8 +29,8 @@ struct
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let branch ctx exp tv = ctx.local
@@ -106,13 +106,12 @@ struct
 
   module A =
   struct
-    module E = struct
-      include Printable.Either (CilType.Offset) (ILock)
+    module PLock =
+    struct
+      include CilType.Offset
+      let name () = "p-lock"
 
-      let pretty () = function
-        | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
-        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr
-
+      let pretty = d_offset (text "*")
       include Printable.SimplePretty (
         struct
           type nonrec t = t
@@ -120,6 +119,7 @@ struct
         end
         )
     end
+    module E = Printable.Either (PLock) (ILock)
     include SetDomain.Make (E)
 
     let name () = "symblock"
@@ -155,7 +155,7 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ILock.from_var_offset (v, o) in
+        let lock = ILock.of_mval (v, o) in
         A.add (`Right lock) xs
       | _ ->
         Messages.info ~category:Unsound "Internal error: found a strange lockstep pattern.";
@@ -184,7 +184,7 @@ struct
         (match ctx.ask (Queries.Regions e) with
          | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
-                try Queries.ES.add (Lval.CilLval.to_exp x) xs
+                try Queries.ES.add (Mval.Exp.to_cil_exp x) xs
                 with Lattice.BotValue -> xs
            in begin
              try Queries.LS.fold add_exp ls (Queries.ES.singleton e)

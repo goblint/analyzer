@@ -61,7 +61,9 @@
       "structs" : {
         "domain" : "combined-sk"
       },
-      "limit-string-addresses": false
+      "strings": {
+        "domain": "disjoint"
+      }
     }
   },
   "exp": {

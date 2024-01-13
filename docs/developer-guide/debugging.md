@@ -60,14 +60,14 @@ This will create a file called `goblint.byte`.
 ### Debugging Goblint with VS Code
 
 To debug OCaml programs, you can use the command line interface of `ocamldebug` or make use of the Visual Studio Code
-integration provided by `hackwaly.ocamlearlybird`.
+integration provided by `ocamllabs.ocaml-platform`.
 In the following, we describe the steps necessary to set up this VS Code extension to
 debug Goblint.
 
 ### Setting-up Earlybird
 
-Install the [`hackwaly.ocamlearlybird` extension](https://marketplace.visualstudio.com/items?itemName=hackwaly.ocamlearlybird) in your installation of Visual Studio Code.
-To be able to use this extension, you additionally need to install `ocamlearlybird` on the opam switch you use for Goblint.
+Install the [`ocamllabs.ocaml-platform` extension](https://marketplace.visualstudio.com/items?itemName=ocamllabs.ocaml-platform) in your installation of Visual Studio Code.
+To be able to use this extension, you additionally need to install `earlybird` on the opam switch you use for Goblint.
 To do so, run the following command in the `analyzer` directory:
 
 ```console
@@ -76,7 +76,7 @@ opam install earlybird
 
 ### Providing a Launch Configuration
 
-To let the `hackwaly.ocamlearlybird` extension know which executable it should debug, and which arguments it should pass, we have to provide a configuration file.
+To let the `ocamllabs.ocaml-platform` extension know which executable it should debug, and which arguments it should pass, we have to provide a configuration file.
 The configuration file has to be named `launch.json` and must reside in the `./.vscode` directory. Here is an example `launch.json`:
 
 ```JSON
@@ -85,19 +85,23 @@ The configuration file has to be named `launch.json` and must reside in the `./.
     "configurations": [
       {
         "name": "Goblint",
-        "type": "ocamlearlybird",
+        "type": "ocaml.earlybird",
         "request": "launch",
         "program": "${workspaceFolder}/goblint.byte",
         "arguments": [
           "tests/regression/00-sanity/01-assert.c",
           "--enable", "ana.int.interval",
         ],
+        "env": {
+          "LD_LIBRARY_PATH": "$LD_LIBRARY_PATH:_build/default/src/common"
+        },
         "stopOnEntry": false,
       }
     ]
 }
 ```
-Note that the individual arguments to Goblint should be passed here as separate strings that do not contain spaces.
+Note that the individual arguments to Goblint should be passed here as separate strings that do not contain spaces. Finally, to enable breakpoints uncomment `(map_workspace_root false)` in the dune-project file.
+
 
 ### Running Goblint in the VS Code Debugger
 
