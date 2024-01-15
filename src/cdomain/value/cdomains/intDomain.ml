@@ -280,7 +280,7 @@ sig
   val invariant: Cil.exp -> t -> Invariant.t
 end
 
-module type Z = Y with type int_t = BI.t
+module type Z = Y with type int_t = Z.t
 
 
 module IntDomLifter (I : S) =
@@ -392,7 +392,7 @@ end
 
 module Size = struct (* size in bits as int, range as int64 *)
   open Cil
-  let sign x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
+  let sign x = if Z.compare x Z.zero < 0 then `Signed else `Unsigned
 
   let top_typ = TInt (ILongLong, [])
   let min_for x = intKindForValue x (sign x = `Unsigned)
@@ -416,8 +416,8 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
-    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (BI.to_string from_min) (BI.to_string from_max) CilType.Typ.pretty to_type (BI.to_string to_min) (BI.to_string to_max);
-    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (Z.to_string from_min) (Z.to_string from_max) CilType.Typ.pretty to_type (Z.to_string to_min) (Z.to_string to_max);
+    Z.compare to_min from_min <= 0 && Z.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
     if t = IBool then
@@ -445,7 +445,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       let a, b = size (min_for x) in
       if b <= 64L then
         let upper_bound_less = Int64.sub b 1L in
-        let max_one_less = BI.(pred @@ shift_left BI.one (Int64.to_int upper_bound_less)) in
+        let max_one_less = Z.(pred @@ shift_left Z.one (Int64.to_int upper_bound_less)) in
         if x <= max_one_less then
           a, upper_bound_less
         else
@@ -454,10 +454,10 @@ module Size = struct (* size in bits as int, range as int64 *)
         a, b
 
   (* From the number of bits used to represent a positive value, determines the maximal representable value *)
-  let max_from_bit_range pos_bits = BI.(pred @@ shift_left BI.one (to_int (BI.of_int64 pos_bits)))
+  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int64 pos_bits)))
 
   (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
-  let min_from_bit_range neg_bits = BI.(if neg_bits = 0L then BI.zero else neg @@ shift_left BI.one (to_int (neg (BI.of_int64 neg_bits))))
+  let min_from_bit_range neg_bits = Z.(if neg_bits = 0L then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int64 neg_bits))))
 
 end
 
@@ -1783,9 +1783,9 @@ module BigInt = struct
   let top_of ik = top ()
   let bot_of ik = bot ()
   let cast_to ik x = Size.cast ik x
-  let to_bool x = Some (not (BI.equal (BI.zero) x))
+  let to_bool x = Some (not (Z.equal Z.zero x))
 
-  let show x = BI.to_string x
+  let show x = Z.to_string x
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
@@ -1805,14 +1805,14 @@ struct
   type inc = Inc of BISet.t [@@unboxed]
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
-  let cardinality_of_range r = BI.add BI.one (BI.add (BI.neg (min_of_range r)) (max_of_range r))
+  let cardinality_of_range r = Z.add Z.one (Z.add (Z.neg (min_of_range r)) (max_of_range r))
 
   let cardinality_BISet s =
-    BI.of_int (BISet.cardinal s)
+    Z.of_int (BISet.cardinal s)
 
   let leq_excl_incl (Exc (xs, r)) (Inc ys) =
     (* For a <= b to hold, the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
-    let lower_bound_cardinality_a = BI.sub (cardinality_of_range r) (cardinality_BISet xs) in
+    let lower_bound_cardinality_a = Z.sub (cardinality_of_range r) (cardinality_BISet xs) in
     let card_b = cardinality_BISet ys in
     if I.compare lower_bound_cardinality_a card_b > 0 then
       false
@@ -1833,13 +1833,13 @@ struct
           let min_b, max_b = min_of_range s, max_of_range s in
           let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
             if I.compare min_a min_b < 0 then
-              GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, BI.sub min_b BI.one)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, Z.sub min_b Z.one)
             else
               true
           in
           let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
             if I.compare max_b max_a < 0 then
-              GobZ.for_all_range (fun x -> BISet.mem x xs) (BI.add max_b BI.one, max_a)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (Z.add max_b Z.one, max_a)
             else
               true
           in
@@ -1900,12 +1900,12 @@ struct
     | `Bot -> None
 
   let in_range r i =
-    let lowerb = Exclusion.min_of_range r in
-    if BI.compare i BI.zero < 0  then BI.compare lowerb i <= 0
-    else (
+    if Z.compare i Z.zero < 0 then
+      let lowerb = Exclusion.min_of_range r in
+      Z.compare lowerb i <= 0
+    else
       let upperb = Exclusion.max_of_range r in
-      BI.compare i upperb <= 0
-    )
+      Z.compare i upperb <= 0
 
   let is_top x = x = top ()
 
@@ -1921,8 +1921,8 @@ struct
         if R.leq r r' then (* upcast -> no change *)
           `Excluded (s, r)
         else if ik = IBool then (* downcast to bool *)
-          if S.mem BI.zero s then
-            `Definite (BI.one)
+          if S.mem Z.zero s then
+            `Definite Z.one
           else
             `Excluded (S.empty(), r')
         else
@@ -2020,7 +2020,7 @@ struct
       else
         let a,b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
         let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
-        `Excluded ((if BI.equal x BI.zero || BI.equal y BI.zero then S.empty () else S.singleton BI.zero), r)
+        `Excluded ((if Z.equal x Z.zero || Z.equal y Z.zero then S.empty () else S.singleton Z.zero), r)
     (* A known value and an exclusion set... the definite value should no
      * longer be excluded: *)
     | `Excluded (s,r), `Definite x
@@ -2071,14 +2071,14 @@ struct
     | _ -> None
 
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
-  let not_zero ikind = from_excl ikind (S.singleton BI.zero)
+  let not_zero ikind = from_excl ikind (S.singleton Z.zero)
 
-  let of_bool_cmp ik x = of_int ik (if x then BI.one else BI.zero)
+  let of_bool_cmp ik x = of_int ik (if x then Z.one else Z.zero)
   let of_bool = of_bool_cmp
   let to_bool x =
     match x with
     | `Definite x -> BigInt.to_bool x
-    | `Excluded (s,r) when S.mem BI.zero s -> Some true
+    | `Excluded (s,r) when S.mem Z.zero s -> Some true
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
@@ -2249,13 +2249,13 @@ struct
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     (* BigInt only accepts int as second argument for shifts; perform conversion here *)
     let shift_op_big_int a (b: int_t) =
-      let (b : int) = BI.to_int b in
+      let (b : int) = Z.to_int b in
       shift_op a b
     in
     (* If one of the parameters of the shift is negative, the result is undefined *)
     let x_min = minimal x in
     let y_min = minimal y in
-    if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
+    if x_min = None || y_min = None || Z.compare (Option.get x_min) Z.zero < 0 || Z.compare (Option.get y_min) Z.zero < 0 then
       top_of ik
     else
       norm ik @@ lift2 shift_op_big_int ik x y
@@ -2298,8 +2298,8 @@ struct
         (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
       in
       let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
-      let imin = if inexact_type_bounds || BI.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
-      let imax = if inexact_type_bounds || BI.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
+      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
       S.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
@@ -2410,7 +2410,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord, hash] (* inclusion/exclusion set *)
 
-  type int_t = BI.t
+  type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
   let top_of ik = Exc (BISet.empty (), size ik)
@@ -2486,8 +2486,8 @@ module Enums : S with type int_t = BigInt.t = struct
       if R.leq r r' then (* upcast -> no change *)
         Exc (s, r)
       else if ik = IBool then (* downcast to bool *)
-        if BISet.mem BI.zero s then
-          Inc (BISet.singleton BI.one)
+        if BISet.mem Z.zero s then
+          Inc (BISet.singleton Z.one)
         else
           Exc (BISet.empty(), r')
       else (* downcast: may overflow *)
@@ -2571,22 +2571,22 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let neg ?no_ov = lift1 I.neg
   let add ?no_ov ikind = curry @@ function
-    | Inc z,x when BISet.is_singleton z && BISet.choose z = BI.zero -> x
-    | x,Inc z when BISet.is_singleton z && BISet.choose z = BI.zero -> x
+    | Inc z,x when BISet.is_singleton z && BISet.choose z = Z.zero -> x
+    | x,Inc z when BISet.is_singleton z && BISet.choose z = Z.zero -> x
     | x,y -> lift2 I.add ikind x y
   let sub ?no_ov = lift2 I.sub
   let mul ?no_ov ikind a b =
     match a, b with
-    | Inc one,x when BISet.is_singleton one && BISet.choose one = BI.one -> x
-    | x,Inc one when BISet.is_singleton one && BISet.choose one = BI.one -> x
-    | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = BI.zero -> a
-    | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = BI.zero -> b
+    | Inc one,x when BISet.is_singleton one && BISet.choose one = Z.one -> x
+    | x,Inc one when BISet.is_singleton one && BISet.choose one = Z.one -> x
+    | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = Z.zero -> a
+    | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> b
     | x,y -> lift2 I.mul ikind x y
 
   let div ?no_ov ikind a b = match a, b with
-    | x,Inc one when BISet.is_singleton one && BISet.choose one = BI.one -> x
-    | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = BI.zero -> top_of ikind
-    | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = BI.zero -> a
+    | x,Inc one when BISet.is_singleton one && BISet.choose one = Z.one -> x
+    | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> top_of ikind
+    | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = Z.zero -> a
     | x,y -> lift2 I.div ikind x y
 
   let rem = lift2 I.rem
@@ -2600,13 +2600,13 @@ module Enums : S with type int_t = BigInt.t = struct
     handle_bot x y (fun () ->
         (* BigInt only accepts int as second argument for shifts; perform conversion here *)
         let shift_op_big_int a (b: int_t) =
-          let (b : int) = BI.to_int b in
+          let (b : int) = Z.to_int b in
           shift_op a b
         in
         (* If one of the parameters of the shift is negative, the result is undefined *)
         let x_min = minimal x in
         let y_min = minimal y in
-        if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
+        if x_min = None || y_min = None || Z.compare (Option.get x_min) Z.zero < 0 || Z.compare (Option.get y_min) Z.zero < 0 then
           top_of ik
         else
           lift2 shift_op_big_int ik x y)
@@ -2617,13 +2617,13 @@ module Enums : S with type int_t = BigInt.t = struct
   let shift_right =
     shift BigInt.shift_right
 
-  let of_bool ikind x = Inc (BISet.singleton (if x then BI.one else BI.zero))
+  let of_bool ikind x = Inc (BISet.singleton (if x then Z.one else Z.zero))
   let to_bool  = function
     | Inc e when BISet.is_empty e -> None
     | Exc (e,_) when BISet.is_empty e -> None
-    | Inc zero when BISet.is_singleton zero && BISet.choose zero = BI.zero -> Some false
-    | Inc xs when BISet.for_all ((<>) BI.zero) xs -> Some true
-    | Exc (xs,_) when BISet.exists ((=) BI.zero) xs -> Some true
+    | Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> Some false
+    | Inc xs when BISet.for_all ((<>) Z.zero) xs -> Some true
+    | Exc (xs,_) when BISet.exists ((=) Z.zero) xs -> Some true
     | _ -> None
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
 
@@ -2653,7 +2653,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (excl,r) ->
       let rec decrement_while_contained v =
         if BISet.mem v excl
-        then decrement_while_contained (BI.sub v (BI.one))
+        then decrement_while_contained (Z.sub v Z.one)
         else v
       in
       let range_max = Exclusion.max_of_range r in
@@ -2665,7 +2665,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (excl,r) ->
       let rec increment_while_contained v =
         if BISet.mem v excl
-        then increment_while_contained (BI.add v (BI.one))
+        then increment_while_contained (Z.add v Z.one)
         else v
       in
       let range_min = Exclusion.min_of_range r in
@@ -2734,7 +2734,7 @@ module Enums : S with type int_t = BigInt.t = struct
     ] (* S TODO: decide frequencies *)
 
   let refine_with_congruence ik a b =
-    let contains c m x = if BI.equal m BI.zero then BI.equal c x else BI.equal (BI.rem (BI.sub x c) m) BI.zero in
+    let contains c m x = if Z.equal m Z.zero then Z.equal c x else Z.equal (Z.rem (Z.sub x c) m) Z.zero in
     match a, b with
     | Inc e, None -> bot_of ik
     | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
@@ -2755,7 +2755,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let project ik p t = t
 end
 
-module Congruence : S with type int_t = BI.t and type t = (BI.t * BI.t) option =
+module Congruence : S with type int_t = Z.t and type t = (Z.t * Z.t) option =
 struct
   let name () = "congruences"
   module Ints_t = BI
@@ -3290,7 +3290,7 @@ module IntDomTupleImpl = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
-  type int_t = BI.t
+  type int_t = Z.t
   module I1 = SOverflowLifter(DefExc)
   module I2 = Interval
   module I3 = SOverflowLifter(Enums)
@@ -3601,10 +3601,10 @@ module IntDomTupleImpl = struct
       if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
       None
     )
-  let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_int }
+  let to_int = same Z.to_string % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_int }
   let to_bool = same string_of_bool % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.to_bool }
-  let minimal = flat (List.max ~cmp:BI.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.minimal }
-  let maximal = flat (List.min ~cmp:BI.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.maximal }
+  let minimal = flat (List.max ~cmp:Z.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.minimal }
+  let maximal = flat (List.min ~cmp:Z.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.maximal }
   (* others *)
   let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.to_yojson x }
