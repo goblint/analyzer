@@ -1775,7 +1775,7 @@ struct
 end
 
 module BigInt = struct
-  include IntOps.BigIntOps
+  include Z
   let name () = "BigIntPrintable"
   let top () = raise Unknown
   let bot () = raise Error
@@ -2218,7 +2218,7 @@ struct
 
   let ge ik x y = le ik y x
 
-  let bitnot = lift1 BigInt.bitnot
+  let bitnot = lift1 Z.lognot
 
   let bitand ik x y = norm ik (match x,y with
       (* We don't bother with exclusion sets: *)
@@ -2234,15 +2234,15 @@ struct
       | `Excluded _, `Excluded _ -> top ()
       (* The good case: *)
       | `Definite x, `Definite y ->
-        (try `Definite (BigInt.bitand x y) with | Division_by_zero -> top ())
+        (try `Definite (Z.logand x y) with | Division_by_zero -> top ())
       | `Bot, `Bot -> `Bot
       | _ ->
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
 
-  let bitor  = lift2 BigInt.bitor
-  let bitxor = lift2 BigInt.bitxor
+  let bitor  = lift2 Z.logor
+  let bitxor = lift2 Z.logxor
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     (* BigInt only accepts int as second argument for shifts; perform conversion here *)
@@ -2416,7 +2416,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [I.zero; I.one])
 
-  let range ik = BatTuple.Tuple2.mapn I.of_bigint (Size.range ik)
+  let range ik = Size.range ik
 
 (*
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
@@ -2589,10 +2589,10 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let rem = lift2 I.rem
 
-  let bitnot = lift1 BigInt.bitnot
-  let bitand = lift2 BigInt.bitand
-  let bitor  = lift2 BigInt.bitor
-  let bitxor = lift2 BigInt.bitxor
+  let bitnot = lift1 Z.lognot
+  let bitand = lift2 Z.logand
+  let bitor  = lift2 Z.logor
+  let bitxor = lift2 Z.logxor
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     handle_bot x y (fun () ->
