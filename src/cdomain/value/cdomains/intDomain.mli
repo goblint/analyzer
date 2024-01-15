@@ -396,10 +396,6 @@ module Flattened : IkindUnawareS with type t = [`Top | `Lifted of IntOps.Int64Op
 (** This is the typical flattened integer domain used in Kildall's constant
   * propagation. *)
 
-module FlattenedBI : IkindUnawareS with type t = [`Top | `Lifted of IntOps.BigIntOps.t | `Bot] and type int_t = IntOps.BigIntOps.t
-(** This is the typical flattened integer domain used in Kildall's constant
-  * propagation, using Big_int instead of int64. *)
-
 module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
 (** Artificially bounded integers in their natural ordering. *)
 

@@ -1765,7 +1765,6 @@ struct
 end
 
 module Flattened = Flat (Integers (IntOps.Int64Ops))
-module FlattenedBI = Flat (Integers (IntOps.BigIntOps))
 module Lifted = Lift (Integers (IntOps.Int64Ops))
 
 module Reverse (Base: IkindUnawareS) =

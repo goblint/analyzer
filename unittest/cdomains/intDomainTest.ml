@@ -110,7 +110,6 @@ end
 
 module Ikind = struct let ikind () = Cil.ILong end
 module A = IntTest (IntDomain.Integers (IntOps.BigIntOps))
-module B = IntTest (IntDomain.FlattenedBI)
 module C = IntTest (IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind))
 module T = struct
   include IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
@@ -283,8 +282,7 @@ end
 
 let test () = "intDomainTest" >:::
               [ "int_Integers"  >::: A.test ();
-                "int_Flattened" >::: B.test ();
-                "int_DefExc"     >::: C.test ();
+                "int_DefExc"    >::: C.test ();
                 "test_bot"      >::  test_bot;
                 "test_join"     >::  test_join;
                 "test_meet"     >::  test_meet;
