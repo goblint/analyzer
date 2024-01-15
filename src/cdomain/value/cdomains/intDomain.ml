@@ -1799,7 +1799,6 @@ end
 module Exclusion =
 struct
   module R = Interval32
-  module I = BI
   (* We use these types for the functions in this module to make the intended meaning more explicit *)
   type t = Exc of BISet.t * Interval32.t
   type inc = Inc of BISet.t [@@unboxed]
@@ -1814,7 +1813,7 @@ struct
     (* For a <= b to hold, the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
     let lower_bound_cardinality_a = Z.sub (cardinality_of_range r) (cardinality_BISet xs) in
     let card_b = cardinality_BISet ys in
-    if I.compare lower_bound_cardinality_a card_b > 0 then
+    if Z.compare lower_bound_cardinality_a card_b > 0 then
       false
     else (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
       let min_a = min_of_range r in
@@ -1823,22 +1822,22 @@ struct
 
   let leq (Exc (xs, r)) (Exc (ys, s)) =
     let min_a, max_a = min_of_range r, max_of_range r in
-    let excluded_check = BISet.for_all (fun y -> BISet.mem y xs || I.compare y min_a < 0 || I.compare y max_a > 0) ys in (* if true, then the values ys, that are not in b, also do not occur in a *)
+    let excluded_check = BISet.for_all (fun y -> BISet.mem y xs || Z.compare y min_a < 0 || Z.compare y max_a > 0) ys in (* if true, then the values ys, that are not in b, also do not occur in a *)
     if not excluded_check
     then false
     else begin (* Check whether all elements that are in the range r, but not in s, are in xs, i.e. excluded. *)
       if R.leq r s then true
-      else begin if I.compare (cardinality_BISet xs) (I.sub (cardinality_of_range r) (cardinality_of_range s)) >= 0 (* Check whether the number of excluded elements in a is as least as big as |min_r, max_r| - |min_s, max_s| *)
+      else begin if Z.compare (cardinality_BISet xs) (Z.sub (cardinality_of_range r) (cardinality_of_range s)) >= 0 (* Check whether the number of excluded elements in a is as least as big as |min_r, max_r| - |min_s, max_s| *)
         then
           let min_b, max_b = min_of_range s, max_of_range s in
           let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
-            if I.compare min_a min_b < 0 then
+            if Z.compare min_a min_b < 0 then
               GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, Z.sub min_b Z.one)
             else
               true
           in
           let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
-            if I.compare max_b max_a < 0 then
+            if Z.compare max_b max_a < 0 then
               GobZ.for_all_range (fun x -> BISet.mem x xs) (Z.add max_b Z.one, max_a)
             else
               true
