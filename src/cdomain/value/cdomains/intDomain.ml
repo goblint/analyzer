@@ -2177,7 +2177,7 @@ struct
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
-  let neg ?no_ov ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
+  let neg ?no_ov ik (x :t) = norm ik @@ lift1 Z.neg ik x
   let add ?no_ov ik x y = norm ik @@ lift2_inj Z.add ik x y
 
   let sub ?no_ov ik x y = norm ik @@ lift2_inj Z.sub ik x y
