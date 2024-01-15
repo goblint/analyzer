@@ -2258,7 +2258,7 @@ struct
       norm ik @@ lift2 shift_op_big_int ik x y
 
   let shift_left =
-    shift BigInt.shift_left
+    shift Z.shift_left
 
   let shift_right =
     shift BigInt.shift_right
@@ -2609,7 +2609,7 @@ module Enums : S with type int_t = BigInt.t = struct
           lift2 shift_op_big_int ik x y)
 
   let shift_left =
-    shift BigInt.shift_left
+    shift Z.shift_left
 
   let shift_right =
     shift BigInt.shift_right
