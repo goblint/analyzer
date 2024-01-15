@@ -2756,56 +2756,55 @@ end
 module Congruence : S with type int_t = Z.t and type t = (Z.t * Z.t) option =
 struct
   let name () = "congruences"
-  module Ints_t = Z
-  type int_t = Ints_t.t
+  type int_t = Z.t
 
   (* represents congruence class of c mod m, None is bot *)
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
+  type t = (Z.t * Z.t) option [@@deriving eq, ord, hash]
 
-  let ( *: ) = Ints_t.mul
-  let (+:) = Ints_t.add
-  let (-:) = Ints_t.sub
-  let (%:) = Ints_t.rem
-  let (/:) = Ints_t.div
-  let (=:) = Ints_t.equal
-  let (<:) x y = Ints_t.compare x y < 0
-  let (>:) x y = Ints_t.compare x y > 0
-  let (<=:) x y = Ints_t.compare x y <= 0
-  let (>=:) x y = Ints_t.compare x y >= 0
+  let ( *: ) = Z.mul
+  let (+:) = Z.add
+  let (-:) = Z.sub
+  let (%:) = Z.rem
+  let (/:) = Z.div
+  let (=:) = Z.equal
+  let (<:) x y = Z.compare x y < 0
+  let (>:) x y = Z.compare x y > 0
+  let (<=:) x y = Z.compare x y <= 0
+  let (>=:) x y = Z.compare x y >= 0
   (* a divides b *)
   let ( |: ) a b =
-    if a =: Ints_t.zero then false else (b %: a) =: Ints_t.zero
+    if a =: Z.zero then false else (b %: a) =: Z.zero
 
   let normalize ik x =
     match x with
     | None -> None
     | Some (c, m) ->
-      if m =: Ints_t.zero then
+      if m =: Z.zero then
         if should_wrap ik then
           Some (BigInt.cast_to ik c, m)
         else
           Some (c, m)
       else
-        let m' = Ints_t.abs m in
+        let m' = Z.abs m in
         let c' = c %: m' in
-        if c' <: Ints_t.zero then
+        if c' <: Z.zero then
           Some (c' +: m', m')
         else
           Some (c' %: m', m')
 
   let range ik = Size.range ik
 
-  let top () = Some (Ints_t.zero, Ints_t.one)
-  let top_of ik = Some (Ints_t.zero, Ints_t.one)
+  let top () = Some (Z.zero, Z.one)
+  let top_of ik = Some (Z.zero, Z.one)
   let bot () = None
   let bot_of ik = bot ()
 
   let show = function ik -> match ik with
     | None -> "⟂"
-    | Some (c, m) when (c, m) = (Ints_t.zero, Ints_t.zero) -> Ints_t.to_string c
+    | Some (c, m) when (c, m) = (Z.zero, Z.zero) -> Z.to_string c
     | Some (c, m) ->
-      let a = if c =: Ints_t.zero then "" else Ints_t.to_string c in
-      let b = if m =: Ints_t.zero then "" else if m = Ints_t.one then "ℤ" else Ints_t.to_string m^"ℤ" in
+      let a = if c =: Z.zero then "" else Z.to_string c in
+      let b = if m =: Z.zero then "" else if m = Z.one then "ℤ" else Z.to_string m^"ℤ" in
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
 
@@ -2815,29 +2814,29 @@ struct
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
-    | Some (a, b) when b =: Ints_t.zero -> if a =: i then `Eq else `Neq
+    | Some (a, b) when b =: Z.zero -> if a =: i then `Eq else `Neq
     | Some (a, b) ->  if i %: b =: a then `Top else `Neq
 
   let leq (x:t) (y:t) =
     match x, y with
     | None, _ -> true
     | Some _, None -> false
-    | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero && m1 =: Ints_t.zero -> c1 =: c2
-    | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero -> c1 =: c2 && m1 =: Ints_t.zero
-    | Some (c1,m1), Some (c2,m2) -> m2 |: (Ints_t.gcd (c1 -: c2) m1)
+    | Some (c1,m1), Some (c2,m2) when m2 =: Z.zero && m1 =: Z.zero -> c1 =: c2
+    | Some (c1,m1), Some (c2,m2) when m2 =: Z.zero -> c1 =: c2 && m1 =: Z.zero
+    | Some (c1,m1), Some (c2,m2) -> m2 |: Z.gcd (c1 -: c2) m1
   (* Typo in original equation of P. Granger (m2 instead of m1): gcd (c1 -: c2) m2
      Reference: https://doi.org/10.1080/00207168908803778 Page 171 corollary 3.3*)
 
   let leq x y =
     let res = leq x y in
-    if M.tracing then M.trace "congruence" "leq %a %a -> %a \n" pretty x pretty y pretty (Some(Ints_t.of_int (Bool.to_int res), Ints_t.zero)) ;
+    if M.tracing then M.trace "congruence" "leq %a %a -> %a \n" pretty x pretty y pretty (Some (Z.of_int (Bool.to_int res), Z.zero)) ;
     res
 
   let join ik (x:t) y =
     match x, y with
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
-      let m3 = Ints_t.gcd m1 (Ints_t.gcd m2 (c1 -: c2)) in
+      let m3 = Z.gcd m1 (Z.gcd m2 (c1 -: c2)) in
       normalize ik (Some (c1, m3))
 
   let join ik (x:t) y =
@@ -2852,17 +2851,17 @@ struct
       let rec next a1 c1 a2 c2 =
         if a2 |: a1 then (a2, c2)
         else next a2 c2 (a1 %: a2) (c1 -: (c2 *: (a1 /: a2)))
-      in next m Ints_t.zero a c
+      in next m Z.zero a c
     in
     let simple_case i c m =
       if m |: (i -: c)
-      then Some (i, Ints_t.zero) else None
+      then Some (i, Z.zero) else None
     in
     match x, y with
-    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero -> if c1 =: c2 then Some (c1, Ints_t.zero) else None
-    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero -> simple_case c1 c2 m2
-    | Some (c1, m1), Some (c2, m2) when m2 =: Ints_t.zero -> simple_case c2 c1 m1
-    | Some (c1, m1), Some (c2, m2) when (Ints_t.gcd m1 m2) |: (c1 -: c2) ->
+    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero -> if c1 =: c2 then Some (c1, Z.zero) else None
+    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero -> simple_case c1 c2 m2
+    | Some (c1, m1), Some (c2, m2) when m2 =: Z.zero -> simple_case c2 c1 m1
+    | Some (c1, m1), Some (c2, m2) when (Z.gcd m1 m2) |: (c1 -: c2) ->
       let (c, m) = congruence_series m1 (c2 -: c1 ) m2 in
       normalize ik (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
     | _  -> None
@@ -2872,10 +2871,10 @@ struct
     if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pretty x pretty y pretty res;
     res
 
-  let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
-  let of_int ik (x: int_t) = normalize ik @@ Some (x, Ints_t.zero)
-  let zero = Some (Ints_t.zero, Ints_t.zero)
-  let one  = Some (Ints_t.one, Ints_t.zero)
+  let to_int = function Some (c, m) when m =: Z.zero -> Some c | _ -> None
+  let of_int ik (x: int_t) = normalize ik @@ Some (x, Z.zero)
+  let zero = Some (Z.zero, Z.zero)
+  let one  = Some (Z.one, Z.zero)
   let top_bool = top()
 
   let of_bool _ik = function true -> one | false -> zero
@@ -2892,18 +2891,18 @@ struct
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 
   let maximal t = match t with
-    | Some (x, y) when y =: Ints_t.zero -> Some x
+    | Some (x, y) when y =: Z.zero -> Some x
     | _ -> None
 
   let minimal t = match t with
-    | Some (x,y) when y =: Ints_t.zero -> Some x
+    | Some (x,y) when y =: Z.zero -> Some x
     | _ -> None
 
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
   let cast_to ?torg ?(no_ov=false) t x =
     match x with
     | None -> None
-    | Some (c, m) when m =: Ints_t.zero ->
+    | Some (c, m) when m =: Z.zero ->
       let c' = BigInt.cast_to t c in
       (* When casting into a signed type and the result does not fit, the behavior is implementation-defined. (C90 6.2.1.2, C99 and C11 6.3.1.3) *)
       (* We go with GCC behavior here: *)
@@ -2972,28 +2971,28 @@ struct
   let shift_left ik x y =
     (* Naive primality test *)
     (* let is_prime n =
-         let n = Ints_t.abs n in
+         let n = Z.abs n in
          let rec is_prime' d =
-           (d *: d >: n) || ((not ((n %: d) =: Ints_t.zero)) && (is_prime' [@tailcall]) (d +: Ints_t.one))
+           (d *: d >: n) || ((not ((n %: d) =: Z.zero)) && (is_prime' [@tailcall]) (d +: Z.one))
          in
-         not (n =: Ints_t.one) && is_prime' (Ints_t.of_int 2)
+         not (n =: Z.one) && is_prime' (Z.of_int 2)
        in *)
     match x, y with
     | None, None -> None
     | None, _
     | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top_of ik
+    | Some (c, m), Some (c', m') when Cil.isSigned ik || c <: Z.zero || c' <: Z.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
       let (_, max_ik) = range ik in
-      if m =: Ints_t.zero && m' =: Ints_t.zero then
-        normalize ik @@ Some (Z.logand max_ik (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
+      if m =: Z.zero && m' =: Z.zero then
+        normalize ik @@ Some (Z.logand max_ik (Z.shift_left c (Z.to_int c')), Z.zero)
       else
-        let x = Z.logand max_ik (Ints_t.shift_left Ints_t.one (Ints_t.to_int c')) in (* 2^c' *)
+        let x = Z.logand max_ik (Z.shift_left Z.one (Z.to_int c')) in (* 2^c' *)
         (* TODO: commented out because fails test with _Bool *)
-        (* if is_prime (m' +: Ints_t.one) then
-             normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
+        (* if is_prime (m' +: Z.one) then
+             normalize ik @@ Some (x *: c, Z.gcd (x *: m) ((c *: x) *: (m' +: Z.one)))
            else *)
-        normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) (c *: x))
+        normalize ik @@ Some (x *: c, Z.gcd (x *: m) (c *: x))
 
   let shift_left ik x y =
     let res = shift_left ik x y in
@@ -3004,24 +3003,24 @@ struct
      From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= bitwidth.
      The congruence modulo b may not persist on an overflow. *)
   let handle_overflow ik (c, m) =
-    if m =: Ints_t.zero then
+    if m =: Z.zero then
       normalize ik (Some (c, m))
     else
       (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
-      let tz = Ints_t.trailing_zeros m in
-      let m' = Ints_t.shift_left (Ints_t.of_int 1) tz in
+      let tz = Z.trailing_zeros m in
+      let m' = Z.shift_left (Z.of_int 1) tz in
 
-      let max = (snd (Size.range ik)) +: Ints_t.one in
+      let max = (snd (Size.range ik)) +: Z.one in
       if m' >=: max then
         (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
         let c' = c %: max in
-        Some (c', Ints_t.zero)
+        Some (c', Z.zero)
       else
         normalize ik (Some (c, m'))
 
   let mul ?(no_ov=false) ik x y =
     let no_ov_case (c1, m1) (c2, m2) =
-      (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
+      c1 *: c2, Z.gcd (c1 *: m2) (Z.gcd (m1 *: c2) (m1 *: m2))
     in
     match x, y with
     | None, None -> bot ()
@@ -3029,9 +3028,9 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov ->
       Some (no_ov_case (c1, m1) (c2, m2))
-    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
-      Some((c1 *: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+      Some ((c1 *: c2) %: (max_ik +: Z.one), Z.zero)
     | Some a, Some b when not (Cil.isSigned ik) ->
       handle_overflow ik (no_ov_case a b )
     | _ -> top ()
@@ -3044,11 +3043,11 @@ struct
   let neg ?(no_ov=false) ik x =
     match x with
     | None -> bot()
-    | Some _ ->  mul ~no_ov ik (of_int ik (Ints_t.of_int (-1))) x
+    | Some _ -> mul ~no_ov ik (of_int ik (Z.of_int (-1))) x
 
   let add ?(no_ov=false) ik x y =
     let no_ov_case (c1, m1) (c2, m2) =
-      c1 +: c2, Ints_t.gcd m1 m2
+      c1 +: c2, Z.gcd m1 m2
     in
     match (x, y) with
     | None, None -> bot ()
@@ -3056,9 +3055,9 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some a, Some b when no_ov ->
       normalize ik (Some (no_ov_case a b))
-    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
-      Some((c1 +: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+      Some((c1 +: c2) %: (max_ik +: Z.one), Z.zero)
     | Some a, Some b when not (Cil.isSigned ik) ->
       handle_overflow ik (no_ov_case a b)
     | _ -> top ()
@@ -3088,7 +3087,7 @@ struct
         sub ik (neg ik x) one
       else
         let (_, max_ik) = range ik in
-        Some (Ints_t.sub max_ik c, m)
+        Some (Z.sub max_ik c, m)
 
   (** The implementation of the bit operations could be improved based on the master’s thesis
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
@@ -3097,7 +3096,7 @@ struct
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m), Some (c', m') ->
-      if (m =: Ints_t.zero && m' =: Ints_t.zero) then Some (f c c', Ints_t.zero)
+      if m =: Z.zero && m' =: Z.zero then Some (f c c', Z.zero)
       else top ()
 
   let bitor ik x y = bit2 Z.logor ik x y
@@ -3106,13 +3105,13 @@ struct
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m), Some (c', m') ->
-      if (m =: Ints_t.zero && m' =: Ints_t.zero) then
+      if m =: Z.zero && m' =: Z.zero then
         (* both arguments constant *)
-        Some (Z.logand c c', Ints_t.zero)
-      else if m' =: Ints_t.zero && c' =: Ints_t.one && Ints_t.rem m (Ints_t.of_int 2) =: Ints_t.zero then
+        Some (Z.logand c c', Z.zero)
+      else if m' =: Z.zero && c' =: Z.one && Z.rem m (Z.of_int 2) =: Z.zero then
         (* x & 1  and  x == c (mod 2*z) *)
         (* Value is equal to LSB of c *)
-        Some (Z.logand c c', Ints_t.zero)
+        Some (Z.logand c c', Z.zero)
       else
         top ()
 
@@ -3123,13 +3122,13 @@ struct
     | None, None -> bot()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some(c2, m2) ->
-      if m2 =: Ints_t.zero then
-        if (c2 |: m1) && (c1 %: c2 =: Ints_t.zero || m1 =: Ints_t.zero || not (Cil.isSigned ik)) then
-          Some(c1 %: c2, Ints_t.zero)
+      if m2 =: Z.zero then
+        if (c2 |: m1) && (c1 %: c2 =: Z.zero || m1 =: Z.zero || not (Cil.isSigned ik)) then
+          Some (c1 %: c2, Z.zero)
         else
-          normalize ik (Some(c1, (Ints_t.gcd m1 c2)))
+          normalize ik (Some (c1, (Z.gcd m1 c2)))
       else
-        normalize ik (Some(c1, Ints_t.gcd m1 (Ints_t.gcd c2 m2)))
+        normalize ik (Some (c1, Z.gcd m1 (Z.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
     if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;
@@ -3140,9 +3139,9 @@ struct
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, x when leq zero x -> top ()
-    | Some(c1, m1), Some(c2, m2) when not no_ov && m2 =: Ints_t.zero && c2 =: Ints_t.neg Ints_t.one -> top ()
-    | Some(c1, m1), Some(c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero -> Some(c1 /: c2, Ints_t.zero)
-    | Some(c1, m1), Some(c2, m2) when m2 =: Ints_t.zero ->  if (c2 |: m1) && (c2 |: c1) then Some(c1 /: c2, m1 /: c2) else top ()
+    | Some(c1, m1), Some(c2, m2) when not no_ov && m2 =: Z.zero && c2 =: Z.neg Z.one -> top ()
+    | Some(c1, m1), Some(c2, m2) when m1 =: Z.zero && m2 =: Z.zero -> Some (c1 /: c2, Z.zero)
+    | Some(c1, m1), Some(c2, m2) when m2 =: Z.zero && c2 |: m1 && c2 |: c1 -> Some (c1 /: c2, m1 /: c2)
     | _, _ -> top ()
 
 
@@ -3154,19 +3153,21 @@ struct
     res
 
   let ne ik (x: t) (y: t) = match x, y with
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) -> of_bool ik (not (c1 =: c2 ))
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> of_bool ik (not (c1 =: c2 ))
     | x, y -> if meet ik x y = None then of_bool ik true else top_bool
 
   let eq ik (x: t) (y: t) = match x, y with
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) -> of_bool ik (c1 =: c2)
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> of_bool ik (c1 =: c2)
     | x, y -> if meet ik x y <> None then top_bool else of_bool ik false
 
   let comparison ik op x y = match x, y with
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some(c2, m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
+    | Some (c1, m1), Some (c2, m2) ->
+      if m1 =: Z.zero && m2 =: Z.zero then
         if op c1 c2 then of_bool ik true else of_bool ik false
-      else top_bool
+      else
+        top_bool
 
   let ge ik x y = comparison ik (>=:) x y
 
@@ -3200,7 +3201,7 @@ struct
   let invariant_ikind e ik x =
     match x with
     | x when is_top x -> Invariant.top ()
-    | Some (c, m) when m =: Ints_t.zero ->
+    | Some (c, m) when m =: Z.zero ->
       if get_bool "witness.invariant.exact" then
         Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
       else
@@ -3213,7 +3214,7 @@ struct
 
   let arbitrary ik =
     let open QCheck in
-    let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
+    let int_arb = map ~rev:Z.to_int64 Z.of_int64 GobQCheck.Arbitrary.int64 in
     let cong_arb = pair int_arb int_arb in
     let of_pair ik p = normalize ik (Some p) in
     let to_pair = Option.get in
@@ -3222,19 +3223,19 @@ struct
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
-      if m =: Ints_t.zero then
-        if (c <: x || c >: y) then None else Some (c, Ints_t.zero)
+      if m =: Z.zero then
+        if c <: x || c >: y then None else Some (c, Z.zero)
       else
-        let rcx = x +: ((c -: x) %: Ints_t.abs m) in
-        let lcy = y -: ((y -: c) %: Ints_t.abs m) in
+        let rcx = x +: ((c -: x) %: Z.abs m) in
+        let lcy = y -: ((y -: c) %: Z.abs m) in
         if rcx >: lcy then None
-        else if rcx =: lcy then Some (rcx, Ints_t.zero)
+        else if rcx =: lcy then Some (rcx, Z.zero)
         else cong
     | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =
     let pretty_intv _ i = (match i with
-        | Some(l, u) -> let s = "["^Ints_t.to_string l^","^Ints_t.to_string u^"]" in Pretty.text s
+        | Some(l, u) -> let s = "["^Z.to_string l^","^Z.to_string u^"]" in Pretty.text s
         | _ -> Pretty.text ("Display Error")) in
     let refn = refine_with_interval ik cong intv in
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
