@@ -1962,10 +1962,10 @@ struct
         let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
         match ik with
         | IBool ->
-          begin match S.mem BigInt.zero mapped_excl, S.mem BigInt.one mapped_excl with
+          begin match S.mem Z.zero mapped_excl, S.mem BigInt.one mapped_excl with
             | false, false -> `Excluded (mapped_excl, r) (* Not {} -> Not {} *)
             | true, false -> `Definite BigInt.one (* Not {0} -> 1 *)
-            | false, true -> `Definite BigInt.zero (* Not {1} -> 0 *)
+            | false, true -> `Definite Z.zero (* Not {1} -> 0 *)
             | true, true -> `Bot (* Not {0, 1} -> bot *)
           end
         | ik ->
@@ -2081,8 +2081,8 @@ struct
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
 
-  let starting ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x = if BigInt.compare x Z.zero > 0 then not_zero ikind else top_of ikind
+  let ending ?(suppress_ovwarn=false) ikind x = if BigInt.compare x Z.zero < 0 then not_zero ikind else top_of ikind
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
@@ -2182,12 +2182,12 @@ struct
 
   let sub ?no_ov ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
   let mul ?no_ov ik x y = norm ik @@ match x, y with
-    | `Definite z, (`Excluded _ | `Definite _) when BigInt.equal z BigInt.zero -> x
-    | (`Excluded _ | `Definite _), `Definite z when BigInt.equal z BigInt.zero -> y
+    | `Definite z, (`Excluded _ | `Definite _) when BigInt.equal z Z.zero -> x
+    | (`Excluded _ | `Definite _), `Definite z when BigInt.equal z Z.zero -> y
     | `Definite a, `Excluded (s,r)
     (* Integer multiplication with even numbers is not injective. *)
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
-    | `Excluded (s,r),`Definite a when BigInt.equal (BigInt.rem a (BigInt.of_int 2)) BigInt.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
+    | `Excluded (s,r),`Definite a when BigInt.equal (BigInt.rem a (BigInt.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
     | _ -> lift2_inj BigInt.mul ik x y
   let div ?no_ov ik x y = lift2 BigInt.div ik x y
   let rem ik x y = lift2 BigInt.rem ik x y
@@ -2223,10 +2223,10 @@ struct
       (* We don't bother with exclusion sets: *)
       | `Excluded _, `Definite i ->
         (* Except in two special cases *)
-        if BigInt.equal i BigInt.zero then
-          `Definite BigInt.zero
+        if BigInt.equal i Z.zero then
+          `Definite Z.zero
         else if BigInt.equal i BigInt.one then
-          of_interval IBool (BigInt.zero, BigInt.one)
+          of_interval IBool (Z.zero, BigInt.one)
         else
           top ()
       | `Definite _, `Excluded _
@@ -2277,7 +2277,7 @@ struct
       of_bool ik true
     | _, _ ->
       lift2 BigInt.logor ik x y
-  let lognot ik = eq ik (of_int ik BigInt.zero)
+  let lognot ik = eq ik (of_int ik Z.zero)
 
   let invariant_ikind e ik (x:t) =
     match x with
@@ -2456,10 +2456,10 @@ module Enums : S with type int_t = BigInt.t = struct
          assert (range_in_ikind r && BISet.for_all (value_in_range (r_min, r_max)) xs); *)
       begin match ikind with
         | IBool ->
-          begin match BISet.mem BigInt.zero xs, BISet.mem BigInt.one xs with
+          begin match BISet.mem Z.zero xs, BISet.mem BigInt.one xs with
             | false, false -> top_bool  (* Not {} -> {0, 1} *)
             | true, false -> Inc (BISet.singleton BigInt.one) (* Not {0} -> {1} *)
-            | false, true -> Inc (BISet.singleton BigInt.zero) (* Not {1} -> {0} *)
+            | false, true -> Inc (BISet.singleton Z.zero) (* Not {1} -> {0} *)
             | true, true -> bot_of ikind (* Not {0, 1} -> bot *)
           end
         | _ ->
