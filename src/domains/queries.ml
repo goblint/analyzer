@@ -127,6 +127,8 @@ type _ t =
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MayBeOutOfBounds: varinfo * int * exp * binop -> ID.t t
+  | MayOverflow : exp -> MustBool.t t
+  | AllocMayBeOutOfBounds : exp * int -> VDQ.ProdID.t t
 
 type 'a result = 'a
 
@@ -197,6 +199,8 @@ struct
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
     | MayBeOutOfBounds _ -> (module ID)
+    | MayOverflow _ -> (module MayBool)
+    | AllocMayBeOutOfBounds _ -> (module VDQ.ProdID)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -266,6 +270,8 @@ struct
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
     | MayBeOutOfBounds _ -> ID.top ()
+    | MayOverflow _ -> MayBool.top ()
+    | AllocMayBeOutOfBounds _ -> VDQ.ProdID.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -329,6 +335,8 @@ struct
     | Any (TmpSpecial _) -> 53
     | Any (IsAllocVar _) -> 54
     | Any (MayBeOutOfBounds _) -> 55
+    | Any (MayOverflow _) -> 56
+    | Any (AllocMayBeOutOfBounds _) -> 56
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -395,6 +403,14 @@ struct
           else
             CilType.Binop.compare binop1 binop2
       (* only argumentless queries should remain *)
+      | Any (MayOverflow e1), Any (MayOverflow e2) -> CilType.Exp.compare e1 e2
+      | Any (AllocMayBeOutOfBounds (e1, i1)), Any (AllocMayBeOutOfBounds (e2, i2)) -> 
+        let r =  CilType.Exp.compare e1 e2 in
+        if r <> 0 then 
+          r
+        else 
+          i1 - i2
+
       | _, _ -> Stdlib.compare (order a) (order b)
 
   let equal x y = compare x y = 0
@@ -436,6 +452,9 @@ struct
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MayBeOutOfBounds (v,s, exp, bin)) -> 127 * CilType.Varinfo.hash v  + 67 * Hashtbl.hash s  + 31 * CilType.Exp.hash exp + CilType.Binop.hash bin
+    | Any (MayOverflow e) -> CilType.Exp.hash e
+    | Any (AllocMayBeOutOfBounds (e, i )) ->  127 * CilType.Exp.hash e + i
+
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -499,6 +518,8 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MayBeOutOfBounds (v,s, e, b)) -> Pretty.dprintf "EvalExp %a %a %a" CilType.Varinfo.pretty v  CilType.Binop.pretty b CilType.Exp.pretty e 
+    | Any (MayOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
+    | Any (AllocMayBeOutOfBounds (e, i)) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
 end
 
 let to_value_domain_ask (ask: ask) =
