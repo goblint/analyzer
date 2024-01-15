@@ -137,7 +137,7 @@ module MallocWrapper : MCPSpec = struct
 
   module PointerType = struct 
     let varType = voidType
-    let isGlobal = false
+    let isGlobal = true
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode) (PointerType)
