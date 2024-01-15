@@ -1,20 +1,19 @@
 (** QCheck properties for {!IntDomain}. *)
 
 open GoblintCil
-module BI = IntOps.BigIntOps
 
 (* TODO: deduplicate with IntDomain *)
 module type OldS =
 sig
   include Lattice.S
   include IntDomain.Arith with type t := t
-  val of_int: BI.t -> t
-  val to_int: t -> BI.t option
+  val of_int: Z.t -> t
+  val to_int: t -> Z.t option
   val of_bool: bool -> t
   val to_bool: t -> bool option
-  val of_excl_list: Cil.ikind -> BI.t list -> t
+  val of_excl_list: Cil.ikind -> Z.t list -> t
   val is_excl_list: t -> bool
-  val to_excl_list: t -> (BI.t list * (int64 * int64)) option
+  val to_excl_list: t -> (Z.t list * (int64 * int64)) option
 end
 
 module type OldSWithIkind =
@@ -23,7 +22,7 @@ sig
   module Ikind: IntDomain.Ikind
 end
 
-module type S = IntDomain.S with type int_t = BI.t
+module type S = IntDomain.S with type int_t = Z.t
 
 (* TODO: deduplicate with IntDomain, extension of IntDomWithDefaultIkind, inverse of OldDomainFacade? *)
 module WithIkind (I: S) (Ik: IntDomain.Ikind): OldSWithIkind =
@@ -140,8 +139,8 @@ struct
   let valid_bitxor = make_valid2 ~name:"bitxor" ~cond:none_bot CD.bitxor AD.bitxor
 
   let defined_shift (a, b) =
-    let max_shift = BI.of_int @@ snd @@ IntDomain.Size.bits (AD.Ikind.ikind ()) in
-    CD.for_all (fun x -> BI.compare BI.zero x <= 0 && BI.compare x max_shift <= 0) b
+    let max_shift = Z.of_int @@ snd @@ IntDomain.Size.bits (AD.Ikind.ikind ()) in
+    CD.for_all (fun x -> Z.compare Z.zero x <= 0 && Z.compare x max_shift <= 0) b
   let shift_cond p = none_bot p && defined_shift p
   let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:shift_cond CD.shift_left AD.shift_left
   let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:shift_cond CD.shift_right AD.shift_right
