@@ -1962,9 +1962,9 @@ struct
         let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
         match ik with
         | IBool ->
-          begin match S.mem Z.zero mapped_excl, S.mem BigInt.one mapped_excl with
+          begin match S.mem Z.zero mapped_excl, S.mem Z.one mapped_excl with
             | false, false -> `Excluded (mapped_excl, r) (* Not {} -> Not {} *)
-            | true, false -> `Definite BigInt.one (* Not {0} -> 1 *)
+            | true, false -> `Definite Z.one (* Not {0} -> 1 *)
             | false, true -> `Definite Z.zero (* Not {1} -> 0 *)
             | true, true -> `Bot (* Not {0, 1} -> bot *)
           end
@@ -2225,8 +2225,8 @@ struct
         (* Except in two special cases *)
         if BigInt.equal i Z.zero then
           `Definite Z.zero
-        else if BigInt.equal i BigInt.one then
-          of_interval IBool (Z.zero, BigInt.one)
+        else if BigInt.equal i Z.one then
+          of_interval IBool (Z.zero, Z.one)
         else
           top ()
       | `Definite _, `Excluded _
@@ -2456,9 +2456,9 @@ module Enums : S with type int_t = BigInt.t = struct
          assert (range_in_ikind r && BISet.for_all (value_in_range (r_min, r_max)) xs); *)
       begin match ikind with
         | IBool ->
-          begin match BISet.mem Z.zero xs, BISet.mem BigInt.one xs with
+          begin match BISet.mem Z.zero xs, BISet.mem Z.one xs with
             | false, false -> top_bool  (* Not {} -> {0, 1} *)
-            | true, false -> Inc (BISet.singleton BigInt.one) (* Not {0} -> {1} *)
+            | true, false -> Inc (BISet.singleton Z.one) (* Not {0} -> {1} *)
             | false, true -> Inc (BISet.singleton Z.zero) (* Not {1} -> {0} *)
             | true, true -> bot_of ikind (* Not {0, 1} -> bot *)
           end
