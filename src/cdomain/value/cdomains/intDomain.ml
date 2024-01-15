@@ -505,7 +505,7 @@ module Std (B: sig
 end
 
 (* Textbook interval arithmetic, without any overflow handling etc. *)
-module IntervalArith(Ints_t : IntOps.IntOps) = struct
+module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
   let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
@@ -545,12 +545,12 @@ module IntervalArith(Ints_t : IntOps.IntOps) = struct
     if Ints_t.equal x1 x2 then Some x1 else None
 end
 
-module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
+module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
-  module IArith = IntervalArith(Ints_t)
+  module IArith = IntervalArith (Ints_t)
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
@@ -974,11 +974,11 @@ struct
 end
 
 (** IntervalSetFunctor that is not just disjunctive completion of intervals, but attempts to be precise for wraparound arithmetic for unsigned types *)
-module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list =
+module IntervalSetFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list =
 struct
 
-  module Interval = IntervalFunctor(Ints_t)
-  module IArith = IntervalArith(Ints_t)
+  module Interval = IntervalFunctor (Ints_t)
+  module IArith = IntervalArith (Ints_t)
 
 
   let name () = "interval_sets"
@@ -1546,10 +1546,10 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 end
 
 module IntIkind = struct let ikind () = Cil.IInt end
-module Interval =  IntervalFunctor (IntOps.BigIntOps)
-module Interval32 = IntDomWithDefaultIkind (IntDomLifter ( SOverflowUnlifter (IntervalFunctor (IntOps.Int64Ops)) ) ) (IntIkind)
-module IntervalSet = IntervalSetFunctor(IntOps.BigIntOps)
-module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t = (* no top/bot, order is <= *)
+module Interval = IntervalFunctor (IntOps.BigIntOps)
+module Interval32 = IntDomWithDefaultIkind (IntDomLifter (SOverflowUnlifter (IntervalFunctor (IntOps.Int64Ops)))) (IntIkind)
+module IntervalSet = IntervalSetFunctor (IntOps.BigIntOps)
+module Integers (Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t = (* no top/bot, order is <= *)
 struct
   include Printable.Std
   let name () = "integers"
@@ -1764,9 +1764,9 @@ struct
     | `Top | `Bot -> Invariant.none
 end
 
-module Flattened = Flat (Integers(IntOps.Int64Ops))
-module FlattenedBI = Flat (Integers(IntOps.BigIntOps))
-module Lifted    = Lift (Integers(IntOps.Int64Ops))
+module Flattened = Flat (Integers (IntOps.Int64Ops))
+module FlattenedBI = Flat (Integers (IntOps.BigIntOps))
+module Lifted = Lift (Integers (IntOps.Int64Ops))
 
 module Reverse (Base: IkindUnawareS) =
 struct
@@ -1790,7 +1790,7 @@ module BigInt = struct
 end
 
 module BISet = struct
-  include SetDomain.Make(BigInt)
+  include SetDomain.Make (BigInt)
   let is_singleton s = cardinal s = 1
 end
 
@@ -3289,11 +3289,11 @@ module IntDomTupleImpl = struct
 
   open Batteries
   type int_t = Z.t
-  module I1 = SOverflowLifter(DefExc)
+  module I1 = SOverflowLifter (DefExc)
   module I2 = Interval
-  module I3 = SOverflowLifter(Enums)
-  module I4 = SOverflowLifter(Congruence)
-  module I5 = IntervalSetFunctor(IntOps.BigIntOps)
+  module I3 = SOverflowLifter (Enums)
+  module I4 = SOverflowLifter (Congruence)
+  module I5 = IntervalSetFunctor (IntOps.BigIntOps)
 
   type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option
   [@@deriving to_yojson, eq, ord]
