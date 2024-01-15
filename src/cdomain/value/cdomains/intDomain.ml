@@ -2178,7 +2178,7 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
   let neg ?no_ov ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
-  let add ?no_ov ik x y = norm ik @@ lift2_inj BigInt.add ik x y
+  let add ?no_ov ik x y = norm ik @@ lift2_inj Z.add ik x y
 
   let sub ?no_ov ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
   let mul ?no_ov ik x y = norm ik @@ match x, y with
