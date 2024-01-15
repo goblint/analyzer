@@ -556,7 +556,7 @@ struct
         | Some l ->
           begin
             match Idx.to_int l with
-            | Some i -> BatOption.map_default (Z.equal (Z.sub i Z.one)) false (exp_value e)
+            | Some i -> BatOption.map_default (Z.equal (Z.pred i)) false (exp_value e)
             | None -> false
           end
         | _ -> false
@@ -596,10 +596,10 @@ struct
             else if Cil.isConstant e && Cil.isConstant i' then
               match Cil.getInteger e, Cil.getInteger i' with
               | Some (e'': Cilint.cilint), Some i'' ->
-                if Z.equal  i'' (Z.add e'' Z.one) then
+                if Z.equal  i'' (Z.succ e'') then
                   (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                   Partitioned (i', (Val.join xl xm, a, xr))
-                else if Z.equal e'' (Z.add i'' Z.one) then
+                else if Z.equal e'' (Z.succ i'') then
                   Partitioned (i', (xl, a, Val.join xm xr))
                 else
                   default
@@ -673,7 +673,7 @@ struct
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (Z.sub i Z.one)
+            v = Some (Z.pred i)
           | None -> false
         end
       | None -> false
@@ -748,7 +748,7 @@ struct
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (Z.sub i Z.one)
+            v = Some (Z.pred i)
           | None -> false
         end
       | None -> false

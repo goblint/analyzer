@@ -168,7 +168,7 @@ struct
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
               let n = ID.cast_to ikind n in
-              let range_from x = if tv then ID.ending ikind (Z.sub x Z.one) else ID.starting ikind x in
+              let range_from x = if tv then ID.ending ikind (Z.pred x) else ID.starting ikind x in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
@@ -183,7 +183,7 @@ struct
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
               let n = ID.cast_to ikind n in
-              let range_from x = if tv then ID.ending ikind x else ID.starting ikind (Z.add x Z.one) in
+              let range_from x = if tv then ID.ending ikind x else ID.starting ikind (Z.succ x) in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
@@ -380,8 +380,8 @@ struct
           | _, _ -> a, b
         end
       | Lt | Le | Ge | Gt as op ->
-        let pred x = Z.sub x Z.one in
-        let succ x = Z.add x Z.one in
+        let pred x = Z.pred x in
+        let succ x = Z.succ x in
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
          | Some l1, Some u1, Some l2, Some u2 ->
            (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)

@@ -1803,7 +1803,7 @@ struct
   type inc = Inc of BISet.t [@@unboxed]
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
-  let cardinality_of_range r = Z.add Z.one (Z.add (Z.neg (min_of_range r)) (max_of_range r))
+  let cardinality_of_range r = Z.succ (Z.add (Z.neg (min_of_range r)) (max_of_range r))
 
   let cardinality_BISet s =
     Z.of_int (BISet.cardinal s)
@@ -1831,13 +1831,13 @@ struct
           let min_b, max_b = min_of_range s, max_of_range s in
           let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
             if Z.compare min_a min_b < 0 then
-              GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, Z.sub min_b Z.one)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, Z.pred min_b)
             else
               true
           in
           let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
             if Z.compare max_b max_a < 0 then
-              GobZ.for_all_range (fun x -> BISet.mem x xs) (Z.add max_b Z.one, max_a)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (Z.succ max_b, max_a)
             else
               true
           in
@@ -2651,7 +2651,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (excl,r) ->
       let rec decrement_while_contained v =
         if BISet.mem v excl
-        then decrement_while_contained (Z.sub v Z.one)
+        then decrement_while_contained (Z.pred v)
         else v
       in
       let range_max = Exclusion.max_of_range r in
@@ -2663,7 +2663,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (excl,r) ->
       let rec increment_while_contained v =
         if BISet.mem v excl
-        then increment_while_contained (Z.add v Z.one)
+        then increment_while_contained (Z.succ v)
         else v
       in
       let range_min = Exclusion.min_of_range r in
@@ -3008,7 +3008,7 @@ struct
     else
       (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
       let tz = Z.trailing_zeros m in
-      let m' = Z.shift_left (Z.of_int 1) tz in
+      let m' = Z.shift_left Z.one tz in
 
       let max = (snd (Size.range ik)) +: Z.one in
       if m' >=: max then
