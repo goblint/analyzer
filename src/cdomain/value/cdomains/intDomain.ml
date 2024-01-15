@@ -2182,12 +2182,12 @@ struct
 
   let sub ?no_ov ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
   let mul ?no_ov ik x y = norm ik @@ match x, y with
-    | `Definite z, (`Excluded _ | `Definite _) when BigInt.equal z Z.zero -> x
-    | (`Excluded _ | `Definite _), `Definite z when BigInt.equal z Z.zero -> y
+    | `Definite z, (`Excluded _ | `Definite _) when Z.equal z Z.zero -> x
+    | (`Excluded _ | `Definite _), `Definite z when Z.equal z Z.zero -> y
     | `Definite a, `Excluded (s,r)
     (* Integer multiplication with even numbers is not injective. *)
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
-    | `Excluded (s,r),`Definite a when BigInt.equal (BigInt.rem a (BigInt.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
+    | `Excluded (s,r),`Definite a when Z.equal (BigInt.rem a (BigInt.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
     | _ -> lift2_inj BigInt.mul ik x y
   let div ?no_ov ik x y = lift2 BigInt.div ik x y
   let rem ik x y = lift2 BigInt.rem ik x y
@@ -2223,9 +2223,9 @@ struct
       (* We don't bother with exclusion sets: *)
       | `Excluded _, `Definite i ->
         (* Except in two special cases *)
-        if BigInt.equal i Z.zero then
+        if Z.equal i Z.zero then
           `Definite Z.zero
-        else if BigInt.equal i Z.one then
+        else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
         else
           top ()
