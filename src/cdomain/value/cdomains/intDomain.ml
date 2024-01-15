@@ -4,7 +4,6 @@ open Pretty
 open PrecisionUtil
 
 module M = Messages
-module BI = IntOps.BigIntOps
 
 let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
@@ -1547,9 +1546,9 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 end
 
 module IntIkind = struct let ikind () = Cil.IInt end
-module Interval =  IntervalFunctor (BI)
+module Interval =  IntervalFunctor (IntOps.BigIntOps)
 module Interval32 = IntDomWithDefaultIkind (IntDomLifter ( SOverflowUnlifter (IntervalFunctor (IntOps.Int64Ops)) ) ) (IntIkind)
-module IntervalSet = IntervalSetFunctor(BI)
+module IntervalSet = IntervalSetFunctor(IntOps.BigIntOps)
 module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t = (* no top/bot, order is <= *)
 struct
   include Printable.Std
@@ -1776,7 +1775,7 @@ struct
 end
 
 module BigInt = struct
-  include  BI
+  include IntOps.BigIntOps
   let name () = "BigIntPrintable"
   let top () = raise Unknown
   let bot () = raise Error
@@ -2757,7 +2756,7 @@ end
 module Congruence : S with type int_t = Z.t and type t = (Z.t * Z.t) option =
 struct
   let name () = "congruences"
-  module Ints_t = BI
+  module Ints_t = IntOps.BigIntOps
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m, None is bot *)
@@ -3294,7 +3293,7 @@ module IntDomTupleImpl = struct
   module I2 = Interval
   module I3 = SOverflowLifter(Enums)
   module I4 = SOverflowLifter(Congruence)
-  module I5 = IntervalSetFunctor (BI)
+  module I5 = IntervalSetFunctor(IntOps.BigIntOps)
 
   type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option
   [@@deriving to_yojson, eq, ord]
