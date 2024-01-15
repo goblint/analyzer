@@ -1977,7 +1977,7 @@ struct
       if should_wrap ik then (
         cast_to ik v
       )
-      else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
+      else if Z.compare min x <= 0 && Z.compare x max <= 0 then (
         v
       )
       else if should_ignore_overflow ik then (
@@ -2079,10 +2079,10 @@ struct
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if Z.compare x y = 0 then of_int ik x else top_of ik
 
-  let starting ?(suppress_ovwarn=false) ikind x = if BigInt.compare x Z.zero > 0 then not_zero ikind else top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = if BigInt.compare x Z.zero < 0 then not_zero ikind else top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero > 0 then not_zero ikind else top_of ikind
+  let ending ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero < 0 then not_zero ikind else top_of ikind
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
@@ -2187,9 +2187,9 @@ struct
     | `Definite a, `Excluded (s,r)
     (* Integer multiplication with even numbers is not injective. *)
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
-    | `Excluded (s,r),`Definite a when Z.equal (Z.rem a (Z.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
-    | _ -> lift2_inj BigInt.mul ik x y
-  let div ?no_ov ik x y = lift2 BigInt.div ik x y
+    | `Excluded (s,r),`Definite a when Z.equal (Z.rem a (Z.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (Z.mul a) r)
+    | _ -> lift2_inj Z.mul ik x y
+  let div ?no_ov ik x y = lift2 Z.div ik x y
   let rem ik x y = lift2 Z.rem ik x y
 
   (* Comparison handling copied from Enums. *)
@@ -2202,8 +2202,8 @@ struct
   let lt ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when BigInt.compare x2 y1 < 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when BigInt.compare x1 y2 >= 0 -> of_bool ik false
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> of_bool ik true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> of_bool ik false
         | _, _, _, _ -> top_bool)
 
   let gt ik x y = lt ik y x
@@ -2211,8 +2211,8 @@ struct
   let le ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when BigInt.compare x2 y1 <= 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when BigInt.compare x1 y2 > 0 -> of_bool ik false
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> of_bool ik true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> of_bool ik false
         | _, _, _, _ -> top_bool)
 
   let ge ik x y = le ik y x
