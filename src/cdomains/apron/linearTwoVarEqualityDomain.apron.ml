@@ -76,42 +76,25 @@ module EqualitiesArray = struct
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.(e = zero))
 
-  let find_reference_variable d var_index = fst d.(var_index)
-
-
-  let find_vars_in_the_connected_component d ref_var =
-    filter (fun i -> let (var, _) = d.(i) in var = ref_var) (mapi const d)
-
-  (* find a variable in the connected component with the least index, but not the reference variable. *)
-  let find_var_in_the_connected_component_with_least_index connected_component ref_var =
-    fold_left (fun curr_min i -> match curr_min with
-        | None -> if i <> ref_var then Some i else None
-        | Some curr_min -> if i < curr_min && i <> ref_var then Some i else Some curr_min) None connected_component
-
   (* Forget information about variable var in-place.
      The name reduce_col_with is because the affineEqualitiesDomain also defines this function,
      and it represents the equalities with a matrix, not like in this case with an array.
      We could think about changing this name, then we would need to change it also in
      shared_Functions.apron.ml and vectorMatrix.ml and affineEqualitiesDomain.ml *)
   let reduce_col_with d var =
-    let ref_var_opt = find_reference_variable d var in
-    d.(var) <- Equality.var_zero var;
-    begin match ref_var_opt with
-      | None -> (* the variable is equal to a constant *) ()
-      | Some ref_var ->
-        if ref_var <> var then ()
-        else
-          (* x_i is the reference variable of its connected component *)
-          let dim_of_var = Some var in
-          let connected_component = find_vars_in_the_connected_component d dim_of_var in
-          if length connected_component = 1
-          then ()   (* x_i is the only element of its connected component *)
-          else
-            (* x_i is the reference variable -> we need to find a new reference variable *)
-            let var_least_index = Option.get @@ find_var_in_the_connected_component_with_least_index connected_component ref_var in
-            let (_, off) = d.(var_least_index) in
-            iteri (fun _ x -> let (_, off2) = d.(x) in if x <> ref_var then d.(x) <- (Some var_least_index, Z.(off2 - off))) connected_component;
-    end
+    (let ref_var_opt = fst d.(var) in
+     match ref_var_opt with
+     | Some ref_var when ref_var = var ->
+       (* var is the reference variable of its connected component *)
+       (let cluster = List.tl @@ fold_righti
+            (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) d [] in
+        (* obtain cluster with common reference variable ref_var*)
+        match cluster with (* new ref_var is taken from head of the cluster *)
+        | head :: tail -> let headconst = snd d.(head) in (* take offset between old and new reference variable *)
+          List.iter (fun i -> d.(i) <- Z.(Some head, snd d.(i) - headconst)) cluster (* shift offset to match new reference variable *)
+        | _ -> ()) (* empty cluster means no work for us *)
+     | _ -> ()) (* variable is either a constant or expressed by another refvar *)
+  ; d.(var) <- Equality.var_zero var (* set d(var) to unknown, finally *)
 
   (* Forget information about variable i but not in-place *)
   let reduce_col m j =
@@ -707,21 +690,21 @@ struct
     match t.d with
     | None -> []
     | Some d ->
-        Array.fold_lefti (fun acc i (var_opt, const) ->
-            if Some i = var_opt then acc
-            else
-                let xi = Environment.var_of_dim t.env i in
-                let coeff_vars =
-                    (Coeff.s_of_int (-1), xi) :: (match var_opt with
-                      | Some var_index when i <> var_index ->
-                        let var = Environment.var_of_dim t.env var_index in
-                        [(Coeff.s_of_int 1, var)]
-                      | _ -> [] )
-                in
-                let cst = Coeff.s_of_int (Z.to_int const) in
-                let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
-                Lincons1.set_list lincons coeff_vars (Some cst);
-                lincons :: acc
+      Array.fold_lefti (fun acc i (var_opt, const) ->
+          if Some i = var_opt then acc
+          else
+            let xi = Environment.var_of_dim t.env i in
+            let coeff_vars =
+              (Coeff.s_of_int (-1), xi) :: (match var_opt with
+                  | Some var_index when i <> var_index ->
+                    let var = Environment.var_of_dim t.env var_index in
+                    [(Coeff.s_of_int 1, var)]
+                  | _ -> [] )
+            in
+            let cst = Coeff.s_of_int (Z.to_int const) in
+            let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
+            Lincons1.set_list lincons coeff_vars (Some cst);
+            lincons :: acc
         ) [] d
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
