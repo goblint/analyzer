@@ -2187,10 +2187,10 @@ struct
     | `Definite a, `Excluded (s,r)
     (* Integer multiplication with even numbers is not injective. *)
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
-    | `Excluded (s,r),`Definite a when Z.equal (BigInt.rem a (Z.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
+    | `Excluded (s,r),`Definite a when Z.equal (Z.rem a (Z.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
     | _ -> lift2_inj BigInt.mul ik x y
   let div ?no_ov ik x y = lift2 BigInt.div ik x y
-  let rem ik x y = lift2 BigInt.rem ik x y
+  let rem ik x y = lift2 Z.rem ik x y
 
   (* Comparison handling copied from Enums. *)
   let handle_bot x y f = match x, y with
