@@ -42,17 +42,6 @@ module EqualitiesArray = struct
 
   let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero))
 
-  let add_empty_column arr index =
-    let num_vars = length arr in
-    if index > num_vars then failwith "n too large" else
-      let new_array = make (num_vars + 1) (Equality.var_zero index) in
-      if index = 0
-      then blit arr 0 new_array 1 (num_vars - 1)
-      else blit arr 0 new_array 0 index;
-      if index <> num_vars
-      then blit arr index new_array (index + 1) (num_vars - index);
-      new_array
-
   let add_empty_columns m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
     let nnc = length indexes in
     if nnc = 0 then m else
@@ -722,7 +711,7 @@ struct
             if Some i = var_opt then acc
             else
                 let xi = Environment.var_of_dim t.env i in
-                let coeff_vars = 
+                let coeff_vars =
                     (Coeff.s_of_int (-1), xi) :: (match var_opt with
                       | Some var_index when i <> var_index ->
                         let var = Environment.var_of_dim t.env var_index in
@@ -733,7 +722,7 @@ struct
                 let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
                 Lincons1.set_list lincons coeff_vars (Some cst);
                 lincons :: acc
-        ) [] d  
+        ) [] d
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
