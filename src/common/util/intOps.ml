@@ -241,7 +241,7 @@ struct
 
   let shift_left = Z.shift_left
   let shift_right = Z.shift_right
-  let bitnot x = sub (neg x) one
+  let bitnot = Z.lognot
   let bitand = Z.logand
   let bitor = Z.logor
   let bitxor = Z.logxor
