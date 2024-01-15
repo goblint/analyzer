@@ -214,7 +214,7 @@ struct
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
     match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
+    | Some c when Mpqf.get_den c = Z.one ->
       let int_val = Mpqf.get_num c in
       Some int_val, Some int_val
     | _ -> None, None
@@ -224,7 +224,7 @@ struct
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
+       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (Z.to_string min) (Z.to_string max)
        | _ -> ()
     );
     res
