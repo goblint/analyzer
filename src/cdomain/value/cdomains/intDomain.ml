@@ -2261,7 +2261,7 @@ struct
     shift Z.shift_left
 
   let shift_right =
-    shift BigInt.shift_right
+    shift Z.shift_right
   (* TODO: lift does not treat Not {0} as true. *)
   let logand ik x y =
     match to_bool x, to_bool y with
@@ -2612,7 +2612,7 @@ module Enums : S with type int_t = BigInt.t = struct
     shift Z.shift_left
 
   let shift_right =
-    shift BigInt.shift_right
+    shift Z.shift_right
 
   let of_bool ikind x = Inc (BISet.singleton (if x then Z.one else Z.zero))
   let to_bool  = function
