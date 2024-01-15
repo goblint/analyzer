@@ -2756,7 +2756,7 @@ end
 module Congruence : S with type int_t = Z.t and type t = (Z.t * Z.t) option =
 struct
   let name () = "congruences"
-  module Ints_t = IntOps.BigIntOps
+  module Ints_t = Z
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m, None is bot *)
@@ -2793,7 +2793,7 @@ struct
         else
           Some (c' %: m', m')
 
-  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
+  let range ik = Size.range ik
 
   let top () = Some (Ints_t.zero, Ints_t.one)
   let top_of ik = Some (Ints_t.zero, Ints_t.one)
@@ -2904,7 +2904,7 @@ struct
     match x with
     | None -> None
     | Some (c, m) when m =: Ints_t.zero ->
-      let c' = Ints_t.of_bigint @@ BigInt.cast_to t (Ints_t.to_bigint c) in
+      let c' = BigInt.cast_to t c in
       (* When casting into a signed type and the result does not fit, the behavior is implementation-defined. (C90 6.2.1.2, C99 and C11 6.3.1.3) *)
       (* We go with GCC behavior here: *)
       (*  For conversion to a type of width N, the value is reduced modulo 2^N to be within range of the type; no signal is raised. *)
@@ -2985,10 +2985,10 @@ struct
     | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
       let (_, max_ik) = range ik in
-      if (m =: Ints_t.zero && m' =: Ints_t.zero) then
-        normalize ik @@ Some (Ints_t.bitand max_ik (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
+      if m =: Ints_t.zero && m' =: Ints_t.zero then
+        normalize ik @@ Some (Z.logand max_ik (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
       else
-        let x = (Ints_t.bitand max_ik (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
+        let x = Z.logand max_ik (Ints_t.shift_left Ints_t.one (Ints_t.to_int c')) in (* 2^c' *)
         (* TODO: commented out because fails test with _Bool *)
         (* if is_prime (m' +: Ints_t.one) then
              normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
@@ -3100,7 +3100,7 @@ struct
       if (m =: Ints_t.zero && m' =: Ints_t.zero) then Some (f c c', Ints_t.zero)
       else top ()
 
-  let bitor ik x y = bit2 Ints_t.bitor ik x y
+  let bitor ik x y = bit2 Z.logor ik x y
 
   let bitand ik x y =  match x, y with
     | None, None -> None
@@ -3108,15 +3108,15 @@ struct
     | Some (c, m), Some (c', m') ->
       if (m =: Ints_t.zero && m' =: Ints_t.zero) then
         (* both arguments constant *)
-        Some (Ints_t.bitand c c', Ints_t.zero)
+        Some (Z.logand c c', Ints_t.zero)
       else if m' =: Ints_t.zero && c' =: Ints_t.one && Ints_t.rem m (Ints_t.of_int 2) =: Ints_t.zero then
         (* x & 1  and  x == c (mod 2*z) *)
         (* Value is equal to LSB of c *)
-        Some (Ints_t.bitand c c', Ints_t.zero)
+        Some (Z.logand c c', Ints_t.zero)
       else
         top ()
 
-  let bitxor ik x y = bit2 Ints_t.bitxor ik x y
+  let bitxor ik x y = bit2 Z.logxor ik x y
 
   let rem ik x y =
     match x, y with
@@ -3202,13 +3202,12 @@ struct
     | x when is_top x -> Invariant.top ()
     | Some (c, m) when m =: Ints_t.zero ->
       if get_bool "witness.invariant.exact" then
-        let c = Ints_t.to_bigint c in
         Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
       else
         Invariant.top ()
     | Some (c, m) ->
       let open Cil in
-      let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
+      let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik a) (c, m) in
       Invariant.of_exp (BinOp (Eq, (BinOp (Mod, e, m, TInt(ik,[]))), c, intType))
     | None -> Invariant.none
 
