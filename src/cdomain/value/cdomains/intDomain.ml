@@ -2180,7 +2180,7 @@ struct
   let neg ?no_ov ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
   let add ?no_ov ik x y = norm ik @@ lift2_inj Z.add ik x y
 
-  let sub ?no_ov ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
+  let sub ?no_ov ik x y = norm ik @@ lift2_inj Z.sub ik x y
   let mul ?no_ov ik x y = norm ik @@ match x, y with
     | `Definite z, (`Excluded _ | `Definite _) when Z.equal z Z.zero -> x
     | (`Excluded _ | `Definite _), `Definite z when Z.equal z Z.zero -> y
