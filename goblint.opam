@@ -77,7 +77,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
   # published goblint-cil 2.0.3 is currently up-to-date, so no pin needed
-  [ "goblint-cil.2.0.3" "git+https://github.com/N0W0RK/goblint-cil.git#a339860985a17511723917e36d2745289334b463" ]
+  [ "goblint-cil.2.0.3" "git+https://github.com/N0W0RK/goblint-cil.git#second_try" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
 ]
