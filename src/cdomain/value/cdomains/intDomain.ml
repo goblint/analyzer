@@ -1775,7 +1775,7 @@ struct
 end
 
 module BigInt = struct
-  include Z
+  include IntOps.BigIntOps
   let name () = "BigIntPrintable"
   let top () = raise Unknown
   let bot () = raise Error
