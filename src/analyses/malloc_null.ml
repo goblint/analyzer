@@ -22,11 +22,11 @@ struct
   let is_prefix_of m1 m2 = Option.is_some (Addr.Mval.prefix m1 m2)
 
   (* We just had to dereference an lval --- warn if it was null *)
-  let warn_lval (st:D.t) (v :Addr.Mval.t) : unit =
+  let warn_lval (ask: Queries.ask) (st:D.t) (v :Addr.Mval.t) : unit =
     try
       if D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of x v) (Addr.to_mval x)) st
       then
-        let var = Addr.of_mval v in
+        let var = Addr.of_mval ~is_modular:(ask.f IsModular) v in
         Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var
     with SetDomain.Unsupported _ -> ()
 
@@ -40,7 +40,7 @@ struct
         begin match a.f (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
           | ad when not (Queries.AD.is_top ad) ->
             Queries.AD.iter (function
-                | Queries.AD.Addr.Addr mval -> warn_lval st mval
+                | Queries.AD.Addr.Addr mval -> warn_lval a st mval
                 | _ -> ()
               ) ad
           | _ -> ()
@@ -77,7 +77,7 @@ struct
       warn_deref_exp a st f
 
   (* Generate addresses to all points in an given varinfo. (Depends on type) *)
-  let to_addrs (v:varinfo) : Addr.t list =
+  let to_addrs (a: Queries.ask) (v:varinfo) : Addr.t list =
     let make_offs = List.fold_left (fun o f -> `Field (f, o)) `NoOffset in
     let rec add_fields (base: fieldinfo list) fs acc =
       match fs with
@@ -85,11 +85,11 @@ struct
       | f :: fs ->
         match unrollType f.ftype with
         | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
-        | _                       -> add_fields base fs ((Addr.of_mval (v,make_offs (f::base))) :: acc)
+        | _                       -> add_fields base fs ((Addr.of_mval ~is_modular:(a.f IsModular) (v,make_offs (f::base))) :: acc)
     in
     match unrollType v.vtype with
     | TComp ({cfields=fs; _},_) -> add_fields [] fs []
-    | _ -> [Addr.of_var v]
+    | _ -> [Addr.of_var ~is_modular:(a.f IsModular) v]
 
   (* Remove null values from state that are unreachable from exp.*)
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
@@ -110,7 +110,7 @@ struct
     let vars =
       reachable
       |> AD.to_var_may
-      |> List.concat_map to_addrs
+      |> List.concat_map (to_addrs ask)
       |> AD.of_list
     in
     if D.is_top st
@@ -150,7 +150,7 @@ struct
     warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local rval;
     match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval (Analyses.ask_of_ctx ctx) lval with
     | Some rv, Some mval when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
-      D.add (Addr.of_mval mval) ctx.local
+      D.add (Addr.of_mval ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) mval) ctx.local
     | _ -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -164,7 +164,7 @@ struct
   let return_addr () = !return_addr_
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    let remove_var x v = List.fold_right D.remove (to_addrs v) x in
+    let remove_var x v = List.fold_right D.remove (to_addrs (Analyses.ask_of_ctx ctx) v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
     | Some ret ->
@@ -191,7 +191,7 @@ struct
     match lval, D.mem (return_addr ()) au with
     | Some lv, true ->
       begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
-        | Some mval -> D.add (Addr.of_mval mval) ctx.local
+        | Some mval -> D.add (Addr.of_mval ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) mval) ctx.local
         | _ -> ctx.local
       end
     | _ -> ctx.local
@@ -206,7 +206,7 @@ struct
         match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
         | Some mval ->
           ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
-          ctx.split (D.add (Addr.of_mval mval) ctx.local) [Events.SplitBranch ((Lval lv), false)];
+          ctx.split (D.add (Addr.of_mval ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) mval) ctx.local) [Events.SplitBranch ((Lval lv), false)];
           raise Analyses.Deadcode
         | _ -> ctx.local
       end
@@ -220,7 +220,7 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    return_addr_ :=  Addr.of_var (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.of_var ~is_modular:false (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

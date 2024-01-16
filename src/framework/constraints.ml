@@ -12,8 +12,8 @@ module M = Messages
 
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
-module HashconsLifter (S:Spec)
-  : Spec with module G = S.G
+module HashconsLifter (S:PostSpec)
+  : PostSpec with module G = S.G
           and module C = S.C
 =
 struct
@@ -32,6 +32,7 @@ struct
     include S.P
     let of_elt x = of_elt (D.unlift x)
   end
+
 
   let name () = S.name () ^" hashconsed"
 
@@ -83,6 +84,12 @@ struct
   let special ctx r f args =
     D.lift @@ S.special (conv ctx) r f args
 
+  let modular_combine_env ctx r f args f_ask =
+    D.lift @@ S.modular_combine_env (conv ctx) r f args f_ask
+
+  let modular_combine_assign ctx r f args f_ask =
+    D.lift @@ S.modular_combine_assign (conv ctx) r f args f_ask
+
   let combine_env ctx r fe f args fc es f_ask =
     D.lift @@ S.combine_env (conv ctx) r fe f args fc (D.unlift es) f_ask
 
@@ -103,8 +110,8 @@ struct
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
-module HashconsContextLifter (S:Spec)
-  : Spec with module D = S.D
+module HashconsContextLifter (S:PostSpec)
+  : PostSpec with module D = S.D
           and module G = S.G
           and module C = Printable.HConsed (S.C)
 =
@@ -167,6 +174,12 @@ struct
   let special ctx r f args =
     S.special (conv ctx) r f args
 
+  let modular_combine_env ctx r f args =
+    S.modular_combine_env (conv ctx) r f args
+
+  let modular_combine_assign ctx r f args =
+    S.modular_combine_assign (conv ctx) r f args
+
   let combine_env ctx r fe f args fc es f_ask =
     S.combine_env (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
 
@@ -183,22 +196,178 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
+module TimedLifter (S: PostSpec) : PostSpec with module D = S.D
+and module G = S.G
+and module C = S.C
+=
+struct
+  include S
+
+
+  let name () = S.name () ^" context hashconsed"
+
+  let time s f x = Timing.wrap (name () ^ "."^ s) f x
+  let init x = time "init" S.init x
+  let finalize () = time "finalize" S.finalize ()
+
+  let startstate v = time "startstate" S.startstate v
+  let exitstate v = time "exitstate" S.exitstate v
+  let morphstate v d = time "morphstate" (S.morphstate v) d
+
+  let context fd d = time "context" (S.context fd) d
+
+  let sync ctx reason =
+    time "sync" (S.sync ctx) reason
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    time "query" (S.query ctx) q
+
+  let assign ctx lv e =
+    time "assign" (S.assign ctx lv) e
+
+  let vdecl ctx v =
+    time "vdecl" (S.vdecl ctx) v
+
+  let branch ctx e tv =
+    time "branch" (S.branch ctx e) tv
+
+  let body ctx f =
+    time "body" (S.body ctx) f
+
+  let return ctx r f =
+    time "return" (S.return ctx r) f
+
+  let asm ctx =
+    time "asm" S.asm ctx
+
+  let skip ctx =
+    time "skip" S.skip ctx
+
+  let enter ctx r f args =
+    time "enter" (S.enter ctx r f) args
+
+  let special ctx r f args =
+    time "special" (S.special ctx r f) args
+
+  let modular_combine_env ctx r f args =
+    time "modular_combine_env" (S.modular_combine_env ctx r f) args
+
+  let modular_combine_assign ctx r f args =
+    time "modular_combine_assign" (S.modular_combine_assign ctx r f) args
+
+  let combine_env ctx r fe f args fc es f_ask =
+    time "combine_env" (S.combine_env ctx r fe f args fc es) f_ask
+
+  let combine_assign ctx r fe f args fc es f_ask =
+    time "combine_assign" (S.combine_assign ctx r fe f args fc es) f_ask
+
+  let threadenter ctx ~multiple lval f args =
+    time "threadenter" (S.threadenter ~multiple ctx lval f) args
+
+  let threadspawn ctx ~multiple lval f args fctx =
+    time "threadspwan" (S.threadspawn ~multiple ctx lval f args) fctx
+
+  let paths_as_set ctx =
+    time "paths_as_set" S.paths_as_set ctx
+  let event ctx e octx =
+    time "event" (S.event ctx e) octx
+end
+
+(* Adds special handling for calls to functions that are to be analyzed modularly.
+   Needs to be applied before PathSensitiveFunctors, so that the [S.D.join] operation does not result in multiple paths *)
+module ModularCallLifter (S:PostSpec)
+  : PostSpec with module D = S.D
+              and module G = S.G
+              and module C = S.C
+=
+struct
+
+  let build_ctx ?(prev_node=None) ctx local =
+    let prev_node = Option.default ctx.prev_node prev_node in
+    let rec new_ctx =
+      {
+        ctx with
+        ask = (fun (type a) (q: a Queries.t) -> S.query new_ctx q);
+        local;
+        prev_node;
+      } in
+    new_ctx
+
+  include S
+  let enter ctx lv fd args =
+    let entered = S.enter ctx lv fd args in
+    let modular = ModularUtil.is_modular_fun fd.svar in
+    if modular then begin
+      (* Project away the non-modular analyses for the callee *)
+      (* (?) Keep both modular and non-modular analyses for the caller, filter them out in the combine *)
+      List.map (fun (caller_state, callee_state) -> caller_state, D.to_modular callee_state) entered
+    end else
+      entered
+
+  let combine_env ctx lv fe f args fc fd f_ask =
+    let modular = ModularUtil.is_modular_fun f.svar in
+    if modular then begin
+      let local_modular = D.to_modular ctx.local in
+      let local_non_modular = D.to_non_modular ctx.local in
+      let ctx_modular = build_ctx ctx local_modular in
+      let ctx_non_modular = build_ctx ctx local_non_modular in
+
+      let combine_enved_modular = S.combine_env ctx_modular lv fe f args fc fd f_ask in
+      let combine_enved_non_modular = S.modular_combine_env ctx_non_modular lv f args f_ask in
+      let combine_enved = S.D.join combine_enved_modular combine_enved_non_modular in
+      combine_enved
+    end else
+      S.combine_env ctx lv fe f args fc fd f_ask
+
+  let combine_assign ctx lv fe f args fc es f_ask =
+    let modular = ModularUtil.is_modular_fun f.svar in
+    if modular then begin
+      let local_modular = D.to_modular ctx.local in
+      let local_non_modular = D.to_non_modular ctx.local in
+      let ctx_modular = build_ctx ctx local_modular in
+      let ctx_non_modular = build_ctx ctx local_non_modular in
+
+      let combine_assigned_modular = S.combine_assign ctx_modular lv fe f args fc es f_ask in
+      let combine_assigned_non_modular = S.modular_combine_assign ctx_non_modular lv f args f_ask in
+      let combine_assigned = S.D.join combine_assigned_modular combine_assigned_non_modular in
+      combine_assigned
+    end else
+      S.combine_assign ctx lv fe f args fc es f_ask
+
+  let context fd d =
+    let modular = ModularUtil.is_modular_fun fd.svar in
+    let d = if modular then
+        D.to_modular d
+      else
+        d
+    in
+    S.context fd d
+end
+
+
 (* see option ana.opt.equal *)
-module OptEqual (S: Spec) = struct
+module OptEqual (S: PostSpec) = struct
   module D = struct include S.D let equal x y = x == y || equal x y end
   module G = struct include S.G let equal x y = x == y || equal x y end
   module C = struct include S.C let equal x y = x == y || equal x y end
-  include (S : Spec with module D := D and module G := G and module C := C)
+  include (S : PostSpec with module D := D and module G := G and module C := C)
+end
+
+module D (S: PostSpec) = struct
+  include Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  let remove_non_modular (x, y) = (S.D.remove_non_modular x, y)
+  let to_modular (x, y) = (S.D.to_modular x, y)
+  let to_non_modular (x, y) = (S.D.to_non_modular x, y)
 end
 
 (** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
-module LevelSliceLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+module LevelSliceLifter (S:PostSpec)
+  : PostSpec with module D = D (S)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  module D = D (S)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -252,6 +421,8 @@ struct
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
+  let modular_combine_env ctx r f args f_ask       = lift_fun ctx (lift ctx) S.modular_combine_env ((|>) f_ask % (|>) args % (|>) f % (|>) r)
+  let modular_combine_assign ctx r f args f_ask       = lift_fun ctx (lift ctx) S.modular_combine_assign ((|>) f_ask % (|>) args % (|>) f % (|>) r)
   let combine_env' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
@@ -316,7 +487,7 @@ end
 
 
 (** Limits the number of widenings per node. *)
-module LimitLifter (S:Spec) =
+module LimitLifter (S:PostSpec) =
 struct
   include (S : module type of S with module D := S.D and type marshal = S.marshal)
 
@@ -343,7 +514,7 @@ end
 
 
 (* widening on contexts, keeps contexts for calls only in D *)
-module WidenContextLifterSide (S:Spec)
+module WidenContextLifterSide (S:PostSpec)
 =
 struct
   module DD =
@@ -356,6 +527,9 @@ struct
   module D = struct
     include Lattice.Prod (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
+    let remove_non_modular (x, y) = S.D.remove_non_modular x, y
+    let to_modular (x, y) = S.D.to_modular x, y
+    let to_non_modular (x, y) = S.D.to_non_modular x, y
   end
   module G = S.G
   module C = S.C
@@ -397,6 +571,8 @@ struct
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
+  let modular_combine_env ctx r f args f_ask     = lift_fun ctx S.modular_combine_env ((|>) f_ask % (|>) args % (|>) f % (|>) r)
+  let modular_combine_assign ctx r f args f_ask     = lift_fun ctx S.modular_combine_assign ((|>) f_ask % (|>) args % (|>) f % (|>) r)
 
   let event ctx e octx = lift_fun ctx S.event ((|>) (conv octx) % (|>) e)
 
@@ -428,8 +604,8 @@ end
 
 
 (** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
-module DeadCodeLifter (S:Spec)
-  : Spec with module D = Dom (S.D)
+module DeadCodeLifter (S:PostSpec)
+  : PostSpec with module D = Dom (S.D)
           and module G = S.G
           and module C = S.C
 =
@@ -488,6 +664,8 @@ struct
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
+  let modular_combine_env ctx r f args f_ask      = lift_fun ctx D.lift S.modular_combine_env ((|>) f_ask % (|>) args % (|>) f % (|>) r)        `Bot
+  let modular_combine_assign ctx r f args f_ask      = lift_fun ctx D.lift S.modular_combine_assign ((|>) f_ask % (|>) args % (|>) f % (|>) r)        `Bot
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
@@ -504,7 +682,7 @@ end
 
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
+module FromSpec (S:PostSpec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = GVarF (S.V)
@@ -650,71 +828,71 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.branch ctx e tv) !r !spawns
 
-  let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
-    let combine (cd, fc, fd) =
-      if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
-      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
-      let rec cd_ctx =
-        { ctx with
-          ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
-          local = cd;
-        }
-      in
-      let fd_ctx =
-        (* Inner scope to prevent unsynced fd_ctx from being used. *)
-        (* Extra sync in case function has multiple returns.
-           Each `Return sync is done before joining, so joined value may be unsound.
-           Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
-        (* TODO: don't do this extra sync here *)
-        let rec sync_ctx =
+    let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
+      let combine (cd, fc, fd) =
+        if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
+        if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
+        let rec cd_ctx =
           { ctx with
-            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
-            local = fd;
-            prev_node = Function f;
+            ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
+            local = cd;
           }
         in
-        (* TODO: more accurate ctx? *)
-        let synced = sync sync_ctx in
-        let rec fd_ctx =
-          { sync_ctx with
-            ask = (fun (type a) (q: a Queries.t) -> S.query fd_ctx q);
-            local = synced;
-          }
+        let fd_ctx =
+          (* Inner scope to prevent unsynced fd_ctx from being used. *)
+          (* Extra sync in case function has multiple returns.
+             Each `Return sync is done before joining, so joined value may be unsound.
+             Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
+          (* TODO: don't do this extra sync here *)
+          let rec sync_ctx =
+            { ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+              local = fd;
+              prev_node = Function f;
+            }
+          in
+          (* TODO: more accurate ctx? *)
+          let synced = sync sync_ctx in
+          let rec fd_ctx =
+            { sync_ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query fd_ctx q);
+              local = synced;
+            }
+          in
+          fd_ctx
         in
-        fd_ctx
+        let r = List.fold_left (fun acc fd1 ->
+            let rec fd1_ctx =
+              { fd_ctx with
+                ask = (fun (type a) (q: a Queries.t) -> S.query fd1_ctx q);
+                local = fd1;
+              }
+            in
+            let combine_enved = S.combine_env cd_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
+            let rec combine_assign_ctx =
+              { cd_ctx with
+                ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_ctx q);
+                local = combine_enved;
+              }
+            in
+            S.D.join acc (S.combine_assign combine_assign_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx))
+          ) (S.D.bot ()) (S.paths_as_set fd_ctx)
+        in
+        if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
+        r
       in
-      let r = List.fold_left (fun acc fd1 ->
-          let rec fd1_ctx =
-            { fd_ctx with
-              ask = (fun (type a) (q: a Queries.t) -> S.query fd1_ctx q);
-              local = fd1;
-            }
-          in
-          let combine_enved = S.combine_env cd_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
-          let rec combine_assign_ctx =
-            { cd_ctx with
-              ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_ctx q);
-              local = combine_enved;
-            }
-          in
-          S.D.join acc (S.combine_assign combine_assign_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx))
-        ) (S.D.bot ()) (S.paths_as_set fd_ctx)
-      in
-      if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
+      let paths = S.enter ctx lv f args in
+      let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
+      List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
+      let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+      (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
+      (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
+      let paths = List.map (Tuple3.map2 Option.some) paths in
+      if M.tracing then M.traceli "combine" "combining\n";
+      let paths = List.map combine paths in
+      let r = List.fold_left D.join (D.bot ()) paths in
+      if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
       r
-    in
-    let paths = S.enter ctx lv f args in
-    let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
-    (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
-    (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
-    let paths = List.map (Tuple3.map2 Option.some) paths in
-    if M.tracing then M.traceli "combine" "combining\n";
-    let paths = List.map combine paths in
-    let r = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
-    r
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
@@ -736,6 +914,8 @@ struct
       | TFun (_, params, var_arg, _)  ->
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
+        (* TODO: Insert some handling that, for functions that are to be analyzed modularly,
+           use special for non-modular analyses, normal call for modular anlayses *)
         (* Check whether number of arguments fits. *)
         (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
         if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
@@ -1024,8 +1204,8 @@ end
 
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive2 (Spec:Spec)
-  : Spec
+module PathSensitive2 (Spec:PostSpec)
+  : PostSpec
     with module G = Spec.G
      and module C = Spec.C
      and module V = Spec.V
@@ -1041,6 +1221,11 @@ struct
     end
     module J = SetDomain.Joined (Spec.D)
     include DisjointDomain.ProjectiveSet (Spec.D) (J) (R)
+
+    let remove_non_modular x = map Spec.D.to_modular x
+    let to_modular x = map Spec.D.to_modular x
+    let to_non_modular x = map Spec.D.to_non_modular x
+
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
@@ -1101,6 +1286,8 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+  let modular_combine_env ctx l f a f_ask = map ctx Spec.modular_combine_env (fun h -> h l f a f_ask)
+  let modular_combine_assign ctx l f a f_ask = map ctx Spec.modular_combine_assign (fun h -> h l f a f_ask)
 
   let event ctx e octx =
     let fd1 = D.choose octx.local in
@@ -1162,12 +1349,13 @@ struct
     in
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
+
+
 end
 
-module DeadBranchLifter (S: Spec): Spec =
+module DeadBranchLifter (S: PostSpec): PostSpec =
 struct
   include S
-
   let name () = "DeadBranch (" ^ S.name () ^ ")"
 
   (* Two global invariants:
@@ -1294,6 +1482,8 @@ struct
   let combine_env ctx = S.combine_env (conv ctx)
   let combine_assign ctx = S.combine_assign (conv ctx)
   let special ctx = S.special (conv ctx)
+  let modular_combine_env ctx = S.modular_combine_env (conv ctx)
+  let modular_combine_assign ctx = S.modular_combine_assign (conv ctx)
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
@@ -1302,7 +1492,7 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
-module LongjmpLifter (S: Spec): Spec =
+module LongjmpLifter (S: PostSpec): PostSpec =
 struct
   include S
 
@@ -1536,6 +1726,9 @@ struct
       );
       S.D.bot ()
     | _ -> S.special conv_ctx lv f args
+
+  let modular_combine_env ctx = S.modular_combine_env (conv ctx)
+  let modular_combine_assign ctx = S.modular_combine_assign (conv ctx)
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
@@ -1546,9 +1739,9 @@ end
 
 
 (** Add cycle detection in the context-sensitive dynamic function call graph to an analysis *)
-module RecursionTermLifter (S: Spec)
-  : Spec with module D = S.D
-          and module C = S.C
+module RecursionTermLifter (S: PostSpec)
+  : PostSpec with module D = S.D
+              and module C = S.C
 =
 (* two global invariants:
    - S.V -> S.G
@@ -1678,6 +1871,8 @@ struct
     S.combine_env (conv ctx) r fe f args fc es f_ask
 
   let combine_assign ctx = S.combine_assign (conv ctx)
+  let modular_combine_env ctx = S.modular_combine_env (conv ctx)
+  let modular_combine_assign ctx = S.modular_combine_assign (conv ctx)
   let special ctx = S.special (conv ctx)
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)

@@ -238,7 +238,7 @@ struct
       Mutexes.fold (fun addr ls -> Queries.AD.add addr ls) held_locks (Queries.AD.empty ())
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
-      Mutexes.mem (LockDomain.Addr.of_var LF.verifier_atomic_var) held_locks
+      Mutexes.mem (LockDomain.Addr.of_var ~is_modular:false LF.verifier_atomic_var) held_locks
     | Queries.MustProtectedVars {mutex = m; write} ->
       let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->

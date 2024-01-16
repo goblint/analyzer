@@ -20,6 +20,10 @@ struct
   let possible_vinfos (a: Queries.ask) cv_arg =
     Queries.AD.to_var_may (a.f (Queries.MayPointTo cv_arg))
 
+  let is_modular ctx =
+    let ask = Analyses.ask_of_ctx ctx in
+    ask.f Queries.IsModular
+
   (* transfer functions *)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -57,7 +61,7 @@ struct
       end
       in
       let open Signalled in
-      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.of_var a) ctx.local | _ -> ctx.local in
+      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.of_var ~is_modular:(is_modular ctx) a) ctx.local | _ -> ctx.local in
       let conds = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
       (match List.fold_left (fun acc cond -> can_be_signalled cond ||| acc) Never conds with
        | PossiblySignalled -> add_if_singleton conds

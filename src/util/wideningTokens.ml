@@ -92,11 +92,15 @@ struct
 end
 
 (** Lift {!S} to carry widening tokens with both local and global states. *)
-module Lifter (S: Spec): Spec =
+module Lifter (S: PostSpec): PostSpec =
 struct
   module D =
   struct
     include Dom (S.D)
+
+    let remove_non_modular (d, ts) = S.D.remove_non_modular d, ts
+    let to_modular (d, ts) = S.D.to_modular d, ts
+    let to_non_modular (d, ts) = S.D.to_non_modular d, ts
 
     let printXml f (d, t) =
       BatPrintf.fprintf f "\n%a<path><analysis name=\"tokens\">%a</analysis></path>" S.D.printXml d TS.printXml t
@@ -176,6 +180,8 @@ struct
   let asm ctx         = lift_fun ctx lift'   S.asm    identity
   let skip ctx        = lift_fun ctx lift'   S.skip   identity
   let special ctx r f args       = lift_fun ctx lift' S.special ((|>) args % (|>) f % (|>) r)
+  let modular_combine_env ctx r f args f_ask      = lift_fun ctx lift' S.modular_combine_env ((|>) f_ask % (|>) args % (|>) f % (|>) r)
+  let modular_combine_assign ctx r f args f_ask      = lift_fun ctx lift' S.modular_combine_assign ((|>) f_ask % (|>) args % (|>) f % (|>) r)
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
 

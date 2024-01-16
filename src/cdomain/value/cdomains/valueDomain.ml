@@ -5,7 +5,6 @@ open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Offset.MakeLattice (IndexDomain)
 module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
@@ -36,6 +35,7 @@ sig
   val is_bot_value: t -> bool
   val init_value: ?varAttr:attributes -> typ -> t
   val top_value: ?varAttr:attributes -> typ -> t
+  val top_value_typed_address_targets: ?varAttr:attributes -> typ -> t * varinfo list
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
@@ -210,6 +210,65 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> Top
 
+  (* top values, except type-based target for addresses *)
+  let rec top_value_typed_address_targets ?(varAttr=[]) (t: typ): t * varinfo list =
+    match t with
+    | _ when is_mutex_type t -> Mutex, []
+    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ()), []
+    | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik))), []
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind), []
+    | TPtr (t, _) ->
+      let target_and_address_from_type t =
+        let target = TypeVarinfoMap.to_varinfo t in
+        target, AD.of_var ~is_modular:true target
+      in
+      let target_and_address_from_array t =
+        let target = TypeVarinfoMap.to_varinfo t in
+        let offset = `Index (PreValueDomain.IndexDomain.top (), `NoOffset) in
+        let mval = target, offset in
+        target, AD.of_mval ~is_modular:true mval
+      in
+      let target, target_address = target_and_address_from_type t in
+
+      let tarray = TArray (t, None, []) in
+      let target_array, target_array_address = target_and_address_from_array tarray in
+
+      let null_ptr = AD.null_ptr in
+      let address = AD.join (AD.join target_address null_ptr) target_array_address in
+      Address address, [target; target_array]
+    | TComp ({cstruct=true; _} as ci,_) ->
+      let init_field s fd =
+        let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
+        (Structs.replace s fd v), targets
+      in
+      let init_field (s, acc) fd =
+        let v, targets = init_field s fd in
+        (v, targets @ acc)
+      in
+      let s, vs = List.fold_left init_field (Structs.top (), []) ci.cfields in
+      if M.tracing then M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
+      Struct s, vs
+    | TComp ({cstruct=false; _} as ci,_) ->
+      (* TODO: Deduplicate w.r.t. case for Structs above *)
+      let init_field s fd =
+        let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
+        (Unions.replace s fd v), targets
+      in
+      let init_field (s, acc) fd =
+        let v, targets = init_field s fd in
+        (v, targets @ acc)
+      in
+      let s, vs = List.fold_left init_field (Unions.bot (), []) ci.cfields in
+      if M.tracing then M.tracel "top_value_typed" "default_value for union type %a is %a\n" d_type t Unions.pretty s;
+      Union s, vs
+    | TArray (ai, length, _) ->
+      let typAttr = typeAttrs ai in
+      let base_value, targets = top_value_typed_address_targets ai in
+      let len = array_length_idx (IndexDomain.top ()) length in
+      Array (CArrays.make ~varAttr ~typAttr len base_value), targets
+    | TNamed ({ttype=t; _}, _) -> top_value_typed_address_targets ~varAttr t
+    | _ -> Top, []
+
   let is_top_value x (t: typ) =
     match x with
     | Int x -> ID.is_top_of (Cilfacade.get_ikind (t)) x
@@ -239,7 +298,8 @@ struct
       let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
           let firstmember = List.hd ci.cfields in
-          `Lifted firstmember, zero_init_value ~varAttr:firstmember.fattr firstmember.ftype
+          let value = zero_init_value ~varAttr:firstmember.fattr firstmember.ftype in
+          Unions.of_field ~field:firstmember ~value
         with
         (* Union with no members ò.O *)
           Failure _ -> Unions.top ()
@@ -617,10 +677,7 @@ struct
     let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.join_with_fct join_elem x y)
-    | (Union (f,x), Union (g,y)) ->
-      let field = UnionDomain.Field.join f g in
-      let value = join_elem x y in
-      Union (field, value)
+    | (Union x, Union y) -> Union (Unions.smart_join ~join_elem x y)
     | (Array x, Array y) -> Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | _ -> join x y  (* Others can not contain array -> normal join  *)
 
@@ -628,10 +685,7 @@ struct
     let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.widen_with_fct widen_elem x y)
-    | (Union (f,x), Union (g,y)) ->
-      let field = UnionDomain.Field.widen f g in
-      let value = widen_elem x y in
-      Union (field, value)
+    | (Union x, Union y) -> Union (Unions.smart_widen ~widen_elem x y)
     | (Array x, Array y) -> Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | _ -> widen x y  (* Others can not contain array -> normal widen  *)
 
@@ -641,8 +695,7 @@ struct
     match (x,y) with
     | (Struct x, Struct y) ->
           Structs.leq_with_fct leq_elem x y
-    | (Union (f, x), Union (g, y)) ->
-        UnionDomain.Field.leq f g && leq_elem x y
+    | (Union x, Union y) -> Unions.smart_leq ~leq_elem x y
     | (Array x, Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
     | _ -> leq x y (* Others can not contain array -> normal leq *)
 
@@ -716,7 +769,12 @@ struct
     |                 _ , Address n    -> Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , Struct n     -> Struct (invalid_struct ci n)
     |                 _ , Struct n     -> Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
-    | TComp (ci,_)  , Union (`Lifted fd,n) -> Union (`Lifted fd, invalidate_value ask fd.ftype n)
+    | TComp (ci,_)  , Union x ->
+      let invalidate f v =
+        let typ = BatOption.map_default (fun f -> f.ftype) voidType f in
+        invalidate_value ask typ v
+      in
+      Union (Unions.map invalidate x)
     | TArray (t,_,_), Array n      ->
       let v = invalidate_value ask t (CArrays.get ask n array_idx_top) in
       Array (CArrays.set ask n (array_idx_top) v)
@@ -872,11 +930,11 @@ struct
           zero_init_calloced_memory orig ev t
         end
       | Blob((va, _, orig) as c), `NoOffset ->
-      begin
-        let l', o' = shift_one_over l o in
-        let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-        zero_init_calloced_memory orig ev t
-      end
+        begin
+          let l', o' = shift_one_over l o in
+          let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+          zero_init_calloced_memory orig ev t
+        end
       | Bot, _ -> Bot
       | _ ->
         match offs with
@@ -892,17 +950,27 @@ struct
           end
         | `Field (fld, offs) -> begin
             match x with
-            | Union (`Lifted l_fld, value) ->
+            | Union u ->
+              let value = Unions.get fld u in
               (match value, fld.ftype with
-               (* only return an actual value if we have a type and return actually the exact same type *)
-               | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
-               | Float _, t -> top_value t
-               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
-               | _ ->
-                 let x = cast ~torg:l_fld.ftype fld.ftype value in
+               | Top, _ ->
+                 (* No precise value for fld. Look up last value stored in union and cast it. *)
+                 let last_fld, last_value = Unions.get_field_and_value u in
+                 begin
+                   match last_value, fld.ftype with
+                   (* only return an actual value if we have a type and return actually the exact same type *)
+                   | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
+                   | Float _, t -> top_value t
+                   | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
+                   | _ ->
+                     let ftype = Option.map (fun f -> f.ftype) last_fld in
+                     let x = cast ?torg:ftype fld.ftype last_value in
+                     let l', o' = shift_one_over l o in
+                     do_eval_offset ask f x offs exp l' o' v t
+                 end
+               | _, _ ->
                  let l', o' = shift_one_over l o in
-                 do_eval_offset ask f x offs exp l' o' v t)
-            | Union _ -> top ()
+                 do_eval_offset ask f value offs exp l' o' v t)
             | Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
           end
@@ -1046,34 +1114,47 @@ struct
             let t = fld.ftype in
             let l', o' = shift_one_over l o in
             match x with
-            | Union (last_fld, prev_val) ->
-              let tempval, tempoffs =
-                if UnionDomain.Field.equal last_fld (`Lifted fld) then
-                  prev_val, offs
-                else begin
-                  match offs with
-                  | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value ~varAttr:fld.fattr fld.ftype), offs
-                  | `Field (fldi, _) -> Union (Unions.top ()), offs
-                  | `NoOffset -> top (), offs
-                  | `Index (idx, _) when Cil.isArrayType fld.ftype ->
-                    begin
-                      match fld.ftype with
-                      | TArray(_, l, _) ->
-                        let len = try Cil.lenOfArray l
-                          with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) Top), offs
-                      | _ -> top (), offs (* will not happen*)
-                    end
-                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
-                    (* Why does cil index unions? We'll just pick the first field. *)
-                    top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
-                  | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
-                    top (), offs
-                end
+            | Union u ->
+              let tempoffs = match offs with
+                | `Index (idx, _) when Cil.isArrayType fld.ftype -> offs
+                | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
+                  (* Why does cil index unions? We'll just pick the first field. *)
+                  `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
+                | `Index _ ->
+                  M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
+                  offs
+                | _ -> offs
               in
-              Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
-            | Bot -> Union (`Lifted fld, do_update_offset ask Bot offs value exp l' o' v t)
+              let tempval = match Unions.get fld u with
+                | Top ->
+                  begin
+                    match offs with
+                    | `Field (fldi, _) ->
+                      top_value ~varAttr:fld.fattr fld.ftype
+                    | `NoOffset ->
+                      top ()
+                    | `Index (idx, _) when Cil.isArrayType fld.ftype ->
+                      begin
+                        match fld.ftype with
+                        | TArray(_, l, _) ->
+                          let len = try Cil.lenOfArray l
+                            with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
+                          Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) Top)
+                        | _ ->
+                          top ()
+                      end
+                    | _ ->
+                      top ()
+                  end
+                | v -> v
+              in
+              let v = do_update_offset ask tempval tempoffs value exp l' o' v t in
+              let u = Unions.of_field ~field:fld ~value:v in
+              Union u
+            | Bot ->
+              let v = do_update_offset ask Bot offs value exp l' o' v t in
+              let u = Unions.of_field ~field:fld ~value:v in
+              Union u
             | Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a union"; top ()
           end
@@ -1082,8 +1163,8 @@ struct
             match x with
             | Array x' ->
               let t = (match t with
-              | TArray(t1 ,_,_) -> t1
-              | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
+                  | TArray(t1 ,_,_) -> t1
+                  | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
               let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
@@ -1128,7 +1209,7 @@ struct
         Array (new_val)
       end
     | Struct s -> Struct (Structs.map (move_fun) s)
-    | Union (f, v) -> Union(f, move_fun v)
+    | Union x -> Union (Unions.map (fun _ -> move_fun) x)
     (* Blob can not contain Array *)
     | x -> x
 
@@ -1143,9 +1224,9 @@ struct
         CArrays.fold_left add_affecting_one_level immediately_affecting a
       end
     | Struct s ->
-        Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
-    | Union (f, v) ->
-        affecting_vars v
+      Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
+    | Union x ->
+      Unions.fold (fun x value acc -> add_affecting_one_level acc value) x []
     (* Blob can not contain Array *)
     | _ -> []
 
@@ -1176,7 +1257,7 @@ struct
     | JmpBuf (v,t) -> JmpBuf (v, true)
     | Array n -> Array (CArrays.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
     | Struct n -> Struct (Structs.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
-    | Union (f, n) -> Union (f, mark_jmpbufs_as_copied n)
+    | Union n -> Union (Unions.map (fun _ (x: t) -> mark_jmpbufs_as_copied x) n)
     | Blob (a,b,c) -> Blob (mark_jmpbufs_as_copied a, b,c)
     | _ -> v
 
@@ -1222,7 +1303,7 @@ struct
     | Int n, Some p, _->  Int (ID.project p n)
     | Address n, Some p, _-> Address (project_addr p n)
     | Struct n, _, _ -> Struct (Structs.map (fun (x: t) -> project ask p None x) n)
-    | Union (f, v), _, _ -> Union (f, project ask p None v)
+    | Union n, _, _ -> Union (Unions.map (fun _ (x: t) -> project ask p None v) n)
     | Array n , _, _ -> Array (project_arr ask p array_attr n)
     | Blob (v, s, z), Some p', _ -> Blob (project ask p None v, ID.project p' s, z)
     | Thread n, _, _ -> Thread n
@@ -1265,8 +1346,7 @@ end
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
   StructDomain.FlagConfiguredStructDomain (Compound)
 
-and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
-  UnionDomain.Simple (Compound)
+and Unions: UnionDomain.S with type value = Compound.t = UnionDomain.FlagConfiguredUnionDomain (Compound)
 
 and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)(ArrIdxDomain)
 

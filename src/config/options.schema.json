@@ -103,6 +103,12 @@
       "type": "boolean",
       "default": false
     },
+    "modular": {
+      "title": "modular",
+      "description": "Completely modular analysis of all functions.",
+      "type": "boolean",
+      "default": false
+    },
     "nonstatic": {
       "title": "nonstatic",
       "description": "Analyzes all non-static functions.",
@@ -353,6 +359,37 @@
           "type": "array",
           "items": { "type": "string" },
           "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp","memLeak" ]
+        },
+        "modular": {
+          "title": "ana.modular",
+          "type": "object",
+          "properties": {
+            "funs": {
+              "title": "ana.modular.funs",
+              "description":
+                "List of functions that are to be analayzed modularly",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "auto-funs": {
+              "title": "ana.modular.auto-funs",
+              "description":
+                "Automatically detect functions that are to be analayzed modularly.",
+              "type": "boolean",
+              "default": false
+            },
+            "only": {
+              "title": "ana.modular.only",
+              "description":
+                "Only analyze functions that are to be analayzed modularly.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -738,6 +775,21 @@
                     }
                   },
                   "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "unions": {
+              "title": "ana.base.unions",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.unions.domain",
+                  "description":
+                    "The domain that should be used for unions. Options: simple/map",
+                  "type": "string",
+                  "enum": ["simple", "map"],
+                  "default": "map"
                 }
               },
               "additionalProperties": false

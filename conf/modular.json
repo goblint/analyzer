@@ -1,0 +1,61 @@
+{
+	"modular": true,
+	"ana": {
+		"activated": [
+			"modular_queries",
+			"base",
+			"is_modular",
+			"threadflag",
+			"written",
+			"used_globals",
+			"mallocWrapper"
+		],
+		"path_sens": [],
+		"modular": {
+			"funs": []
+		},
+		"base": {
+			"privatization": "none"
+		},
+		"ctx_insens": [
+			"stack_loc",
+			"stack_trace_set"
+		],
+		"int": {
+			"def_exc": true,
+			"interval": false,
+			"interval_set": false,
+			"enums": false,
+			"congruence": false,
+			"refinement": "never",
+			"def_exc_widen_by_join": false,
+			"interval_narrow_by_meet": false,
+			"interval_threshold_widening": false,
+			"interval_threshold_widening_constants": "all"
+		}
+	},
+	"warn": {
+		"assert": false,
+		"behavior": false,
+		"call": false,
+		"integer": false,
+		"float": false,
+		"cast": false,
+		"race": false,
+		"deadlock": false,
+		"deadcode": false,
+		"analyzer": false,
+		"unsound": false,
+		"imprecise": false,
+		"witness": false,
+		"program": false,
+		"unknown": false,
+		"error": false,
+		"warning": false,
+		"info": false,
+		"debug": false,
+		"success": false,
+		"quote-code": false,
+		"race-threshold": 0
+	}
+}

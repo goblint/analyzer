@@ -37,6 +37,14 @@ sig
   val is_top: t -> bool
 end
 
+module type T =
+sig
+  include S
+  val remove_non_modular : t -> t
+  val to_modular: t -> t
+  val to_non_modular: t -> t
+end
+
 exception TopValue
 (** Exception raised by a topless lattice in place of a top value.
     Surrounding lattice functors may handle this on their own. *)
@@ -148,7 +156,7 @@ struct
 end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
-module HConsed (Base:S) (Arg: sig val assume_idempotent: bool end) =
+module HConsed (Base:T) (Arg: sig val assume_idempotent: bool end) =
 struct
   include Printable.HConsed (Base)
 
@@ -164,6 +172,10 @@ struct
   let bot () = lift (Base.bot ())
 
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
+  let remove_non_modular x = lift (lift_f Base.remove_non_modular x)
+
+  let to_modular x = lift (lift_f Base.to_modular x)
+  let to_non_modular x = lift (lift_f Base.to_non_modular x)
 end
 
 module HashCached (M: S) =
@@ -650,4 +662,44 @@ struct
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
+end
+
+module Option (Base: S) : S with type t = Base.t option =
+struct
+  module Option = Printable.Option (Base) (struct let name = "None" end)
+  include Option
+
+  let binop f x y = match x, y with
+    | Some x, Some y -> Some (f x y)
+    | None, Some x
+    | Some x, None -> Some x
+    | None, None -> None
+
+  let leq x y = match x, y with
+    | Some x, Some y -> Base.leq x y
+    | Some x, None -> false
+    | None, _ -> true
+
+  let join x y =
+    binop Base.join x y
+  let meet x y =
+    binop Base.meet x y
+
+  let widen x y =
+    binop Base.widen x y
+  let narrow x y =
+    binop Base.narrow x y
+  let bot () =
+    Some (Base.bot ())
+  let top () =
+    Some (Base.top ())
+  let is_top = function
+    | Some x -> Base.is_top x
+    | None -> false
+  let is_bot = function
+    | Some x -> Base.is_bot x
+    | None -> false (* TODO: Check whether it works with true (and does not produce spurious Deadcode) *)
+
+  let pretty_diff () (x, y) =
+    failwith "not implemented"
 end

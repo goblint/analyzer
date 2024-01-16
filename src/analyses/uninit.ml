@@ -130,7 +130,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.of_mval (v,rev cx)) tf.fname;
+        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.of_mval ~is_modular:false (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -158,7 +158,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.of_mval (v,rev cx));
+      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.of_mval ~is_modular:false (v,rev cx));
       []
 
 
@@ -175,7 +175,7 @@ struct
       end
     | _ -> st
 
-  let to_addrs (v:varinfo) : Addr.t list =
+  let to_addrs (ask: Queries.ask) (v:varinfo) : Addr.t list =
     let make_offs = List.fold_left (fun o f -> `Field (f, o)) `NoOffset in
     let rec add_fields (base: fieldinfo list) fs acc =
       match fs with
@@ -183,12 +183,12 @@ struct
       | f :: fs ->
         match unrollType f.ftype with
         | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
-        | _                       -> add_fields base fs ((Addr.of_mval (v,make_offs (f::base))) :: acc)
+        | _                       -> add_fields base fs ((Addr.of_mval ~is_modular:false (v,make_offs (f::base))) :: acc)
 
     in
     match unrollType v.vtype with
     | TComp ({cfields=fs; _},_) -> add_fields [] fs []
-    | _ -> [Addr.of_var v]
+    | _ -> [Addr.of_var ~is_modular:false v]
 
 
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
@@ -209,7 +209,7 @@ struct
     let vars =
       reachable
       |> AD.to_var_may
-      |> List.concat_map to_addrs
+      |> List.concat_map (to_addrs ask)
       |> AD.of_list
     in
     if D.is_top st
@@ -228,12 +228,12 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : trans_out =
-    let add_var st v = List.fold_right D.add (to_addrs v) st in
+    let add_var st v = List.fold_right D.add (to_addrs (Analyses.ask_of_ctx ctx) v) st in
     List.fold_left add_var ctx.local f.slocals
 
   let return ctx (exp:exp option) (f:fundec) : trans_out =
     let remove_var x v =
-      List.fold_right D.remove (to_addrs v) x in
+      List.fold_right D.remove (to_addrs (Analyses.ask_of_ctx ctx) v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
     | Some exp -> ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local); nst

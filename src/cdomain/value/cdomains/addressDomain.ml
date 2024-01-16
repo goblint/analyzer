@@ -55,8 +55,12 @@ module AddressPrintable (Mval: Mval.Printable) =
 struct
   include AddressBase (Mval)
 
-  let of_var x = Addr (x, `NoOffset)
-  let of_mval (x, o) = Addr (x, o)
+  let of_mval ~is_modular (x, o) =
+    let x = ModularUtil0.varinfo_or_canonical ~is_modular x in
+    Addr (x, o)
+
+  let of_var ~is_modular x =
+    of_mval ~is_modular (x, `NoOffset)
 
   let to_var = function
     | Addr (x,_) -> Some x
@@ -243,8 +247,8 @@ struct
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)
     | _ -> voidType
 
-  let of_var x = singleton (Addr.of_var x)
-  let of_mval x = singleton (Addr.of_mval x)
+  let of_var ~is_modular x = singleton (Addr.of_var ~is_modular x)
+  let of_mval ~is_modular x = singleton (Addr.of_mval ~is_modular x)
   let to_var_may x = List.filter_map Addr.to_var_may (elements x)
   let to_var_must x = List.filter_map Addr.to_var_must (elements x)
   let to_mval x = List.filter_map Addr.to_mval (elements x)

@@ -130,9 +130,10 @@ module MallocWrapper : MCPSpec = struct
       let loc = UpdateCil.getLoc node in
       CilType.Location.show loc
 
-    let name_varinfo (t, node, c) =
-      Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (UniqueCount.show c)
-
+    let name_and_type_varinfo (t, node, c) =
+      let name = Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (UniqueCount.show c) in
+      let typ = Cil.voidType (* dummy type *) in
+      name, typ
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
@@ -172,6 +173,9 @@ module MallocWrapper : MCPSpec = struct
 
   let finalize () =
     NodeVarinfoMap.marshal ()
+
+  (* TODO: Adapt implementaiton for modular mode to not yield additional contexts *)
+  let modular_support () = Both
 end
 
 

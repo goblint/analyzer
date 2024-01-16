@@ -315,5 +315,5 @@ struct
     | Index (_,o) -> `Index (Idx.Unknown, conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
-  let of_mval (v, o) = of_mval (v, conv_const_offset o)
+  let of_mval (v, o) = of_mval ~is_modular:false (v, conv_const_offset o)
 end

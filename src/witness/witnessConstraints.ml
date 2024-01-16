@@ -5,8 +5,8 @@ open Analyses
 
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive3 (Spec:Spec)
-  : Spec
+module PathSensitive3 (Spec:PostSpec)
+  : PostSpec
     (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
      and module G = Spec.G
      and module C = Spec.C *)
@@ -16,6 +16,9 @@ struct
   module I =
   struct
     include Spec.D
+    let remove_non_modular = Spec.D.remove_non_modular
+    let to_modular = Spec.D.to_modular
+    let to_non_modular = Spec.D.to_non_modular
     (* assumes Hashcons inside PathSensitive *)
     let to_int = tag
     let name () = "D"
@@ -27,9 +30,26 @@ struct
     let name () = "C"
     let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c
   end
-  module VI = Printable.Prod3 (Node) (CC) (I)
-  module VIE = Printable.Prod (VI) (MyARG.InlineEdgePrintable)
-  module VIES = SetDomain.Make (VIE)
+  module VI = struct
+    include Printable.Prod3 (Node) (CC) (I)
+    let remove_non_modular (n, c, i) = (n, c, I.remove_non_modular i)
+    let to_modular (n, c, i) = (n, c, I.to_modular i)
+    let to_non_modular (n, c, i) = (n, c, I.to_non_modular i)
+
+  end
+  module VIE = struct
+    include Printable.Prod (VI) (MyARG.InlineEdgePrintable)
+    let remove_non_modular (vi, m) = VI.remove_non_modular vi, m
+    let to_modular (vi, m) = VI.to_modular vi, m
+    let to_non_modular (vi, m) = VI.to_non_modular vi, m
+  end
+  module VIES = struct
+    module VIES = SetDomain.Make (VIE)
+    include VIES
+    let remove_non_modular s = VIES.map VIE.remove_non_modular s
+    let to_modular s = VIES.map VIE.to_modular s
+    let to_non_modular s = VIES.map VIE.to_non_modular s
+  end
   (* even though R is just a set and in solver's [widen old (join old new)] would join the sets of predecessors
      instead of keeping just the last, we are saved by set's narrow bringing that back down to the latest predecessors *)
   module R =
@@ -40,7 +60,7 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (V: Lattice.S) =
+  module SpecDMap (V: Lattice.T) =
   struct
     module R =
     struct
@@ -49,6 +69,9 @@ struct
     end
     module J = MapDomain.Joined (Spec.D) (V)
     include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
+    let remove_non_modular x = map V.remove_non_modular x
+    let to_modular (x: t) = map V.to_modular x
+    let to_non_modular (x: t) = map V.to_non_modular x
   end
 
   module Dom =
@@ -83,11 +106,17 @@ struct
     (* new predecessors are always the right ones for the latest evaluation *)
     let widen x y = y
     let narrow x y = y
+    let remove_non_modular x = map Spec.D.remove_non_modular x
+    let to_modular x = map Spec.D.to_modular x
+    let to_non_modular x = map Spec.D.to_non_modular x
   end
   module Sync = SpecDMap (SyncSet)
   module D =
   struct
     include Lattice.Prod (Dom) (Sync)
+    let remove_non_modular (d, s) = Dom.remove_non_modular d, s
+    let to_modular (d, s) = Dom.to_modular d, s
+    let to_non_modular (d, s) = Dom.to_non_modular d, s
 
     let printXml f (d, _) = Dom.printXml f d
   end
@@ -192,6 +221,8 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+  let modular_combine_env ctx l f a f_ask = map ctx Spec.modular_combine_env (fun h -> h l f a f_ask)
+  let modular_combine_assign ctx l f a f_ask = map ctx Spec.modular_combine_assign (fun h -> h l f a f_ask)
   let event ctx e octx = map_event ctx e (* TODO: ???? *)
 
   let paths_as_set ctx =

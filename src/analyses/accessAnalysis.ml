@@ -104,22 +104,80 @@ struct
       List.iter (access_one_top ctx Read false) arglist; (* always read all argument expressions without dereferencing *)
       ctx.local
 
+  let modular_combine_env ctx lv f args (f_ask: Queries.ask) : D.t =
+    let open ValueDomain in
+    let open WrittenDomain in
+    (* TODO: Handle values that are read in modular functions *)
+    let written = f_ask.f Queries.Written in
+    (* Collect all addreses that were written to. *)
+    let written_addresses =
+      let list = ref [] in
+      Written.iter (fun a _ -> list := a :: !list) written;
+      !list
+    in
+    let read_addresses = f_ask.f Queries.Read in
+    let get_reachable e = ctx.ask (Queries.ReachableAddressesFrom e) in
+    let used_globals = UsedGlobals.get_callee_globals f_ask in
+    let effective_args = args @ used_globals in
+    let reachable =
+      List.fold_left (fun acc arg -> AD.join acc (get_reachable arg) ) (AD.bot ()) effective_args
+    in
+    let map_back a = ModularUtil.ValueDomainExtension.map_back a ~reachable in
+    let map_back a =
+      let address = VD.Address a in
+      match map_back address with
+      | Address maped_back ->
+        maped_back
+      | _ ->
+        M.warn "map_back failed for %a" AD.pretty a;
+        AD.bot ()
+    in
+    let written_addresses = List.map map_back written_addresses in
+    let read_addresses = map_back read_addresses in
+    (* Convert to lvals *)
+    let address_to_lvals (ad: AD.t) =
+      let addr_to_lval_and_exp (v, offs) =
+        let lhost = Var v in
+        let offset = Offs.to_cil_offset offs in
+        let exp = AddrOf (lhost, offset) in
+
+        let offs = Offset.Exp.of_cil offset in
+        let lval = v, offs in
+
+        lval, exp
+      in
+      let addrs = AD.to_mval ad in
+      List.map addr_to_lval_and_exp addrs
+    in
+    let written_lvals_with_exps = List.concat_map address_to_lvals written_addresses in
+    let read_lvals_with_exps = address_to_lvals read_addresses in
+    (* Trigger access events *)
+    let add_lval_event ~kind ((v, offs), exp) =
+      (* let ls = LS.of_list [v, offs] in *)
+      access_one_top ~deref:true ctx kind false exp
+    in
+    List.iter (add_lval_event ~kind:AccessKind.Write) written_lvals_with_exps;
+    List.iter (add_lval_event ~kind:AccessKind.Read) read_lvals_with_exps
+
+  let write_lval_option ctx lval =
+    match lval with
+    | None -> ()
+    | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval);
+    ctx.local
+
+  let modular_combine_assign ctx lv f arglist (f_ask: Queries.ask) : D.t =
+    write_lval_option ctx lv
+
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    (* These should be in enter, but enter cannot emit events, nor has fexp argument *)
     access_one_top ctx Read false fexp;
     List.iter (access_one_top ctx Read false) args;
     au
 
   let combine_assign ctx lv fexp f args fc al f_ask =
-    begin match lv with
-      | None      -> ()
-      | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
-    end;
-    ctx.local
-
+    write_lval_option ctx lv
 
   let threadspawn ctx  ~multiple lval f args fctx =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)

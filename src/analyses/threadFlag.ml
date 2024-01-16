@@ -24,6 +24,9 @@ struct
   module V = UnitV
   module G = BoolDomain.MayBool
 
+  (* TODO: Fix handling in Base analysis, such that this can be changed to NonModular without *)
+  let modular_support () = NonModular
+
   let name () = "threadflag"
 
   let startstate v = Flag.bot ()

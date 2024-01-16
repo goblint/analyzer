@@ -406,6 +406,9 @@ module ReturnUtil = ReturnUtil
 module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
+module ModularUtil0 = ModularUtil0
+module ModularUtil = ModularUtil
+module TypeVarinfoMap = TypeVarinfoMap
 
 module VectorMatrix = VectorMatrix
 module SharedFunctions = SharedFunctions

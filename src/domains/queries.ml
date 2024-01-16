@@ -7,6 +7,7 @@ module VDQ = ValueDomainQueries
 module ID = VDQ.ID
 
 module LS = VDQ.LS
+
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
@@ -69,6 +70,7 @@ type _ t =
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> AD.t t
   | ReachableFrom: exp -> AD.t t
+  | ReachableAddressesFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
   | MayEscape: varinfo -> MayBool.t t
@@ -86,6 +88,7 @@ type _ t =
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
+  | EvalLval: lval -> AD.t t
   | EvalValue: exp -> VD.t t
   | BlobSize: {exp: Cil.exp; base_address: bool} -> ID.t t
   (* Size of a dynamically allocated `Blob pointed to by exp. *)
@@ -126,6 +129,10 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | AccessedGlobals: VS.t t
+  | Written: WrittenDomain.Written.t t
+  | Read: AD.t t
+  | IsModular: MustBool.t t
 
 type 'a result = 'a
 
@@ -146,6 +153,7 @@ struct
     | CondVars _ -> (module ES)
     | MayPointTo _ -> (module AD)
     | ReachableFrom _ -> (module AD)
+    | ReachableAddressesFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module AD)
     | EvalFunvar _ -> (module AD)
@@ -162,6 +170,7 @@ struct
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
+    | EvalLval _ -> (module AD)
     | EvalMutexAttr _ -> (module MutexAttrDomain)
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
@@ -191,6 +200,10 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module AD)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | AccessedGlobals -> (module VS)
+    | Written -> (module WrittenDomain.Written)
+    | Read -> (module AD)
+    | IsModular -> (module MustBool)
     | MustTermLoop _ -> (module MustBool)
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
@@ -214,6 +227,7 @@ struct
     | CondVars _ -> ES.top ()
     | MayPointTo _ -> AD.top ()
     | ReachableFrom _ -> AD.top ()
+    | ReachableAddressesFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> AD.top ()
     | EvalFunvar _ -> AD.top ()
@@ -231,6 +245,7 @@ struct
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
+    | EvalLval _ -> AD.top ()
     | EvalMutexAttr _ -> MutexAttrDomain.top ()
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
@@ -259,6 +274,10 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> AD.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | Written -> WrittenDomain.Written.top ()
+    | Read -> AD.top ()
+    | AccessedGlobals -> VS.top ()
+    | IsModular -> MustBool.top ()
     | MustTermLoop _ -> MustBool.top ()
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
@@ -328,6 +347,12 @@ struct
     | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
+    | Any Written -> 58
+    | Any (EvalLval _) -> 59
+    | Any AccessedGlobals -> 60
+    | Any (ReachableAddressesFrom _) -> 61
+    | Any (IsModular) -> 62
+    | Any Read -> 63
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -379,6 +404,8 @@ struct
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
+      | Any (EvalLval e1), Any (EvalLval e2) -> CilType.Lval.compare e1 e2
+      | Any (ReachableAddressesFrom e1), Any (ReachableAddressesFrom e2) -> CilType.Exp.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       (* only argumentless queries should remain *)
@@ -400,6 +427,7 @@ struct
     | Any (EvalInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
+    | Any (EvalLval l) -> CilType.Lval.hash l
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
     | Any (EvalValue e) -> CilType.Exp.hash e
     | Any (BlobSize {exp = e; base_address = b}) -> CilType.Exp.hash e + Hashtbl.hash b
@@ -434,6 +462,7 @@ struct
     | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
     | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
     | Any (ReachableFrom e) -> Pretty.dprintf "ReachableFrom %a" CilType.Exp.pretty e
+    | Any (ReachableAddressesFrom e) -> Pretty.dprintf "ReachableAddressesFrom %a" CilType.Exp.pretty e
     | Any (ReachableUkTypes e) -> Pretty.dprintf "ReachableUkTypes %a" CilType.Exp.pretty e
     | Any (Regions e) -> Pretty.dprintf "Regions %a" CilType.Exp.pretty e
     | Any (MayEscape vi) -> Pretty.dprintf "MayEscape %a" CilType.Varinfo.pretty vi
@@ -451,6 +480,7 @@ struct
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
+    | Any (EvalLval e) -> Pretty.dprintf "EvalLval %a" CilType.Lval.pretty e
     | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
     | Any (BlobSize {exp = e; base_address = b}) -> Pretty.dprintf "BlobSize %a (base_address: %b)" CilType.Exp.pretty e b
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
@@ -484,6 +514,10 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any AccessedGlobals -> Pretty.printf "AccessedGlobals"
+    | Any Written -> Pretty.dprintf "Written"
+    | Any Read -> Pretty.dprintf "Read"
+    | Any IsModular -> Pretty.dprintf "IsModular"
 end
 
 let to_value_domain_ask (ask: ask) =

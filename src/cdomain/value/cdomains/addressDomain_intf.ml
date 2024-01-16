@@ -36,10 +36,10 @@ sig
     val add_offset: t -> Mval.idx Offset.t -> t
     (** [add_offset a o] appends [o] to an mvalue address [a]. *)
 
-    val of_var: GoblintCil.varinfo -> t
+    val of_var: is_modular:bool -> GoblintCil.varinfo -> t
     (** Convert from variable (without offset). *)
 
-    val of_mval: Mval.t -> t
+    val of_mval: is_modular:bool -> Mval.t -> t
     (** Convert from mvalue. *)
 
     val to_var: t -> GoblintCil.varinfo option
@@ -135,10 +135,10 @@ sig
     val is_element: Addr.t -> t -> bool
     (** Whether address set contains only the given address. *)
 
-    val of_var: GoblintCil.varinfo -> t
+    val of_var: is_modular:bool -> GoblintCil.varinfo -> t
     (** Convert from variable (without offset). *)
 
-    val of_mval: Mval.t -> t
+    val of_mval: is_modular:bool -> Mval.t -> t
     (** Convert from mvalue. *)
 
     val of_int: ID.t -> t

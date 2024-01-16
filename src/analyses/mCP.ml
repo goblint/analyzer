@@ -7,7 +7,7 @@ open Analyses
 
 include MCPRegistry
 
-module MCP2 : Analyses.Spec
+module MCP2 : Analyses.PostSpec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
@@ -38,7 +38,6 @@ struct
   let path_sens = ref []
   let cont_inse = ref []
   let base_id   = ref (-1)
-
 
   let topo_sort deps circ_msg =
     let rec f res stack = function
@@ -87,11 +86,11 @@ struct
     activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
-      iter2 (fun (_,{spec=(module S:MCPSpec); _}) marshal -> S.init (Some (Obj.obj marshal))) !activated marshal
+      iter2 (fun (_,{spec=(module S:MCPPostSpec); _}) marshal -> S.init (Some (Obj.obj marshal))) !activated marshal
     | None ->
-      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !activated
+      iter (fun (_,{spec=(module S:MCPPostSpec); _}) -> S.init None) !activated
 
-  let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !activated
+  let finalize () = map (fun (_,{spec=(module S:MCPPostSpec); _}) -> Obj.repr (S.finalize ())) !activated
 
   let spec x = (find_spec x).spec
   let spec_list xs =
@@ -101,22 +100,22 @@ struct
 
   let map_deadcode f xs =
     let dead = ref false in
-    let one_el xs (n,(module S:MCPSpec),d) = try f xs (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
+    let one_el xs (n,(module S:MCPPostSpec),d) = try f xs (n,(module S:MCPPostSpec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
   let context fd x =
     let x = spec_list x in
-    filter_map (fun (n,(module S:MCPSpec),d) ->
+    filter_map (fun (n,(module S:MCPPostSpec),d) ->
         if mem n !cont_inse then
           None
         else
           Some (n, repr @@ S.context fd (obj d))
       ) x
 
-  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
-  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
-  let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
+  let exitstate  v = map (fun (n,{spec=(module S:MCPPostSpec); _}) -> n, repr @@ S.exitstate  v) !activated
+  let startstate v = map (fun (n,{spec=(module S:MCPPostSpec); _}) -> n, repr @@ S.startstate v) !activated
+  let morphstate v x = map (fun (n,(module S:MCPPostSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
@@ -201,7 +200,7 @@ struct
         let emits = ref [] in
         let ctx'' = outer_ctx "do_emits" ~spawns ~sides ~emits ctx in
         let octx'' = outer_ctx "do_emits" ~spawns ~sides ~emits octx in
-        let f post_all (n,(module S:MCPSpec),(d,od)) =
+        let f post_all (n,(module S:MCPPostSpec),(d,od)) =
           let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all ctx'' n d in
           let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
           n, repr @@ S.event ctx' e octx'
@@ -233,7 +232,7 @@ struct
     let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
     let emits = ref [] in
     let ctx'' = outer_ctx "branch" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "branch" ~splits ~post_all ctx'' n d in
       n, repr @@ S.branch ctx' e tv
     in
@@ -262,7 +261,7 @@ struct
           let asked' = Queries.Set.add anyq asked in
           let sides = ref [] in
           let ctx'' = outer_ctx "query" ~sides ctx in
-          let f ~q a (n,(module S:MCPSpec),d) =
+          let f ~q a (n,(module S:MCPPostSpec),d) =
             let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "query" ctx'' n d in
             (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
                See https://github.com/goblint/analyzer/pull/214. *)
@@ -287,7 +286,7 @@ struct
             Obj.repr (access ctx a)
           | Queries.IterSysVars (vq, fi) ->
             (* IterSysVars is special: argument function is lifted for each analysis *)
-            iter (fun ((n,(module S:MCPSpec),d) as t) ->
+            iter (fun ((n,(module S:MCPPostSpec),d) as t) ->
                 let fi' x = fi (Obj.repr (v_of n x)) in
                 let q' = Queries.IterSysVars (vq, fi') in
                 f ~q:q' () t
@@ -316,7 +315,7 @@ struct
 
   and access (ctx:(D.t, G.t, C.t, V.t) ctx) a: MCPAccess.A.t =
     let ctx'' = outer_ctx "access" ctx in
-    let f (n, (module S: MCPSpec), d) =
+    let f (n, (module S: MCPPostSpec), d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "access" ctx'' n d in
       (n, repr (S.access ctx' a))
     in
@@ -364,7 +363,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "assign" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "assign" ~splits ~post_all ctx'' n d in
       n, repr @@ S.assign ctx' l e
     in
@@ -382,7 +381,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "vdecl" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "vdecl" ~splits ~post_all ctx'' n d in
       n, repr @@ S.vdecl ctx' v
     in
@@ -399,7 +398,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "body" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "body" ~splits ~post_all ctx'' n d in
       n, repr @@ S.body ctx' f
     in
@@ -416,7 +415,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "return" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "return" ~splits ~post_all ctx'' n d in
       n, repr @@ S.return ctx' e f
     in
@@ -434,7 +433,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "asm" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~post_all ctx'' n d in
       n, repr @@ S.asm ctx'
     in
@@ -451,7 +450,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "skip" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "skip" ~splits ~post_all ctx'' n d in
       n, repr @@ S.skip ctx'
     in
@@ -468,9 +467,45 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "special" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "special" ~splits ~post_all ctx'' n d in
       n, repr @@ S.special ctx' r f a
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let modular_combine_env (ctx:(D.t, G.t, C.t, V.t) ctx) r f a f_ask =
+    (* TODO: Deduplicate with special *)
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "modular_combine_env" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPPostSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "modular_combine_env" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.modular_combine_env ctx' r f a f_ask
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let modular_combine_assign (ctx:(D.t, G.t, C.t, V.t) ctx) r f a f_ask =
+    (* TODO: Deduplicate with special *)
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "modular_combine_assign" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPPostSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "modular_combine_assign" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.modular_combine_assign ctx' r f a f_ask
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -485,7 +520,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "sync" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "sync" ~splits ~post_all ctx'' n d in
       n, repr @@ S.sync ctx' reason
     in
@@ -500,7 +535,7 @@ struct
     let spawns = ref [] in
     let sides  = ref [] in
     let ctx'' = outer_ctx "enter" ~spawns ~sides ctx in
-    let f (n,(module S:MCPSpec),d) =
+    let f (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "enter" ctx'' n d in
       map (fun (c,d) -> ((n, repr c), (n, repr d))) @@ S.enter ctx' r f a
     in
@@ -528,7 +563,7 @@ struct
         spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
-    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
+    let f post_all (n,(module S:MCPPostSpec),(d,fc,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_env" ~post_all ctx'' n d in
       n, repr @@ S.combine_env ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
     in
@@ -557,7 +592,7 @@ struct
         spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
-    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
+    let f post_all (n,(module S:MCPPostSpec),(d,fc,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_assign" ~post_all ctx'' n d in
       n, repr @@ S.combine_assign ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
     in
@@ -571,7 +606,7 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in
-    let f (n,(module S:MCPSpec),d) =
+    let f (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadenter" ctx'' n d in
       map (fun d -> (n, repr d)) @@ (S.threadenter ~multiple) ctx' lval f a
     in
@@ -585,7 +620,7 @@ struct
     let emits = ref [] in
     let ctx'' = outer_ctx "threadspawn" ~sides ~emits ctx in
     let fctx'' = outer_ctx "threadspawn" ~sides ~emits fctx in
-    let f post_all (n,(module S:MCPSpec),(d,fd)) =
+    let f post_all (n,(module S:MCPPostSpec),(d,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all ctx'' n d in
       let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all fctx'' n fd in
       n, repr @@ S.threadspawn ~multiple ctx' lval f a fctx'

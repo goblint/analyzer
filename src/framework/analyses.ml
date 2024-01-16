@@ -122,7 +122,7 @@ end
 exception Deadcode
 
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
-module Dom (LD: Lattice.S) =
+module Dom (LD: Lattice.T) =
 struct
   include Lattice.LiftConf (struct
       include Printable.DefaultConf
@@ -131,6 +131,17 @@ struct
     end) (LD)
 
   let lift (x:LD.t) : t = `Lifted x
+
+  let map (f: LD.t -> LD.t) (x: t) : t =
+    match x with
+    | `Lifted x -> `Lifted (f x)
+    | `Bot
+    | `Top -> x
+
+  let to_modular = map (LD.to_modular)
+  let to_non_modular = map (LD.to_non_modular)
+
+  let remove_non_modular = map (LD.remove_non_modular)
 
   let unlift x =
     match x with
@@ -242,6 +253,15 @@ sig
       computes the caller state after the function call *)
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
 
+
+  (** Combine environment for call to a function that is analyzed modularly.
+      Only needs to be implemented for anylses that do not support the modular analysis mode. *)
+  val modular_combine_env : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> Queries.ask -> D.t
+
+  (** Combine return value assignment for call to a function that is analyzed modularly.
+      Only needs to be implemented for anylses that do not support the modular analysis mode. *)
+  val modular_combine_assign : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> Queries.ask -> D.t
+
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
       In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
@@ -274,6 +294,7 @@ sig
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
+
 module type MCPA =
 sig
   include Printable.S
@@ -281,12 +302,28 @@ sig
   val should_print: t -> bool (** Whether value should be printed in race output. *)
 end
 
+type modular_support = Modular | NonModular | Both
+
 module type MCPSpec =
 sig
   include Spec
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
+  val modular_support: unit -> modular_support
+end
+
+module type PostSpec =
+sig
+  module D: Lattice.T
+  include Spec with module D := D
+end
+
+module type MCPPostSpec =
+sig
+  module D: Lattice.T
+  module G: Lattice.T
+  include MCPSpec with module D := D and module G := G
 end
 
 type increment_data = {
@@ -382,6 +419,10 @@ struct
 
   module A = UnitA
   let access _ _ = ()
+
+  let modular_support () = NonModular
+  let modular_combine_env ctx _ _ _ _ = ctx.local
+  let modular_combine_assign ctx _ _ _ _ = ctx.local
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)
@@ -419,7 +460,7 @@ end
 
 module type SpecSys =
 sig
-  module Spec: Spec
+  module Spec: PostSpec
   module EQSys: ConstrSys.GlobConstrSys with module LVar = VarF (Spec.C)
                                and module GVar = GVarF (Spec.V)
                                and module D = Spec.D

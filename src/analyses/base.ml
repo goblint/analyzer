@@ -7,6 +7,7 @@ open Analyses
 open GobConfig
 open BaseUtil
 open ReturnUtil
+open ModularUtil0
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
@@ -88,6 +89,10 @@ struct
    **************************************************************************)
 
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
+
+  let is_modular ctx =
+    let ask = Analyses.ask_of_ctx ctx in
+    ask.f Queries.IsModular
 
   (*This is a bit of a hack to be able to change array domains if a pointer to an array is given as an argument*)
   (*We have to prevent different domains to be used at the same time for the same array*)
@@ -242,6 +247,8 @@ struct
     | Lt | Gt | Le | Ge | Eq | Ne -> true
     | _ -> false
 
+
+
   (* Evaluate binop for two abstract values: *)
   let evalbinop_base (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
@@ -290,7 +297,7 @@ struct
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_mval addr with
-      | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
+      | Some (x, o) -> Addr.of_mval ~is_modular:(a.f IsModular) (x, addToOffset n (Some x.vtype) o)
       | None -> default addr
     in
     let addToAddrOp p (n:ID.t):value =
@@ -405,9 +412,9 @@ struct
   (* TODO: Use AddressDomain for queries *)
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
-  let add_offset_varinfo add ad =
+  let add_offset_varinfo (ask: Queries.ask) add ad =
     match Addr.to_mval ad with
-    | Some (x,ofs) -> Addr.of_mval (x, Addr.Offs.add_offset ofs add)
+    | Some (x,ofs) -> Addr.of_mval ~is_modular:(ask.f IsModular) (x, Addr.Offs.add_offset ofs add)
     | None -> ad
 
 
@@ -425,7 +432,7 @@ struct
         ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !earlyglobs;
-    if !earlyglobs || multi then
+    if (!earlyglobs || multi) && not ((Analyses.ask_of_ctx ctx).f IsModular) then
       WideningTokens.with_local_side_tokens (fun () ->
           Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason
         )
@@ -438,10 +445,11 @@ struct
     ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
-    if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then
+    if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x && not (a.f IsModular) then
       Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+      let x = ModularUtil.varinfo_or_canonical ~is_modular:(a.f IsModular) x in
       CPA.find x st.cpa
     end
 
@@ -459,7 +467,7 @@ struct
         (* get hold of the variable value, either from local or global state *)
         let var = get_var a gs st x in
         let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
-        if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
+        if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.of_mval ~is_modular:(a.f IsModular) (x, offs)) VD.pretty v;
         if full then var else match v with
           | Blob (c,s,_) -> c
           | x -> x
@@ -518,7 +526,8 @@ struct
     (* The main thing is to track where pointers go: *)
     | Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
-    | Union (f,e) -> reachable_from_value ask gs st e t description
+    | Union u ->
+      ValueDomain.Unions.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) u empty
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
     | Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
@@ -589,7 +598,7 @@ struct
         | Int _       -> Top
         | Array n     -> Array (ValueDomain.CArrays.map replace_val n)
         | Struct n    -> Struct (ValueDomain.Structs.map replace_val n)
-        | Union (f,v) -> Union (f,replace_val v)
+        | Union n -> Union (ValueDomain.Unions.map (fun _ -> replace_val) n)
         | Blob (n,s,o)  -> Blob (replace_val n,s,o)
         | Address x -> Address (AD.map ValueDomain.Addr.top_indices x)
         | x -> x
@@ -627,9 +636,8 @@ struct
         | x -> x
       in
       let with_field (a,t,b) = function
-        | `Top -> (AD.empty (), TS.top (), false)
-        | `Bot -> (a,t,false)
-        | `Lifted f -> with_type f.ftype (a,t,b)
+        | None -> (AD.empty (), TS.top (), false)
+        | Some f -> with_type f.ftype (a,t,b)
       in
       let rec reachable_from_value (value: value) =
         match value with
@@ -637,7 +645,12 @@ struct
         | Bot -> (empty, TS.bot (), false)
         | Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | Address adrs -> (adrs,TS.bot (), AD.may_be_unknown adrs)
-        | Union (t,e) -> with_field (reachable_from_value e) t
+        | Union n ->
+          let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
+          let f k v =
+            join_tr (with_field (reachable_from_value v) k)
+          in
+          ValueDomain.Unions.fold f n (empty, TS.bot (), false)
         | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()))
         | Blob (e,_,_) -> reachable_from_value e
         | Struct s ->
@@ -872,7 +885,7 @@ struct
         * to its first element [&a[0]]. *)
       | StartOf lval ->
         let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
-        let array_start = add_offset_varinfo array_ofs in
+        let array_start = add_offset_varinfo a array_ofs in
         Address (AD.map array_start (eval_lv a gs st lval))
       | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv a gs st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
@@ -1032,7 +1045,7 @@ struct
     (* The simpler case with an explicit variable, e.g. for [x.field] we just
      * create the address { (x,field) } *)
     | Var x, ofs ->
-      AD.singleton (Addr.of_mval (x, convert_offset a gs st ofs))
+      AD.singleton (Addr.of_mval ~is_modular:(a.f IsModular) (x, convert_offset a gs st ofs))
     (* The more complicated case when [exp = & x.field] and we are asked to
      * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
      * and then add the subfield to it: { (x,field.subfield) }. *)
@@ -1057,7 +1070,7 @@ struct
               M.warn "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
             )
           );
-          AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
+          AD.map (add_offset_varinfo a (convert_offset a gs st ofs)) adr
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
           AD.unknown_ptr
@@ -1335,6 +1348,20 @@ struct
           end
         | _ -> AD.empty ()
       end
+    | Q.ReachableAddressesFrom e ->
+      begin
+        let ask = Analyses.ask_of_ctx ctx in
+        match eval_rv_address ask ctx.global ctx.local e with
+        | Address a ->
+          let reachable = reachable_vars ask [a] ctx.global ctx.local in
+          let reachable = List.fold AD.join (AD.bot ()) reachable in
+          reachable
+        | Top ->
+          Queries.Result.top q
+        | Bot
+        | _ -> (* Not an address *)
+          Queries.Result.bot q
+      end
     | Q.ReachableUkTypes e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | Top -> Queries.Result.top q
@@ -1372,6 +1399,9 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
+    | Q.EvalLval lval ->
+      let addrs = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+      addrs
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak ||
                         (hasAttribute "thread" v.vattr && v.vaddrof) (* thread-local variables if they have their address taken, as one could then compare several such variables *)
     | Q.IterSysVars (vq, vf) ->
@@ -1424,6 +1454,7 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) (st: store): store =
+      let x = ModularUtil.varinfo_or_canonical ~is_modular:(a.f IsModular) x in
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
@@ -1441,11 +1472,13 @@ struct
               M.debug ~category:Analyzer "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
+      let is_modular = a.f Q.IsModular in
       let update_offset old_value =
         (* Projection globals to highest Precision *)
         let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
         let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
-        if WeakUpdates.mem x st.weak then
+        let weak_update = if is_modular then is_global a x else WeakUpdates.mem x st.weak in
+        if weak_update then
           VD.join old_value new_value
         else if invariant then (
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
@@ -1457,7 +1490,7 @@ struct
         else
           new_value
       in
-      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.of_mval (x,offs)) d_type x.vtype D.pretty st;
+      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.of_mval ~is_modular (x,offs)) d_type x.vtype D.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
         st
@@ -1468,7 +1501,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then begin
+      if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x && not is_modular then begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
         (* Optimization to avoid evaluating integer values when setting them.
@@ -1742,7 +1775,7 @@ struct
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
               let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-              set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
+              set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.of_var ~is_modular:(is_modular ctx) v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | None ->
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           end
@@ -1800,7 +1833,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.of_var v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
+    let init_var v = (AD.of_var ~is_modular:(is_modular ctx) v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
@@ -1900,6 +1933,60 @@ struct
     set_many ~ctx ask gs st invalids'
 
 
+  module VS = Set.Make (CilType.Varinfo)
+  let typed_pointer_closure (state: CPA.t) (to_create: VS.t) : CPA.t =
+    let add_target (x: varinfo) (store: CPA.t) =
+      let t = x.vtype in
+      let v, targets = VD.top_value_typed_address_targets t in
+      if M.tracing then M.tracel "typed_pointer_closure" "Adding %a, type %a -> %a to store\n" CilType.Varinfo.pretty x CilType.Typ.pretty x.vtype VD.pretty v;
+      CPA.add x v store, targets
+    in
+    let workset = ref to_create in
+    let st = ref state in
+    while not (VS.is_empty !workset) do
+      let x = VS.choose !workset in
+      workset := VS.remove x !workset;
+      if not (CPA.mem x !st) then (
+        let state, targets = add_target x !st in
+        st := state;
+        let targets = VS.of_list targets in
+        let not_contained_in_store (y: VS.t) st =
+          VS.filter (fun v -> not (CPA.mem v st)) y
+        in
+        let new_targets = not_contained_in_store targets !st in
+        workset := VS.union !workset new_targets;
+      )
+    done;
+    !st
+
+  let global_variables () =
+    let globals = (List.filter_map (fun g -> match g with GVar (v,_,_) -> if not (isFunctionType v.vtype) then Some v else None | _ -> None)) (!Cilfacade.current_file).globals in
+    globals
+
+  let make_modular_entry (f: fundec) : D.t =
+    let params = f.sformals in
+    let referenced_locals = List.filter (fun x -> x.vreferenced) f.slocals in
+    let params = params @ referenced_locals in
+
+    let params = List.map (fun x -> (x, VD.top_value_typed_address_targets x.vtype)) params in
+    let params_targets = List.concat_map (fun (_, (_, ts)) -> ts) params |> VS.of_list in
+    let params = List.map (fun (x, (v, _)) -> (x, v)) params in
+
+    let globals = global_variables () in
+    (* TODO: All accesses to global x have to go through global_varinfo x *)
+    let globals = List.map (fun x -> (ModularUtil.varinfo_to_canonical x, VD.top_value_typed_address_targets x.vtype)) (globals) in
+    let globals_targets = List.concat_map (fun (_, (_, ts)) -> ts) globals |> VS.of_list in
+    let globals = List.map (fun (x, (v, _)) -> (x, v)) globals in
+
+    let targets = VS.union params_targets globals_targets in
+    let cpa = CPA.add_list params (CPA.bot ()) in
+    let cpa = CPA.add_list globals cpa in
+    let cpa = typed_pointer_closure cpa targets in
+    let startstate = startstate () in
+    let startstate = { startstate with cpa = cpa } in
+    if M.tracing then M.tracel "make_canonical_entry" "Canonical entry state for function %a: %a\n" CilType.Fundec.pretty f D.pretty startstate;
+    startstate
+
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
@@ -1942,10 +2029,18 @@ struct
     let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
     {st' with cpa = new_cpa; weak = new_weak}
 
+  (* Whether the callee should be analyzed modularly.
+     [ask]: ask of caller, [callee]: fundec of callee. *)
+  let is_callee_modular ~(ask: Q.ask) ~(callee: fundec) =
+    ask.f IsModular || is_modular_fun callee.svar
+
   let enter ctx lval fn args : (D.t * D.t) list =
-    [ctx.local, make_entry ctx fn args]
-
-
+    let entry_state = if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:fn  then
+        make_modular_entry fn
+      else
+        make_entry ctx fn args
+    in
+    [ctx.local, entry_state]
 
   let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list * bool) list =
     let create_thread ~multiple lval arg v =
@@ -2477,7 +2572,7 @@ struct
     | Alloca size, _ -> begin
         match lv with
         | Some lv ->
-          let heap_var = AD.of_var (heap_var true ctx) in
+          let heap_var = AD.of_var ~is_modular:(is_modular ctx) (heap_var true ctx) in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
                                                          (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
@@ -2488,8 +2583,8 @@ struct
         | Some lv ->
           let heap_var =
             if (get_bool "sem.malloc.fail")
-            then AD.join (AD.of_var (heap_var false ctx)) AD.null_ptr
-            else AD.of_var (heap_var false ctx)
+            then AD.join (AD.of_var ~is_modular:(is_modular ctx) (heap_var false ctx)) AD.null_ptr
+            else AD.of_var ~is_modular:(is_modular ctx) (heap_var false ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
@@ -2509,16 +2604,16 @@ struct
           let countval = eval_int (Analyses.ask_of_ctx ctx) gs st n in
           if ID.to_int countval = Some Z.one then (
             set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
-              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
-              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
+              (add_null (AD.of_var ~is_modular:(is_modular ctx) heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
+              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var ~is_modular:(is_modular ctx) heap_var)))
             ]
           )
           else (
             let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
-              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
-              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
+              (add_null (AD.of_var ~is_modular:(is_modular ctx) heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
+              (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval ~is_modular:(is_modular ctx) (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
             ]
           )
         | _ -> st
@@ -2542,7 +2637,7 @@ struct
           let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ask gs st size in
           let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
-          let heap_addr = AD.of_var (heap_var false ctx) in
+          let heap_addr = AD.of_var ~is_modular:(is_modular ctx) (heap_var false ctx) in
           let heap_addr' =
             if get_bool "sem.malloc.fail" then
               AD.join heap_addr AD.null_ptr
@@ -2597,7 +2692,7 @@ struct
       in
       let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t ask ctx.global ctx.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+      set ~ctx ~t_override:t ask ctx.global ctx.local (AD.of_var ~is_modular:(is_modular ctx)  !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | Rand, _ ->
       begin match lv with
         | Some x ->
@@ -2653,7 +2748,7 @@ struct
         | _ -> st
       ) tainted_lvs local_st
 
-  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+  let combine_env_regular ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2707,6 +2802,90 @@ struct
     in
     combine_one ctx.local au
 
+  module AddrMap = Map.Make (Addr)
+  type value_map = VD.t AddrMap.t
+
+  let modular_glob_fun ctx v =
+    let ask = Analyses.ask_of_ctx ctx in
+    if ask.f IsModular then
+      failwith "glob fun should not be called."
+    else
+      ctx.global v
+
+  let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
+    let ask = Analyses.ask_of_ctx ctx in
+    let glob_fun = modular_glob_fun ctx in
+    let callee_globals = UsedGlobals.get_callee_globals f_ask in
+    let effective_args = args @ callee_globals in
+    let reachable = collect_funargs ask ~warn:false glob_fun ctx.local effective_args in
+    let reachable = List.fold AD.join (AD.bot ()) reachable in
+    let writes = f_ask.f Q.Written in
+
+    if WrittenDomain.Written.is_top writes then
+      failwith "Everything tainted -> should set everything reachable to top!"
+    else
+      let vars_to_writes : value_map VarMap.t =
+        let update_entry (address: address) (value: value) (acc: value_map VarMap.t) =
+          let lvals = AD.to_mval address in
+          let update_var acc (c, offs) =
+            let addr = Addr.of_mval ~is_modular:(is_modular ctx) (c, offs) in
+            let bot = VD.bot_value (Addr.type_of addr) in
+            let default_map = AddrMap.singleton (Addr.of_mval ~is_modular:(is_modular ctx) (c, offs)) bot in
+            let map = VarMap.find_default default_map c acc in
+
+            let old_value = AddrMap.find_default bot addr map in
+            let value = VD.join old_value value in
+
+            let map = AddrMap.add addr value map in
+            VarMap.add c map acc
+          in
+          List.fold update_var acc lvals
+        in
+        WrittenDomain.Written.fold update_entry writes VarMap.empty
+      in
+      let update_written_addresses (canonical: varinfo) (write: value_map) (state: D.t) =
+        let represented = ModularUtil.represented_by ~canonical ~reachable  in
+        if M.tracing then M.tracel "combine_env_modular" "Represented by %a with reachable %a: %a\n" CilType.Varinfo.pretty canonical AD.pretty reachable AD.pretty represented;
+        let update (c_o: Addr.t) (written_value: value) (state: D.t) =
+          match Addr.to_mval c_o with
+          | Some (c, o) ->
+            let typ = Addr.type_of c_o in
+            let update_one repr state =
+              match Addr.to_mval repr with
+              | Some (x, offs) ->
+                let offs = Offs.add_offset_merge_index_offset ~base_offset:offs ~additional_offset:o in
+                let address_to_update = AD.singleton (Addr.of_mval ~is_modular:(is_modular ctx) (x, offs)) in
+
+                let old_value = get (Analyses.ask_of_ctx ctx) glob_fun ctx.local address_to_update None in
+                let c_value = ModularUtil.ValueDomainExtension.map_back ~reachable written_value in
+                let value = VD.join old_value c_value in
+
+                let result = set (Analyses.ask_of_ctx ctx) ~ctx glob_fun state address_to_update typ value in
+                if M.tracing then M.tracel "combine_env_modular" "Updating %a with %a\n results in: %a\n" AD.pretty address_to_update VD.pretty value D.pretty result;
+                result
+              | None -> state
+            in
+            AD.fold update_one represented state
+          | None -> state
+        in
+        AddrMap.fold update write state
+      in
+      VarMap.fold update_written_addresses vars_to_writes ctx.local
+
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+    if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:f then
+      combine_env_modular ctx lval fexp f args fc au f_ask
+    else
+      combine_env_regular ctx lval fexp f args fc au f_ask
+
+  let translate_callee_value_back ctx (args: exp list) (value: VD.t): VD.t =
+    let glob_fun = modular_glob_fun ctx in
+    let ask = Analyses.ask_of_ctx ctx in
+    let reachable = collect_funargs ask ~warn:false glob_fun ctx.local args in
+    let reachable = List.fold AD.join (AD.bot ()) reachable in
+    let value = ModularUtil.ValueDomainExtension.map_back value ~reachable in
+    value
+
   let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       let return_var = return_var () in
@@ -2715,7 +2894,13 @@ struct
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
       in
-
+      let return_val = if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:f then
+          let callee_globals = UsedGlobals.get_callee_globals f_ask in
+          let effective_args = args @ callee_globals in
+          translate_callee_value_back ctx effective_args return_val
+        else
+          return_val
+      in
       (* Projection to Precision of the Caller *)
       let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let callerFundec = match !MyCFG.current_node with
@@ -2880,7 +3065,7 @@ struct
     let e_d' =
       WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
-              let addr: AD.t = AD.of_mval (x, `NoOffset) in
+              let addr: AD.t = AD.of_mval ~is_modular:(is_modular ctx) (x, `NoOffset) in
               set (Analyses.ask_of_ctx ctx) ~ctx ~invariant:false ctx.global acc addr x.vtype v
             ) e_d.cpa ctx.local
         )
@@ -2919,6 +3104,8 @@ struct
       end
     | _ ->
       ctx.local
+
+  let modular_support () = Both
 end
 
 module type MainSpec = sig
@@ -2945,7 +3132,12 @@ let get_main (): (module MainSpec) =
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
+  let dep =
+    let base_dependencies = ["mallocWrapper"] in
+    let modular_dependencies = if get_bool "modular" then ["modular_queries"; "is_modular"; "written"; "used_globals"] else [] in
+    base_dependencies @ modular_dependencies
+  in
+  MCP.register_analysis ~dep (module Main : MCPSpec)
 
 let _ =
   AfterConfig.register after_config
