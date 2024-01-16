@@ -335,7 +335,7 @@ sig
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
-module type Z = Y with type int_t = IntOps.BigIntOps.t
+module type Z = Y with type int_t = Z.t
 
 module IntDomLifter (I: S): Y with type int_t = I.int_t
 
@@ -407,17 +407,17 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 
 module BigInt:
   sig
-    include Printable.S with type t = Z.t (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+    include Printable.S with type t = Z.t
     val cast_to: Cil.ikind -> Z.t -> Z.t
   end
 
-module Interval : SOverflow with type int_t = IntOps.BigIntOps.t
+module Interval : SOverflow with type int_t = Z.t
 
-module IntervalSet : SOverflow with type int_t = IntOps.BigIntOps.t
+module IntervalSet : SOverflow with type int_t = Z.t
 
-module Congruence : S with type int_t = IntOps.BigIntOps.t
+module Congruence : S with type int_t = Z.t
 
-module DefExc : S with type int_t = IntOps.BigIntOps.t
+module DefExc : S with type int_t = Z.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 
@@ -440,7 +440,7 @@ module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and typ
 
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
-module Enums : S with type int_t = IntOps.BigIntOps.t
+module Enums : S with type int_t = Z.t
 
 (** {b Boolean domains} *)
 
