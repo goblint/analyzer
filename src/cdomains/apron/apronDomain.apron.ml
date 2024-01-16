@@ -515,8 +515,7 @@ struct
 
       LAnd, LOr, LNot are directly supported by Apron domain in order to
       confirm logic-containing Apron invariants from witness while deep-query is disabled *)
-  let rec assert_cons d e negate (ov: bool Lazy.t) =
-    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in (* TODO: why ignores no_ov argument? *)
+  let rec assert_cons d e negate no_ov =
     match e with
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
