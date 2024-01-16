@@ -1398,6 +1398,11 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
+    | Q.MayOverflow e ->  
+      IntDomain.local_no_overflow := true;
+      if M.tracing then M.trace "apron" "exp %a\n" d_exp e;
+      ignore(query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e);
+      !IntDomain.local_no_overflow ;
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

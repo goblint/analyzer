@@ -180,12 +180,12 @@ struct
     | exception Invalid_argument _ -> false (* TODO: why this? *)
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
-      if IntDomain.should_wrap ik then
-        false
-      else if IntDomain.should_ignore_overflow ik then
+      if IntDomain.should_ignore_overflow ik then
         true
       else
-        not (Queries.ID.is_top_of ik (ask.f (EvalInt exp)))
+        let t = ask.f (MayOverflow exp) in
+        if M.tracing then M.trace "overflow" "no_o exp: %a %a -> %b \n" d_exp exp d_ikind ik t;
+        t
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in

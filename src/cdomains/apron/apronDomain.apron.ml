@@ -521,32 +521,32 @@ struct
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
     | BinOp (Ne, lhs, rhs, intType) when not negate ->
-      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) negate ov in
-      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) negate ov in
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) negate no_ov in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) negate no_ov in
       join assert_gt assert_lt
     | BinOp (Eq, lhs, rhs, intType) when negate ->
-      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
-      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) no_ov in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) no_ov in
       join assert_gt assert_lt
     | BinOp (LAnd, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_cons d lhs negate no_ov in
+      let assert_r = assert_cons d rhs negate no_ov in
       meet assert_l assert_r
     | BinOp (LAnd, lhs, rhs, intType) when negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_cons d lhs negate no_ov in
+      let assert_r = assert_cons d rhs negate no_ov in
       join assert_l assert_r (* de Morgan *)
     | BinOp (LOr, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_cons d lhs negate no_ov in
+      let assert_r = assert_cons d rhs negate no_ov in
       join assert_l assert_r
     | BinOp (LOr, lhs, rhs, intType) when negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_cons d lhs negate no_ov in
+      let assert_r = assert_cons d rhs negate no_ov in
       meet assert_l assert_r (* de Morgan *)
-    | UnOp (LNot,e,_) -> assert_cons d e (not negate) ov
+    | UnOp (LNot,e,_) -> assert_cons d e (not negate) no_ov
     | _ ->
-      begin match Convert.tcons1_of_cil_exp d (A.env d) e negate no_ov with
+      begin match Convert.tcons1_of_cil_exp d (A.env d) e negate (Lazy.force no_ov) with
         | tcons1 ->
           if M.tracing then M.trace "apron" "assert_cons %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
           if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pretty d;
