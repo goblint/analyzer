@@ -519,7 +519,30 @@ struct
       |> List.filter RD.Tracked.varinfo_tracked
       |> List.map RV.local
     in
+    let pointsToList = match e with 
+      | Some e -> 
+        begin match ctx.ask (Queries.MayPointTo e) with
+          | a when not (Queries.AD.is_top a) ->  
+            Queries.AD.fold ( fun (addr )  (st )   ->
+                match addr with
+                | Addr (v,o) -> 
+                  let allocatedLength = AllocSize.to_varinfo v in
+                  allocatedLength :: st
+                | _ -> st
+              )  a []
+          | _ -> []
+        end
+      | None -> []
+    in
     RD.remove_vars_with new_rel local_vars;
+    RD.remove_filter_with new_rel (fun var ->
+        match RV.to_cil_varinfo var with
+        | None -> false
+        | Some var -> 
+          ArrayMap.mem_varinfo var  ||
+          PointerMap.mem_varinfo var ||
+          AllocSize.mem_varinfo var  && not @@ List.mem_cmp CilType.Varinfo.compare var pointsToList
+      );
     let st' = {st with rel = new_rel} in
     begin match ThreadId.get_current ask with
       | `Lifted tid when ThreadReturn.is_current ask ->
@@ -587,59 +610,17 @@ struct
     if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
         | Some lv ->
-          let unify_st' = assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
+          assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
               RD.assign_var st.rel (RV.local v) RV.return
-            ) in
-
-          unify_st'
+            )
         | None ->
-          if M.tracing then M.trace "re" "remove\n";
           unify_st
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
-      RD.remove_filter_with unify_st.rel (fun var ->
-          match RV.to_cil_varinfo var with
-          | None -> false
-          | Some var -> 
-            if M.tracing then M.trace "re" "var=%a\n" CilType.Varinfo.pretty var;
-            ArrayMap.mem_varinfo var  ||
-            PointerMap.mem_varinfo var ||
-            AllocSize.mem_varinfo var 
-        );
       unify_st'
     )
     else
-      (
-        let alloclist = match r with
-          | Some lv -> 
-            begin match f_ask.f (Queries.MayPointTo (Lval lv)) with 
-              | a when not (Queries.AD.is_top a) ->  
-                Queries.AD.fold ( fun (addr )  (st )   ->
-                    match addr with
-                    | Addr (v,o) -> 
-                      let allocatedLength = AllocSize.to_varinfo v in
-                      allocatedLength :: st
-                    | _ -> if M.tracing then M.trace "re" "no addr?\n"; st
-                  )  a []
-              | _ -> if M.tracing then M.trace "re" "Top?\n";[]
-            end
-          | _  -> []
-        in
-        (if M.tracing then M.trace "re" "NOt remove RV.return=%a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo RV.return);
-         if M.tracing then M.trace "re" "alloclist Len=%s\n" (List.length alloclist |> string_of_int);
-         List.iter (fun x-> if M.tracing then M.trace "re" "alloclist=%a\n" CilType.Varinfo.pretty x) alloclist;
-         RD.remove_filter_with unify_st.rel (fun var ->
-             match RV.to_cil_varinfo var with
-             | None -> false
-             | Some var -> 
-               if M.tracing then M.trace "re" "var=%a\n" CilType.Varinfo.pretty var;
-               ArrayMap.mem_varinfo var  ||
-               PointerMap.mem_varinfo var ||
-               AllocSize.mem_varinfo var  && not @@ List.mem_cmp CilType.Varinfo.compare var alloclist
-           );
-         unify_st 
-        )
-      )
+      unify_st
 
   let invalidate_one ask ctx st lv =
     assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
