@@ -197,7 +197,7 @@ struct
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
-    | ik ->
+    | ik  -> (* don't add type bounds for signed when assume_none *)
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
@@ -243,33 +243,48 @@ struct
     inner e
 
   (* Mapping lval to varinfo *)
-  module LvalMapping = struct 
+  module VarinfoDepthMapping = struct 
     type t = varinfo * int 
 
     let equal: t -> t -> bool = fun (v,s) (v2,s2) ->  
       CilType.Varinfo.equal v v2 && s = s2 
-
     let hash: t -> int = fun (v,s) ->
       31 * CilType.Varinfo.hash v + Hashtbl.hash s
     let name_varinfo : t -> string = fun (v,s) -> 
       v.vname ^ string_of_int s ^ "$len"
-
     let describe_varinfo : varinfo -> t -> string = 
       fun v (var,s) -> 
-        v.vname ^ "->" ^  name_varinfo (var,s)
+      v.vname ^ "->" ^  name_varinfo (var,s)
+  end 
 
+  module VarinfoMapping = struct 
+    type t = varinfo 
+
+    let equal: t -> t -> bool = fun v v2 ->  
+      CilType.Varinfo.equal v v2 
+    let hash: t -> int = fun v ->
+      CilType.Varinfo.hash v
+    let name_varinfo : t -> string = fun v -> 
+      v.vname ^ "$len"
+    let describe_varinfo : varinfo -> t -> string = 
+      fun v var -> 
+      v.vname ^ "->" ^  name_varinfo var
   end 
 
   module PointerType = struct 
-    let varType  = TInt(!kindOfSizeOf, []) 
-    let isGlobal = true
+    let varType  = !upointType 
+    (* let varType  = TInt(ILong, []) *)
+    (* let varType = TInt (IUInt , []) *)
+    (* let varType = TInt (IInt , []) *)
+    let isGlobal = false
   end
 
-  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(LvalMapping) (PointerType)
+  module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDepthMapping) (PointerType)
+  module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
+  module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
 
-  (* Basic transfer functions. *)
 
-  let assign ctx (lv:lval) e =
+  let assignVariable ctx (lv:lval) e = 
     let st = ctx.local in
     if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so env is empty... *)
@@ -291,17 +306,61 @@ struct
       r
     )
 
+  let sizePointer expWithPointer sizeOfTyp = 
+    let rec replacePointer e = 
+      match e with 
+      | Lval (Var v, offset) ->
+        let castedPointer =  PointerMap.to_varinfo v in 
+        Lval (Var castedPointer, offset)
+      | BinOp (binop, e1, e2, typ) when binop = PlusPI || binop = IndexPI ->  (*pointer is always on the most left*)
+        let e2WithMult = BinOp (Mult, integer sizeOfTyp , CastE (!upointType ,e2), !upointType) in
+        BinOp (PlusA, replacePointer e1 , e2WithMult, typ) 
+      | BinOp (MinusPI, e1, e2, typ) -> 
+        let e2WithMult = BinOp (Mult, integer sizeOfTyp, CastE (!upointType ,e2), !upointType) in
+        BinOp (MinusA, replacePointer e1 , e2WithMult, typ) 
+      | e -> e
+    in
+    match expWithPointer with 
+    | CastE (t,e) -> replacePointer e 
+    | e -> replacePointer e
+
+
+  let pointerAssign ctx (v:varinfo) e = 
+    let ptr_typ = typeOf (Lval (Var v,NoOffset)) in
+    match ptr_typ with 
+    | TPtr (t, _) -> 
+      let sizeOfType = (bitsSizeOf t) / 8 in
+      let castedPointer = PointerMap.to_varinfo v in
+      let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
+          let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
+          {ctx with local = st}
+        else 
+          ctx 
+      in
+      let replacedExp = sizePointer e sizeOfType in
+      if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
+      assignVariable ctx (Var castedPointer,NoOffset) replacedExp 
+    | _ -> ctx.local
+
+  (* Basic transfer functions. *)
+
+  let assign ctx (lv:lval) e =
+    match lv with
+    | (Var v, NoOffset) when List.mem "memOutOfBounds" @@ GobConfig.get_string_list "ana.activated" && isPointerType v.vtype 
+      -> pointerAssign ctx v e 
+    | _ -> assignVariable ctx lv e
+
   let vdecl (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx)  (e:varinfo) = 
     let rec helper (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx ) typ counter = match typ with
-    | TArray (new_typ, (Some exp), attr )-> 
-      let lenArray = NodeVarinfoMap.to_varinfo (e,counter) in 
-      let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
-      let new_ctx = 
-        { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
-      let ctx' =  assign new_ctx (Var lenArray, NoOffset) exp in
-      let new_ctx = { ctx with  local = ctx'; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in  
-      helper new_ctx new_typ (counter+1)
-    | _ -> ctx.local
+      | TArray (new_typ, (Some exp), attr )-> 
+        let lenArray = ArrayMap.to_varinfo (e,counter) in 
+        let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
+        let new_ctx = 
+          { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
+        let ctx' =  assign new_ctx (Var lenArray, NoOffset) exp in
+        let new_ctx = { ctx with  local = ctx'; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in  
+        helper new_ctx new_typ (counter+1)
+      | _ -> ctx.local
     in 
     helper ctx e.vtype 0
 
@@ -337,18 +396,53 @@ struct
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    let vname = Apron.Var.to_string var in
-    let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
-    | None -> true
-    | Some v -> any_local_reachable
+    let var_option = RV.to_cil_varinfo var in
+    if var_option != None &&  PointerMap.mem_varinfo (Option.get var_option) then 
+      false 
+    else 
+      let vname = RD.Var.to_string var in
+      let locals = fundec.sformals @ fundec.slocals in
+      match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with 
+      | None -> true
+      | Some v -> any_local_reachable
 
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
+      |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x || isPointerType x.vtype)
+      (* |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x ) *)
+      |> List.map (fun (x,y) -> 
+          if isPointerType x.vtype then 
+            let ptr_typ = typeOf (Lval (Var x,NoOffset)) in
+            begin match ptr_typ with
+              | TPtr (t, _) -> 
+                let sizeOfType = (bitsSizeOf t) / 8 in
+                (PointerMap.to_varinfo x, sizePointer y sizeOfType) 
+              | _ -> (x,y)
+            end
+          else (x,y))
+      |> List.map (Tuple2.map1 (fun x -> if PointerMap.mem_varinfo x then RV.local x else 
+                                   (if M.tracing then M.trace "re" "arg=%a\n" CilType.Varinfo.pretty x;
+                                    RV.arg x)))
+    in
+    let pointer_assigns = 
+      GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype)
+    in
+    let alloc_List = 
+      pointer_assigns |> 
+      List.map ((fun (_,x) -> match ctx.ask (Queries.MayPointTo x) with
+          | a when not (Queries.AD.is_top a) ->  
+            Queries.AD.fold ( fun (addr )  (st )   ->
+                match addr with
+                | Addr (v,o) -> 
+                  let allocatedLength = AllocSize.to_varinfo v in
+                  allocatedLength :: st
+                | _ -> if M.tracing then M.trace "re" "no addr?\n"; st
+              )  a []
+          | _ -> if M.tracing then M.trace "re" "top?\n" ;[]
+        )) |> List.flatten
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
@@ -369,9 +463,17 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
-        | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
-        | _ -> false (* keep everything else (just added args, globals, global privs) *)
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) && not (List.mem_cmp RD.Var.compare var arg_vars) -> if M.tracing then M.trace "re" "remove Local: %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);true (* remove caller locals provided they are unreachable *)
+        | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> if M.tracing then M.trace "re" "remove Arg: %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);true (* remove caller args, but keep just added args *)
+        | _ -> if M.tracing then M.trace "re" "keep : %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);  
+          match RV.to_cil_varinfo var with
+          | None -> false
+          | Some var -> 
+            if AllocSize.mem_varinfo var && not @@ List.mem_cmp CilType.Varinfo.compare var alloc_List then 
+              true 
+            else 
+              false
+              (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
     new_rel
@@ -456,6 +558,12 @@ struct
           )
       ) new_fun_rel arg_substitutes
     in
+    RD.remove_filter_with new_fun_rel (fun var -> 
+        match RV.to_cil_varinfo var with 
+        | None -> false
+        | Some var -> 
+          ArrayMap.mem_varinfo var 
+      );
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
     if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
@@ -472,7 +580,6 @@ struct
       )
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
-    if M.tracing then M.tracel "combine" "relation unifying %a %a = %a\n" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
     {fun_st with rel = unify_rel}
 
   let combine_assign ctx r fe f args fc fun_st (f_ask : Queries.ask) =
@@ -480,18 +587,59 @@ struct
     if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
         | Some lv ->
-          assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
+          let unify_st' = assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
               RD.assign_var st.rel (RV.local v) RV.return
-            )
+            ) in
+
+          unify_st'
         | None ->
+          if M.tracing then M.trace "re" "remove\n";
           unify_st
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
+      RD.remove_filter_with unify_st.rel (fun var ->
+          match RV.to_cil_varinfo var with
+          | None -> false
+          | Some var -> 
+            if M.tracing then M.trace "re" "var=%a\n" CilType.Varinfo.pretty var;
+            ArrayMap.mem_varinfo var  ||
+            PointerMap.mem_varinfo var ||
+            AllocSize.mem_varinfo var 
+        );
       unify_st'
     )
     else
-      unify_st
-
+      (
+        let alloclist = match r with
+          | Some lv -> 
+            begin match f_ask.f (Queries.MayPointTo (Lval lv)) with 
+              | a when not (Queries.AD.is_top a) ->  
+                Queries.AD.fold ( fun (addr )  (st )   ->
+                    match addr with
+                    | Addr (v,o) -> 
+                      let allocatedLength = AllocSize.to_varinfo v in
+                      allocatedLength :: st
+                    | _ -> if M.tracing then M.trace "re" "no addr?\n"; st
+                  )  a []
+              | _ -> if M.tracing then M.trace "re" "Top?\n";[]
+            end
+          | _  -> []
+        in
+        (if M.tracing then M.trace "re" "NOt remove RV.return=%a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo RV.return);
+         if M.tracing then M.trace "re" "alloclist Len=%s\n" (List.length alloclist |> string_of_int);
+         List.iter (fun x-> if M.tracing then M.trace "re" "alloclist=%a\n" CilType.Varinfo.pretty x) alloclist;
+         RD.remove_filter_with unify_st.rel (fun var ->
+             match RV.to_cil_varinfo var with
+             | None -> false
+             | Some var -> 
+               if M.tracing then M.trace "re" "var=%a\n" CilType.Varinfo.pretty var;
+               ArrayMap.mem_varinfo var  ||
+               PointerMap.mem_varinfo var ||
+               AllocSize.mem_varinfo var  && not @@ List.mem_cmp CilType.Varinfo.compare var alloclist
+           );
+         unify_st 
+        )
+      )
 
   let invalidate_one ask ctx st lv =
     assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
@@ -555,8 +703,64 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     let desc = LibraryFunctions.find f in
+    let invalidate ctx= 
+      let lvallist e =
+        match ask.f (Queries.MayPointTo e) with
+        | ad when Queries.AD.is_top ad -> []
+        | ad ->
+          Queries.AD.to_mval ad
+          |> List.map ValueDomain.Addr.Mval.to_cil
+      in
+      let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+      let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+      let deep_addrs =
+        if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
+          foldGlobals !Cilfacade.current_file (fun acc global ->
+              match global with
+              | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+                mkAddrOf (Var vi, NoOffset) :: acc
+              (* TODO: what about GVarDecl? *)
+              | _ -> acc
+            ) deep_addrs
+        )
+        else
+          deep_addrs
+      in 
+      let st' = forget_reachable ctx st deep_addrs in
+      let shallow_lvals = List.concat_map lvallist shallow_addrs in
+      let st' = List.fold_left (invalidate_one ask ctx) st' shallow_lvals in
+      (* invalidate lval if present *)
+      match r with
+      | Some lv -> invalidate_one ask ctx st' lv
+      | None -> st'   
+    in
+    let assignVariable (r:varinfo) v exp= 
+      ( match (v) with
+        | `Lifted vinfo -> 
+          let lenArray = AllocSize.to_varinfo vinfo in
+          let st = invalidate ctx in
+          let st' = {st with rel = RD.add_vars st.rel [RV.local lenArray]} in (* add newly created variable to Environment *)
+          let new_ctx = 
+            {ctx with local = st' ; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
+          let rec replaceSizeOf exp : exp = 
+            match exp with
+            | SizeOf typ -> (CastE (!upointType, sizeOf typ ))
+            | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOf e, typ)
+            | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOf e1, replaceSizeOf e2, typ)
+            | Real e -> Real (replaceSizeOf e)
+            | CastE (t,e) -> (CastE(unrollType t,replaceSizeOf e)) (*Expressions are casted to size_t by CIL those are of type TNamed *)
+            | e ->  e
+          in
+          let st'' = assign new_ctx (Var lenArray, NoOffset) (replaceSizeOf exp) in 
+          let pointerLen = PointerMap.to_varinfo r in
+          let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
+          let new_ctx' = {ctx with local = st'''; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in
+          assign new_ctx' (Var pointerLen, NoOffset) (Cil.zero)
+        | _ -> invalidate ctx)
+    in
     match desc.special args, f.vname with
-    | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
+    | Assert { exp; refine; _ }, _ -> 
+      assert_fn ctx exp refine
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (
         (* Forget value that thread return is assigned to *)
@@ -580,41 +784,28 @@ struct
       let id = List.hd args in
       Priv.thread_join ~force:true ask ctx.global id st
     | Rand, _ ->
-      (match r with
-       | Some lv ->
-         let st = invalidate_one ask ctx st lv in
-         assert_fn {ctx with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
-       | None -> st)
-    | _, _ ->
-      let lvallist e =
-        match ask.f (Queries.MayPointTo e) with
-        | ad when Queries.AD.is_top ad -> []
-        | ad ->
-          Queries.AD.to_mval ad
-          |> List.map ValueDomain.Addr.Mval.to_cil
-      in
-      let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-      let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
-      let deep_addrs =
-        if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
-          foldGlobals !Cilfacade.current_file (fun acc global ->
-              match global with
-              | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                mkAddrOf (Var vi, NoOffset) :: acc
-              (* TODO: what about GVarDecl? *)
-              | _ -> acc
-            ) deep_addrs
-        )
-        else
-          deep_addrs
-      in
-      let st' = forget_reachable ctx st deep_addrs in
-      let shallow_lvals = List.concat_map lvallist shallow_addrs in
-      let st' = List.fold_left (invalidate_one ask ctx) st' shallow_lvals in
-      (* invalidate lval if present *)
-      match r with
-      | Some lv -> invalidate_one ask ctx st' lv
-      | None -> st'
+      begin match r with
+        | Some lv ->
+          let st = invalidate_one ask ctx st lv in
+          assert_fn {ctx with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
+        | None -> st
+      end
+    | Alloca exp, _ ->  
+      begin match r with 
+        |  Some (Var v, off) ->
+          assignVariable v (ctx.ask (Queries.AllocVar {on_stack=true})) exp
+        | _ -> invalidate ctx
+      end
+    | Malloc exp, f  ->
+      begin match r with 
+        | Some (Var v , off) -> 
+          if M.tracing then M.trace "malloc" "special Malloc \n" ;
+          assignVariable v (ctx.ask (Queries.AllocVar {on_stack=false})) exp
+        | _ -> invalidate ctx
+      end
+    | Free exp,_ -> invalidate ctx
+    | _ ,_ -> 
+      invalidate ctx
 
 
   let query_invariant ctx context =
@@ -700,17 +891,92 @@ struct
 
     (* the lval arr has the length of the arr we now want to check if the expression index is within the bounds of arr please use relational Analysis *)
     | Queries.MayBeOutOfBounds (v ,t , exp, binop) -> 
-          let newVar = NodeVarinfoMap.to_varinfo (v,t ) in 
+      let newVar = ArrayMap.to_varinfo (v,t ) in 
+      let comp = Cilfacade.makeBinOp binop  exp (Lval (Var newVar,NoOffset)) in
+      let i = eval_int comp (no_overflow ask comp ) in 
+      i 
+    | AllocMayBeOutOfBounds (e, i) -> 
+      let pointerEval e= 
+        let ptr_typ = typeOf e in
+        begin match ptr_typ with 
+          | TPtr (t, _) -> 
+            let sizeOfType = (bitsSizeOf t) / 8 in
+            let pointerLen = sizePointer e sizeOfType in
 
-          let comp = Cilfacade.makeBinOp binop  exp (Lval (Var newVar,NoOffset)) in
-          if M.tracing then M.trace "relationalArray" "EvalExp: %a\n" d_exp comp;
-          if M.tracing then M.trace "malloc" "EvalExp: %a\n" d_exp comp;
+            let afterZero = Cilfacade.makeBinOp Le  Cil.zero pointerLen in
+            if M.tracing then M.trace "malloc" "afterZero: %a %a\n" d_exp e d_exp afterZero;
+            let isAfterZero = eval_int afterZero (no_overflow ask afterZero) in
+            if M.tracing then M.trace "malloc" "result: %a\n" ID.pretty isAfterZero;
+            let isBeforeEnd = match ctx.ask (Queries.MayPointTo e) with 
+              | a when not (Queries.AD.is_top a) -> 
+                Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
+                    match addr with
+                    | Addr (v,o) -> 
+                      let allocatedLength = AllocSize.to_varinfo v in
+                      let pointerBeforeEnd = Cilfacade.makeBinOp Lt pointerLen (Lval (Var allocatedLength, NoOffset)) in
+                      if M.tracing then M.trace "malloc" "pointerBeforeEnd: %a\n" d_exp pointerBeforeEnd;
+                      let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
+                      if M.tracing then M.trace "malloc" "isPointerBeforeEnd: %a\n" ID.pretty isPointerBeforeEnd;
+                      ID.join  isPointerBeforeEnd st
+                    | _ -> ID.top ()
+                  )  a  (ID.bot ()) ;
 
-         (* let i = eval_int comp (lazy (no_overflow ctx comp )) in  *)
-         let i = eval_int comp (no_overflow ask comp ) in 
-        if M.tracing then M.trace  "relationalArray" "EvalExp: %a\n" ID.pretty i;
-        if M.tracing then M.trace  "malloc" "EvalExp: %a\n" ID.pretty i;
-         i 
+              | _ -> ID.top ()
+            in
+            if M.tracing then M.trace "malloc" "Query result: %a\n" VDQ.ID.pretty isBeforeEnd ;
+            (isAfterZero, isBeforeEnd)
+          | _ -> (VDQ.ID.top (),VDQ.ID.top ())
+        end
+      in
+      let relationEval = begin match e with 
+        | Lval (Var v, _) -> (VDQ.ID.top (),VDQ.ID.top ())
+        | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI -> 
+          let replaceBinop bi = match bi with
+            | PlusPI | IndexPI -> PlusA
+            | MinusPI -> MinusA
+            | _ -> bi
+          in
+          let ptr_typ = typeOf e1 in
+          begin match ptr_typ with 
+            | TPtr (t, _) -> 
+              let sizeOfType = (bitsSizeOf t) / 8 in
+              let e2Mult = BinOp (Mult, e2, integer sizeOfType, t) in
+              let relExp = BinOp (replaceBinop binop, integer i, e2Mult, TInt (IInt ,[])) in
+
+              let afterZero = Cilfacade.makeBinOp Le  Cil.zero relExp in
+              if M.tracing then M.trace "malloc" "afterZero2: %a %a\n" d_exp e d_exp afterZero;
+              let isAfterZero = eval_int afterZero (no_overflow ask afterZero) in
+              if M.tracing then M.trace "malloc" "result: %a\n" ID.pretty isAfterZero;
+
+              let isBeforeEnd = match ctx.ask (Queries.MayPointTo e) with 
+                | a when not (Queries.AD.is_top a) -> 
+                  Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
+                      match addr with
+                      | Addr (v,o) -> 
+                        let allocatedLength = AllocSize.to_varinfo v in
+                        let pointerBeforeEnd = Cilfacade.makeBinOp Lt relExp (Lval (Var allocatedLength, NoOffset)) in
+                        if M.tracing then M.trace "malloc" "pointerBeforeEnd2: %a\n" d_exp pointerBeforeEnd;
+                        let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
+                        if M.tracing then M.trace "malloc" "isPointerBeforeEnd2: %a\n" ID.pretty isPointerBeforeEnd;
+                        ID.join  isPointerBeforeEnd st
+                      | _ -> ID.top ()
+                    )  a  (ID.bot ()) ;
+                | _ -> ID.top ()
+              in  
+              (isAfterZero, isBeforeEnd)
+            | _ -> (VDQ.ID.top (),VDQ.ID.top ())
+          end
+        | _ -> failwith "unexpected expression!\n"
+      end
+      in
+      let isAfterZero, isBeforeEnd = pointerEval e in
+      let isAfterZero2, isBeforeEnd2 = relationEval in
+      if M.tracing then M.trace "malloc" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
+
+      let isAfterZero = ID.meet isAfterZero isAfterZero2 in
+      let isBeforeEnd = ID.meet isBeforeEnd isBeforeEnd2 in
+      (* let  *)
+      (isAfterZero, isBeforeEnd)
     | _ -> Result.top q
 
 
@@ -763,7 +1029,7 @@ struct
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
       let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
       let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
-      let rel = RD.assert_inv rel e false (no_overflow ask e_orig) in (* assume *)
+      let rel = if M.tracing then M.trace "apron" "event\n"; RD.assert_inv rel e false (no_overflow ask e_orig) in (* assume *)
       let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
 
       (* TODO: parallel write_global? *)
