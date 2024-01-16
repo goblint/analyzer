@@ -1781,11 +1781,9 @@ module BigInt = struct
   let top_of ik = top ()
   let bot_of ik = bot ()
   let cast_to ik x = Size.cast ik x
-  let to_bool x = Some (not (Z.equal Z.zero x))
-
   let show x = Z.to_string x
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
+  include Std (struct type nonrec t = Z.t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  let arbitrary () = QCheck.map ~rev:Z.to_int64 Z.of_int64 QCheck.int64
 end
 
 module BISet = struct
@@ -1847,7 +1845,7 @@ struct
     end
 end
 
-module DefExc : S with type int_t = BigInt.t = (* definite or set of excluded values *)
+module DefExc : S with type int_t = Z.t = (* definite or set of excluded values *)
 struct
   module S = BISet
   module R = Interval32 (* range for exclusion *)
@@ -1859,10 +1857,10 @@ struct
 
   type t = [
     | `Excluded of S.t * R.t
-    | `Definite of BigInt.t
+    | `Definite of Z.t
     | `Bot
   ] [@@deriving eq, ord, hash]
-  type int_t = BigInt.t
+  type int_t = Z.t
   let name () = "def_exc"
 
 
@@ -1872,13 +1870,11 @@ struct
   let top_of ik = `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
 
-
-
   let show x =
     let short_size x = "("^R.show x^")" in
     match x with
     | `Bot -> "Error int"
-    | `Definite x -> BigInt.show x
+    | `Definite x -> Z.to_string x
     (* Print the empty exclusion as if it was a distinct top element: *)
     | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
     (* Prepend the exclusion sets with something: *)
@@ -2074,7 +2070,7 @@ struct
   let of_bool = of_bool_cmp
   let to_bool x =
     match x with
-    | `Definite x -> BigInt.to_bool x
+    | `Definite x -> Some (BigInt.to_bool x)
     | `Excluded (s,r) when S.mem Z.zero s -> Some true
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
@@ -2397,9 +2393,8 @@ module Booleans = MakeBooleans (
   end)
 
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
-module Enums : S with type int_t = BigInt.t = struct
+module Enums : S with type int_t = Z.t = struct
   open Batteries
-  module I = BigInt
   module R = Interval32 (* range for exclusion *)
 
   let range_ikind = Cil.IInt
@@ -2413,20 +2408,20 @@ module Enums : S with type int_t = BigInt.t = struct
   let top_of ik = Exc (BISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
-  let top_bool = Inc (BISet.of_list [I.zero; I.one])
+  let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
 
   let range ik = Size.range ik
 
 (*
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
-  let cardinality_of_range r = I.add (I.neg (min_of_range r)) (max_of_range r) *)
-  let value_in_range (min, max) v = I.compare min v <= 0 && I.compare v max <= 0
+  let cardinality_of_range r = Z.add (Z.neg (min_of_range r)) (max_of_range r) *)
+  let value_in_range (min, max) v = Z.compare min v <= 0 && Z.compare v max <= 0
 
   let show = function
     | Inc xs when BISet.is_empty xs -> "bot"
-    | Inc xs -> "{" ^ (String.concat ", " (List.map I.show (BISet.elements  xs))) ^ "}"
-    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map I.show (BISet.elements xs))) ^ "} " ^ "("^R.show r^")"
+    | Inc xs -> "{" ^ (String.concat ", " (List.map Z.to_string (BISet.elements  xs))) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map Z.to_string (BISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -2436,7 +2431,7 @@ module Enums : S with type int_t = BigInt.t = struct
     let min, max = range ikind in
     (* Whether the value v lies within the values of the specified ikind. *)
     let value_in_ikind v =
-      I.compare min v <= 0 && I.compare v max <= 0
+      Z.compare min v <= 0 && Z.compare v max <= 0
     in
     match v with
     | Inc xs when BISet.for_all value_in_ikind xs -> v
@@ -2536,7 +2531,7 @@ module Enums : S with type int_t = BigInt.t = struct
         let min_b, max_b = Exclusion.min_of_range r, Exclusion.max_of_range r in
         let min_a, max_a = BISet.min_elt xs, BISet.max_elt xs in
         (* Check that the xs fit into the range r  *)
-        I.compare min_b min_a <= 0 && I.compare max_a max_b <= 0 &&
+        Z.compare min_b min_a <= 0 && Z.compare max_a max_b <= 0 &&
         (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
         BISet.for_all (fun x -> not (BISet.mem x ys)) xs
     | Inc xs, Inc ys ->
@@ -2566,27 +2561,27 @@ module Enums : S with type int_t = BigInt.t = struct
   let lift2 f ikind a b =
     try lift2 f ikind a b with Division_by_zero -> top_of ikind
 
-  let neg ?no_ov = lift1 I.neg
+  let neg ?no_ov = lift1 Z.neg
   let add ?no_ov ikind = curry @@ function
     | Inc z,x when BISet.is_singleton z && BISet.choose z = Z.zero -> x
     | x,Inc z when BISet.is_singleton z && BISet.choose z = Z.zero -> x
-    | x,y -> lift2 I.add ikind x y
-  let sub ?no_ov = lift2 I.sub
+    | x,y -> lift2 Z.add ikind x y
+  let sub ?no_ov = lift2 Z.sub
   let mul ?no_ov ikind a b =
     match a, b with
     | Inc one,x when BISet.is_singleton one && BISet.choose one = Z.one -> x
     | x,Inc one when BISet.is_singleton one && BISet.choose one = Z.one -> x
     | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = Z.zero -> a
     | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> b
-    | x,y -> lift2 I.mul ikind x y
+    | x,y -> lift2 Z.mul ikind x y
 
   let div ?no_ov ikind a b = match a, b with
     | x,Inc one when BISet.is_singleton one && BISet.choose one = Z.one -> x
     | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> top_of ikind
     | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = Z.zero -> a
-    | x,y -> lift2 I.div ikind x y
+    | x,y -> lift2 Z.div ikind x y
 
-  let rem = lift2 I.rem
+  let rem = lift2 Z.rem
 
   let bitnot = lift1 Z.lognot
   let bitand = lift2 Z.logand
@@ -2643,8 +2638,8 @@ module Enums : S with type int_t = BigInt.t = struct
       | Some b -> of_bool ik (not b)
       | None -> top_bool
 
-  let logand = lift2 I.logand
-  let logor  = lift2 I.logor
+  let logand = lift2 BigInt.logand
+  let logor  = lift2 BigInt.logor
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
     | Exc (excl,r) ->
@@ -2672,8 +2667,8 @@ module Enums : S with type int_t = BigInt.t = struct
   let lt ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when I.compare x2 y1 < 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when I.compare x1 y2 >= 0 -> of_bool ik false
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> of_bool ik true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> of_bool ik false
         | _, _, _, _ -> top_bool)
 
   let gt ik x y = lt ik y x
@@ -2681,8 +2676,8 @@ module Enums : S with type int_t = BigInt.t = struct
   let le ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when I.compare x2 y1 <= 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when I.compare x1 y2 > 0 -> of_bool ik false
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> of_bool ik true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> of_bool ik false
         | _, _, _, _ -> top_bool)
 
   let ge ik x y = le ik y x
@@ -2690,7 +2685,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let eq ik x y =
     handle_bot x y (fun () ->
         match x, y with
-        | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> of_bool ik (I.equal (BISet.choose xs) (BISet.choose ys))
+        | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> of_bool ik (Z.equal (BISet.choose xs) (BISet.choose ys))
         | _, _ ->
           if is_bot (meet ik x y) then
             (* If the meet is empty, there is no chance that concrete values are equal *)
