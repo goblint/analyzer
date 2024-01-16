@@ -2,7 +2,7 @@
 
 int readUntil(char arr[], unsigned len) {
 	for(unsigned int i=0;i < len;i++) {
-			char s  = arr[i];
+			char s  = arr[i]; //NOWARN
 	}
 }
 

@@ -2,8 +2,8 @@
 
 int main()
 {
-	unsigned int len;
-	unsigned int top;
+	int len;
+	int top;
 
 	if(top) {
 		len = 5;
@@ -13,8 +13,8 @@ int main()
 
 	char ptr[len];
 
-	for(unsigned int i=0;i < len;i++) {
-		char s  = ptr[i];
+	for(int i=0;i < len;i++) {
+		char s  = ptr[i]; //NOWARN
 	}
 }
 
