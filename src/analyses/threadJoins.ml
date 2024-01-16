@@ -52,7 +52,7 @@ struct
       if TIDs.is_top threads then
         ctx.local
       else (
-        (* elements throws if the thread set is top *)
+        (* all elements are known *)
         let threads = TIDs.elements threads in
         match threads with
         | [tid] when TID.is_unique tid->
@@ -70,7 +70,7 @@ struct
         (MustTIDs.bot(), true) (* consider everything joined, MustTIDs is reversed so bot is All threads *)
       )
       else (
-        (* elements throws if the thread set is top *)
+        (* all elements are known *)
         let threads = TIDs.elements threads in
         if List.compare_length_with threads 1 > 0 then
           M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";

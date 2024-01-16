@@ -37,13 +37,11 @@
     2. Extract distribution archive.
     3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
     4. Navigate to distribution archive inside Docker container: `cd /goblint`.
-    5. Pin package from distribution archive: `opam pin add --no-action .`.
-    6. Install depexts: `opam depext --with-test goblint`.
-    7. Install and test package: `opam install --with-test goblint`.
-    8. Activate opam environment: `eval $(opam env)`.
-    9. Check version: `goblint --version`.
-    10. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
-    11. Exit Docker container.
+    5. Install and test package from distribution archive: `opam-2.1 install --with-test .`.
+    6. Activate opam environment: `eval $(opam env)`.
+    7. Check version: `goblint --version`.
+    8. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
+    9. Exit Docker container.
 
 12. Temporarily enable Zenodo GitHub webhook.
 
@@ -59,6 +57,7 @@
 
 15. Create an opam package: `dune-release opam pkg`.
 16. Submit the opam package to opam-repository: `dune-release opam submit`.
+17. Revert temporary removal of opam pins.
 
 
 ## SV-COMP
@@ -71,7 +70,7 @@
 
     This is required such that the created archive would have everything in a single directory called `goblint`.
 
-4. Update SV-COMP year in `sv-comp/archive.sh`.
+4. Update SV-COMP year in `scripts/sv-comp/archive.sh`.
 
     This includes: git tag name, git tag message and zipped conf file.
 
@@ -84,9 +83,9 @@
 
 2. Make sure you have nothing valuable that would be deleted by `make clean`.
 3. Delete git tag from previous prerun: `git tag -d svcompXY`.
-4. Create archive: `./sv-comp/archive.sh`.
+4. Create archive: `./scripts/sv-comp/archive.sh`.
 
-    The resulting archive is `sv-comp/goblint.zip`.
+    The resulting archive is `scripts/sv-comp/goblint.zip`.
 
 5. Check unextracted archive in latest SV-COMP container image: <https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image>.
 
@@ -97,16 +96,17 @@
 
     This ensures that the environment and the archive have all the correct system libraries.
 
-6. Commit and push the archive to an SV-COMP archives repository branch (but don't open a MR yet): <https://gitlab.com/sosy-lab/sv-comp/archives-2023#sparse-checkout> (SV-COMP 2023).
-7. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
+6. Create (or add new version) Zenodo artifact and upload the archive.
 
-    1. Clone coveriteam repository.
-    2. Locally modify `actors/goblint.yml` archive location to the raw URL of the pushed archive.
-    3. Run Goblint on some sv-benchmarks and properties via CoveriTeam.
+7. Open MR with Zenodo version DOI to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
 
-    This ensures that Goblint runs on SoSy-Lab servers.
+<!-- 7. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
 
-8. Open MR to the SV-COMP archives repository.
+1. Clone coveriteam repository.
+2. Locally modify `actors/goblint.yml` archive location to the raw URL of the pushed archive.
+3. Run Goblint on some sv-benchmarks and properties via CoveriTeam.
+
+This ensures that Goblint runs on SoSy-Lab servers. -->
 
 ### After all preruns
 

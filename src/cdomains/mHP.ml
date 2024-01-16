@@ -4,7 +4,7 @@ include Printable.Std
 
 let name () = "mhp"
 
-module TID = ThreadIdDomain.FlagConfiguredTID
+module TID = ThreadIdDomain.Thread
 module Pretty = GoblintCil.Pretty
 
 type t = {

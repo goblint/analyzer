@@ -29,7 +29,6 @@ linux-headers
 .goblint*/
 goblint_temp_*/
 
-src/spec/graph
 .vagrant
 
 g2html.jar

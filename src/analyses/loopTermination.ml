@@ -19,7 +19,7 @@ let check_bounded ctx varinfo =
 (** We want to record termination information of loops and use the loop
  * statements for that. We use this lifting because we need to have a
  * lattice. *)
-module Statements = Lattice.Flat (CilType.Stmt) (Printable.DefaultNames)
+module Statements = Lattice.Flat (CilType.Stmt)
 
 (** The termination analysis considering loops and gotos *)
 module Spec : Analyses.MCPSpec =

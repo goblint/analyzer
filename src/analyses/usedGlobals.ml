@@ -4,6 +4,14 @@ open Batteries
 open GoblintCil
 open Analyses
 
+(** Get list of pointers to globals for all potentially used globals by function. *)
+let get_callee_globals (callee_ask: Queries.ask) =
+  match callee_ask.f Queries.AccessedGlobals with
+  | `Top ->
+    failwith @@ "Accessed globals returned `Top!"
+  | `Lifted globals ->
+    ModularUtil.VS.fold (fun v acc -> mkAddrOf (Cil.var v) :: acc) globals []
+
 module Spec =
 struct
   include Analyses.DefaultSpec

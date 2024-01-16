@@ -5,6 +5,7 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
+open ConstrSys
 open GobConfig
 
 module M = Messages
@@ -12,12 +13,17 @@ module M = Messages
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:PostSpec)
-  : PostSpec with module D = Lattice.HConsed (S.D)
-          and module G = S.G
+  : PostSpec with module G = S.G
           and module C = S.C
 =
 struct
-  module D =  Lattice.HConsed (S.D)
+  module HConsedArg =
+  struct
+    (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
+    (* see https://github.com/goblint/analyzer/issues/1005 *)
+    let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
+  end
+  module D = Lattice.HConsed (S.D) (HConsedArg)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -674,38 +680,6 @@ sig
   val increment: increment_data option
 end
 
-(** Combined variables so that we can also use the more common [EqConstrSys]
-    that uses only one kind of a variable. *)
-module Var2 (LV:VarType) (GV:VarType)
-  : VarType
-    with type t = [ `L of LV.t  | `G of GV.t ]
-=
-struct
-  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord, hash]
-  let relift = function
-    | `L x -> `L (LV.relift x)
-    | `G x -> `G (GV.relift x)
-
-  let pretty_trace () = function
-    | `L a -> Pretty.dprintf "L:%a" LV.pretty_trace a
-    | `G a -> Pretty.dprintf "G:%a" GV.pretty_trace a
-
-  let printXml f = function
-    | `L a -> LV.printXml f a
-    | `G a -> GV.printXml f a
-
-  let var_id = function
-    | `L a -> LV.var_id a
-    | `G a -> GV.var_id a
-
-  let node = function
-    | `L a -> LV.node a
-    | `G a -> GV.node a
-
-  let is_write_only = function
-    | `L a -> LV.is_write_only a
-    | `G a -> GV.is_write_only a
-end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FromSpec (S:PostSpec) (Cfg:CfgBackward) (I: Increment)
@@ -1000,13 +974,13 @@ struct
     )
 
   let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
-    let old_loc  = !Tracing.current_loc in
-    let old_loc2 = !Tracing.next_loc in
-    Tracing.current_loc := f;
-    Tracing.next_loc := t;
+    let old_loc  = !Goblint_tracing.current_loc in
+    let old_loc2 = !Goblint_tracing.next_loc in
+    Goblint_tracing.current_loc := f;
+    Goblint_tracing.next_loc := t;
     Goblint_backtrace.protect ~mark:(fun () -> TfLocation f) ~finally:(fun () ->
-        Tracing.current_loc := old_loc;
-        Tracing.next_loc := old_loc2
+        Goblint_tracing.current_loc := old_loc;
+        Goblint_tracing.next_loc := old_loc2
       ) (fun () ->
         let d       = tf var getl sidel getg sideg prev_node edge d in
         d
@@ -1179,7 +1153,7 @@ struct
 
     let dummy_pseudo_return_node f =
       (* not the same as in CFG, but compares equal because of sid *)
-      Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
+      Node.Statement ({Cil.dummyStmt with sid = Cilfacade.get_pseudo_return_id f})
     in
     let add_nodes_of_fun (functions: fundec list) (withEntry: fundec -> bool) =
       let add_stmts (f: fundec) =
@@ -1227,137 +1201,6 @@ struct
 
     {obsolete; delete; reluctant; restart}
 end
-
-(** Convert a non-incremental solver into an "incremental" solver.
-    It will solve from scratch, perform standard postsolving and have no marshal data. *)
-module EqIncrSolverFromEqSolver (Sol: GenericEqSolver): GenericEqIncrSolver =
-  functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  struct
-    module Sol = Sol (S) (VH)
-    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
-
-    type marshal = unit
-    let copy_marshal () = ()
-    let relift_marshal () = ()
-
-    let solve xs vs _ =
-      let vh = Sol.solve xs vs in
-      Post.post xs vs vh;
-      (vh, ())
-  end
-
-
-(** Translate a [GlobConstrSys] into a [EqConstrSys] *)
-module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
-  : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
-                   and type d = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames).t
-                   and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
-=
-struct
-  module Var = Var2(S.LVar)(S.GVar)
-  module Dom =
-  struct
-    include Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
-    let printXml f = function
-      | `Lifted1 a -> S.G.printXml f a
-      | `Lifted2 a -> S.D.printXml f a
-      | (`Bot | `Top) as x -> printXml f x
-  end
-  type v = Var.t
-  type d = Dom.t
-
-  let getG = function
-    | `Lifted1 x -> x
-    | `Bot -> S.G.bot ()
-    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has top value"
-    | `Lifted2 _ -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has local value"
-
-  let getL = function
-    | `Lifted2 x -> x
-    | `Bot -> S.D.bot ()
-    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has top value"
-    | `Lifted1 _ -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has global value"
-
-  let l, g = (fun x -> `L x), (fun x -> `G x)
-  let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
-
-  let conv f get set =
-    f (getL % get % l) (fun x v -> set (l x) (lD v))
-      (getG % get % g) (fun x v -> set (g x) (gD v))
-    |> lD
-
-  let system = function
-    | `G _ -> None
-    | `L x -> Option.map conv (S.system x)
-
-  let sys_change get =
-    S.sys_change (getL % get % l) (getG % get % g)
-end
-
-(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)
-module GlobConstrSolFromEqConstrSolBase (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) (VH: Hashtbl.S with type key = Var2 (S.LVar) (S.GVar).t) =
-struct
-  let split_solution hm =
-    let l' = LH.create 113 in
-    let g' = GH.create 113 in
-    let split_vars x d = match x with
-      | `L x ->
-        begin match d with
-          | `Lifted2 d -> LH.replace l' x d
-          (* | `Bot -> () *)
-          (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
-            This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
-          | `Bot -> LH.replace l' x (S.D.bot ())
-          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has top value"
-          | `Lifted1 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has global value"
-        end
-      | `G x ->
-        begin match d with
-          | `Lifted1 d -> GH.replace g' x d
-          | `Bot -> ()
-          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has top value"
-          | `Lifted2 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has local value"
-        end
-    in
-    VH.iter split_vars hm;
-    (l', g')
-end
-
-(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution. *)
-module GlobConstrSolFromEqConstrSol (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) =
-struct
-  module S2 = EqConstrSysFromGlobConstrSys (S)
-  module VH = Hashtbl.Make (S2.Var)
-
-  include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
-end
-
-(** Transforms a [GenericEqIncrSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
-  = functor (S:GlobConstrSys) ->
-    functor (LH:Hashtbl.S with type key=S.LVar.t) ->
-    functor (GH:Hashtbl.S with type key=S.GVar.t) ->
-    struct
-      module EqSys = EqConstrSysFromGlobConstrSys (S)
-
-      module VH : Hashtbl.S with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
-      module Sol' = Sol (EqSys) (VH)
-
-      module Splitter = GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH) (* reuse EqSys and VH *)
-
-      type marshal = Sol'.marshal
-
-      let copy_marshal = Sol'.copy_marshal
-      let relift_marshal = Sol'.relift_marshal
-
-      let solve ls gs l old_data =
-        let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
-                 @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
-        let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve vs sv old_data in
-        Splitter.split_solution hm, solver_data
-    end
 
 
 (** Add path sensitivity to a analysis *)
@@ -1521,7 +1364,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (S.V) (Node)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (S.V) (Node)
     let name () = "DeadBranch"
     let s x = `Left x
     let node x = `Right x
@@ -1532,13 +1375,13 @@ struct
 
   module EM =
   struct
-    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+    include MapDomain.MapBot (Basetype.CilExp) (BoolDomain.FlatBool)
     let name () = "branches"
   end
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (EM)
     let name () = "deadbranch"
 
     let s = function
@@ -1657,19 +1500,19 @@ struct
 
   module V =
   struct
-    include Printable.Either (S.V) (Printable.Either (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C)))
+    include Printable.Either3Conf (struct let expand1 = false let expand2 = true let expand3 = true end) (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
     let name () = "longjmp"
     let s x = `Left x
-    let longjmpto x = `Right (`Left x)
-    let longjmpret x = `Right (`Right x)
+    let longjmpto x = `Middle x
+    let longjmpret x = `Right x
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
-      | `Right _ -> false
+      | _ -> false
   end
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (S.D) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (S.D)
 
     let s = function
       | `Bot -> S.G.bot ()
@@ -1701,7 +1544,7 @@ struct
       begin match g with
         | `Left g ->
           S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | `Right g ->
+        | _ ->
           Queries.Result.top q
       end
     | InvariantGlobal g ->
@@ -1709,7 +1552,7 @@ struct
       begin match g with
         | `Left g ->
           S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | `Right g ->
+        | _ ->
           Queries.Result.top q
       end
     | IterSysVars (vq, vf) ->
@@ -1925,7 +1768,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (G) (CallerSet) (Printable.DefaultNames)
+    include Lattice.Lift2 (G) (CallerSet)
 
     let spec = function
       | `Bot -> G.bot ()
@@ -2245,30 +2088,4 @@ struct
     let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
     ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
     print_newline ();
-end
-
-(** [EqConstrSys] where [current_var] indicates the variable whose right-hand side is currently being evaluated. *)
-module CurrentVarEqConstrSys (S: EqConstrSys) =
-struct
-  let current_var = ref None
-
-  module S =
-  struct
-    include S
-
-    let system x =
-      match S.system x with
-      | None -> None
-      | Some f ->
-        let f' get set =
-          let old_current_var = !current_var in
-          current_var := Some x;
-          Fun.protect ~finally:(fun () ->
-              current_var := old_current_var
-            ) (fun () ->
-              f get set
-            )
-        in
-        Some f'
-  end
 end

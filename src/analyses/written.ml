@@ -48,7 +48,7 @@ struct
 
   let get_reachable ctx args f_ask  =
     let ask = Analyses.ask_of_ctx ctx in
-    let used_globals = ModularUtil.get_callee_globals f_ask in
+    let used_globals = UsedGlobals.get_callee_globals f_ask in
     let get_reachable_exp (exp: exp) =
       ask.f (Q.ReachableAddressesFrom exp)
     in

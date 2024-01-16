@@ -6,6 +6,7 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
+open ConstrSys
 open GobConfig
 open Constraints
 
@@ -85,16 +86,16 @@ struct
       let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
       save_run <> ""
   end
-  module Slvr  = (GlobSolverFromEqSolver (Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
+  module Slvr  = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
   module CompareGlobSys = Constraints.CompareGlobSys (SpecSys)
 
   (* Triple of the function, context, and the local value. *)
-  module RT = Analyses.ResultType2 (Spec)
+  module RT = AnalysisResult.ResultType2 (Spec)
   (* Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
-  module Result = Analyses.Result (LT) (struct let result_name = "analysis" end)
+  module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
 
   module Query = ResultQuery.Query (SpecSys)
 
@@ -314,7 +315,7 @@ struct
         if M.tracing then M.trace "con" "Initializer %a\n" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-        Tracing.current_loc := loc;
+        Goblint_tracing.current_loc := loc;
         match edge with
         | MyCFG.Entry func        ->
           if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
@@ -336,9 +337,9 @@ struct
       in
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
-      let old_loc = !Tracing.current_loc in
+      let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      Tracing.current_loc := old_loc;
+      Goblint_tracing.current_loc := old_loc;
       if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
       result, !funs
     in
@@ -476,7 +477,7 @@ struct
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
-          let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let module S2' = (GlobSolverFromEqSolver (Goblint_solver.Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
           r2
         ) else if compare_runs <> [] then (
@@ -582,7 +583,7 @@ struct
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
           CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
-        compare_with (Selector.choose_solver (get_string "comparesolver"))
+        compare_with (Goblint_solver.Selector.choose_solver (get_string "comparesolver"))
       );
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
