@@ -161,9 +161,12 @@ struct
                          | Mpfrf x -> raise NotIntegerOffset end in of_union x
         | Var x ->
           let var_dim = Environment.dim_of_var t.env x in
-          begin match get_variable_value_if_it_is_a_constant t var_dim with
+          begin match t.d with
             | None -> [(Z.one, Some var_dim)]
-            | Some constant -> [(constant, None)]
+            | Some d ->
+              (if Option.is_some (fst d.(var_dim)) then [(Z.one, fst d.(var_dim))]
+               else [])
+              @ [(snd d.(var_dim), None)]
           end
         | Unop (u, e, _, _) ->
           begin match u with
