@@ -2889,9 +2889,13 @@ struct
     in
     D.join ctx.local e_d'
 
+  let ignore_asm = get_bool "asm_is_nop"
+
   let asm ctx = 
-    let _, outs = Analyses.asm_extract_ins_outs ctx in
-    ctx.emit (Events.Invalidate {lvals=outs});
+    if not ignore_asm then begin
+      let _, outs = Analyses.asm_extract_ins_outs ctx in
+      ctx.emit (Events.Invalidate {lvals=outs});
+    end;
     ctx.local
 
   let event ctx e octx =

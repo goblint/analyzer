@@ -141,8 +141,6 @@ end
 
 module CfgEdgeH = BatHashtbl.Make (CfgEdge)
 
-let ignore_asm = get_bool "asm_is_nop"
-
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
@@ -378,19 +376,21 @@ let createCFG (file: file) =
 
           | Asm (_, tmpls, outs, ins, _, labels, loc) ->
             begin match real_succs () with
-            | [] -> failwith "MyCFG.createCFG: 0 Asm succ"
-            | [succ, skippedStatements] -> begin
+              | [] -> failwith "MyCFG.createCFG: 0 Asm succ"
+              | [succ, skippedStatements] -> begin
                 addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, false)) (Statement succ);
-                if not ignore_asm then
-                  List.iter (fun label ->
-                      let succ, skippedStatements = find_real_stmt ~parent:stmt !label in 
-                      addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, true)) (Statement succ)
-                    ) labels
-                else ()
+                let unique_dests = List.fold_left (fun acc label ->
+                  let succ, skippedStatements = find_real_stmt ~parent:stmt !label in
+                  match List.assoc_opt succ acc with
+                  | Some _ -> acc
+                  | None -> (succ, skippedStatements) :: acc
+                ) [] labels in
+                List.iter (fun (succ, skippedStatements) ->
+                  addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, true)) (Statement succ)
+                ) unique_dests;
               end
-            | _ -> failwith "MyCFG.createCFG: >1 Asm succ"
+              | _ -> failwith "MyCFG.createCFG: >1 Asm succ"
             end
-
           | Continue _
           | Break _
           | Switch _ ->

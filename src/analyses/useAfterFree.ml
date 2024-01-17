@@ -25,10 +25,7 @@ struct
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
 
-  let ignore_asm = ref true
-
-  let init _ =
-    ignore_asm := get_bool "asm_is_nop"
+  let ignore_asm = get_bool "asm_is_nop"
 
   let context _ _ = ()
   (* HELPER FUNCTIONS *)
@@ -176,7 +173,7 @@ struct
     ctx.local
 
   let asm ctx =
-    if not !ignore_asm then begin
+    if not ignore_asm then begin
       let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_out lval = warn_lval_might_contain_freed "asm" ctx lval in
       List.iter handle_out outs;

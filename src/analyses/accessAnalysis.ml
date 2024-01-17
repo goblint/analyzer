@@ -25,10 +25,9 @@ struct
 
   let collect_local = ref false
   let emit_single_threaded = ref false
-  let ignore_asm = ref true
+  let ignore_asm = get_bool "asm_is_nop"
 
   let init _ =
-    ignore_asm := get_bool "asm_is_nop";
     collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed";
     let activated = get_string_list "ana.activated" in
     emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
@@ -76,11 +75,12 @@ struct
     end
 
   let asm ctx =
-    if not !ignore_asm then begin
+    if not ignore_asm then begin
       let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_in exp = access_one_top ctx Read false exp in
       List.iter handle_in ins;
-      let handle_out lval = access_one_top ctx Write false (AddrOf lval) in
+      (* deref needs to be set to true because we have to use AddrOf *)
+      let handle_out lval = access_one_top ~deref:true ctx Write false (AddrOf lval) in
       List.iter handle_out outs;
     end;
     ctx.local
