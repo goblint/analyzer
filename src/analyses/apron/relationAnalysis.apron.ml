@@ -327,6 +327,7 @@ struct
 
   let pointerAssign ctx (v:varinfo) e = 
     let ptr_typ = typeOf (Lval (Var v,NoOffset)) in
+    if M.tracing then M.trace "OOB" "pointerAssign=%b" (GobConfig.get_bool "ana.apron.pointer_tracking");
     match ptr_typ with 
     | TPtr (t, _) -> 
       let sizeOfType = (bitsSizeOf t) / 8 in
@@ -346,7 +347,7 @@ struct
 
   let assign ctx (lv:lval) e =
     match lv with
-    | (Var v, NoOffset) when List.mem "memOutOfBounds" @@ GobConfig.get_string_list "ana.activated" && isPointerType v.vtype 
+    | (Var v, NoOffset) when GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType v.vtype 
       -> pointerAssign ctx v e 
     | _ -> assignVariable ctx lv e
 
@@ -412,9 +413,8 @@ struct
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x || isPointerType x.vtype)
-      (* |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x ) *)
       |> List.map (fun (x,y) -> 
-          if isPointerType x.vtype then 
+          if GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType x.vtype then 
             let ptr_typ = typeOf (Lval (Var x,NoOffset)) in
             begin match ptr_typ with
               | TPtr (t, _) -> 
@@ -427,6 +427,8 @@ struct
                                    (if M.tracing then M.trace "re" "arg=%a\n" CilType.Varinfo.pretty x;
                                     RV.arg x)))
     in
+    if M.tracing then M.trace "re" "f.sformals=%a args=%a\n" (docList ~sep:(Pretty.text ",") (CilType.Varinfo.pretty())) f.sformals (docList ~sep:(Pretty.text ",") (d_exp ())) args ;
+    List.iter (fun (x,y)-> if M.tracing then M.trace "re" "arg_assigns=%a,%a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo x) d_exp y) arg_assigns;
     let pointer_assigns = 
       GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype)
     in
@@ -465,7 +467,7 @@ struct
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) && not (List.mem_cmp RD.Var.compare var arg_vars) -> if M.tracing then M.trace "re" "remove Local: %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);true (* remove caller locals provided they are unreachable *)
         | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> if M.tracing then M.trace "re" "remove Arg: %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);true (* remove caller args, but keep just added args *)
-        | _ -> if M.tracing then M.trace "re" "keep : %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);  
+        | _ -> 
           match RV.to_cil_varinfo var with
           | None -> false
           | Some var -> 
@@ -581,12 +583,6 @@ struct
           )
       ) new_fun_rel arg_substitutes
     in
-    RD.remove_filter_with new_fun_rel (fun var -> 
-        match RV.to_cil_varinfo var with 
-        | None -> false
-        | Some var -> 
-          ArrayMap.mem_varinfo var 
-      );
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
     if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
@@ -733,10 +729,13 @@ struct
             | e ->  e
           in
           let st'' = assign new_ctx (Var lenArray, NoOffset) (replaceSizeOf exp) in 
-          let pointerLen = PointerMap.to_varinfo r in
-          let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
-          let new_ctx' = {ctx with local = st'''; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in
-          assign new_ctx' (Var pointerLen, NoOffset) (Cil.zero)
+          if GobConfig.get_bool "ana.apron.pointer_tracking" then  (
+            let pointerLen = PointerMap.to_varinfo r in
+            let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
+            let new_ctx' = {ctx with local = st'''; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in
+            assign new_ctx' (Var pointerLen, NoOffset) (Cil.zero)
+          )
+          else st''
         | _ -> invalidate ctx)
     in
     match desc.special args, f.vname with
@@ -912,8 +911,8 @@ struct
       let relationEval = 
         let i = match i with 
           | `Lifted i -> i
-          | `Bot ->  IntDomain.IntDomTuple.top ()
-          | `Top -> IntDomain.IntDomTuple.top ()
+          | `Bot ->  IntDomain.IntDomTuple.top_of (Cilfacade.ptrdiff_ikind ())
+          | `Top -> IntDomain.IntDomTuple.top_of (Cilfacade.ptrdiff_ikind ()) 
         in
         begin match IntDomain.IntDomTuple.maximal i with 
           | None -> (VDQ.ID.top (),VDQ.ID.top ())
@@ -961,13 +960,18 @@ struct
             end
         end
       in
-      let isAfterZero, isBeforeEnd = pointerEval e in
-      let isAfterZero2, isBeforeEnd2 = relationEval in
-      if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
-
-      let isAfterZero = ID.meet isAfterZero isAfterZero2 in
-      let isBeforeEnd = ID.meet isBeforeEnd isBeforeEnd2 in
-      (* let  *)
+      let isAfterZero, isBeforeEnd = relationEval in
+      let isAfterZero, isBeforeEnd = 
+        if GobConfig.get_bool "ana.apron.pointer_tracking" then (
+          let isAfterZero2, isBeforeEnd2 = pointerEval e in
+          if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
+          let isAfterZero = ID.meet isAfterZero isAfterZero2 in
+          let isBeforeEnd = ID.meet isBeforeEnd isBeforeEnd2 in
+          isAfterZero, isBeforeEnd 
+        )
+        else  
+          isAfterZero , isBeforeEnd
+      in
       (isAfterZero, isBeforeEnd)
 
     | _ -> Result.top q

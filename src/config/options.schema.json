@@ -882,6 +882,12 @@
                 }
               },
               "additionalProperties": false
+            },
+            "pointer_tracking": {
+              "title": "ana.apron.pointer_tracking",
+              "description": "Use pointer relations for pointer analysis",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
