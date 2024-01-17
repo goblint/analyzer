@@ -128,7 +128,7 @@ type _ t =
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MayBeOutOfBounds: varinfo * int * exp * binop -> ID.t t
   | MayOverflow : exp -> MustBool.t t
-  | AllocMayBeOutOfBounds : exp * int -> VDQ.ProdID.t t
+  | AllocMayBeOutOfBounds : exp * ID.t * offset option -> VDQ.ProdID.t t
 
 type 'a result = 'a
 
@@ -404,12 +404,20 @@ struct
             CilType.Binop.compare binop1 binop2
       (* only argumentless queries should remain *)
       | Any (MayOverflow e1), Any (MayOverflow e2) -> CilType.Exp.compare e1 e2
-      | Any (AllocMayBeOutOfBounds (e1, i1)), Any (AllocMayBeOutOfBounds (e2, i2)) -> 
+      | Any (AllocMayBeOutOfBounds (e1, i1, o1)), Any (AllocMayBeOutOfBounds (e2, i2, o2)) -> 
         let r =  CilType.Exp.compare e1 e2 in
         if r <> 0 then 
           r
         else 
-          i1 - i2
+          let r2 = match o1, o2 with
+            | None, None -> 0
+            | None, Some o2 -> 1
+            | Some o1, None -> -1
+            | Some o1, Some o2 -> CilType.Offset.compare o1 o2 in
+          if r2 <> 0 then 
+            r2
+          else
+            ID.compare i1 i2
 
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -453,7 +461,7 @@ struct
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MayBeOutOfBounds (v,s, exp, bin)) -> 127 * CilType.Varinfo.hash v  + 67 * Hashtbl.hash s  + 31 * CilType.Exp.hash exp + CilType.Binop.hash bin
     | Any (MayOverflow e) -> CilType.Exp.hash e
-    | Any (AllocMayBeOutOfBounds (e, i )) ->  127 * CilType.Exp.hash e + i
+    | Any (AllocMayBeOutOfBounds (e, i, o )) ->  127 * CilType.Exp.hash e + 67 * ID.hash i + (match o with None -> 0 | Some o -> CilType.Offset.hash o)
 
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
@@ -519,7 +527,7 @@ struct
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MayBeOutOfBounds (v,s, e, b)) -> Pretty.dprintf "EvalExp %a %a %a" CilType.Varinfo.pretty v  CilType.Binop.pretty b CilType.Exp.pretty e 
     | Any (MayOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
-    | Any (AllocMayBeOutOfBounds (e, i)) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
+    | Any (AllocMayBeOutOfBounds (e, i, o)) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
 end
 
 let to_value_domain_ask (ask: ask) =

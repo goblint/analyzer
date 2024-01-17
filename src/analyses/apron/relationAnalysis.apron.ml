@@ -876,7 +876,7 @@ struct
       let comp = Cilfacade.makeBinOp binop  exp (Lval (Var newVar,NoOffset)) in
       let i = eval_int comp (no_overflow ask comp ) in 
       i 
-    | AllocMayBeOutOfBounds (e, i) -> 
+    | AllocMayBeOutOfBounds (e, i, _) -> 
       let pointerEval e= 
         let ptr_typ = typeOf e in
         begin match ptr_typ with 
@@ -885,9 +885,9 @@ struct
             let pointerLen = sizePointer e sizeOfType in
 
             let afterZero = Cilfacade.makeBinOp Le  Cil.zero pointerLen in
-            if M.tracing then M.trace "malloc" "afterZero: %a %a\n" d_exp e d_exp afterZero;
+            if M.tracing then M.trace "OOB" "afterZero: %a %a\n" d_exp e d_exp afterZero;
             let isAfterZero = eval_int afterZero (no_overflow ask afterZero) in
-            if M.tracing then M.trace "malloc" "result: %a\n" ID.pretty isAfterZero;
+            if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
             let isBeforeEnd = match ctx.ask (Queries.MayPointTo e) with 
               | a when not (Queries.AD.is_top a) -> 
                 Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
@@ -909,55 +909,67 @@ struct
           | _ -> (VDQ.ID.top (),VDQ.ID.top ())
         end
       in
-      let relationEval = begin match e with 
-        | Lval (Var v, _) -> (VDQ.ID.top (),VDQ.ID.top ())
-        | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI -> 
-          let replaceBinop bi = match bi with
-            | PlusPI | IndexPI -> PlusA
-            | MinusPI -> MinusA
-            | _ -> bi
-          in
-          let ptr_typ = typeOf e1 in
-          begin match ptr_typ with 
-            | TPtr (t, _) -> 
-              let sizeOfType = (bitsSizeOf t) / 8 in
-              let e2Mult = BinOp (Mult, e2, integer sizeOfType, t) in
-              let relExp = BinOp (replaceBinop binop, integer i, e2Mult, TInt (IInt ,[])) in
+      let relationEval = 
+        let i = match i with 
+          | `Lifted i -> i
+          | `Bot ->  IntDomain.IntDomTuple.top ()
+          | `Top -> IntDomain.IntDomTuple.top ()
+        in
+        begin match IntDomain.IntDomTuple.maximal i with 
+          | None -> (VDQ.ID.top (),VDQ.ID.top ())
+          | Some i ->  
+            let i = Z.to_int i in
+            begin match e with 
+              | Lval (Var v, _) -> (VDQ.ID.top (),VDQ.ID.top ())
+              | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI -> 
+                let replaceBinop bi = match bi with
+                  | PlusPI | IndexPI -> PlusA
+                  | MinusPI -> MinusA
+                  | _ -> bi
+                in
+                let ptr_typ = typeOf e1 in
+                begin match ptr_typ with 
+                  | TPtr (t, _) -> 
+                    let sizeOfType = (bitsSizeOf t) / 8 in
+                    let e2Mult = BinOp (Mult, e2, integer sizeOfType, t) in
+                    let relExp = BinOp (replaceBinop binop, integer i, e2Mult, TInt (IInt ,[])) in
 
-              let afterZero = Cilfacade.makeBinOp Le  Cil.zero relExp in
-              if M.tracing then M.trace "malloc" "afterZero2: %a %a\n" d_exp e d_exp afterZero;
-              let isAfterZero = eval_int afterZero (no_overflow ask afterZero) in
-              if M.tracing then M.trace "malloc" "result: %a\n" ID.pretty isAfterZero;
+                    let afterZero = Cilfacade.makeBinOp Le  Cil.zero relExp in
+                    if M.tracing then M.trace "OOB" "afterZero2: %a %a\n" d_exp e d_exp afterZero;
+                    let isAfterZero = eval_int afterZero (no_overflow ask afterZero) in
+                    if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
 
-              let isBeforeEnd = match ctx.ask (Queries.MayPointTo e) with 
-                | a when not (Queries.AD.is_top a) -> 
-                  Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
-                      match addr with
-                      | Addr (v,o) -> 
-                        let allocatedLength = AllocSize.to_varinfo v in
-                        let pointerBeforeEnd = Cilfacade.makeBinOp Lt relExp (Lval (Var allocatedLength, NoOffset)) in
-                        if M.tracing then M.trace "malloc" "pointerBeforeEnd2: %a\n" d_exp pointerBeforeEnd;
-                        let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
-                        if M.tracing then M.trace "malloc" "isPointerBeforeEnd2: %a\n" ID.pretty isPointerBeforeEnd;
-                        ID.join  isPointerBeforeEnd st
+                    let isBeforeEnd = match ctx.ask (Queries.MayPointTo e) with 
+                      | a when not (Queries.AD.is_top a) -> 
+                        Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
+                            match addr with
+                            | Addr (v,o) -> 
+                              let allocatedLength = AllocSize.to_varinfo v in
+                              let pointerBeforeEnd = Cilfacade.makeBinOp Lt relExp (Lval (Var allocatedLength, NoOffset)) in
+                              if M.tracing then M.trace "OOB" "pointerBeforeEnd2: %a\n" d_exp pointerBeforeEnd;
+                              let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
+                              if M.tracing then M.trace "OOB" "isPointerBeforeEnd2: %a\n" ID.pretty isPointerBeforeEnd;
+                              ID.join  isPointerBeforeEnd st
+                            | _ -> ID.top ()
+                          )  a  (ID.bot ()) ;
                       | _ -> ID.top ()
-                    )  a  (ID.bot ()) ;
-                | _ -> ID.top ()
-              in  
-              (isAfterZero, isBeforeEnd)
-            | _ -> (VDQ.ID.top (),VDQ.ID.top ())
-          end
-        | _ -> failwith "unexpected expression!\n"
-      end
+                    in  
+                    (isAfterZero, isBeforeEnd)
+                  | _ -> (VDQ.ID.top (),VDQ.ID.top ())
+                end
+              | _ -> failwith "unexpected expression!\n"
+            end
+        end
       in
       let isAfterZero, isBeforeEnd = pointerEval e in
       let isAfterZero2, isBeforeEnd2 = relationEval in
-      if M.tracing then M.trace "malloc" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
+      if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
 
       let isAfterZero = ID.meet isAfterZero isAfterZero2 in
       let isBeforeEnd = ID.meet isBeforeEnd isBeforeEnd2 in
       (* let  *)
       (isAfterZero, isBeforeEnd)
+
     | _ -> Result.top q
 
 
