@@ -61,7 +61,7 @@ let main () =
       (* This is run independant of the autotuner being enabled or not be sound for programs with longjmp *)
       AutoTune.activateLongjmpAnalysesWhenRequired ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
-      file |> do_analyze changeInfo; 
+      file |> do_analyze changeInfo;
       do_html_output ();
       do_gobview file;
       do_stats ();

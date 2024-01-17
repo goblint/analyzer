@@ -1229,9 +1229,8 @@ struct
             | JmpBuf (x, copied, invalid) ->
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
-              (* M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a was modified by inline assembly. This is may lead to Undefined Behavior." d_exp e; *)
               if invalid then
-                M.warn ~category:(Behavior (Undefined Other)) "The jump target %a may have been altered in an inline assembly block." d_exp e;
+                M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a was modified by inline assembly. This is may lead to Undefined Behavior." d_exp e;
               x
             | Top
             | Bot ->
