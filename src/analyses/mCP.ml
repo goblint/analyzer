@@ -79,12 +79,17 @@ struct
     let callstring_list = ["callstring_fundec"; "callstring_stmt"; "callstring_loc"] in
     let callstring_enabled = List.fold_left (fun acc x -> acc || (mem x xs)) false callstring_list in
     let cont_callstring = filter (fun x -> not (mem x callstring_list)) xs in (*the contexts that are insensitive due to the callstring approach*)
+    let contextJoin_enabled = mem "contextJoins" xs in
+    let cont_contextJoins = filter (fun x -> x <> "contextJoins") xs in (*the contexts that are insensitive due to the contextJoins approach*)
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
     path_sens := map' find_id @@ get_string_list "ana.path_sens";
     if callstring_enabled 
     then cont_inse := map' find_id cont_callstring
+    else cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
+    if contextJoin_enabled 
+    then cont_inse := map' find_id cont_contextJoins
     else cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
     check_deps !activated;
     activated := topo_sort_an !activated;
