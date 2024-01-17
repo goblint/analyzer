@@ -42,6 +42,7 @@ struct
     else
       match ctx.ask (Queries.MayPointTo ptr) with
       | a when not (Queries.AD.is_top a) ->
+        if M.tracing then M.trace "OOB" "else\n";
         let pts_list = Queries.AD.elements a in
         let pts_elems_to_sizes (addr: Queries.AD.elt) =
           begin match addr with
@@ -56,11 +57,12 @@ struct
                   begin match ctx.ask (Queries.EvalLength ptr) with
                     | `Lifted arr_len ->
                       let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
+                      if M.tracing then M.trace "OOB" "arr_len_casted=%a item_typ_size_in_bytes=%a\n" ID.pretty arr_len_casted ID.pretty item_typ_size_in_bytes;
                       begin
                         try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
                         with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
                       end
-                    | `Bot -> `Bot
+                    | `Bot -> if M.tracing then M.trace "OOB" "TArray Bot %a\n" d_exp ptr; `Bot
                     | `Top -> `Top
                   end
                 | _ ->
@@ -73,8 +75,10 @@ struct
         (* Map each points-to-set element to its size *)
         let pts_sizes = List.map pts_elems_to_sizes pts_list in
         (* Take the smallest of all sizes that ptr's contents may have *)
+
+        if M.tracing then M.trace "OOB" "ptrs_elements_to_sizes=%a\n" (Pretty.d_list ", " VDQ.ID.pretty) ( pts_sizes);
         begin match pts_sizes with
-          | [] -> `Bot
+          | [] -> if M.tracing then M.trace "OOB" "ptr_sizess Bot %a\n" d_exp ptr; `Bot
           | [x] -> x
           | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
         end

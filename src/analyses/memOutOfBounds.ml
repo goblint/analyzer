@@ -167,22 +167,6 @@ struct
   let cwe_number = 823
   let behavior = Undefined MemoryOutOfBoundsAccess 
 
-  let negativeIndexCheck e off : bool = 
-    if M.tracing then M.trace "neg" "e=%a off=%a\n" d_exp e ID.pretty off;
-    let max_boundary_addr = ID.maximal off in
-    let min_boundary_addr = ID.minimal off in
-    if max_boundary_addr != None && Z.lt (Option.get max_boundary_addr) Z.zero then (
-      set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a has a negative index. Memory out-of-bounds access must occur" d_exp e;
-      true
-    )else 
-    if min_boundary_addr != None && Z.lt (Option.get min_boundary_addr) Z.zero then (
-      set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a has a negative index. Memory out-of-bounds access must occur" d_exp e;
-      false
-    )else 
-      false
-
   let rec check_lval_for_oob_access ctx ?(is_implicitly_derefed = false) lval =
     if M.tracing then M.trace "malloc" "check_lval_for_oob_access is_implicitly_derefed=%b lval=%a\n" is_implicitly_derefed d_lval lval;
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
@@ -215,7 +199,7 @@ struct
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not determine pointer %a offset. Memory out-of-bounds access before allocated memory might occur" d_exp e
               | Some false -> 
                 set_mem_safety_flag InvalidDeref;
-                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a accesses are before allocated memory. Memory out-of-bounds access must occur" d_exp e
+                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a acessess memory before the allocated memory. Memory out-of-bounds access must occur" d_exp e
               | Some true -> ()
             end;
             begin match isBeforeEndBool with
@@ -224,7 +208,7 @@ struct
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not determine pointer %a offset. Memory out-of-bounds access after allocated memory are might occur" d_exp e
               | Some false -> 
                 set_mem_safety_flag InvalidDeref;
-                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a accesses are after allocated memory. Memory out-of-bounds access must occur" d_exp e
+                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a accesses memory after the allocated memory. Memory out-of-bounds access must occur" d_exp e
               | Some true -> ()
             end
           | _ -> 
