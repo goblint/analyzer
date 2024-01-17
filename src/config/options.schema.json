@@ -19,7 +19,7 @@
     },
     "asm_is_nop": {
       "title": "asm_is_nop",
-      "description": "treat asm statements as nop",
+      "description": "Treat assembly statements as NOOP",
       "type": "boolean",
       "default": true
     },

@@ -775,14 +775,14 @@ struct
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
-      | Assign (lv,rv) -> tf_assign var edge prev_node lv rv
-      | VDecl (v)      -> tf_vdecl var edge prev_node v
-      | Proc (r,f,ars) -> tf_proc var edge prev_node r f ars
-      | Entry f        -> tf_entry var edge prev_node f
-      | Ret (r,fd)     -> tf_ret var edge prev_node r fd
-      | Test (p,b)     -> tf_test var edge prev_node p b
-      | ASM (_, _, _,_)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
-      | Skip           -> tf_skip var edge prev_node
+      | Assign (lv,rv)  -> tf_assign var edge prev_node lv rv
+      | VDecl (v)       -> tf_vdecl var edge prev_node v
+      | Proc (r,f,ars)  -> tf_proc var edge prev_node r f ars
+      | Entry f         -> tf_entry var edge prev_node f
+      | Ret (r,fd)      -> tf_ret var edge prev_node r fd
+      | Test (p,b)      -> tf_test var edge prev_node p b
+      | ASM (_, _, _,_) -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
+      | Skip            -> tf_skip var edge prev_node
     end getl sidel getg sideg d
 
   type Goblint_backtrace.mark += TfLocation of location

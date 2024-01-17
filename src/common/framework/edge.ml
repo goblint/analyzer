@@ -23,7 +23,8 @@ type t =
   (** The true-branch or false-branch of a conditional exp *)
   | ASM of string list * asm_out * asm_in * bool
   (** Inline assembly statements, and the annotations for output and input
-    * variables. The last field is a flag that indicates if this is a duplicated edge. *)
+    * variables. The last field is a flag that indicates if this is an edge that
+    * was inserted because of asm goto labels. *)
   | VDecl of CilType.Varinfo.t
   (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
     * local variables or only when it is not possible to pull the declaration up, is
