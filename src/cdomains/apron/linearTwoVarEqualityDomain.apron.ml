@@ -255,21 +255,26 @@ struct
   let subtract_const_from_var t var const =
     match t.d with
     | None -> t
-    | Some t_d -> let d = EArray.copy t_d in
+    | Some t_d ->
+      let d = EArray.copy t_d in
       let subtract_const_from_var_for_single_equality index element =
-        let (eq_var_opt, off2) = d.(index) in
-        if index = var then
-          match eq_var_opt with
-          | None -> d.(index) <- (None, Z.(off2 + const))
-          | Some eq_var -> begin if eq_var <> index then d.(index) <- (eq_var_opt, Z.(off2 + const)) end
-        else
-          begin match eq_var_opt with
-            | Some eq_var ->
-              if eq_var = var then d.(index) <- (eq_var_opt, Z.(off2 - const))
-            | None -> ()
+        if index <> var then
+          begin match d.(index) with
+            | (Some eq_var, off2) when eq_var = var ->
+              d.(index) <- (Some eq_var, Z.(off2 - const))
+            | _ -> ()
           end
       in
-      EArray.iteri (subtract_const_from_var_for_single_equality) d; {d = Some d; env = t.env}
+      begin if d.(var) = (Some var, Z.zero)
+      (* var is a reference variable -> it can appear on the right-hand side of an equality *)
+        then
+          EArray.iteri (subtract_const_from_var_for_single_equality) d
+        else
+          (* var never appears on the right hand side-> we only need to modify the array entry at index var *)
+          d.(var) <- Tuple2.map2 (Z.add const) d.(var)
+      end;
+      {d = Some d; env = t.env}
+
 end
 
 module ExpressionBounds: (SharedFunctions.ExtendedConvBounds with type t = VarManagement.t) =
