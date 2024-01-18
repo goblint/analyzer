@@ -31,7 +31,7 @@ module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
       if Array.length ch.dim = 0 || is_empty m then
         m
       else (
-        Array.modifyi (fun i x -> x + i) ch.dim;
+        Array.modifyi (+) ch.dim;
         let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim else m in
         remove_zero_rows @@ del_cols m' ch.dim)
 

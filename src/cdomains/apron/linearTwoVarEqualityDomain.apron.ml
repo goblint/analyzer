@@ -42,19 +42,32 @@ module EqualitiesArray = struct
 
   let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero))
 
-  let add_variables_to_domain m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
-    let nnc = length indexes in
-    if nnc = 0 then m else
-      let nc = length m in
-      let offset = ref 0 in
-      let offset_map = Array.init nc (fun j ->
-          while !offset < nnc && !offset + j = indexes.(!offset) do incr offset; done;
-          !offset)
-      in let add_offset_to_array_entry (var, offs) =
-           Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
-      let m' = make_empty_array (nc + nnc)
+  let add_variables_to_domain m indexes = (* add new variables to domain with particular indices; translates old indices to keep consistency *)
+    (* the semantic of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
+    if length indexes = 0 then m else
+      let next_offset_bump_list = (* an ascending list of indices, where the offset is bumped by 1 *)
+        Array.to_list indexes @ [ Array.length m ] (* terminate list with m to avoid out of bounds access *)
+      in
+      let offset_map = Array.make (Array.length m) 0 (* maps each variable to the number of variables that are added before this variable *)
+      in
+      let rec shift (offset, list) index = (* bumps offset & pops list, if/while index is heading the list *)
+        if index = List.hd list then
+          shift (offset+1, List.tl list) index
+        else (offset, list)
+      in
+      let _ =
+        Array.fold_lefti (* iterates over all indices of offset_map, overwrites content with current offset wrt. potential shift *)
+          (fun (offset, offset_bump_list) index _ ->
+             let newoffset, newlist = shift (offset, offset_bump_list) index in
+             offset_map.(index) <- newoffset;
+             (newoffset, newlist))
+          (0, next_offset_bump_list) offset_map
+      in
+      let add_offset_to_array_entry (var, offs) = (* uses offset_map to obtain a new var_index, that is consistent with the new reference indices *)
+        Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
+      let m' = make_empty_array (length m + length indexes)
       in Array.iteri (fun j eq -> m'.(j + offset_map.(j)) <- add_offset_to_array_entry eq) m;
-      m'
+      m'(* produces a consistent new conj. of equalities *)
 
   let remove_variables_from_domain m indexes =
     let nrc = length indexes in
@@ -62,13 +75,17 @@ module EqualitiesArray = struct
     else
       let nc = length m in
       if nc = nrc then [||] else
-        let offset = ref 0 in
-        let offset_map = Array.init nc (fun j ->
-            if !offset < nrc && indexes.(!offset) = j then (incr offset; 0) else !offset)
-        in let remove_offset_from_array_entry (var, offs) =
-             Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-        Array.(copy m |>  filteri (fun i _ -> not @@ Array.mem i indexes)
-               |> map remove_offset_from_array_entry)
+        let offset_map = Array.make (Array.length m) 0
+        (* maps each variable to the number of variables that are removed before this variable *)
+        in let _ = Array.fold_lefti
+               (fun offset index _ ->
+                  if offset < nrc && indexes.(offset) = index then offset + 1
+                  else (offset_map.(index) <- offset; offset))
+               0 offset_map in
+        let remove_offset_from_array_entry (var, offs) =
+          Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
+        Array.(copy m |>  filteri (fun i _ -> not @@ Array.mem i indexes) (* filter out removed variables*)
+               |> map remove_offset_from_array_entry) (* adjust variable indexes *)
 
   let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
 
@@ -103,7 +120,6 @@ module EqualitiesArray = struct
     copy
 
   let dim_add (ch: Apron.Dim.change) m =
-    Array.modifyi (fun i x -> x + i) ch.dim; (* could be written Array.modifyi (+) ch.dim; but that's too smart *)
     add_variables_to_domain m ch.dim
 
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
@@ -112,7 +128,7 @@ module EqualitiesArray = struct
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
-      Array.modifyi (fun i x -> x + i) ch.dim;
+      Array.modifyi (+) ch.dim;
       let m' = Array.fold_left (fun y x -> forget_variable_with y x; y) (copy m) ch.dim in
       remove_variables_from_domain m' ch.dim)
 
@@ -256,8 +272,6 @@ struct
       EArray.iteri (subtract_const_from_var_for_single_equality) d; {d = Some d; env = t.env}
 end
 
-
-(** TODO: overflow checking *)
 module ExpressionBounds: (SharedFunctions.ExtendedConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
