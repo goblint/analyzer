@@ -14,27 +14,23 @@ module M = Messages
 open Apron
 open VectorMatrix
 
-
-
 module Mpqf = SharedFunctions.Mpqf
 
 module Equality = struct
   (* (Some i, k) represents a sum of a variable with index i and the number k.
      (None, k) represents the number k. *)
-  type t = (int option * Z.t) [@@deriving eq, ord, hash]
+  type t = (int option * (Z.t [@printer Z.pp_print])) [@@deriving eq, ord, hash, show]
   let zero = (None, Z.zero)
   let var_zero i = (Some i, Z.zero)
   let to_int x = Z.to_int @@ snd x
-  let print (a, b) = match a with
-    | None -> print_endline @@ "(None , " ^ Z.to_string b ^ ")"
-    | Some x -> print_endline @@ "(Some " ^ string_of_int x ^ ", " ^ Z.to_string b ^ ")"
 end
 
 module EqualitiesArray = struct
   include Array
   type t = Equality.t Array.t [@@deriving eq, ord]
 
-  let print = Array.iter (fun k -> Equality.print k)
+  let show m =
+    Array.fold_right (fun k result -> Equality.show k ^ "\n" ^ result) m ""
 
   let hash : t -> int = Array.fold_left (fun acc a -> 31 * acc + Equality.hash a) 0
 
@@ -70,28 +66,27 @@ module EqualitiesArray = struct
       m'(* produces a consistent new conj. of equalities *)
 
   let remove_variables_from_domain m indexes =
-    let nrc = length indexes in
-    if nrc = 0 || length m = 0 then m
+    let nr_removed_colums = length indexes in
+    if nr_removed_colums = 0 || length m = 0 then m
     else
-      let nc = length m in
-      if nc = nrc then [||] else
-        let offset_map = Array.make (Array.length m) 0
-        (* maps each variable to the number of variables that are removed before this variable *)
-        in let _ = Array.fold_lefti
-               (fun offset index _ ->
-                  if offset < nrc && indexes.(offset) = index then offset + 1
-                  else (offset_map.(index) <- offset; offset))
-               0 offset_map in
-        let remove_offset_from_array_entry (var, offs) =
-          Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-        Array.(copy m |>  filteri (fun i _ -> not @@ Array.mem i indexes) (* filter out removed variables*)
-               |> map remove_offset_from_array_entry) (* adjust variable indexes *)
+    if length m = nr_removed_colums then [||] else
+      let offset_map = Array.make (Array.length m) 0
+      (* maps each variable to the number of variables that are removed before this variable *)
+      in let _ = Array.fold_lefti
+             (fun offset index _ ->
+                if offset < nr_removed_colums && indexes.(offset) = index then offset + 1
+                else (offset_map.(index) <- offset; offset))
+             0 offset_map in
+      let remove_offset_from_array_entry (var, offs) =
+        Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
+      Array.(copy m |>  filteri (fun i _ -> not @@ Array.mem i indexes) (* filter out removed variables*)
+             |> map remove_offset_from_array_entry) (* adjust variable indexes *)
 
   let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
 
   let is_empty m = length m = 0
 
-  let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.(e = zero))
+  let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
 
   (* Forget information about variable var in-place.
      The name reduce_col_with is because the affineEqualitiesDomain also defines this function,
@@ -140,8 +135,8 @@ end
 
 module V = RelationDomain.V
 
-(** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
-    Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
+(** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
+    Furthermore, it provides the function [get_coeff_vec] that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement =
 struct
   module EArray = EqualitiesArray
@@ -150,19 +145,9 @@ struct
   let dim_add = EArray.dim_add
   let size t = BatOption.map_default (fun d -> EArray.length d) 0 t.d
 
-  (* Returns the constant value of a variable,
-     if we know the constant value of this variable.
-     Else it returns None. *)
-  let get_variable_value_if_it_is_a_constant t var =
-    let get_constant (var, off) = match var with
-      | None -> Some off
-      | _ -> None
-    in
-    Option.bind t.d (fun d -> get_constant d.(var))
-
+  (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset.
+    **)
   let get_coeff_vec (t: t) texp =
-    (*Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset.
-    *)
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
     let exception NotIntegerOffset in
@@ -189,7 +174,8 @@ struct
                      | Scalar x -> begin match x with
                          | Float x -> raise NotIntegerOffset
                          | Mpqf x -> [(mpqf_to_Z x, None)]
-                         | Mpfrf x -> raise NotIntegerOffset end in of_union x
+                         | Mpfrf x -> raise NotIntegerOffset end in
+          of_union x
         | Var x ->
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
@@ -238,7 +224,7 @@ struct
     | None -> None
     | Some (var, var_coeff, offset) ->
       if Option.is_none var then Some (None, offset)
-      else if Z.(var_coeff = one) then Some (var, offset)
+      else if Z.equal var_coeff Z.one then Some (var, offset)
       else None
 
 
@@ -250,18 +236,19 @@ struct
 
   let assign_const t var const = match t.d with
     | None -> t
-    | Some t_d -> let d = EArray.copy t_d in d.(var) <- (None, const);  {d = Some d; env = t.env}
+    | Some t_d ->
+      let d = EArray.copy t_d in d.(var) <- (None, const);  {d = Some d; env = t.env}
 
   let subtract_const_from_var t var const =
     match t.d with
     | None -> t
     | Some t_d ->
       let d = EArray.copy t_d in
-      let subtract_const_from_var_for_single_equality index element =
+      let subtract_const_from_var_for_single_equality index (eq_var_opt, off2) =
         if index <> var then
-          begin match d.(index) with
-            | (Some eq_var, off2) when eq_var = var ->
-              d.(index) <- (Some eq_var, Z.(off2 - const))
+          begin match eq_var_opt with
+            | Some eq_var when eq_var = var ->
+              d.(index) <- (eq_var_opt, Z.(off2 - const))
             | _ -> ()
           end
       in
@@ -318,7 +305,7 @@ struct
   (*this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities*)
   let top_of env = {d = Some (EArray.make_empty_array (Environment.size env)); env = env}
 
-  (*Should never be called but implemented for completeness *)
+  (*Is not expected to be called but implemented for completeness *)
   let top () = {d = Some (EArray.empty()); env = empty_env}
 
   (*is_top returns true for top_of array and empty array *)
@@ -415,7 +402,6 @@ struct
       let ad = Array.copy ad in
       (*This is the table which is later grouped*)
       let table = BatList.map2i (fun i (ai, aj) (bi,bj) -> (i, Z.(aj - bj), (ai, aj), (bi,bj))) (Array.to_list ad) (Array.to_list bd) in
-      (*let diff t1 t2 = Z.(snd t1 - snd t2) in*)
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in
@@ -431,7 +417,7 @@ struct
       let iterate l =
         match l with
         | (idx_h, _, (_, b_h), _) :: t ->  List.iter (modify idx_h b_h) l
-        | [] -> () (*This should not happen, consider throwing exception*)
+        | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       List.iter iterate new_components; Some ad
     in
@@ -455,6 +441,7 @@ struct
     let res = join a b in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
+
   let widen a b =
     let a_env = a.env in
     let b_env = b.env in
@@ -466,7 +453,8 @@ struct
     let j0 = Environment.dim_of_var env var in
     if imp then (EArray.forget_variable_with x j0; x) else EArray.forget_variable x j0
 
-  let narrow a b = a
+  let narrow a b = meet a b
+
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -477,7 +465,7 @@ struct
       if List.is_empty vars then t else
         let rec rem_vars m vars' =
           begin match vars' with
-            |            [] -> m
+            | [] -> m
             | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
         in {d = Some (rem_vars (EArray.copy m) vars); env = t.env}
 
@@ -595,16 +583,16 @@ struct
 
   let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
 
-  let print_coeff_vec l (env : Environment.t) =
-    let print_element e = match e with
-      | (a, Some x) -> print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ")
-      | (a, None) -> print_string ((Z.to_string a) ^ "+") in
-    List.iter print_element  l; print_newline ()
+  let show_coeff_vec l (env : Environment.t) =
+    let show_element e = match e with
+      | (a, Some x) -> ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ")
+      | (a, None) -> ((Z.to_string a) ^ "+") in
+    List.fold_right (fun k result -> show_element k ^ "\n" ^ result) l ""
 
-  let print_final_expr l (env : Environment.t) =
-    let print_element i a = if i = 0 then print_string ((Z.to_string a) ^ " + ") else
-        print_string ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in
-    List.iteri print_element l; print_newline ()
+  let show_final_expr l (env : Environment.t) =
+    let show_element i a = if i = 0 then ((Z.to_string a) ^ " + ") else
+        ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in
+    List.fold_righti (fun i k result -> show_element i k ^ "\n" ^ result) l ""
 
   (** Assert a constraint expression.
 
