@@ -17,15 +17,36 @@ module Mpqf = SharedFunctions.Mpqf
 
 module V = RelationDomain.V
 
+module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
+  struct
+    include Mx(Mpqf) (Vec)
+    let dim_add (ch: Apron.Dim.change) m =
+      Array.modifyi (+) ch.dim;
+      add_empty_columns m ch.dim
+
+    let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
+
+
+    let dim_remove (ch: Apron.Dim.change) m ~del =
+      if Array.length ch.dim = 0 || is_empty m then
+        m
+      else (
+        Array.modifyi (fun i x -> x + i) ch.dim;
+        let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim else m in
+        remove_zero_rows @@ del_cols m' ch.dim)
+
+    let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
+  end
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
   module Vector = Vec (Mpqf)
-  module Matrix = Mx(Mpqf) (Vec)
+  module Matrix = AffineEqualityMatrix (Vec) (Mx)
 
-  include SharedFunctions.VarManagementOps (Mx(Mpqf) (Vec))
+  let dim_add = Matrix.dim_add
 
+  include SharedFunctions.VarManagementOps(AffineEqualityMatrix (Vec) (Mx))
   include ConvenienceOps(Mpqf)
 
   (** Get the constant from the vector if it is a constant *)

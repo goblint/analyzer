@@ -42,7 +42,7 @@ module EqualitiesArray = struct
 
   let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero))
 
-  let add_empty_columns m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
+  let add_variables_to_domain m indexes = (** same as add_empty_columns for Matrix (see vectorMatrix.ml)*)
     let nnc = length indexes in
     if nnc = 0 then m else
       let nc = length m in
@@ -56,7 +56,7 @@ module EqualitiesArray = struct
       in Array.iteri (fun j eq -> m'.(j + offset_map.(j)) <- add_offset_to_array_entry eq) m;
       m'
 
-  let del_cols m indexes =
+  let remove_variables_from_domain m indexes =
     let nrc = length indexes in
     if nrc = 0 || length m = 0 then m
     else
@@ -70,7 +70,7 @@ module EqualitiesArray = struct
         Array.(copy m |>  filteri (fun i _ -> not @@ Array.mem i indexes)
                |> map remove_offset_from_array_entry)
 
-  let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
+  let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
 
   let is_empty m = length m = 0
 
@@ -81,7 +81,7 @@ module EqualitiesArray = struct
      and it represents the equalities with a matrix, not like in this case with an array.
      We could think about changing this name, then we would need to change it also in
      shared_Functions.apron.ml and vectorMatrix.ml and affineEqualitiesDomain.ml *)
-  let reduce_col_with d var =
+  let forget_variable_with d var =
     (let ref_var_opt = fst d.(var) in
      match ref_var_opt with
      | Some ref_var when ref_var = var ->
@@ -97,12 +97,27 @@ module EqualitiesArray = struct
   ; d.(var) <- Equality.var_zero var (* set d(var) to unknown, finally *)
 
   (* Forget information about variable i but not in-place *)
-  let reduce_col m j =
+  let forget_variable m j =
     let copy = copy m in
-    reduce_col_with copy j;
+    forget_variable_with copy j;
     copy
 
-  let remove_zero_rows t = t
+  let dim_add (ch: Apron.Dim.change) m =
+    Array.modifyi (fun i x -> x + i) ch.dim; (* could be written Array.modifyi (+) ch.dim; but that's too smart *)
+    add_variables_to_domain m ch.dim
+
+  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
+
+  let dim_remove (ch: Apron.Dim.change) m ~del =
+    if Array.length ch.dim = 0 || is_empty m then
+      m
+    else (
+      Array.modifyi (fun i x -> x + i) ch.dim;
+      let m' = Array.fold_left (fun y x -> forget_variable_with y x; y) (copy m) ch.dim in
+      remove_variables_from_domain m' ch.dim)
+
+  let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
+
 
 end
 
@@ -116,7 +131,7 @@ struct
   module EArray = EqualitiesArray
   include SharedFunctions.VarManagementOps (EArray)
 
-
+  let dim_add = EArray.dim_add
   let size t = BatOption.map_default (fun d -> EArray.length d) 0 t.d
 
   (* Returns the constant value of a variable,
@@ -214,7 +229,7 @@ struct
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
 
   let abstract_exists var t = match t.d with
-    | Some d -> {t with d = Some (EArray.reduce_col d (Environment.dim_of_var t.env var))}
+    | Some d -> {t with d = Some (EArray.forget_variable d (Environment.dim_of_var t.env var))}
     | None -> t (* there are no  variables in the current environment *)
 
   let assign_const t var const = match t.d with
@@ -365,7 +380,7 @@ struct
     if is_bot_env t1 || is_top t2 then true else
     if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
-      let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
+      let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
       GobArray.for_alli (fun i t -> implies m1' t i) m2
 
   let leq a b = timing_wrap "leq" (leq a) b
@@ -430,7 +445,7 @@ struct
 
   let remove_rels_with_var x var env imp =
     let j0 = Environment.dim_of_var env var in
-    if imp then (EArray.reduce_col_with x j0; x) else EArray.reduce_col x j0
+    if imp then (EArray.forget_variable_with x j0; x) else EArray.forget_variable x j0
 
   let narrow a b = a
   let pretty_diff () (x, y) =
@@ -445,7 +460,7 @@ struct
           begin match vars' with
             |            [] -> m
             | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
-        in {d = Some (EArray.remove_zero_rows @@ rem_vars (EArray.copy m) vars); env = t.env}
+        in {d = Some (rem_vars (EArray.copy m) vars); env = t.env}
 
   let forget_vars t vars =
     let res = forget_vars t vars in

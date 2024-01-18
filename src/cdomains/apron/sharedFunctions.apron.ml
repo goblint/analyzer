@@ -266,14 +266,9 @@ sig
   val hash : t -> int
   val empty : unit -> t
   val copy : t -> t
-  val add_empty_columns : t -> int array -> t
   val is_empty : t -> bool
-  val reduce_col_with : t -> int -> unit
-
-  val remove_zero_rows : t -> t
-
-  val del_cols : t -> int array -> t
-
+  val dim_add : Apron.Dim.change -> t -> t
+  val dim_remove : Apron.Dim.change -> t -> del:bool-> t
 end
 
 (* Shared operations for the management of the Matrix or Array representations of the domains,
@@ -298,23 +293,6 @@ struct
 
   let copy t = {t with d = Option.map RelDomain.copy t.d}
 
-  let dim_add (ch: Apron.Dim.change) m =
-    Array.modifyi (fun i x -> x + i) ch.dim; (* could be written Array.modifyi (+) ch.dim; but that's too smart *)
-    RelDomain.add_empty_columns m ch.dim
-
-  let dim_add ch m = VectorMatrix.timing_wrap "dim add" (dim_add ch) m
-
-  let dim_remove (ch: Apron.Dim.change) m ~del =
-    if Array.length ch.dim = 0 || RelDomain.is_empty m then
-      m
-    else (
-      Array.modifyi (fun i x -> x + i) ch.dim;
-      let m' = Array.fold_left (fun y x -> RelDomain.reduce_col_with y x; y) (RelDomain.copy m) ch.dim in
-      RelDomain.remove_zero_rows @@ RelDomain.del_cols m' ch.dim)
-
-  let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
-
-
   let change_d t new_env ~add ~del =
     if Environment.equal t.env new_env then
       t
@@ -328,7 +306,7 @@ struct
           else
             Environment.dimchange new_env t.env
         in
-        {d = Some (if add then dim_add dim_change m else dim_remove dim_change m ~del:del); env = new_env}
+        {d = Some (if add then RelDomain.dim_add dim_change m else RelDomain.dim_remove dim_change m ~del:del); env = new_env}
 
   let change_d t new_env ~add ~del = VectorMatrix.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
 
