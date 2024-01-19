@@ -27,8 +27,6 @@ module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
-module CM = CommonMemOutOfBounds.CommonFunctions
-
 module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
 struct
   include Analyses.DefaultSpec
@@ -1403,62 +1401,6 @@ struct
       if M.tracing then M.trace "apron" "exp %a\n" d_exp e;
       ignore(query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e);
       !IntDomain.local_no_overflow ;
-    | Q.AllocMayBeOutOfBounds (e, i, o) -> 
-      begin match typeOf e with 
-        | TPtr (ty, _) -> 
-          let expOffset = match i 
-            with `Lifted i -> i 
-               | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-          in
-          if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
-          let expOffset = match e with 
-            | Lval (Var v, _) -> expOffset 
-            | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI -> 
-              let  e2Offset = CM.eval_ptr_offset_in_binop ctx e2 ty in (*add offset of e2*)
-              begin 
-                try ID.add expOffset e2Offset
-                with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-              end
-            | BinOp (binop, e1, e2, t) when binop = MinusPI -> 
-              let  e2Offset = CM.eval_ptr_offset_in_binop ctx e2 ty in
-              begin 
-                try ID.sub expOffset e2Offset
-                with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-              end
-            | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
-          in
-          if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
-          let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
-
-          let current_index_size = CM.size_of_type_in_bytes ty in
-          let casted_current_index_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) current_index_size in (*add size of type*)
-          let expOffset_plus_current_index_size = 
-            begin try ID.add expOffset casted_current_index_size 
-              with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-            end
-          in
-          if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty current_index_size;
-          if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_plus_current_index_size;
-          let exp_Offset_plus_current_index_size_struct_offset = match o with
-            | None -> expOffset_plus_current_index_size
-            | Some o -> 
-              let offs_intdom = CM.cil_offs_to_idx ctx ty o in (*struct offset*)
-              let casted_offs_intdom = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in (*cast offset*)
-              (try  (ID.add casted_offs_intdom expOffset_plus_current_index_size)
-               with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
-          in
-          let isBeforeEnd = match  CM.get_size_of_ptr_target ctx e with 
-            | `Lifted size -> 
-              let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
-              if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
-              ID.le exp_Offset_plus_current_index_size_struct_offset casted_e_size
-            | `Top -> ID.top_of  IInt
-            | `Bot -> ID.top_of  IInt (*Ikind of ID comparisons*)
-          in
-          if M.tracing then M.trace "OOB" "result %a %a\n" ID.pretty isBeforeZero ID.pretty isBeforeEnd;
-          (`Lifted isBeforeZero,`Lifted isBeforeEnd)
-        | _ -> (ValueDomainQueries.ID.top (), ValueDomainQueries.ID.top())
-      end
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

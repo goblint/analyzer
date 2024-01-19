@@ -9,8 +9,6 @@ module AS = AnalysisState
 module VDQ = ValueDomainQueries
 module ID = IntDomain.IntDomTuple
 
-module CM = CommonMemOutOfBounds.CommonFunctions
-open CM
 (*
   Note:
   * This functionality is implemented as an analysis solely for the sake of maintaining
@@ -71,80 +69,80 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-      let points_to_heap_only ctx ptr =
-        match ctx.ask (Queries.MayPointTo ptr) with
-        | a when not (Queries.AD.is_top a)->
-          Queries.AD.for_all (function
-              | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
-              | _ -> false
-            ) a
-        | _ -> false
+  let points_to_heap_only ctx ptr =
+    match ctx.ask (Queries.MayPointTo ptr) with
+    | a when not (Queries.AD.is_top a)->
+      Queries.AD.for_all (function
+          | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
+          | _ -> false
+        ) a
+    | _ -> false
 
-      let get_size_of_ptr_target ctx ptr =
-        if points_to_heap_only ctx ptr then
-          (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-          ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
-        else
-          match ctx.ask (Queries.MayPointTo ptr) with
-          | a when not (Queries.AD.is_top a) ->
-            let pts_list = Queries.AD.elements a in
-            let pts_elems_to_sizes (addr: Queries.AD.elt) =
-              begin match addr with
-                | Addr (v, _) ->
-                  if hasAttribute "goblint_cil_nested" v.vattr then (
-                    set_mem_safety_flag InvalidDeref;
-                    M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
-                  );
-                  begin match v.vtype with
-                    | TArray (item_typ, _, _) ->
-                      let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                      begin match ctx.ask (Queries.EvalLength ptr) with
-                        | `Lifted arr_len ->
-                          let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
-                          begin
-                            try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                            with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-                          end
-                        | `Bot -> `Bot
-                        | `Top -> `Top
+  let get_size_of_ptr_target ctx ptr =
+    if points_to_heap_only ctx ptr then
+      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+      ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
+    else
+      match ctx.ask (Queries.MayPointTo ptr) with
+      | a when not (Queries.AD.is_top a) ->
+        let pts_list = Queries.AD.elements a in
+        let pts_elems_to_sizes (addr: Queries.AD.elt) =
+          begin match addr with
+            | Addr (v, _) ->
+              if hasAttribute "goblint_cil_nested" v.vattr then (
+                set_mem_safety_flag InvalidDeref;
+                M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
+              );
+              begin match v.vtype with
+                | TArray (item_typ, _, _) ->
+                  let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+                  begin match ctx.ask (Queries.EvalLength ptr) with
+                    | `Lifted arr_len ->
+                      let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
+                      begin
+                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
                       end
-                    | _ ->
-                      let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-                      `Lifted type_size_in_bytes
+                    | `Bot -> `Bot
+                    | `Top -> `Top
                   end
-                | _ -> `Top
+                | _ ->
+                  let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+                  `Lifted type_size_in_bytes
               end
-            in
-            (* Map each points-to-set element to its size *)
-            let pts_sizes = List.map pts_elems_to_sizes pts_list in
-            (* Take the smallest of all sizes that ptr's contents may have *)
-            begin match pts_sizes with
-              | [] -> `Bot
-              | [x] -> x
-              | x::xs -> List.fold_left VDQ.ID.join x xs
-            end
-          | _ ->
-            (set_mem_safety_flag InvalidDeref;
-             M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-             `Top)
+            | _ -> `Top
+          end
+        in
+        (* Map each points-to-set element to its size *)
+        let pts_sizes = List.map pts_elems_to_sizes pts_list in
+        (* Take the smallest of all sizes that ptr's contents may have *)
+        begin match pts_sizes with
+          | [] -> `Bot
+          | [x] -> x
+          | x::xs -> List.fold_left VDQ.ID.join x xs
+        end
+      | _ ->
+        (set_mem_safety_flag InvalidDeref;
+         M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+         `Top)
 
   let get_ptr_deref_type ptr_typ =
     match ptr_typ with
     | TPtr (t, _) -> Some t
     | _ -> None
 
-     let eval_ptr_offset_in_binop ctx exp ptr_contents_typ =
-        let eval_offset = ctx.ask (Queries.EvalInt exp) in
-        let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
-        match eval_offset with
-        | `Lifted eo ->
-          let casted_eo = ID.cast_to (Cilfacade.ptrdiff_ikind ()) eo in
-          begin
-            try `Lifted (ID.mul casted_eo ptr_contents_typ_size_in_bytes)
-            with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-          end
-        | `Top -> `Top
-        | `Bot -> `Bot
+  let eval_ptr_offset_in_binop ctx exp ptr_contents_typ =
+    let eval_offset = ctx.ask (Queries.EvalInt exp) in
+    let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
+    match eval_offset with
+    | `Lifted eo ->
+      let casted_eo = ID.cast_to (Cilfacade.ptrdiff_ikind ()) eo in
+      begin
+        try `Lifted (ID.mul casted_eo ptr_contents_typ_size_in_bytes)
+        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+      end
+    | `Top -> `Top
+    | `Bot -> `Bot
 
   let rec offs_to_idx typ offs =
     match offs with
@@ -167,22 +165,23 @@ struct
         with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
       end
 
-      let cil_offs_to_idx ctx typ offs =
-          (* TODO: Some duplication with convert_offset in base.ml, unclear how to immediately get more reuse *)
-          let rec convert_offset (ofs: offset) =
-            match ofs with
-            | NoOffset -> `NoOffset
-            | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
-            | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
-              `Index (ID.top (), convert_offset ofs)
-            | Index (exp, ofs) ->
-              let i = match ctx.ask (Queries.EvalInt exp) with
-                | `Lifted x -> x
-                | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
-              in
-              `Index (i, convert_offset ofs)
-          in
-          PreValueDomain.Offs.to_index (convert_offset offs)
+  let cil_offs_to_idx ctx typ offs =
+    (* TODO: Some duplication with convert_offset in base.ml, unclear how to immediately get more reuse *)
+    let rec convert_offset (ofs: offset) =
+      match ofs with
+      | NoOffset -> `NoOffset
+      | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
+      | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
+        `Index (ID.top (), convert_offset ofs)
+      | Index (exp, ofs) ->
+        let i = match ctx.ask (Queries.EvalInt exp) with
+          | `Lifted x -> x
+          | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+        in
+        `Index (i, convert_offset ofs)
+    in
+    PreValueDomain.Offs.to_index (convert_offset offs)
+
 
   let check_unknown_addr_deref ctx ptr =
     let may_contain_unknown_addr =
@@ -423,6 +422,68 @@ struct
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
     Option.iter (fun x -> check_lval_for_oob_access ctx x) lval;
     ctx.local
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.AllocMayBeOutOfBounds (e, i, o) -> 
+      begin match typeOf e with 
+        | TPtr (ty, _) -> 
+          let expOffset = match i 
+            with `Lifted i -> i 
+               | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+          in
+          if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
+          let expOffset = match e with 
+            | Lval (Var v, _) -> expOffset 
+            | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
+              let  e2Offset = eval_ptr_offset_in_binop ctx e2 ty in (*add offset of e2*)
+              begin match e2Offset with
+                | `Lifted e2Offset -> 
+                  begin 
+                    try if binop = MinusPI then 
+                        ID.sub expOffset e2Offset
+                      else
+                        ID.add expOffset e2Offset
+                    with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+                  end
+                | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+              end
+            | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
+          in
+          if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
+          let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
+
+          let current_index_size = size_of_type_in_bytes ty in
+          let casted_current_index_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) current_index_size in (*add size of type*)
+          let expOffset_plus_current_index_size = 
+            begin try ID.add expOffset casted_current_index_size 
+              with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+            end
+          in
+          if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty current_index_size;
+          if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_plus_current_index_size;
+          let exp_Offset_plus_current_index_size_struct_offset = match o with
+            | None -> expOffset_plus_current_index_size
+            | Some o -> 
+              let offs_intdom = cil_offs_to_idx ctx ty o in (*struct offset*)
+              let casted_offs_intdom = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in (*cast offset*)
+              (try  (ID.add casted_offs_intdom expOffset_plus_current_index_size)
+               with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
+          in
+          let isBeforeEnd = match  get_size_of_ptr_target ctx e with 
+            | `Lifted size -> 
+              let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
+              if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
+              ID.le exp_Offset_plus_current_index_size_struct_offset casted_e_size
+            | `Top -> ID.top_of  IInt
+            | `Bot -> ID.top_of  IInt (*Ikind of ID comparisons*)
+          in
+          if M.tracing then M.trace "OOB" "result %a %a\n" ID.pretty isBeforeZero ID.pretty isBeforeEnd;
+          (`Lifted isBeforeZero,`Lifted isBeforeEnd)
+        | _ -> (ValueDomainQueries.ID.top (), ValueDomainQueries.ID.top())
+      end
+    (* Queries.Result.top q *)
+    | _ -> Queries.Result.top q
 
   let startstate v = ()
   let exitstate v = ()
