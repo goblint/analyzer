@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] lin2vareq --set ana.relation.privatization top --set sem.int.signed_overflow assume_none --set ana.int.def_exc false --set ana.int.enums false --set ana.int.interval false --set ana.int.interval_set false --set ana.int.congruence false
+// SKIP PARAM: --set ana.activated[+] lin2vareq --set ana.relation.privatization top --set sem.int.signed_overflow assume_none
 
 void main(void) {
   int x1, x2, x3, x4, x5, x6, x7, x8, x9;
