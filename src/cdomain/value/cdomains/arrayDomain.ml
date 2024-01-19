@@ -838,16 +838,18 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+    if M.tracing then M.trace "malloc" "STart\n";
 
     let idx_before_end = 
       match idx_before_end with 
       | None -> 
         (match c, e with 
-        | Some (Some(Var arr_lval, _),counter ), Some exp ->
-          ValueDomainQueries.ID.to_bool (ask.may_be_out_of_bounds (arr_lval, counter ) exp Lt )
-        | _, _ -> None) 
+         | Some (Some(Var arr_lval, _),counter ), Some exp ->
+           if M.tracing then M.trace "relationalArray" "c=%a e=%a" CilType.Varinfo.pretty arr_lval d_exp exp;
+           ValueDomainQueries.ID.to_bool (ask.may_be_out_of_bounds (arr_lval, counter ) exp)
+         | _, _ -> None) 
       | b -> b in
-        
+
     (* For an explanation of the warning types check the Pull Request #255 *)
     match(idx_after_start, idx_before_end) with
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
@@ -1716,12 +1718,12 @@ struct
   (* Simply call appropriate function for component that is not None *)
   let get ?(checkBounds=true) a x (e,i) c = 
     unop' (fun x ->
-      if e = None then
-        let e' = BatOption.map (fun x -> Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x) (Idx.to_int i) in
-        P.get ~checkBounds a x (e', i) c
-      else
-        P.get ~checkBounds a x (e, i) c
-    ) (fun x -> T.get ~checkBounds a x (e,i) c) (fun x -> U.get ~checkBounds a x (e,i) c) x
+        if e = None then
+          let e' = BatOption.map (fun x -> Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x) (Idx.to_int i) in
+          P.get ~checkBounds a x (e', i) c
+        else
+          P.get ~checkBounds a x (e, i) c
+      ) (fun x -> T.get ~checkBounds a x (e,i) c) (fun x -> U.get ~checkBounds a x (e,i) c) x
   let set (ask:VDQ.t) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
   let length = unop' P.length T.length U.length
   let map f = unop_to_t' (P.map f) (T.map f) (U.map f)

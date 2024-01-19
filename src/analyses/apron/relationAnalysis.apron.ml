@@ -870,9 +870,9 @@ struct
     | Queries.Invariant context -> query_invariant ctx context
 
     (* the lval arr has the length of the arr we now want to check if the expression index is within the bounds of arr please use relational Analysis *)
-    | Queries.MayBeOutOfBounds (v ,t , exp, binop) -> 
-      let newVar = ArrayMap.to_varinfo (v,t ) in 
-      let comp = Cilfacade.makeBinOp binop  exp (Lval (Var newVar,NoOffset)) in
+    | Queries.MayBeOutOfBounds (v ,t ,exp) -> 
+      let newVar = ArrayMap.to_varinfo (v, t) in 
+      let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
       let i = eval_int comp (no_overflow ask comp ) in 
       i 
     | AllocMayBeOutOfBounds (e, i, _) -> 
@@ -990,7 +990,9 @@ struct
       if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
+      if M.tracing then M.trace "enter" "RD=%a\n" RD.pretty st.rel ;
       let new_rel = make_callee_rel ~thread:true ctx fd args in
+      if M.tracing then M.trace "enter" "RD=%a\n" RD.pretty new_rel ;
       [{st' with rel = new_rel}]
     | exception Not_found ->
       (* Unknown functions *)
@@ -1014,6 +1016,7 @@ struct
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
+      if M.tracing then M.trace "escape" "escaped: %a\n" EscapeDomain.EscapedVars.pretty escaped;
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Assert exp ->
       assert_fn ctx exp true
