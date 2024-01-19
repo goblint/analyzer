@@ -1,4 +1,5 @@
-//SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_top --enable ana.int.interval
+//SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_top --enable ana.int.interval --set ana.int.def_exc false --set ana.int.enums false --set ana.int.interval false --set ana.int.interval_set false --set ana.int.congruence false
+
 // same test as 63-affeq/10-bounds_guards.ov.c
 int main() {
     int x, y;

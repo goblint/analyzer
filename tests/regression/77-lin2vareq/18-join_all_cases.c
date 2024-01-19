@@ -1,4 +1,5 @@
-// SKIP PARAM: --set ana.activated[+] lin2vareq --set ana.relation.privatization top --set sem.int.signed_overflow assume_none
+// SKIP PARAM: --set ana.activated[+] lin2vareq --set ana.relation.privatization top --set sem.int.signed_overflow assume_none --set ana.int.def_exc false --set ana.int.enums false --set ana.int.interval false --set ana.int.interval_set false --set ana.int.congruence false
+
 void main(void) {
   int x1, x2, x3, x4, x5, x6, x7, x8, x9;
   int t;
@@ -20,7 +21,7 @@ void main(void) {
     x8 = x6 - 50;
   }
   __goblint_check(x1 == 3);
-  __goblint_check(x2 == 2); // UNKNOWN
+  __goblint_check(x2 == 2); // UNKNOWN!
   __goblint_check(x3 == 4);
   __goblint_check(x4 == 5);
   __goblint_check(x7 == x5 - 3);

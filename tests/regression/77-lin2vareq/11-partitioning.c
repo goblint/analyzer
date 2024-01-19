@@ -1,5 +1,6 @@
-// SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
-// example from the paper
+// SKIP PARAM: --set ana.activated[+] lin2vareq
+
+// example from https://dl.acm.org/doi/10.1145/2049706.2049710
 #include <stdio.h>
 #include <goblint.h>
 
