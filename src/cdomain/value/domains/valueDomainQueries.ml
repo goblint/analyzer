@@ -52,7 +52,7 @@ end
 type eval_int = exp -> ID.t
 type may_point_to = exp -> AD.t
 type is_multiple = varinfo -> bool
-type may_be_out_of_bounds = (varinfo * int) -> exp -> binop -> ID.t
+type may_be_out_of_bounds = (varinfo * int) -> exp -> ID.t
 
 (** Subset of queries used by the valuedomain, using a simpler representation. *)
 type t = {
