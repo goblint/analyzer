@@ -291,8 +291,8 @@ struct
       if M.tracing then M.traceu "relation" "-> %a\n" D.pretty r;
       r
     )
-
-  let sizePointer expWithPointer sizeOfTyp = 
+  (* replaces the pointer with our helper variable for tracking the pointer and  multiplies the second operand with the size of the target type *)
+  let replacePointerWithHelper expWithPointer sizeOfTyp = 
     let rec replacePointer e = 
       match e with 
       | Lval (Var v, offset) ->
