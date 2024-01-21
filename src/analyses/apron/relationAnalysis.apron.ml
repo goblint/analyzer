@@ -244,31 +244,20 @@ struct
 
   (* Mapping lval to varinfo *)
   module VarinfoDimensionMapping = struct 
-    type t = varinfo * int 
+    type t = CilType.Varinfo.t * int  [@@deriving  eq, ord, hash]
 
-    let equal: t -> t -> bool = fun (v,s) (v2,s2) ->  
-      CilType.Varinfo.equal v v2 && s = s2 
-    let hash: t -> int = fun (v,s) ->
-      31 * CilType.Varinfo.hash v + Hashtbl.hash s
-    let name_varinfo : t -> string = fun (v,s) -> 
-      v.vname ^ string_of_int s ^ "$len"
-    let describe_varinfo : varinfo -> t -> string = 
-      fun v (var,s) -> 
-      v.vname ^ "->" ^  name_varinfo (var,s)
+    let name_varinfo (v, d : varinfo * int) = 
+      v.vname ^ string_of_int d ^ "$len"
+    let describe_varinfo (v: varinfo) t = 
+      v.vname ^ "->" ^  name_varinfo t
   end 
 
   module VarinfoMapping = struct 
-    type t = varinfo 
-
-    let equal: t -> t -> bool = fun v v2 ->  
-      CilType.Varinfo.equal v v2 
-    let hash: t -> int = fun v ->
-      CilType.Varinfo.hash v
-    let name_varinfo : t -> string = fun v -> 
+    type t = CilType.Varinfo.t [@@deriving  eq, ord, hash]
+    let name_varinfo (v: t) = 
       v.vname ^ "$len"
-    let describe_varinfo : varinfo -> t -> string = 
-      fun v var -> 
-      v.vname ^ "->" ^  name_varinfo var
+    let describe_varinfo (v:varinfo) t : string = 
+      v.vname ^ "->" ^  name_varinfo t
   end 
 
   module PointerType = struct 
