@@ -292,7 +292,7 @@ struct
       r
     )
   (* replaces the pointer with our helper variable for tracking the pointer and  multiplies the second operand with the size of the target type *)
-  let replacePointerWithHelper expWithPointer sizeOfTyp = 
+  let replacePointerWithMapping expWithPointer sizeOfTyp = 
     let rec replacePointer e = 
       match e with 
       | Lval (Var v, offset) ->
@@ -324,7 +324,7 @@ struct
         else 
           ctx 
       in
-      let replacedExp = sizePointer e sizeOfType in
+      let replacedExp = replacePointerWithMapping e sizeOfType in
       if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
       assignVariable ctx (Var castedPointer,NoOffset) replacedExp 
     | _ -> ctx.local
@@ -405,7 +405,7 @@ struct
             begin match ptr_typ with
               | TPtr (t, _) -> 
                 let sizeOfType = (bitsSizeOf t) / 8 in
-                (PointerMap.to_varinfo x, sizePointer y sizeOfType) 
+                (PointerMap.to_varinfo x, replacePointerWithMapping y sizeOfType) 
               | _ -> (x,y)
             end
           else (x,y))
@@ -883,7 +883,7 @@ struct
         begin match ptr_typ with 
           | TPtr (t, _) -> 
             let sizeOfType = (bitsSizeOf t) / 8 in
-            let pointerLen = sizePointer e sizeOfType in
+            let pointerLen = replacePointerWithMapping e sizeOfType in
             let afterZero = Cilfacade.makeBinOp Le  Cil.zero pointerLen in
             let isAfterZero = eval_int afterZero (no_overflow ask pointerLen) in
             if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
