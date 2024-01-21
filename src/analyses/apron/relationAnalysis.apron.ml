@@ -243,7 +243,7 @@ struct
     inner e
 
   (* Mapping lval to varinfo *)
-  module VarinfoDepthMapping = struct 
+  module VarinfoDimensionMapping = struct 
     type t = varinfo * int 
 
     let equal: t -> t -> bool = fun (v,s) (v2,s2) ->  
@@ -273,13 +273,10 @@ struct
 
   module PointerType = struct 
     let varType  = !upointType 
-    (* let varType  = TInt(ILong, []) *)
-    (* let varType = TInt (IUInt , []) *)
-    (* let varType = TInt (IInt , []) *)
     let isGlobal = false
   end
 
-  module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDepthMapping) (PointerType)
+  module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (PointerType)
   module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
   module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
 

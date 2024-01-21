@@ -117,6 +117,7 @@ struct
       st
 
   let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
+    if M.tracing then M.trace "enter" "enter_multithreaded=%a\n" RD.pretty st.rel;
     let rel = st.rel in
     let rel_local = RD.remove_filter rel (fun var ->
         match AV.find_metadata var with
@@ -124,6 +125,7 @@ struct
         | _ -> false
       )
     in
+    if M.tracing then M.trace "enter" "enter_multithreaded=%a\n" RD.pretty rel_local;
     {st with rel = rel_local}
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
@@ -383,6 +385,7 @@ struct
   let escape node ask getg sideg st escaped = (* TODO: Implement *) st
 
   let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
+    if M.tracing then M.trace "enter" "enter_multithreaded=%a\n" RD.pretty st.rel;
     let rel = st.rel in
     let (g_vars, gs) =
       RD.vars rel
@@ -404,6 +407,7 @@ struct
     sideg () rel_side;
     let rel_local = RD.remove_vars rel g_vars in
     let rel_local' = RD.meet rel_local (getg ()) in
+    if M.tracing then M.trace "enter" "enter_multithreaded=%a\n" RD.pretty rel_local';
     {rel = rel_local'; priv = startstate ()}
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
@@ -579,6 +583,7 @@ struct
       st
 
   let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
+    if M.tracing then M.trace "enter" "587\n";
     let rel = st.rel in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
@@ -1054,6 +1059,7 @@ struct
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let enter_multithreaded (ask:Q.ask) getg sideg (st: relation_components_t): relation_components_t =
+    if M.tracing then M.trace "enter" "enter_multithreaded=%a\n" RD.pretty st.rel;
     let rel = st.rel in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
@@ -1071,6 +1077,7 @@ struct
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
     let rel_local = RD.remove_vars rel g_vars in
+    if M.tracing then M.trace "enter" "enter_multithreaded=%a\n" RD.pretty rel_local;
     {st with rel = rel_local}
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
@@ -1152,6 +1159,7 @@ struct
   let enter_multithreaded ask getg sideg st =
     if M.tracing then M.traceli "relationpriv" "enter_multithreaded\n";
     if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.trace "enter" "1167 st: %a\n" RelComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
