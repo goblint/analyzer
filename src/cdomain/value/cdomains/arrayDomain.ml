@@ -834,7 +834,7 @@ struct
 end
 
 (* This is the main array out of bounds check *)
-let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) (c : (lval option*int)option) (ask:VDQ.t) =
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) (arrExpDim : (lval option*int)option) (ask:VDQ.t) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
@@ -843,7 +843,7 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     let idx_before_end = 
       match idx_before_end with 
       | None -> 
-        (match c, e with 
+        (match arrExpDim, e with 
          | Some (Some(Var arr_lval, _),counter ), Some exp ->
            if M.tracing then M.trace "relationalArray" "c=%a e=%a" CilType.Varinfo.pretty arr_lval d_exp exp;
            ValueDomainQueries.ID.to_bool (ask.may_be_out_of_bounds (arr_lval, counter ) exp)
