@@ -1,4 +1,4 @@
-//SKIP PARAM: --set ana.activated[+] lin2vareq
+//SKIP PARAM: --set ana.activated[+] lin2vareq --set ana.int.enums false --set ana.int.interval false --set ana.int.interval_set false --set ana.int.congruence false --set sem.int.signed_overflow assume_none
 
 #include <stdio.h>
 #include <goblint.h>

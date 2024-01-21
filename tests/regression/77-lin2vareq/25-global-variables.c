@@ -1,22 +1,21 @@
-// SKIP PARAM: --set ana.activated[+] lin2vareq
+// SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
+#include <limits.h>
 #include <stdio.h>
 
 int x;
 int y;
 
-void setX(int a) {
-    x = a;
-}
-
-void setY() {
-    y = 2 * x + 3;
-}
+void setY() { y = x + 3; }
 
 int main() {
-    setX(5);
+  int k;
+  x = k * k;
+
+  if (x < INT_MAX - 3) {
     setY();
 
-    __goblint_check(y == 2 * x + 3); // SUCCESS
+    __goblint_check(y == x + 3); // SUCCESS
+  }
 
-    return 0;
+  return 0;
 }

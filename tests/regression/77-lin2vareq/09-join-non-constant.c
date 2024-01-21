@@ -1,5 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
 
+#include <goblint.h>
+
 int main(void) {
   int a, b, c, d;
 
@@ -16,8 +18,8 @@ int main(void) {
   }
   __goblint_check(c == b + 5); // SUCCESS
   __goblint_check(c == b + 3); // FAILURE
-  __goblint_check(d == b + 3); // UNKNOWN
-  __goblint_check(b == a + 2); // UNKNOWN
+  __goblint_check(d == b - 1); // UNKNOWN!
+  __goblint_check(b == a + 2); // UNKNOWN!
 
   return 0;
 }

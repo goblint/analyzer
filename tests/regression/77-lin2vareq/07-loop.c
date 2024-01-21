@@ -1,20 +1,23 @@
-//SKIP PARAM: --set ana.activated[+] lin2vareq
+//SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
 
-// Example from https://link.springer.com/content/pdf/10.1007/BF00268497.pdf --set ana.int.def_exc false --set ana.int.enums false --set ana.int.interval false --set ana.int.interval_set false --set ana.int.congruence false
+// Adapted example from https://link.springer.com/content/pdf/10.1007/BF00268497.pdf
 
 #include <goblint.h>
 
 void main(void) {
     int i;
+    int j;
     int k;
-    i = 2;
-    k = 0;
+    if(k > 200){
+        return 0;
+    }
+    j = k + 5;
 
-    while (i < 100) {
-        __goblint_check(3 * i - k == 1); //UNKNOWN!
-        i = i + 1;
+    while (j < 100) {
+        __goblint_check(j - k == 5); //SUCCESS
+        j = j + 3;
         k = k + 3;
     }
-    __goblint_check(3 * i - k == 1); //UNKNOWN!
+    __goblint_check(j - k == 5); //SUCCESS
 
 }

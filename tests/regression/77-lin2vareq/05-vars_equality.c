@@ -1,5 +1,4 @@
-//SKIP PARAM: --set ana.activated[+] lin2vareq
-// from https://dl.acm.org/doi/10.1145/2049706.2049710
+//SKIP PARAM: --set ana.activated[+] lin2vareq --set ana.int.enums false --set ana.int.interval false --set ana.int.interval_set false --set ana.int.congruence false
 
 #include <stdio.h>
 
