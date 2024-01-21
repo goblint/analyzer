@@ -316,8 +316,9 @@ struct
     let lookup i = Var.to_string (Environment.var_of_dim varM.env i) in
     let show_var i tuple =
       match tuple with
-      | (None, offset) -> (lookup i) ^ " = " ^ Z.to_string offset ^ "\n"
-      | (Some index, offset) -> (lookup i) ^ " = " ^ lookup index ^ " + " ^ Z.to_string offset ^ "\n"
+      | (None, offset) -> (lookup i) ^ " = " ^ Z.to_string offset ^ ";\n"
+      | (Some index, offset) -> (lookup i) ^ " = " ^ lookup index ^
+                                (if offset <> Z.zero then " + " ^ Z.to_string offset else "") ^ ";\n"
     in if is_top varM then "⊤\n" else
       match varM.d with
       | None -> "⊥\n"
