@@ -875,105 +875,99 @@ struct
       let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
       let i = eval_int comp (no_overflow ask comp ) in 
       i 
-    | AllocMayBeOutOfBounds (e, i, _) -> 
-      let pointerEval e= 
+    | AllocMayBeOutOfBounds (e, i, o) -> 
+      let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
+        | a when not (Queries.AD.is_top a) -> 
+          Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
+              match addr with
+              | Addr (v,o) -> 
+                let allocatedLength = AllocSize.to_varinfo v in
+                let pointerBeforeEnd = Cilfacade.makeBinOp Lt indexExp (Lval (Var allocatedLength, NoOffset)) in
+                if M.tracing then M.trace "malloc" "pointerBeforeEnd: %a\n" d_exp pointerBeforeEnd;
+                let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
+                if M.tracing then M.trace "malloc" "isPointerBeforeEnd: %a\n" ID.pretty isPointerBeforeEnd;
+                ID.join  isPointerBeforeEnd st
+              | _ -> ID.top_of (Cilfacade.ptrdiff_ikind())
+            )  a  (ID.bot ()) ;
+        | _ -> ID.top_of (Cilfacade.ptrdiff_ikind())
+      end
+      in
+      let pointerEval structOffset= 
         let ptr_typ = typeOf e in
         begin match ptr_typ with 
           | TPtr (t, _) -> 
             let sizeOfType = (bitsSizeOf t) / 8 in
             let pointerLen = sizePointer e sizeOfType in
-
             let afterZero = Cilfacade.makeBinOp Le  Cil.zero pointerLen in
-            if M.tracing then M.trace "OOB" "afterZero: %a %a\n" d_exp e d_exp afterZero;
-            let isAfterZero = eval_int afterZero (no_overflow ask afterZero) in
+            let isAfterZero = eval_int afterZero (no_overflow ask pointerLen) in
             if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
-            let isBeforeEnd = match ctx.ask (Queries.MayPointTo e) with 
-              | a when not (Queries.AD.is_top a) -> 
-                Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
-                    match addr with
-                    | Addr (v,o) -> 
-                      let allocatedLength = AllocSize.to_varinfo v in
-                      let pointerBeforeEnd = Cilfacade.makeBinOp Lt pointerLen (Lval (Var allocatedLength, NoOffset)) in
-                      if M.tracing then M.trace "malloc" "pointerBeforeEnd: %a\n" d_exp pointerBeforeEnd;
-                      let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
-                      if M.tracing then M.trace "malloc" "isPointerBeforeEnd: %a\n" ID.pretty isPointerBeforeEnd;
-                      ID.join  isPointerBeforeEnd st
-                    | _ -> ID.top ()
-                  )  a  (ID.bot ()) ;
-
-              | _ -> ID.top ()
-            in
+            let relExp =  BinOp (PlusA, integer structOffset, pointerLen, TInt (IInt ,[])) in
+            let isBeforeEnd = inBoundsForAllAddresses relExp in
             if M.tracing then M.trace "malloc" "Query result: %a\n" VDQ.ID.pretty isBeforeEnd ;
             (isAfterZero, isBeforeEnd)
           | _ -> (VDQ.ID.top (),VDQ.ID.top ())
         end
       in
-      let relationEval = 
-        let i = match i with 
-          | `Lifted i -> i
-          | `Bot ->  IntDomain.IntDomTuple.top_of (Cilfacade.ptrdiff_ikind ())
-          | `Top -> IntDomain.IntDomTuple.top_of (Cilfacade.ptrdiff_ikind ()) 
-        in
-        begin match IntDomain.IntDomTuple.maximal i with 
-          | None -> (VDQ.ID.top (),VDQ.ID.top ())
-          | Some i ->  
-            let i = Z.to_int i in
+      let relationEval e1 binop e2 structOffset = 
+        if M.tracing then M.trace "OOB" "relationEval: %a\n" d_exp e;
+        if M.tracing then M.trace "OOB" "st: %a\n" RD.pretty st.rel;
+        let ptr_typ = typeOf e1 in 
+        begin match ptr_typ with 
+          | TPtr (t, _) -> 
+            let sizeOfType = (bitsSizeOf t) / 8 in
+            let e2Mult = BinOp (Mult, e2, integer sizeOfType, t) in
+            let isAfterZero = 
+              begin match IntDomain.IntDomTuple.minimal i with  
+                | None  -> VDQ.ID.top ()
+                | Some min -> 
+                  let min = Z.to_int min in
+                  let aZExp = BinOp (binop, integer min, e2Mult, TInt (IInt ,[])) in
+                  let afterZero = Cilfacade.makeBinOp Le  Cil.zero aZExp in
+                  eval_int afterZero (no_overflow ask afterZero)
+              end
+            in
+            let isBeforeEnd = 
+              begin match IntDomain.IntDomTuple.maximal i with
+                | None -> ID.top_of (Cilfacade.ptrdiff_ikind())
+                | Some i -> 
+                  let i = Z.to_int i + structOffset in
+                  let relExp =  BinOp (binop, integer i, e2Mult, TInt (IInt ,[])) in
+                  inBoundsForAllAddresses relExp
+              end
+            in  
+            (isAfterZero, isBeforeEnd)
+          | _ -> (VDQ.ID.top (),VDQ.ID.top ())
+        end
+      in
+      begin match IntDomain.IntDomTuple.maximal o with 
+        | None -> (VDQ.ID.top (),VDQ.ID.top ())
+        | Some structOffset ->
+          let structOffset = Z.to_int structOffset in
+          let isAfterZero, isBeforeEnd = 
             begin match e with 
               | Lval (Var v, _) -> (VDQ.ID.top (),VDQ.ID.top ())
-              | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI -> 
+              | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
                 let replaceBinop bi = match bi with
                   | PlusPI | IndexPI -> PlusA
                   | MinusPI -> MinusA
                   | _ -> bi
                 in
-                let ptr_typ = typeOf e1 in
-                begin match ptr_typ with 
-                  | TPtr (t, _) -> 
-                    let sizeOfType = (bitsSizeOf t) / 8 in
-                    let e2Mult = BinOp (Mult, e2, integer sizeOfType, t) in
-                    let relExp = BinOp (replaceBinop binop, integer i, e2Mult, TInt (IInt ,[])) in
-
-                    let afterZero = Cilfacade.makeBinOp Le  Cil.zero relExp in
-                    if M.tracing then M.trace "OOB" "afterZero2: %a %a\n" d_exp e d_exp afterZero;
-                    let isAfterZero = eval_int afterZero (no_overflow ask afterZero) in
-                    if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
-
-                    let isBeforeEnd = match ctx.ask (Queries.MayPointTo e) with 
-                      | a when not (Queries.AD.is_top a) -> 
-                        Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
-                            match addr with
-                            | Addr (v,o) -> 
-                              let allocatedLength = AllocSize.to_varinfo v in
-                              let pointerBeforeEnd = Cilfacade.makeBinOp Lt relExp (Lval (Var allocatedLength, NoOffset)) in
-                              if M.tracing then M.trace "OOB" "pointerBeforeEnd2: %a\n" d_exp pointerBeforeEnd;
-                              let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
-                              if M.tracing then M.trace "OOB" "isPointerBeforeEnd2: %a\n" ID.pretty isPointerBeforeEnd;
-                              ID.join  isPointerBeforeEnd st
-                            | _ -> ID.top ()
-                          )  a  (ID.bot ()) ;
-                      | _ -> ID.top ()
-                    in  
-                    (isAfterZero, isBeforeEnd)
-                  | _ -> (VDQ.ID.top (),VDQ.ID.top ())
-                end
+                relationEval e1 (replaceBinop binop) e2 structOffset 
               | _ -> failwith "unexpected expression!\n"
-            end
-        end
-      in
-      let isAfterZero, isBeforeEnd = relationEval in
-      let isAfterZero, isBeforeEnd = 
-        if GobConfig.get_bool "ana.apron.pointer_tracking" then (
-          let isAfterZero2, isBeforeEnd2 = pointerEval e in
-          if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
-          let isAfterZero = ID.meet isAfterZero isAfterZero2 in
-          let isBeforeEnd = ID.meet isBeforeEnd isBeforeEnd2 in
-          isAfterZero, isBeforeEnd 
-        )
-        else  
-          isAfterZero , isBeforeEnd
-      in
-      (isAfterZero, isBeforeEnd)
-
+            end in
+          let isAfterZero, isBeforeEnd = 
+            if GobConfig.get_bool "ana.apron.pointer_tracking" then (
+              let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in
+              if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
+              let isAfterZero = ID.meet isAfterZero isAfterZero2 in
+              let isBeforeEnd = ID.meet isBeforeEnd isBeforeEnd2 in
+              isAfterZero, isBeforeEnd 
+            )
+            else  
+              isAfterZero , isBeforeEnd
+          in
+          (isAfterZero, isBeforeEnd)
+      end
     | _ -> Result.top q
 
 
@@ -1016,7 +1010,6 @@ struct
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
-      if M.tracing then M.trace "escape" "escaped: %a\n" EscapeDomain.EscapedVars.pretty escaped;
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Assert exp ->
       assert_fn ctx exp true

@@ -281,7 +281,14 @@ struct
               | _ -> failwith "unexpected expression in calculateOffs!\n"
             in
             let addr_offs_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) addr_offs in (*pointer offset + struct offset*)
-            let isAfterZero, isBeforeEnd =  (ctx.ask (Queries.AllocMayBeOutOfBounds (e,`Lifted addr_offs_casted, o))) in
+            let structOffset = begin match o with 
+              | None -> ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero
+              | Some o -> 
+                let offs_intdom = cil_offs_to_idx ctx t o in (*struct offset*)
+                ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom
+            end
+            in
+            let isAfterZero, isBeforeEnd =  (ctx.ask (Queries.AllocMayBeOutOfBounds (e, addr_offs_casted, structOffset))) in
             let isAfterZeroBool, isBeforeEndBool = (VDQ.ID.to_bool isAfterZero, VDQ.ID.to_bool isBeforeEnd) in
             begin match isAfterZeroBool with
               | None -> 
@@ -428,22 +435,18 @@ struct
     | Queries.AllocMayBeOutOfBounds (e, i, o) -> 
       begin match typeOf e with 
         | TPtr (ty, _) -> 
-          let expOffset = match i 
-            with `Lifted i -> i 
-               | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-          in
-          if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
+          if M.tracing then M.trace "OOB"  "e=%a  i=%a \n" d_exp e ID.pretty i;
           let expOffset = match e with 
-            | Lval (Var v, _) -> expOffset 
+            | Lval (Var v, _) -> i 
             | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
               let  e2Offset = eval_ptr_offset_in_binop ctx e2 ty in (*add offset of e2*)
               begin match e2Offset with
                 | `Lifted e2Offset -> 
                   begin 
                     try if binop = MinusPI then 
-                        ID.sub expOffset e2Offset
+                        ID.sub i e2Offset
                       else
-                        ID.add expOffset e2Offset
+                        ID.add i e2Offset
                     with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
                   end
                 | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
@@ -462,13 +465,9 @@ struct
           in
           if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty current_index_size;
           if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_plus_current_index_size;
-          let exp_Offset_plus_current_index_size_struct_offset = match o with
-            | None -> expOffset_plus_current_index_size
-            | Some o -> 
-              let offs_intdom = cil_offs_to_idx ctx ty o in (*struct offset*)
-              let casted_offs_intdom = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in (*cast offset*)
-              (try  (ID.add casted_offs_intdom expOffset_plus_current_index_size)
-               with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
+          let exp_Offset_plus_current_index_size_struct_offset =               
+            (try  (ID.add o expOffset_plus_current_index_size)
+             with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
           in
           let isBeforeEnd = match  get_size_of_ptr_target ctx e with 
             | `Lifted size -> 

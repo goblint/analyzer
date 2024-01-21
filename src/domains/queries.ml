@@ -127,8 +127,8 @@ type _ t =
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MayBeOutOfBounds: varinfo * int * exp -> ID.t t
-  | MayOverflow : exp -> MustBool.t t
-  | AllocMayBeOutOfBounds : exp * ID.t * offset option -> VDQ.ProdID.t t
+  | MayOverflow : exp -> MayBool.t t
+  | AllocMayBeOutOfBounds : exp * IntDomain.IntDomTuple.t * IntDomain.IntDomTuple.t -> VDQ.ProdID.t t
 
 type 'a result = 'a
 
@@ -405,15 +405,11 @@ struct
         if r <> 0 then 
           r
         else 
-          let r2 = match o1, o2 with
-            | None, None -> 0
-            | None, Some o2 -> 1
-            | Some o1, None -> -1
-            | Some o1, Some o2 -> CilType.Offset.compare o1 o2 in
+          let r2 = IntDomain.IntDomTuple.compare i1 i2 in
           if r2 <> 0 then 
             r2
           else
-            ID.compare i1 i2
+            IntDomain.IntDomTuple.compare o1 o2
 
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -457,7 +453,7 @@ struct
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MayBeOutOfBounds (v,s, exp)) -> 67 * CilType.Varinfo.hash v  + 31 * Hashtbl.hash s  + CilType.Exp.hash exp
     | Any (MayOverflow e) -> CilType.Exp.hash e
-    | Any (AllocMayBeOutOfBounds (e, i, o )) ->  127 * CilType.Exp.hash e + 67 * ID.hash i + (match o with None -> 0 | Some o -> CilType.Offset.hash o)
+    | Any (AllocMayBeOutOfBounds (e, i, o )) ->  127 * CilType.Exp.hash e + 67 * IntDomain.IntDomTuple.hash i + IntDomain.IntDomTuple.hash o
 
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
