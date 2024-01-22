@@ -1,4 +1,6 @@
-(** Wrapper analysis to answer EvalFunvar query using Cil's pointer analysis. *)
+(** CIL's {!GoblintCil.Ptranal} for function pointer evaluation ([ptranal]).
+
+    Useful for sound analysis of function pointers without base. *)
 
 open GoblintCil
 open Analyses
