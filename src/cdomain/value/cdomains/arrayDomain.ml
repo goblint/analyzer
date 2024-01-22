@@ -880,9 +880,9 @@ struct
 
   let domain_of_t _ = TrivialDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (c: (lval option * int ) option)=
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) c ask);
-    Base.get ask x (e, v) c
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (arrExpDim: (lval option * int ) option)=
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) arrExpDim ask);
+    Base.get ask x (e, v) arrExpDim
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
@@ -924,9 +924,9 @@ struct
 
   let domain_of_t _ = PartitionedDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (c) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) c ask);
-    Base.get ask x (e, v) c
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (arrExpDim) =
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) arrExpDim ask);
+    Base.get ask x (e, v) arrExpDim
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
@@ -978,9 +978,9 @@ struct
 
   let domain_of_t _ = UnrolledDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (c)=
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) c ask);
-    Base.get ask x (e, v) c
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) (arrExpDim)=
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) arrExpDim ask);
+    Base.get ask x (e, v) arrExpDim
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
   let length (_,l) = Some l
@@ -1716,14 +1716,14 @@ struct
   let unop_to_t' opp opt opu = unop_to_t opp (I.unop_to_t opt opu)
 
   (* Simply call appropriate function for component that is not None *)
-  let get ?(checkBounds=true) a x (e,i) c = 
+  let get ?(checkBounds=true) a x (e,i) arrExpDim = 
     unop' (fun x ->
         if e = None then
           let e' = BatOption.map (fun x -> Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x) (Idx.to_int i) in
-          P.get ~checkBounds a x (e', i) c
+          P.get ~checkBounds a x (e', i) arrExpDim
         else
-          P.get ~checkBounds a x (e, i) c
-      ) (fun x -> T.get ~checkBounds a x (e,i) c) (fun x -> U.get ~checkBounds a x (e,i) c) x
+          P.get ~checkBounds a x (e, i) arrExpDim
+      ) (fun x -> T.get ~checkBounds a x (e,i) arrExpDim) (fun x -> U.get ~checkBounds a x (e,i) arrExpDim) x
   let set (ask:VDQ.t) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
   let length = unop' P.length T.length U.length
   let map f = unop_to_t' (P.map f) (T.map f) (U.map f)
