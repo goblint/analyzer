@@ -2,19 +2,19 @@
 
 int main()
 {
-	int len;
-	int top;
+    int len;
+    int top;
 
-	if(top) {
-		len = 5;
-	} else {
-		len = 10;
-	}
+    if(top) {
+        len = 5;
+    } else {
+        len = 10;
+    }
 
-	char ptr[len];
+    char ptr[len];
 
-	for(int i=0;i < len;i++) {
-		char s  = ptr[i]; //NOWARN
-	}
+    for(int i=0;i < len;i++) {
+        char s  = ptr[i]; //NOWARN
+    }
 }
 
