@@ -180,8 +180,10 @@ struct
         in
         `Index (i, convert_offset ofs)
     in
-    PreValueDomain.Offs.to_index (convert_offset offs)
-
+    let offs = PreValueDomain.Offs.to_index (convert_offset offs) in
+    begin try  ID.div offs (ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (8) ))
+      with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+    end
 
   let check_unknown_addr_deref ctx ptr =
     let may_contain_unknown_addr =
