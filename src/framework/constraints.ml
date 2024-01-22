@@ -728,7 +728,6 @@ struct
         [v]
       | _ ->
         (* Depends on base for query. *)
-        M.debug ~category:Program "Dynamic function call through %a" d_exp e;
         let ad = ctx.ask (Queries.EvalFunvar e) in
         Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
