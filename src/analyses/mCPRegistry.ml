@@ -215,7 +215,7 @@ struct
 
   let arbitrary () =
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
-    MyCheck.Arbitrary.sequence arbs
+    GobQCheck.Arbitrary.sequence arbs
 
   let relift = unop_map (fun (module S: Printable.S) x -> Obj.repr (S.relift (Obj.obj x)))
 end
@@ -426,7 +426,7 @@ end
 
 module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
 struct
-  include Lattice.Lift (DomVariantLattice0 (DLSpec)) (Printable.DefaultNames)
+  include Lattice.LiftConf (struct include Printable.DefaultConf let expand1 = false end) (DomVariantLattice0 (DLSpec))
   let name () = "MCP.G"
 end
 

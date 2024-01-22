@@ -17,7 +17,6 @@ let task: (module Task) option ref = ref None
 
 
 let is_error_function' f spec =
-  let module Task = (val (Option.get !task)) in
   List.exists (function
       | Specification.UnreachCall f_spec -> f.vname = f_spec
       | _ -> false
@@ -53,6 +52,7 @@ struct
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
+        | Termination -> "termination"
         | ValidFree -> "valid-free"
         | ValidDeref -> "valid-deref"
         | ValidMemtrack -> "valid-memtrack"
@@ -76,9 +76,9 @@ sig
   val is_sink: Arg.Node.t -> bool
 end
 
-module StackTaskResult (Cfg:MyCFG.CfgForward) (TaskResult: TaskResult) =
+module StackTaskResult (TaskResult: TaskResult with module Arg.Edge = MyARG.InlineEdge) =
 struct
-  module Arg = MyARG.Stack (Cfg) (TaskResult.Arg)
+  module Arg = MyARG.Stack (TaskResult.Arg)
 
   let result = TaskResult.result
 

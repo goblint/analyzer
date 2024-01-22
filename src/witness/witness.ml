@@ -14,7 +14,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
   let module TaskResult =
     (val if get_bool "witness.graphml.stack" then
-        (module StackTaskResult (Task.Cfg) (TaskResult) : WitnessTaskResult)
+        (module StackTaskResult (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
     )
@@ -475,6 +475,36 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
+    | Termination ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !AnalysisState.svcomp_may_not_terminate then
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
     | NoOverflow ->
       let module TrivialArg =
       struct
@@ -665,11 +695,18 @@ struct
     | Some false -> print_svcomp_result "ERROR (verify)"
     | _ ->
       if get_string "witness.yaml.validate" <> "" then (
-        if !YamlWitness.cnt_refuted > 0 then
+        match get_bool "witness.yaml.strict" with
+        | true when !YamlWitness.cnt_error > 0 ->
+          print_svcomp_result "ERROR (witness error)"
+        | true when !YamlWitness.cnt_unsupported > 0 ->
+          print_svcomp_result "ERROR (witness unsupported)"
+        | true when !YamlWitness.cnt_disabled > 0 ->
+          print_svcomp_result "ERROR (witness disabled)"
+        | _ when !YamlWitness.cnt_refuted > 0 ->
           print_svcomp_result (Result.to_string (False None))
-        else if !YamlWitness.cnt_unconfirmed > 0 then
+        | _ when !YamlWitness.cnt_unconfirmed > 0 ->
           print_svcomp_result (Result.to_string Unknown)
-        else
+        | _ ->
           write entrystates
       )
       else

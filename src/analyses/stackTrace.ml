@@ -21,7 +21,7 @@ struct
     ctx.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 end
 
@@ -36,7 +36,7 @@ struct
   (* transfer functions *)
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.push !Tracing.current_loc ctx.local]
+    [ctx.local, D.push !Goblint_tracing.current_loc ctx.local]
 
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
@@ -45,8 +45,8 @@ struct
   let startstate v = D.bot ()
   let exitstate  v = D.top ()
 
-  let threadenter ctx lval f args =
-    [D.push !Tracing.current_loc ctx.local]
+  let threadenter ctx ~multiple lval f args =
+    [D.push !Goblint_tracing.current_loc ctx.local]
 end
 
 

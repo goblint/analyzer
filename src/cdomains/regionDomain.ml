@@ -8,22 +8,8 @@ module B = Printable.UnitConf (struct let name = "•" end)
 
 module VFB =
 struct
-  include Printable.Either (VF) (B)
+  include Printable.EitherConf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (VF) (B)
   let name () = "region"
-
-  let pretty () = function
-    | `Right () -> Pretty.text "•"
-    | `Left x -> VF.pretty () x
-
-  let show = function
-    | `Right () -> "•"
-    | `Left x -> VF.show x
-
-  let printXml f = function
-    | `Right () ->
-      BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
-    | `Left x ->
-      BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" VF.printXml x
 
   let collapse (x:t) (y:t): bool =
     match x,y with
@@ -157,13 +143,13 @@ struct
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
-  let add_set (s:set) llist (p,m:t): t =
+  let add_set ?(escape=false) (s:set) llist (p,m:t): t =
     if RS.has_bullet s then
       let f key value (ys, x) =
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
       let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
       let x = RS.remove_bullet x in
-      if RS.is_empty x then
+      if not escape && RS.is_empty x then
         p, RegMap.add_list_set llist RS.single_bullet m
       else
         RegPart.add x p, RegMap.add_list_set ys x m
@@ -215,6 +201,25 @@ struct
     | Some (_,x,_) -> p, RegMap.add x RS.single_bullet m
     | _ -> p,m
 
+  (* Copied & modified from assign. *)
+  let assign_escape (rval: exp) (st: t): t =
+    (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
+    let t = Cilfacade.typeOf rval in
+    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
+      match eval_exp rval with
+      (* TODO: should offs_x matter? *)
+      | Some (deref_y,y,offs_y) ->
+        let (p,m) = st in begin
+          match is_global y with
+          | true  ->
+            add_set ~escape:true (RS.single_vf y) [] st
+          | false  ->
+            add_set ~escape:true (RegMap.find y m) [y] st
+        end
+      | _ -> st
+    end else
+      st
+
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
     let add_o o2 (v,o) = (v, F.add_offset o o2) in
     match deref_vfd with
@@ -233,4 +238,4 @@ struct
 end
 
 (* TODO: remove Lift *)
-module RegionDom = Lattice.Lift (RegMap) (struct let top_name = "Unknown" let bot_name = "Error" end)
+module RegionDom = Lattice.LiftConf (struct include Printable.DefaultConf let top_name = "Unknown" let bot_name = "Error" end) (RegMap)

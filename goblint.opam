@@ -4,6 +4,7 @@ synopsis: "Static analysis framework for C"
 maintainer: [
   "Simmo Saan <simmo.saan@gmail.com>"
   "Michael Schwarz <michael.schwarz93@gmail.com>"
+  "Karoliine Holter"
 ]
 authors: [
   "Simmo Saan"
@@ -19,10 +20,10 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
-  "dune" {>= "3.6"}
+  "dune" {>= "3.7"}
   "ocaml" {>= "4.10"}
-  "goblint-cil" {>= "2.0.2"}
-  "batteries" {>= "3.5.0"}
+  "goblint-cil" {>= "2.0.3"}
+  "batteries" {>= "3.5.1"}
   "zarith" {>= "1.8"}
   "yojson" {>= "2.0.0"}
   "qcheck-core" {>= "0.19"}
@@ -75,7 +76,8 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
-  [ "goblint-cil.2.0.2" "git+https://github.com/goblint/cil.git#c7ffc37ad83216a84d90fdbf427cc02a68ea5331" ]
+  # published goblint-cil 2.0.3 is currently up-to-date, so no pin needed
+  # [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#d2760bacfbfdb25a374254de44f2ff1cb5f42abd" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
 ]

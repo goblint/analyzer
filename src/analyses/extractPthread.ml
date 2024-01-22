@@ -220,7 +220,7 @@ module Tbls = struct
       let make_new_val table k =
         (* TODO: all same key occurrences instead *)
         let line = -5 - all_keys_count table in
-        let loc = { !Tracing.current_loc with line } in
+        let loc = { !Goblint_tracing.current_loc with line } in
         MyCFG.Statement
           { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc, loc)) with
             sid = new_sid ()
@@ -1238,7 +1238,7 @@ module Spec : Analyses.MCPSpec = struct
       (Ctx.top ())
 
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let d : D.t = ctx.local in
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)
@@ -1254,7 +1254,7 @@ module Spec : Analyses.MCPSpec = struct
     [ { f_d with pred = d.pred } ]
 
 
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let exitstate v = D.top ()
 

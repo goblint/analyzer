@@ -11,24 +11,6 @@ module M  = Messages
   * other functions. *)
 type fundecs = fundec list * fundec list * fundec list
 
-module type SysVar =
-sig
-  type t
-  val is_write_only: t -> bool
-end
-
-module type VarType =
-sig
-  include Hashtbl.HashedType
-  include SysVar with type t := t
-  val pretty_trace: unit -> t -> doc
-  val compare : t -> t -> int
-
-  val printXml : 'a BatInnerIO.output -> t -> unit
-  val var_id   : t -> string
-  val node      : t -> MyCFG.node
-  val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
-end
 
 module Var =
 struct
@@ -69,15 +51,31 @@ end
 module type SpecSysVar =
 sig
   include Printable.S
-  include SysVar with type t := t
+  include ConstrSys.SysVar with type t := t
 end
 
 module GVarF (V: SpecSysVar) =
 struct
-  include Printable.Either (V) (CilType.Fundec)
+  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (CilType.Fundec)
   let name () = "FromSpec"
   let spec x = `Left x
   let contexts x = `Right x
+
+  (* from Basetype.Variables *)
+  let var_id = show
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> true
+end
+
+module GVarFC (V:SpecSysVar) (C:Printable.S) =
+struct
+  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (Printable.Prod (CilType.Fundec) (C))
+  let name () = "FromSpec"
+  let spec x = `Left x
+  let call (x, c) = `Right (x, c)
 
   (* from Basetype.Variables *)
   let var_id = show
@@ -101,7 +99,7 @@ struct
     let name () = "contexts"
   end
 
-  include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
+  include Lattice.Lift2 (G) (CSet)
 
   let spec = function
     | `Bot -> G.bot ()
@@ -126,10 +124,11 @@ exception Deadcode
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) =
 struct
-  include Lattice.Lift (LD) (struct
+  include Lattice.LiftConf (struct
+      include Printable.DefaultConf
       let bot_name = "Dead code"
       let top_name = "Totally unknown and messed up"
-    end)
+    end) (LD)
 
   let lift (x:LD.t) : t = `Lifted x
 
@@ -139,186 +138,9 @@ struct
     | _ -> raise Deadcode
 
   let printXml f = function
-    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape top_name)
+    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape Printable.DefaultConf.top_name)
     | `Bot -> ()
     | `Lifted x -> LD.printXml f x
-end
-
-
-module ResultNode: Printable.S with type t = MyCFG.node =
-struct
-  include Printable.Std
-
-  include Node
-
-  let name () = "resultnode"
-
-  let show a =
-    (* Not using Node.location here to have updated locations in incremental analysis.
-       See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-    let x = UpdateCil.getLoc a in
-    let f = Node.find_fundec a in
-    CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
-
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
-end
-
-module type ResultConf =
-sig
-  val result_name: string
-end
-
-module Result (Range: Printable.S) (C: ResultConf) =
-struct
-  include Hashtbl.Make (ResultNode)
-  type nonrec t = Range.t t (* specialize polymorphic type for Range values *)
-
-  let pretty () mapping =
-    let f key st dok =
-      dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pretty key Range.pretty st
-    in
-    let content () = fold f mapping nil in
-    let defline () = dprintf "OTHERS -> Not available\n" in
-    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
-
-  include C
-
-  let printXml f xs =
-    let print_one n v =
-      (* Not using Node.location here to have updated locations in incremental analysis.
-         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let loc = UpdateCil.getLoc n in
-      BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column;
-      BatPrintf.fprintf f "%a</call>\n" Range.printXml v
-    in
-    iter print_one xs
-
-  let printJson f xs =
-    let print_one n v =
-      (* Not using Node.location here to have updated locations in incremental analysis.
-         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let loc = UpdateCil.getLoc n in
-      BatPrintf.fprintf f "{\n\"id\": \"%s\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"column\": \"%d\", \"states\": %s\n},\n" (Node.show_id n) loc.file loc.line loc.byte loc.column (Yojson.Safe.to_string (Range.to_yojson v))
-    in
-    iter print_one xs
-
-  let printXmlWarning f () =
-    let one_text f Messages.Piece.{loc; text = m; _} =
-      match loc with
-      | Some loc ->
-        let l = Messages.Location.to_cil loc in
-        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (XmlUtil.escape m)
-      | None ->
-        () (* TODO: not outputting warning without location *)
-    in
-    let one_w f (m: Messages.Message.t) = match m.multipiece with
-      | Single piece  -> one_text f piece
-      | Group {group_text = n; pieces = e; group_loc} ->
-        let group_loc_text = match group_loc with
-          | None -> ""
-          | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
-        in
-        BatPrintf.fprintf f "<group name=\"%s%s\">%a</group>\n" n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
-    in
-    let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
-    List.iter (one_w f) !Messages.Table.messages_list
-
-  let output table gtable gtfxml (file: file) =
-    let out = Messages.get_out result_name !Messages.out in
-    match get_string "result" with
-    | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-    | "fast_xml" ->
-      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-      let file2funs = SH.create 100 in
-      let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
-      iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
-          | _ -> ()
-        );
-      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
-      let p_nodes f xs =
-        List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
-      in
-      let p_funs f xs =
-        let one_fun n =
-          BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
-        in
-        List.iter one_fun xs
-      in
-      let write_file f fn =
-        Messages.xml_file_name := fn;
-        BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
-        BatPrintf.fprintf f "<run>";
-        BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
-        BatPrintf.fprintf f "<statistics>";
-        let timing_ppf = BatFormat.formatter_of_out_channel f in
-        Timing.Default.print timing_ppf;
-        Format.pp_print_flush timing_ppf ();
-        BatPrintf.fprintf f "</statistics>";
-        BatPrintf.fprintf f "<result>\n";
-        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
-        BatPrintf.fprintf f "%a" printXml (Lazy.force table);
-        gtfxml f gtable;
-        printXmlWarning f ();
-        BatPrintf.fprintf f "</result></run>\n";
-        BatPrintf.fprintf f "%!"
-      in
-      if get_bool "g2html" then
-        BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
-      else
-        let f = BatIO.output_channel out in
-        write_file f (get_string "outfile")
-    | "json" ->
-      let open BatPrintf in
-      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-      let file2funs = SH.create 100 in
-      let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
-      iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
-          | _ -> ()
-        );
-      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
-      let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
-      (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
-      (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
-      let p_node f n = BatPrintf.fprintf f "\"%s\"" (Node.show_id n) in
-      let p_fun f x = fprintf f "{\n  \"name\": \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
-      (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
-      let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
-      let write_file f fn =
-        printf "Writing json to temp. file: %s\n%!" fn;
-        fprintf f "{\n  \"parameters\": \"%s\",\n  " GobSys.command_line;
-        fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
-        fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
-        (*gtfxml f gtable;*)
-        (*printXmlWarning f ();*)
-        fprintf f "}\n";
-      in
-      if get_bool "g2html" then
-        BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
-      else
-        let f = BatIO.output_channel out in
-        write_file f (get_string "outfile")
-    | "sarif" ->
-      let open BatPrintf in
-      printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
-      Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
-    | "json-messages" ->
-      let json = `Assoc [
-          ("files", Preprocessor.dependencies_to_yojson ());
-          ("messages", Messages.Table.to_yojson ());
-        ]
-      in
-      Yojson.Safe.to_channel ~std:true out json
-    | "none" -> ()
-    | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
 
 
@@ -342,7 +164,7 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; spawn    : lval option -> varinfo -> exp list -> unit
+  ; spawn    : ?multiple:bool -> lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
   }
@@ -353,7 +175,7 @@ exception Ctx_failure of string
 let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 
 (** Convert [ctx] to [Queries.ask]. *)
-let ask_of_ctx ctx: Queries.ask = { Queries.f = fun (type a) (q: a Queries.t) -> ctx.ask q }
+let ask_of_ctx ctx: Queries.ask = { Queries.f = ctx.ask }
 
 
 module type Spec =
@@ -444,10 +266,10 @@ sig
   val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
 
   (** Returns initial state for created thread. *)
-  val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
+  val threadenter : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
-  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
@@ -478,122 +300,15 @@ type increment_data = {
   restarting: VarQuery.t list;
 }
 
-(** Abstract incremental change to constraint system.
-    @param 'v constrain system variable type *)
-type 'v sys_change_info = {
-  obsolete: 'v list; (** Variables to destabilize. *)
-  delete: 'v list; (** Variables to delete. *)
-  reluctant: 'v list; (** Variables to solve reluctantly. *)
-  restart: 'v list; (** Variables to restart. *)
-}
-
-(** A side-effecting system. *)
-module type MonSystem =
-sig
-  type v    (* variables *)
-  type d    (* values    *)
-  type 'a m (* basically a monad carrier *)
-
-  (** Variables must be hashable, comparable, etc.  *)
-  module Var : VarType with type t = v
-
-  (** Values must form a lattice. *)
-  module Dom : Lattice.S with type t = d
-
-  (** The system in functional form. *)
-  val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
-
-  val sys_change: (v -> d) -> v sys_change_info
-  (** Compute incremental constraint system change from old solution. *)
-end
-
-(** Any system of side-effecting equations over lattices. *)
-module type EqConstrSys = MonSystem with type 'a m := 'a option
-
-(** A side-effecting system with globals. *)
-module type GlobConstrSys =
-sig
-  module LVar : VarType
-  module GVar : VarType
-
-  module D : Lattice.S
-  module G : Lattice.S
-  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
-  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
-  val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
-end
-
-(** A solver is something that can translate a system into a solution (hash-table).
-    Incremental solver has data to be marshaled. *)
-module type GenericEqIncrSolverBase =
-  functor (S:EqConstrSys) ->
-  functor (H:Hashtbl.S with type key=S.v) ->
-  sig
-    type marshal
-
-    val copy_marshal: marshal -> marshal
-    val relift_marshal: marshal -> marshal
-
-    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].
-        As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.v*S.d) list -> S.v list -> marshal option -> S.d H.t * marshal
-  end
-
-(** (Incremental) solver argument, indicating which postsolving should be performed by the solver. *)
-module type IncrSolverArg =
-sig
-  val should_prune: bool
-  val should_verify: bool
-  val should_warn: bool
-  val should_save_run: bool
-end
-
-(** An incremental solver takes the argument about postsolving. *)
-module type GenericEqIncrSolver =
-  functor (Arg: IncrSolverArg) ->
-    GenericEqIncrSolverBase
-
-(** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericEqSolver =
-  functor (S:EqConstrSys) ->
-  functor (H:Hashtbl.S with type key=S.v) ->
-  sig
-    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs]. *)
-    val solve : (S.v*S.d) list -> S.v list -> S.d H.t
-  end
-
-(** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericGlobSolver =
-  functor (S:GlobConstrSys) ->
-  functor (LH:Hashtbl.S with type key=S.LVar.t) ->
-  functor (GH:Hashtbl.S with type key=S.GVar.t) ->
-  sig
-    type marshal
-
-    val copy_marshal: marshal -> marshal
-    val relift_marshal: marshal -> marshal
-
-    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].
-        As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> marshal option -> (S.D.t LH.t * S.G.t GH.t) * marshal
-  end
-
-module ResultType2 (S:Spec) =
-struct
-  open S
-  include Printable.Prod3 (C) (D) (CilType.Fundec)
-  let show (es,x,f:t) = D.show x
-  let pretty () (_,x,_) = D.pretty () x
-  let printXml f (c,d,fd) =
-    BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
-end
-
 module StdV =
 struct
   let is_write_only _ = false
+end
+
+module UnitV =
+struct
+  include Printable.Unit
+  include StdV
 end
 
 module VarinfoV =
@@ -697,15 +412,15 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     ctx.local
 
-  let threadenter ctx lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [ctx.local]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 end
 
 
 module type SpecSys =
 sig
   module Spec: Spec
-  module EQSys: GlobConstrSys with module LVar = VarF (Spec.C)
+  module EQSys: ConstrSys.GlobConstrSys with module LVar = VarF (Spec.C)
                                and module GVar = GVarF (Spec.V)
                                and module D = Spec.D
                                and module G = GVarG (Spec.G) (Spec.C)
