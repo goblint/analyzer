@@ -380,8 +380,6 @@ struct
           | _, _ -> a, b
         end
       | Lt | Le | Ge | Gt as op ->
-        let pred x = Z.pred x in
-        let succ x = Z.succ x in
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
          | Some l1, Some u1, Some l2, Some u2 ->
            (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
@@ -395,9 +393,9 @@ struct
             | Ge, Some true
             | Lt, Some false -> meet_bin (ID.starting ikind l2) (ID.ending ikind u1)
             | Lt, Some true
-            | Ge, Some false -> meet_bin (ID.ending ikind (pred u2)) (ID.starting ikind (succ l1))
+            | Ge, Some false -> meet_bin (ID.ending ikind (Z.pred u2)) (ID.starting ikind (Z.succ l1))
             | Gt, Some true
-            | Le, Some false -> meet_bin (ID.starting ikind (succ l2)) (ID.ending ikind (pred u1))
+            | Le, Some false -> meet_bin (ID.starting ikind (Z.succ l2)) (ID.ending ikind (Z.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
       | BOr | BXor as op->
