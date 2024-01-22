@@ -271,6 +271,12 @@ struct
   let escapedAllocSize = ref Set.empty
   let allPointerEscaped = ref false
 
+  let sizeOfTyp e = 
+    let ptr_typ = typeOf e in
+    match ptr_typ with
+    | TPtr (t, _) -> Some ((bitsSizeOf t) / 8)
+    | _ -> None 
+
   let assignVariable ctx (lv:lval) e = 
     let st = ctx.local in
     if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
@@ -325,11 +331,9 @@ struct
        | _ -> allPointerEscaped := true); (* every allocated memory piece may escape *)
 
     if GobConfig.get_bool "ana.apron.pointer_tracking" then (
-      let ptr_typ = typeOf (Lval (Var v,NoOffset)) in
       if M.tracing then M.trace "OOB" "pointerAssign=%b" (GobConfig.get_bool "ana.apron.pointer_tracking");
-      match ptr_typ with 
-      | TPtr (t, _) -> 
-        let sizeOfType = (bitsSizeOf t) / 8 in
+      match sizeOfTyp (Lval (Var v, NoOffset)) with 
+      | Some typSize -> 
         let castedPointer = PointerMap.to_varinfo v in
         let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
             let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
@@ -337,7 +341,7 @@ struct
           else 
             ctx 
         in
-        let replacedExp = replacePointerWithMapping e sizeOfType in
+        let replacedExp = replacePointerWithMapping e typSize in
         if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
         assignVariable ctx (Var castedPointer,NoOffset) replacedExp 
       | _ -> ctx.local
@@ -431,11 +435,9 @@ struct
     let st = ctx.local in
     let argPointerMapping (x,y) = (*maps expression assigned to pointer args *)
       if GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType x.vtype then 
-        let ptr_typ = typeOf (Lval (Var x,NoOffset)) in
-        begin match ptr_typ with
-          | TPtr (t, _) -> 
-            let sizeOfType = (bitsSizeOf t) / 8 in
-            (PointerMap.to_varinfo x, replacePointerWithMapping y sizeOfType) 
+        begin match sizeOfTyp (Lval (Var x, NoOffset)) with
+          | Some typSize -> 
+            (PointerMap.to_varinfo x, replacePointerWithMapping y typSize) 
           | _ -> (x,y)
         end
       else (x,y)
@@ -885,17 +887,14 @@ struct
       end
       in
       let pointerEval structOffset= 
-        let ptr_typ = typeOf e in
-        begin match ptr_typ with 
-          | TPtr (t, _) -> 
-            let sizeOfType = (bitsSizeOf t) / 8 in
-            let pointerLen = replacePointerWithMapping e sizeOfType in
+        begin match sizeOfTyp e with 
+          | Some typSize -> 
+            let pointerLen = replacePointerWithMapping e typSize in
             let afterZero = Cilfacade.makeBinOp Le  Cil.zero pointerLen in
             let isAfterZero = eval_int afterZero (no_overflow ask pointerLen) in
             if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
             let relExp =  BinOp (PlusA, integer structOffset, pointerLen, TInt (IInt ,[])) in
             let isBeforeEnd = inBoundsForAllAddresses relExp in
-            if M.tracing then M.trace "malloc" "Query result: %a\n" VDQ.ID.pretty isBeforeEnd ;
             (isAfterZero, isBeforeEnd)
           | _ -> (VDQ.ID.top (),VDQ.ID.top ())
         end
@@ -903,11 +902,9 @@ struct
       let relationEval e1 binop e2 structOffset = 
         if M.tracing then M.trace "OOB" "relationEval: %a\n" d_exp e;
         if M.tracing then M.trace "OOB" "st: %a\n" RD.pretty st.rel;
-        let ptr_typ = typeOf e1 in 
-        begin match ptr_typ with 
-          | TPtr (t, _) -> 
-            let sizeOfType = (bitsSizeOf t) / 8 in
-            let e2Mult = BinOp (Mult, e2, integer sizeOfType, t) in
+        begin match sizeOfTyp e1 with 
+          | Some typSize -> 
+            let e2Mult = BinOp (Mult, e2, integer typSize, TInt ( Cilfacade.ptrdiff_ikind (), []) )in
             let isAfterZero = 
               begin match IntDomain.IntDomTuple.minimal i with  
                 | None  -> VDQ.ID.top ()
@@ -915,7 +912,7 @@ struct
                   begin 
                     try 
                       let min = Z.to_int min in 
-                      let aZExp = BinOp (binop, integer min, e2Mult, TInt (IInt ,[])) in
+                      let aZExp = BinOp (binop, integer min, e2Mult, TInt (Cilfacade.ptrdiff_ikind (),[])) in
                       let afterZero = Cilfacade.makeBinOp Le  Cil.zero aZExp in
                       eval_int afterZero (no_overflow ask afterZero)
                     with 
@@ -929,7 +926,7 @@ struct
                 | Some i -> 
                   begin try
                       let i = Z.to_int i + structOffset in
-                      let relExp =  BinOp (binop, integer i, e2Mult, TInt (IInt ,[])) in
+                      let relExp =  BinOp (binop, integer i, e2Mult, TInt (Cilfacade.ptrdiff_ikind () ,[])) in
                       inBoundsForAllAddresses relExp
                     with
                     | Z.Overflow -> VDQ.ID.top ()
