@@ -268,7 +268,8 @@ struct
   module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (PointerType)
   module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
   module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
-
+  let escapedAllocSize = ref Set.empty
+  let allPointerEscaped = ref false
 
   let assignVariable ctx (lv:lval) e = 
     let st = ctx.local in
@@ -312,28 +313,42 @@ struct
 
 
   let pointerAssign ctx (v:varinfo) e = 
-    let ptr_typ = typeOf (Lval (Var v,NoOffset)) in
-    if M.tracing then M.trace "OOB" "pointerAssign=%b" (GobConfig.get_bool "ana.apron.pointer_tracking");
-    match ptr_typ with 
-    | TPtr (t, _) -> 
-      let sizeOfType = (bitsSizeOf t) / 8 in
-      let castedPointer = PointerMap.to_varinfo v in
-      let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
-          let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
-          {ctx with local = st}
-        else 
-          ctx 
-      in
-      let replacedExp = replacePointerWithMapping e sizeOfType in
-      if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
-      assignVariable ctx (Var castedPointer,NoOffset) replacedExp 
-    | _ -> ctx.local
+    (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
+    if not !allPointerEscaped && v.vglob then
+      (match ctx.ask (Queries.MayPointTo e) with
+       | a when not (Queries.AD.is_top a) ->  
+         Queries.AD.iter (function 
+             | Addr (v,o) -> 
+               escapedAllocSize := Set.add (AllocSize.to_varinfo v) !escapedAllocSize
+             | _ -> ()
+           )  a 
+       | _ -> allPointerEscaped := true); (* every allocated memory piece may escape *)
+
+    if GobConfig.get_bool "ana.apron.pointer_tracking" then (
+      let ptr_typ = typeOf (Lval (Var v,NoOffset)) in
+      if M.tracing then M.trace "OOB" "pointerAssign=%b" (GobConfig.get_bool "ana.apron.pointer_tracking");
+      match ptr_typ with 
+      | TPtr (t, _) -> 
+        let sizeOfType = (bitsSizeOf t) / 8 in
+        let castedPointer = PointerMap.to_varinfo v in
+        let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
+            let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
+            {ctx with local = st}
+          else 
+            ctx 
+        in
+        let replacedExp = replacePointerWithMapping e sizeOfType in
+        if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
+        assignVariable ctx (Var castedPointer,NoOffset) replacedExp 
+      | _ -> ctx.local
+    ) 
+    else ctx.local
 
   (* Basic transfer functions. *)
 
   let assign ctx (lv:lval) e =
     match lv with
-    | (Var v, NoOffset) when GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType v.vtype 
+    | (Var v, NoOffset) when isPointerType v.vtype 
       -> pointerAssign ctx v e 
     | _ -> assignVariable ctx lv e
 
@@ -395,21 +410,26 @@ struct
 
   (* creates a list of possible AllocSize variables addresses an expression may point to*)
   let mayPointToList ctx x = 
-  match ctx.ask (Queries.MayPointTo x) with
-          | a when not (Queries.AD.is_top a) ->  
-            Queries.AD.fold ( fun (addr )  (st )   ->
-                match addr with
-                | Addr (v,o) -> 
-                  let allocatedLength = AllocSize.to_varinfo v in
-                  allocatedLength :: st
-                | _ -> st
-              )  a []
-          | _ -> []
+    match ctx.ask (Queries.MayPointTo x) with
+    | a when not (Queries.AD.is_top a) ->  
+      Queries.AD.fold ( fun (addr )  (st )   ->
+          match addr with
+          | Addr (v,o) -> 
+            let allocatedLength = AllocSize.to_varinfo v in
+            allocatedLength :: st
+          | _ -> st
+        )  a []
+    | _ -> []
+
+  let filterAllocVar var reachableAllocVars = (* only remove alloc mappings that not reachable. Thus all allocated memory that are not assigned to a global pointer and not returned or passed as an argument *)
+    let r = AllocSize.mem_varinfo var && not !allPointerEscaped && not @@ List.mem_cmp CilType.Varinfo.compare var (Set.to_list !escapedAllocSize) && not @@ List.mem_cmp CilType.Varinfo.compare var reachableAllocVars  in 
+    if M.tracing then M.trace "OOB" "var=%a r=%b" CilType.Varinfo.pretty var r ;
+    r
 
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    let argPointerMapping (x,y) = 
+    let argPointerMapping (x,y) = (*maps expression assigned to pointer args *)
       if GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType x.vtype then 
         let ptr_typ = typeOf (Lval (Var x,NoOffset)) in
         begin match ptr_typ with
@@ -430,12 +450,8 @@ struct
           else 
             RV.arg x))
     in
-    let pointer_assigns = 
-      GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype)
-    in
-    let alloc_List = (* get a list of all possible addresses the pointer may point to *)
-      pointer_assigns |> 
-      List.map ((fun (_,x) -> mayPointToList ctx x)) |> List.flatten
+    let reachableAllocSizeVars = (* get a list of all possible addresses arg may point to *)
+      GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype) |> List.map ((fun (_,x) -> mayPointToList ctx x)) |> List.flatten
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
@@ -461,12 +477,8 @@ struct
         | _ -> 
           match RV.to_cil_varinfo var with
           | None -> false
-          | Some var -> 
-            if AllocSize.mem_varinfo var && not @@ List.mem_cmp CilType.Varinfo.compare var alloc_List then 
-              true 
-            else 
-              false
-              (* keep everything else (just added args, globals, global privs) *)
+          | Some var -> filterAllocVar var reachableAllocSizeVars (* check if the allocMapping var is reachable from the new function *)
+          (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
     new_rel
@@ -516,14 +528,14 @@ struct
       | Some e -> mayPointToList ctx e
       | None -> []
     in
-    RD.remove_vars_with new_rel local_vars;
+    RD.remove_vars_with new_rel local_vars; 
     RD.remove_filter_with new_rel (fun var ->
         match RV.to_cil_varinfo var with
         | None -> false
         | Some var -> 
-          ArrayMap.mem_varinfo var  ||
-          PointerMap.mem_varinfo var ||
-          AllocSize.mem_varinfo var  && not @@ List.mem_cmp CilType.Varinfo.compare var pointsToList
+          ArrayMap.mem_varinfo var  || (*remove all ArrayMap vars*)
+          PointerMap.mem_varinfo var || (*remove all PointerMap vars*)
+          filterAllocVar var pointsToList (*remove all not reachable AllocSize vars*)
       );
     let st' = {st with rel = new_rel} in
     begin match ThreadId.get_current ask with
