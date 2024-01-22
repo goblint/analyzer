@@ -1,9 +1,9 @@
 open GoblintCil
 
-let create_var isGlobal name typ = Cilfacade.create_var @@ makeVarinfo isGlobal name typ
+let create_var ~isGlobal name typ = Cilfacade.create_var @@ makeVarinfo isGlobal name typ
 
 let single ~name typ =
-  let vi = lazy (create_var true name typ) in
+  let vi = lazy (create_var ~isGlobal:true name typ) in
   fun () ->
     Lazy.force vi
 
@@ -53,7 +53,7 @@ struct
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var VT.isGlobal (X.name_varinfo x) VT.varType in
+      let vi = create_var ~isGlobal:VT.isGlobal (X.name_varinfo x) VT.varType in
       store_f x vi;
       vi
 
