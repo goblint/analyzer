@@ -1802,7 +1802,7 @@ struct
   module I = BI
   (* We use these types for the functions in this module to make the intended meaning more explicit *)
   type t = Exc of BISet.t * Interval32.t
-  type inc = Inc of BISet.t
+  type inc = Inc of BISet.t [@@unboxed]
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
   let cardinality_of_range r = BI.add BI.one (BI.add (BI.neg (min_of_range r)) (max_of_range r))
@@ -3310,18 +3310,18 @@ module IntDomTupleImpl = struct
   type 'a m2 = (module SOverflow with type t = 'a and type int_t = int_t )
 
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)
-  type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } (* inject *)
-  type 'b poly2_in  = { fi2  : 'a. 'a m2 -> 'b -> 'a } (* inject for functions that depend on int_t *)
-  type 'b poly2_in_ovc  = { fi2_ovc  : 'a. 'a m2 -> 'b -> 'a * overflow_info} (* inject for functions that depend on int_t *)
+  type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } [@@unboxed] (* inject *)
+  type 'b poly2_in  = { fi2  : 'a. 'a m2 -> 'b -> 'a } [@@unboxed] (* inject for functions that depend on int_t *)
+  type 'b poly2_in_ovc  = { fi2_ovc  : 'a. 'a m2 -> 'b -> 'a * overflow_info} [@@unboxed] (* inject for functions that depend on int_t *)
 
-  type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } (* project *)
-  type 'b poly_pr2  = { fp2  : 'a. 'a m2 -> 'a -> 'b } (* project for functions that depend on int_t *)
-  type 'b poly2_pr = {f2p: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'b}
-  type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
-  type poly1_ovc = {f1_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a * overflow_info } (* needed b/c above 'b must be different from 'a *)
-  type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
-  type poly2_ovc = {f2_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a * overflow_info }
-  type 'b poly3 = { f3: 'a. 'a m -> 'a option } (* used for projection to given precision *)
+  type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } [@@unboxed] (* project *)
+  type 'b poly_pr2  = { fp2  : 'a. 'a m2 -> 'a -> 'b } [@@unboxed] (* project for functions that depend on int_t *)
+  type 'b poly2_pr = {f2p: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'b} [@@unboxed]
+  type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} [@@unboxed] (* needed b/c above 'b must be different from 'a *)
+  type poly1_ovc = {f1_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a * overflow_info } [@@unboxed] (* needed b/c above 'b must be different from 'a *)
+  type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a} [@@unboxed]
+  type poly2_ovc = {f2_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a * overflow_info } [@@unboxed]
+  type 'b poly3 = { f3: 'a. 'a m -> 'a option } [@@unboxed] (* used for projection to given precision *)
   let create r x ((p1, p2, p3, p4, p5): int_precision) =
     let f b g = if b then Some (g x) else None in
     f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4), f p5 @@ r.fi (module I5)
