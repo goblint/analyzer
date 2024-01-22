@@ -9,6 +9,8 @@ module type IntOpsBase =
 sig
   type t
 
+  val name : unit -> string
+
   (* Constants *)
   val zero : t
   val one : t
@@ -74,6 +76,7 @@ end
 module NIntOpsBase : IntOpsBase with type t = int =
 struct
   type t = int [@@deriving hash]
+  let name () = "int"
   let zero = 0
   let one = 1
   let lower_bound = Some min_int
@@ -117,6 +120,7 @@ end
 module Int32OpsBase : IntOpsBase with type t = int32 =
 struct
   type t = int32 [@@deriving hash]
+  let name () = "int32"
   let zero = 0l
   let one = 1l
   let lower_bound = Some Int32.min_int
@@ -162,6 +166,7 @@ end
 module Int64OpsBase : IntOpsBase with type t = int64 =
 struct
   type t = int64 [@@deriving hash]
+  let name () = "int64"
   let zero = 0L
   let one = 1L
   let lower_bound = Some Int64.min_int
@@ -207,6 +212,7 @@ end
 module BigIntOpsBase : IntOpsBase with type t = Z.t =
 struct
   type t = Z.t
+  let name () = "Z"
   let zero = Z.zero
   let one = Z.one
   let upper_bound = None
@@ -251,7 +257,15 @@ end
 
 module IntOpsDecorator(B: IntOpsBase) =
 struct
+  include Printable.StdLeaf
   include B
+  let show = to_string
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = to_string
+    end
+    )
   let pred x = sub x one
   let of_bool x = if x then one else zero
   let to_bool x = x <> zero

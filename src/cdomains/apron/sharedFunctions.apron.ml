@@ -129,7 +129,7 @@ struct
             match Bounds.bound_texpr d texpr1 with
             | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 -> ()
             | min_opt, max_opt ->
-              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
+              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
               raise (Unsupported_CilExp Overflow)
           );
           expr

@@ -406,11 +406,6 @@ module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = I
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
-module BigInt:
-  sig
-    include Printable.S with type t = Z.t
-  end
-
 module Interval : SOverflow with type int_t = Z.t
 
 module IntervalSet : SOverflow with type int_t = Z.t

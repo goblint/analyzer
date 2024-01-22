@@ -1774,16 +1774,7 @@ struct
 end
 
 module BigInt = struct
-  include Printable.StdLeaf
   include IntOps.BigIntOps
-  let name () = "BigIntPrintable"
-  let show x = Z.to_string x
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
   let arbitrary () = QCheck.map ~rev:Z.to_int64 Z.of_int64 QCheck.int64
 end
 
