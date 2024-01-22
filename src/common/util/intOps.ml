@@ -55,6 +55,8 @@ sig
   val to_string : t -> string
   val of_bigint : Z.t -> t
   val to_bigint : t -> Z.t
+
+  val arbitrary : unit -> t QCheck.arbitrary
 end
 
 module type IntOps =
@@ -115,6 +117,8 @@ struct
   let to_string = string_of_int
   let of_bigint = Z.to_int
   let to_bigint = Z.of_int
+
+  let arbitrary () = QCheck.int
 end
 
 module Int32OpsBase : IntOpsBase with type t = int32 =
@@ -161,6 +165,8 @@ struct
   let to_string = Int32.to_string
   let of_bigint = Z.to_int32
   let to_bigint = Z.of_int32
+
+  let arbitrary () = QCheck.int32
 end
 
 module Int64OpsBase : IntOpsBase with type t = int64 =
@@ -207,6 +213,8 @@ struct
   let to_string = Int64.to_string
   let of_bigint = Z.to_int64
   let to_bigint = Z.of_int64
+
+  let arbitrary () = QCheck.int64
 end
 
 module BigIntOpsBase : IntOpsBase with type t = Z.t =
@@ -252,6 +260,7 @@ struct
   let bitor = Z.logor
   let bitxor = Z.logxor
 
+  let arbitrary () = QCheck.map ~rev:Z.to_int64 Z.of_int64 QCheck.int64
 end
 
 

@@ -1773,13 +1773,8 @@ struct
   include (Lattice.Reverse (Base) : Lattice.S with type t := Base.t)
 end
 
-module BigInt = struct
-  include IntOps.BigIntOps
-  let arbitrary () = QCheck.map ~rev:Z.to_int64 Z.of_int64 QCheck.int64
-end
-
 module BISet = struct
-  include SetDomain.Make (BigInt)
+  include SetDomain.Make (IntOps.BigIntOps)
   let is_singleton s = cardinal s = 1
 end
 
@@ -2062,7 +2057,7 @@ struct
   let of_bool = of_bool_cmp
   let to_bool x =
     match x with
-    | `Definite x -> Some (BigInt.to_bool x)
+    | `Definite x -> Some (IntOps.BigIntOps.to_bool x)
     | `Excluded (s,r) when S.mem Z.zero s -> Some true
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
@@ -2257,14 +2252,14 @@ struct
     | _, Some false ->
       of_bool ik false
     | _, _ ->
-      lift2 BigInt.logand ik x y
+      lift2 IntOps.BigIntOps.logand ik x y
   let logor ik x y =
     match to_bool x, to_bool y with
     | Some true, _
     | _, Some true ->
       of_bool ik true
     | _, _ ->
-      lift2 BigInt.logor ik x y
+      lift2 IntOps.BigIntOps.logor ik x y
   let lognot ik = eq ik (of_int ik Z.zero)
 
   let invariant_ikind e ik (x:t) =
@@ -2297,12 +2292,12 @@ struct
     let definite x = of_int ik x in
     let shrink = function
       | `Excluded (s, _) -> GobQCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
-      | `Definite x -> (return `Bot) <+> (GobQCheck.shrink (BigInt.arbitrary ()) x >|= definite)
+      | `Definite x -> (return `Bot) <+> (GobQCheck.shrink (IntOps.BigIntOps.arbitrary ()) x >|= definite)
       | `Bot -> empty
     in
     QCheck.frequency ~shrink ~print:show [
       20, QCheck.map excluded (S.arbitrary ());
-      10, QCheck.map definite (BigInt.arbitrary ());
+      10, QCheck.map definite (IntOps.BigIntOps.arbitrary ());
       1, QCheck.always `Bot
     ] (* S TODO: decide frequencies *)
 
@@ -2630,8 +2625,8 @@ module Enums : S with type int_t = Z.t = struct
       | Some b -> of_bool ik (not b)
       | None -> top_bool
 
-  let logand = lift2 BigInt.logand
-  let logor  = lift2 BigInt.logor
+  let logand = lift2 IntOps.BigIntOps.logand
+  let logor  = lift2 IntOps.BigIntOps.logor
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
     | Exc (excl,r) ->
