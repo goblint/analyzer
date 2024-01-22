@@ -434,53 +434,57 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.AllocMayBeOutOfBounds (e, i, o) -> 
-      begin match typeOf e with 
-        | TPtr (ty, _) -> 
-          if M.tracing then M.trace "OOB"  "e=%a  i=%a \n" d_exp e ID.pretty i;
-          let expOffset = match e with 
-            | Lval (Var v, _) -> i 
-            | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
-              let  e2Offset = eval_ptr_offset_in_binop ctx e2 ty in (*add offset of e2*)
-              begin match e2Offset with
-                | `Lifted e2Offset -> 
-                  begin 
-                    try if binop = MinusPI then 
-                        ID.sub i e2Offset
-                      else
-                        ID.add i e2Offset
-                    with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+    | Queries.AllocMayBeOutOfBounds (e, i, o) ->
+      begin match i with 
+        | i when not @@ ID.is_bot i  -> 
+          begin match typeOf e with 
+            | TPtr (ty, _) -> 
+              if M.tracing then M.trace "OOB"  "e=%a  i=%a o=%a\n" d_exp e ID.pretty i ID.pretty o;
+              let expOffset = match e with 
+                | Lval (Var v, _) -> i 
+                | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
+                  let  e2Offset = eval_ptr_offset_in_binop ctx e2 ty in (*add offset of e2*)
+                  begin match e2Offset with
+                    | `Lifted e2Offset -> 
+                      begin 
+                        try if binop = MinusPI then 
+                            ID.sub i e2Offset
+                          else
+                            ID.add i e2Offset
+                        with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+                      end
+                    | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
                   end
-                | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-              end
-            | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
-          in
-          if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
-          let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
+                | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
+              in
+              if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
+              let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
 
-          let current_index_size = size_of_type_in_bytes ty in
-          let casted_current_index_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) current_index_size in (*add size of type*)
-          let expOffset_plus_current_index_size = 
-            begin try ID.add expOffset casted_current_index_size 
-              with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-            end
-          in
-          if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty current_index_size;
-          if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_plus_current_index_size;
-          let exp_Offset_plus_current_index_size_struct_offset =               
-            (try  (ID.add o expOffset_plus_current_index_size)
-             with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
-          in
-          let isBeforeEnd = match  get_size_of_ptr_target ctx e with 
-            | `Lifted size -> 
-              let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
-              if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
-              ID.le exp_Offset_plus_current_index_size_struct_offset casted_e_size
-            | `Top -> ID.top_of  IInt
-            | `Bot -> ID.top_of  IInt (*Ikind of ID comparisons*)
-          in
-          if M.tracing then M.trace "OOB" "result %a %a\n" ID.pretty isBeforeZero ID.pretty isBeforeEnd;
-          (`Lifted isBeforeZero,`Lifted isBeforeEnd)
+              let current_index_size = size_of_type_in_bytes ty in
+              let casted_current_index_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) current_index_size in (*add size of type*)
+              let expOffset_plus_current_index_size = 
+                begin try ID.add expOffset casted_current_index_size 
+                  with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+                end
+              in
+              if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty current_index_size;
+              if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_plus_current_index_size;
+              let exp_Offset_plus_current_index_size_struct_offset =               
+                (try  (ID.add o expOffset_plus_current_index_size)
+                 with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
+              in
+              let isBeforeEnd = match  get_size_of_ptr_target ctx e with 
+                | `Lifted size -> 
+                  let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
+                  if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
+                  ID.le exp_Offset_plus_current_index_size_struct_offset casted_e_size
+                | `Top -> ID.top_of  IInt
+                | `Bot -> ID.top_of  IInt (*Ikind of ID comparisons*)
+              in
+              if M.tracing then M.trace "OOB" "result %a %a\n" ID.pretty isBeforeZero ID.pretty isBeforeEnd;
+              (`Lifted isBeforeZero,`Lifted isBeforeEnd)
+            | _ -> (ValueDomainQueries.ID.top (), ValueDomainQueries.ID.top())
+          end
         | _ -> (ValueDomainQueries.ID.top (), ValueDomainQueries.ID.top())
       end
     (* Queries.Result.top q *)
