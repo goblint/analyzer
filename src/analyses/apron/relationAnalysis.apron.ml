@@ -396,7 +396,7 @@ struct
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    let argPointerAssign (x,y) = 
+    let argPointerMapping (x,y) = 
       if GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType x.vtype then 
         let ptr_typ = typeOf (Lval (Var x,NoOffset)) in
         begin match ptr_typ with
@@ -410,7 +410,7 @@ struct
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x || isPointerType x.vtype)
-      |> List.map argPointerAssign
+      |> List.map argPointerMapping
       |> List.map (Tuple2.map1 (fun x -> 
           if PointerMap.mem_varinfo x then 
             RV.local x (* assignment only works with local for some reason *)
