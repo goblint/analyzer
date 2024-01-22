@@ -1774,15 +1774,16 @@ struct
 end
 
 module BigInt = struct
+  include Printable.StdLeaf
   include IntOps.BigIntOps
   let name () = "BigIntPrintable"
-  let top () = raise Unknown
-  let bot () = raise Error
-  let top_of ik = top ()
-  let bot_of ik = bot ()
-  let cast_to ik x = Size.cast ik x
   let show x = Z.to_string x
-  include Std (struct type nonrec t = Z.t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
   let arbitrary () = QCheck.map ~rev:Z.to_int64 Z.of_int64 QCheck.int64
 end
 
@@ -1920,13 +1921,13 @@ struct
             `Excluded (S.empty(), r')
         else
           (* downcast: may overflow *)
-          (* let s' = S.map (BigInt.cast_to ik) s in *)
+          (* let s' = S.map (Size.cast ik) s in *)
           (* We want to filter out all i in s' where (t)x with x in r could be i. *)
           (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
           (* S.diff s' s, r' *)
           (* The above is needed for test 21/03, but not sound! See example https://github.com/goblint/analyzer/pull/95#discussion_r483023140 *)
           `Excluded (S.empty (), r')
-    | `Definite x -> `Definite (BigInt.cast_to ik x)
+    | `Definite x -> `Definite (Size.cast ik x)
     | `Bot -> `Bot
 
   (* Wraps definite values and excluded values according to the ikind.
@@ -1955,7 +1956,7 @@ struct
         (* Else an overflow occurred that we should treat with wrap-around *)
         let r = size ik in
         (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
-        let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
+        let mapped_excl = S.map (fun excl -> Size.cast ik excl) s in
         match ik with
         | IBool ->
           begin match S.mem Z.zero mapped_excl, S.mem Z.one mapped_excl with
@@ -2437,7 +2438,7 @@ module Enums : S with type int_t = Z.t = struct
     | Inc xs when BISet.for_all value_in_ikind xs -> v
     | Inc xs ->
       if should_wrap ikind then
-        Inc (BISet.map (BigInt.cast_to ikind) xs)
+        Inc (BISet.map (Size.cast ikind) xs)
       else if should_ignore_overflow ikind then
         Inc (BISet.filter value_in_ikind xs)
       else
@@ -2485,7 +2486,7 @@ module Enums : S with type int_t = Z.t = struct
       else (* downcast: may overflow *)
         Exc ((BISet.empty ()), r')
     | Inc xs ->
-      let casted_xs = BISet.map (BigInt.cast_to ik) xs in
+      let casted_xs = BISet.map (Size.cast ik) xs in
       if Cil.isSigned ik && not (BISet.equal xs casted_xs)
       then top_of ik (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
       else Inc casted_xs
@@ -2775,7 +2776,7 @@ struct
     | Some (c, m) ->
       if m =: Z.zero then
         if should_wrap ik then
-          Some (BigInt.cast_to ik c, m)
+          Some (Size.cast ik c, m)
         else
           Some (c, m)
       else
@@ -2897,7 +2898,7 @@ struct
     match x with
     | None -> None
     | Some (c, m) when m =: Z.zero ->
-      let c' = BigInt.cast_to t c in
+      let c' = Size.cast t c in
       (* When casting into a signed type and the result does not fit, the behavior is implementation-defined. (C90 6.2.1.2, C99 and C11 6.3.1.3) *)
       (* We go with GCC behavior here: *)
       (*  For conversion to a type of width N, the value is reduced modulo 2^N to be within range of the type; no signal is raised. *)

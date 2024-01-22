@@ -73,7 +73,7 @@ struct
   module Base =
   struct
     include IntDomain.Integers(IntOps.BigIntOps)
-    let arbitrary () = QCheck.map_same_type (IntDomain.BigInt.cast_to (Ikind.ikind ())) (arbitrary ())
+    let arbitrary () = QCheck.map_same_type (IntDomain.Size.cast (Ikind.ikind ())) (arbitrary ())
   end
 
   include SetDomain.Make(Base)

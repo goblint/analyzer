@@ -366,6 +366,7 @@ module Size : sig
   val range           : Cil.ikind -> Z.t * Z.t
   val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
   val bits            : Cil.ikind -> int * int
+  val cast            : Cil.ikind -> Z.t -> Z.t
 end
 
 module BISet: SetDomain.S with type elt = Z.t
@@ -408,7 +409,6 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 module BigInt:
   sig
     include Printable.S with type t = Z.t
-    val cast_to: Cil.ikind -> Z.t -> Z.t
   end
 
 module Interval : SOverflow with type int_t = Z.t
