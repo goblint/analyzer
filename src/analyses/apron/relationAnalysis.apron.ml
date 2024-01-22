@@ -396,25 +396,27 @@ struct
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
+    let argPointerAssign (x,y) = 
+      if GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType x.vtype then 
+        let ptr_typ = typeOf (Lval (Var x,NoOffset)) in
+        begin match ptr_typ with
+          | TPtr (t, _) -> 
+            let sizeOfType = (bitsSizeOf t) / 8 in
+            (PointerMap.to_varinfo x, replacePointerWithMapping y sizeOfType) 
+          | _ -> (x,y)
+        end
+      else (x,y)
+    in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x || isPointerType x.vtype)
-      |> List.map (fun (x,y) -> 
-          if GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType x.vtype then 
-            let ptr_typ = typeOf (Lval (Var x,NoOffset)) in
-            begin match ptr_typ with
-              | TPtr (t, _) -> 
-                let sizeOfType = (bitsSizeOf t) / 8 in
-                (PointerMap.to_varinfo x, replacePointerWithMapping y sizeOfType) 
-              | _ -> (x,y)
-            end
-          else (x,y))
-      |> List.map (Tuple2.map1 (fun x -> if PointerMap.mem_varinfo x then RV.local x else 
-                                   (if M.tracing then M.trace "re" "arg=%a\n" CilType.Varinfo.pretty x;
-                                    RV.arg x)))
+      |> List.map argPointerAssign
+      |> List.map (Tuple2.map1 (fun x -> 
+          if PointerMap.mem_varinfo x then 
+            RV.local x (* assignment only works with local for some reason *)
+          else 
+            RV.arg x))
     in
-    if M.tracing then M.trace "re" "f.sformals=%a args=%a\n" (docList ~sep:(Pretty.text ",") (CilType.Varinfo.pretty())) f.sformals (docList ~sep:(Pretty.text ",") (d_exp ())) args ;
-    List.iter (fun (x,y)-> if M.tracing then M.trace "re" "arg_assigns=%a,%a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo x) d_exp y) arg_assigns;
     let pointer_assigns = 
       GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype)
     in
@@ -906,19 +908,28 @@ struct
               begin match IntDomain.IntDomTuple.minimal i with  
                 | None  -> VDQ.ID.top ()
                 | Some min -> 
-                  let min = Z.to_int min in
-                  let aZExp = BinOp (binop, integer min, e2Mult, TInt (IInt ,[])) in
-                  let afterZero = Cilfacade.makeBinOp Le  Cil.zero aZExp in
-                  eval_int afterZero (no_overflow ask afterZero)
+                  begin 
+                    try 
+                      let min = Z.to_int min in 
+                      let aZExp = BinOp (binop, integer min, e2Mult, TInt (IInt ,[])) in
+                      let afterZero = Cilfacade.makeBinOp Le  Cil.zero aZExp in
+                      eval_int afterZero (no_overflow ask afterZero)
+                    with 
+                    | Z.Overflow -> VDQ.ID.top ()
+                  end
               end
             in
             let isBeforeEnd = 
               begin match IntDomain.IntDomTuple.maximal i with
                 | None -> ID.top_of (Cilfacade.ptrdiff_ikind())
                 | Some i -> 
-                  let i = Z.to_int i + structOffset in
-                  let relExp =  BinOp (binop, integer i, e2Mult, TInt (IInt ,[])) in
-                  inBoundsForAllAddresses relExp
+                  begin try
+                      let i = Z.to_int i + structOffset in
+                      let relExp =  BinOp (binop, integer i, e2Mult, TInt (IInt ,[])) in
+                      inBoundsForAllAddresses relExp
+                    with
+                    | Z.Overflow -> VDQ.ID.top ()
+                  end
               end
             in  
             (isAfterZero, isBeforeEnd)
