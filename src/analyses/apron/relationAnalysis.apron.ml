@@ -393,6 +393,19 @@ struct
       | None -> true
       | Some v -> any_local_reachable
 
+  (* creates a list of possible AllocSize variables addresses an expression may point to*)
+  let mayPointToList ctx x = 
+  match ctx.ask (Queries.MayPointTo x) with
+          | a when not (Queries.AD.is_top a) ->  
+            Queries.AD.fold ( fun (addr )  (st )   ->
+                match addr with
+                | Addr (v,o) -> 
+                  let allocatedLength = AllocSize.to_varinfo v in
+                  allocatedLength :: st
+                | _ -> st
+              )  a []
+          | _ -> []
+
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
@@ -420,19 +433,9 @@ struct
     let pointer_assigns = 
       GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype)
     in
-    let alloc_List = 
+    let alloc_List = (* get a list of all possible addresses the pointer may point to *)
       pointer_assigns |> 
-      List.map ((fun (_,x) -> match ctx.ask (Queries.MayPointTo x) with
-          | a when not (Queries.AD.is_top a) ->  
-            Queries.AD.fold ( fun (addr )  (st )   ->
-                match addr with
-                | Addr (v,o) -> 
-                  let allocatedLength = AllocSize.to_varinfo v in
-                  allocatedLength :: st
-                | _ -> if M.tracing then M.trace "re" "no addr?\n"; st
-              )  a []
-          | _ -> if M.tracing then M.trace "re" "top?\n" ;[]
-        )) |> List.flatten
+      List.map ((fun (_,x) -> mayPointToList ctx x)) |> List.flatten
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
@@ -510,18 +513,7 @@ struct
       |> List.map RV.local
     in
     let pointsToList = match e with 
-      | Some e -> 
-        begin match ctx.ask (Queries.MayPointTo e) with
-          | a when not (Queries.AD.is_top a) ->  
-            Queries.AD.fold ( fun (addr )  (st )   ->
-                match addr with
-                | Addr (v,o) -> 
-                  let allocatedLength = AllocSize.to_varinfo v in
-                  allocatedLength :: st
-                | _ -> st
-              )  a []
-          | _ -> []
-        end
+      | Some e -> mayPointToList ctx e
       | None -> []
     in
     RD.remove_vars_with new_rel local_vars;
