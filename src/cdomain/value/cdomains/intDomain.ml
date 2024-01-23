@@ -3578,7 +3578,7 @@ module IntDomTupleImpl = struct
   let same show x =
     let us = List.unique (to_list_some x) in
     match us with
-    | [x] -> Some (List.hd us)
+    | [x] -> Some x
     | [] -> None
     | _ ->
       Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
