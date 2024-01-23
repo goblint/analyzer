@@ -65,6 +65,10 @@ struct
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
+  let secific_cont_sens xs = (*most analysis must be set to context insensitive, because we only want to analyse context sensitively for a specific analysis*)
+    let sens_ana = ["callstring_fundec"; "callstring_stmt"; "callstring_loc"; "callstringTracking"] in (*TODO: what happens if all of them are enabled? Do we want that?*)
+    let enabled = List.fold_left (fun acc x -> acc || (mem x xs)) false sens_ana in
+    if enabled then Some(filter (fun x -> not (mem x sens_ana)) xs) else None (*returns a list of insensitive analyses*)
 
   type marshal = Obj.t list
   let init marshal =
@@ -76,20 +80,14 @@ struct
       List.map f
     in
     let xs = get_string_list "ana.activated" in
-    let callstring_list = ["callstring_fundec"; "callstring_stmt"; "callstring_loc"] in
-    let callstring_enabled = List.fold_left (fun acc x -> acc || (mem x xs)) false callstring_list in
-    let cont_callstring = filter (fun x -> not (mem x callstring_list)) xs in (*the contexts that are insensitive due to the callstring approach*)
-    let contextJoin_enabled = mem "contextJoins" xs in
-    let cont_contextJoins = filter (fun x -> x <> "contextJoins") xs in (*the contexts that are insensitive due to the contextJoins approach*)
+    let special_inse = secific_cont_sens xs in     
+    Printf.printf "activated: %s" (String.concat ";" xs);
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
     path_sens := map' find_id @@ get_string_list "ana.path_sens";
-    if callstring_enabled 
-    then cont_inse := map' find_id cont_callstring
-    else cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
-    if contextJoin_enabled 
-    then cont_inse := map' find_id cont_contextJoins
+    if Option.is_some special_inse (*checks if an analysis is enabled which requires context sensitivity for multiple analyses*)
+    then cont_inse := map' find_id (Option.get special_inse)
     else cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
     check_deps !activated;
     activated := topo_sort_an !activated;

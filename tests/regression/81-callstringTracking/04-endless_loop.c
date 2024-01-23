@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" contextJoins --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" callstringTracking --enable ana.int.interval_set
 // Will result in an endless loop without context insensitive analysis
 #include <stdio.h>
 

@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" contextJoins --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" callstringTracking --enable ana.int.interval_set
 #include <stdio.h>
 
 int ack(int n, int m)

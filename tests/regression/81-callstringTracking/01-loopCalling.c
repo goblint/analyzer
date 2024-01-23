@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" contextJoins --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" callstringTracking --enable ana.int.interval_set
 // Basic example
 #include <stdio.h>
 
@@ -29,6 +29,6 @@ int f(int i)
 int main(void)
 {
     a = 20;
-    f(3);
-    __goblint_check(a == 0);
+    f(10);
+    __goblint_check(a == 0); // UNKNOWN
 }

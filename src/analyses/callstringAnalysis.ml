@@ -42,9 +42,9 @@ struct
   module V = EmptyV
   module G = Lattice.Unit
 
-  (*let unlift x = match x with
+  let unlift x = match x with
     | `Lifted x -> x
-    | _ -> failwith "Callstring: Unlift error! The domain cannot be derived from Top or Bottom!"*)  (* TODO*)
+    | _ -> failwith "Callstring: Unlift error! The domain cannot be derived from Top or Bottom!"  (* TODO*)
 
   let name () = "callstring_"^ CT.stackTypeName
   let startstate v = `Lifted (QueueImmut.create ())
@@ -54,20 +54,17 @@ struct
     | `Lifted x -> x
     | _ -> failwith "Callstring: Context error! The context cannot be derived from Top or Bottom!" (* TODO*)
 
-  let enter ctx r f args = 
-    let elem: CT.t option = CT.pushElem f ctx in (* a list of elements that should be pushed onto the stack*)
-    let new_stack: C.t = CallStack.push (context f ctx.local) elem in
-    (*CT.printStack f (unlift ctx.local) new_stack;*) (* just for debugging purpose*)
-    [ctx.local, `Lifted new_stack]
+  let callee_state ctx f = 
+    let elem = CT.pushElem f ctx in (*should be pushed on stack*)
+    let new_stack = CallStack.push (unlift ctx.local) elem in
+    (*CT.printStack f (unlift ctx.local) new_stack; *) (* just for debugging purpose*)
+    `Lifted new_stack
+  
+  let enter ctx r f args = [ctx.local, callee_state ctx f]
 
-  let combine_env ctx lval fexp f args fc au f_ask = 
-    ctx.local
+  let combine_env ctx lval fexp f args fc au f_ask = ctx.local
 
-  let threadenter ctx ~multiple lval v args = 
-    let elem: CT.t option = CT.pushElem (Cilfacade.find_varinfo_fundec v) ctx in (* a list of elements that should be pushed onto the stack*)
-    let new_stack: C.t = CallStack.push (context v ctx.local) elem in
-    (*CT.printStack (Cilfacade.find_varinfo_fundec v) (unlift ctx.local) new_stack; *)(* just for debugging purpose*)
-    [`Lifted new_stack]
+  let threadenter ctx ~multiple lval v args = [callee_state ctx (Cilfacade.find_varinfo_fundec v)]
 end
 
 
