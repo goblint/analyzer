@@ -1036,11 +1036,11 @@ module FloatDomTupleImpl = struct
   type 'a m = (module FloatDomain with type t = 'a)
   (* only first-order polymorphism on functions
      -> use records to get around monomorphism restriction on arguments (Same trick as used in intDomain) *)
-  type 'b poly_in = { fi : 'a. 'a m -> 'b -> 'a }
-  type 'b poly_pr = { fp : 'a. 'a m -> 'a -> 'b }
-  type 'b poly2_pr = { f2p : 'a. 'a m -> 'a -> 'a -> 'b }
-  type poly1 = { f1 : 'a. 'a m -> 'a -> 'a }
-  type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
+  type 'b poly_in = { fi : 'a. 'a m -> 'b -> 'a } [@@unboxed]
+  type 'b poly_pr = { fp : 'a. 'a m -> 'a -> 'b } [@@unboxed]
+  type 'b poly2_pr = { f2p : 'a. 'a m -> 'a -> 'a -> 'b } [@@unboxed]
+  type poly1 = { f1 : 'a. 'a m -> 'a -> 'a } [@@unboxed]
+  type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a } [@@unboxed]
 
   let create r x (f1 : float_precision) =
     let f b g = if b then Some (g x) else None in
