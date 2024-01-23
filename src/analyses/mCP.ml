@@ -65,7 +65,7 @@ struct
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
-  let secific_cont_sens xs = (*most analysis must be set to context insensitive, because we only want to analyse context sensitively for a specific analysis*)
+  let specific_cont_sens xs = (*most analysis must be set to context insensitive, because we only want to analyse context sensitively for a specific analysis*)
     let sens_ana = ["callstring_fundec"; "callstring_stmt"; "callstring_loc"; "callstringTracking"] in (*TODO: what happens if all of them are enabled? Do we want that?*)
     let enabled = List.fold_left (fun acc x -> acc || (mem x xs)) false sens_ana in
     if enabled then Some(filter (fun x -> not (mem x sens_ana)) xs) else None (*returns a list of insensitive analyses*)
@@ -80,8 +80,7 @@ struct
       List.map f
     in
     let xs = get_string_list "ana.activated" in
-    let special_inse = secific_cont_sens xs in     
-    Printf.printf "activated: %s" (String.concat ";" xs);
+    let special_inse = specific_cont_sens xs in
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;

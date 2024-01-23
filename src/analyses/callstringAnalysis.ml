@@ -59,7 +59,7 @@ struct
     let new_stack = CallStack.push (unlift ctx.local) elem in
     (*CT.printStack f (unlift ctx.local) new_stack; *) (* just for debugging purpose*)
     `Lifted new_stack
-  
+
   let enter ctx r f args = [ctx.local, callee_state ctx f]
 
   let combine_env ctx lval fexp f args fc au f_ask = ctx.local
