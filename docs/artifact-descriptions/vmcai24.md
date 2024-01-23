@@ -17,13 +17,14 @@ This artifact contains everything mentioned in the evaluation section of the pap
 * `LICENSE`.
 * `unassume.ova` — VirtualBox virtual machine.
 
-  In `/home/vagrant` contains:
-  * `goblint/` ­— Goblint with unassume support, including source code.
-  * `CPAchecker-2.2-unix/` — CPAchecker from [SV-COMP 2023 archives](https://gitlab.com/sosy-lab/sv-comp/archives-2023).
-  * `UAutomizer-linux/` — Ultimate Automizer from [SV-COMP 2023 archives](https://gitlab.com/sosy-lab/sv-comp/archives-2023).
-  * `eval-prec/` — precision evaluation (script, benchmarks, manual witnesses).
-  * `eval-perf/` — performance evaluation (script, benchmarks, manual witnesses).
-  * `results/` — results (initially empty).
+    In `/home/vagrant` contains:
+
+    * `goblint/` ­— Goblint with unassume support, including source code.
+    * `CPAchecker-2.2-unix/` — CPAchecker from [SV-COMP 2023 archives](https://gitlab.com/sosy-lab/sv-comp/archives-2023).
+    * `UAutomizer-linux/` — Ultimate Automizer from [SV-COMP 2023 archives](https://gitlab.com/sosy-lab/sv-comp/archives-2023).
+    * `eval-prec/` — precision evaluation (script, benchmarks, manual witnesses).
+    * `eval-perf/` — performance evaluation (script, benchmarks, manual witnesses).
+    * `results/` — results (initially empty).
 
 * `results/` — evaluation results tables with data used for the paper.
 
@@ -36,13 +37,14 @@ This artifact contains everything mentioned in the evaluation section of the pap
 1. Run `./eval-prec/run.sh` in the terminal emulator. This takes ~42min.
 2. Run `firefox results/eval-prec/table-generator.table.html` to view the results.
 
-   The HTML table contains the following status columns (cputime, walltime and memory can be ignored):
-   1. Goblint w/o witness (true means verified).
-   2. Goblint w/ manual witness (true means witness validated).
-   3. Goblint w/ witness from CPAchecker (true means program verified with witness-guidance).
-   4. Goblint w/ witness from CPAchecker (true means witness validated).
-   5. Goblint w/ witness from UAutomizer (true means program verified with witness-guidance).
-   6. Goblint w/ witness from UAutomizer (true means witness validated).
+    The HTML table contains the following status columns (cputime, walltime and memory can be ignored):
+
+    1. Goblint w/o witness (true means verified).
+    2. Goblint w/ manual witness (true means witness validated).
+    3. Goblint w/ witness from CPAchecker (true means program verified with witness-guidance).
+    4. Goblint w/ witness from CPAchecker (true means witness validated).
+    5. Goblint w/ witness from UAutomizer (true means program verified with witness-guidance).
+    6. Goblint w/ witness from UAutomizer (true means witness validated).
 
    Table 1 in the paper presents these results, except the rows are likely in a different order.
 
@@ -50,11 +52,12 @@ This artifact contains everything mentioned in the evaluation section of the pap
 1. Run `./eval-perf/run.sh` in the terminal emulator. This takes ~30s.
 2. Run `firefox results/eval-perf/table-generator.table.html` to view the results.
 
-   The HTML table contains the following relevant columns (others can be ignored):
-   1. Goblint w/o witness, evals.
-   2. Goblint w/o witness, cputime.
-   3. Goblint w/ manual witness, evals.
-   4. Goblint w/ manual witness, cputime.
+    The HTML table contains the following relevant columns (others can be ignored):
+
+    1. Goblint w/o witness, evals.
+    2. Goblint w/o witness, cputime.
+    3. Goblint w/ manual witness, evals.
+    4. Goblint w/ manual witness, cputime.
 
    Table 2 in the paper presents these results, except the rows are likely in a different order.
 
