@@ -427,7 +427,7 @@ let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
     pretty_typsig_like_typ
       (Some (name'
              ++ text "["
-             ++ (match lo with None -> nil | Some e -> text (Z.to_string e))
+             ++ (match lo with None -> nil | Some e -> GobZ.pretty () e)
              ++ text "]"))
       ()
       elemt

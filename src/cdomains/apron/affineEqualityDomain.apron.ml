@@ -224,7 +224,7 @@ struct
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (Z.to_string min) (Z.to_string max)
+       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
        | _ -> ()
     );
     res

@@ -415,7 +415,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
-    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (Z.to_string from_min) (Z.to_string from_max) CilType.Typ.pretty to_type (Z.to_string to_min) (Z.to_string to_max);
+    if M.tracing then M.trace "int" "is_cast_injective %a (%a, %a) -> %a (%a, %a)\n" CilType.Typ.pretty from_type GobZ.pretty from_min GobZ.pretty from_max CilType.Typ.pretty to_type GobZ.pretty to_min GobZ.pretty to_max;
     Z.compare to_min from_min <= 0 && Z.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
@@ -430,7 +430,7 @@ module Size = struct (* size in bits as int, range as int64 *)
         else if Z.lt y a then Z.add y c
         else y
       in
-      if M.tracing then M.tracel "cast" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (Z.to_string x) (Z.to_string a) (Z.to_string b) (Z.to_string c) (Z.to_string y) (if is_int64_big_int y then "fits" else "does not fit");
+      if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)\n" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
   let min_range_sign_agnostic x =
@@ -3215,9 +3215,10 @@ struct
     | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =
-    let pretty_intv _ i = (match i with
-        | Some(l, u) -> let s = "["^Z.to_string l^","^Z.to_string u^"]" in Pretty.text s
-        | _ -> Pretty.text ("Display Error")) in
+    let pretty_intv _ i =
+      match i with
+      | Some (l, u) -> Pretty.dprintf "[%a,%a]" GobZ.pretty l GobZ.pretty u
+      | _ -> Pretty.text ("Display Error") in
     let refn = refine_with_interval ik cong intv in
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
     refn

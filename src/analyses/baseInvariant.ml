@@ -139,7 +139,7 @@ struct
               match ID.to_int n with
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
-                if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" d_lval x (Z.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x GobZ.pretty n;
                 let ikind = Cilfacade.get_ikind_exp (Lval lval) in
                 Some (x, Int (ID.of_excl_list ikind [n]))
               | None -> None
@@ -172,7 +172,7 @@ struct
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (Z.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
@@ -187,7 +187,7 @@ struct
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (Z.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
