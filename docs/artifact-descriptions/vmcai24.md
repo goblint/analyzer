@@ -1,9 +1,13 @@
-# Correctness Witness Validation by Abstract Interpretation
-## Artifact
+# VMCAI '24 Artifact Description
+## Correctness Witness Validation by Abstract Interpretation
+
+This is the artifact description for our [VMCAI '24 paper "Correctness Witness Validation by Abstract Interpretation"](https://doi.org/10.1007/978-3-031-50524-9_4).
+The artifact is available on [Zenodo](https://doi.org/10.5281/zenodo.8253000).
 
 This artifact contains everything mentioned in the evaluation section of the paper: Goblint implementation, scripts, benchmarks, manual witnesses and other tools.
 
-**Note to artifact reviewers:** in the smoke test phase, try to only run the performance evaluation since it is very quick compared to the precision evaluation.
+**The description here is provided for convenience and not maintained.**
+The artifact is based on [Goblint at `vmcai24` git tag](https://github.com/goblint/analyzer/releases/tag/vmcai24) and [Goblint benchmarks at `vmcai24` git tag](https://github.com/goblint/bench/releases/tag/vmcai24).
 
 ## Requirements
 * [VirtualBox](https://www.virtualbox.org/).
