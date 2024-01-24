@@ -1121,7 +1121,6 @@ struct
         let nulls = Nulls.add_interval ~maxfull:(Idx.maximal size) Possibly (min_i, max_i) nulls in
         Nulls.remove_interval Possibly (min_i, max_i) min_size nulls
     in
-    if M.tracing then M.trace "setter" "Setting\n";
     (* warn if index is (potentially) out of bounds *)
     array_oob_check (module Idx) (Nulls.get_set Possibly, size) (e, i) None ask;
     let nulls = match max_i with
