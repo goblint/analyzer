@@ -128,7 +128,7 @@ type _ t =
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MayBeOutOfBounds: varinfo * int * exp -> ID.t t
   | MayOverflow : exp -> MayBool.t t
-  | AllocMayBeOutOfBounds : exp * IntDomain.IntDomTuple.t * IntDomain.IntDomTuple.t -> VDQ.ProdID.t t
+  | AllocMayBeOutOfBounds : exp * IntDomain.IntDomTuple.t * IntDomain.IntDomTuple.t * typ -> VDQ.ProdID.t t
 
 type 'a result = 'a
 
@@ -332,11 +332,14 @@ struct
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
     | Any ThreadsJoinedCleanly -> 52
-    | Any (TmpSpecial _) -> 53
-    | Any (IsAllocVar _) -> 54
-    | Any (MayBeOutOfBounds _) -> 55
-    | Any (MayOverflow _) -> 56
-    | Any (AllocMayBeOutOfBounds _) -> 56
+    | Any (MustTermLoop _) -> 53
+    | Any MustTermAllLoops -> 54
+    | Any IsEverMultiThreaded -> 55
+    | Any (TmpSpecial _) -> 56
+    | Any (IsAllocVar _) -> 57
+    | Any (MayBeOutOfBounds _) -> 58
+    | Any (MayOverflow _) -> 59
+    | Any (AllocMayBeOutOfBounds _) -> 60
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -400,7 +403,7 @@ struct
           CilType.Exp.compare exp1 exp2 
       (* only argumentless queries should remain *)
       | Any (MayOverflow e1), Any (MayOverflow e2) -> CilType.Exp.compare e1 e2
-      | Any (AllocMayBeOutOfBounds (e1, i1, o1)), Any (AllocMayBeOutOfBounds (e2, i2, o2)) -> 
+      | Any (AllocMayBeOutOfBounds (e1, i1, o1, t1)), Any (AllocMayBeOutOfBounds (e2, i2, o2, t2)) -> 
         let r =  CilType.Exp.compare e1 e2 in
         if r <> 0 then 
           r
@@ -409,7 +412,11 @@ struct
           if r2 <> 0 then 
             r2
           else
-            IntDomain.IntDomTuple.compare o1 o2
+            let r3= IntDomain.IntDomTuple.compare o1 o2 in
+            if r3 <> 0 then 
+              r3
+            else 
+              CilType.Typ.compare t1 t2
 
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -453,7 +460,8 @@ struct
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MayBeOutOfBounds (v,s, exp)) -> 67 * CilType.Varinfo.hash v  + 31 * Hashtbl.hash s  + CilType.Exp.hash exp
     | Any (MayOverflow e) -> CilType.Exp.hash e
-    | Any (AllocMayBeOutOfBounds (e, i, o )) ->  127 * CilType.Exp.hash e + 67 * IntDomain.IntDomTuple.hash i + IntDomain.IntDomTuple.hash o
+    | Any (AllocMayBeOutOfBounds (e, i, o, t )) ->  127 * CilType.Exp.hash e + 67 * IntDomain.IntDomTuple.hash i + 31 * IntDomain.IntDomTuple.hash o + CilType.Typ.hash t
+    (* only argumentless queries should remain *)
 
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
@@ -519,7 +527,7 @@ struct
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MayBeOutOfBounds (v,s, e)) -> Pretty.dprintf "MayBeOutOfBounds (%a, %a)" CilType.Varinfo.pretty v CilType.Exp.pretty e
     | Any (MayOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
-    | Any (AllocMayBeOutOfBounds (e, i, o)) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
+    | Any (AllocMayBeOutOfBounds (e, i, o, t)) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
 end
 
 let to_value_domain_ask (ask: ask) =

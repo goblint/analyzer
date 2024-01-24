@@ -44,9 +44,6 @@ sig
   type idx
   type value
 
-  val domain_of_t: t -> domain
-
-  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> (lval option * int) option -> value
   val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
   val length: t -> idx option
@@ -69,7 +66,7 @@ sig
   include S0
 
   val domain_of_t: t -> domain
-  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> (lval option * int) option -> value
 end
 
 module type Str =
@@ -208,7 +205,7 @@ struct
   let extract x default = match x with
     | Some c -> c
     | None -> default
-  let get ?(checkBounds=true)  (ask: VDQ.t) (xl, xr) (_,i) arr =
+  let get ?(checkBounds=true)  (ask: VDQ.t) (xl, xr) (_,i) _ =
     let search_unrolled_values min_i max_i =
       let rec subjoin l i = match l with
         | [] -> Val.bot ()
@@ -402,7 +399,7 @@ struct
                ("m", Val.to_yojson xm);
                ("r", Val.to_yojson xr) ]
 
-  let get ?(checkBounds=true) (ask:VDQ.t) (x:t) (i,_) _ =
+  let get ?(checkBounds=true) (ask:VDQ.t) (x:t) (i,_) _=
     match x, i with
     | Joint v, _ -> v
     | Partitioned (e, (xl, xm, xr)), Some i' ->
@@ -838,8 +835,9 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-    if M.tracing then M.trace "malloc" "STart\n";
+    if M.tracing then M.trace "relationalArray" "STart before_end=%a after_start=%a\n" Idx.pretty (Idx.lt v l) Idx.pretty (Idx.ge v (Idx.of_int Cil.ILong BI.zero));
 
+    if M.tracing then M.trace "relationalArray" "arrExpDim , e=%a\n"  (docOpt (d_exp())) e;
     let idx_before_end = 
       match idx_before_end with 
       | None -> 
@@ -1123,9 +1121,9 @@ struct
         let nulls = Nulls.add_interval ~maxfull:(Idx.maximal size) Possibly (min_i, max_i) nulls in
         Nulls.remove_interval Possibly (min_i, max_i) min_size nulls
     in
-
+    if M.tracing then M.trace "setter" "Setting\n";
     (* warn if index is (potentially) out of bounds *)
-    array_oob_check (module Idx) (Nulls.get_set Possibly, size) (e, i);
+    array_oob_check (module Idx) (Nulls.get_set Possibly, size) (e, i) None ask;
     let nulls = match max_i with
       (* if no maximum number in index interval *)
       | None ->
@@ -1820,8 +1818,8 @@ struct
 
   let domain_of_t (t_f, _) = A.domain_of_t t_f
 
-  let get ?(checkBounds=true) (ask: VDQ.t) (t_f, t_n) i =
-    let f_get = A.get ~checkBounds ask t_f i in
+  let get ?(checkBounds=true) (ask: VDQ.t) (t_f, t_n) i arrExpDim=
+    let f_get = A.get ~checkBounds ask t_f i arrExpDim in
     if get_bool "ana.base.arrays.nullbytes" then
       let n_get = N.get ask t_n i in
       match Val.get_ikind f_get, n_get with

@@ -184,7 +184,7 @@ struct
         true
       else
         let t = ask.f (MayOverflow exp) in
-        if M.tracing then M.trace "overflow" "no_o exp: %a %a -> %b \n" d_exp exp d_ikind ik t;
+        if M.tracing then M.trace "error" "no_o exp: %a %a -> %b \n" d_exp exp d_ikind ik t;
         t
 
   let no_overflow ctx exp = lazy (
@@ -197,7 +197,7 @@ struct
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
-    | ik  -> (* don't add type bounds for signed when assume_none *)
+    | ik ->
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
@@ -306,10 +306,10 @@ struct
         let castedPointer =  PointerMap.to_varinfo v in 
         Lval (Var castedPointer, offset)
       | BinOp (binop, e1, e2, typ) when binop = PlusPI || binop = IndexPI ->  (*pointer is always on the most left*)
-        let e2WithMult = BinOp (Mult, integer sizeOfTyp , CastE (!upointType ,e2), !upointType) in
+        let e2WithMult = BinOp (Mult, integer sizeOfTyp , CastE (!ptrdiffType ,e2), !ptrdiffType) in
         BinOp (PlusA, replacePointer e1 , e2WithMult, typ) 
       | BinOp (MinusPI, e1, e2, typ) -> 
-        let e2WithMult = BinOp (Mult, integer sizeOfTyp, CastE (!upointType ,e2), !upointType) in
+        let e2WithMult = BinOp (Mult, integer sizeOfTyp, CastE (!ptrdiffType ,e2), !ptrdiffType) in
         BinOp (MinusA, replacePointer e1 , e2WithMult, typ) 
       | e -> e
     in
@@ -406,7 +406,7 @@ struct
     if var_option != None &&  PointerMap.mem_varinfo (Option.get var_option) then 
       false 
     else 
-      let vname = RD.Var.to_string var in
+      let vname = Apron.Var.to_string var in
       let locals = fundec.sformals @ fundec.slocals in
       match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with 
       | None -> true
@@ -433,24 +433,27 @@ struct
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    let argPointerMapping (x,y) = (*maps expression assigned to pointer args *)
-      if GobConfig.get_bool "ana.apron.pointer_tracking" && isPointerType x.vtype then 
+    let argPointerMapping (x,e) = (*maps expression assigned to pointer args *)
+      if GobConfig.get_bool "ana.apron.pointer_tracking" then 
         begin match sizeOfTyp (Lval (Var x, NoOffset)) with
           | Some typSize -> 
-            (PointerMap.to_varinfo x, replacePointerWithMapping y typSize) 
-          | _ -> (x,y)
+            let x = PointerMap.to_varinfo x in (*map pointer to helper variable*)
+            let y = replacePointerWithMapping e typSize in (*replace right side of assignment with pointer mapping*)
+            Some (RV.local x, y) (* assignment only works with local for some reason *)
+          | _ -> None
         end
-      else (x,y)
+      else None
     in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x || isPointerType x.vtype)
-      |> List.map argPointerMapping
-      |> List.map (Tuple2.map1 (fun x -> 
-          if PointerMap.mem_varinfo x then 
-            RV.local x (* assignment only works with local for some reason *)
+      |> List.filter_map (fun (x, e) -> 
+          if RD.Tracked.varinfo_tracked x then 
+            Some (RV.arg x, e) 
+          else if  isPointerType x.vtype then 
+            argPointerMapping (x,e) 
           else 
-            RV.arg x))
+            None
+        )
     in
     let reachableAllocSizeVars = (* get a list of all possible addresses arg may point to *)
       GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype) |> List.map ((fun (_,x) -> mayPointToList ctx x)) |> List.flatten
@@ -474,10 +477,9 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) && not (List.mem_cmp RD.Var.compare var arg_vars) -> if M.tracing then M.trace "re" "remove Local: %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);true (* remove caller locals provided they are unreachable *)
-        | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> if M.tracing then M.trace "re" "remove Arg: %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);true (* remove caller args, but keep just added args *)
-        | _ -> 
-          match RV.to_cil_varinfo var with
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) && not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller locals provided they are unreachable *)
+        | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | _ -> match RV.to_cil_varinfo var with
           | None -> false
           | Some var -> filterAllocVar var reachableAllocSizeVars (* check if the allocMapping var is reachable from the new function *)
           (* keep everything else (just added args, globals, global privs) *)
@@ -868,8 +870,9 @@ struct
       let newVar = ArrayMap.to_varinfo (v, t) in 
       let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
       let i = eval_int comp (no_overflow ask comp ) in 
+      if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a" d_exp comp ID.pretty i;
       i 
-    | AllocMayBeOutOfBounds (e, i, o) -> 
+    | AllocMayBeOutOfBounds (e, i, o, _) -> 
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
         | a when not (Queries.AD.is_top a) -> 
           Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
@@ -904,7 +907,7 @@ struct
         if M.tracing then M.trace "OOB" "st: %a\n" RD.pretty st.rel;
         begin match sizeOfTyp e1 with 
           | Some typSize -> 
-            let e2Mult = BinOp (Mult, e2, integer typSize, TInt ( Cilfacade.ptrdiff_ikind (), []) )in
+            let e2Mult = BinOp (Mult, e2, integer typSize, TInt (IInt, []) )in
             let isAfterZero = 
               begin match IntDomain.IntDomTuple.minimal i with  
                 | None  -> VDQ.ID.top ()
@@ -912,7 +915,7 @@ struct
                   begin 
                     try 
                       let min = Z.to_int min in 
-                      let aZExp = BinOp (binop, integer min, e2Mult, TInt (Cilfacade.ptrdiff_ikind (),[])) in
+                      let aZExp = BinOp (binop, integer min, e2Mult, TInt (IInt, [])) in
                       let afterZero = Cilfacade.makeBinOp Le  Cil.zero aZExp in
                       eval_int afterZero (no_overflow ask afterZero)
                     with 
@@ -926,7 +929,7 @@ struct
                 | Some i -> 
                   begin try
                       let i = Z.to_int i + structOffset in
-                      let relExp =  BinOp (binop, integer i, e2Mult, TInt (Cilfacade.ptrdiff_ikind () ,[])) in
+                      let relExp =  BinOp (binop, integer i, e2Mult, TInt (IInt, [])) in
                       inBoundsForAllAddresses relExp
                     with
                     | Z.Overflow -> VDQ.ID.top ()

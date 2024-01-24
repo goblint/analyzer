@@ -69,17 +69,17 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-  let points_to_heap_only ctx ptr =
+  let points_to_alloc_only ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (Queries.AD.is_top a)->
       Queries.AD.for_all (function
-          | Addr (v, o) -> ctx.ask (Queries.IsHeapVar v)
+          | Addr (v, o) -> ctx.ask (Queries.IsAllocVar v)
           | _ -> false
         ) a
     | _ -> false
 
   let get_size_of_ptr_target ctx ptr =
-    if points_to_heap_only ctx ptr then
+    if points_to_alloc_only ctx ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
       ctx.ask (Queries.BlobSize {exp = ptr; base_address = true})
     else
@@ -283,14 +283,20 @@ struct
               | _ -> failwith "unexpected expression in calculateOffs!\n"
             in
             let addr_offs_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) addr_offs in (*pointer offset + struct offset*)
-            let structOffset = begin match o with 
-              | None -> ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero
+            let structOffset, currentSizeTyp = begin match o with 
+              | None -> ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, t
               | Some o -> 
+                let offsetTyp = begin match o with
+                  | Field (f, o) ->  
+                    if M.tracing then M.trace "OOB" "Typ of Offset=%a\n" d_type f.ftype;
+                    f.ftype
+                  | _ -> t
+                end in
                 let offs_intdom = cil_offs_to_idx ctx t o in (*struct offset*)
-                ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom
+                ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom, offsetTyp
             end
             in
-            let isAfterZero, isBeforeEnd =  (ctx.ask (Queries.AllocMayBeOutOfBounds (e, addr_offs_casted, structOffset))) in
+            let isAfterZero, isBeforeEnd =  (ctx.ask (Queries.AllocMayBeOutOfBounds (e, addr_offs_casted, structOffset, currentSizeTyp))) in
             let isAfterZeroBool, isBeforeEndBool = (VDQ.ID.to_bool isAfterZero, VDQ.ID.to_bool isBeforeEnd) in
             begin match isAfterZeroBool with
               | None -> 
@@ -434,33 +440,36 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.AllocMayBeOutOfBounds (e, i, o) ->
+    | Queries.AllocMayBeOutOfBounds (e, i, o, t) ->
       begin match i with 
         | i when not @@ ID.is_bot i  -> 
-          begin match typeOf e with 
-            | TPtr (ty, _) -> 
               if M.tracing then M.trace "OOB"  "e=%a  i=%a o=%a\n" d_exp e ID.pretty i ID.pretty o;
               let expOffset = match e with 
                 | Lval (Var v, _) -> i 
                 | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
-                  let  e2Offset = eval_ptr_offset_in_binop ctx e2 ty in (*add offset of e2*)
-                  begin match e2Offset with
-                    | `Lifted e2Offset -> 
-                      begin 
-                        try if binop = MinusPI then 
-                            ID.sub i e2Offset
-                          else
-                            ID.add i e2Offset
-                        with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+                  let ptr_deref_type = get_ptr_deref_type @@ typeOf e1 in
+                  begin match ptr_deref_type with
+                    | Some typ-> 
+                      let  e2Offset = eval_ptr_offset_in_binop ctx e2 typ in (*add offset of e2*)
+                      begin match e2Offset with
+                        | `Lifted e2Offset -> 
+                          begin 
+                            try if binop = MinusPI then 
+                                ID.sub i e2Offset
+                              else
+                                ID.add i e2Offset
+                            with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+                          end
+                        | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
                       end
-                    | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+                    | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
                   end
                 | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
               in
               if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
               let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
 
-              let current_index_size = size_of_type_in_bytes ty in
+              let current_index_size = size_of_type_in_bytes t in
               let casted_current_index_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) current_index_size in (*add size of type*)
               let expOffset_plus_current_index_size = 
                 begin try ID.add expOffset casted_current_index_size 
@@ -485,8 +494,6 @@ struct
               (`Lifted isBeforeZero,`Lifted isBeforeEnd)
             | _ -> (ValueDomainQueries.ID.top (), ValueDomainQueries.ID.top())
           end
-        | _ -> (ValueDomainQueries.ID.top (), ValueDomainQueries.ID.top())
-      end
     (* Queries.Result.top q *)
     | _ -> Queries.Result.top q
 

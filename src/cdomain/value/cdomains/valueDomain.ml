@@ -928,8 +928,8 @@ struct
     in
     do_eval_offset ask f x offs exp l o v t 0
 
-  let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
-    let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ) (depth:int):t =
+  let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
+    let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ) (dimension:int):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
       let r =
@@ -940,7 +940,7 @@ struct
         begin
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x t in
-          mu (Blob (join x (do_update_offset ask x ofs value exp l' o' v t depth), s, orig))
+          mu (Blob (join x (do_update_offset ask x ofs value exp l' o' v t dimension), s, orig))
         end
         | Blob (x,s,orig), `Field(f, _) ->
         begin
@@ -962,9 +962,9 @@ struct
             | _ -> false
           in
           if do_strong_update then
-            Blob ((do_update_offset ask x offs value exp l' o' v t depth), s, orig)
+            Blob ((do_update_offset ask x offs value exp l' o' v t dimension), s, orig)
           else
-            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t depth), s, orig))
+            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t dimension), s, orig))
         end
         | Blob (x,s,orig), _ ->
         begin
@@ -985,9 +985,9 @@ struct
             end
           in
           if do_strong_update then
-            Blob ((do_update_offset ask x offs value exp l' o' v t depth), s, orig)
+            Blob ((do_update_offset ask x offs value exp l' o' v t dimension), s, orig)
           else
-            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t depth), s, orig))
+            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t dimension), s, orig))
         end
         | Thread _, _ ->
         (* hack for pthread_t variables *)
@@ -1025,7 +1025,7 @@ struct
             | Struct str ->
               begin
                 let l', o' = shift_one_over l o in
-                let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t depth in
+                let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t dimension in
                 Struct (Structs.replace str fld value')
               end
             | Bot ->
@@ -1036,7 +1036,7 @@ struct
               in
               let strc = init_comp fld.fcomp in
               let l', o' = shift_one_over l o in
-              Struct (Structs.replace strc fld (do_update_offset ask Bot offs value exp l' o' v t depth))
+              Struct (Structs.replace strc fld (do_update_offset ask Bot offs value exp l' o' v t dimension))
             | Top -> M.warn ~category:Imprecise "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a struct"; top ()
           end
@@ -1070,8 +1070,8 @@ struct
                     top (), offs
                 end
               in
-              Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t depth)
-            | Bot -> Union (`Lifted fld, do_update_offset ask Bot offs value exp l' o' v t depth)
+              Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t dimension)
+            | Bot -> Union (`Lifted fld, do_update_offset ask Bot offs value exp l' o' v t dimension)
             | Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a union"; top ()
           end
@@ -1083,7 +1083,7 @@ struct
               | TArray(t1 ,_,_) -> t1
               | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx) (Some (Some v,depth))) offs value exp l' o' v t  (depth+1) in
+              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx) (Some (Some v,dimension))) offs value exp l' o' v t  (dimension+1) in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               Array new_array_value
             | Bot ->
@@ -1092,7 +1092,7 @@ struct
                   | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask Bot offs value exp l' o' v t depth in
+              let new_value_at_index = do_update_offset ask Bot offs value exp l' o' v t dimension in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
               let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
@@ -1100,7 +1100,7 @@ struct
               let new_array_value = CArrays.update_length newl new_array_value in
               Array new_array_value
             | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
-            | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t depth
+            | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t dimension
             | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result
