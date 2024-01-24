@@ -456,7 +456,7 @@ struct
         )
     in
     let reachableAllocSizeVars = (* get a list of all possible addresses arg may point to *)
-      GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype) |> List.map ((fun (_,x) -> mayPointToList ctx x)) |> List.flatten
+      GobList.combine_short f.sformals args |> List.filter (fun (x, _) -> isPointerType x.vtype) |> List.concat_map ((fun (_,x) -> mayPointToList ctx x)) 
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
