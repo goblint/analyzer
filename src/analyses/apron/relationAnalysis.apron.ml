@@ -880,9 +880,9 @@ struct
               | Addr (v,o) -> 
                 let allocatedLength = AllocSize.to_varinfo v in
                 let pointerBeforeEnd = Cilfacade.makeBinOp Lt indexExp (Lval (Var allocatedLength, NoOffset)) in
-                if M.tracing then M.trace "malloc" "pointerBeforeEnd: %a\n" d_exp pointerBeforeEnd;
+                if M.tracing then M.trace "OOB" "pointerBeforeEnd: %a\n" d_exp pointerBeforeEnd;
                 let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
-                if M.tracing then M.trace "malloc" "isPointerBeforeEnd: %a\n" ID.pretty isPointerBeforeEnd;
+                if M.tracing then M.trace "OOB" "isPointerBeforeEnd: %a\n" ID.pretty isPointerBeforeEnd;
                 ID.join  isPointerBeforeEnd st
               | _ -> ID.top_of (Cilfacade.ptrdiff_ikind())
             )  a  (ID.bot ()) ;
@@ -902,12 +902,23 @@ struct
           | _ -> (VDQ.ID.top (),VDQ.ID.top ())
         end
       in
-      let relationEval e1 binop e2 structOffset = 
-        if M.tracing then M.trace "OOB" "relationEval: %a\n" d_exp e;
-        if M.tracing then M.trace "OOB" "st: %a\n" RD.pretty st.rel;
-        begin match sizeOfTyp e1 with 
+      let relationEval e structOffset = 
+        if M.tracing then M.trace "OOB" "relationEval: %a %a\n" d_exp e IntDomain.IntDomTuple.pretty i;
+        begin match sizeOfTyp e with 
           | Some typSize -> 
-            let e2Mult = BinOp (Mult, e2, integer typSize, TInt (IInt, []) )in
+            let exp i =  begin match e with 
+              | Lval (Var v, _) -> integer i 
+              | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
+                let replaceBinop bi = match bi with
+                  | PlusPI | IndexPI -> PlusA
+                  | MinusPI -> MinusA
+                  | _ -> bi
+                in 
+                let e2Mult = BinOp (Mult, e2, integer typSize, TInt (IInt, []) )in
+                BinOp (replaceBinop binop, integer i, e2Mult, TInt (IInt, []))
+              | _ -> failwith "unexpected expression!\n"
+            end
+            in
             let isAfterZero = 
               begin match IntDomain.IntDomTuple.minimal i with  
                 | None  -> VDQ.ID.top ()
@@ -915,8 +926,8 @@ struct
                   begin 
                     try 
                       let min = Z.to_int min in 
-                      let aZExp = BinOp (binop, integer min, e2Mult, TInt (IInt, [])) in
-                      let afterZero = Cilfacade.makeBinOp Le  Cil.zero aZExp in
+                      let mininumExp = exp min in
+                      let afterZero = Cilfacade.makeBinOp Le  Cil.zero mininumExp in
                       eval_int afterZero (no_overflow ask afterZero)
                     with 
                     | Z.Overflow -> VDQ.ID.top ()
@@ -929,8 +940,8 @@ struct
                 | Some i -> 
                   begin try
                       let i = Z.to_int i + structOffset in
-                      let relExp =  BinOp (binop, integer i, e2Mult, TInt (IInt, [])) in
-                      inBoundsForAllAddresses relExp
+                      let maximumExp = exp i in
+                      inBoundsForAllAddresses maximumExp
                     with
                     | Z.Overflow -> VDQ.ID.top ()
                   end
@@ -941,21 +952,12 @@ struct
         end
       in
       begin match IntDomain.IntDomTuple.maximal o with 
-        | None -> (VDQ.ID.top (),VDQ.ID.top ())
+        | None -> if M.tracing then M.trace "OOB" "so None\n"; (VDQ.ID.top (),VDQ.ID.top ())
         | Some structOffset ->
           let structOffset = Z.to_int structOffset in
           let isAfterZero, isBeforeEnd = 
-            begin match e with 
-              | Lval (Var v, _) -> (VDQ.ID.top (),VDQ.ID.top ())
-              | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
-                let replaceBinop bi = match bi with
-                  | PlusPI | IndexPI -> PlusA
-                  | MinusPI -> MinusA
-                  | _ -> bi
-                in
-                relationEval e1 (replaceBinop binop) e2 structOffset 
-              | _ -> failwith "unexpected expression!\n"
-            end in
+            relationEval e structOffset 
+          in
           let isAfterZero, isBeforeEnd = 
             if GobConfig.get_bool "ana.apron.pointer_tracking" then (
               let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in
