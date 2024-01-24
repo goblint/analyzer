@@ -193,13 +193,23 @@ struct
     in
     let task = Entry.task ~input_files ~data_model ~specification in
 
+    let is_stub_node n =
+      let fundec = Node.find_fundec n in
+      Cil.hasAttribute "goblint_stub" fundec.svar.vattr
+    in
+
     let is_invariant_node (n : Node.t) =
       let loc = Node.location n in
       match n with
-      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n -> true
+      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
+        not (is_stub_node n)
       | _ ->
         (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
         false
+    in
+
+    let is_loop_head_node n =
+      WitnessUtil.NH.mem WitnessInvariant.loop_heads n && not (is_stub_node n)
     in
 
     let local_lvals n local =
@@ -277,7 +287,7 @@ struct
     let entries =
       if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
         LH.fold (fun loc ns acc ->
-            if WitnessInvariant.emit_loop_head && List.exists (WitnessUtil.NH.mem WitnessInvariant.loop_heads) ns then (
+            if WitnessInvariant.emit_loop_head && List.exists is_loop_head_node ns then (
               let inv = List.fold_left (fun acc n ->
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                   Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
@@ -472,7 +482,7 @@ struct
         let invariants =
           if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
-                if WitnessInvariant.emit_loop_head && List.exists (WitnessUtil.NH.mem WitnessInvariant.loop_heads) ns then (
+                if WitnessInvariant.emit_loop_head && List.exists is_loop_head_node ns then (
                   let inv = List.fold_left (fun acc n ->
                       let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                       Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
