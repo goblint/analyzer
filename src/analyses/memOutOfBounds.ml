@@ -263,15 +263,10 @@ struct
     if M.tracing then M.trace "malloc" "check_lval_for_oob_access is_implicitly_derefed=%b lval=%a\n" is_implicitly_derefed d_lval lval;
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
     if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr ctx (Lval lval) then 
-      (* (if M.tracing then M.trace "malloc" "skip\n"; *)
       ()
-      (* ) *)
     else
       (* If the lval doesn't indicate an explicit dereference, we still need to check for an implicit dereference *)
       (* An implicit dereference is, e.g., printf("%p", ptr), where ptr is a pointer *)
-      let behavior = Undefined MemoryOutOfBoundsAccess in
-      let cwe_number = 823 in
-
       let calculateOffs e o= 
         let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
         begin match ptr_deref_type with
