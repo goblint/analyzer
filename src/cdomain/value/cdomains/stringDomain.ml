@@ -62,7 +62,7 @@ let to_n_c_string n x =
     else if n < 0 then
       None
     else
-      Some (String.sub x 0 n)
+      Some (Str.first_chars x n)
   | None -> None
 
 let to_string_length x =
