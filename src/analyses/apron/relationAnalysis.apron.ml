@@ -985,9 +985,7 @@ struct
       if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
-      if M.tracing then M.trace "enter" "RD=%a\n" RD.pretty st.rel ;
       let new_rel = make_callee_rel ~thread:true ctx fd args in
-      if M.tracing then M.trace "enter" "RD=%a\n" RD.pretty new_rel ;
       [{st' with rel = new_rel}]
     | exception Not_found ->
       (* Unknown functions *)
