@@ -511,7 +511,7 @@ struct
     if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
     match value with
     | Top ->
-      if VD.is_immediate_type t then () else M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
+      if not (VD.is_immediate_type t) then M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
     | Bot -> (*M.debug ~category:Analyzer "A bottom value when computing reachable addresses!";*) empty
     | Address adrs when AD.is_top adrs ->
       M.info ~category:Unsound "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
