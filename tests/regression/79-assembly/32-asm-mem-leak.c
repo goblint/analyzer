@@ -12,8 +12,8 @@ void ok(void) {
 void not_ok(void) {
   char *x = malloc(64);
   asm ("nop" : "=x" (x));
-  free(x);
-  return; //WARN
+  free(x); //WARN
+  return;
 }
 
 int main(void) {
