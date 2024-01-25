@@ -2942,7 +2942,7 @@ struct
       end
     | Events.Invalidate {lvals} ->
       let exps = List.map Cil.mkAddrOrStartOf lvals in
-      invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st exps
+      invalidate ~ctx st exps
     | _ ->
       ctx.local
 end
