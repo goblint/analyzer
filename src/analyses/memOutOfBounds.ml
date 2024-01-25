@@ -464,24 +464,25 @@ struct
               if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
               let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
 
-              let current_index_size = size_of_type_in_bytes t in
-              let casted_current_index_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) current_index_size in (*add size of type*)
-              let expOffset_plus_current_index_size = 
-                begin try ID.add expOffset casted_current_index_size 
+              let currentTypSize = size_of_type_in_bytes t in
+              let castedCurrentTypSize = ID.cast_to (Cilfacade.ptrdiff_ikind ()) currentTypSize in (*add size of type*)
+              let expOffset_CurrentTyPSize = 
+                begin try ID.add expOffset castedCurrentTypSize 
                   with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
                 end
               in
-              if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty current_index_size;
-              if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_plus_current_index_size;
-              let exp_Offset_plus_current_index_size_struct_offset =               
-                (try  (ID.add o expOffset_plus_current_index_size)
+              if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty currentTypSize;
+              if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_CurrentTyPSize;
+              let expOffset_CurrentTypSize_StructOffset =               
+                (try  (ID.add o expOffset_CurrentTyPSize)
                  with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
               in
+              if M.tracing then M.trace "OOB"  "exp_Offset_plus_current_index_size_struct_offset %a \n" ID.pretty expOffset_CurrentTypSize_StructOffset;
               let isBeforeEnd = match  get_size_of_ptr_target ctx e with 
                 | `Lifted size -> 
                   let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
                   if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
-                  ID.le exp_Offset_plus_current_index_size_struct_offset casted_e_size
+                  ID.le expOffset_CurrentTypSize_StructOffset casted_e_size
                 | `Top -> ID.top_of  IInt
                 | `Bot -> ID.top_of  IInt (*Ikind of ID comparisons*)
               in
