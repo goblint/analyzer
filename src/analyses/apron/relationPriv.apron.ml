@@ -1112,17 +1112,21 @@ struct
     else (
       let rel_local = remove_globals_unprotected_after_unlock ask m rel in
       let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
-      let rel_side = keep_only_globals ask m rel in
-      let rel_side = Cluster.unlock w rel_side in
-      let digest = Digest.current ask in
-      let sidev = GMutex.singleton digest rel_side in
-      sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
-      let (lmust', l') = W.fold (fun g (lmust, l) ->
-          let lm = LLock.global g in
-          (LMust.add lm lmust, L.add lm rel_side l)
-        ) w (lmust, l)
-      in
-      {rel = rel_local; priv = (w',lmust',l')}
+      let side_needed = not (W.is_empty w) in
+      if not side_needed then
+        {rel = rel_local; priv = (w',lmust,l)}
+      else
+        let rel_side = keep_only_globals ask m rel in
+        let rel_side = Cluster.unlock w rel_side in
+        let digest = Digest.current ask in
+        let sidev = GMutex.singleton digest rel_side in
+        sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
+        let (lmust', l') = W.fold (fun g (lmust, l) ->
+            let lm = LLock.global g in
+            (LMust.add lm lmust, L.add lm rel_side l)
+          ) w (lmust, l)
+        in
+        {rel = rel_local; priv = (w',lmust',l')}
     )
 
   let thread_join ?(force=false) (ask:Q.ask) getg exp (st: relation_components_t) =

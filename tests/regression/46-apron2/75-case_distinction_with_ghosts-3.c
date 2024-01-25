@@ -26,6 +26,6 @@ int main()
   g = 1; x = 42;
   __VERIFIER_atomic_end();
 
-  assert(x >= 42); // TODO (ruined by reads in inc thread)
+  assert(x >= 42);
   return 0;
 }
