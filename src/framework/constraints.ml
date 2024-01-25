@@ -544,38 +544,30 @@ struct
     if i <= 0 then (None, 0) else ((Some (S.context fd d)), i)
 
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =
-    (* D.t -> S.D.t *)
-    let ctx' = {ctx with local = fst ctx.local
-                       ; split = (fun d es -> ctx.split (d, cg_val ctx) es)} in 
-    (* C.t -> S.C.t *)
     if (cg_val ctx <= 0) 
-    then {ctx' with context = (fun () -> ctx_failwith "no context (contextGas = 0)")} 
-    else {ctx' with context = (fun () -> Option.get (fst (ctx'.context ())))}
-
-  let dec_context_gas (ctx:(D.t,G.t,C.t,V.t) ctx): (D.t,G.t,C.t,V.t)ctx =
-    if (cg_val ctx <= 1)
-    then {ctx with context = (fun () -> (None, 0) ) (* context insensitive *)
-                 ; local = (fst ctx.local, 0)} 
-    else {ctx with context = (fun () -> (fst (ctx.context ()), cg_val ctx - 1)) (* context sensitive *)
-                 ; local = (fst ctx.local, cg_val ctx - 1)} 
-
+    then {ctx with local = fst ctx.local
+                 ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
+                 ; context = (fun () -> ctx_failwith "no context (contextGas = 0)")}
+    else {ctx with local = fst ctx.local
+                 ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
+                 ; context = (fun () -> Option.get (fst (ctx.context ())))}
+                 
   (*let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
     | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)*)
 
   let enter ctx r f args =
-    let ctx_dec = dec_context_gas ctx in
     (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
-    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx_dec)) in
+    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx - 1)) in
     liftmap_tup (S.enter (conv ctx) r f args) 
 
-  let liftmap f ctx = List.map (fun (x) -> (x, cg_val ctx)) f
-
   let threadenter ctx ~multiple lval f args       = 
-    let ctx_dec = dec_context_gas ctx in
     (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterThreadCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Varinfo.show f) (showExprList args);*)
-    liftmap (S.threadenter (conv ctx) ~multiple lval f args) ctx_dec 
+    let liftmap f = List.map (fun (x) -> (x, cg_val ctx - 1)) f in
+    liftmap (S.threadenter (conv ctx) ~multiple lval f args) 
+
+  let liftmap f ctx = List.map (fun (x) -> (x, cg_val ctx)) f
 
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
   let query ctx q                                 = S.query (conv ctx) q
