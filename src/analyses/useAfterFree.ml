@@ -175,6 +175,10 @@ struct
     warn_exp_might_contain_freed "assign" ctx rval;
     ctx.local
 
+  let branch ctx (exp:exp) (tv:bool) : D.t =
+    warn_exp_might_contain_freed "branch" ctx exp;
+    ctx.local
+
   let asm ctx =
     if not !ignore_asm then begin
       let ins, outs = Analyses.asm_extract_ins_outs ctx in
