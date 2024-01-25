@@ -1242,7 +1242,6 @@ struct
           if AD.mem Addr.UnknownPtr jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
           begin match get ~ctx ~top:(VD.bot ()) ctx.local jmp_buf None with
-            (* dummy *)
             | JmpBuf (x, copied, invalid) ->
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
@@ -2943,7 +2942,7 @@ struct
       end
     | Events.Invalidate {lvals} ->
       let exps = List.map Cil.mkAddrOrStartOf lvals in
-      invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st exps
+      invalidate ~ctx st exps
     | _ ->
       ctx.local
 end
