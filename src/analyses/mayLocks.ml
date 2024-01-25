@@ -36,7 +36,6 @@ struct
       (let mtype = ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
        match mtype with
        | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
-       (* todo [IMPORTANT]: find out why the else branch is always taken at invalidate *)
        | _ -> ctx.local (* we cannot remove them here *))
     | None -> ctx.local (* we cannot remove them here *)
 

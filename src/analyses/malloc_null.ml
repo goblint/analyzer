@@ -17,9 +17,19 @@ struct
   module C = ValueDomain.AddrSetDomain
   module P = IdentityP (D)
 
+  let name () = "malloc_null"
+
+  let return_addr_ = ref Addr.NullPtr
+  let return_addr () = !return_addr_
+
+  let startstate v = D.empty ()
+  let threadenter ctx ~multiple lval f args = [D.empty ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let exitstate  v = D.empty ()
   let ignore_asm = ref true
 
-  let init _ =
+  let init marshal =
+    return_addr_ :=  Addr.of_var (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType);
     ignore_asm := get_bool "asm_is_nop"
 
   (*
@@ -176,9 +186,6 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
-  let return_addr_ = ref Addr.NullPtr
-  let return_addr () = !return_addr_
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let remove_var x v = List.fold_right D.remove (to_addrs v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
@@ -228,15 +235,6 @@ struct
       end
     | _ -> ctx.local
 
-  let name () = "malloc_null"
-
-  let startstate v = D.empty ()
-  let threadenter ctx ~multiple lval f args = [D.empty ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
-  let exitstate  v = D.empty ()
-
-  let init marshal =
-    return_addr_ :=  Addr.of_var (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

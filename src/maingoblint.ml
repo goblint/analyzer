@@ -415,11 +415,8 @@ let preprocess_files () =
 
   let preprocessed =
     List.concat_map preprocess_arg_file (List.map Fpath.v (get_string_list "files"))
-    (* todo: uncomment; for testing only *)
-    (*
     @
     List.concat_map (preprocess_arg_file ~preprocess:true) !extra_files
-    *)
   in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
