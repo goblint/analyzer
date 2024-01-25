@@ -2,17 +2,13 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdio.h>
-#include <goblint.h>
 
 pthread_mutex_t lock_a;
 pthread_mutex_t lock_b;
 
-extern __goblint_unknown(void*);
-
 void *proc_a(void *arg) {
-    asm ("nop" : "=g" (lock_a));
-    __goblint_unknown(&lock_a);
     pthread_mutex_lock(&lock_a);
+    asm ("nop" : "=g" (lock_a));
     sleep(1);
     pthread_mutex_lock(&lock_b);
     pthread_exit(NULL);
