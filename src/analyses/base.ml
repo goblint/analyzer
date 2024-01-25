@@ -82,6 +82,7 @@ struct
   let name () = "base"
   let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
   let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
+  let ignore_asm = ref true
 
   (**************************************************************************
    * Helpers
@@ -160,6 +161,7 @@ struct
     end;
     return_varstore := Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType;
     longjmp_return := Cilfacade.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
+    ignore_asm := get_bool "asm_is_nop";
     Priv.init ()
 
   let finalize () =
@@ -2889,10 +2891,8 @@ struct
     in
     D.join ctx.local e_d'
 
-  let ignore_asm = get_bool "asm_is_nop"
-
   let asm ctx = 
-    if not ignore_asm then begin
+    if not !ignore_asm then begin
       let _, outs = Analyses.asm_extract_ins_outs ctx in
       ctx.emit (Events.Invalidate {lvals=outs});
     end;

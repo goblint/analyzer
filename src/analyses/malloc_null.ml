@@ -17,7 +17,10 @@ struct
   module C = ValueDomain.AddrSetDomain
   module P = IdentityP (D)
 
-  let ignore_asm = get_bool "asm_is_nop"
+  let ignore_asm = ref true
+
+  let init _ =
+    ignore_asm := get_bool "asm_is_nop"
 
   (*
     Addr set functions:
@@ -157,7 +160,7 @@ struct
     | _ -> ctx.local
 
   let asm ctx =
-    if not ignore_asm then begin
+    if not !ignore_asm then begin
       let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_in exp = warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local exp in
       List.iter handle_in ins;

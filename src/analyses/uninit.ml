@@ -30,7 +30,10 @@ struct
   let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
-  let ignore_asm = get_bool "asm_is_nop"
+  let ignore_asm = ref true
+
+  let init _ =
+    ignore_asm := get_bool "asm_is_nop"
 
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
@@ -227,7 +230,7 @@ struct
     init_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
   let asm ctx = 
-    if not ignore_asm then begin
+    if not !ignore_asm then begin
       let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_in exp = ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local) in
       List.iter handle_in ins;
