@@ -2587,13 +2587,8 @@ struct
     | Setjmp { env }, _ ->
       let st' = match eval_rv ~ctx st env with
         | Address jmp_buf ->
-<<<<<<< HEAD
           let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false, false) in
-          let r = set ~ctx ask gs st jmp_buf (Cilfacade.typeOf env) value in
-=======
-          let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
           let r = set ~ctx st jmp_buf (Cilfacade.typeOf env) value in
->>>>>>> 71e21b27973c78ef58c2567e314e128cfbb10564
           if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
           r
         | _ -> failwith "problem?!"
