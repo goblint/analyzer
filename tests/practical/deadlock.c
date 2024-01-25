@@ -25,6 +25,5 @@ int main(void) {
     proc_b(NULL);
     int x, y;
     asm ("nop" : "=g" (lock_a), "=x" (x));
-    asm ("nop" : "=g" (lock_a), "=x" (x));
     puts("no deadlock!");
 }
