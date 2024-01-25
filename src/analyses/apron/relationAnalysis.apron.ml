@@ -261,7 +261,7 @@ struct
   end 
 
   module PointerType = struct 
-    let varType  = !upointType 
+    let varType  = !ptrdiffType 
     let isGlobal = false
   end
 
@@ -277,11 +277,22 @@ struct
     | TPtr (t, _) -> Some ((bitsSizeOf t) / 8)
     | _ -> None 
 
+  (*the relational domain is not able to evaluate sizeOf expressions those have to be replaces with constants*)
+  let rec replaceSizeOf exp : exp =  
+    match exp with
+    | SizeOf typ -> (CastE (!upointType, sizeOf typ )) (*evaluate sizeOf*)
+    | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOf e, typ)
+    | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOf e1, replaceSizeOf e2, typ)
+    | Real e -> Real (replaceSizeOf e)
+    | CastE (t,e) -> (CastE(t,replaceSizeOf e)) (*size_t by CIL those are of type TNamed *)
+    | e ->  e
+
   let assignVariable ctx (lv:lval) e = 
     let st = ctx.local in
     if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so env is empty... *)
     else (
+      let e = replaceSizeOf e in
       let simplified_e = replace_deref_exps ctx.ask e in
       if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)\n" d_lval lv  d_exp e d_exp simplified_e;
       let ask = Analyses.ask_of_ctx ctx in
@@ -357,23 +368,29 @@ struct
     | _ -> assignVariable ctx lv e
 
   let vdecl (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx)  (e:varinfo) = 
-    let rec helper (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx ) typ counter = match typ with
-      | TArray (new_typ, (Some exp), attr )-> 
-        let lenArray = ArrayMap.to_varinfo (e,counter) in 
-        let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
-        let new_ctx = 
-          { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
-        let ctx' =  assign new_ctx (Var lenArray, NoOffset) exp in
-        let new_ctx = { ctx with  local = ctx'; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in  
-        helper new_ctx new_typ (counter+1)
-      | _ -> ctx.local
-    in 
-    helper ctx e.vtype 0
+
+    if GobConfig.get_bool "ana.arrayoob" then ((* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+      let rec helper (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx ) typ counter = match typ with
+        | TArray (new_typ, (Some exp), attr )-> 
+          let lenArray = ArrayMap.to_varinfo (e,counter) in 
+          let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
+          let new_ctx = 
+            { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
+          let ctx' =  assign new_ctx (Var lenArray, NoOffset) exp in
+          let new_ctx = { ctx with  local = ctx'; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in  
+          helper new_ctx new_typ (counter+1)
+        | _ -> ctx.local
+      in 
+      helper ctx e.vtype 0
+    )else 
+      ctx.local
 
   let branch ctx e b =
+    if M.tracing then M.trace "branch" "e=%a=\n" d_exp e;
     let st = ctx.local in
     let ask = Analyses.ask_of_ctx ctx in
-    let res = assign_from_globals_wrapper ask ctx.global st e (fun rel' e' ->
+    let res = assign_from_globals_wrapper ask ctx.global st (replaceSizeOf e) (fun rel' e' ->
+        (* let res = assign_from_globals_wrapper ask ctx.global st ( e) (fun rel' e' -> *)
         (* not an assign, but must remove g#in-s still *)
         RD.assert_inv rel' e' (not b) (no_overflow ask e)
       )
@@ -715,15 +732,6 @@ struct
           let st' = {st with rel = RD.add_vars st.rel [RV.local lenArray]} in (* add newly created variable to Environment *)
           let new_ctx = 
             {ctx with local = st' ; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
-          let rec replaceSizeOf exp : exp = 
-            match exp with
-            | SizeOf typ -> (CastE (!upointType, sizeOf typ ))
-            | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOf e, typ)
-            | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOf e1, replaceSizeOf e2, typ)
-            | Real e -> Real (replaceSizeOf e)
-            | CastE (t,e) -> (CastE(unrollType t,replaceSizeOf e)) (*Expressions are casted to size_t by CIL those are of type TNamed *)
-            | e ->  e
-          in
           let st'' = assign new_ctx (Var lenArray, NoOffset) (replaceSizeOf exp) in 
           if GobConfig.get_bool "ana.apron.pointer_tracking" then  (
             let pointerLen = PointerMap.to_varinfo r in
@@ -846,7 +854,7 @@ struct
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
-      let esimple = replace_deref_exps ctx.ask e in
+      let esimple = replace_deref_exps ctx.ask (replaceSizeOf e) in
       read_from_globals_wrapper
         (Analyses.ask_of_ctx ctx)
         ctx.global st esimple
