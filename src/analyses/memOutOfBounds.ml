@@ -115,7 +115,7 @@ struct
         in
         (* Map each points-to-set element to its size *)
         let pts_sizes = List.map pts_elems_to_sizes pts_list in
-        (* Take the smallest of all sizes that ptr's contents may have *)
+        (* Smallest size, which contains all sizes that ptr's contents may have *)
         begin match pts_sizes with
           | [] -> `Bot
           | [x] -> x
