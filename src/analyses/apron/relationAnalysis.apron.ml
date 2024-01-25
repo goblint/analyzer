@@ -158,13 +158,14 @@ struct
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
-      begin match ask.f (Queries.MayPointTo v) with
-        | ad when Queries.AD.is_top ad -> st
-        | ad ->
-          let mvals = Queries.AD.to_mval ad in
-          let ass' = List.map (fun mval -> assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f) mvals in
-          List.fold_right D.join ass' (D.bot ())
-      end
+      let ad = ask.f (Queries.MayPointTo v) in
+      Queries.AD.fold (fun addr acc ->
+          match addr with
+          | ValueDomain.Addr.Addr mval ->
+            D.join acc (assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f)
+          | UnknownPtr | NullPtr | StrPtr _ ->
+            D.join acc st (* Ignore assign *)
+        ) ad (D.bot ())
     (* Ignoring all other assigns *)
     | _ ->
       st
@@ -381,6 +382,8 @@ struct
     if M.tracing then M.tracel "combine" "relation f: %a\n" CilType.Varinfo.pretty f.svar;
     if M.tracing then M.tracel "combine" "relation formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
     if M.tracing then M.tracel "combine" "relation args: %a\n" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine" "relation st: %a\n" D.pretty st;
+    if M.tracing then M.tracel "combine" "relation fun_st: %a\n" D.pretty fun_st;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
       let filter_actuals (x,e) =
