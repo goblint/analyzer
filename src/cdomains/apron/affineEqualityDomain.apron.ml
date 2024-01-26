@@ -282,7 +282,7 @@ struct
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
                 ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in
       if String.starts_with res "+" then
-        String.sub res 1 (String.length res - 1)
+        Str.string_after res 1
       else
         res
     in
