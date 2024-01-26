@@ -184,7 +184,7 @@ struct
     end
     )
 
-  let hash x = fold (fun x y -> y + Base.hash x) x 0
+  let hash x = fold (fun x y -> 13 * y + Base.hash x) x 0
 
   let relift x = map Base.relift x
 
