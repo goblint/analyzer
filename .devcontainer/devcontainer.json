@@ -13,9 +13,9 @@
     "runArgs": ["--init", "--env-file", ".devcontainer/devcontainer.env"], // TODO: why --init added by default?
 
     "extensions": [
-        "ocamllabs.ocaml-platform",
-        "hackwaly.ocamlearlybird"
-    ],
+		"ocamllabs.ocaml-platform",
+		"hackwaly.ocamlearlybird"
+	],
 
     "settings": {},
 }
