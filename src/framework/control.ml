@@ -789,6 +789,27 @@ struct
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
 
+    let module NHT = BatHashtbl.Make (Node) in
+    let module CSet = Set.Make (Spec.C) in
+    let nht = NHT.create 100 in
+    LHT.iter (fun (n, c) _ -> NHT.modify_def CSet.empty n (CSet.add c) nht) lh;
+    let module MHT = BatHashtbl.Make (Messages.Message) in
+    let mht = MHT.create 100 in
+    Messages.Table.MH.iter (fun m _ ->
+        match m.multipiece with
+        | Single ({context = Some c; _} as piece) ->
+          let piece' = {piece with context = None} in
+          let m' = {m with multipiece = Single piece'} in
+          MHT.modify_def CSet.empty m' (CSet.add (Obj.magic c)) mht
+        | _ -> ()
+      ) Messages.Table.messages_table;
+    MHT.iter (fun m cset ->
+        match m.multipiece with
+        | Single ({loc = Some (Node n); _}) ->
+          let cset' = NHT.find nht n in
+          if not @@ CSet.is_empty @@ CSet.diff cset' cset then Messages.print m
+        | _ -> ()
+      ) mht;
     Messages.finalize ();
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
 end
