@@ -164,6 +164,7 @@ module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
+module PtranalAnalysis = PtranalAnalysis
 
 
 (** {1 Domains}

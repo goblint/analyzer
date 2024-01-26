@@ -22,8 +22,8 @@ int main() {
   ZSTDMT_CCtxPool* const cctxPool = calloc(1, sizeof(ZSTDMT_CCtxPool));
   cctxPool->cctx[0] = malloc(sizeof(ZSTD_CCtx));
   if (!cctxPool->cctx[0]) // TODO NOWARN
-    __goblint_check(1); // TODO reachable
+    __goblint_check(1); // reachable
   else
-    __goblint_check(1); // TODO reachable
+    __goblint_check(1); // reachable
   return 0;
 }

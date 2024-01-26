@@ -349,7 +349,7 @@ struct
             | ts when Queries.TS.is_top ts ->
               includes_uk := true
             | ts ->
-              if Queries.TS.is_empty ts = false then
+              if not (Queries.TS.is_empty ts) then
                 includes_uk := true;
               let f = function
                 | TComp (ci, _) ->
