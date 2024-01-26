@@ -62,12 +62,12 @@ end
 module type IntOps =
 sig
   include IntOpsBase
-  (* Logical: These are intended to be the logical operations in the C sense!   *)
-  (* Int64 calls its bit-wise operations e.g. logand, we call those e.g. bitand *)
-  val logand : t -> t -> t
-  val logor : t -> t -> t
-  val logxor : t -> t -> t
-  val lognot : t -> t
+  (* Logical: These are intended to be the logical operations in the C sense! *)
+  (* Int64 calls its bit-wise operations e.g. logand, without the c_ prefix *)
+  val c_logand : t -> t -> t
+  val c_logor : t -> t -> t
+  val c_logxor : t -> t -> t
+  val c_lognot : t -> t
   val to_bool : t -> bool
   val of_bool : bool -> t
 end
@@ -281,10 +281,10 @@ struct
 
   (* These are logical operations in the C sense! *)
   let log_op op a b = of_bool @@ op (to_bool a) (to_bool b)
-  let lognot x = of_bool (x = zero)
-  let logand = log_op (&&)
-  let logor = log_op (||)
-  let logxor = log_op (<>)
+  let c_lognot x = of_bool (x = zero)
+  let c_logand = log_op (&&)
+  let c_logor = log_op (||)
+  let c_logxor = log_op (<>)
 
   let lt x y = of_bool (compare x y < 0)
   let gt x y = of_bool (compare x y > 0)

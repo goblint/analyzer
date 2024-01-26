@@ -122,9 +122,9 @@ sig
   val shift_left : t -> t -> t
   val shift_right: t -> t -> t
 
-  val lognot: t -> t
-  val logand: t -> t -> t
-  val logor : t -> t -> t
+  val c_lognot: t -> t
+  val c_logand: t -> t -> t
+  val c_logor : t -> t -> t
 
 end
 
@@ -153,9 +153,9 @@ sig
   val shift_left : Cil.ikind -> t -> t -> t
   val shift_right: Cil.ikind -> t -> t -> t
 
-  val lognot: Cil.ikind -> t -> t
-  val logand: Cil.ikind -> t -> t -> t
-  val logor : Cil.ikind -> t -> t -> t
+  val c_lognot: Cil.ikind -> t -> t
+  val c_logand: Cil.ikind -> t -> t -> t
+  val c_logor : Cil.ikind -> t -> t -> t
 
 end
 
@@ -359,9 +359,9 @@ struct
   let bitxor = lift2 I.bitxor
   let shift_left x y = {x with v = I.shift_left x.ikind x.v y.v } (* TODO check ikinds*)
   let shift_right x y = {x with v = I.shift_right x.ikind x.v y.v } (* TODO check ikinds*)
-  let lognot = lift_logical I.lognot
-  let logand = lift2 I.logand
-  let logor = lift2 I.logor
+  let c_lognot = lift_logical I.c_lognot
+  let c_logand = lift2 I.c_logand
+  let c_logor = lift2 I.c_logor
 
   let cast_to ?torg ikind x = {v = I.cast_to ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
 
@@ -703,8 +703,8 @@ struct
       | Some x, Some y -> of_bool ik (f x y)
       | _              -> top_of ik
 
-  let logor = log (||) ~annihilator:true
-  let logand = log (&&) ~annihilator:false
+  let c_logor = log (||) ~annihilator:true
+  let c_logand = log (&&) ~annihilator:false
 
   let log1 f ik i1 =
     if is_bot i1 then
@@ -714,7 +714,7 @@ struct
       | Some x -> of_bool ik (f ik x)
       | _      -> top_of ik
 
-  let lognot = log1 (fun _ik -> not)
+  let c_lognot = log1 (fun _ik -> not)
 
   let bit f ik i1 i2 =
     match is_bot i1, is_bot i2 with
@@ -1298,7 +1298,7 @@ struct
     let interval_shiftright = bitcomp (fun x y -> Ints_t.shift_right x (Ints_t.to_int y)) ik in
     binary_op_with_ovc x y interval_shiftright
 
-  let lognot ik x =
+  let c_lognot ik x =
     let log1 f ik i1 =
       match interval_to_bool i1 with
       | Some x -> of_bool ik (f x)
@@ -1307,11 +1307,11 @@ struct
     let interval_lognot = log1 not ik in
     unop x interval_lognot
 
-  let logand ik x y =
+  let c_logand ik x y =
     let interval_logand = log (&&) ik in
     binop x y interval_logand
 
-  let logor ik x y =
+  let c_logor ik x y =
     let interval_logor = log (||) ik in
     binop x y interval_logor
 
@@ -1597,9 +1597,9 @@ struct
   let bitxor = Ints_t.bitxor
   let shift_left  n1 n2 = Ints_t.shift_left n1 (Ints_t.to_int n2)
   let shift_right n1 n2 = Ints_t.shift_right n1 (Ints_t.to_int n2)
-  let lognot n1    = of_bool (not (to_bool' n1))
-  let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
-  let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
+  let c_lognot n1    = of_bool (not (to_bool' n1))
+  let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
+  let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
@@ -1688,9 +1688,9 @@ struct
   let bitxor = lift2 Base.bitxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let lognot = lift1 Base.lognot
-  let logand = lift2 Base.logand
-  let logor  = lift2 Base.logor
+  let c_lognot = lift1 Base.c_lognot
+  let c_logand = lift2 Base.c_logand
+  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x
@@ -1755,9 +1755,9 @@ struct
   let bitxor = lift2 Base.bitxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let lognot = lift1 Base.lognot
-  let logand = lift2 Base.logand
-  let logor  = lift2 Base.logor
+  let c_lognot = lift1 Base.c_lognot
+  let c_logand = lift2 Base.c_logand
+  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x
@@ -2246,21 +2246,21 @@ struct
   let shift_right =
     shift Z.shift_right
   (* TODO: lift does not treat Not {0} as true. *)
-  let logand ik x y =
+  let c_logand ik x y =
     match to_bool x, to_bool y with
     | Some false, _
     | _, Some false ->
       of_bool ik false
     | _, _ ->
-      lift2 IntOps.BigIntOps.logand ik x y
-  let logor ik x y =
+      lift2 IntOps.BigIntOps.c_logand ik x y
+  let c_logor ik x y =
     match to_bool x, to_bool y with
     | Some true, _
     | _, Some true ->
       of_bool ik true
     | _, _ ->
-      lift2 IntOps.BigIntOps.logor ik x y
-  let lognot ik = eq ik (of_int ik Z.zero)
+      lift2 IntOps.BigIntOps.c_logor ik x y
+  let c_lognot ik = eq ik (of_int ik Z.zero)
 
   let invariant_ikind e ik (x:t) =
     match x with
@@ -2366,9 +2366,9 @@ struct
   let bitxor x y = x && not y || not x && y
   let shift_left  n1 n2 = n1
   let shift_right n1 n2 = n1
-  let lognot = (not)
-  let logand = (&&)
-  let logor  = (||)
+  let c_lognot = (not)
+  let c_logand = (&&)
+  let c_logor  = (||)
   let arbitrary () = QCheck.bool
   let invariant _ _ = Invariant.none (* TODO *)
 end
@@ -2617,7 +2617,7 @@ module Enums : S with type int_t = Z.t = struct
   let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
   let ending ?(suppress_ovwarn=false) ikind x = top_of ikind
 
-  let lognot ik x =
+  let c_lognot ik x =
     if is_bot x
     then x
     else
@@ -2625,8 +2625,8 @@ module Enums : S with type int_t = Z.t = struct
       | Some b -> of_bool ik (not b)
       | None -> top_bool
 
-  let logand = lift2 IntOps.BigIntOps.logand
-  let logor  = lift2 IntOps.BigIntOps.logor
+  let c_logand = lift2 IntOps.BigIntOps.c_logand
+  let c_logor  = lift2 IntOps.BigIntOps.c_logor
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
     | Exc (excl,r) ->
@@ -2680,7 +2680,7 @@ module Enums : S with type int_t = Z.t = struct
           else
             top_bool)
 
-  let ne ik x y = lognot ik (eq ik x y)
+  let ne ik x y = c_lognot ik (eq ik x y)
 
   let invariant_ikind e ik x =
     match x with
@@ -2929,8 +2929,8 @@ struct
       | Some x, Some y -> of_bool ik (f x y)
       | _              -> top_of ik
 
-  let logor = log (||)
-  let logand = log (&&)
+  let c_logor = log (||)
+  let c_logand = log (&&)
 
   let log1 f ik i1 =
     if is_bot i1 then
@@ -2940,7 +2940,7 @@ struct
       | Some x -> of_bool ik (f ik x)
       | _      -> top_of ik
 
-  let lognot = log1 (fun _ik -> not)
+  let c_lognot = log1 (fun _ik -> not)
 
   let shift_right _ _ _ = top()
 
@@ -3563,8 +3563,8 @@ module IntDomTupleImpl = struct
   let bitnot ik =
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.bitnot ik)}
 
-  let lognot ik =
-    map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lognot ik)}
+  let c_lognot ik =
+    map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_lognot ik)}
 
   let cast_to ?torg ?no_ov t =
     mapovc ~cast:true t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
@@ -3689,11 +3689,11 @@ module IntDomTupleImpl = struct
   let shift_right ik =
     map2ovc ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_right ik)}
 
-  let logand ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.logand ik)}
+  let c_logand ik =
+    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_logand ik)}
 
-  let logor ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.logor ik)}
+  let c_logor ik =
+    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_logor ik)}
 
 
   (* printing boilerplate *)

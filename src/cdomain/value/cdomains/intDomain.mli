@@ -77,13 +77,13 @@ sig
 
   (** {b Logical operators} *)
 
-  val lognot: t -> t
+  val c_lognot: t -> t
   (** Logical not: [!x] *)
 
-  val logand: t -> t -> t
+  val c_logand: t -> t -> t
   (** Logical and: [x && y] *)
 
-  val logor : t -> t -> t
+  val c_logor : t -> t -> t
   (** Logical or: [x || y] *)
 
 end
@@ -156,13 +156,13 @@ sig
 
   (** {b Logical operators} *)
 
-  val lognot: Cil.ikind -> t -> t
+  val c_lognot: Cil.ikind -> t -> t
   (** Logical not: [!x] *)
 
-  val logand: Cil.ikind -> t -> t -> t
+  val c_logand: Cil.ikind -> t -> t -> t
   (** Logical and: [x && y] *)
 
-  val logor : Cil.ikind -> t -> t -> t
+  val c_logor : Cil.ikind -> t -> t -> t
   (** Logical or: [x || y] *)
 
 end

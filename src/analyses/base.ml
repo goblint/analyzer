@@ -174,7 +174,7 @@ struct
   let unop_ID = function
     | Neg  -> ID.neg
     | BNot -> ID.bitnot
-    | LNot -> ID.lognot
+    | LNot -> ID.c_lognot
 
   let unop_FD = function
     | Neg  -> FD.neg
@@ -217,8 +217,8 @@ struct
     | BXor -> ID.bitxor
     | Shiftlt -> ID.shift_left
     | Shiftrt -> ID.shift_right
-    | LAnd -> ID.logand
-    | LOr -> ID.logor
+    | LAnd -> ID.c_logand
+    | LOr -> ID.c_logor
     | b -> (fun x y -> (ID.top_of result_ik))
 
   let binop_FD (result_fk: Cil.fkind) = function
@@ -2436,7 +2436,7 @@ struct
           | Isgreaterequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
           | Isless (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
           | Islessequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
-          | Islessgreater (x,y) -> Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+          | Islessgreater (x,y) -> Int(ID.c_logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
           | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
