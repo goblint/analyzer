@@ -1034,13 +1034,13 @@ struct
   include AOpsImperativeOfPure (H0)
 
   let assign_var_parallel_with s vv's =
-    let ds = elements !s in
+    let ds = elements !s |> List.map D.copy in
     List.iter (fun d -> D.assign_var_parallel_with d vv's) ds;
     s := of_list ds
 
   let unify = meet
 
-  let copy s = ref !s
+  let copy s = ref (map D.copy !s)
   let vars_as_array _ = failwith "TODO"
   let vars s = D.vars (choose !s)
 
