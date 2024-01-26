@@ -8,9 +8,9 @@ int main(void)
 {
     if (num_iterat > 0)
     {
-        num_iterat ++; 
+        num_iterat++;
         int res = main();
-        __goblint_check(res == 5); //UNKNOWN
+        __goblint_check(res == 5); // UNKNOWN
         return res;
     }
     else

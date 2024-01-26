@@ -88,17 +88,7 @@ let dequeue = function (* returns the remaining queue after removing one element
       | x::xs -> Queue(xs, []))
   | Queue (x::q_first, q_last) -> Queue (q_first, q_last)
 
-(** [dequeue_tup q] removes the first element in queue [q] 
-    and returns it with the remaining queue in a tuple. 
-    In case of an empty queue it raises {!Empty}.*)
-let dequeue_tup = function (* returns the removed element and the remaining queue*)
-  | Queue ([], q_last) -> (
-      match List.rev q_last with (*List.rev q_last is moved to the first list*)
-      | [] -> raise Empty
-      | x::xs -> (x , Queue(xs, [])))
-  | Queue (x::q_first, q_last) -> (x, Queue (q_first, q_last))
-
-(** [dequeue_tup q] removes the first element in queue [q] 
+(** [dequeue_tup_opt q] removes the first element in queue [q] 
     and returns it with the remaining queue in a tuple. 
     In case of an empty queue the first element is [None]*)
 let dequeue_tup_opt = function (* returns the removed element and the remaining queue*)

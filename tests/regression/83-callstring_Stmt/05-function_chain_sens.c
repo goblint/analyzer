@@ -49,6 +49,6 @@ int f(int i)
 int main(void)
 {
     int result = f(num_iterat);
-    
-    __goblint_check(result == 1); 
+
+    __goblint_check(result == 1);
 }

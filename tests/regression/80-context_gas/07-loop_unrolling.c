@@ -21,14 +21,14 @@ int main(void)
     for (int i = 1; i > 0; i--)
     {
         __goblint_check(f(2) == 1);
-        __goblint_check(f(2000) == 1); //UNKNOWN
+        __goblint_check(f(2000) == 1); // UNKNOWN
     }
 
     // loop should be completely unrolled
     for (int i = 3; i > 0; i--)
     {
         __goblint_check(f(1) == 1);
-        __goblint_check(f(20) == 1); //UNKNOWN
+        __goblint_check(f(20) == 1); // UNKNOWN
     }
 
     int res1 = 0;
@@ -41,24 +41,24 @@ int main(void)
         res1 = f(3);
         res2 = f(i);
         __goblint_check(res1 == 1);
-        __goblint_check(res2 == 1); //TODO
+        __goblint_check(res2 == 1); // TODO
         result += res1 + res2;
     }
     __goblint_check(res1 == 1);
-    __goblint_check(res2 == 1); //TODO
-    __goblint_check(result == 10); //TODO
+    __goblint_check(res2 == 1);    // TODO
+    __goblint_check(result == 10); // TODO
 
     for (int i = 5; i > 0; i--)
     {
-        __goblint_check(f(0) == 1); 
-        __goblint_check(f(7) == 1); //boundary (included))
-        __goblint_check(f(8) == 1); //UNKNOWN //boundary (excluded)
+        __goblint_check(f(0) == 1);
+        __goblint_check(f(7) == 1); // boundary (included))
+        __goblint_check(f(8) == 1); // UNKNOWN //boundary (excluded)
     }
 
     // high number of iterations
     for (int i = 500; i > 0; i--)
     {
-        __goblint_check(f(i) == 1); //UNKNOWN
-        __goblint_check(f(4) == 1); 
+        __goblint_check(f(i) == 1); // UNKNOWN
+        __goblint_check(f(4) == 1);
     }
 }

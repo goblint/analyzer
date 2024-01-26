@@ -30,5 +30,5 @@ int main(void)
         result += res;
     }
     __goblint_check(res == 1);
-    __goblint_check(result == 5); //TODO
+    __goblint_check(result == 5); // TODO
 }

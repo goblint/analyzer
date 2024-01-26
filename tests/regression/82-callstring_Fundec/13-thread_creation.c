@@ -62,7 +62,7 @@ void *t_sens(void *arg)
 }
 
 void *t_sens2(void *arg)
-{ 
+{
   int result = procedure(7);
   __goblint_check(result == 10);
   return NULL;

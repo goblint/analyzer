@@ -2,7 +2,7 @@
 // Interesting if nested recursions are handled properly
 #include <stdio.h>
 
-int num_iterat = 9; 
+int num_iterat = 9;
 
 int f(int i)
 {

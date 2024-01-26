@@ -1,6 +1,5 @@
 open Analyses
 
-
 module Spec : MCPSpec =
 struct
   include Analyses.IdentitySpec
@@ -21,13 +20,9 @@ struct
     | `Bot -> []
     | `Top -> failwith "callstringTracking Error: the value of the Flat List shouldn't be top!"
 
-  let should_add_to_set f list set = 
-    if not (FundecSet.is_empty set) then true
-    else List.mem f (get_list list)
-
   let callee_state f ctx = 
     let (list, set) = ctx.local in
-    if should_add_to_set f list set
+    if (not(FundecSet.is_empty set)) || List.mem f (get_list list)
     then (list, FundecSet.add f set)
     else (`Lifted (f::(get_list list)), set)
 
@@ -36,7 +31,6 @@ struct
   let threadenter ctx ~multiple lval v args = [callee_state (Cilfacade.find_varinfo_fundec v) ctx]
 
   let combine_env ctx lval fexp f args fc au f_ask = ctx.local
-
 end
 
 let _ = MCP.register_analysis (module Spec : MCPSpec)

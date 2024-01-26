@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_stmt --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_loc --enable ana.int.interval_set
 // Interesting if multiple recursions are handled properly
 #include <stdio.h>
 
@@ -53,7 +53,7 @@ int main(void)
     int res3 = h(num_iterat);
     int res4 = h(num_iterat);
     int res5 = h(num_iterat);
-    
+
     int result = res1 + res2 + res3 + res4 + res5;
     __goblint_check(result == 5);
 }

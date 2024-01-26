@@ -18,5 +18,5 @@ int f(int i)
 int main(void)
 {
     f(num_iterat);
-     __goblint_check(a == 0);
+    __goblint_check(a == 0);
 }

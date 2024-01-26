@@ -20,14 +20,14 @@ int main()
     __goblint_check(y == 0);
 
     int y = f(7, 7);
-    __goblint_check(y == 0); //boundary (included)
+    __goblint_check(y == 0); // boundary (included)
 
     int y = f(8, 8);
-    __goblint_check(y == 0); //UNKNOWN //boundary (excluded)
+    __goblint_check(y == 0); // UNKNOWN //boundary (excluded)
 
     int y = f(10, 10);
-    __goblint_check(y == 0); //UNKNOWN
+    __goblint_check(y == 0); // UNKNOWN
 
     int y = f(1000, 1000);
-    __goblint_check(y == 0); //UNKNOWN
+    __goblint_check(y == 0); // UNKNOWN
 }

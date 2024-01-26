@@ -49,13 +49,13 @@ int h(int i)
 int main(void)
 {
     int res1 = f(num_iterat);
-    __goblint_check(res1 == 1); //UNKNOWN
+    __goblint_check(res1 == 1); // UNKNOWN
     int res2 = f(num_iterat);
-    __goblint_check(res2 == 1); //UNKNOWN
-    //int res3 = g(num_iterat);
+    __goblint_check(res2 == 1); // UNKNOWN
+    // int res3 = g(num_iterat);
     int res4 = h(num_iterat);
     __goblint_check(res4 == 1);
-    
-    //int result = res1 + res2 + res3 + res4 + res5;
+
+    // int result = res1 + res2 + res3 + res4 + res5;
     //__goblint_check(result == 5);
 }

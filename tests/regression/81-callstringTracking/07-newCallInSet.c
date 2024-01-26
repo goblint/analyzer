@@ -32,9 +32,8 @@ int g(int i)
     return res;
 }
 
-
 int main(void)
 {
     int res1 = g(num_iterat);
-    __goblint_check(res1 == 1); //UNKNOWN
+    __goblint_check(res1 == 1); // UNKNOWN
 }

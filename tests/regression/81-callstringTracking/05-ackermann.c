@@ -20,7 +20,8 @@ int ack(int n, int m)
     }
 }
 
-int main(void) {
-    ack (4,1);
+int main(void)
+{
+    ack(4, 1);
     __goblint_check(1); // reachable
 }

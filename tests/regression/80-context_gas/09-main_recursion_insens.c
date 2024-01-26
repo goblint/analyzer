@@ -10,7 +10,7 @@ int main(void)
     {
         num_iterat--;
         int res = main();
-        __goblint_check(res == 5); //UNKNOWN
+        __goblint_check(res == 5); // UNKNOWN
         return res;
     }
     else

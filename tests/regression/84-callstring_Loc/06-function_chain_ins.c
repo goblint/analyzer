@@ -2,7 +2,7 @@
 // Checks if function chains are handled properly
 #include <stdio.h>
 
-int num_iterat = 12;
+int num_iterat = 13;
 
 int h(int i)
 {
@@ -49,6 +49,6 @@ int f(int i)
 int main(void)
 {
     int result = f(num_iterat);
-    
-    __goblint_check(result == 1); 
+
+    __goblint_check(result == 1); // UNKNOWN
 }

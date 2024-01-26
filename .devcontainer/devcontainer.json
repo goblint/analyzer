@@ -14,9 +14,7 @@
 
     "extensions": [
         "ocamllabs.ocaml-platform",
-        "hackwaly.ocamlearlybird",
-        "zepalmer.ocaml-indentation",
-        "AllanBlanchard.ocp-indent"
+        "hackwaly.ocamlearlybird"
     ],
 
     "settings": {},

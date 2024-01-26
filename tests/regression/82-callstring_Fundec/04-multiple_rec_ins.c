@@ -53,7 +53,7 @@ int main(void)
     int res3 = h(num_iterat);
     int res4 = h(num_iterat);
     int res5 = h(num_iterat);
-    
+
     int result = res1 + res2 + res3 + res4 + res5;
-    __goblint_check(result == 5); //UNKNOWN
+    __goblint_check(result == 5); // UNKNOWN
 }

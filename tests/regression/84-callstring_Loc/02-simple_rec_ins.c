@@ -2,7 +2,7 @@
 // Basic example
 #include <stdio.h>
 
-int num_iterat = 10;
+int num_iterat = 11;
 int a = 20;
 
 int f(int i)
@@ -18,5 +18,5 @@ int f(int i)
 int main(void)
 {
     f(num_iterat);
-     __goblint_check(a == 0);
+    __goblint_check(a == 0); // UNKNOWN
 }

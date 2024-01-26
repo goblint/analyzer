@@ -533,7 +533,8 @@ struct
 
   (* returns context gas value of the given ctx*)
   let cg_val ctx = 
-    snd ctx.local (* Note: snd ctx.local = snd (ctx.context ()), due to initialization ctx.local must be used here*)
+    (* Note: snd ctx.local = snd (ctx.context ()), but ctx.local must be used here due to initialization*)
+    snd ctx.local
 
   let name () = S.name ()^" with context gas"
   let startstate v = S.startstate v, (get_int "ana.context.ctx_gas_value")
@@ -552,18 +553,11 @@ struct
                  ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
                  ; context = (fun () -> Option.get (fst (ctx.context ())))}
 
-  (*let rec showExprList args = (*TODO: delete, just here for printing*)
-    match args with
-    | [] -> " "
-    | a::t -> (CilType.Exp.show a) ^ " " ^ (showExprList t)*)
-
   let enter ctx r f args =
-    (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, max 0 (cg_val ctx - 1))) in
     liftmap_tup (S.enter (conv ctx) r f args) 
 
-  let threadenter ctx ~multiple lval f args       = 
-    (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterThreadCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Varinfo.show f) (showExprList args);*)
+  let threadenter ctx ~multiple lval f args = 
     let liftmap f = List.map (fun (x) -> (x, max 0 (cg_val ctx - 1))) f in
     liftmap (S.threadenter (conv ctx) ~multiple lval f args) 
 
@@ -1111,6 +1105,7 @@ struct
 
     {obsolete; delete; reluctant; restart}
 end
+
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
@@ -1846,10 +1841,10 @@ struct
     in
     PP.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in
-       let k2 = Set.of_enum @@ PP.keys h2 in
-       let o1 = Set.cardinal @@ Set.diff k1 k2 in
-       let o2 = Set.cardinal @@ Set.diff k2 k1 in
-       Printf.printf "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d\n" !eq !le o1 !gr o2 !uk *)
+    let k2 = Set.of_enum @@ PP.keys h2 in
+    let o1 = Set.cardinal @@ Set.diff k1 k2 in
+    let o2 = Set.cardinal @@ Set.diff k2 k1 in
+    Printf.printf "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d\n" !eq !le o1 !gr o2 !uk *)
     Printf.printf "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =

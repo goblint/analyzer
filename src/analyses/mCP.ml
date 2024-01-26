@@ -65,10 +65,12 @@ struct
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
-  let specific_cont_sens xs = (*most analysis must be set to context insensitive, because we only want to analyse context sensitively for a specific analysis*)
-    let sens_ana = ["callstring_fundec"; "callstring_stmt"; "callstring_loc"; "callstringTracking"] in (*TODO: what happens if all of them are enabled? Do we want that?*)
+  let specific_cont_sens xs =
+    (*most analysis must be set to context insensitive, because we only want to analyse context sensitively for a specific analysis*)
+    let sens_ana = ["callstring_fundec"; "callstring_stmt"; "callstring_loc"; "callstringTracking"] in
     let enabled = List.fold_left (fun acc x -> acc || (mem x xs)) false sens_ana in
-    if enabled then Some(filter (fun x -> not (mem x sens_ana)) xs) else None (*returns a list of insensitive analyses*)
+    (*returns the edited list of insensitive analyses if enabled*)
+    if enabled then Some(filter (fun x -> not (mem x sens_ana)) xs) else None
 
   type marshal = Obj.t list
   let init marshal =
@@ -84,7 +86,8 @@ struct
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
-    if Option.is_some special_inse (*checks if an analysis is enabled which requires context sensitivity for multiple analyses*)
+    (*checks if an analysis is enabled with special handled context sensitivity*)
+    if Option.is_some special_inse
     then (cont_inse := map' find_id (Option.get special_inse);
           path_sens := [])
     else (cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
@@ -188,13 +191,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-          { ctx with
+        { ctx with
           local = local';
           ask = ask
-          }
-          and ask q = query ctx' q
-          in
-          ctx' *)
+        }
+      and ask q = query ctx' q
+      in
+      ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function

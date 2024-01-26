@@ -57,10 +57,10 @@ int procedure(int num_iterat)
 void *t_sens(void *arg)
 {
   int result = procedure(0);
-  __goblint_check(result == 8); //TODO
+  __goblint_check(result == 8); // TODO
 
   result = procedure(3);
-  __goblint_check(result == 10); //TODO
+  __goblint_check(result == 10); // TODO
   return NULL;
 }
 
@@ -81,7 +81,7 @@ int main()
 
   // Creat the thread
   pthread_create(&id, NULL, t_sens, NULL);
-  //pthread_join(id, NULL);
+  // pthread_join(id, NULL);
 
   // Creat the thread
   pthread_create(&id2, NULL, t_insens, NULL);
