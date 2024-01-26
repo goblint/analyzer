@@ -29,7 +29,7 @@ class countLoopsVisitor(count) = object
   inherit nopCilVisitor
 
   method! vstmt stmt = match stmt.skind with
-    | Loop _ -> count := !count + 1; DoChildren
+    | Loop _ -> incr count; DoChildren
     | _ -> DoChildren
 
 end

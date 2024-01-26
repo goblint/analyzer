@@ -130,8 +130,6 @@ module EvalAssert = struct
                 [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
               in
               block.bstmts <- with_asserts
-            else
-              ()
           in
           if emit_other then (add_asserts b1; add_asserts b2);
           s

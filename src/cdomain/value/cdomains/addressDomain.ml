@@ -277,7 +277,7 @@ struct
     let compute_substring s1 s2 =
       try
         let i = Str.search_forward (Str.regexp_string s2) s1 0 in
-        Some (String.sub s1 i (String.length s1 - i))
+        Some (Str.string_after s1 i)
       with Not_found -> None in
 
     (* if any of the input address sets contains an element that isn't a StrPtr, return top *)

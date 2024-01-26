@@ -84,8 +84,6 @@ let do_preprocess ast =
   let f fd visitor_fun = ignore @@ visitCilFunction (visitor_fun fd) fd in
   if active_visitors <> [] then
     iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) active_visitors | _ -> ())
-  else
-    ()
 
 (** @raise GoblintCil.FrontC.ParseError
     @raise GoblintCil.Errormsg.Error *)
