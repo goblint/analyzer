@@ -807,7 +807,8 @@ struct
         match m.multipiece with
         | Single ({loc = Some (Node n); _}) ->
           let cset' = NHT.find nht n in
-          if not @@ CSet.is_empty @@ CSet.diff cset' cset then Messages.print m
+          let m' = {m with tags=CWE 999::m.tags} in
+          if not @@ CSet.is_empty @@ CSet.diff cset' cset then Messages.print m'
         | _ -> ()
       ) mht;
     Messages.finalize ();
