@@ -712,4 +712,6 @@ struct
   module D =  D (Vc) (Mx)
   include SharedFunctions.AssertionModule (V) (D)
   include D
+
+  let assign_var_with _ _ _ = failwith "TODO"
 end
