@@ -1049,7 +1049,8 @@ struct
   let marshal _ = failwith "TODO"
 
   let mem_var s v = D.mem_var (choose !s) v
-  let assign_var_parallel' _ _ _ = failwith "TODO"
+  let assign_var_parallel' s vs vs' =
+    ref (map (fun d -> D.assign_var_parallel' d vs vs') !s)
   let meet_tcons _ _ _ = failwith "TODO"
   let to_lincons_array _ = failwith "TODO"
   let of_lincons_array _ = failwith "TODO"
