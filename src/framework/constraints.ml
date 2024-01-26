@@ -551,7 +551,7 @@ struct
     else {ctx with local = fst ctx.local
                  ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
                  ; context = (fun () -> Option.get (fst (ctx.context ())))}
-                 
+
   (*let rec showExprList args = (*TODO: delete, just here for printing*)
     match args with
     | [] -> " "
@@ -559,12 +559,12 @@ struct
 
   let enter ctx r f args =
     (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Fundec.show f) (showExprList args);*)
-    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, cg_val ctx - 1)) in
+    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, max 0 (cg_val ctx - 1))) in
     liftmap_tup (S.enter (conv ctx) r f args) 
 
   let threadenter ctx ~multiple lval f args       = 
     (*if not !AnalysisState.postsolving && (cg_val ctx) > 0 then Printf.printf "enterThreadCG %i -> %i in %s with %s\n" (cg_val ctx) (cg_val ctx_dec) (CilType.Varinfo.show f) (showExprList args);*)
-    let liftmap f = List.map (fun (x) -> (x, cg_val ctx - 1)) f in
+    let liftmap f = List.map (fun (x) -> (x, max 0 (cg_val ctx - 1))) f in
     liftmap (S.threadenter (conv ctx) ~multiple lval f args) 
 
   let liftmap f ctx = List.map (fun (x) -> (x, cg_val ctx)) f

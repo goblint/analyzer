@@ -84,10 +84,11 @@ struct
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
-    path_sens := map' find_id @@ get_string_list "ana.path_sens";
     if Option.is_some special_inse (*checks if an analysis is enabled which requires context sensitivity for multiple analyses*)
-    then cont_inse := map' find_id (Option.get special_inse)
-    else cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
+    then (cont_inse := map' find_id (Option.get special_inse);
+          path_sens := [])
+    else (cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
+          path_sens := map' find_id @@ get_string_list "ana.path_sens");
     check_deps !activated;
     activated := topo_sort_an !activated;
     activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
