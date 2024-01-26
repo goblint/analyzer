@@ -430,7 +430,7 @@ struct
               RD.assign_var st.rel (RV.local v) RV.return
             )
         | None ->
-          unify_st
+          {unify_st with rel = RD.copy unify_st.rel}
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
       unify_st'
