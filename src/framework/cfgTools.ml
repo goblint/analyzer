@@ -123,7 +123,7 @@ let rec pretty_edges () = function
   | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
 let get_pseudo_return_id fd =
-  - (Hashtbl.hash fd.svar.vid) (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Cilfacade.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
+  - fd.svar.vid (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Cilfacade.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
 
 let node_scc_global = NH.create 113
 
