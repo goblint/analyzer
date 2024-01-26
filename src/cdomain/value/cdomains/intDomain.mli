@@ -56,16 +56,16 @@ sig
 
   (** {b Bit operators} *)
 
-  val bitnot: t -> t
+  val lognot: t -> t
   (** Bitwise not (one's complement): [~x] *)
 
-  val bitand: t -> t -> t
+  val logand: t -> t -> t
   (** Bitwise and: [x & y] *)
 
-  val bitor : t -> t -> t
+  val logor : t -> t -> t
   (** Bitwise or: [x | y] *)
 
-  val bitxor: t -> t -> t
+  val logxor: t -> t -> t
   (** Bitwise exclusive or: [x ^ y] *)
 
   val shift_left : t -> t -> t
@@ -135,16 +135,16 @@ sig
 
   (** {b Bit operators} *)
 
-  val bitnot: Cil.ikind -> t -> t
+  val lognot: Cil.ikind -> t -> t
   (** Bitwise not (one's complement): [~x] *)
 
-  val bitand: Cil.ikind -> t -> t -> t
+  val logand: Cil.ikind -> t -> t -> t
   (** Bitwise and: [x & y] *)
 
-  val bitor : Cil.ikind -> t -> t -> t
+  val logor : Cil.ikind -> t -> t -> t
   (** Bitwise or: [x | y] *)
 
-  val bitxor: Cil.ikind -> t -> t -> t
+  val logxor: Cil.ikind -> t -> t -> t
   (** Bitwise exclusive or: [x ^ y] *)
 
   val shift_left : Cil.ikind -> t -> t -> t

@@ -43,7 +43,7 @@ struct
 
   let unop_ID = function
     | Neg  -> ID.neg
-    | BNot -> ID.bitnot
+    | BNot -> ID.lognot
     | LNot -> ID.c_lognot
 
   let unop_FD = function

@@ -33,10 +33,10 @@ sig
   (* Bitwise *)
   val shift_left : t -> int -> t
   val shift_right : t -> int -> t
-  val bitand : t -> t -> t
-  val bitor : t -> t -> t
-  val bitxor : t -> t -> t
-  val bitnot : t -> t
+  val logand : t -> t -> t
+  val logor : t -> t -> t
+  val logxor : t -> t -> t
+  val lognot : t -> t
 
   (* Comparison *)
   val compare : t -> t -> int
@@ -97,10 +97,10 @@ struct
 
   let shift_left = (lsl)
   let shift_right = (lsr)
-  let bitand = (land)
-  let bitor = (lor)
-  let bitxor = (lxor)
-  let bitnot = (lnot)
+  let logand = (land)
+  let logor = (lor)
+  let logxor = (lxor)
+  let lognot = (lnot)
 
 
   let compare = compare
@@ -143,11 +143,11 @@ struct
 
   let shift_left = Int32.shift_left
   let shift_right = Int32.shift_right_logical
-  let bitand = Int32.logand (* Int32 calls bitwise operations 'log' *)
-  let bitor = Int32.logor (* Int32 calls bitwise operations 'log' *)
-  let bitxor = Int32.logxor (* Int32 calls bitwise operations 'log' *)
+  let logand = Int32.logand (* Int32 calls bitwise operations 'log' *)
+  let logor = Int32.logor (* Int32 calls bitwise operations 'log' *)
+  let logxor = Int32.logxor (* Int32 calls bitwise operations 'log' *)
 
-  let bitnot = Int32.lognot (* Int32 calls bitwise operations 'log' *)
+  let lognot = Int32.lognot (* Int32 calls bitwise operations 'log' *)
 
   let compare = Int32.compare
   let equal = Int32.equal
@@ -191,11 +191,11 @@ struct
 
   let shift_left = Int64.shift_left
   let shift_right = Int64.shift_right_logical
-  let bitand = Int64.logand (* Int64 calls bitwise operations 'log' *)
-  let bitor = Int64.logor (* Int64 calls bitwise operations 'log' *)
-  let bitxor = Int64.logxor (* Int64 calls bitwise operations 'log' *)
+  let logand = Int64.logand (* Int64 calls bitwise operations 'log' *)
+  let logor = Int64.logor (* Int64 calls bitwise operations 'log' *)
+  let logxor = Int64.logxor (* Int64 calls bitwise operations 'log' *)
 
-  let bitnot = Int64.lognot (* Int64 calls bitwise operations 'log' *)
+  let lognot = Int64.lognot (* Int64 calls bitwise operations 'log' *)
 
   let compare = Int64.compare
   let equal = Int64.equal
@@ -255,10 +255,10 @@ struct
 
   let shift_left = Z.shift_left
   let shift_right = Z.shift_right
-  let bitnot = Z.lognot
-  let bitand = Z.logand
-  let bitor = Z.logor
-  let bitxor = Z.logxor
+  let lognot = Z.lognot
+  let logand = Z.logand
+  let logor = Z.logor
+  let logxor = Z.logxor
 
   let arbitrary () = QCheck.map ~rev:Z.to_int64 Z.of_int64 QCheck.int64
 end

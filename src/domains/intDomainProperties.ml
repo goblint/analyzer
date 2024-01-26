@@ -45,10 +45,10 @@ struct
   let ge = ge (Ik.ikind ())
   let eq = eq (Ik.ikind ())
   let ne = ne (Ik.ikind ())
-  let bitnot = bitnot (Ik.ikind ())
-  let bitand = bitand (Ik.ikind ())
-  let bitor = bitor (Ik.ikind ())
-  let bitxor = bitxor (Ik.ikind ())
+  let lognot = lognot (Ik.ikind ())
+  let logand = logand (Ik.ikind ())
+  let logor = logor (Ik.ikind ())
+  let logxor = logxor (Ik.ikind ())
   let shift_left = shift_left (Ik.ikind ())
   let shift_right = shift_right (Ik.ikind ())
   let c_lognot = c_lognot (Ik.ikind ())
@@ -97,10 +97,10 @@ struct
   let eq = lift2 Base.eq
   let ne = lift2 Base.ne
 
-  let bitnot = lift1 Base.bitnot
-  let bitand = lift2 Base.bitand
-  let bitor  = lift2 Base.bitor
-  let bitxor = lift2 Base.bitxor
+  let lognot = lift1 Base.lognot
+  let logand = lift2 Base.logand
+  let logor  = lift2 Base.logor
+  let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
 
@@ -133,10 +133,10 @@ struct
   let valid_eq = make_valid2 ~name:"eq" ~cond:none_bot CD.eq AD.eq
   let valid_ne = make_valid2 ~name:"ne" ~cond:none_bot CD.ne AD.ne
 
-  let valid_bitnot = make_valid1 ~name:"bitnot" ~cond:not_bot CD.bitnot AD.bitnot
-  let valid_bitand = make_valid2 ~name:"bitand" ~cond:none_bot CD.bitand AD.bitand
-  let valid_bitor = make_valid2 ~name:"bitor" ~cond:none_bot CD.bitor AD.bitor
-  let valid_bitxor = make_valid2 ~name:"bitxor" ~cond:none_bot CD.bitxor AD.bitxor
+  let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.lognot AD.lognot
+  let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.logand AD.logand
+  let valid_logor = make_valid2 ~name:"logor" ~cond:none_bot CD.logor AD.logor
+  let valid_logxor = make_valid2 ~name:"logxor" ~cond:none_bot CD.logxor AD.logxor
 
   let defined_shift (a, b) =
     let max_shift = Z.of_int @@ snd @@ IntDomain.Size.bits (AD.Ikind.ikind ()) in
@@ -164,10 +164,10 @@ struct
     valid_eq;
     valid_ne;
 
-    valid_bitnot;
-    valid_bitand;
-    valid_bitor;
-    valid_bitxor;
+    valid_lognot;
+    valid_logand;
+    valid_logor;
+    valid_logxor;
     valid_shift_left;
     valid_shift_right;
 

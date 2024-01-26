@@ -173,7 +173,7 @@ struct
 
   let unop_ID = function
     | Neg  -> ID.neg
-    | BNot -> ID.bitnot
+    | BNot -> ID.lognot
     | LNot -> ID.c_lognot
 
   let unop_FD = function
@@ -212,9 +212,9 @@ struct
          evalint: base eval_rv 1 -> (1,[1,1])
          evalint: base query_evalint m == 1 -> (0,[1,1]) *)
     | Ne -> ID.ne
-    | BAnd -> ID.bitand
-    | BOr -> ID.bitor
-    | BXor -> ID.bitxor
+    | BAnd -> ID.logand
+    | BOr -> ID.logor
+    | BXor -> ID.logxor
     | Shiftlt -> ID.shift_left
     | Shiftrt -> ID.shift_right
     | LAnd -> ID.c_logand
