@@ -522,7 +522,7 @@ struct
     | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ()) None) t description
     | Blob (e,_,_) -> reachable_from_value ask e t description
     | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask v t description) acc) s empty
     | Int _ -> empty
@@ -1401,7 +1401,7 @@ struct
     | Q.MayOverflow e ->  
       IntDomain.local_no_overflow := true;
       if M.tracing then M.trace "apron" "exp %a\n" d_exp e;
-      ignore(query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e);
+      ignore(query_evalint ~ctx ctx.local  e);
       !IntDomain.local_no_overflow ;
     | _ -> Q.Result.top q
 
