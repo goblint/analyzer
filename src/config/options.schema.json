@@ -963,6 +963,24 @@
                 "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls.",
               "type": "boolean",
               "default": false
+            },
+            "ctx_gas": {
+              "title": "ana.context.ctx_gas",
+              "description": "If enabled, the first x recursions are analyzed context sensitively, the remaining context insensitively. x is refered to as the context gas",
+              "type": "boolean",
+              "default": false
+            },
+            "ctx_gas_value": {
+              "title": "ana.context.ctx_gas_value",
+              "description": "Number of calls that are analyzed context sensitive. Used for the ContextGasLifter. Must be >= 0!",
+              "type": "integer",
+              "default": 10
+            },
+            "callStack_height": {
+              "title": "ana.context.callStack_height",
+              "description": "Number of elements of the callStack that should be used as context for the callsting analysis. Must be >= 0!",
+              "type": "integer",
+              "default": 10
             }
           },
           "additionalProperties": false
