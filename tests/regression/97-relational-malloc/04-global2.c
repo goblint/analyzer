@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron  --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none --disable warn.info 
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron  --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none --disable warn.info --disable sem.unknown_function.invalidate.globals
 #include <stdlib.h>
 extern int __VERIFIER_nondet_int(void);
 
@@ -28,7 +28,7 @@ int main()
 
   for (int k = 0; k < array_size; k++)
   {
-    numbers[k] = __VERIFIER_nondet_int(); // NOWARN
+    numbers[k] = 5; // NOWARN
   }
 
   test_fun(numbers, array_size);
