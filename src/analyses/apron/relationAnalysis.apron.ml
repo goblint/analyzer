@@ -341,6 +341,15 @@ struct
     in
     let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
     RD.assign_var_parallel_with new_rel local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
+    (* let new_rel = RD.assign_var_parallel' new_rel (List.map RV.local formals) (List.map RV.arg formals) in *)
+    (* List.iter (fun x ->
+        RD.assign_var_with new_rel (RV.local x) (RV.arg x);
+      ) formals; *)
+    (* let new_rel = List.fold_left (fun acc x ->
+        RD.assign_var acc (RV.local x) (RV.arg x)
+      ) (RD.copy new_rel) formals
+    in *)
+    (* let new_rel = RD.copy new_rel in *)
     {st with rel = new_rel}
 
   let return ctx e f =
