@@ -62,7 +62,8 @@ type invariant_context = Invariant.context = {
   lvals: Lval.Set.t;
 }
 [@@deriving ord, hash]
-
+type maybeoutofbounds = {var: CilType.Varinfo.t; dimension: int; index: CilType.Exp.t} [@@deriving ord, hash]
+type allocmaybeoutofbounds = {exp: CilType.Exp.t; e1_offset: IntDomain.IntDomTuple.t; struct_offset: IntDomain.IntDomTuple.t; offset_typ: CilType.Typ.t} [@@deriving ord, hash]
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -126,9 +127,9 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
-  | MayBeOutOfBounds: varinfo * int * exp -> ID.t t
+  | MayBeOutOfBounds: maybeoutofbounds -> ID.t t
   | MayOverflow : exp -> MayBool.t t
-  | AllocMayBeOutOfBounds : exp * IntDomain.IntDomTuple.t * IntDomain.IntDomTuple.t * typ -> VDQ.ProdID.t t
+  | AllocMayBeOutOfBounds : allocmaybeoutofbounds -> VDQ.ProdID.t t
 
 type 'a result = 'a
 
@@ -393,31 +394,10 @@ struct
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
-      | Any (MayBeOutOfBounds (v1, s1, exp1)), Any (MayBeOutOfBounds (v2, s2 ,exp2)) ->
-        let r = CilType.Varinfo.compare v1 v2 in
-        if r <> 0 then 
-          r
-        else if s1 <> s2  then 
-          s1 - s2  
-        else 
-          CilType.Exp.compare exp1 exp2 
+      | Any (MayBeOutOfBounds x1), Any (MayBeOutOfBounds x2) -> compare_maybeoutofbounds x1 x2
       (* only argumentless queries should remain *)
       | Any (MayOverflow e1), Any (MayOverflow e2) -> CilType.Exp.compare e1 e2
-      | Any (AllocMayBeOutOfBounds (e1, i1, o1, t1)), Any (AllocMayBeOutOfBounds (e2, i2, o2, t2)) -> 
-        let r =  CilType.Exp.compare e1 e2 in
-        if r <> 0 then 
-          r
-        else 
-          let r2 = IntDomain.IntDomTuple.compare i1 i2 in
-          if r2 <> 0 then 
-            r2
-          else
-            let r3= IntDomain.IntDomTuple.compare o1 o2 in
-            if r3 <> 0 then 
-              r3
-            else 
-              CilType.Typ.compare t1 t2
-
+      | Any (AllocMayBeOutOfBounds x1), Any (AllocMayBeOutOfBounds x2) -> compare_allocmaybeoutofbounds x1 x2
       | _, _ -> Stdlib.compare (order a) (order b)
 
   let equal x y = compare x y = 0
@@ -458,9 +438,9 @@ struct
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
-    | Any (MayBeOutOfBounds (v,s, exp)) -> 67 * CilType.Varinfo.hash v  + 31 * Hashtbl.hash s  + CilType.Exp.hash exp
+    | Any (MayBeOutOfBounds x) -> hash_maybeoutofbounds x
     | Any (MayOverflow e) -> CilType.Exp.hash e
-    | Any (AllocMayBeOutOfBounds (e, i, o, t )) ->  127 * CilType.Exp.hash e + 67 * IntDomain.IntDomTuple.hash i + 31 * IntDomain.IntDomTuple.hash o + CilType.Typ.hash t
+    | Any (AllocMayBeOutOfBounds x) ->  hash_allocmaybeoutofbounds x
     (* only argumentless queries should remain *)
 
     (* IterSysVars:                                                                    *)
@@ -525,16 +505,16 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
-    | Any (MayBeOutOfBounds (v,s, e)) -> Pretty.dprintf "MayBeOutOfBounds (%a, %a)" CilType.Varinfo.pretty v CilType.Exp.pretty e
+    | Any (MayBeOutOfBounds x) -> Pretty.dprintf "MayBeOutOfBounds _"
     | Any (MayOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
-    | Any (AllocMayBeOutOfBounds (e, i, o, t)) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
+    | Any (AllocMayBeOutOfBounds x) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
 end
 
 let to_value_domain_ask (ask: ask) =
   let eval_int e = ask.f (EvalInt e) in
   let may_point_to e = ask.f (MayPointTo e) in
   let is_multiple v = ask.f (IsMultiple v) in
-  let may_be_out_of_bounds (v,s) e = ask.f (MayBeOutOfBounds (v, s, e)) in
+  let may_be_out_of_bounds (v, d) e = ask.f (MayBeOutOfBounds {var= v; dimension= d; index= e}) in
   { VDQ.eval_int; may_point_to; is_multiple; may_be_out_of_bounds}
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =

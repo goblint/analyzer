@@ -874,13 +874,13 @@ struct
     | Queries.Invariant context -> query_invariant ctx context
 
     (* the lval arr has the length of the arr we now want to check if the expression index is within the bounds of arr please use relational Analysis *)
-    | Queries.MayBeOutOfBounds (v ,t ,exp) -> 
-      let newVar = ArrayMap.to_varinfo (v, t) in 
+    | Queries.MayBeOutOfBounds {var= v ;dimension = d ;index =exp} -> 
+      let newVar = ArrayMap.to_varinfo (v, d) in 
       let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
       let i = eval_int comp (no_overflow ask comp ) in 
       if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a" d_exp comp ID.pretty i;
       i 
-    | AllocMayBeOutOfBounds (e, i, o, _) -> 
+    | AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; _} -> 
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
         | a when not (Queries.AD.is_top a) -> 
           Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
