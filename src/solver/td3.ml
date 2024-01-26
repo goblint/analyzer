@@ -1043,6 +1043,10 @@ module Base =
 
       print_data_verbose data "Data after postsolve";
 
+      HM.iter (fun k v ->
+          ignore (Pretty.printf "SOL %a:\n%a\n" S.Var.pretty_trace k S.Dom.pretty v)
+        ) rho;
+
       verify_data data;
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end

@@ -1060,4 +1060,12 @@ struct
     ref (map (fun d -> D.assert_inv d e tv no_ov) !s)
   let eval_int s e no_ov =
     fold (fun d acc -> Queries.ID.join (D.eval_int d e no_ov) acc) !s (Queries.ID.bot ())
+
+  let equal s1 s2 =
+    (* if M.tracing then M.tracei "apronequal" "%a %a\n" pretty s1 pretty s2; *)
+    let r = equal s1 s2 in
+    (* ignore (Pretty.printf "EQ %a %a = %B\n" pretty s1 pretty s2 r); *)
+    (* print_endline "foo"; *)
+    (* if M.tracing then M.traceu "apronequal" "-> %B\n" r; *)
+    r
 end
