@@ -651,4 +651,3 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
-  
