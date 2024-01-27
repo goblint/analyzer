@@ -158,13 +158,14 @@ struct
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
-      begin match ask.f (Queries.MayPointTo v) with
-        | ad when Queries.AD.is_top ad -> st
-        | ad ->
-          let mvals = Queries.AD.to_mval ad in
-          let ass' = List.map (fun mval -> assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f) mvals in
-          List.fold_right D.join ass' (D.bot ())
-      end
+      let ad = ask.f (Queries.MayPointTo v) in
+      Queries.AD.fold (fun addr acc ->
+          match addr with
+          | ValueDomain.Addr.Addr mval ->
+            D.join acc (assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f)
+          | UnknownPtr | NullPtr | StrPtr _ ->
+            D.join acc st (* Ignore assign *)
+        ) ad (D.bot ())
     (* Ignoring all other assigns *)
     | _ ->
       st
@@ -283,8 +284,9 @@ struct
   let pass_to_callee fundec any_local_reachable var =
     (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
+    (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    let vname = RD.Var.to_string var in
+    let vname = Apron.Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
     match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
@@ -295,8 +297,7 @@ struct
     let st = ctx.local in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
-      |> List.map (Tuple2.map1 RV.arg)
+      |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
@@ -318,7 +319,7 @@ struct
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
-        | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
@@ -381,6 +382,8 @@ struct
     if M.tracing then M.tracel "combine" "relation f: %a\n" CilType.Varinfo.pretty f.svar;
     if M.tracing then M.tracel "combine" "relation formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
     if M.tracing then M.tracel "combine" "relation args: %a\n" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine" "relation st: %a\n" D.pretty st;
+    if M.tracing then M.tracel "combine" "relation fun_st: %a\n" D.pretty fun_st;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
       let filter_actuals (x,e) =
@@ -404,7 +407,7 @@ struct
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
-    if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
@@ -609,7 +612,7 @@ struct
     |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
         (* filter one-vars and exact *)
         (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
-        if (one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
+        if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)

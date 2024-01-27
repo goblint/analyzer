@@ -18,7 +18,8 @@ A message consists of the following:
         3. **Context.** Optional. Currently completely abstract, so not very useful.
     * **Group.** For messages related to numerous locations with different texts. Contains the following:
         1. **Group text.** An overall description of the group message.
-        2. **Pieces.** A list of single messages as described above.
+        2. **Group location.** Optional. An overall location of the group message.
+        3. **Pieces.** A list of single messages as described above.
 
 ## Creating
 
@@ -47,16 +48,3 @@ The `~loc` argument is optional and defaults to the current location, but allows
 The `_noloc` suffixed functions allow general messages without any location (not even current).
 
 By convention, may-warnings (the usual case) should use warning severity and  must-warnings should use error severity.
-
-### Spec analysis
-
-Warnings inside `.spec` files are converted to warnings.
-They parsed from string warnings: the first space-delimited substring determines the category and the rest determines the text.
-
-For example:
-```
-w1 "behavior.undefined.use_after_free"
-w2 "integer.overflow"
-w3 "unknown my message"
-w4 "integer.overflow some text describing the warning"
-```

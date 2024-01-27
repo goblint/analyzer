@@ -1,0 +1,23 @@
+(include_subdirs no)
+
+(library
+ (name goblint_incremental)
+ (public_name goblint.incremental)
+ (wrapped false) ; TODO: wrap
+ (libraries
+   batteries.unthreaded
+   zarith
+   goblint_std
+   goblint_config
+   goblint_common
+   goblint-cil
+   fpath)
+ (flags :standard -open Goblint_std)
+ (preprocess
+  (pps
+    ppx_deriving.std
+    ppx_deriving_hash
+    ppx_deriving_yojson))
+ (instrumentation (backend bisect_ppx)))
+
+(documentation)
