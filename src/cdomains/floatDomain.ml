@@ -622,7 +622,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let overapprox_pi = 3.1416
   let underapprox_pi = 3.1415
 
-  let trig_helper l h k = (** computes dist = distance, l'' = (l/(k*pi)) - floor(l/(k*pi)), h'' = (h/(k*pi)) - floor(h/(k*pi))*)
+  (** this function does two things: *)
+  (** 1. projects l and h onto the interval [0, k*pi] (for k = 2 this is the phase length of sin/cos, for k = 1 it is the phase length of tan)*)
+  (** 2. compresses/transforms the interval [0, k*pi] to the interval [0, 1] to ease further computations *)
+  (** i.e. the it computes dist = distance, l'' = (l/(k*pi)) - floor(l/(k*pi)), h'' = (h/(k*pi)) - floor(h/(k*pi))*)
+  let project_and_compress l h k = 
     let ft_over_kpi = (Float_t.mul Up (Float_t.of_float Up k) (Float_t.of_float Up overapprox_pi)) in
     let ft_under_kpi = (Float_t.mul Down (Float_t.of_float Down k) (Float_t.of_float Down underapprox_pi)) in
     let l' =
@@ -649,40 +653,49 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     (dist, l'', h'')
 
   let eval_cos_cfun l h =
-    let (dist, l'', h'') = trig_helper l h 2. in
+    let (dist, l'', h'') = project_and_compress l h 2. in
     if Messages.tracing then Messages.trace "CstubsTrig" "sin: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if dist <= (Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Up 0.5) && (h'' >= l'') then
+      (** case: monotonic decreasing interval*)
       Interval (Float_t.cos Down h, Float_t.cos Up l)
     else if dist <= (Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Down 0.5) && (h'' >= l'') then
+      (** case: monotonic increasing interval*)
       Interval (Float_t.cos Down l, Float_t.cos Up h)
     else if dist <= (Float_t.of_float Down 1.) && (l'' <= h'') then
+      (** case: contains at most one minimum*)
       Interval (Float_t.of_float Down (-.1.), max (Float_t.cos Up l) (Float_t.cos Up h))
     else if dist <= (Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) then
+      (** case: contains at most one maximum*)
       Interval (min (Float_t.cos Down l) (Float_t.cos Down h), Float_t.of_float Up 1.)
     else
       of_interval (-. 1., 1.)
 
   let eval_sin_cfun l h =
-    let (dist, l'', h'') = trig_helper l h 2. in
+    let (dist, l'', h'') = project_and_compress l h 2. in
     if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     (* phase shift -0.25 -> same phase as cos *)
     let l'' = if l'' <= Float_t.of_float Down 0.25 then Float_t.add Up l'' (Float_t.of_float Up 0.75) else Float_t.sub Down l'' (Float_t.of_float Up 0.25) in
     let h'' = if h'' <= Float_t.of_float Down 0.25 then Float_t.add Up h'' (Float_t.of_float Up 0.75) else Float_t.sub Down h'' (Float_t.of_float Up 0.25) in
     if dist <= (Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Up 0.5) && (h'' >= l'') then
+      (** case: monotonic decreasing interval*)
       Interval (Float_t.sin Down h, Float_t.sin Up l)
     else if dist <= (Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Down 0.5) && (h'' >= l'') then
+      (** case: monotonic increasing interval*)
       Interval (Float_t.sin Down l, Float_t.sin Up h)
     else if dist <= (Float_t.of_float Down 1.) && (l'' <= h'') then
+      (** case: contains at most one minimum*)
       Interval (Float_t.of_float Down (-.1.), max (Float_t.sin Up l) (Float_t.sin Up h))
     else if dist <= (Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) then
+      (** case: contains at most one maximum*)
       Interval (min (Float_t.sin Down l) (Float_t.sin Down h), Float_t.of_float Up 1.)
     else 
       of_interval (-. 1., 1.)
 
   let eval_tan_cfun l h =
-    let (dist, l'', h'') = trig_helper l h 1. in
+    let (dist, l'', h'') = project_and_compress l h 1. in
     if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if dist <= (Float_t.of_float Down 1.) && Bool.not ((l'' <= Float_t.of_float Up 0.5) && (h'' >= Float_t.of_float Down 0.5)) then
+      (** case: monotonic increasing interval*)
       Interval (Float_t.tan Down l, Float_t.tan Up h)
     else
       top ()
