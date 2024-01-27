@@ -24,7 +24,7 @@ struct
     match lv_opt with
     | None ->
       Queries.AD.iter (fun e ->
-          ctx.split () [Events.Lock (e, rw)]
+          ctx.split () [Events.Lock (e, rw); Events.RefinePointerExp {exp = arg; ad = Queries.AD.singleton e}]
         ) (eval_exp_addr a arg);
       if may_fail then
         ctx.split () [];
@@ -32,7 +32,7 @@ struct
     | Some lv ->
       let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
       Queries.AD.iter (fun e ->
-          ctx.split () [sb; Events.Lock (e, rw)];
+          ctx.split () [sb; Events.Lock (e, rw); Events.RefinePointerExp {exp = arg; ad = Queries.AD.singleton e}];
         ) (eval_exp_addr a arg);
       if may_fail then (
         let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
