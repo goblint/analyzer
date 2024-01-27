@@ -631,40 +631,40 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     let ft_under_kpi = (Float_t.mul Down (Float_t.of_float Down k) (Float_t.of_float Down underapprox_pi)) in
     let l' =
       if l >= Float_t.zero then (Float_t.div Down l ft_over_kpi)
-      else (Float_t.div Up l ft_under_kpi)
+      else (Float_t.div Down l ft_under_kpi)
     in
     let h' = 
       if h >= Float_t.zero then (Float_t.div Up h ft_under_kpi)
-      else (Float_t.div Down h ft_over_kpi)
+      else (Float_t.div Up h ft_over_kpi)
     in
     let dist = (Float_t.sub Up h' l') in
     let l'' = 
       if l' >= Float_t.zero then 
-        Float_t.sub Down l' (Float_t.of_float Down (Big_int_Z.float_of_big_int (Float_t.to_big_int l')))
+        Float_t.sub Down l' (Float_t.of_float Up (Big_int_Z.float_of_big_int (Float_t.to_big_int l')))
       else 
-        Float_t.sub Down l' (Float_t.of_float Down (Big_int_Z.float_of_big_int (IntOps.BigIntOps.sub (Float_t.to_big_int l') (Big_int_Z.big_int_of_int 1))))
+        Float_t.sub Down l' (Float_t.of_float Up (Big_int_Z.float_of_big_int (IntOps.BigIntOps.sub (Float_t.to_big_int l') (Big_int_Z.big_int_of_int 1))))
     in
     let h'' = 
       if h' >= Float_t.zero then 
-        Float_t.sub Up h' (Float_t.of_float Up (Big_int_Z.float_of_big_int (Float_t.to_big_int h')))
+        Float_t.sub Up h' (Float_t.of_float Down (Big_int_Z.float_of_big_int (Float_t.to_big_int h')))
       else 
-        Float_t.sub Up h' (Float_t.of_float Up (Big_int_Z.float_of_big_int (IntOps.BigIntOps.sub (Float_t.to_big_int h') (Big_int_Z.big_int_of_int 1))))
+        Float_t.sub Up h' (Float_t.of_float Down (Big_int_Z.float_of_big_int (IntOps.BigIntOps.sub (Float_t.to_big_int h') (Big_int_Z.big_int_of_int 1))))
     in
     (dist, l'', h'')
 
   let eval_cos_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 2. in
     if Messages.tracing then Messages.trace "CstubsTrig" "sin: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
-    if dist <= (Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Up 0.5) && (h'' >= l'') then
+    if (dist <= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) && (h'' >= l'') then
       (** case: monotonic decreasing interval*)
       Interval (Float_t.cos Down h, Float_t.cos Up l)
-    else if dist <= (Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Down 0.5) && (h'' >= l'') then
+    else if (dist <= Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Up 0.5) && (h'' >= l'') then
       (** case: monotonic increasing interval*)
       Interval (Float_t.cos Down l, Float_t.cos Up h)
-    else if dist <= (Float_t.of_float Down 1.) && (l'' <= h'') then
+    else if (dist <= Float_t.of_float Down 1.) && (l'' <= h'') then
       (** case: contains at most one minimum*)
       Interval (Float_t.of_float Down (-.1.), max (Float_t.cos Up l) (Float_t.cos Up h))
-    else if dist <= (Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) then
+    else if (dist <= Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Up 0.5) && (h'' <= Float_t.of_float Down 0.5) then
       (** case: contains at most one maximum*)
       Interval (min (Float_t.cos Down l) (Float_t.cos Down h), Float_t.of_float Up 1.)
     else
@@ -674,18 +674,18 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     let (dist, l'', h'') = project_and_compress l h 2. in
     if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     (* phase shift -0.25 -> same phase as cos *)
-    let l'' = if l'' <= Float_t.of_float Down 0.25 then Float_t.add Up l'' (Float_t.of_float Up 0.75) else Float_t.sub Down l'' (Float_t.of_float Up 0.25) in
-    let h'' = if h'' <= Float_t.of_float Down 0.25 then Float_t.add Up h'' (Float_t.of_float Up 0.75) else Float_t.sub Down h'' (Float_t.of_float Up 0.25) in
-    if dist <= (Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Up 0.5) && (h'' >= l'') then
+    let l'' = if l'' <= Float_t.of_float Down 0.25 then Float_t.add Down l'' (Float_t.of_float Down 0.75) else Float_t.sub Down l'' (Float_t.of_float Up 0.25) in
+    let h'' = if h'' <= Float_t.of_float Down 0.25 then Float_t.add Up h'' (Float_t.of_float Up 0.75) else Float_t.sub Up h'' (Float_t.of_float Down 0.25) in
+    if (dist <= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) && (h'' >= l'') then
       (** case: monotonic decreasing interval*)
       Interval (Float_t.sin Down h, Float_t.sin Up l)
-    else if dist <= (Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Down 0.5) && (h'' >= l'') then
+    else if (dist <= Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Up 0.5) && (h'' >= l'') then
       (** case: monotonic increasing interval*)
       Interval (Float_t.sin Down l, Float_t.sin Up h)
-    else if dist <= (Float_t.of_float Down 1.) && (l'' <= h'') then
+    else if (dist <= Float_t.of_float Down 1.) && (l'' <= h'') then
       (** case: contains at most one minimum*)
       Interval (Float_t.of_float Down (-.1.), max (Float_t.sin Up l) (Float_t.sin Up h))
-    else if dist <= (Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) then
+    else if (dist <= Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Up 0.5) && (h'' <= Float_t.of_float Down 0.5) then
       (** case: contains at most one maximum*)
       Interval (min (Float_t.sin Down l) (Float_t.sin Down h), Float_t.of_float Up 1.)
     else 
@@ -694,7 +694,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let eval_tan_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 1. in
     if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
-    if dist <= (Float_t.of_float Down 1.) && Bool.not ((l'' <= Float_t.of_float Up 0.5) && (h'' >= Float_t.of_float Down 0.5)) then
+    if (dist <= Float_t.of_float Down 1.) && (Bool.not ((l'' <= Float_t.of_float Up 0.5) && (h'' >= Float_t.of_float Up 0.5))) then
       (** case: monotonic increasing interval*)
       Interval (Float_t.tan Down l, Float_t.tan Up h)
     else
