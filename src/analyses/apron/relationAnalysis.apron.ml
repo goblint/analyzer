@@ -220,8 +220,8 @@ struct
           | ad when not (Queries.AD.is_top ad) && (Queries.AD.cardinal ad) = 1 ->
             let replace mval =
               let pointee = ValueDomain.Addr.Mval.to_cil_exp mval in
-              let pointee_typ = Cil.typeSig @@ Cil.typeOf pointee in
-              let lval_typ = Cil.typeSig @@ Cil.typeOfLval (Mem e, NoOffset) in
+              let pointee_typ = Cil.typeSig @@ Cilfacade.typeOf pointee in
+              let lval_typ = Cil.typeSig @@ Cilfacade.typeOfLval (Mem e, NoOffset) in
               if pointee_typ = lval_typ then
                 Some pointee
               else
