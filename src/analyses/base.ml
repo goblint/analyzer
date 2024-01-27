@@ -2931,9 +2931,9 @@ struct
       end
     | Events.RefinePointerExp {exp; ad} ->
       (match exp with
-      | Lval lval ->
-        set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOf exp) (Address ad)
-      | _ -> ctx.local) 
+       | Lval lval ->
+         set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOf exp) (Address ad)
+       | _ -> ctx.local) 
     | _ ->
       ctx.local
 end
