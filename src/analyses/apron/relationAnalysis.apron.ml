@@ -218,10 +218,19 @@ struct
       | Lval (Mem e, NoOffset) ->
         begin match ask (Queries.MayPointTo e) with
           | ad when not (Queries.AD.is_top ad) && (Queries.AD.cardinal ad) = 1 ->
-            begin match Queries.AD.Addr.to_mval (Queries.AD.choose ad) with
-              | Some mval -> ValueDomain.Addr.Mval.to_cil_exp mval
-              | None -> Lval (Mem e, NoOffset)
-            end
+            let replace mval =
+              let pointee = ValueDomain.Addr.Mval.to_cil_exp mval in
+              let pointee_typ = Cil.typeSig @@ Cil.typeOf pointee in
+              let lval_typ = Cil.typeSig @@ Cil.typeOfLval (Mem e, NoOffset) in
+              if pointee_typ = lval_typ then
+                Some pointee
+              else
+                (* there is a type-mismatch between pointee and pointer-type *)
+                (* to avoid mismatch errors, we bail on this expression *)
+                None
+            in
+            let r = Option.bind (Queries.AD.Addr.to_mval (Queries.AD.choose ad)) replace in
+            Option.default (Lval (Mem e, NoOffset)) r
           (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
           (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
           | _ -> Lval (Mem e, NoOffset)
