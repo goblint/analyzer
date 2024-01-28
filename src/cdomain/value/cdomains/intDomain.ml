@@ -77,11 +77,10 @@ type overflow_info = { overflow: bool; underflow: bool;}
 let local_no_overflow = ref true
 let set_overflow_flag ~cast ~underflow ~overflow ik =
   let signed = Cil.isSigned ik in
-  if signed && not cast then 
-    (local_no_overflow := false;
-     if !AnalysisState.postsolving then 
-       AnalysisState.svcomp_may_overflow := true);
+  if !AnalysisState.postsolving && signed && not cast then
+    AnalysisState.svcomp_may_overflow := true;
   let sign = if signed then "Signed" else "Unsigned" in
+  local_no_overflow := false;
   match underflow, overflow with
   | true, true ->
     M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign

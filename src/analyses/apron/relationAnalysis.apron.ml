@@ -174,39 +174,12 @@ struct
   (** An extended overflow handling inside relationAnalysis for expression assignments when overflows are assumed to occur.
       Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
       If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
-
-  let exp_does_not_contain_top (ask: Queries.ask) exp = 
-    let exp_not_top e = match Cilfacade.get_ikind_exp exp with 
-      | exception Invalid_argument _ 
-      | exception Cilfacade.TypeOfError _ -> false
-      | ik -> let r = not (Queries.ID.is_top_of ik (ask.f (EvalInt e))) in
-        if M.tracing then M.trace "no_o" "exp_not_top %a %a %a-> %b \n" d_exp exp d_ikind ik (ValueDomainQueries.ID.pretty) (ask.f (EvalInt e)) r;
-        r
-    in
-    let rec exp_contais_no_top e = 
-      if M.tracing then M.trace "no_o" "exp_contais_no_top %a\n" d_exp e;
-      match Cilfacade.get_ikind_exp e with
-      | exception Invalid_argument _ -> false (* TODO: why this? *)
-      | exception Cilfacade.TypeOfError _ -> false
-      | ik -> 
-        let subexp_contains_no_top = match e with 
-          | BinOp (_, e1, e2, _) -> exp_contais_no_top e1 && exp_contais_no_top e2
-          | _ -> true
-        in
-        if subexp_contains_no_top then 
-          let r = exp_not_top e in
-          r
-        else 
-          false
-    in 
-    exp_contais_no_top exp
-
   let no_overflow (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
     | exception Invalid_argument _ -> false (* TODO: why this? *)
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
-      let r = exp_does_not_contain_top ask exp in
+      let r = ask.f (MayOverflow exp) in
       if M.tracing then M.trace "no_o" "no_o exp: %a %a -> %b \n" d_exp exp d_ikind ik r;
       r
 
@@ -625,23 +598,15 @@ struct
     if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
-    if M.tracing then M.trace "combine" "Var tainted: %a\n" (Queries.AD.pretty ) tainted;
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
-    if M.tracing then M.trace "combine" "";
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
         | Some (Local v) when AllocSize.mem_varinfo v || PointerMap.mem_varinfo v || ArrayMap.mem_varinfo v -> true (* keep ghost Variables already filtered out in return *)
-        | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> 
-          if M.tracing then M.trace "combine" "remove no record %a\n" (docOpt (CilType.Varinfo.pretty())) (RV.to_cil_varinfo var);
-          false (* remove locals and globals, for which no record exists in the new_fun_apr *)
-        | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> 
-          if M.tracing then M.trace "combine" "remove tainted %a\n" CilType.Varinfo.pretty v;
-          true (* keep locals and globals, which have not been touched by the call *)
-        | v -> 
-          if M.tracing then M.trace "combine" "remove else %s\n" (match v with |None -> "none"  | Some v -> (VM.var_name) v );
-          false (* remove everything else (globals, global privs, reachable things from the caller) *)
+        | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
+        | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
+        | v -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)

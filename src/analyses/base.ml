@@ -1399,10 +1399,12 @@ struct
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
     | Q.MayOverflow e ->  
+      MCP.lookUpCache := false;
       IntDomain.local_no_overflow := true;
-      if M.tracing then M.trace "apron" "exp %a\n" d_exp e;
+      if M.tracing then M.trace "no_ov" "exp %a\n" d_exp e;
       ignore(query_evalint ~ctx ctx.local  e);
-      !IntDomain.local_no_overflow ;
+      MCP.lookUpCache := true;
+      !IntDomain.local_no_overflow 
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

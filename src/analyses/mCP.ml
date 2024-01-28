@@ -180,13 +180,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-        { ctx with
+         { ctx with
           local = local';
           ask = ask
-        }
-      and ask q = query ctx' q
-      in
-      ctx' *)
+         }
+         and ask q = query ctx' q
+         in
+         ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function
@@ -249,10 +249,10 @@ struct
     let anyq = Queries.Any q in
     if M.tracing then M.traceli "query" "query %a\n" Queries.Any.pretty anyq;
     let r = match Queries.Hashtbl.find_option querycache anyq with
-      | Some r ->
+      | Some r when !lookUpCache ->
         if M.tracing then M.trace "query" "cached\n";
         Obj.obj r
-      | None ->
+      | _ ->
         let module Result = (val Queries.Result.lattice q) in
         if Queries.Set.mem anyq asked then (
           if M.tracing then M.trace "query" "cycle\n";
