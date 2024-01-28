@@ -115,42 +115,13 @@ struct
   let get_coeff_vec t texp = timing_wrap "coeff_vec" (get_coeff_vec t) texp
 end
 
-(** As it is specifically used for the new affine equality domain, it can only provide bounds if the expression contains known constants only and in that case, min and max are the same. *)
-module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ExtendedConvBounds with type t = VarManagement(Vc) (Mx).t) =
-struct
-  include VarManagement (Vc) (Mx)
-
-  let bound_texpr t texpr =
-    let texpr = Texpr1.to_expr texpr in
-    match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
-      let int_val = Mpqf.get_num c in
-      Some int_val, Some int_val
-    | _ -> None, None
-
-
-  let bound_texpr d texpr1 =
-    let res = bound_texpr d texpr1 in
-    (if M.tracing then
-       match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
-       | _ -> ()
-    );
-    res
-
-
-  let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
-end
-
 module D(Vc: AbstractVector) (Mx: AbstractMatrix) =
 struct
   include Printable.Std
   include ConvenienceOps (Mpqf)
   include VarManagement (Vc) (Mx)
 
-  module Bounds = ExpressionBounds (Vc) (Mx)
-
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
+  module Convert = SharedFunctions.Convert (V) (struct let allow_global = true end) (SharedFunctions.Tracked)
 
   type var = V.t
 
@@ -204,6 +175,25 @@ struct
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
+
+  let eval_interval t texpr =
+    let texpr = Texpr1.to_expr texpr in
+    match Option.bind (get_coeff_vec t texpr) to_constant_opt with
+    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
+      let int_val = Mpqf.get_num c in
+      Some int_val, Some int_val
+    | _ -> None, None
+
+  let eval_interval d texpr1 =
+    let res = eval_interval d texpr1 in
+    (if M.tracing then
+       match res with
+       | Some min, Some max ->  if M.tracing then M.tracel "eval_interval" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max);
+       | _ -> ()
+    );
+    res
+
+  let eval_interval d texpr1 = timing_wrap "eval_interval calculation" (eval_interval d) texpr1
 
   let name () = "affeq"
 
@@ -417,8 +407,7 @@ struct
 
   let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    (* TODO: Do we need to do a constant folding here? It happens for texpr1_of_cil_exp *)
-    match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
+    match Convert.texpr1_expr_of_cil_exp t t.env exp no_ov with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
       if is_bot t then t else forget_vars t [var]
@@ -501,11 +490,10 @@ struct
 
   (** Assert a constraint expression.
 
-      Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
-      We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
-
-
-  module BoundsCheck = SharedFunctions.BoundsCheckMeetTcons (Bounds) (V)
+      The overflow is completely handled by the flag "no_ov",
+      which is set in relationAnalysis.ml via the function no_overflow.
+      In case of a potential overflow, "no_ov" is set to false
+      and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow *)
 
   let meet_tcons t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
@@ -513,39 +501,35 @@ struct
       (* Flip the sign of the const. val in coeff vec *)
       let coeff = Vector.nth e (Vector.length e - 1) in
       Vector.set_val_with e (Vector.length e - 1) (Mpqf.neg coeff);
-      let res =
-        if is_bot t then
-          bot ()
-        else
-          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e in
-          if Option.is_none opt_m then bot () else {d = opt_m; env = t.env}
-      in
-      BoundsCheck.meet_tcons_one_var_eq res expr
+      if is_bot t then
+        bot ()
+      else
+        let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e in
+        if Option.is_none opt_m then bot () else {d = opt_m; env = t.env}
+
     in
-    try
-      match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-      | Some v ->
-        begin match to_constant_opt v, Tcons1.get_typ tcons with
-          | Some c, DISEQ -> check_const (=:) c
-          | Some c, SUP -> check_const (<=:) c
-          | Some c, EQ -> check_const (<>:) c
-          | Some c, SUPEQ -> check_const (<:) c
-          | None, DISEQ
-          | None, SUP ->
-            if equal (meet_vec v) t then
-              bot_env
-            else
-              t
-          | None, EQ ->
-            let res = meet_vec v in
-            if is_bot res then
-              bot_env
-            else
-              res
-          | _ -> t
-        end
-      | None -> t
-    with BoundsCheck.NotRefinable -> t
+    match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+    | Some v ->
+      begin match to_constant_opt v, Tcons1.get_typ tcons with
+        | Some c, DISEQ -> check_const (=:) c
+        | Some c, SUP -> check_const (<=:) c
+        | Some c, EQ -> check_const (<>:) c
+        | Some c, SUPEQ -> check_const (<:) c
+        | None, DISEQ
+        | None, SUP ->
+          if equal (meet_vec v) t then
+            bot_env
+          else
+            t
+        | None, EQ ->
+          let res = meet_vec v in
+          if is_bot res then
+            bot_env
+          else
+            res
+        | _ -> t
+      end
+    | None -> t
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
@@ -557,14 +541,13 @@ struct
     if M.tracing then M.tracel "ops" "unify: %s %s -> %s\n" (show a) (show b) (show res);
     res
 
-  let assert_cons d e negate no_ov =
-    let no_ov = Lazy.force no_ov in
-    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b" d_exp e no_ov;
+  let assert_constraint d e negate no_ov =
+    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
     match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
     | tcons1 -> meet_tcons d tcons1 e
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov
+  let assert_constraint d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint d e negate) no_ov
 
   let relift t = t
 
@@ -584,9 +567,9 @@ struct
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
-  let env (t: Bounds.t) = t.env
+  let env t = t.env
 
-  type marshal = Bounds.t
+  type marshal = t
 
   let marshal t = t
 

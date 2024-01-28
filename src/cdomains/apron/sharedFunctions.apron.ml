@@ -57,15 +57,8 @@ type unsupported_cilExp =
   | BinOp_not_supported (** BinOp constructor not supported. *)
 [@@deriving show { with_path = false }]
 
-(** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
-module type ConvBounds =
-sig
-  type t
-  val bound_texpr: t -> Texpr1.t -> Z.t option * Z.t option
-end
-
 (** Conversion from CIL expressions to Apron. *)
-module ApronOfCil (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked) =
+module ApronOfCil (V: SV) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked) =
 struct
   open Texpr1
   open Tcons1
@@ -77,7 +70,7 @@ struct
       | _ -> None (* for other exception *)
     )
 
-  let texpr1_expr_of_cil_exp d env exp no_ov =
+  let texpr1_expr_of_cil_exp _ env exp _ =
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
@@ -99,8 +92,7 @@ struct
       | exp ->
         match Cilfacade.get_ikind_exp exp with
         | ik ->
-          let expr =
-            match exp with
+          begin match exp with
             | UnOp (Neg, e, _) ->
               Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
             | BinOp (PlusA, e1, e2, _) ->
@@ -123,26 +115,22 @@ struct
                   raise (Unsupported_CilExp (Cast_not_injective t))
               end
             | _ ->
-              raise (Unsupported_CilExp Exp_not_supported)
-          in
-          if not no_ov then (
-            let (type_min, type_max) = IntDomain.Size.range ik in
-            let texpr1 = Texpr1.of_expr env expr in
-            match Bounds.bound_texpr d texpr1 with
-            | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
-            | min_opt, max_opt ->
-              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
-              raise (Unsupported_CilExp Overflow)
-          );
-          expr
+              raise (Unsupported_CilExp Exp_not_supported) end
         | exception (Cilfacade.TypeOfError _ as e)
         | exception (Invalid_argument _ as e) ->
           raise (Unsupported_CilExp (Exp_typeOf e))
     in
     texpr1_expr_of_cil_exp exp
 
+  let texpr1_expr_of_cil_exp d env exp no_ov =
+    let exp = Cil.constFold false exp in
+    if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
+    && not (Lazy.force no_ov) then
+      (raise (Unsupported_CilExp Overflow))
+    else
+      texpr1_expr_of_cil_exp d env exp no_ov
+
   let texpr1_of_cil_exp d env e no_ov =
-    let e = Cil.constFold false e in
     Texpr1.of_expr env (texpr1_expr_of_cil_exp d env e no_ov)
 
   let tcons1_of_cil_exp d env e negate no_ov =
@@ -249,9 +237,9 @@ struct
 end
 
 (** Conversion between CIL expressions and Apron. *)
-module Convert (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked)=
+module Convert (V: SV) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked)=
 struct
-  include ApronOfCil (V) (Bounds) (Arg) (Tracked)
+  include ApronOfCil (V) (Arg) (Tracked)
   include CilOfApron (V)
 end
 
@@ -366,18 +354,18 @@ end
 
 
 
-(** A more specific module type for RelationDomain.RelD2 with ConvBounds integrated and various apron elements.
+(** A more specific module type for RelationDomain.RelD2 with various apron elements.
     It is designed to be the interface for the D2 modules in affineEqualityDomain and apronDomain and serves as a functor argument for AssertionModule. *)
 module type AssertionRelS =
 sig
   type t
-  module Bounds: ConvBounds with type t = t
 
   val is_bot_env: t -> bool
 
   val env: t -> Environment.t
 
-  val assert_cons: t -> exp -> bool -> bool Lazy.t -> t
+  val assert_constraint: t -> exp -> bool -> bool Lazy.t -> t
+  val eval_interval : t -> Texpr1.t -> Z.t option * Z.t option
 end
 
 module Tracked: RelationDomain.Tracked =
@@ -401,28 +389,28 @@ struct
   type nonrec var = V.t
   module Tracked = Tracked
 
-  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (Tracked)
+  module Convert = Convert (V) (struct let allow_global = false end) (Tracked)
 
-  let rec exp_is_cons = function
+  let rec exp_is_constraint = function
     (* constraint *)
     | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_cons e1 && exp_is_cons e2
-    | UnOp (LNot,e,_) -> exp_is_cons e
+    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_constraint e1 && exp_is_constraint e2
+    | UnOp (LNot,e,_) -> exp_is_constraint e
     (* expression *)
     | _ -> false
 
-  (* TODO: move logic-handling assert_cons from Apron back to here, after fixing affeq bot-bot join *)
+  (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
 
   (** Assert any expression. *)
   let assert_inv d e negate no_ov =
     let e' =
-      if exp_is_cons e then
+      if exp_is_constraint e then
         e
       else
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
     in
-    assert_cons d e' negate no_ov
+    assert_constraint d e' negate no_ov
 
   let check_assert d e no_ov =
     if is_bot_env (assert_inv d e false no_ov) then
@@ -433,10 +421,10 @@ struct
       `Top
 
   (** Evaluate non-constraint expression as interval. *)
-  let eval_interval_expr d e =
-    match Convert.texpr1_of_cil_exp d (env d) e false with (* why implicit false no_ov false here? *)
+  let eval_interval_expr d e no_ov =
+    match Convert.texpr1_of_cil_exp d (env d) e no_ov with
     | texpr1 ->
-      Bounds.bound_texpr d texpr1
+      let c = eval_interval d texpr1 in c
     | exception Convert.Unsupported_CilExp _ ->
       (None, None)
 
@@ -448,14 +436,14 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "relation" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
-      if exp_is_cons e then
+      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B\n" d_plainexp e (exp_is_constraint e);
+      if exp_is_constraint e then
         match check_assert d e no_ov with
         | `True -> ID.of_bool ik true
         | `False -> ID.of_bool ik false
         | `Top -> ID.top_of ik
       else
-        match eval_interval_expr d e with
+        match eval_interval_expr d e no_ov with
         | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
         | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
         | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
@@ -476,42 +464,4 @@ module Mpqf = struct
 
   let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
-end
-
-
-(** Overflow handling for meet_tcons in affineEqualityDomain and linearTwoVarEqualityDomain.
-
-    It refines after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
-    We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either raise the exception "NotRefinable" or set it to bottom. *)
-module type ExtendedConvBounds =
-sig
-  include ConvBounds
-  val get_env: t -> Environment.t
-  val bot : unit -> t
-end
-module BoundsCheckMeetTcons (Bounds: ExtendedConvBounds) (V: SV) = struct
-  exception NotRefinable
-  module Convert = Convert (V) (Bounds) (struct let allow_global = true end) (Tracked)
-
-  let meet_tcons_one_var_eq res expr =
-    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
-    match Convert.find_one_var expr with
-    | None -> overflow_res res
-    | Some v ->
-      let ik = Cilfacade.get_ikind v.vtype in
-      if not (Cil.isSigned ik) then
-        raise NotRefinable
-      else
-        match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res (Bounds.get_env res) (Lval (Cil.var v)) true) with
-        | Some min, Some max ->
-          assert (Z.equal min max); (* other bounds impossible in affeq *)
-          let (min_ik, max_ik) = IntDomain.Size.range ik in
-          if Z.lt min min_ik || Z.gt max max_ik then
-            if IntDomain.should_ignore_overflow ik then
-              Bounds.bot ()
-            else
-              raise NotRefinable
-          else res
-        | exception Convert.Unsupported_CilExp _
-        | _ -> overflow_res res
 end
