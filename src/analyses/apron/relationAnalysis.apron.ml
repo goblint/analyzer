@@ -176,7 +176,7 @@ struct
 
   let no_overflow (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument _ -> false (* TODO: why this? *)
+    | exception Invalid_argument _ -> false
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
       if IntDomain.should_wrap ik then
@@ -184,14 +184,13 @@ struct
       else if IntDomain.should_ignore_overflow ik then
         true
       else
-        not (Queries.ID.is_top_of ik (ask.f (EvalInt exp)))
+        not (ask.f (MaySignedOverflow exp))
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in
     if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a\n" res d_exp exp;
     res
   )
-
 
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
@@ -619,8 +618,6 @@ struct
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let no_overflow ctx' exp' =
-      IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in (* TODO: separate no_overflow? *)
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
@@ -634,7 +631,7 @@ struct
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)\n" d_exp e d_plainexp e;
       if M.tracing then M.trace "evalint" "relation st: %a\n" D.pretty ctx.local;
-      let r = eval_int e (lazy(no_overflow ctx e)) in
+      let r = eval_int e (no_overflow (Analyses.ask_of_ctx ctx) e) in
       if M.tracing then M.traceu "evalint" "relation query %a -> %a\n" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->
