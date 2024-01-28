@@ -568,17 +568,31 @@ struct
       else
         match exp, c_typed with
         | UnOp (LNot, e, _), Int c ->
-          let ikind = Cilfacade.get_ikind_exp e in
-          let c' =
-            match ID.to_bool (unop_ID LNot c) with
-            | Some true ->
-              (* i.e. e should evaluate to [1,1] *)
-              (* LNot x is 0 for any x != 0 *)
-              ID.of_excl_list ikind [BI.zero]
-            | Some false -> ID.of_bool ikind false
-            | _ -> ID.top_of ikind
-          in
-          inv_exp (Int c') e st
+          (match Cilfacade.typeOf e with
+           | TInt  _ | TPtr _ ->
+             let ikind = Cilfacade.get_ikind_exp e in
+             let c' =
+               match ID.to_bool (unop_ID LNot c) with
+               | Some true ->
+                 (* i.e. e should evaluate to [1,1] *)
+                 (* LNot x is 0 for any x != 0 *)
+                 ID.of_excl_list ikind [BI.zero]
+               | Some false -> ID.of_bool ikind false
+               | _ -> ID.top_of ikind
+             in
+             inv_exp (Int c') e st
+           | TFloat(fkind, _) when ID.to_bool (unop_ID LNot c) = Some false ->
+             (* C99 §6.5.3.3/5 *)
+             (* The result of the logical negation operator ! is 0 if the value of its operand compares *)
+             (* unequal to 0, 1 if the value of its operand compares equal to 0. The result has type int. *)
+             (* The expression !E is equivalent to (0==E). *)
+             (* NaN compares unequal to 0 so no problems *)
+             (* We do not have exclusions for floats, so we do not bother here with the other case *)
+             let zero_float = FD.of_const fkind 0. in
+             inv_exp (Float zero_float) e st
+           | _ -> st
+
+          )
         | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)

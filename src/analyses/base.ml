@@ -178,14 +178,15 @@ struct
     | LNot -> ID.lognot
 
   let unop_FD = function
-    | Neg  -> FD.neg
+    | Neg  -> (fun v -> (Float (FD.neg v):value))
+    | LNot -> (fun c -> Int (FD.eq c (FD.of_const (FD.get_fkind c) 0.)))
     (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> FD.top_of (FD.get_fkind c))
+    | _ -> (fun c -> Float (FD.top_of (FD.get_fkind c)))
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ: value -> value = function
     | Int v1 -> Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
-    | Float v -> Float (unop_FD op v)
+    | Float v -> unop_FD op v
     | Address a when op = LNot ->
       if AD.is_null a then
         Int (ID.of_bool (Cilfacade.get_ikind typ) true)
