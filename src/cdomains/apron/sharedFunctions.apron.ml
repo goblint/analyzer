@@ -57,7 +57,11 @@ type unsupported_cilExp =
   | BinOp_not_supported (** BinOp constructor not supported. *)
 [@@deriving show { with_path = false }]
 
-(** Conversion from CIL expressions to Apron. *)
+(** Conversion from CIL expressions to Apron.
+    This is used by the domains "affine equalities" and "linear two variable equalities".
+    It also handles the overflow through the flag "no_ov".
+    For this reason it was divided from the Convert module for the pure apron domains "ApronOfCilForApronDomains",
+*)
 module ApronOfCil (V: SV) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked) =
 struct
   open Texpr1
