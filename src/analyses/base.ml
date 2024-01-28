@@ -878,10 +878,10 @@ struct
       | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~ctx st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
         (let v = eval_rv ~ctx st exp in
-        try 
-          VD.cast ~torg:(Cilfacade.typeOf exp) t v
-        with Cilfacade.TypeOfError _  -> 
-          VD.cast t v)
+         try 
+           VD.cast ~torg:(Cilfacade.typeOf exp) t v
+         with Cilfacade.TypeOfError _  -> 
+           VD.cast t v)
       | SizeOf _
       | Real _
       | Imag _
