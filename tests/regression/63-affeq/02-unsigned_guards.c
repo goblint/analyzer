@@ -11,8 +11,10 @@ int main(){
         __goblint_check(i == 3); // UNKNOWN!
     }
 
-    unsigned int i;
-    if (i - 2u == 4294967295u) {
+    unsigned int i2;
+    if (i2 - 2u == 4294967295u) {
+                printf("i2");
+                printf("%u\n", i2);
         __goblint_check (i == 4294967297); // FAIL!
     }
 
@@ -29,8 +31,8 @@ int main(){
         __goblint_check(1);
     }
 
-    unsigned int x = 8;
-    if (x == 8u) {
+    unsigned int x2 = 8;
+    if (x2 == 8u) {
         __goblint_check(1); // reachable
     }
     return 0;
