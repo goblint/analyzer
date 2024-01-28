@@ -1220,33 +1220,33 @@ struct
     match Cilfacade.get_ikind_exp exp with
     | exception _ -> BoolDomain.MayBool.top ()
     | ik ->
-      let r = match eval_rv_ask_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp with
-        | Int i -> `Lifted i
-        | _   -> Queries.ID.top ()
-        | exception (IntDomain.ArithmeticOnIntegerBot _) -> Queries.ID.top () in
-      if Cil.isSigned ik && Queries.ID.is_top_of ik r then
-        true (** if EvalInt returns top, there was probably an overflow.
-                 Otherwise, to be sure that there is no overflow, we need to check each subexpression *)
-      else
-        match exp with
-        | Const _
-        | SizeOf _
-        | SizeOfStr _
-        | AlignOf _
-        | AddrOfLabel _ -> false
-        | Real e
-        | Imag e
-        | SizeOfE e
-        | AlignOfE e
-        | UnOp (_, e, _)
-        | CastE (_, e) -> exp_may_signed_overflow ctx e
-        | BinOp (_, e1, e2, _) ->
+      let exp_is_top = match eval_rv_ask_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp with
+        | Int i ->Queries.ID.is_top_of ik (`Lifted i)
+        | _   -> true
+        | exception (IntDomain.ArithmeticOnIntegerBot _) -> true in
+      match exp with
+      | Const _
+      | SizeOf _
+      | SizeOfStr _
+      | AlignOf _
+      | AddrOfLabel _ -> false
+      | Real e
+      | Imag e
+      | SizeOfE e
+      | AlignOfE e
+      | CastE (_, e) -> exp_may_signed_overflow ctx e
+      | UnOp (_, e, _) ->
+        if Cil.isSigned ik && exp_is_top then true
+        (** if EvalInt returns top, there was probably an overflow.
+                Otherwise, to be sure that there is no overflow, we need to check each subexpression *)
+        else exp_may_signed_overflow ctx e
+      | BinOp (_, e1, e2, _) -> if Cil.isSigned ik && exp_is_top then true else
           exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2
-        | Question (e1, e2, e3, _) ->
-          exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2 || exp_may_signed_overflow ctx e3
-        | Lval lval
-        | AddrOf lval
-        | StartOf lval -> lval_may_signed_overflow ctx lval
+      | Question (e1, e2, e3, _) ->
+        exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2 || exp_may_signed_overflow ctx e3
+      | Lval lval
+      | AddrOf lval
+      | StartOf lval -> lval_may_signed_overflow ctx lval
   and lval_may_signed_overflow ctx (lval : lval) =
     let (host, offset) = lval in
     let host_may_signed_overflow = function
@@ -1425,7 +1425,9 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
-    | Q.MaySignedOverflow e -> exp_may_signed_overflow ctx e
+    | Q.MaySignedOverflow e -> (let res = exp_may_signed_overflow ctx e in
+                                if M.tracing then M.traceli "signed_overflow" "base exp_may_signed_overflow %a. Result = %b\n" d_plainexp e res; res
+                               )
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

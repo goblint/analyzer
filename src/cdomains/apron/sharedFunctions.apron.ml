@@ -114,8 +114,8 @@ struct
                 | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
                   raise (Unsupported_CilExp (Cast_not_injective t))
               end
-            | _ ->
-              raise (Unsupported_CilExp Exp_not_supported) end
+            | _ -> (if M.tracing then M.trace "convert" "Unsupported_CilExp: %a\n" d_plainexp exp;
+                    raise (Unsupported_CilExp Exp_not_supported)) end
         | exception (Cilfacade.TypeOfError _ as e)
         | exception (Invalid_argument _ as e) ->
           raise (Unsupported_CilExp (Exp_typeOf e))
@@ -123,12 +123,14 @@ struct
     texpr1_expr_of_cil_exp exp
 
   let texpr1_expr_of_cil_exp d env exp no_ov =
+    if M.tracing then M.trace "convert" "texpr1_expr_of_cil_exp: %a\n" d_plainexp exp;
     let exp = Cil.constFold false exp in
-    if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
-    && not (Lazy.force no_ov) then
-      (raise (Unsupported_CilExp Overflow))
-    else
-      texpr1_expr_of_cil_exp d env exp no_ov
+    begin try
+        if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
+        && not (Lazy.force no_ov) then
+          (raise (Unsupported_CilExp Overflow))
+      with Invalid_argument _ -> () end;
+    texpr1_expr_of_cil_exp d env exp no_ov
 
   let texpr1_of_cil_exp d env e no_ov =
     Texpr1.of_expr env (texpr1_expr_of_cil_exp d env e no_ov)

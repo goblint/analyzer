@@ -689,11 +689,12 @@ struct
     else
       false
 
+  module Convert = SharedFunctions.Convert (V) (struct let allow_global = true end) (Tracked)
+
   let no_overflow_apron d env expr =
     match Cilfacade.get_ikind_exp expr with
     | ik ->
       let (type_min, type_max) = IntDomain.Size.range ik in
-      let module Convert = SharedFunctions.Convert (V) (struct let allow_global = true end) (Tracked) in
       let texpr = Convert.texpr1_of_cil_exp d env expr (Lazy.from_val true) in
       begin match Bounds.bound_texpr d texpr with
         | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0
@@ -703,6 +704,15 @@ struct
           false end
     | exception (Cilfacade.TypeOfError _)
     | exception (Invalid_argument _) -> false
+
+  let no_overflow_apron_constraint d env expr =
+    match expr with
+    | BinOp (r, e1, e2, _) ->
+      (try (no_overflow_apron d env e1 && no_overflow_apron d env e2)
+       with (Convert.Unsupported_CilExp (Var_not_found v)) -> false)
+    | _ -> raise (Convert.Unsupported_CilExp Exp_not_supported)
+
+
 
   let widen x y =
     let x_env = A.env x in
@@ -719,10 +729,9 @@ struct
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
-          let module Convert = SharedFunctions.Convert (V) (struct let allow_global = true end) (Tracked) in
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
-              let no_overflow e = lazy(no_overflow_apron y y_env e)
+              let no_overflow e = lazy(no_overflow_apron_constraint y y_env e)
               in
               match Convert.tcons1_of_cil_exp y y_env e false (no_overflow e) with
               | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
