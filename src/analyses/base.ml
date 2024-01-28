@@ -1216,6 +1216,50 @@ struct
     else
       Invariant.none
 
+  let rec exp_may_signed_overflow ctx exp =
+    match Cilfacade.get_ikind_exp exp with
+    | exception _ -> BoolDomain.MayBool.top ()
+    | ik ->
+      let r = match eval_rv_ask_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp with
+        | Int i -> `Lifted i
+        | _   -> Queries.ID.top ()
+        | exception (IntDomain.ArithmeticOnIntegerBot _) -> Queries.ID.top () in
+      if Cil.isSigned ik && Queries.ID.is_top_of ik r then
+        true (** if EvalInt returns top, there was probably an overflow.
+                 Otherwise, to be sure that there is no overflow, we need to check each subexpression *)
+      else
+        match exp with
+        | Const _
+        | SizeOf _
+        | SizeOfStr _
+        | AlignOf _
+        | AddrOfLabel _ -> false
+        | Real e
+        | Imag e
+        | SizeOfE e
+        | AlignOfE e
+        | UnOp (_, e, _)
+        | CastE (_, e) -> exp_may_signed_overflow ctx e
+        | BinOp (_, e1, e2, _) ->
+          exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2
+        | Question (e1, e2, e3, _) ->
+          exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2 || exp_may_signed_overflow ctx e3
+        | Lval lval
+        | AddrOf lval
+        | StartOf lval -> lval_may_signed_overflow ctx lval
+  and lval_may_signed_overflow ctx (lval : lval) =
+    let (host, offset) = lval in
+    let host_may_signed_overflow = function
+      | Var v -> false
+      | Mem e -> exp_may_signed_overflow ctx e
+    in
+    let rec offset_may_signed_overflow = function
+      | NoOffset -> false
+      | Index (e, o) -> exp_may_signed_overflow ctx e || offset_may_signed_overflow o
+      | Field (f, o) -> offset_may_signed_overflow o
+    in
+    host_may_signed_overflow host || offset_may_signed_overflow offset
+
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
@@ -1381,6 +1425,7 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
+    | Q.MaySignedOverflow e -> exp_may_signed_overflow ctx e
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
