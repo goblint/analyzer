@@ -114,6 +114,7 @@ sig
 
   val assign_exp : t -> var -> exp -> bool Lazy.t -> t
   val assign_var : t -> var -> var -> t
+  val assign_var_with : t -> var -> var -> unit
   val assign_var_parallel_with : t -> (var * var) list -> unit
   val assign_var_parallel' : t -> var list -> var list -> t
   val substitute_exp : t -> var -> exp -> bool Lazy.t -> t

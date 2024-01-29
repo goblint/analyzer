@@ -93,6 +93,7 @@ module Verify: F =
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let one_side ~vh ~x ~y ~d =
+      ignore (Pretty.eprintf "one_side %a\n" S.Var.pretty_trace y);
       let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in
       if S.Var.is_write_only y then
         VH.replace vh y (S.Dom.join y_lhs d) (* HACK: allow warnings/accesses to be added without complaining *)

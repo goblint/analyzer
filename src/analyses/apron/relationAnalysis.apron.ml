@@ -294,12 +294,14 @@ struct
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
+    (* if M.tracing then M.tracel "combine" "relation enter oldd: %a\n" RD.pretty st.rel; *)
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
+    if M.tracing then M.tracel "combine" "relation enter addd: %a\n" RD.pretty new_rel;
     (* RD.assign_exp_parallel_with new_rel arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
     let new_rel =
@@ -341,6 +343,15 @@ struct
     in
     let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
     RD.assign_var_parallel_with new_rel local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
+    (* let new_rel = RD.assign_var_parallel' new_rel (List.map RV.local formals) (List.map RV.arg formals) in *)
+    (* List.iter (fun x ->
+        RD.assign_var_with new_rel (RV.local x) (RV.arg x);
+      ) formals; *)
+    (* let new_rel = List.fold_left (fun acc x ->
+        RD.assign_var acc (RV.local x) (RV.arg x)
+      ) (RD.copy new_rel) formals
+    in *)
+    (* let new_rel = RD.copy new_rel in *)
     {st with rel = new_rel}
 
   let return ctx e f =
@@ -430,7 +441,7 @@ struct
               RD.assign_var st.rel (RV.local v) RV.return
             )
         | None ->
-          unify_st
+          {unify_st with rel = RD.copy unify_st.rel}
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
       unify_st'

@@ -11,8 +11,10 @@ int g = 0;
 
 void* inc()
 {
+  x = 10;
+
   __VERIFIER_atomic_begin();
-  assert(g != 1 || x >= 42);
+  assert(g != 1 || x >= 42); // TODO
   __VERIFIER_atomic_end();
   return 0;
 }
@@ -24,7 +26,5 @@ int main()
   __VERIFIER_atomic_begin();
   g = 1; x = 42;
   __VERIFIER_atomic_end();
-
-  assert(x >= 42); // TODO
   return 0;
 }

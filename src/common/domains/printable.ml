@@ -120,8 +120,8 @@ struct
   let pretty () = lift_f (Base.pretty ())
 
   (* Debug printing with tags *)
-  (* let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
-     let show x = (Base.show x.BatHashcons.obj) ^ "[" ^ string_of_int x.BatHashcons.tag ^ "," ^ string_of_int x.BatHashcons.hcode ^ "]" *)
+  let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
+     let show x = (Base.show x.BatHashcons.obj) ^ "[" ^ string_of_int x.BatHashcons.tag ^ "," ^ string_of_int x.BatHashcons.hcode ^ "]"
 
   let relift x = let y = Base.relift x.BatHashcons.obj in HC.hashcons htable y
   let name () = "HConsed "^Base.name ()
@@ -144,7 +144,7 @@ struct
       false
     )
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
-  (* let equal = equal_debug *)
+  let equal = equal_debug
   let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end
 
