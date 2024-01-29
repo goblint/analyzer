@@ -348,24 +348,36 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
      | _ -> ());
     result
 
-  let eval_comparison_binop min max sym eval_operation (op1: t) op2 =
+  let eval_comparison_binop min max reflexive eval_operation (op1: t) op2 =
     warn_on_specials_comparison op1 op2;
     let a, b =
       match (op1, op2) with
       | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
       | Interval v1, Interval v2 -> eval_operation v1 v2
-      | NaN, NaN -> (0,0)
-      | NaN, _ | _, NaN -> (0,0)
-      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
-      | v1, v2 when v1 = min -> if v2 <> min || sym then (1,1) else (0,0)
-      | _, v2 when v2 = min -> (0,0) (* first argument cannot be min *)
-      | v1, v2 when v1 = max -> if v2 <> max || sym then (0,0) else (0,0)
+      | NaN, _ | _, NaN -> (0,0) (* comparisons involving NaN always return false *)
+      | Top, _ | _, Top -> (0,1) (* comparisons with Top yield top *)
+      (* neither of the arguments below is Top/Bot/NaN *)
+      | v1, v2 when v1 = min -> 
+        (* v1 is the minimal element w.r.t. the order *)  
+        if v2 <> min || reflexive then 
+          (* v2 is different, i.e., greater or the relation is reflexive *)
+          (1,1)
+        else
+          (0,0)
+      | _, v2 when v2 = min ->
+        (* second argument is minimal, first argument cannot be *)
+        (0,0)
+      | v1, v2 when v1 = max ->
+        (* v1 is maximal element w.r.t. the order *)
+        if v2 = max && reflexive then
+          (* v2 is also maximal and the relation is reflexive *)
+          (1,1)
+        else 
+          (0,0)
       | _, v2 when v2 = max -> (1,1) (* first argument cannot be max *)
       | _ -> (0, 1)
     in
-    IntDomain.IntDomTuple.of_interval IBool
-      (Z.of_int a, Z.of_int b)
-
+    IntDomain.IntDomTuple.of_interval IBool (Z.of_int a, Z.of_int b)
 
   let eval_neg = function
     | (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
