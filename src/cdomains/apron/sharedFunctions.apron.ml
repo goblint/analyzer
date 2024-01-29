@@ -89,7 +89,28 @@ struct
 
   (** This version with an overflow check is used by the apron domains such as polyhedra and octagons.
       They do the overflow handling while they convert the expression to Texpr1. *)
-  let texpr1_expr_of_cil_exp_with_overflow_check d env exp no_ov =
+  let overflow_handling_apron no_ov ik env expr d exp =
+    if not no_ov then (
+      let (type_min, type_max) = IntDomain.Size.range ik in
+      let texpr1 = Texpr1.of_expr env expr in
+      match Bounds.bound_texpr d texpr1 with
+      | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
+      | min_opt, max_opt ->
+        if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
+        raise (Unsupported_CilExp Overflow)
+    )
+
+  (** This version without an overflow check is used by the affeq and lin2vareq domains.
+          They do the overflow handling before converting to Texpr1, and store the result in the "no_ov" flag. Therefore we only check the no_ov flag here. *)
+  let no_ov_overflow_handling no_ov ik env expr d exp = begin try
+      if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
+      && not (Lazy.force no_ov) then
+        (raise (Unsupported_CilExp Overflow))
+    with Invalid_argument _ -> () (* This exception is raised by Cilfacade.get_ikind_exp
+                                     when the expression is not an integer expression, for example if it is a float expression. *)
+  end
+
+  let texpr1_expr_of_cil_exp_with_overflow_check d env exp no_ov overflow_handling =
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
@@ -136,16 +157,7 @@ struct
               end
             | _ ->
               raise (Unsupported_CilExp Exp_not_supported)
-          in
-          if not no_ov then (
-            let (type_min, type_max) = IntDomain.Size.range ik in
-            let texpr1 = Texpr1.of_expr env expr in
-            match Bounds.bound_texpr d texpr1 with
-            | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
-            | min_opt, max_opt ->
-              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
-              raise (Unsupported_CilExp Overflow)
-          );
+          in overflow_handling no_ov ik env expr d exp;
           expr
         | exception (Cilfacade.TypeOfError _ as e)
         | exception (Invalid_argument _ as e) ->
@@ -153,84 +165,13 @@ struct
     in
     texpr1_expr_of_cil_exp exp
 
-  let texpr1_of_cil_exp_with_overflow_check d env e no_ov =
-    let e = Cil.constFold false e in
-    Texpr1.of_expr env (texpr1_expr_of_cil_exp_with_overflow_check d env e no_ov)
-
-  (** This version without an overflow check is used by the affeq and lin2vareq domains.
-      They do the overflow handling before converting to Texpr1, and store the result in the "no_ov" flag. *)
-  let texpr1_expr_of_cil_exp_no_ov env exp =
-    (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp = function
-      | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob || Arg.allow_global then
-          let var =
-            if v.vglob then
-              V.global v
-            else
-              V.local v
-          in
-          if Environment.mem_var env var then
-            Var var
-          else
-            raise (Unsupported_CilExp (Var_not_found v))
-        else
-          failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
-      | Const (CInt (i, _, _)) ->
-        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
-      | exp ->
-        match Cilfacade.get_ikind_exp exp with
-        | ik ->
-          begin match exp with
-            | UnOp (Neg, e, _) ->
-              Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
-            | BinOp (PlusA, e1, e2, _) ->
-              Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | BinOp (MinusA, e1, e2, _) ->
-              Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | BinOp (Mult, e1, e2, _) ->
-              Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | BinOp (Div, e1, e2, _) ->
-              Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
-            | BinOp (Mod, e1, e2, _) ->
-              Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | CastE (TInt (t_ik, _) as t, e) ->
-              begin match IntDomain.should_ignore_overflow t_ik || IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                | true ->
-                  Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-                | false
-                | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
-                | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
-                  raise (Unsupported_CilExp (Cast_not_injective t))
-              end
-            | _ -> (if M.tracing then M.trace "convert" "Unsupported_CilExp: %a\n" d_plainexp exp;
-                    raise (Unsupported_CilExp Exp_not_supported)) end
-        | exception (Cilfacade.TypeOfError _ as e)
-        | exception (Invalid_argument _ as e) ->
-          raise (Unsupported_CilExp (Exp_typeOf e))
-    in
-    texpr1_expr_of_cil_exp exp
-
-  let texpr1_expr_of_cil_exp env exp no_ov =
-    if M.tracing then M.trace "convert" "texpr1_expr_of_cil_exp: %a\n" d_plainexp exp;
-    let exp = Cil.constFold false exp in
-    begin try
-        if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
-        && not (Lazy.force no_ov) then
-          (raise (Unsupported_CilExp Overflow))
-      with Invalid_argument _ -> () end;
-    texpr1_expr_of_cil_exp_no_ov env exp
-
   let texpr1_expr_of_cil_exp d env exp no_ov =
-    if Ov.do_overflow_check then texpr1_expr_of_cil_exp_with_overflow_check d env exp (Lazy.force no_ov)
-    else texpr1_expr_of_cil_exp env exp no_ov
+    let exp = Cil.constFold false exp in
+    if Ov.do_overflow_check then texpr1_expr_of_cil_exp_with_overflow_check d env exp (Lazy.force no_ov) overflow_handling_apron
+    else texpr1_expr_of_cil_exp_with_overflow_check d env exp no_ov no_ov_overflow_handling
 
   let texpr1_of_cil_exp d env e no_ov =
     Texpr1.of_expr env (texpr1_expr_of_cil_exp d env e no_ov)
-
-  let texpr1_of_cil_exp d env e no_ov =
-    if Ov.do_overflow_check then texpr1_of_cil_exp_with_overflow_check d env e (Lazy.force no_ov)
-    else texpr1_of_cil_exp d env e no_ov
 
   let tcons1_of_cil_exp d env e negate no_ov =
     let e = Cil.constFold false e in
