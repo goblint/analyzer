@@ -2,7 +2,6 @@
 
 open GoblintCil
 module VD = ValueDomain.Compound
-module BI = IntOps.BigIntOps
 
 module CPA =
 struct
@@ -123,7 +122,7 @@ end
 module type ExpEvaluator =
 sig
   type t
-  val eval_exp: t  ->  Cil.exp -> IntOps.BigIntOps.t option
+  val eval_exp: t  ->  Cil.exp -> Z.t option
 end
 
 (* Takes a module for privatization component and a module specifying how expressions can be evaluated inside the domain and returns the domain *)
