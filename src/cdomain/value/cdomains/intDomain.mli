@@ -54,19 +54,19 @@ sig
   (** Not equal to: [x != y] *)
 
 
-  (** {b Bit operators} *)
+  (** {b Bitwise logical operators} *)
 
   val lognot: t -> t
-  (** Bitwise not (one's complement): [~x] *)
+  (** Bitwise logical not (one's complement): [~x] *)
 
   val logand: t -> t -> t
-  (** Bitwise and: [x & y] *)
+  (** Bitwise logical and: [x & y] *)
 
   val logor : t -> t -> t
-  (** Bitwise or: [x | y] *)
+  (** Bitwise logical or: [x | y] *)
 
   val logxor: t -> t -> t
-  (** Bitwise exclusive or: [x ^ y] *)
+  (** Bitwise logical exclusive or: [x ^ y] *)
 
   val shift_left : t -> t -> t
   (** Shifting bits left: [x << y] *)

@@ -32,11 +32,17 @@ sig
 
   (* Bitwise *)
   val shift_left : t -> int -> t
+  (* shift_left x y shifts x to the left by y bits. *)
   val shift_right : t -> int -> t
+  (* shift_right x y shifts x to the right by y bits. *)
   val logand : t -> t -> t
+  (* Bitwise logical and. *)
   val logor : t -> t -> t
+  (* Bitwise logical or. *)
   val logxor : t -> t -> t
+  (* Bitwise logical exclusive or. *)
   val lognot : t -> t
+  (* Bitwise logical negation. *)
 
   (* Comparison *)
   val compare : t -> t -> int
