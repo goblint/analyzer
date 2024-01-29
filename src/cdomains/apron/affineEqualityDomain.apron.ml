@@ -115,13 +115,42 @@ struct
   let get_coeff_vec t texp = timing_wrap "coeff_vec" (get_coeff_vec t) texp
 end
 
+(** As it is specifically used for the new affine equality domain, it can only provide bounds if the expression contains known constants only and in that case, min and max are the same. *)
+module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc) (Mx).t) =
+struct
+  include VarManagement (Vc) (Mx)
+
+  let bound_texpr t texpr =
+    let texpr = Texpr1.to_expr texpr in
+    match Option.bind (get_coeff_vec t texpr) to_constant_opt with
+    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
+      let int_val = Mpqf.get_num c in
+      Some int_val, Some int_val
+    | _ -> None, None
+
+
+  let bound_texpr d texpr1 =
+    let res = bound_texpr d texpr1 in
+    (if M.tracing then
+       match res with
+       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
+       | _ -> ()
+    );
+    res
+
+
+  let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
+end
+
 module D(Vc: AbstractVector) (Mx: AbstractMatrix) =
 struct
   include Printable.Std
   include ConvenienceOps (Mpqf)
   include VarManagement (Vc) (Mx)
 
-  module Convert = SharedFunctions.Convert (V) (struct let allow_global = true end) (SharedFunctions.Tracked)
+  module Bounds = ExpressionBounds (Vc) (Mx)
+
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (struct let do_overflow_check = false end) (SharedFunctions.Tracked)
 
   type var = V.t
 
@@ -176,24 +205,7 @@ struct
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
 
-  let eval_interval t texpr =
-    let texpr = Texpr1.to_expr texpr in
-    match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
-      let int_val = Mpqf.get_num c in
-      Some int_val, Some int_val
-    | _ -> None, None
-
-  let eval_interval d texpr1 =
-    let res = eval_interval d texpr1 in
-    (if M.tracing then
-       match res with
-       | Some min, Some max ->  if M.tracing then M.tracel "eval_interval" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max);
-       | _ -> ()
-    );
-    res
-
-  let eval_interval d texpr1 = timing_wrap "eval_interval calculation" (eval_interval d) texpr1
+  let eval_interval = Bounds.bound_texpr
 
   let name () = "affeq"
 
@@ -579,6 +591,6 @@ end
 module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S3 with type var = Var.t =
 struct
   module D =  D (Vc) (Mx)
-  include SharedFunctions.AssertionModule (V) (D)
+  include SharedFunctions.AssertionModule (V) (D) (struct let do_overflow_check = false end)
   include D
 end

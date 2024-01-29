@@ -264,13 +264,35 @@ struct
 
 end
 
+
+module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
+struct
+  include VarManagement
+
+  let bound_texpr t texpr = let texpr = Texpr1.to_expr texpr in
+    match get_coeff t texpr with
+    | Some (None, offset) -> Some offset, Some offset
+    | _ -> None, None
+
+
+  let bound_texpr d texpr1 =
+    let res = bound_texpr d texpr1 in
+    match res with
+    | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
+    | _ -> res
+
+  let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
+end
+
 module D =
 struct
   include Printable.Std
   include ConvenienceOps (Mpqf)
   include VarManagement
 
-  module Convert = SharedFunctions.Convert (V) (struct let allow_global = true end) (SharedFunctions.Tracked)
+  module Bounds = ExpressionBounds
+
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (struct let do_overflow_check = false end) (SharedFunctions.Tracked)
 
   type var = V.t
 
@@ -307,18 +329,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
 
 
-  let eval_interval t texpr = let texpr = Texpr1.to_expr texpr in
-    match get_coeff t texpr with
-    | Some (None, offset) -> Some offset, Some offset
-    | _ -> None, None
-
-  let eval_interval d texpr1 =
-    let res = eval_interval d texpr1 in
-    match res with
-    | Some min, Some max ->  if M.tracing then M.tracel "eval_interval" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
-    | _ -> res
-
-  let eval_interval d texpr1 = timing_wrap "eval_interval calculation" (eval_interval d) texpr1
+  let eval_interval = Bounds.bound_texpr
 
   exception Contradiction
 
@@ -735,6 +746,6 @@ end
 module D2: RelationDomain.S3 with type var = Var.t =
 struct
   module D = D
-  include SharedFunctions.AssertionModule (V) (D)
+  include SharedFunctions.AssertionModule (V) (D) (struct let do_overflow_check = false end)
   include D
 end
