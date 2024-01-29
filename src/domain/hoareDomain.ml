@@ -174,6 +174,7 @@ end
 module type SetS =
 sig
   include SetDomain.S
+  val product_bot: (elt -> elt -> elt) -> t -> t -> t
   val apply_list: (elt list -> elt list) -> t -> t
 end
 
@@ -248,6 +249,7 @@ struct
   include SetDomain.LiftTop (S) (N)
 
   let min_elt a = B.bot ()
+  let product_bot f x y = failwith "TODO"
   let apply_list f = function
     | `Top -> `Top
     | `Lifted s -> `Lifted (S.apply_list f s)
@@ -358,7 +360,7 @@ end
     Otherwise {!Set} is sufficient.
 
     @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
-module SetEM (E: Lattice.S): SetDomain.S with type elt = E.t =
+module SetEM (E: Lattice.S): SetS with type elt = E.t =
 struct
   module H = Set (E)
   include H

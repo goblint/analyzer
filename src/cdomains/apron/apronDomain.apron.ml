@@ -973,6 +973,8 @@ module Hoare0 (D: S3) =
 struct
   include HoareDomain.SetEM (D)
 
+  let join = product_bot D.join (* Pairwise join to get consistent environments *)
+
   let top_env env = singleton (D.top_env env)
   let bot_env env = singleton (D.bot_env env)
   let is_top_env s = D.is_top_env (choose s)
