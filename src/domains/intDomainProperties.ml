@@ -145,9 +145,9 @@ struct
   let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:shift_cond CD.shift_left AD.shift_left
   let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:shift_cond CD.shift_right AD.shift_right
 
-  let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.c_lognot AD.c_lognot
-  let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.c_logand AD.c_logand
-  let valid_logor = make_valid2 ~name:"logor" ~cond:none_bot CD.c_logor AD.c_logor
+  let valid_c_lognot = make_valid1 ~name:"c_lognot" ~cond:not_bot CD.c_lognot AD.c_lognot
+  let valid_c_logand = make_valid2 ~name:"c_logand" ~cond:none_bot CD.c_logand AD.c_logand
+  let valid_c_logor = make_valid2 ~name:"c_logor" ~cond:none_bot CD.c_logor AD.c_logor
 
   let tests = [
     valid_neg;
