@@ -66,4 +66,4 @@ Include `goblint.h` when using these.
 * `__goblint_assume_join(id)` is like `pthread_join(id, NULL)`, but considers the given thread IDs must-joined even if Goblint cannot, e.g. due to non-uniqueness.
   Notably, this annotation can be used after a threads joining loop to make the assumption that the loop correctly joined all those threads.
   _Misuse of this annotation can cause unsoundness._
-* `__goblint_globalize(ptr)` forces data pointed to by `ptr` to be treated as global by simulating it escaping the thread.
+* `__goblint_globalize(ptr)` forces all data potentially pointed to by `ptr` to be treated as global by simulating it escaping the thread.
