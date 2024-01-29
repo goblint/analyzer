@@ -16,7 +16,6 @@ type t =
   | Assert of exp
   | Unassume of {exp: CilType.Exp.t; uuids: string list}
   | Longjmped of {lval: CilType.Lval.t option}
-  | RefinePointerExp of {exp: CilType.Exp.t; ad: ValueDomain.AD.t}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
 let emit_on_deadcode = function
@@ -32,8 +31,7 @@ let emit_on_deadcode = function
   | UpdateExpSplit _ (* Pointless to split on dead. *)
   | Unassume _ (* Avoid spurious writes. *)
   | Assert _ (* Pointless to refine dead. *)
-  | Longjmped _
-  | RefinePointerExp _ ->
+  | Longjmped _ ->
     false
 
 let pretty () = function
@@ -49,4 +47,3 @@ let pretty () = function
   | Assert exp -> dprintf "Assert %a" d_exp exp
   | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval
-  | RefinePointerExp {exp; ad} -> dprintf "RefinePointerExp {exp=%a; ad=%a}" CilType.Exp.pretty exp ValueDomain.AD.pretty ad 

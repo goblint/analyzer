@@ -2929,11 +2929,6 @@ struct
           {st' with cpa = CPA.remove !longjmp_return st'.cpa}
         | None -> ctx.local
       end
-    | Events.RefinePointerExp {exp; ad} ->
-      (match exp with
-       | Lval lval ->
-         set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOf exp) (Address ad)
-       | _ -> ctx.local) 
     | _ ->
       ctx.local
 end
