@@ -1,32 +1,21 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
 
-int myfunction(int x, int y){
-    __goblint_check(x < y);
+#include <goblint.h>
 
-    if (x == 0) {
-        __goblint_check(x == 0); // SUCCESS
-    } else if (y - x == 3) {
-        __goblint_check(y == x + 0); // FAILURE
-        __goblint_check(y - x == 3); // SUCCESS
-    }
-
-    return 5;
+int check_equal(int x, int y, int z) {
+  __goblint_check(x == y);
+  __goblint_check(z == y);
+  __goblint_check(x == z);
+  return 8;
 }
 
 int main(void) {
-    int x, y, z;
+  int x, y, z;
 
-    x = 0;
-    y = 5;
-    z = myfunction(x, y);
+  y = x;
+  z = y;
 
-    x = 2;
-    y = 5;
-    z = myfunction(x, y);
+  check_equal(x, y, z);
 
-    x = 1;
-    y = 3;
-    z = myfunction(x, y);
-
-    return 0;
+  return 0;
 }
