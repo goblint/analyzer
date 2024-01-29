@@ -171,9 +171,9 @@ struct
     valid_shift_left;
     valid_shift_right;
 
-    valid_lognot;
-    valid_logand;
-    valid_logor
+    valid_c_lognot;
+    valid_c_logand;
+    valid_c_logor
   ]
 end
 
