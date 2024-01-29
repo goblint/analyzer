@@ -1,5 +1,5 @@
 // SKIP PARAM: --enable ana.int.def_exc --enable ana.int.interval --set ana.activated[+] apron
-#include <goblint.h>
+int other();
 
 int main()
 {
