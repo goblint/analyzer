@@ -219,14 +219,17 @@ struct
         begin match ask (Queries.MayPointTo e) with
           | ad when not (Queries.AD.is_top ad) && (Queries.AD.cardinal ad) = 1 ->
             let replace mval =
-              let pointee = ValueDomain.Addr.Mval.to_cil_exp mval in
-              let pointee_typ = Cil.typeSig @@ Cilfacade.typeOf pointee in
-              let lval_typ = Cil.typeSig @@ Cilfacade.typeOfLval (Mem e, NoOffset) in
-              if pointee_typ = lval_typ then
-                Some pointee
-              else
-                (* there is a type-mismatch between pointee and pointer-type *)
-                (* to avoid mismatch errors, we bail on this expression *)
+              try
+                let pointee = ValueDomain.Addr.Mval.to_cil_exp mval in
+                let pointee_typ = Cil.typeSig @@ Cilfacade.typeOf pointee in
+                let lval_typ = Cil.typeSig @@ Cilfacade.typeOfLval (Mem e, NoOffset) in
+                if pointee_typ = lval_typ then
+                  Some pointee
+                else
+                  (* there is a type-mismatch between pointee and pointer-type *)
+                  (* to avoid mismatch errors, we bail on this expression *)
+                  None
+              with Cilfacade.TypeOfError _ ->
                 None
             in
             let r = Option.bind (Queries.AD.Addr.to_mval (Queries.AD.choose ad)) replace in
