@@ -1059,12 +1059,8 @@ struct
       in
       {rel = rel_local'; priv = (W.add g w,LMust.add lm lmust,l')}
     )
-    else (
-      (* let rel_side = RD.keep_vars rel_local [g_var] in
-      let rel_side = Cluster.unlock (W.singleton g) rel_side in
-      let l' = L.add lm rel_side l in *)
+    else
       {rel = rel_local; priv = (W.add g w,lmust,l)}
-    )
 
   let lock ask getg (st: relation_components_t) m =
     let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
