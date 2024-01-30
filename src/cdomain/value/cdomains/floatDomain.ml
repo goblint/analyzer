@@ -642,13 +642,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       if l' >= Float_t.zero then
         Float_t.sub Down l' (Float_t.of_float Up (Z.to_float (Float_t.to_big_int l')))
       else
-        Float_t.sub Down l' (Float_t.of_float Up (Z.to_float (IntOps.BigIntOps.sub (Float_t.to_big_int l') (Z.of_int 1))))
+        Float_t.sub Down l' (Float_t.of_float Up (Z.to_float (Z.pred (Float_t.to_big_int l'))))
     in
     let h'' =
       if h' >= Float_t.zero then
         Float_t.sub Up h' (Float_t.of_float Down (Z.to_float (Float_t.to_big_int h')))
       else
-        Float_t.sub Up h' (Float_t.of_float Down (Z.to_float (IntOps.BigIntOps.sub (Float_t.to_big_int h') (Z.of_int 1))))
+        Float_t.sub Up h' (Float_t.of_float Down (Z.to_float (Z.pred (Float_t.to_big_int h'))))
     in
     (dist, l'', h'')
 
