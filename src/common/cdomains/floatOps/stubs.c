@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
@@ -112,4 +113,9 @@ CAMLprim value max_float(value unit)
 CAMLprim value smallest_float(value unit)
 {
     return caml_copy_double(FLT_MIN);
+}
+
+CAMLprim value pi(value unit)
+{
+    return caml_copy_double(M_PI);
 }

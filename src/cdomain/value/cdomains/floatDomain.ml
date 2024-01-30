@@ -627,8 +627,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   (** 2. compresses/transforms the interval [0, k*pi] to the interval [0, 1] to ease further computations *)
   (** i.e. the it computes dist = distance, l'' = (l/(k*pi)) - floor(l/(k*pi)), h'' = (h/(k*pi)) - floor(h/(k*pi))*)
   let project_and_compress l h k =
-    let ft_over_kpi = (Float_t.mul Up (Float_t.of_float Up k) (Float_t.of_float Up overapprox_pi)) in
-    let ft_under_kpi = (Float_t.mul Down (Float_t.of_float Down k) (Float_t.of_float Down underapprox_pi)) in
+    let ft_over_kpi = (Float_t.mul Up (Float_t.of_float Up k) Float_t.pi) in
+    let ft_under_kpi = (Float_t.mul Down (Float_t.of_float Down k) Float_t.pi) in
     let l' =
       if l >= Float_t.zero then (Float_t.div Down l ft_over_kpi)
       else (Float_t.div Down l ft_under_kpi)
@@ -654,7 +654,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_cos_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 2. in
-    if Messages.tracing then Messages.trace "CstubsTrig" "sin: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
+    if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if (dist <= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) && (h'' >= l'') then
       (** case: monotonic decreasing interval*)
       Interval (Float_t.cos Down h, Float_t.cos Up l)
@@ -672,7 +672,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_sin_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 2. in
-    if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
+    if Messages.tracing then Messages.trace "CstubsTrig" "sin: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     (* phase shift -0.25 -> same phase as cos *)
     let l'' = if l'' <= Float_t.of_float Down 0.25 then Float_t.add Down l'' (Float_t.of_float Down 0.75) else Float_t.sub Down l'' (Float_t.of_float Up 0.25) in
     let h'' = if h'' <= Float_t.of_float Down 0.25 then Float_t.add Up h'' (Float_t.of_float Up 0.75) else Float_t.sub Up h'' (Float_t.of_float Down 0.25) in

@@ -12,6 +12,7 @@ module type CFloatType = sig
   val upper_bound: t
   val lower_bound: t
   val smallest : t
+  val pi : t
 
   val of_float: round_mode -> float -> t
   val to_float: t -> float option
@@ -63,6 +64,7 @@ module CDouble = struct
   let upper_bound = Float.max_float
   let lower_bound = -. Float.max_float
   let smallest = Float.min_float
+  let pi = Float.pi
 
   let of_float _ x = x
   let to_float x = Some x
@@ -103,10 +105,12 @@ module CFloat = struct
 
   external upper': unit -> float = "max_float"
   external smallest': unit -> float = "smallest_float"
+  external pi': unit -> float = "pi"
 
   let upper_bound = upper' ()
   let lower_bound = -. upper_bound
   let smallest = smallest' ()
+  let pi = pi' ()
 
   let to_float x = Some x
   let to_big_int = big_int_of_float
