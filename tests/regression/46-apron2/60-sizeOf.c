@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra
+// PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --enable ana.int.interval
 #include <stdio.h>
 #include <goblint.h>
 
