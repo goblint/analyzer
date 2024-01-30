@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron  --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none --disable warn.info --disable sem.unknown_function.invalidate.globals
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron  --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none   --enable ana.sv-comp.functions
 #include <stdlib.h>
 extern int __VERIFIER_nondet_int(void);
 
@@ -10,7 +10,7 @@ int test_fun(int a[], int N)
   {
     while (a[i] > 0) // NOWARN
     {
-      a[i]--;
+      a[i]--; // NOWARN
       res++;
     }
   }

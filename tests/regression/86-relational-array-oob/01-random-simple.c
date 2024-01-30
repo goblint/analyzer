@@ -1,4 +1,5 @@
-// PARAM: --enable ana.arrayoob    --set ana.activated[+] apron   --set ana.apron.domain octagon
+// PARAM: --enable ana.arrayoob    --set ana.activated[+] apron   --set ana.apron.domain octagon --set sem.int.signed_overflow assume_none
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@
 int main()
 {
     srand(time(NULL));
-    unsigned int len = (rand() % 32) + 3;
+     int len = (rand() % 32) + 3;
     char arr[len];
 
     for (int i = 0; i < len; i++)
