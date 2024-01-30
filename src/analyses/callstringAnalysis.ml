@@ -25,11 +25,11 @@ struct
       match elem with
       | None -> stack
       | Some e -> 
-        let new_stack = QueueImmut.push e stack in (* pushes new element to stack*)         
+        let new_stack = BatDeque.cons e stack in (* pushes new element to stack*)         
         (* removes element from stack, if stack was filled with k elements*)
-        match (QueueImmut.length new_stack - depth) with
+        match (BatDeque.size new_stack - depth) with
         | x when x <= 0 -> new_stack
-        | 1 -> QueueImmut.dequeue new_stack
+        | 1 -> fst @@ Option.get (BatDeque.rear new_stack)
         | _ -> failwith "Callstack Error: It shouldn't happen that more than one element must be deleted to maintain the correct height!"
   end
 
@@ -39,8 +39,8 @@ struct
   module G = Lattice.Unit
 
   let name () = "callstring_"^ CT.stackTypeName
-  let startstate v = `Lifted (QueueImmut.create ())
-  let exitstate v =  `Lifted (QueueImmut.create ()) (*TODO: should I use startstate here? Does this make a difference*)
+  let startstate v = `Lifted (BatDeque.empty)
+  let exitstate v =  `Lifted (BatDeque.empty) (*TODO: should I use startstate here? Does this make a difference*)
 
   let context fd x = match x with 
     | `Lifted x -> x

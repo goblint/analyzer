@@ -590,32 +590,39 @@ end
 
 module PQueue (Base: S) = 
 struct
-  type t = Base.t QueueImmut.t [@@deriving eq, ord]
+  type t = Base.t BatDeque.dq
   include Std
 
-  let show x = 
-    let elem = QueueImmut.map_to_list Base.show x in
-    "[" ^ (String.concat ", " elem) ^ "]"
+  let show x = "[" ^ (BatDeque.fold_right (fun a acc -> Base.show a ^ ", " ^ acc) x "]")
 
   let pretty () x = text (show x)
   let name () = Base.name () ^ "queue"
 
-  let relift x = QueueImmut.map Base.relift x
+  let relift x = BatDeque.map Base.relift x
 
   let printXml f xs =
     let rec loop n q =
-      let (x, xs) = QueueImmut.dequeue_tup_opt q in 
-      match x with
+      match BatDeque.front q with
       | None -> ()
-      | Some x -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x; 
+      | Some (x, xs) -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x; 
                    loop (n+1) (xs))
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs; 
     BatPrintf.fprintf f "</map>\n</value>\n"
 
-  let to_yojson q = `List (QueueImmut.map_to_list (Base.to_yojson) q)
-  let hash (q: Base.t QueueImmut.t) = QueueImmut.fold_left (fun acc x -> (acc + 71) * (Base.hash x)) 11 q
+  let to_yojson q = `List (BatDeque.to_list @@ BatDeque.map (Base.to_yojson) q)
+  let hash q = BatDeque.fold_left (fun acc x -> (acc + 71) * (Base.hash x)) 11 q
+  let equal q1 q2 = BatDeque.eq ~eq:Base.equal q1 q2
+  let compare q1 q2 = 
+    match BatDeque.front q1, BatDeque.front q2 with
+    | None, None -> 0
+    | None, Some(_, _) -> -1
+    | Some(_, _), None -> 1
+    | Some(a1, q1'), Some(a2, q2') -> 
+      let c = Base.compare a1 a2 in
+      if c <> 0 then c
+      else compare q1' q2'
 end
 
 module Liszt (Base: S) =
