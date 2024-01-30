@@ -13,6 +13,32 @@ open RelationDomain
 module M = Messages
 module VS = SetDomain.Make (CilType.Varinfo)
 
+module VarinfoDimensionMapping = struct 
+  type t = CilType.Varinfo.t * int  [@@deriving  eq, ord, hash]
+
+  let name_varinfo (v, d : varinfo * int) = 
+    v.vname ^ string_of_int d ^ "$len"
+  let describe_varinfo (v: varinfo) t = 
+    v.vname ^ "->" ^  name_varinfo t
+end 
+
+module VarinfoMapping = struct 
+  type t = CilType.Varinfo.t [@@deriving  eq, ord, hash]
+  let name_varinfo (v: t) = 
+    v.vname ^ "$len"
+  let describe_varinfo (v:varinfo) t : string = 
+    v.vname ^ "->" ^  name_varinfo t
+end 
+
+module PointerType = struct 
+  let varType  = !ptrdiffType 
+  let isGlobal = false
+end
+
+module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (PointerType)
+module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
+module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
+
 module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
   include Analyses.DefaultSpec
@@ -246,35 +272,6 @@ struct
     in
     inner e
 
-  (* Mapping lval to varinfo *)
-  module VarinfoDimensionMapping = struct 
-    type t = CilType.Varinfo.t * int  [@@deriving  eq, ord, hash]
-
-    let name_varinfo (v, d : varinfo * int) = 
-      v.vname ^ string_of_int d ^ "$len"
-    let describe_varinfo (v: varinfo) t = 
-      v.vname ^ "->" ^  name_varinfo t
-  end 
-
-  module VarinfoMapping = struct 
-    type t = CilType.Varinfo.t [@@deriving  eq, ord, hash]
-    let name_varinfo (v: t) = 
-      v.vname ^ "$len"
-    let describe_varinfo (v:varinfo) t : string = 
-      v.vname ^ "->" ^  name_varinfo t
-  end 
-
-  module PointerType = struct 
-    let varType  = !ptrdiffType 
-    let isGlobal = false
-  end
-
-  module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (PointerType)
-  module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
-  module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
-  let escapedAllocSize = ref Set.empty
-  let allPointerEscaped = ref false
-
   let sizeOfTyp e = 
     let ptr_typ = typeOf e in
     match ptr_typ with
@@ -335,16 +332,6 @@ struct
 
   let pointerAssign ctx (v:varinfo) e = 
     (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
-    if not !allPointerEscaped && v.vglob then
-      (match ctx.ask (Queries.MayPointTo e) with
-       | a when not (Queries.AD.is_top a) ->  
-         Queries.AD.iter (function 
-             | Addr (v,o) -> 
-               escapedAllocSize := Set.add (AllocSize.to_varinfo v) !escapedAllocSize
-             | _ -> ()
-           )  a 
-       | _ -> allPointerEscaped := true); (* every allocated memory piece may escape *)
-
     if GobConfig.get_bool "ana.apron.pointer_tracking" then (
       if M.tracing then M.trace "OOB" "pointerAssign=%b" (GobConfig.get_bool "ana.apron.pointer_tracking");
       match sizeOfTyp (Lval (Var v, NoOffset)) with 
@@ -423,10 +410,9 @@ struct
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    let var_option = RV.to_cil_varinfo var in
-    if var_option != None &&  PointerMap.mem_varinfo (Option.get var_option) then 
-      false 
-    else 
+    match RV.to_cil_varinfo var with
+    | Some v when PointerMap.mem_varinfo v -> false
+    | _ ->
       let vname = Apron.Var.to_string var in
       let locals = fundec.sformals @ fundec.slocals in
       match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with 
@@ -446,10 +432,14 @@ struct
         )  a []
     | _ -> []
 
-  let filterAllocVar var reachableAllocVars = (* only remove alloc mappings that not reachable. Thus all allocated memory that are not assigned to a global pointer and not returned or passed as an argument *)
-    let r = AllocSize.mem_varinfo var && not !allPointerEscaped && not @@ List.mem_cmp CilType.Varinfo.compare var (Set.to_list !escapedAllocSize) && not @@ List.mem_cmp CilType.Varinfo.compare var reachableAllocVars  in 
-    if M.tracing then M.trace "OOB" "var=%a r=%b" CilType.Varinfo.pretty var r ;
-    r
+  (* only remove alloc ghost variables that not reachable. Thus all ghost variables that are not assigned to a global pointer and not returned or passed as an argument *)
+  let filterAllocVar ctx var reachableAllocVars = 
+    if ctx.ask (Queries.AllocAssignedToGlobal var) then (*keep all alloc ghost variables that are at some point assigned to a global pointer -> still reachable *)
+      false
+    else 
+      let r = AllocSize.mem_varinfo var && not @@ List.mem_cmp CilType.Varinfo.compare var reachableAllocVars  in (* remove all alloc ghost variables that are not reachable from the return pointer*)
+      if M.tracing then M.trace "OOB" "var=%a r=%b" CilType.Varinfo.pretty var r ;
+      r
 
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
@@ -502,7 +492,7 @@ struct
         | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> match RV.to_cil_varinfo var with
           | None -> false
-          | Some var -> filterAllocVar var reachableAllocSizeVars (* check if the allocMapping var is reachable from the new function *)
+          | Some var -> filterAllocVar ctx var reachableAllocSizeVars (* check if the allocMapping var is reachable from the new function *)
           (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
@@ -560,7 +550,7 @@ struct
         | Some var -> 
           ArrayMap.mem_varinfo var  || (*remove all ArrayMap vars*)
           PointerMap.mem_varinfo var || (*remove all PointerMap vars*)
-          filterAllocVar var pointsToList (*remove all not reachable AllocSize vars*)
+          filterAllocVar ctx var pointsToList (*remove all not reachable AllocSize vars*)
       );
     let st' = {st with rel = new_rel} in
     begin match ThreadId.get_current ask with
