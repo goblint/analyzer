@@ -339,7 +339,7 @@ struct
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
     | Any (MayBeOutOfBounds _) -> 58
-    | Any (MayOverflow _) -> 59
+    | Any (NoOverflow _) -> 59
     | Any (AllocMayBeOutOfBounds _) -> 60
 
   let rec compare a b =
@@ -396,7 +396,7 @@ struct
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       | Any (MayBeOutOfBounds x1), Any (MayBeOutOfBounds x2) -> compare_maybeoutofbounds x1 x2
       (* only argumentless queries should remain *)
-      | Any (MayOverflow e1), Any (MayOverflow e2) -> CilType.Exp.compare e1 e2
+      | Any (NoOverflow e1), Any (NoOverflow e2) -> CilType.Exp.compare e1 e2
       | Any (AllocMayBeOutOfBounds x1), Any (AllocMayBeOutOfBounds x2) -> compare_allocmaybeoutofbounds x1 x2
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -439,7 +439,7 @@ struct
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MayBeOutOfBounds x) -> hash_maybeoutofbounds x
-    | Any (MayOverflow e) -> CilType.Exp.hash e
+    | Any (NoOverflow e) -> CilType.Exp.hash e
     | Any (AllocMayBeOutOfBounds x) ->  hash_allocmaybeoutofbounds x
     (* only argumentless queries should remain *)
 
@@ -506,7 +506,7 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MayBeOutOfBounds x) -> Pretty.dprintf "MayBeOutOfBounds _"
-    | Any (MayOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
+    | Any (NoOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
     | Any (AllocMayBeOutOfBounds x) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
 end
 
