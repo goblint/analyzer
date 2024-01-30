@@ -19,7 +19,7 @@ For the initial setup:
 To build GobView (also for development):
 
 1. Run `make view` in the analyzer directory to build the web UI
-2. The executable `goblint-http` takes the analyzer directory and additional Goblint configurations such as the files to be analyzed as parameters. Run it e.g. with the following command:\
-`./goblint-http tests/regression/00-sanity/01-assert.c`
+2. The executable `goblint-http.exe` takes the analyzer directory and additional Goblint configurations such as the files to be analyzed as parameters. Run it e.g. with the following command:\
+`./goblint-http.exe tests/regression/00-sanity/01-assert.c`
 
 3. Visit <http://localhost:8080>
