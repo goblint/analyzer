@@ -1398,13 +1398,17 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
-    | Q.MayOverflow e ->  
+    | Q.NoOverflow e ->  
       MCP.lookUpCache := false;
       IntDomain.local_no_overflow := true;
       if M.tracing then M.trace "no_ov" "exp %a\n" d_exp e;
-      ignore(query_evalint ~ctx ctx.local  e);
+      let res = try 
+          ignore(query_evalint ~ctx ctx.local  e);
+          !IntDomain.local_no_overflow 
+        with IntDomain.ArithmeticOnIntegerBot _ -> false
+      in
       MCP.lookUpCache := true;
-      !IntDomain.local_no_overflow 
+      res
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

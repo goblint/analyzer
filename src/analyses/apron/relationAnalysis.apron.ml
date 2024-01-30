@@ -179,9 +179,17 @@ struct
     | exception Invalid_argument _ -> false (* TODO: why this? *)
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
-      let r = ask.f (MayOverflow exp) in
-      if M.tracing then M.trace "no_o" "no_o exp: %a %a -> %b \n" d_exp exp d_ikind ik r;
-      r
+      let rec  containsOnlySigned e = match e with
+        | BinOp (_, e1, e2, typ) -> Cil.isSigned @@ Cilfacade.get_ikind typ && containsOnlySigned e1 && containsOnlySigned e2
+        | e -> Cilfacade.get_ikind_exp e |> Cil.isSigned
+      in
+      if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" && containsOnlySigned exp then
+        true
+      else
+      if GobConfig.get_bool "ana.int.interval" then 
+        ask.f (NoOverflow exp)
+      else 
+        false
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in

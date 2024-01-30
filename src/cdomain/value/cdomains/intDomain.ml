@@ -80,7 +80,10 @@ let set_overflow_flag ~cast ~underflow ~overflow ik =
   if !AnalysisState.postsolving && signed && not cast then
     AnalysisState.svcomp_may_overflow := true;
   let sign = if signed then "Signed" else "Unsigned" in
-  local_no_overflow := false;
+  (if signed && not (get_string "sem.int.signed_overflow" = "assume_none") then
+     local_no_overflow := false
+   else 
+     local_no_overflow := false);
   match underflow, overflow with
   | true, true ->
     M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
