@@ -273,7 +273,7 @@ struct
     | TPtr (t, _) -> Some ((bitsSizeOf t) / 8)
     | _ -> None 
 
-  (*the relational domain is not able to evaluate sizeOf expressions those have to be replaces with constants*)
+  (* the relational domain is not able to evaluate sizeOf expressions those have to be replaced with constants *)
   let rec replaceSizeOf exp : exp =  
     match exp with
     | SizeOf typ -> (CastE (!upointType, sizeOf typ )) (*evaluate sizeOf*)
