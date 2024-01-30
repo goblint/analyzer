@@ -128,8 +128,9 @@ type _ t =
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MayBeOutOfBounds: maybeoutofbounds -> ID.t t
-  | MayOverflow : exp -> MayBool.t t
+  | NoOverflow : exp -> MayBool.t t
   | AllocMayBeOutOfBounds : allocmaybeoutofbounds -> VDQ.ProdID.t t
+  | AllocAssignedToGlobal : varinfo -> MustBool.t t
 
 type 'a result = 'a
 
@@ -200,8 +201,9 @@ struct
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
     | MayBeOutOfBounds _ -> (module ID)
-    | MayOverflow _ -> (module MayBool)
+    | NoOverflow _ -> (module MayBool)
     | AllocMayBeOutOfBounds _ -> (module VDQ.ProdID)
+    | AllocAssignedToGlobal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -271,8 +273,9 @@ struct
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
     | MayBeOutOfBounds _ -> ID.top ()
-    | MayOverflow _ -> MayBool.top ()
+    | NoOverflow _ -> MayBool.top ()
     | AllocMayBeOutOfBounds _ -> VDQ.ProdID.top ()
+    | AllocAssignedToGlobal _ -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -341,6 +344,7 @@ struct
     | Any (MayBeOutOfBounds _) -> 58
     | Any (NoOverflow _) -> 59
     | Any (AllocMayBeOutOfBounds _) -> 60
+    | Any (AllocAssignedToGlobal _) -> 61
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -398,6 +402,7 @@ struct
       (* only argumentless queries should remain *)
       | Any (NoOverflow e1), Any (NoOverflow e2) -> CilType.Exp.compare e1 e2
       | Any (AllocMayBeOutOfBounds x1), Any (AllocMayBeOutOfBounds x2) -> compare_allocmaybeoutofbounds x1 x2
+      | Any (AllocAssignedToGlobal v1), Any (AllocAssignedToGlobal v2) -> CilType.Varinfo.compare v1 v2
       | _, _ -> Stdlib.compare (order a) (order b)
 
   let equal x y = compare x y = 0
@@ -441,6 +446,7 @@ struct
     | Any (MayBeOutOfBounds x) -> hash_maybeoutofbounds x
     | Any (NoOverflow e) -> CilType.Exp.hash e
     | Any (AllocMayBeOutOfBounds x) ->  hash_allocmaybeoutofbounds x
+    | Any (AllocAssignedToGlobal v) -> CilType.Varinfo.hash v
     (* only argumentless queries should remain *)
 
     (* IterSysVars:                                                                    *)
@@ -508,6 +514,7 @@ struct
     | Any (MayBeOutOfBounds x) -> Pretty.dprintf "MayBeOutOfBounds _"
     | Any (NoOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
     | Any (AllocMayBeOutOfBounds x) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
+    | Any (AllocAssignedToGlobal v) -> Pretty.dprintf "AllocAssignedToGlobal %a" CilType.Varinfo.pretty  v
 end
 
 let to_value_domain_ask (ask: ask) =
