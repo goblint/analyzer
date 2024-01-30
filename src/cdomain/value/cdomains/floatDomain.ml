@@ -626,29 +626,29 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   (** 1. projects l and h onto the interval [0, k*pi] (for k = 2 this is the phase length of sin/cos, for k = 1 it is the phase length of tan)*)
   (** 2. compresses/transforms the interval [0, k*pi] to the interval [0, 1] to ease further computations *)
   (** i.e. the it computes dist = distance, l'' = (l/(k*pi)) - floor(l/(k*pi)), h'' = (h/(k*pi)) - floor(h/(k*pi))*)
-  let project_and_compress l h k = 
+  let project_and_compress l h k =
     let ft_over_kpi = (Float_t.mul Up (Float_t.of_float Up k) (Float_t.of_float Up overapprox_pi)) in
     let ft_under_kpi = (Float_t.mul Down (Float_t.of_float Down k) (Float_t.of_float Down underapprox_pi)) in
     let l' =
       if l >= Float_t.zero then (Float_t.div Down l ft_over_kpi)
       else (Float_t.div Down l ft_under_kpi)
     in
-    let h' = 
+    let h' =
       if h >= Float_t.zero then (Float_t.div Up h ft_under_kpi)
       else (Float_t.div Up h ft_over_kpi)
     in
     let dist = (Float_t.sub Up h' l') in
-    let l'' = 
-      if l' >= Float_t.zero then 
-        Float_t.sub Down l' (Float_t.of_float Up (Big_int_Z.float_of_big_int (Float_t.to_big_int l')))
-      else 
-        Float_t.sub Down l' (Float_t.of_float Up (Big_int_Z.float_of_big_int (IntOps.BigIntOps.sub (Float_t.to_big_int l') (Big_int_Z.big_int_of_int 1))))
+    let l'' =
+      if l' >= Float_t.zero then
+        Float_t.sub Down l' (Float_t.of_float Up (Z.to_float (Float_t.to_big_int l')))
+      else
+        Float_t.sub Down l' (Float_t.of_float Up (Z.to_float (IntOps.BigIntOps.sub (Float_t.to_big_int l') (Z.of_int 1))))
     in
-    let h'' = 
-      if h' >= Float_t.zero then 
-        Float_t.sub Up h' (Float_t.of_float Down (Big_int_Z.float_of_big_int (Float_t.to_big_int h')))
-      else 
-        Float_t.sub Up h' (Float_t.of_float Down (Big_int_Z.float_of_big_int (IntOps.BigIntOps.sub (Float_t.to_big_int h') (Big_int_Z.big_int_of_int 1))))
+    let h'' =
+      if h' >= Float_t.zero then
+        Float_t.sub Up h' (Float_t.of_float Down (Z.to_float (Float_t.to_big_int h')))
+      else
+        Float_t.sub Up h' (Float_t.of_float Down (Z.to_float (IntOps.BigIntOps.sub (Float_t.to_big_int h') (Z.of_int 1))))
     in
     (dist, l'', h'')
 
@@ -688,7 +688,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     else if (dist <= Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Up 0.5) && (h'' <= Float_t.of_float Down 0.5) then
       (** case: contains at most one maximum*)
       Interval (min (Float_t.sin Down l) (Float_t.sin Down h), Float_t.of_float Up 1.)
-    else 
+    else
       of_interval (-. 1., 1.)
 
   let eval_tan_cfun l h =
