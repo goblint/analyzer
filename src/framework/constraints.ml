@@ -842,7 +842,7 @@ struct
         None
     in
     let funs = List.filter_map one_function functions in
-    if [] = funs then begin
+    if [] = funs && not (S.D.is_bot ctx.local) then begin
       M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
       M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
