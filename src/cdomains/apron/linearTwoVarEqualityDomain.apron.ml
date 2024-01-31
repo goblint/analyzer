@@ -167,15 +167,13 @@ struct
     let rec convert_texpr texp =
       begin match texp with
         (*If x is a constant, replace it with its const. val. immediately*)
-        | Cst x -> let of_union union =
-                     let open Coeff in
-                     match union with
-                     | Interval _ -> failwith "Not a constant"
-                     | Scalar x -> begin match x with
-                         | Float x -> raise NotIntegerOffset
-                         | Mpqf x -> [(mpqf_to_Z x, None)]
-                         | Mpfrf x -> raise NotIntegerOffset end in
-          of_union x
+        | Cst x ->
+          (let open Coeff in
+           match x with
+           | Interval _ -> failwith "Not a constant"
+           | Scalar (Float x) -> raise NotIntegerOffset
+           | Scalar (Mpqf x) -> [(mpqf_to_Z x, None)]
+           | Scalar (Mpfrf x) -> raise NotIntegerOffset)
         | Var x ->
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
