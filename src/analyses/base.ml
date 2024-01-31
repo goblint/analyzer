@@ -97,6 +97,9 @@ struct
   module VarMap = Map.Make(CilType.Varinfo)
   let array_map = ref (VarH.create 20)
 
+  (*This is a bit of hack to check if we are currently in a NoOverflow query*)
+  let noOverflow_query_already_started = ref false
+
   type marshal = attributes VarMap.t VarH.t
 
   let array_domain_annotation_enabled = lazy (GobConfig.get_bool "annotation.goblint_array_domain")
@@ -1399,16 +1402,28 @@ struct
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
     | Q.NoOverflow e ->  
-      MCP.lookUpCache := false;
-      IntDomain.local_no_overflow := true;
-      if M.tracing then M.trace "no_ov" "exp %a\n" d_exp e;
-      let res = try 
-          ignore(query_evalint ~ctx ctx.local  e);
-          !IntDomain.local_no_overflow 
-        with IntDomain.ArithmeticOnIntegerBot _ -> false
-      in
-      MCP.lookUpCache := true;
-      res
+      (* NoOverflow calls EvalInt, which in turn can call NoOverflow again in the relational domain *)
+      if not !noOverflow_query_already_started then (
+        noOverflow_query_already_started := true;
+        IntDomain.local_no_overflow := true;
+        MCP.lookUpCache := false; (*disable caching to compute the [!Intdomain.local_no_overflow] correctly*)
+        let res = try 
+            ignore(query_evalint ~ctx ctx.local  e);
+            !IntDomain.local_no_overflow 
+          with IntDomain.ArithmeticOnIntegerBot _ -> false
+        in
+        MCP.lookUpCache := true;
+        noOverflow_query_already_started := false;
+        res
+      )else 
+      if not !IntDomain.local_no_overflow  then false 
+      else 
+        let res = try 
+            ignore(query_evalint ~ctx ctx.local  e);
+            !IntDomain.local_no_overflow 
+          with IntDomain.ArithmeticOnIntegerBot _ -> false
+        in
+        res
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

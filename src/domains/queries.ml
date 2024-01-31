@@ -512,7 +512,7 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MayBeOutOfBounds x) -> Pretty.dprintf "MayBeOutOfBounds _"
-    | Any (NoOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
+    | Any (NoOverflow e) -> Pretty.dprintf "NoOverflow %a" CilType.Exp.pretty e
     | Any (AllocMayBeOutOfBounds x) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
     | Any (AllocAssignedToGlobal v) -> Pretty.dprintf "AllocAssignedToGlobal %a" CilType.Varinfo.pretty  v
 end
