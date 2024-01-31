@@ -1,11 +1,10 @@
 (** Relational value domain utilities. *)
 open GoblintCil
 open Batteries
+
 open GobApron
+
 module M = Messages
-
-
-module BI = IntOps.BigIntOps
 
 let int_of_scalar ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
@@ -18,10 +17,10 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       let+ f = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
-        | None when Stdlib.Float.is_integer f-> Some f
+        | None when Stdlib.Float.is_integer f -> Some f
         | None -> None
       in
-      BI.of_bigint (Z.of_float f)
+      Z.of_float f
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
@@ -93,9 +92,9 @@ struct
       let (type_min, type_max) = IntDomain.Size.range ik in
       let texpr1 = Texpr1.of_expr env expr in
       match Bounds.bound_texpr d texpr1 with
-      | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
+      | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 -> ()
       | min_opt, max_opt ->
-        if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
+        if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
         raise (Unsupported_CilExp Overflow)
     )
 

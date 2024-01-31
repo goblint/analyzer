@@ -8,9 +8,6 @@ open GobApron
 open RelationDomain
 open SharedFunctions
 
-
-module BI = IntOps.BigIntOps
-
 module M = Messages
 
 (** Resources for working with Apron:

@@ -758,7 +758,7 @@ struct
         None
     in
     let funs = List.filter_map one_function functions in
-    if [] = funs then begin
+    if [] = funs && not (S.D.is_bot ctx.local) then begin
       M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
       M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
@@ -1733,7 +1733,7 @@ struct
   let compare_locals h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
     let f k v1 =
-      if not (PP.mem h2 k) then () else
+      if PP.mem h2 k then
         let v2 = PP.find h2 k in
         let b1 = D.leq v1 v2 in
         let b2 = D.leq v2 v1 in

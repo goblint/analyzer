@@ -84,8 +84,6 @@ let do_preprocess ast =
   let f fd visitor_fun = ignore @@ visitCilFunction (visitor_fun fd) fd in
   if active_visitors <> [] then
     iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) active_visitors | _ -> ())
-  else
-    ()
 
 (** @raise GoblintCil.FrontC.ParseError
     @raise GoblintCil.Errormsg.Error *)
@@ -427,7 +425,7 @@ let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
     pretty_typsig_like_typ
       (Some (name'
              ++ text "["
-             ++ (match lo with None -> nil | Some e -> text (Z.to_string e))
+             ++ (match lo with None -> nil | Some e -> GobZ.pretty () e)
              ++ text "]"))
       ()
       elemt

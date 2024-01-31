@@ -119,7 +119,7 @@ module EvalAssert = struct
           s
         | If (e, b1, b2, l,l2) ->
           let vars = Basetype.CilExp.get_vars e in
-          let asserts ~node loc vs = if full then make_assert ~node loc None else List.map (fun x -> make_assert ~node loc (Some (Var x,NoOffset))) vs |> List.concat in
+          let asserts ~node loc vs = if full then make_assert ~node loc None else List.concat_map (fun x -> make_assert ~node loc (Some (Var x,NoOffset))) vs in
           let add_asserts block =
             if block.bstmts <> [] then
               let with_asserts =
@@ -130,8 +130,6 @@ module EvalAssert = struct
                 [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
               in
               block.bstmts <- with_asserts
-            else
-              ()
           in
           if emit_other then (add_asserts b1; add_asserts b2);
           s
