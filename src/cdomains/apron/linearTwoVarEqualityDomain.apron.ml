@@ -219,7 +219,7 @@ struct
       List.iter update cv's;
       let var_count = GobArray.count_matchingi (fun _ a -> a <> Z.zero) expr in
       if var_count == 0 then Some (None, !constant)
-      else if var_count == 1 then ( 
+      else if var_count == 1 then (
         let var = Array.findi (fun a -> a <> Z.zero) expr in
         if Z.(expr.(var) == Z.one) then Some (Some var, !constant)
         else None
@@ -355,8 +355,6 @@ struct
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
-
-
   let eval_interval ask = Bounds.bound_texpr
 
   exception Contradiction
@@ -530,8 +528,6 @@ struct
             meet_with_one_conj abstract_exists_var assigned_var (Some exp_var, off)
         end
       | None -> bot_env end
-
-
 
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
@@ -736,8 +732,6 @@ struct
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
-  (*TODO*)
-
   let invariant t =
     match t.d with
     | None -> []

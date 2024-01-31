@@ -111,7 +111,7 @@ struct
 
   let texpr1_expr_of_cil_exp_old d env exp no_ov =
     (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp exp = 
+    let rec texpr1_expr_of_cil_exp exp =
       match exp with
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
         if not v.vglob || Arg.allow_global then
@@ -148,8 +148,8 @@ struct
               Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
             | CastE (TInt (t_ik, _) as t, e) ->
               begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                | true -> texpr1_expr_of_cil_exp e  
-                | false 
+                | true -> texpr1_expr_of_cil_exp e
+                | false
                 | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
                 | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
                   raise (Unsupported_CilExp (Cast_not_injective t))
@@ -162,17 +162,17 @@ struct
         | exception (Invalid_argument _ as e) ->
           raise (Unsupported_CilExp (Exp_typeOf e))
     in
-    texpr1_expr_of_cil_exp exp 
+    texpr1_expr_of_cil_exp exp
 
 
   let texpr1_expr_of_cil_exp_with_overflow_check (ask: Queries.ask) d env exp no_ov overflow_handling =
-    let query e ik = 
-      let res = match ask.f (EvalInt e) with 
+    let query e ik =
+      let res = match ask.f (EvalInt e) with
         | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
         | `Top -> IntDomain.IntDomTuple.top_of ik
         | `Lifted x -> x (* According to base.ml:704 cast should be unnecessary because it should be taken care of by EvalInt. *)
       in
-      (* If the returned interval is top of the expected ikind (i.e. the value is unknown ) or the returned interval is in range of the expected interval, return top 
+      (* If the returned interval is top of the expected ikind (i.e. the value is unknown ) or the returned interval is in range of the expected interval, return top
          - If top is returned the expression will be rewritten.
          - If a constant is returned this specific value is casted to the expected ikind value
          - else we got an interval with unsupported bounds i.e. the value expression is known to be unknown and needs casting, which we do not support i.e. the expression is not supported*)
@@ -181,7 +181,7 @@ struct
       if top then IntDomain.IntDomTuple.top_of ik else res
     in
     (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp ask exp = 
+    let rec texpr1_expr_of_cil_exp ask exp =
       match exp with
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
         if not v.vglob || Arg.allow_global then
@@ -207,8 +207,8 @@ struct
               let ikind = Cilfacade.get_ikind_exp e in (* TODO AWE: raise unsupported cil exception on error *)
               let simp = query e ikind in
               let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
-              if Option.is_some const then Const (CInt (Option.get const, ikind, None)) 
-              else e 
+              if Option.is_some const then Const (CInt (Option.get const, ikind, None))
+              else e
             in
             match exp with
             | UnOp (Neg, e, _) ->
@@ -225,16 +225,16 @@ struct
               Binop (Mod, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
             | CastE (TInt (t_ik, _) as t, e) ->
               begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                | true -> texpr1_expr_of_cil_exp ask @@ simplify e  
-                | false -> 
+                | true -> texpr1_expr_of_cil_exp ask @@ simplify e
+                | false ->
                   let res = query e @@ Cilfacade.get_ikind_exp e in
                   let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
                   if Option.is_some const then Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z (Option.get const))))
                   else if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
                   else (
                     let (minimal, maximal) = IntDomain.Size.range t_ik in
-                    match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with 
-                    | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e 
+                    match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with
+                    | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e
                     | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
                 | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
                 | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
@@ -259,14 +259,14 @@ struct
 
   let texpr1_of_cil_exp ask d env e no_ov =
     let e = Cil.constFold false e in
-    let res =  texpr1_expr_of_cil_exp ask d env e no_ov in 
+    let res =  texpr1_expr_of_cil_exp ask d env e no_ov in
     Texpr1.of_expr env res
 
   let tcons1_of_cil_exp_old d env e negate no_ov =
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp_old d env e1 no_ov in 
+        let texpr1_1 = texpr1_expr_of_cil_exp_old d env e1 no_ov in
         let texpr1_2 = texpr1_expr_of_cil_exp_old d env e2 no_ov in
         (* Apron constraints always compare with 0 and only have comparisons one way *)
         begin match r with
@@ -301,7 +301,7 @@ struct
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp ask d env e1 no_ov in 
+        let texpr1_1 = texpr1_expr_of_cil_exp ask d env e1 no_ov in
         let texpr1_2 = texpr1_expr_of_cil_exp ask d env e2 no_ov in
         (* Apron constraints always compare with 0 and only have comparisons one way *)
         begin match r with

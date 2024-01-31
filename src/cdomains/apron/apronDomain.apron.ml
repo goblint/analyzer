@@ -498,39 +498,38 @@ struct
 
       LAnd, LOr, LNot are directly supported by Apron domain in order to
       confirm logic-containing Apron invariants from witness while deep-query is disabled *)
-  let rec assert_constraint ask d e negate (ov: bool Lazy.t) =
+  let rec assert_constraint ask d e negate (no_ov: bool Lazy.t) =
     if M.tracing then M.trace "assert_constraint_apron" "%a ;;; %a\n" d_exp e d_plainexp e;
-    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in (* TODO: why ignores no_ov argument? *)
     match e with
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
     | BinOp (Ne, lhs, rhs, intType) when not negate ->
-      let assert_gt = assert_constraint ask d (BinOp (Gt, lhs, rhs, intType)) negate ov in
-      let assert_lt = assert_constraint ask d (BinOp (Lt, lhs, rhs, intType)) negate ov in
+      let assert_gt = assert_constraint ask d (BinOp (Gt, lhs, rhs, intType)) negate no_ov in
+      let assert_lt = assert_constraint ask d (BinOp (Lt, lhs, rhs, intType)) negate no_ov in
       join assert_gt assert_lt
     | BinOp (Eq, lhs, rhs, intType) when negate ->
-      let assert_gt = assert_constraint ask d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
-      let assert_lt = assert_constraint ask d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
+      let assert_gt = assert_constraint ask d (BinOp (Gt, lhs, rhs, intType)) (not negate) no_ov in
+      let assert_lt = assert_constraint ask d (BinOp (Lt, lhs, rhs, intType)) (not negate) no_ov in
       join assert_gt assert_lt
     | BinOp (LAnd, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_constraint ask d lhs negate ov in
-      let assert_r = assert_constraint ask d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate no_ov in
+      let assert_r = assert_constraint ask d rhs negate no_ov in
       meet assert_l assert_r
     | BinOp (LAnd, lhs, rhs, intType) when negate ->
-      let assert_l = assert_constraint ask d lhs negate ov in
-      let assert_r = assert_constraint ask d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate no_ov in
+      let assert_r = assert_constraint ask d rhs negate no_ov in
       join assert_l assert_r (* de Morgan *)
     | BinOp (LOr, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_constraint ask d lhs negate ov in
-      let assert_r = assert_constraint ask d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate no_ov in
+      let assert_r = assert_constraint ask d rhs negate no_ov in
       join assert_l assert_r
     | BinOp (LOr, lhs, rhs, intType) when negate ->
-      let assert_l = assert_constraint ask d lhs negate ov in
-      let assert_r = assert_constraint ask d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate no_ov in
+      let assert_r = assert_constraint ask d rhs negate no_ov in
       meet assert_l assert_r (* de Morgan *)
-    | UnOp (LNot,e,_) -> assert_constraint ask d e (not negate) ov
+    | UnOp (LNot,e,_) -> assert_constraint ask d e (not negate) no_ov
     | _ ->
-      begin match Convert.tcons1_of_cil_exp ask d (A.env d) e negate (Lazy.from_val no_ov) with
+      begin match Convert.tcons1_of_cil_exp ask d (A.env d) e negate no_ov with
         | tcons1 ->
           if M.tracing then M.trace "apron" "assert_constraint %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
           if M.tracing then M.trace "apron" "assert_constraint st: %a\n" D.pretty d;
