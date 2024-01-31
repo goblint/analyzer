@@ -281,9 +281,9 @@ struct
   (* the relational domain is not able to evaluate sizeOf expressions those have to be replaced with constants *)
   let rec replaceSizeOf exp : exp =  
     match exp with
-    | SizeOf typ -> (CastE (!upointType, sizeOf typ )) (*evaluate sizeOf*)
-    | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOf e, typ)
-    | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOf e1, replaceSizeOf e2, typ)
+    | SizeOf typ -> sizeOf typ (*evaluate sizeOf*)
+    | UnOp (LNot, e, typ ) -> UnOp (LNot, CastE (typ, replaceSizeOf e), typ)
+    | BinOp (bop, e1, e2, typ) -> BinOp (bop, CastE ( typ ,replaceSizeOf e1), CastE(typ, replaceSizeOf e2), typ)
     | Real e -> Real (replaceSizeOf e)
     | CastE (t,e) -> (CastE(t,replaceSizeOf e)) (*size_t by CIL those are of type TNamed *)
     | e ->  e
@@ -318,11 +318,11 @@ struct
         let castedPointer =  PointerMap.to_varinfo v in 
         Lval (Var castedPointer, offset)
       | BinOp (binop, e1, e2, typ) when binop = PlusPI || binop = IndexPI ->  (*pointer is always on the most left*)
-        let e2WithMult = BinOp (Mult, integer sizeOfTyp , CastE (!ptrdiffType ,e2), !ptrdiffType) in
-        BinOp (PlusA, replacePointer e1 , e2WithMult, typ) 
+        let e2WithMult = BinOp (Mult, kinteger (Cilfacade.ptrdiff_ikind ()) sizeOfTyp , CastE (!ptrdiffType ,e2), !ptrdiffType) in
+        BinOp (PlusA, replacePointer e1 , e2WithMult, !ptrdiffType) 
       | BinOp (MinusPI, e1, e2, typ) -> 
-        let e2WithMult = BinOp (Mult, integer sizeOfTyp, CastE (!ptrdiffType ,e2), !ptrdiffType) in
-        BinOp (MinusA, replacePointer e1 , e2WithMult, typ) 
+        let e2WithMult = BinOp (Mult, kinteger (Cilfacade.ptrdiff_ikind()) sizeOfTyp, CastE (!ptrdiffType ,e2), !ptrdiffType) in
+        BinOp (MinusA, replacePointer e1 , e2WithMult, !ptrdiffType) 
       | e -> e
     in
     match expWithPointer with 
@@ -734,7 +734,7 @@ struct
             let pointerLen = PointerMap.to_varinfo r in
             let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
             let new_ctx' = {ctx with local = st'''; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in
-            assign new_ctx' (Var pointerLen, NoOffset) (Cil.zero)
+            assign new_ctx' (Var pointerLen, NoOffset) (kinteger (Cilfacade.ptrdiff_ikind()) 0)
           )
           else st''
         | _ -> invalidate ctx)
@@ -874,8 +874,9 @@ struct
     | Queries.MayBeOutOfBounds {var= v ;dimension = d ;index =exp} -> 
       let newVar = ArrayMap.to_varinfo (v, d) in 
       let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
+      if M.tracing then M.trace "relationalArray" "v=%a -> %a %a d=%i\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty newVar d_exp  exp d;
       let i = eval_int comp (no_overflow ask comp ) in 
-      if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a" d_exp comp ID.pretty i;
+      if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a\n" d_exp comp ID.pretty i;
       i 
     | AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; _} -> 
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
@@ -898,29 +899,30 @@ struct
         begin match sizeOfTyp e with 
           | Some typSize -> 
             let pointerLen = replacePointerWithMapping e typSize in
-            let afterZero = Cilfacade.makeBinOp Le  Cil.zero pointerLen in
+            let afterZero = Cilfacade.makeBinOp Le  (kinteger (Cilfacade.ptrdiff_ikind()) 0) pointerLen in
+            if M.tracing then M.trace "ikind" "afterzero=%a %a" d_ikind (Cilfacade.get_ikind_exp afterZero) d_ikind (Cilfacade.get_ikind_exp (pointerLen));
             let isAfterZero = eval_int afterZero (no_overflow ask pointerLen) in
             if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
-            let relExp =  BinOp (PlusA, integer structOffset, pointerLen, TInt (IInt ,[])) in
+            let relExp =  BinOp (PlusA, (kinteger (Cilfacade.ptrdiff_ikind()) structOffset), pointerLen, !ptrdiffType) in
             let isBeforeEnd = inBoundsForAllAddresses relExp in
-            (isAfterZero, isBeforeEnd)
+            (VDQ.ID.top (), isBeforeEnd)
           | _ -> (VDQ.ID.top (),VDQ.ID.top ())
         end
       in
       let relationEval e structOffset = 
-        if M.tracing then M.trace "OOB" "relationEval: %a %a\n" d_exp e IntDomain.IntDomTuple.pretty i;
+        if M.tracing then M.trace "OOB" "relationEval: %a %a %a\n" d_exp e IntDomain.IntDomTuple.pretty i RD.pretty st.rel;
         begin match sizeOfTyp e with 
           | Some typSize -> 
             let exp i =  begin match e with 
-              | Lval (Var v, _) -> integer i 
+              | Lval (Var v, _) -> (kinteger (Cilfacade.ptrdiff_ikind())i )
               | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
                 let replaceBinop bi = match bi with
                   | PlusPI | IndexPI -> PlusA
                   | MinusPI -> MinusA
                   | _ -> bi
                 in 
-                let e2Mult = BinOp (Mult, e2, integer typSize, TInt (IInt, []) )in
-                BinOp (replaceBinop binop, integer i, e2Mult, TInt (IInt, []))
+                let e2Mult = BinOp (Mult, CastE ( !ptrdiffType,e2), (kinteger (Cilfacade.ptrdiff_ikind()) typSize), !ptrdiffType )in
+                BinOp (replaceBinop binop, (kinteger (Cilfacade.ptrdiff_ikind()) i), e2Mult, !ptrdiffType)
               | _ -> failwith "unexpected expression!\n"
             end
             in
@@ -932,7 +934,7 @@ struct
                     try 
                       let min = Z.to_int min in 
                       let mininumExp = exp min in
-                      let afterZero = Cilfacade.makeBinOp Le  Cil.zero mininumExp in
+                      let afterZero = Cilfacade.makeBinOp Le  (kinteger (Cilfacade.ptrdiff_ikind ()) 0) mininumExp in
                       eval_int afterZero (no_overflow ask afterZero)
                     with 
                     | Z.Overflow -> VDQ.ID.top ()
