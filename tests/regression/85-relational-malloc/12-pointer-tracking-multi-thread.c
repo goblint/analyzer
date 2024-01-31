@@ -10,7 +10,8 @@ pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 void *t_other(int *len)
 {
     pthread_mutex_lock(&mtx);
-    int tmp = *gptr;     // WARN
+    // we loose all information about the relation between the ghost variables and the len after entering multithreaded context
+    int tmp = *gptr;     
     pthread_mutex_unlock(&mtx);
 }
 

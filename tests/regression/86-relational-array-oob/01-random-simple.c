@@ -1,4 +1,4 @@
-// PARAM: --enable ana.arrayoob    --set ana.activated[+] apron   --set ana.apron.domain octagon --set sem.int.signed_overflow assume_none
+// PARAM: --enable ana.arrayoob    --set ana.activated[+] apron   --set ana.apron.domain octagon 
 
 
 #include <stdio.h>

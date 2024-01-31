@@ -1,4 +1,4 @@
-// PARAM: --enable ana.arrayoob --enable ana.int.interval   --set ana.activated[+] apron   --set sem.int.signed_overflow assume_none  --disable warn.integer
+// PARAM: --enable ana.arrayoob --enable ana.int.interval   --set ana.activated[+] apron   --disable warn.integer
 
 int readUntil(char arr[], unsigned len)
 {
@@ -29,7 +29,7 @@ int main()
         len = 10;
 
     char ptr[len];
-    readUntil(ptr, len);
+    readUntil(ptr+1, len);
 
     for (unsigned int i = 0; i < len; i++)
     {

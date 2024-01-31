@@ -3,33 +3,38 @@
 #include <stdlib.h>
 #include <time.h>
 
-
 int main()
 {
 
     unsigned int len = rand();
 
-    int* p = malloc(sizeof(int) * len);
+    int *p = malloc(sizeof(int) * len);
 
-    char * t = p; 
-    for (int i = 0; i < sizeof(int) * len /sizeof(char); i++)
+    char *t = p;
+    for (int i = 0; i < sizeof(int) * len / sizeof(char); i++)
     {
-        *(t + i) = 2;
-        *(t+1) = 2;
-        char tmp = *(t + i);
+        *(t + i) = 2;        // NOWARN
+        *(t + 1) = 2;        // NOWARN
+        *(t + 2) = 2;        // NOWARN
+        *(t + 4) = 2;        // WARN
+        *(t - 1) = 2;        // WARN
+        char tmp = *(t + i); // NOWARN
     }
-    
+
     free(p);
 
     long *p = malloc(sizeof(long) * len);
 
-    int * t = p; 
-    for (int i = 0; i < sizeof(long)/sizeof(int) * len ; i++)
+    int *t = p;
+    for (int i = 0; i < sizeof(long) / sizeof(int) * len; i++)
     {
-        *(t + i) = 2;
-        *(t+1) = 2;
-        int tmp = *(t + i);
+        *(t + i) = 2;       // NOWARN
+        *(t + 1) = 2;       // NOWARN
+        *(t + 2) = 2;       // WARN
+        *(t + 4) = 2;       // WARN
+        *(t - 1) = 2;       // WARN
+        int tmp = *(t + i); // NOWARN
     }
-    
+
     free(p);
 }

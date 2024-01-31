@@ -1,4 +1,4 @@
-// PARAM: --enable ana.arrayoob --enable ana.int.interval   --set ana.activated[+] apron   --set sem.int.signed_overflow assume_none
+// PARAM: --enable ana.arrayoob --enable ana.int.interval   --set ana.activated[+] apron  
 
 int main()
 {

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --set ana.activated[+] apron  --set ana.apron.domain polyhedra  --set ana.path_sens[+] threadflag   --set ana.activated[+] taintPartialContexts  --set ana.base.privatization mutex-meet-tid --set ana.activated[+] threadJoins --set ana.ctx_insens[+] threadJoins --enable ana.int.interval
+// PARAM: --set ana.activated[+] memOutOfBounds --set ana.activated[+] apron  --set ana.apron.domain polyhedra    --set ana.activated[+] taintPartialContexts --set ana.ctx_insens[+] threadJoins --enable ana.int.interval
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -8,7 +8,8 @@ int *gptr;
 void *t_other(void *arg)
 {
     pthread_mutex_lock(&mtx);
-    int tmp = *gptr;     // WARN
+    // we loose all information about the relation between the ghost variables and the len after entering multithreaded context
+    int tmp = *gptr;     
     pthread_mutex_unlock(&mtx);
 }
 

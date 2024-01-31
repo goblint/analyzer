@@ -24,6 +24,5 @@ int main()
         }
         *(t + 1) = 2; // NOWARN
         *(t + i) = 2; // WARN
-        *(t+len) =2;
     }
 }
