@@ -20,7 +20,7 @@ struct
   module MM = MapDomain.MapBot_LiftTop (Mval.Exp) (MLDeps)
 
   (* arg maps to (x, mathf(arg), deps) if x = mathf(arg) *)
-  module ExpFlat = Lattice.Flat (CilType.Exp) (Printable.DefaultNames)
+  module ExpFlat = Lattice.Flat (CilType.Exp)
   module MInvEntry = Lattice.Prod3 (ExpFlat) (ML) (Deps)
   module MInvEntrySet = SetDomain.Reverse (SetDomain.ToppedSet (MInvEntry) (struct let topname = "All" end))
   module MInv = MapDomain.MapBot_LiftTop (Mval.Exp) (MInvEntrySet)

@@ -24,7 +24,7 @@ In `.vscode/settings.json` add the following:
                 "/conf/*.json",
                 "/tests/incremental/*/*.json"
             ],
-            "url": "/src/common/util/options.schema.json"
+            "url": "/src/config/options.schema.json"
         }
     ]
 }

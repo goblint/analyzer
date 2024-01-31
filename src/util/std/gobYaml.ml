@@ -1,3 +1,14 @@
+let to_string' ?(len=65535 * 4) ?encoding ?scalar_style ?layout_style v =
+  assert (len >= 1);
+  let rec aux len =
+    match Yaml.to_string ~len ?encoding ?scalar_style ?layout_style v with
+    | Ok _ as o -> o
+    | Error (`Msg ("scalar failed" | "doc_end failed")) when len < Sys.max_string_length / 2 ->
+      aux (len * 2)
+    | Error (`Msg _) as e -> e
+  in
+  aux len
+
 include Yaml.Util
 
 include GobResult.Syntax

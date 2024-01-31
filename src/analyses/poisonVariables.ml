@@ -82,8 +82,6 @@ struct
             M.info ~category:(Behavior (Undefined Other)) ~loc:(Node longjmp_node) "Since setjmp at %a, potentially all locals were modified! Reading them will yield Undefined Behavior." Node.pretty ctx.prev_node
           else if not (Queries.VS.is_empty modified_locals) then
             M.info ~category:(Behavior (Undefined Other)) ~loc:(Node longjmp_node) "Since setjmp at %a, locals %a were modified! Reading them will yield Undefined Behavior." Node.pretty ctx.prev_node Queries.VS.pretty modified_locals
-          else
-            ()
         ) longjmp_nodes;
       D.join modified_locals ctx.local
     | Access {ad; kind = Read; _} ->

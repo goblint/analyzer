@@ -695,11 +695,18 @@ struct
     | Some false -> print_svcomp_result "ERROR (verify)"
     | _ ->
       if get_string "witness.yaml.validate" <> "" then (
-        if !YamlWitness.cnt_refuted > 0 then
+        match get_bool "witness.yaml.strict" with
+        | true when !YamlWitness.cnt_error > 0 ->
+          print_svcomp_result "ERROR (witness error)"
+        | true when !YamlWitness.cnt_unsupported > 0 ->
+          print_svcomp_result "ERROR (witness unsupported)"
+        | true when !YamlWitness.cnt_disabled > 0 ->
+          print_svcomp_result "ERROR (witness disabled)"
+        | _ when !YamlWitness.cnt_refuted > 0 ->
           print_svcomp_result (Result.to_string (False None))
-        else if !YamlWitness.cnt_unconfirmed > 0 then
+        | _ when !YamlWitness.cnt_unconfirmed > 0 ->
           print_svcomp_result (Result.to_string Unknown)
-        else
+        | _ ->
           write entrystates
       )
       else

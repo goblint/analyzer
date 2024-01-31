@@ -194,7 +194,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (OffsetTrie) (MemoSet) (Printable.DefaultNames)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (OffsetTrie) (MemoSet)
 
     let access = function
       | `Bot -> OffsetTrie.bot ()
@@ -349,7 +349,7 @@ struct
             | ts when Queries.TS.is_top ts ->
               includes_uk := true
             | ts ->
-              if Queries.TS.is_empty ts = false then
+              if not (Queries.TS.is_empty ts) then
                 includes_uk := true;
               let f = function
                 | TComp (ci, _) ->
@@ -369,7 +369,7 @@ struct
   let special ctx (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* perform shallow and deep invalidate according to Library descriptors *)
     let desc = LibraryFunctions.find f in
-    if List.mem LibraryDesc.ThreadUnsafe desc.attrs then (
+    if List.mem LibraryDesc.ThreadUnsafe desc.attrs && ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) then (
       let exp = Lval (Var f, NoOffset) in
       let conf = 110 in
       let kind = AccessKind.Call in
