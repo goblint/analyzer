@@ -174,9 +174,9 @@ struct
       Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
       If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
 
-  let no_overflow (ask: Queries.ask) exp =
+  let no_overflow_not_constraint (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument _ -> false (* TODO: why this? *)
+    | exception Invalid_argument _ -> false
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
       if IntDomain.should_wrap ik then
@@ -184,14 +184,21 @@ struct
       else if IntDomain.should_ignore_overflow ik then
         true
       else
-        not (Queries.ID.is_top_of ik (ask.f (EvalInt exp)))
+        not (ask.f (MaySignedOverflow exp))
+
+  let rec no_overflow (ask: Queries.ask) exp =
+    match exp with
+    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), e1, e2, _) ->
+      no_overflow_not_constraint ask e1 && no_overflow_not_constraint ask e2
+    | BinOp ((LAnd | LOr), e1, e2, _) -> no_overflow ask e1 && no_overflow ask e2
+    | UnOp (LNot,e,_) -> no_overflow ask e
+    | exp -> no_overflow_not_constraint ask exp
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in
     if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a\n" res d_exp exp;
     res
   )
-
 
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
@@ -619,8 +626,6 @@ struct
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let no_overflow ctx' exp' =
-      IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in (* TODO: separate no_overflow? *)
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
@@ -634,7 +639,7 @@ struct
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)\n" d_exp e d_plainexp e;
       if M.tracing then M.trace "evalint" "relation st: %a\n" D.pretty ctx.local;
-      let r = eval_int e (lazy(no_overflow ctx e)) in
+      let r = eval_int e (no_overflow (Analyses.ask_of_ctx ctx) e) in
       if M.tracing then M.traceu "evalint" "relation query %a -> %a\n" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->

@@ -264,7 +264,8 @@ struct
 
 end
 
-module ExpressionBounds: (SharedFunctions.ExtendedConvBounds with type t = VarManagement.t) =
+
+module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
 
@@ -291,7 +292,7 @@ struct
 
   module Bounds = ExpressionBounds
 
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (struct let do_overflow_check = false end) (SharedFunctions.Tracked)
 
   type var = V.t
 
@@ -326,6 +327,9 @@ struct
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
+
+
+  let eval_interval = Bounds.bound_texpr
 
   exception Contradiction
 
@@ -508,8 +512,8 @@ struct
       -> Convert.texpr1_expr_of_cil_exp handles overflow *)
   let assign_exp (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
-    | exp -> assign_texpr t var exp
+    match Convert.texpr1_expr_of_cil_exp t t.env exp no_ov with
+    | texp -> assign_texpr t var texp
     | exception Convert.Unsupported_CilExp _ ->
       if is_bot_env t then t else forget_vars t [var]
 
@@ -596,9 +600,10 @@ struct
     List.fold_righti (fun i k result -> show_element i k ^ "\n" ^ result) l ""
 
   (** Assert a constraint expression.
-
-      Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
-      We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
+      The overflow is completely handled by the flag "no_ov",
+      which is set in relationAnalysis.ml via the function no_overflow.
+      In case of a potential overflow, "no_ov" is set to false
+      and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow *)
 
   (* meet_tcons -> meet with guard in if statement
      texpr -> tree expr (right hand side of equality)
@@ -606,19 +611,13 @@ struct
      tcons -> tree constraint (expression < 0)
      -> does not have types (overflow is type dependent)
   *)
-  module BoundsCheck = SharedFunctions.BoundsCheckMeetTcons (Bounds) (V)
 
-  let meet_tcons t tcons original_expr =
+  let meet_tcons t tcons original_expr no_ov =
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     match t.d with
     | None -> bot_env
     | Some d ->
-      let overflow_handling res original_expr =
-        match BoundsCheck.meet_tcons_one_var_eq res original_expr with
-        | exception BoundsCheck.NotRefinable -> t
-        | res -> res
-      in
       let expr = Array.init (Environment.size t.env) (fun _ -> Z.zero) in
       let constant = ref (Z.zero) in
       if is_bot_env t then bot_env else
@@ -651,7 +650,7 @@ struct
             match Tcons1.get_typ tcons, c with
             | EQ, Some c ->
               let res = meet_with_one_conj t (fst var) (None, c)
-              in overflow_handling res original_expr
+              in res
             | _ -> t (*Not supported right now*)
           else if var_count = 2 then
             let get_vars i a l = if Z.equal a Z.zero then l else (i, a)::l in
@@ -668,7 +667,7 @@ struct
                 else if Z.equal a1 Z.(-one) && Z.equal a2 Z.one
                 then meet_with_one_conj t var1 (Some var2, !constant)
                 else t
-              in overflow_handling res original_expr
+              in res
             | _-> t (*Not supported right now*)
           else
             t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
@@ -694,14 +693,13 @@ struct
      e.g. an if statement is encountered in the C code.
 
   *)
-  let assert_cons d e negate no_ov =
-    let no_ov = Lazy.force no_ov in
-    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b\n" d_exp e no_ov;
+  let assert_constraint d e negate (no_ov: bool Lazy.t) =
+    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b\n" d_exp e (Lazy.force no_ov);
     match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1 e
+    | tcons1 -> meet_tcons d tcons1 e no_ov
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov
+  let assert_constraint d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint d e negate) no_ov
 
   let relift t = t
 
@@ -735,9 +733,9 @@ struct
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
-  let env (t: Bounds.t) = t.env
+  let env t = t.env
 
-  type marshal = Bounds.t
+  type marshal = t
   (* marshal is not compatible with apron, therefore we don't have to implement it *)
   let marshal t = t
 
@@ -748,6 +746,6 @@ end
 module D2: RelationDomain.S3 with type var = Var.t =
 struct
   module D = D
-  include SharedFunctions.AssertionModule (V) (D)
+  include SharedFunctions.AssertionModule (V) (D) (struct let do_overflow_check = false end)
   include D
 end

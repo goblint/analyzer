@@ -230,13 +230,14 @@ sig
   include AOpsPure with type t := t
 end
 
-
 (** Convenience operations on A. *)
 module AOps0 (Tracked: Tracked) (Man: Manager) =
 struct
   open SharedFunctions
   module Bounds = Bounds (Man)
-  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (Tracked)
+  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (struct let do_overflow_check = true end) (Tracked)
+
+
 
   type t = Man.mt A.t
 
@@ -280,7 +281,7 @@ struct
     A.forget_array_with Man.mgr nd vs' false
 
   let assign_exp_with nd v e no_ov =
-    match Convert.texpr1_of_cil_exp nd (A.env nd) e (Lazy.force no_ov) with
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
     | texpr1 ->
       if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
@@ -296,7 +297,7 @@ struct
       ves
       |> List.enum
       |> Enum.map (Tuple2.map2 (fun e ->
-          match Convert.texpr1_of_cil_exp nd env e no_ov with
+          match Convert.texpr1_of_cil_exp nd env e (Lazy.from_val no_ov) with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
@@ -347,7 +348,7 @@ struct
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
   let substitute_exp_with nd v e no_ov =
-    match Convert.texpr1_of_cil_exp nd (A.env nd) e (Lazy.force no_ov) with
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
@@ -361,7 +362,7 @@ struct
       ves
       |> List.enum
       |> Enum.map (Tuple2.map2 (fun e ->
-          match Convert.texpr1_of_cil_exp nd env e (Lazy.force no_ov) with
+          match Convert.texpr1_of_cil_exp nd env e no_ov with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
@@ -388,31 +389,10 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
-  (** Special affeq one variable logic to match AffineEqualityDomain. *)
-  let meet_tcons_affeq_one_var d res e =
-    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
-    match Convert.find_one_var e with
-    | None -> overflow_res res
-    | Some v ->
-      let ik = Cilfacade.get_ikind v.vtype in
-      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
-      | Some _, Some _ when not (Cil.isSigned ik) -> d (* TODO: unsigned w/o bounds handled differently? *)
-      | Some min, Some max ->
-        assert (Z.equal min max); (* other bounds impossible in affeq *)
-        let (min_ik, max_ik) = IntDomain.Size.range ik in
-        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
-          if IntDomain.should_ignore_overflow ik then A.bottom (A.manager d) (A.env d) else d
-        else res
-      (* TODO: Unsupported_CilExp check? *)
-      | _, _ -> overflow_res res
-
   let meet_tcons d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
-    let res = A.meet_tcons_array Man.mgr d earray in
-    match Man.name () with
-    | "ApronAffEq" -> meet_tcons_affeq_one_var d res e (* TODO: don't hardcode by name, move to manager *)
-    | _ -> res
+    A.meet_tcons_array Man.mgr d earray
 
   let to_lincons_array d =
     A.to_lincons_array Man.mgr d
@@ -513,51 +493,52 @@ struct
   include D
   include AOps (Tracked) (Man)
   include Tracked
-
+  let eval_interval = Bounds.bound_texpr
   (** Assert a constraint expression.
 
       LAnd, LOr, LNot are directly supported by Apron domain in order to
       confirm logic-containing Apron invariants from witness while deep-query is disabled *)
-  let rec assert_cons d e negate (ov: bool Lazy.t) =
+  let rec assert_constraint d e negate (ov: bool Lazy.t) =
+    if M.tracing then M.trace "assert_constraint_apron" "%a ;;; %a\n" d_exp e d_plainexp e;
     let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in (* TODO: why ignores no_ov argument? *)
     match e with
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
     | BinOp (Ne, lhs, rhs, intType) when not negate ->
-      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) negate ov in
-      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) negate ov in
+      let assert_gt = assert_constraint d (BinOp (Gt, lhs, rhs, intType)) negate ov in
+      let assert_lt = assert_constraint d (BinOp (Lt, lhs, rhs, intType)) negate ov in
       join assert_gt assert_lt
     | BinOp (Eq, lhs, rhs, intType) when negate ->
-      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
-      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
+      let assert_gt = assert_constraint d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
+      let assert_lt = assert_constraint d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
       join assert_gt assert_lt
     | BinOp (LAnd, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_constraint d lhs negate ov in
+      let assert_r = assert_constraint d rhs negate ov in
       meet assert_l assert_r
     | BinOp (LAnd, lhs, rhs, intType) when negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_constraint d lhs negate ov in
+      let assert_r = assert_constraint d rhs negate ov in
       join assert_l assert_r (* de Morgan *)
     | BinOp (LOr, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_constraint d lhs negate ov in
+      let assert_r = assert_constraint d rhs negate ov in
       join assert_l assert_r
     | BinOp (LOr, lhs, rhs, intType) when negate ->
-      let assert_l = assert_cons d lhs negate ov in
-      let assert_r = assert_cons d rhs negate ov in
+      let assert_l = assert_constraint d lhs negate ov in
+      let assert_r = assert_constraint d rhs negate ov in
       meet assert_l assert_r (* de Morgan *)
-    | UnOp (LNot,e,_) -> assert_cons d e (not negate) ov
+    | UnOp (LNot,e,_) -> assert_constraint d e (not negate) ov
     | _ ->
-      begin match Convert.tcons1_of_cil_exp d (A.env d) e negate no_ov with
+      begin match Convert.tcons1_of_cil_exp d (A.env d) e negate (Lazy.from_val no_ov) with
         | tcons1 ->
-          if M.tracing then M.trace "apron" "assert_cons %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
-          if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pretty d;
+          if M.tracing then M.trace "apron" "assert_constraint %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_constraint st: %a\n" D.pretty d;
           let r = meet_tcons d tcons1 e in
-          if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pretty r;
+          if M.tracing then M.trace "apron" "assert_constraint r: %a\n" D.pretty r;
           r
         | exception Convert.Unsupported_CilExp reason ->
-          if M.tracing then M.trace "apron" "assert_cons %a unsupported: %s\n" d_exp e (SharedFunctions.show_unsupported_cilExp reason);
+          if M.tracing then M.trace "apron" "assert_constraint %a unsupported: %s\n" d_exp e (SharedFunctions.show_unsupported_cilExp reason);
           d
       end
 
@@ -723,10 +704,10 @@ struct
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
-          let module Convert = SharedFunctions.Convert (V) (Bounds(Man)) (struct let allow_global = true end) (Tracked) in
+          let module Convert = SharedFunctions.Convert (V) (Bounds(Man)) (struct let allow_global = true end) (struct let do_overflow_check = true end)(Tracked) in
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
-              let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in
+              let no_ov = lazy(IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e)) in
               match Convert.tcons1_of_cil_exp y y_env e false no_ov with
               | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
                 Some tcons1
@@ -792,7 +773,7 @@ end
 module D (Man: Manager)=
 struct
   module DWO = DWithOps (Man) (DHetero (Man))
-  include SharedFunctions.AssertionModule (V) (DWO)
+  include SharedFunctions.AssertionModule (V) (DWO) (struct let do_overflow_check = true end)
   include DWO
   module Tracked = Tracked
   module Man = Man
