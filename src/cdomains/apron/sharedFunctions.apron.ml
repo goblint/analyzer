@@ -206,8 +206,9 @@ struct
               let ikind = Cilfacade.get_ikind_exp e in (* TODO AWE: raise unsupported cil exception on error *)
               let simp = query e ikind in
               let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
-              if Option.is_some const then Const (CInt (Option.get const, ikind, None))
-              else e
+              match const with
+              | Some c -> Const (CInt (c, ikind, None))
+              | None -> e
             in
             match exp with
             | UnOp (Neg, e, _) ->
@@ -228,16 +229,17 @@ struct
                 | false ->
                   let res = query e @@ Cilfacade.get_ikind_exp e in
                   let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
-                  if Option.is_some const then Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z (Option.get const))))
-                  else if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
-                  else (
-                    let (minimal, maximal) = IntDomain.Size.range t_ik in
-                    match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with
-                    | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e
-                    | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
-                | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
-                | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
-                  raise (Unsupported_CilExp (Cast_not_injective t))
+                  match const with
+                  | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c)))
+                  | None -> if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
+                    else (
+                      let (minimal, maximal) = IntDomain.Size.range t_ik in
+                      match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with
+                      | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e
+                      | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
+                  | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
+                  | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
+                    raise (Unsupported_CilExp (Cast_not_injective t))
               end
             | _ ->
               raise (Unsupported_CilExp Exp_not_supported)
