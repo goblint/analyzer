@@ -605,12 +605,12 @@ struct
     let res = assign_exp ask t var exp no_ov in
     forget_vars res [var]
 
-  let substitute_exp ask t var exp ov =
-    let res = substitute_exp ask t var exp ov
+  let substitute_exp ask t var exp no_ov =
+    let res = substitute_exp ask t var exp no_ov
     in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
-  let substitute_exp ask t var exp ov = timing_wrap "substitution" (substitute_exp ask t var exp) ov
+  let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
   let show_coeff_vec l (env : Environment.t) =
     let show_element e = match e with

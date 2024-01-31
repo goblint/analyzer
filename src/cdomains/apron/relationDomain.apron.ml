@@ -109,7 +109,7 @@ sig
   val keep_filter : t -> (var -> bool) -> t
   val forget_vars : t -> var list -> t
 
-  (** Lazy bool ov parameter has been added to functions where functions of the Convert module are used.
+  (** Lazy bool no_ov parameter has been added to functions where functions of the Convert module are used.
       This is to also to make used of the improved overflow handling. *)
 
   val assign_exp : Queries.ask -> t -> var -> exp -> bool Lazy.t -> t
