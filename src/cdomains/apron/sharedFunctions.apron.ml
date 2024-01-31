@@ -1,5 +1,4 @@
 (** Relational value domain utilities. *)
-
 open GoblintCil
 open Batteries
 open GobApron
@@ -90,7 +89,7 @@ struct
   (** This version with an overflow check is used by the apron domains such as polyhedra and octagons.
       They do the overflow handling while they convert the expression to Texpr1. *)
   let overflow_handling_apron no_ov ik env expr d exp =
-    if not no_ov then (
+    if not (Lazy.force no_ov) then (
       let (type_min, type_max) = IntDomain.Size.range ik in
       let texpr1 = Texpr1.of_expr env expr in
       match Bounds.bound_texpr d texpr1 with
@@ -110,9 +109,10 @@ struct
                                      when the expression is not an integer expression, for example if it is a float expression. *)
   end
 
-  let texpr1_expr_of_cil_exp_with_overflow_check d env exp no_ov overflow_handling =
+  let texpr1_expr_of_cil_exp_old d env exp no_ov =
     (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp = function
+    let rec texpr1_expr_of_cil_exp exp = 
+      match exp with
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
         if not v.vglob || Arg.allow_global then
           let var =
@@ -147,39 +147,162 @@ struct
             | BinOp (Mod, e1, e2, _) ->
               Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
             | CastE (TInt (t_ik, _) as t, e) ->
-              begin match IntDomain.should_ignore_overflow t_ik || IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                | true ->
-                  Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-                | false
+              begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+                | true -> texpr1_expr_of_cil_exp e  
+                | false 
                 | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
                 | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
                   raise (Unsupported_CilExp (Cast_not_injective t))
               end
             | _ ->
               raise (Unsupported_CilExp Exp_not_supported)
-          in overflow_handling no_ov ik env expr d exp;
+          in overflow_handling_apron no_ov ik env expr d exp;
           expr
         | exception (Cilfacade.TypeOfError _ as e)
         | exception (Invalid_argument _ as e) ->
           raise (Unsupported_CilExp (Exp_typeOf e))
     in
-    texpr1_expr_of_cil_exp exp
+    texpr1_expr_of_cil_exp exp 
 
-  let texpr1_expr_of_cil_exp d env exp no_ov =
+
+  let texpr1_expr_of_cil_exp_with_overflow_check (ask: Queries.ask) d env exp no_ov overflow_handling =
+    let query e ik = 
+      let res = match ask.f (EvalInt e) with 
+        | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
+        | `Top -> IntDomain.IntDomTuple.top_of ik
+        | `Lifted x -> x (* According to base.ml:704 cast should be unnecessary because it should be taken care of by EvalInt. *)
+      in
+      (* If the returned interval is top of the expected ikind (i.e. the value is unknown ) or the returned interval is in range of the expected interval, return top 
+         - If top is returned the expression will be rewritten.
+         - If a constant is returned this specific value is casted to the expected ikind value
+         - else we got an interval with unsupported bounds i.e. the value expression is known to be unknown and needs casting, which we do not support i.e. the expression is not supported*)
+      let top = IntDomain.IntDomTuple.is_top_of ik res in
+      (* || (Option.is_some min && Option.is_some max && (minimal  != maximal && (Option.get min >= minimal || Option.get max <= maximal))) in*)
+      if top then IntDomain.IntDomTuple.top_of ik else res
+    in
+    (* recurse without env argument *)
+    let rec texpr1_expr_of_cil_exp ask exp = 
+      match exp with
+      | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
+        if not v.vglob || Arg.allow_global then
+          let var =
+            if v.vglob then
+              V.global v
+            else
+              V.local v
+          in
+          if Environment.mem_var env var then
+            Var var
+          else
+            raise (Unsupported_CilExp (Var_not_found v))
+        else
+          failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
+      | Const (CInt (i, _, _)) ->
+        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
+      | exp ->
+        match Cilfacade.get_ikind_exp exp with
+        | ik ->
+          let expr =
+            let simplify e =
+              let ikind = Cilfacade.get_ikind_exp e in (* TODO AWE: raise unsupported cil exception on error *)
+              let simp = query e ikind in
+              let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
+              if Option.is_some const then Const (CInt (Option.get const, ikind, None)) 
+              else e 
+            in
+            match exp with
+            | UnOp (Neg, e, _) ->
+              Unop (Neg, texpr1_expr_of_cil_exp ask @@ simplify e, Int, Near)
+            | BinOp (PlusA, e1, e2, _) ->
+              Binop (Add, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+            | BinOp (MinusA, e1, e2, _) ->
+              Binop (Sub, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+            | BinOp (Mult, e1, e2, _) ->
+              Binop (Mul, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+            | BinOp (Div, e1, e2, _) ->
+              Binop (Div, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Zero)
+            | BinOp (Mod, e1, e2, _) ->
+              Binop (Mod, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+            | CastE (TInt (t_ik, _) as t, e) ->
+              begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+                | true -> texpr1_expr_of_cil_exp ask @@ simplify e  
+                | false -> 
+                  let res = query e @@ Cilfacade.get_ikind_exp e in
+                  let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
+                  if Option.is_some const then Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z (Option.get const))))
+                  else if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
+                  else (
+                    let (minimal, maximal) = IntDomain.Size.range t_ik in
+                    match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with 
+                    | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e 
+                    | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
+                | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
+                | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
+                  raise (Unsupported_CilExp (Cast_not_injective t))
+              end
+            | _ ->
+              raise (Unsupported_CilExp Exp_not_supported)
+          in
+          overflow_handling no_ov ik env expr d exp;
+          expr
+        | exception (Cilfacade.TypeOfError _ as e)
+        | exception (Invalid_argument _ as e) ->
+          raise (Unsupported_CilExp (Exp_typeOf e))
+    in
+    (* only if we are sure that no overflow / undefined behavior happens we convert the expression *)
+    texpr1_expr_of_cil_exp ask exp
+
+  let texpr1_expr_of_cil_exp ask d env exp no_ov =
     let exp = Cil.constFold false exp in
-    if Ov.do_overflow_check then texpr1_expr_of_cil_exp_with_overflow_check d env exp (Lazy.force no_ov) overflow_handling_apron
-    else texpr1_expr_of_cil_exp_with_overflow_check d env exp no_ov no_ov_overflow_handling
+    if Ov.do_overflow_check then texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov overflow_handling_apron
+    else texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov no_ov_overflow_handling
 
-  let texpr1_of_cil_exp d env e no_ov =
-    Texpr1.of_expr env (texpr1_expr_of_cil_exp d env e no_ov)
+  let texpr1_of_cil_exp ask d env e no_ov =
+    let e = Cil.constFold false e in
+    let res =  texpr1_expr_of_cil_exp ask d env e no_ov in 
+    Texpr1.of_expr env res
 
-  let tcons1_of_cil_exp d env e negate no_ov =
+  let tcons1_of_cil_exp_old d env e negate no_ov =
+    let (texpr1_plus, texpr1_minus, typ) =
+      match e with
+      | BinOp (r, e1, e2, _) ->
+        let texpr1_1 = texpr1_expr_of_cil_exp_old d env e1 no_ov in 
+        let texpr1_2 = texpr1_expr_of_cil_exp_old d env e2 no_ov in
+        (* Apron constraints always compare with 0 and only have comparisons one way *)
+        begin match r with
+          | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
+          | Gt -> (texpr1_1, texpr1_2, SUP)   (* e1 > e2   ==>  e1 - e2 > 0  *)
+          | Le -> (texpr1_2, texpr1_1, SUPEQ) (* e1 <= e2  ==>  e2 - e1 >= 0 *)
+          | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
+          | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
+          | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
+          | _ -> raise (Unsupported_CilExp BinOp_not_supported)
+        end
+      | _ -> raise (Unsupported_CilExp Exp_not_supported)
+    in
+    let inverse_typ = function
+      | EQ -> DISEQ
+      | DISEQ -> EQ
+      | SUPEQ -> SUP
+      | SUP -> SUPEQ
+      | EQMOD _ -> failwith "tcons1_of_cil_exp: cannot invert EQMOD"
+    in
+    let (texpr1_plus, texpr1_minus, typ) =
+      if negate then
+        (texpr1_minus, texpr1_plus, inverse_typ typ)
+      else
+        (texpr1_plus, texpr1_minus, typ)
+    in
+    let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
+    Tcons1.make (Texpr1.of_expr env texpr1') typ
+
+  let tcons1_of_cil_exp ask d env e negate no_ov =
     let e = Cil.constFold false e in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp d env e1 no_ov in
-        let texpr1_2 = texpr1_expr_of_cil_exp d env e2 no_ov in
+        let texpr1_1 = texpr1_expr_of_cil_exp ask d env e1 no_ov in 
+        let texpr1_2 = texpr1_expr_of_cil_exp ask d env e2 no_ov in
         (* Apron constraints always compare with 0 and only have comparisons one way *)
         begin match r with
           | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
@@ -405,8 +528,8 @@ sig
 
   val env: t -> Environment.t
 
-  val assert_constraint: t -> exp -> bool -> bool Lazy.t -> t
-  val eval_interval : t -> Texpr1.t -> Z.t option * Z.t option
+  val assert_constraint: Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
+  val eval_interval : Queries.ask -> t -> Texpr1.t -> Z.t option * Z.t option
 end
 
 module Tracked: RelationDomain.Tracked =
@@ -443,7 +566,7 @@ struct
   (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
 
   (** Assert any expression. *)
-  let assert_inv d e negate no_ov =
+  let assert_inv ask d e negate no_ov =
     let e' =
       if exp_is_constraint e then
         e
@@ -451,26 +574,26 @@ struct
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
     in
-    assert_constraint d e' negate no_ov
+    assert_constraint ask d e' negate no_ov
 
-  let check_assert d e no_ov =
-    if is_bot_env (assert_inv d e false no_ov) then
+  let check_assert ask d e no_ov =
+    if is_bot_env (assert_inv ask d e false no_ov) then
       `False
-    else if is_bot_env (assert_inv d e true no_ov) then
+    else if is_bot_env (assert_inv ask d e true no_ov) then
       `True
     else
       `Top
 
   (** Evaluate non-constraint expression as interval. *)
-  let eval_interval_expr d e no_ov =
-    match Convert.texpr1_of_cil_exp d (env d) e no_ov with
+  let eval_interval_expr ask d e no_ov =
+    match Convert.texpr1_of_cil_exp ask d (env d) e no_ov with (* Resolve AWE: delete no_ov flags. *)
     | texpr1 ->
-      let c = eval_interval d texpr1 in c
+      let c = eval_interval ask d texpr1 in c
     | exception Convert.Unsupported_CilExp _ ->
       (None, None)
 
   (** Evaluate constraint or non-constraint expression as integer. *)
-  let eval_int d e no_ov =
+  let eval_int ask d e no_ov =
     let module ID = Queries.ID in
     match Cilfacade.get_ikind_exp e with
     | exception Cilfacade.TypeOfError _
@@ -479,12 +602,12 @@ struct
     | ik ->
       if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B\n" d_plainexp e (exp_is_constraint e);
       if exp_is_constraint e then
-        match check_assert d e no_ov with
+        match check_assert ask d e no_ov with
         | `True -> ID.of_bool ik true
         | `False -> ID.of_bool ik false
         | `Top -> ID.top_of ik
       else
-        match eval_interval_expr d e no_ov with
+        match eval_interval_expr ask d e no_ov with
         | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
         | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
         | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max

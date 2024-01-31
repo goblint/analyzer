@@ -208,8 +208,8 @@ struct
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
       let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik type_min), intType) in
-      let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
-      let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
+      let rel = RD.assert_inv ask rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
+      let rel = RD.assert_inv ask rel e2 false (no_overflow ask e2) in
       rel
     | exception Invalid_argument _ ->
       rel
@@ -237,7 +237,6 @@ struct
     inner e
 
   (* Basic transfer functions. *)
-
   let assign ctx (lv:lval) e =
     let st = ctx.local in
     if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
@@ -250,7 +249,7 @@ struct
           assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
               if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)\n" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
               if M.tracing then M.trace "relation" "st: %a\n" RD.pretty apr';
-              let r = RD.assign_exp apr' (RV.local v) e' (no_overflow ask simplified_e) in
+              let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
               if M.tracing then M.traceu "relation" "-> %a\n" RD.pretty r;
               r
             )
@@ -265,7 +264,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let res = assign_from_globals_wrapper ask ctx.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
-        RD.assert_inv rel' e' (not b) (no_overflow ask e)
+        RD.assert_inv ask rel' e' (not b) (no_overflow ask e)
       )
     in
     if RD.is_bot_env res then raise Deadcode;
@@ -301,6 +300,7 @@ struct
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
+    let ask = Analyses.ask_of_ctx ctx in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
@@ -313,10 +313,9 @@ struct
       if thread then
         new_rel
       else
-        let ask = Analyses.ask_of_ctx ctx in
         List.fold_left (fun new_rel (var, e) ->
             assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
-                RD.assign_exp rel' var e' (no_overflow ask e)
+                RD.assign_exp ask rel' var e' (no_overflow ask e)
               )
           ) new_rel arg_assigns
     in
@@ -359,7 +358,7 @@ struct
         match e with
         | Some e ->
           assign_from_globals_wrapper ask ctx.global {st with rel = rel'} e (fun rel' e' ->
-              RD.assign_exp rel' RV.return e' (no_overflow ask e)
+              RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
             )
         | None ->
           rel' (* leaves V.return unconstrained *)
@@ -405,7 +404,7 @@ struct
     let new_fun_rel = List.fold_left (fun new_fun_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_fun_rel} e (fun rel' e' ->
             (* not an assign, but still works? *)
-            RD.substitute_exp rel' var e' (no_overflow ask e)
+            RD.substitute_exp ask rel' var e' (no_overflow ask e)
           )
       ) new_fun_rel arg_substitutes
     in
@@ -498,7 +497,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let res = assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
           (* not an assign, but must remove g#in-s still *)
-          RD.assert_inv apr' e' false (no_overflow ask e)
+          RD.assert_inv ask apr' e' false (no_overflow ask e)
         )
       in
       if RD.is_bot_env res then raise Deadcode;
@@ -633,7 +632,7 @@ struct
       read_from_globals_wrapper
         (Analyses.ask_of_ctx ctx)
         ctx.global st esimple
-        (fun rel' e' -> RD.eval_int rel' e' no_ov)
+        (fun rel' e' -> RD.eval_int (Analyses.ask_of_ctx ctx) rel' e' no_ov)
     in
     match q with
     | EvalInt e ->
@@ -698,7 +697,7 @@ struct
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
       let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
       let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
-      let rel = RD.assert_inv rel e false (no_overflow ask e_orig) in (* assume *)
+      let rel = RD.assert_inv ask rel e false (no_overflow ask e_orig) in (* assume *)
       let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
 
       (* TODO: parallel write_global? *)

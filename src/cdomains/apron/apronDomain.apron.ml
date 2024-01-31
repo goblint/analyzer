@@ -128,9 +128,9 @@ sig
   val keep_vars : t -> Var.t list -> t
   val keep_filter : t -> (Var.t -> bool) -> t
   val forget_vars : t -> Var.t list -> t
-  val assign_exp : t -> Var.t -> exp -> bool Lazy.t -> t
+  val assign_exp : Queries.ask -> t -> Var.t -> exp -> bool Lazy.t -> t
   val assign_var : t -> Var.t -> Var.t -> t
-  val substitute_exp : t -> Var.t -> exp -> bool Lazy.t -> t
+  val substitute_exp : Queries.ask-> t -> Var.t -> exp -> bool Lazy.t -> t
 end
 
 (** Imperative in-place environment and transfer functions. *)
@@ -143,13 +143,13 @@ sig
   val keep_vars_with : t -> Var.t list -> unit
   val keep_filter_with : t -> (Var.t -> bool) -> unit
   val forget_vars_with : t -> Var.t list -> unit
-  val assign_exp_with : t -> Var.t -> exp -> bool Lazy.t -> unit
-  val assign_exp_parallel_with : t -> (Var.t * exp) list -> bool -> unit (* TODO: why this one isn't lazy? *)
+  val assign_exp_with : Queries.ask -> t -> Var.t -> exp -> bool Lazy.t -> unit
+  val assign_exp_parallel_with : Queries.ask -> t -> (Var.t * exp) list -> bool -> unit (* TODO: why this one isn't lazy? *)
   val assign_var_with : t -> Var.t -> Var.t -> unit
   val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
-  val substitute_exp_with : t -> Var.t -> exp -> bool Lazy.t-> unit
+  val substitute_exp_with : Queries.ask -> t -> Var.t -> exp -> bool Lazy.t-> unit
   val substitute_exp_parallel_with :
-    t -> (Var.t * exp) list -> bool Lazy.t -> unit
+    Queries.ask -> t -> (Var.t * exp) list -> bool Lazy.t -> unit
   val substitute_var_with : t -> Var.t -> Var.t -> unit
 end
 
@@ -189,17 +189,17 @@ struct
     let nd = copy d in
     forget_vars_with nd vs;
     nd
-  let assign_exp d v e no_ov =
+  let assign_exp ask d v e no_ov =
     let nd = copy d in
-    assign_exp_with nd v e no_ov;
+    assign_exp_with ask nd v e no_ov;
     nd
   let assign_var d v v' =
     let nd = copy d in
     assign_var_with nd v v';
     nd
-  let substitute_exp d v e no_ov =
+  let substitute_exp ask d v e no_ov =
     let nd = copy d in
-    substitute_exp_with nd v e no_ov;
+    substitute_exp_with ask nd v e no_ov;
     nd
 end
 
@@ -215,7 +215,7 @@ sig
   val mem_var : t -> Var.t -> bool
   val assign_var_parallel' :
     t -> Var.t list -> Var.t list -> t
-  val meet_tcons : t -> Tcons1.t -> exp -> t
+  val meet_tcons : Queries.ask -> t -> Tcons1.t -> exp -> t
   val to_lincons_array : t -> Lincons1.earray
   val of_lincons_array : Lincons1.earray -> t
 
@@ -280,8 +280,8 @@ struct
     let vs' = Array.of_list vs in
     A.forget_array_with Man.mgr nd vs' false
 
-  let assign_exp_with nd v e no_ov =
-    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
+  let assign_exp_with ask nd v e no_ov =
+    match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
       if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
@@ -289,7 +289,7 @@ struct
       if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
 
-  let assign_exp_parallel_with nd ves no_ov =
+  let assign_exp_parallel_with ask nd ves no_ov =
     (* TODO: non-_with version? *)
     let env = A.env nd in
     (* partition assigns with supported and unsupported exps *)
@@ -297,7 +297,7 @@ struct
       ves
       |> List.enum
       |> Enum.map (Tuple2.map2 (fun e ->
-          match Convert.texpr1_of_cil_exp nd env e (Lazy.from_val no_ov) with
+          match Convert.texpr1_of_cil_exp ask nd env e (Lazy.from_val no_ov) with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
@@ -347,14 +347,14 @@ struct
     in
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
-  let substitute_exp_with nd v e no_ov =
-    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
+  let substitute_exp_with ask nd v e no_ov =
+    match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
       forget_vars_with nd [v]
 
-  let substitute_exp_parallel_with nd ves no_ov =
+  let substitute_exp_parallel_with ask nd ves no_ov =
     (* TODO: non-_with version? *)
     let env = A.env nd in
     (* partition substitutes with supported and unsupported exps *)
@@ -362,7 +362,7 @@ struct
       ves
       |> List.enum
       |> Enum.map (Tuple2.map2 (fun e ->
-          match Convert.texpr1_of_cil_exp nd env e no_ov with
+          match Convert.texpr1_of_cil_exp ask nd env e no_ov with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
@@ -389,7 +389,7 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
-  let meet_tcons d tcons1 e =
+  let meet_tcons ask d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     A.meet_tcons_array Man.mgr d earray
@@ -493,48 +493,48 @@ struct
   include D
   include AOps (Tracked) (Man)
   include Tracked
-  let eval_interval = Bounds.bound_texpr
+  let eval_interval ask = Bounds.bound_texpr
   (** Assert a constraint expression.
 
       LAnd, LOr, LNot are directly supported by Apron domain in order to
       confirm logic-containing Apron invariants from witness while deep-query is disabled *)
-  let rec assert_constraint d e negate (ov: bool Lazy.t) =
+  let rec assert_constraint ask d e negate (ov: bool Lazy.t) =
     if M.tracing then M.trace "assert_constraint_apron" "%a ;;; %a\n" d_exp e d_plainexp e;
     let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in (* TODO: why ignores no_ov argument? *)
     match e with
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
     | BinOp (Ne, lhs, rhs, intType) when not negate ->
-      let assert_gt = assert_constraint d (BinOp (Gt, lhs, rhs, intType)) negate ov in
-      let assert_lt = assert_constraint d (BinOp (Lt, lhs, rhs, intType)) negate ov in
+      let assert_gt = assert_constraint ask d (BinOp (Gt, lhs, rhs, intType)) negate ov in
+      let assert_lt = assert_constraint ask d (BinOp (Lt, lhs, rhs, intType)) negate ov in
       join assert_gt assert_lt
     | BinOp (Eq, lhs, rhs, intType) when negate ->
-      let assert_gt = assert_constraint d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
-      let assert_lt = assert_constraint d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
+      let assert_gt = assert_constraint ask d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
+      let assert_lt = assert_constraint ask d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
       join assert_gt assert_lt
     | BinOp (LAnd, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_constraint d lhs negate ov in
-      let assert_r = assert_constraint d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate ov in
+      let assert_r = assert_constraint ask d rhs negate ov in
       meet assert_l assert_r
     | BinOp (LAnd, lhs, rhs, intType) when negate ->
-      let assert_l = assert_constraint d lhs negate ov in
-      let assert_r = assert_constraint d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate ov in
+      let assert_r = assert_constraint ask d rhs negate ov in
       join assert_l assert_r (* de Morgan *)
     | BinOp (LOr, lhs, rhs, intType) when not negate ->
-      let assert_l = assert_constraint d lhs negate ov in
-      let assert_r = assert_constraint d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate ov in
+      let assert_r = assert_constraint ask d rhs negate ov in
       join assert_l assert_r
     | BinOp (LOr, lhs, rhs, intType) when negate ->
-      let assert_l = assert_constraint d lhs negate ov in
-      let assert_r = assert_constraint d rhs negate ov in
+      let assert_l = assert_constraint ask d lhs negate ov in
+      let assert_r = assert_constraint ask d rhs negate ov in
       meet assert_l assert_r (* de Morgan *)
-    | UnOp (LNot,e,_) -> assert_constraint d e (not negate) ov
+    | UnOp (LNot,e,_) -> assert_constraint ask d e (not negate) ov
     | _ ->
-      begin match Convert.tcons1_of_cil_exp d (A.env d) e negate (Lazy.from_val no_ov) with
+      begin match Convert.tcons1_of_cil_exp ask d (A.env d) e negate (Lazy.from_val no_ov) with
         | tcons1 ->
           if M.tracing then M.trace "apron" "assert_constraint %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
           if M.tracing then M.trace "apron" "assert_constraint st: %a\n" D.pretty d;
-          let r = meet_tcons d tcons1 e in
+          let r = meet_tcons ask d tcons1 e in
           if M.tracing then M.trace "apron" "assert_constraint r: %a\n" D.pretty r;
           r
         | exception Convert.Unsupported_CilExp reason ->
@@ -689,6 +689,8 @@ struct
     else
       false
 
+
+
   let widen x y =
     let x_env = A.env x in
     let y_env = A.env y in
@@ -708,7 +710,7 @@ struct
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
               let no_ov = lazy(IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e)) in
-              match Convert.tcons1_of_cil_exp y y_env e false no_ov with
+              match Convert.tcons1_of_cil_exp_old y y_env e false no_ov with
               | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
                 Some tcons1
               | _
@@ -789,8 +791,8 @@ sig
 
   module Tracked: RelationDomain.Tracked
 
-  val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
-  val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
+  val assert_inv : Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
+  val eval_int : Queries.ask -> t -> exp -> bool Lazy.t -> Queries.ID.t
 end
 
 
@@ -871,12 +873,12 @@ struct
   let forget_vars_with (b, d) vs =
     BoxD.forget_vars_with b vs;
     D.forget_vars_with d vs
-  let assign_exp_with (b, d) v e no_ov =
-    BoxD.assign_exp_with b v e no_ov;
-    D.assign_exp_with d v e no_ov
-  let assign_exp_parallel_with (b, d) ves no_ov =
-    BoxD.assign_exp_parallel_with b ves no_ov;
-    D.assign_exp_parallel_with d ves no_ov
+  let assign_exp_with ask (b, d) v e no_ov =
+    BoxD.assign_exp_with ask b v e no_ov;
+    D.assign_exp_with ask d v e no_ov
+  let assign_exp_parallel_with ask (b, d) ves no_ov =
+    BoxD.assign_exp_parallel_with ask b ves no_ov;
+    D.assign_exp_parallel_with ask d ves no_ov
   let assign_var_with (b, d) v e =
     BoxD.assign_var_with b v e;
     D.assign_var_with d v e
@@ -885,22 +887,22 @@ struct
     D.assign_var_parallel_with d vvs
   let assign_var_parallel' (b, d) vs v's =
     (BoxD.assign_var_parallel' b vs v's, D.assign_var_parallel' d vs v's)
-  let substitute_exp_with (b, d) v e no_ov =
-    BoxD.substitute_exp_with b v e no_ov;
-    D.substitute_exp_with d v e no_ov
-  let substitute_exp_parallel_with (b, d) ves no_ov =
-    BoxD.substitute_exp_parallel_with b ves no_ov;
-    D.substitute_exp_parallel_with d ves no_ov
+  let substitute_exp_with ask (b, d) v e no_ov =
+    BoxD.substitute_exp_with ask b v e no_ov;
+    D.substitute_exp_with ask d v e no_ov
+  let substitute_exp_parallel_with ask (b, d) ves no_ov =
+    BoxD.substitute_exp_parallel_with ask b ves no_ov;
+    D.substitute_exp_parallel_with ask d ves no_ov
   let substitute_var_with (b, d) v1 v2 =
     BoxD.substitute_var_with b v1 v2;
     D.substitute_var_with d v1 v2
-  let meet_tcons (b, d) c e = (BoxD.meet_tcons b c e, D.meet_tcons d c e)
+  let meet_tcons ask (b, d) c e = (BoxD.meet_tcons ask b c e, D.meet_tcons ask d c e)
   let to_lincons_array (_, d) = D.to_lincons_array d
   let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
 
   let cil_exp_of_lincons1 = D.cil_exp_of_lincons1
-  let assert_inv (b, d) e n no_ov = (BoxD.assert_inv b e n no_ov, D.assert_inv d e n no_ov)
-  let eval_int (_, d) = D.eval_int d
+  let assert_inv ask (b, d) e n no_ov = (BoxD.assert_inv ask b e n no_ov, D.assert_inv ask d e n no_ov)
+  let eval_int ask (_, d) = D.eval_int ask d
 
   let invariant (b, d) =
     (* diff via lincons *)

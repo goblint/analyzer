@@ -18,25 +18,25 @@ module Mpqf = SharedFunctions.Mpqf
 module V = RelationDomain.V
 
 module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
-  struct
-    include Mx(Mpqf) (Vec)
-    let dim_add (ch: Apron.Dim.change) m =
+struct
+  include Mx(Mpqf) (Vec)
+  let dim_add (ch: Apron.Dim.change) m =
+    Array.modifyi (+) ch.dim;
+    add_empty_columns m ch.dim
+
+  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
+
+
+  let dim_remove (ch: Apron.Dim.change) m ~del =
+    if Array.length ch.dim = 0 || is_empty m then
+      m
+    else (
       Array.modifyi (+) ch.dim;
-      add_empty_columns m ch.dim
+      let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim else m in
+      remove_zero_rows @@ del_cols m' ch.dim)
 
-    let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
-
-
-    let dim_remove (ch: Apron.Dim.change) m ~del =
-      if Array.length ch.dim = 0 || is_empty m then
-        m
-      else (
-        Array.modifyi (+) ch.dim;
-        let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim else m in
-        remove_zero_rows @@ del_cols m' ch.dim)
-
-    let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
-  end
+  let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
+end
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
@@ -205,7 +205,7 @@ struct
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
 
-  let eval_interval = Bounds.bound_texpr
+  let eval_interval ask = Bounds.bound_texpr
 
   let name () = "affeq"
 
@@ -417,15 +417,16 @@ struct
 
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
-  let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
+  let assign_exp ask (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    match Convert.texpr1_expr_of_cil_exp t t.env exp no_ov with
+    (* TODO: Do we need to do a constant folding here? It happens for texpr1_of_cil_exp *)
+    match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
       if is_bot t then t else forget_vars t [var]
 
-  let assign_exp t var exp no_ov =
-    let res = assign_exp t var exp no_ov in
+  let assign_exp ask t var exp no_ov =
+    let res = assign_exp ask t var exp no_ov in
     if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
         (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
@@ -488,17 +489,17 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel'\n";
     res
 
-  let substitute_exp t var exp no_ov =
+  let substitute_exp ask t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    let res = assign_exp t var exp no_ov in
+    let res = assign_exp ask t var exp no_ov in
     forget_vars res [var]
 
-  let substitute_exp t var exp ov =
-    let res = substitute_exp t var exp ov in
+  let substitute_exp ask t var exp ov =
+    let res = substitute_exp ask t var exp ov in
     if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
-  let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
+  let substitute_exp ask t var exp ov = timing_wrap "substitution" (substitute_exp ask t var exp) ov
 
   (** Assert a constraint expression.
 
@@ -507,7 +508,7 @@ struct
       In case of a potential overflow, "no_ov" is set to false
       and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow *)
 
-  let meet_tcons t tcons expr =
+  let meet_tcons ask t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
     let meet_vec e =
       (* Flip the sign of the const. val in coeff vec *)
@@ -553,13 +554,13 @@ struct
     if M.tracing then M.tracel "ops" "unify: %s %s -> %s\n" (show a) (show b) (show res);
     res
 
-  let assert_constraint d e negate no_ov =
-    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
-    match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1 e
+  let assert_constraint ask d e negate no_ov =
+    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b" d_exp e (Lazy.force no_ov);
+    match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
+    | tcons1 -> meet_tcons ask d tcons1 e
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_constraint d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint d e negate) no_ov
+  let assert_constraint ask d e negate no_ov = timing_wrap "assert_cons" (assert_constraint ask d e negate) no_ov
 
   let relift t = t
 

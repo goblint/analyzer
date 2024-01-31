@@ -202,30 +202,57 @@ struct
     | x -> Some(x)
 
   let get_coeff (t: t) texp =
-    (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
-      Returns None if the expression is not a sum between a variable (without coefficient) and a constant.
-    *)
+    let d = Option.get t.d in
+    let expr = Array.init (Environment.size t.env) (fun _ -> Z.zero) in
+    let constant = ref (Z.zero) in
+    match get_coeff_vec t texp with
+    | None -> None (*The (in-) equality is not linear, therefore we don't know anything about it. *)
+    | Some cv's ->
+      let update (c, v) =
+        match v with
+        | None -> constant := Z.(!constant + c)
+        | Some idx -> match d.(idx) with
+          | (Some idx_i, c_i) -> constant := Z.(!constant + (c * c_i));
+            expr.(idx_i) <- Z.(expr.(idx_i) + c)
+          | (None, c_i) -> constant := Z.(!constant + (c * c_i))
+      in
+      List.iter update cv's;
+      let var_count = GobArray.count_matchingi (fun _ a -> a <> Z.zero) expr in
+      if var_count == 0 then Some (None, !constant)
+      else if var_count == 1 then ( 
+        let var = Array.findi (fun a -> a <> Z.zero) expr in
+        if Z.(expr.(var) == Z.one) then Some (Some var, !constant)
+        else None
+      )
+      else None
+
+
+
+  (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
+    Returns None if the expression is not a sum between a variable (without coefficient) and a constant.
+
     let exception Not2VarExpr in
     let sum_next_coefficient (var, current_var_offset, curr_offset) (next_coeff, next_var) =
-      begin match next_var with
-        | None -> (* this element represents a constant offset *)
-          (var, current_var_offset, Z.(curr_offset + next_coeff))
-        | Some _ -> (* this element represents a variable with a coefficient
-                              -> it must be always the same variable, else it's not a two-variable equality*)
-          begin if Option.is_none var || next_var = var then
-              (next_var, Z.(current_var_offset + next_coeff), curr_offset)
-            else raise Not2VarExpr end
-      end in
+    begin match next_var with
+      | None -> (* this element represents a constant offset *)
+        (var, current_var_offset, Z.(curr_offset + next_coeff))
+      | Some _ -> (* this element represents a variable with a coefficient
+                            -> it must be always the same variable, else it's not a two-variable equality*)
+        begin if Option.is_none var || next_var = var then
+            (next_var, Z.(current_var_offset + next_coeff), curr_offset)
+          else raise Not2VarExpr end
+    end in
     let sum_coefficients summands_list_opt =
-      Option.map (List.fold_left sum_next_coefficient (None, Z.zero, Z.zero)) summands_list_opt
+    Option.map (List.fold_left sum_next_coefficient (None, Z.zero, Z.zero)) summands_list_opt
     in
     match sum_coefficients (get_coeff_vec t texp) with
     | exception _ -> None
     | None -> None
     | Some (var, var_coeff, offset) ->
-      if Option.is_none var then Some (None, offset)
-      else if Z.equal var_coeff Z.one then Some (var, offset)
-      else None
+    if Option.is_none var then Some (None, offset)
+    else if Z.equal var_coeff Z.one then Some (var, offset)
+    else None
+  *)
 
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
@@ -234,6 +261,7 @@ struct
     | Some d -> {t with d = Some (EArray.forget_variable d (Environment.dim_of_var t.env var))}
     | None -> t (* there are no  variables in the current environment *)
 
+  (* Copy because function is not "with" so should not mutate inputs *)
   let assign_const t var const = match t.d with
     | None -> t
     | Some t_d ->
@@ -329,7 +357,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
 
 
-  let eval_interval = Bounds.bound_texpr
+  let eval_interval ask = Bounds.bound_texpr
 
   exception Contradiction
 
@@ -510,22 +538,22 @@ struct
   (* no_ov -> no overflow
      if it's true then there is no overflow
       -> Convert.texpr1_expr_of_cil_exp handles overflow *)
-  let assign_exp (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
+  let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    match Convert.texpr1_expr_of_cil_exp t t.env exp no_ov with
+    match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
     | texp -> assign_texpr t var texp
     | exception Convert.Unsupported_CilExp _ ->
       if is_bot_env t then t else forget_vars t [var]
 
-  let assign_exp t var exp no_ov =
-    let res = assign_exp t var exp no_ov in
+  let assign_exp ask t var exp no_ov =
+    let res = assign_exp ask t var exp no_ov in
     if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
         (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
   let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
-    assign_texpr t v (Apron.Texpr1.to_expr texpr1)
+    assign_texpr t v @@ Apron.Texpr1.to_expr texpr1
 
   let assign_var t v v' =
     let res = assign_var t v v' in
@@ -576,17 +604,17 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel'\n";
     res
 
-  let substitute_exp t var exp no_ov =
+  let substitute_exp ask t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    let res = assign_exp t var exp no_ov in
+    let res = assign_exp ask t var exp no_ov in
     forget_vars res [var]
 
-  let substitute_exp t var exp ov =
-    let res = substitute_exp t var exp ov
+  let substitute_exp ask t var exp ov =
+    let res = substitute_exp ask t var exp ov
     in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
-  let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
+  let substitute_exp ask t var exp ov = timing_wrap "substitution" (substitute_exp ask t var exp) ov
 
   let show_coeff_vec l (env : Environment.t) =
     let show_element e = match e with
@@ -612,7 +640,7 @@ struct
      -> does not have types (overflow is type dependent)
   *)
 
-  let meet_tcons t tcons original_expr no_ov =
+  let meet_tcons ask t tcons original_expr no_ov =
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     match t.d with
@@ -693,13 +721,13 @@ struct
      e.g. an if statement is encountered in the C code.
 
   *)
-  let assert_constraint d e negate (no_ov: bool Lazy.t) =
+  let assert_constraint ask d e negate (no_ov: bool Lazy.t) =
     if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b\n" d_exp e (Lazy.force no_ov);
-    match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1 e no_ov
+    match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
+    | tcons1 -> meet_tcons ask d tcons1 e no_ov
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_constraint d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint d e negate) no_ov
+  let assert_constraint ask d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
 
   let relift t = t
 

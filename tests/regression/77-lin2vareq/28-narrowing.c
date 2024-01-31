@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] lin2vareq
+// SKIP PARAM: --set ana.activated[+] lin2vareq --enable ana.int.interval
 #include <assert.h>
 
 int g = 0;
