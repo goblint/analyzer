@@ -211,7 +211,7 @@ struct
     (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
     | _ -> false
 
-  let rec get_addr_offs ctx ptr =
+  let get_addr_offs ctx ptr =
     match ctx.ask (Queries.MayPointTo ptr) with
     | a when not (VDQ.AD.is_top a) ->
       let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
