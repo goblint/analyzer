@@ -1,5 +1,4 @@
 // SKIP PARAM: --set ana.activated[+] affeq --set sem.int.signed_overflow assume_none
-
 #include <stdio.h>
 int main() {
 
@@ -18,8 +17,9 @@ int main() {
   */
 
   if (signedtounsigned == 4294967295) {
+    __goblint_check(1); // reachable
     return (-1);
   }
-
+__goblint_check(0); // NOWARN (unreachable)
   return (0);
 }

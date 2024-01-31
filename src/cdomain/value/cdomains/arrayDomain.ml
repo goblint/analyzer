@@ -5,7 +5,6 @@ open FlagHelper
 
 module M = Messages
 module A = Array
-module BI = IntOps.BigIntOps
 module VDQ = ValueDomainQueries
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
@@ -53,9 +52,9 @@ sig
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
-  val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
-  val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
-  val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
+  val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
+  val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
+  val smart_leq: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
   val update_length: idx -> t -> t
 
   val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
@@ -102,9 +101,9 @@ end
 module type LatticeWithSmartOps =
 sig
   include LatticeWithInvalidate
-  val smart_join: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
-  val smart_widen: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
-  val smart_leq: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> bool
+  val smart_join: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> t
+  val smart_widen: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> t
+  val smart_leq: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> bool
 end
 
 module type Null =
@@ -305,9 +304,9 @@ module type SPartitioned =
 sig
   include S
   val set_with_length: idx option -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
-  val smart_join_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
-  val smart_widen_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option)  -> t -> t-> t
-  val smart_leq_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
+  val smart_join_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
+  val smart_widen_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option)  -> t -> t-> t
+  val smart_leq_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
@@ -549,15 +548,15 @@ struct
       let use_last = get_string "ana.base.partition-arrays.keep-expr" = "last" in
       let exp_value e =
         let n = ask.eval_int e in
-        Option.map BI.of_bigint (VDQ.ID.to_int n)
+        VDQ.ID.to_int n
       in
-      let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
+      let equals_zero e = BatOption.map_default (Z.equal Z.zero) false (exp_value e) in
       let equals_maxIndex e =
         match length with
         | Some l ->
           begin
             match Idx.to_int l with
-            | Some i -> BatOption.map_default (BI.equal (BI.sub i BI.one)) false (exp_value e)
+            | Some i -> BatOption.map_default (Z.equal (Z.pred i)) false (exp_value e)
             | None -> false
           end
         | _ -> false
@@ -597,10 +596,10 @@ struct
             else if Cil.isConstant e && Cil.isConstant i' then
               match Cil.getInteger e, Cil.getInteger i' with
               | Some (e'': Cilint.cilint), Some i'' ->
-                if BI.equal  i'' (BI.add e'' BI.one) then
+                if Z.equal  i'' (Z.succ e'') then
                   (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                   Partitioned (i', (Val.join xl xm, a, xr))
-                else if BI.equal e'' (BI.add i'' BI.one) then
+                else if Z.equal e'' (Z.succ i'') then
                   Partitioned (i', (xl, a, Val.join xm xr))
                 else
                   default
@@ -658,7 +657,7 @@ struct
 
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v:t =
-    if Idx.to_int i = Some BI.one  then
+    if Idx.to_int i = Some Z.one  then
       Partitioned ((Cil.integer 0), (v, v, v))
     else if Val.is_bot v then
       Joint (Val.bot ())
@@ -674,12 +673,12 @@ struct
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (BI.sub i BI.one)
+            v = Some (Z.pred i)
           | None -> false
         end
       | None -> false
     in
-    let must_be_zero v = v = Some BI.zero in
+    let must_be_zero v = v = Some Z.zero in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
     match x1, x2 with
     | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) when Basetype.CilExp.equal e1 e2 ->
@@ -743,13 +742,13 @@ struct
 
   let smart_leq_with_length length x1_eval_int x2_eval_int x1 x2 =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
-    let must_be_zero v = (v = Some BI.zero) in
+    let must_be_zero v = (v = Some Z.zero) in
     let must_be_length_minus_one v =  match length with
       | Some l ->
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (BI.sub i BI.one)
+            v = Some (Z.pred i)
           | None -> false
         end
       | None -> false
@@ -835,7 +834,7 @@ end
 let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
     (* For an explanation of the warning types check the Pull Request #255 *)
     match(idx_after_start, idx_before_end) with
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
@@ -855,7 +854,6 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     | _ ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
       M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
-  else ()
 
 
 module TrivialWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
@@ -1739,7 +1737,7 @@ struct
     | UnrolledDomain -> (None, None, Some (U.make i v))
 
   (* convert to another domain *)
-  let index_as_expression i = (Some (Cil.integer i), Idx.of_int IInt (BI.of_int i))
+  let index_as_expression i = (Some (Cil.integer i), Idx.of_int IInt (Z.of_int i))
 
   let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
 

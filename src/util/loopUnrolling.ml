@@ -316,6 +316,7 @@ class loopUnrollingCallVisitor = object
         | Malloc _
         | Calloc _
         | Realloc _
+        | Alloca _
         | Lock _
         | Unlock _
         | ThreadCreate _

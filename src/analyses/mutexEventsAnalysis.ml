@@ -21,10 +21,16 @@ struct
   let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointTo exp)
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv_opt arg =
+    let compute_refine_split (e:Mutexes.elt) = match e with
+      | Addr a ->
+        let e' = BinOp(Eq, arg, AddrOf ((PreValueDomain.Mval.to_cil a)), intType) in
+        [Events.SplitBranch  (e',true)]
+      | _ -> []
+    in
     match lv_opt with
     | None ->
       Queries.AD.iter (fun e ->
-          ctx.split () [Events.Lock (e, rw)]
+          ctx.split () (Events.Lock (e, rw) :: compute_refine_split e)
         ) (eval_exp_addr a arg);
       if may_fail then
         ctx.split () [];
@@ -32,7 +38,7 @@ struct
     | Some lv ->
       let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
       Queries.AD.iter (fun e ->
-          ctx.split () [sb; Events.Lock (e, rw)];
+          ctx.split () (sb :: Events.Lock (e, rw) :: compute_refine_split e);
         ) (eval_exp_addr a arg);
       if may_fail then (
         let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in

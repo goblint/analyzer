@@ -123,7 +123,7 @@ struct
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
     match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
+    | Some c when Mpqf.get_den c = Z.one ->
       let int_val = Mpqf.get_num c in
       Some int_val, Some int_val
     | _ -> None, None
@@ -133,7 +133,7 @@ struct
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
+       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
        | _ -> ()
     );
     res
@@ -191,7 +191,7 @@ struct
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
                 ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in
       if String.starts_with res "+" then
-        String.sub res 1 (String.length res - 1)
+        Str.string_after res 1
       else
         res
     in
@@ -494,12 +494,12 @@ struct
     let res = assign_exp ask t var exp no_ov in
     forget_vars res [var]
 
-  let substitute_exp ask t var exp ov =
-    let res = substitute_exp ask t var exp ov in
+  let substitute_exp ask t var exp no_ov =
+    let res = substitute_exp ask t var exp no_ov in
     if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
-  let substitute_exp ask t var exp ov = timing_wrap "substitution" (substitute_exp ask t var exp) ov
+  let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
   (** Assert a constraint expression.
 

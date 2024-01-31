@@ -39,3 +39,4 @@ nav:
   - '📦 Artifact descriptions':
     - "🇸 SAS '21": artifact-descriptions/sas21.md
     - "🇪 ESOP '23": artifact-descriptions/esop23.md
+    - "🇻 VMCAI '24": artifact-descriptions/vmcai24.md
