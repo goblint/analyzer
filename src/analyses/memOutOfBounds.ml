@@ -435,9 +435,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; offset_typ = t} -> 
-      begin match i with 
-        | i when not @@ ID.is_bot i  -> 
+    | Queries.AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; offset_typ = t} when not @@ ID.is_bot i-> 
           if M.tracing then M.trace "OOB"  "e=%a  i=%a o=%a\n" d_exp e ID.pretty i ID.pretty o;
           let expOffset = match e with 
             | Lval (Var v, _) -> i 
@@ -488,9 +486,6 @@ struct
           in
           if M.tracing then M.trace "OOB" "result %a %a\n" ID.pretty isBeforeZero ID.pretty isBeforeEnd;
           (`Lifted isBeforeZero,`Lifted isBeforeEnd)
-        | _ -> (ValueDomainQueries.ID.top (), ValueDomainQueries.ID.top())
-      end
-    (* Queries.Result.top q *)
     | _ -> Queries.Result.top q
 
   let startstate v = ()
