@@ -281,9 +281,9 @@ struct
   (* the relational domain is not able to evaluate sizeOf expressions those have to be replaced with constants *)
   let rec replaceSizeOf exp : exp =  
     match exp with
-    | SizeOf typ -> sizeOf typ (*evaluate sizeOf*)
-    | UnOp (LNot, e, typ ) -> UnOp (LNot, CastE (typ, replaceSizeOf e), typ)
-    | BinOp (bop, e1, e2, typ) -> BinOp (bop, CastE ( typ ,replaceSizeOf e1), CastE(typ, replaceSizeOf e2), typ)
+    | SizeOf typ -> CastE ( uintType,sizeOf typ) (*evaluate sizeOf*)
+    | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOf e, typ)
+    | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOf e1, replaceSizeOf e2, typ)
     | Real e -> Real (replaceSizeOf e)
     | CastE (t,e) -> (CastE(t,replaceSizeOf e)) (*size_t by CIL those are of type TNamed *)
     | e ->  e
