@@ -35,9 +35,9 @@ module PointerType = struct
   let isGlobal = false
 end
 
-module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (PointerType)
-module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
-module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType)
+module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (PointerType) (*ghost variables for VLA*)
+module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType) (*ghost variables for relationa between pointers *)
+module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType) (*ghost variables for heap allocated variables *)
 
 module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
@@ -296,7 +296,7 @@ struct
     | SizeOf typ -> sizeOf typ (*evaluate sizeOf*)
     | e -> replaceSizeOfWithTyp e (typeOf e)
 
-
+  (*assign to the relational domain*)
   let assignVariable ctx (lv:lval) e = 
     let st = ctx.local in
     if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
@@ -338,7 +338,7 @@ struct
     | CastE (t,e) -> replacePointer e 
     | e -> replacePointer e
 
-
+  (* tracks the relational relationship between pointers *)
   let pointerAssign ctx (v:varinfo) e = 
     (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
     if GobConfig.get_bool "ana.apron.pointer_tracking" then (
@@ -368,17 +368,17 @@ struct
     | _ -> assignVariable ctx lv e
 
   let vdecl (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx)  (e:varinfo) = 
-
-    if GobConfig.get_bool "ana.arrayoob" then ((* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+    (*track the initialization expression of VLA in a ghost variable *)
+    if GobConfig.get_bool "ana.arrayoob" then (
       let rec helper (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx ) typ counter = match typ with
         | TArray (new_typ, (Some exp), attr )-> 
           let lenArray = ArrayMap.to_varinfo (e,counter) in 
           let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
           let new_ctx = 
             { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
-          let ctx' =  assign new_ctx (Var lenArray, NoOffset) exp in
+          let ctx' =  assignVariable new_ctx (Var lenArray, NoOffset) exp in
           let new_ctx = { ctx with  local = ctx'; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in  
-          helper new_ctx new_typ (counter+1)
+          helper new_ctx new_typ (counter+1) (*add for each new dimension a new ghost variable*)
         | _ -> ctx.local
       in 
       helper ctx e.vtype 0
@@ -453,7 +453,8 @@ struct
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    let argPointerMapping (x,e) = (*maps expression assigned to pointer args *)
+    (*maps keep the relational information about pointers in the new called function*)
+    let argPointerMapping (x,e) = 
       if GobConfig.get_bool "ana.apron.pointer_tracking" then 
         begin match sizeOfTyp (Lval (Var x, NoOffset)) with
           | Some typSize -> 
@@ -610,7 +611,7 @@ struct
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
-        | Some (Local v) when AllocSize.mem_varinfo v || PointerMap.mem_varinfo v || ArrayMap.mem_varinfo v -> true (* keep ghost Variables already filtered out in return *)
+        | Some (Local v) when AllocSize.mem_varinfo v || PointerMap.mem_varinfo v || ArrayMap.mem_varinfo v -> true (* keep ghost Variables in current scope, ghost variables in the called function are already filtered out in return *)
         | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
         | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
         | v -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
@@ -730,6 +731,7 @@ struct
       | Some lv -> invalidate_one ask ctx st' lv
       | None -> st'   
     in
+    (*creates ghost variables for allocated pointers *)
     let assignVariable (r:varinfo) v exp= 
       ( match (v) with
         | `Lifted vinfo -> 
@@ -738,12 +740,12 @@ struct
           let st' = {st with rel = RD.add_vars st.rel [RV.local lenArray]} in (* add newly created variable to Environment *)
           let new_ctx = 
             {ctx with local = st' ; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
-          let st'' = assign new_ctx (Var lenArray, NoOffset) (replaceSizeOf exp) in 
-          if GobConfig.get_bool "ana.apron.pointer_tracking" then  (
+          let st'' = assignVariable new_ctx (Var lenArray, NoOffset) (replaceSizeOf exp) in 
+          if GobConfig.get_bool "ana.apron.pointer_tracking" then  ( 
             let pointerLen = PointerMap.to_varinfo r in
             let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
             let new_ctx' = {ctx with local = st'''; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in
-            assign new_ctx' (Var pointerLen, NoOffset) (kinteger (Cilfacade.ptrdiff_ikind()) 0)
+            assign new_ctx' (Var pointerLen, NoOffset) (kinteger (Cilfacade.ptrdiff_ikind()) 0) (*a new allocated pointer points to the start*)
           )
           else st''
         | _ -> invalidate ctx)
@@ -861,6 +863,7 @@ struct
     let st = ctx.local in
     let eval_int e no_ov =
       let esimple = replace_deref_exps ctx.ask (replaceSizeOf e) in
+      if M.tracing then M.trace "ev" "rel %a\n" d_exp esimple;
       read_from_globals_wrapper
         (Analyses.ask_of_ctx ctx)
         ctx.global st esimple
@@ -882,8 +885,7 @@ struct
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context -> query_invariant ctx context
-
-    (* the lval arr has the length of the arr we now want to check if the expression index is within the bounds of arr please use relational Analysis *)
+      (*checks oob access for VLA*)
     | Queries.MayBeOutOfBounds {var= v ;dimension = d ;index =exp} -> 
       let newVar = ArrayMap.to_varinfo (v, d) in 
       let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
@@ -891,6 +893,7 @@ struct
       let i = eval_int comp (no_overflow ask comp ) in 
       if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a\n" d_exp comp ID.pretty i;
       convertID_to_FlatBool i
+      (*checks oob access for heap allocated variables*)
     | AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; _} -> 
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
         | a when not (Queries.AD.is_top a) -> 
@@ -912,6 +915,7 @@ struct
         begin match sizeOfTyp e with 
           | Some typSize -> 
             let pointerLen = replacePointerWithMapping e typSize in
+            if M.tracing then M.trace "OOB" "pointerEval: %a  \n" d_exp e ;
             let afterZero = Cilfacade.makeBinOp Le  (kinteger (Cilfacade.ptrdiff_ikind()) 0) pointerLen in
             if M.tracing then M.trace "OOB" "afterzero=%a %a" d_ikind (Cilfacade.get_ikind_exp afterZero) d_ikind (Cilfacade.get_ikind_exp (pointerLen));
             let isAfterZero = eval_int afterZero (no_overflow ask pointerLen) in
@@ -939,7 +943,7 @@ struct
               | _ -> failwith "unexpected expression!\n"
             end
             in
-            let checkAfterZero i = (*checks for the negative index out of bounds access*)
+            let checkAfterZero i = (*checks for if the expression may access memory before the allocated are*)
               begin 
                 try 
                   let min = Z.to_int i in 
@@ -983,7 +987,7 @@ struct
           in
           let isAfterZero, isBeforeEnd = 
             if GobConfig.get_bool "ana.apron.pointer_tracking" then (
-              let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in
+              let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in (*pointerEval may fail when relationEval yields information and vice versa*)
               if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" FlatBool.pretty isAfterZero FlatBool.pretty isBeforeEnd FlatBool.pretty isAfterZero2 FlatBool.pretty isBeforeEnd2;
               let isAfterZero = FlatBool.meet isAfterZero isAfterZero2 in
               let isBeforeEnd = FlatBool.meet isBeforeEnd isBeforeEnd2 in

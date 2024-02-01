@@ -1402,21 +1402,21 @@ struct
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
     | Q.NoOverflow e ->  
-      (* NoOverflow calls EvalInt, which in turn can call NoOverflow again in the relational domain *)
+      (* NoOverflow calls EvalInt, which in turn can call NoOverflow again in the relational domain. Therefore prevent other NoOverflow queries from resetting the local_no_overflow flag *)
       if not !noOverflow_query_already_started then (
         noOverflow_query_already_started := true;
         IntDomain.local_no_overflow := true;
-        MCP.lookUpCache := false; (*disable caching to compute the [!Intdomain.local_no_overflow] correctly*)
+        MCP.lookUpCache := false; (*disable caching to force the recomputation of the expression and set the [!Intdomain.local_no_overflow] flag *)
         let res = try 
             ignore(query_evalint ~ctx ctx.local  e);
             !IntDomain.local_no_overflow 
           with IntDomain.ArithmeticOnIntegerBot _ -> false
         in
         MCP.lookUpCache := true;
-        noOverflow_query_already_started := false;
+        noOverflow_query_already_started := false; 
         res
       )else 
-      if not !IntDomain.local_no_overflow  then false 
+      if not !IntDomain.local_no_overflow  then false (*other NoOverflow query still in computation don't reset flag*)
       else 
         let res = try 
             ignore(query_evalint ~ctx ctx.local  e);

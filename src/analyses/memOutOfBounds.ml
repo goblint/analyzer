@@ -287,7 +287,7 @@ struct
               | None -> ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, t
               | Some o -> 
                 let offsetTyp = begin match o with
-                  | Field (f, o) ->  
+                  | Field (f, o) -> (*if we have a struct dereference we use the size of target instead of the whole struct*)
                     if M.tracing then M.trace "OOB" "Typ of Offset=%a\n" d_type f.ftype;
                     f.ftype
                   | _ -> t
@@ -303,7 +303,7 @@ struct
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not determine pointer %a offset. Memory out-of-bounds access before allocated memory might occur" d_exp e
               | `Lifted false -> 
                 set_mem_safety_flag InvalidDeref;
-                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a acessess memory before the allocated memory. Memory out-of-bounds access must occur" d_exp e
+                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a must access memory before allocated memory. Memory out-of-bounds access must occur" d_exp e
               | `Lifted true -> ()
             end;
             begin match isBeforeEnd with
@@ -312,7 +312,7 @@ struct
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not determine pointer %a offset. Memory out-of-bounds access after allocated memory are might occur" d_exp e
               | `Lifted false -> 
                 set_mem_safety_flag InvalidDeref;
-                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a accesses memory after the allocated memory. Memory out-of-bounds access must occur" d_exp e
+                M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a must acess memory after allocated memory. Memory out-of-bounds access must occur" d_exp e
               | `Lifted true -> ()
             end
           | _ -> 
@@ -442,16 +442,16 @@ struct
     | Queries.AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; offset_typ = t} when not @@ ID.is_bot i-> 
       if M.tracing then M.trace "OOB"  "e=%a  i=%a o=%a\n" d_exp e ID.pretty i ID.pretty o;
       let expOffset = match e with 
-        | Lval (Var v, _) -> i 
+        | Lval (Var v, _) -> i
         | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
           let ptr_deref_type = get_ptr_deref_type @@ typeOf e1 in
           begin match ptr_deref_type with
             | Some typ-> 
-              let  e2Offset = eval_ptr_offset_in_binop ctx e2 typ in (*add offset of e2*)
+              let  e2Offset = eval_ptr_offset_in_binop ctx e2 typ in (*caculate the offset of e2*)
               begin match e2Offset with
                 | `Lifted e2Offset -> 
                   begin 
-                    try if binop = MinusPI then 
+                    try if binop = MinusPI then (* return for the expression offset the combined ID*)
                         ID.sub i e2Offset
                       else
                         ID.add i e2Offset
@@ -470,11 +470,12 @@ struct
       in
 
       if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
-      let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
+      (*check for negative Indices*)
+      let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (* 0 <= e1_offset + e2_offset *)
       let isBeforeZeroConverted = convertID_to_FlatBool isBeforeZero in
 
-      let currentTypSize = size_of_type_in_bytes t in
-      let castedCurrentTypSize = ID.cast_to (Cilfacade.ptrdiff_ikind ()) currentTypSize in (*add size of type*)
+      let currentTypSize = size_of_type_in_bytes t in (*calculate the size of the pointer target*)
+      let castedCurrentTypSize = ID.cast_to (Cilfacade.ptrdiff_ikind ()) currentTypSize in 
       let expOffset_CurrentTyPSize = 
         begin try ID.add expOffset castedCurrentTypSize 
           with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
@@ -483,7 +484,7 @@ struct
       if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty currentTypSize;
       if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_CurrentTyPSize;
       let expOffset_CurrentTypSize_StructOffset =               
-        (try  (ID.add o expOffset_CurrentTyPSize)
+        (try  (ID.add o expOffset_CurrentTyPSize) (*add size of the target type*)
          with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
       in
       if M.tracing then M.trace "OOB"  "exp_Offset_plus_current_index_size_struct_offset %a \n" ID.pretty expOffset_CurrentTypSize_StructOffset;
@@ -491,7 +492,7 @@ struct
         | `Lifted size -> 
           let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
           if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
-          let r = ID.le expOffset_CurrentTypSize_StructOffset casted_e_size in
+          let r = ID.le expOffset_CurrentTypSize_StructOffset casted_e_size in (* e1_offset + e2_offset + size_of_pointer_target + struct_offset < size_of_ptr_target*)
           convertID_to_FlatBool r
         | `Top | `Bot -> `Top
       in
