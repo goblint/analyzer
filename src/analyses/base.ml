@@ -1286,7 +1286,7 @@ struct
           (* check if the current operation causes a signed overflow *)
           begin match unop with
             | Neg -> (* an overflow happens when the lower bound of the interval is less than MIN_INT *)
-              Cil.isSigned ik && checkPredicate e (Z.geq)
+              Cil.isSigned ik && checkPredicate e (Z.gt)
             (* operations that do not result in overflow in C: *)
             | BNot|LNot -> false
           end
