@@ -1,33 +1,43 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --enable ana.int.interval
 #include <goblint.h>
-#include <limits.h>
 
 int main(void) {
-  int x = 10;
   int b;
   int a;
-  a = a %2;
-  b = a + 2;
+  int c; // c is an unknown value
+  a = a % 8; // a is in the interval [-7, 7]
 
-  if (x + 2147483647 == 2147483657) {
-    return 0;
-  }
+  b = c; // no overflow
+  __goblint_check(b == c);// SUCCESS
 
-  __goblint_check(1);
+  b = c * 1; // no overflow
+  __goblint_check(b == c);// SUCCESS
 
-  // Overflow
-  int c = 2147483647;
-  c = c + 1;
-  __goblint_check(c < 2147483647); // UNKNOWN!
+  b = c ? c : c; // no overflow
+  __goblint_check(b == c);// SUCCESS
 
-  x = 300 % b;
-  x = x * 1147483647; // should overflow
-  __goblint_check (x < 2147483647); // UNKNOWN!
+  b = a + 2; // no overflow
+  __goblint_check(b == a + 2);// SUCCESS
 
-  int y = 300 % a; //might overflow
-  __goblint_check (y < 2147483647); // UNKNOWN!
+  b = c + 2; // might overflow
+  __goblint_check(b == c + 2);// UNKNOWN!
 
-  int z = y << (a-1); //might overflow
-  __goblint_check (z < 2147483647); // UNKNOWN!
+  b = a - 2; // no overflow
+  __goblint_check(b == a - 2);// SUCCESS
+
+  b = c - 2; // might overflow
+  __goblint_check(b == c - 2);// UNKNOWN!
+
+  b = a * 2 - a * 1; // no overflow
+  __goblint_check(b == a);// SUCCESS
+
+  b = c * 2 - c * 1; // might overflow
+  __goblint_check(b == c); // UNKNOWN!
+
+  b = (-a) + a; // no overflow
+  __goblint_check(b == 0); // SUCCESS
+
+   b = (-c) + c; // might overflow
+  __goblint_check(b == 0); //  UNKNOWN!
 
 }
