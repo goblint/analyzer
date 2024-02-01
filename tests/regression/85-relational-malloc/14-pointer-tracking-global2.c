@@ -5,19 +5,19 @@ int readUntil(char *arr, int len)
 {
     for (int i = 0; i < len; i++)
     {
-        int tmp = 2 *i;
+        int tmp = 2 * i;
         if (top)
         {
-            int j = i* 2;
+            int j = i * 2;
             arr = j + arr;
-            arr = arr -i ;
-            arr = arr -i ;
+            arr = arr - i;
+            arr = arr - i;
             // Without pointer tracking we would not be able to track the offset here.
-            char s = *(arr +tmp - i -i); // NOWARN 
+            char s = *(arr + tmp - i - i); // NOWARN
         }
-        char s = *arr; // NOWARN
-        char s = *(arr+1); // WARN
-        char s = *(arr-1); // WARN
+        char s = *arr;       // NOWARN
+        char s = *(arr + 1); // WARN
+        char s = *(arr - 1); // WARN
         arr = arr + 1;
     }
 }
@@ -30,5 +30,5 @@ int main()
     else
         len = 10;
     char *ptr = malloc(len);
-        readUntil(ptr, len);
+    readUntil(ptr, len);
 }
