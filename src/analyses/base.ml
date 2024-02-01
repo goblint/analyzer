@@ -1286,7 +1286,7 @@ struct
           (* check if the current operation causes a signed overflow *)
           begin match unop with
             | Neg -> (* an overflow happens when the lower bound of the interval is less than MIN_INT *)
-              Cil.isSigned ik && checkPredicate e (Z.lt)
+              Cil.isSigned ik && checkPredicate e (Z.geq)
             (* operations that do not result in overflow in C: *)
             | BNot|LNot -> false
           end
@@ -1300,7 +1300,7 @@ struct
               | Mult -> checkBinop e1 e2 (GobOption.unionWith Z.mul)
               | Div -> checkBinop e1 e2 (GobOption.unionWith Z.div)
               | Mod -> (* an overflow happens when the second operand is negative *)
-                checkPredicate e2 (fun interval_bound _ -> Z.lt interval_bound Z.zero)
+                checkPredicate e2 (fun interval_bound _ -> Z.gt interval_bound Z.zero)
               (* operations that do not result in overflow in C: *)
               | Eq|Shiftrt|BAnd|BOr|BXor|Lt|Gt|Le|Ge|Ne|LAnd|LOr -> false
               (* Shiftlt can cause overflow and also undefined behaviour in case the second operand is non-positive*)
