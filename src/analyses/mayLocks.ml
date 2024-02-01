@@ -38,8 +38,6 @@ struct
        | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
        | _ -> ctx.local (* we cannot remove them here *))
     | None -> ctx.local (* we cannot remove them here *)
-
-  let is_held ctx l = D.mem l ctx.local
 end
 
 module Spec =

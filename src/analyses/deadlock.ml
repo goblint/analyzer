@@ -40,10 +40,6 @@ struct
     let remove ctx l =
       let inLockAddrs (e, _, _) = Lock.equal l e in
       D.filter (neg inLockAddrs) ctx.local
-
-    let is_held ctx l =
-      let inLockAddrs (e, _, _) = Lock.equal l e in
-      D.exists inLockAddrs ctx.local
       
   end
 

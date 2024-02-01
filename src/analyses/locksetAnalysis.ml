@@ -32,7 +32,6 @@ sig
 
   val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
   val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
-  val is_held: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> bool
 end
 
 let addr_set_of_lval (a: Queries.ask) lval =
@@ -76,6 +75,7 @@ module type MustArg =
 sig
   include MayArg
   val remove_all: (D.t, _, D.t, _) ctx -> D.t
+  val is_held: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> bool
 end
 
 module MakeMust (Arg: MustArg) =
