@@ -199,7 +199,7 @@ struct
     let r = Dom.bindings a in
     List.map (fun (x,v) -> (Dom.singleton x v, b)) r
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
           let yr = step ctx.prev_node (ctx.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)
@@ -208,10 +208,10 @@ struct
       in
       ys' @ xs
     in
-    fold' ctx Spec.threadenter (fun h -> h lval f args) g []
-  let threadspawn ctx lval f args fctx =
+    fold' ctx (Spec.threadenter ~multiple) (fun h -> h lval f args) g []
+  let threadspawn ctx ~multiple lval f args fctx =
     let fd1 = Dom.choose_key (fst fctx.local) in
-    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
+    map ctx (Spec.threadspawn ~multiple) (fun h -> h lval f args (conv fctx fd1))
 
   let sync ctx reason =
     fold'' ctx Spec.sync (fun h -> h reason) (fun (a, async) x r a' ->

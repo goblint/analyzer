@@ -109,8 +109,7 @@ struct
       let old_regpart = ctx.global () in
       let regpart, reg = match exp with
         | Some exp ->
-          let module BS = (val Base.get_main ()) in
-          Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
+          Reg.assign (ReturnUtil.return_lval ()) exp (old_regpart, reg)
         | None -> (old_regpart, reg)
       in
       let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
@@ -143,12 +142,11 @@ struct
     match au with
     | `Lifted reg -> begin
       let old_regpart = ctx.global () in
-      let module BS = (val Base.get_main ()) in
       let regpart, reg = match lval with
         | None -> (old_regpart, reg)
-        | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
+        | Some lval -> Reg.assign lval (AddrOf (ReturnUtil.return_lval ())) (old_regpart, reg)
       in
-      let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (regpart, reg) in
+      let regpart, reg = Reg.remove_vars [ReturnUtil.return_varinfo ()] (regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
         ctx.sideg () regpart;
       `Lifted reg
@@ -158,7 +156,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
-    | Malloc _ | Calloc _ | Realloc _ -> begin
+    | Malloc _ | Calloc _ | Realloc _ | Alloca _ -> begin
         match ctx.local, lval with
         | `Lifted reg, Some lv ->
           let old_regpart = ctx.global () in
@@ -175,9 +173,17 @@ struct
   let startstate v =
     `Lifted (RegMap.bot ())
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [`Lifted (RegMap.bot ())]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx =
+    match ctx.local with
+    | `Lifted reg ->
+      let old_regpart = ctx.global () in
+      let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      `Lifted reg
+    | x -> x
 
   let exitstate v = `Lifted (RegMap.bot ())
 

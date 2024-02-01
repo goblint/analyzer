@@ -13,6 +13,7 @@ Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/e
 
 ## Installing
 Both for using an up-to-date version of Goblint or developing it, the best way is to install from source by cloning this repository.
+For benchmarking Goblint, please follow the [Benchmarking guide on Read the Docs](https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/).
 
 ### Linux
 1. Install [opam](https://opam.ocaml.org/doc/Install.html).
@@ -23,7 +24,7 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 6. _Optional:_ See [`scripts/bash-completion.sh`](./scripts/bash-completion.sh) for setting up bash completion for Goblint arguments.
 
 ### MacOS
-1. Install GCC with `brew install gcc` (first run `xcode-select --install` if you don't want to build it from source). Goblint requires GCC while macOS's default `cpp` is Clang, which will not work.
+1. Install GCC with `brew install gcc grep` (first run `xcode-select --install` if you don't want to build it from source). Goblint requires GCC while macOS's default `cpp` is Clang, which will not work.
 2. ONLY for M1 (ARM64) processor: homebrew changed its install location from `/usr/local/` to `/opt/homebrew/`. For packages to find their dependecies execute `sudo ln -s /opt/homebrew/{include,lib} /usr/local/`.
 3. Continue using Linux instructions (the formulae in brew for `patch`, `libgmp-dev`, `libmpfr-dev` are `gpatch`, `gmp`, `mpfr`, respectively).
 

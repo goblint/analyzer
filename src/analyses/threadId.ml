@@ -29,10 +29,30 @@ module Spec =
 struct
   include Analyses.IdentitySpec
 
-  module N = Lattice.Flat (VNI) (struct let bot_name = "unknown node" let top_name = "unknown node" end)
+  module N =
+  struct
+    include Lattice.FlatConf (struct include Printable.DefaultConf let bot_name = "unknown node" let top_name = "unknown node" end) (VNI)
+    let name () = "wrapper call"
+  end
   module TD = Thread.D
+  module Created =
+  struct
+    module Current =
+    struct
+      include TD
+      let name () = "current function"
+    end
+    module Callees =
+    struct
+      include TD
+      let name () = "callees"
+    end
+    include Lattice.Prod (Current) (Callees)
+    let name () = "created"
+  end
 
-  module D = Lattice.Prod3 (N) (ThreadLifted) (TD)
+  (** Uniqueness Counter * TID * (All thread creates of current thread * All thread creates of the current function and its callees) *)
+  module D = Lattice.Prod3 (N) (ThreadLifted) (Created)
   module C = D
   module P = IdentityP (D)
 
@@ -40,19 +60,25 @@ struct
 
   let name () = "threadid"
 
-  let startstate v = (N.bot (), ThreadLifted.bot (), TD.bot ())
-  let exitstate  v = (N.bot (), `Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
+  let context fd ((n,current,td) as d) =
+    if GobConfig.get_bool "ana.thread.context.create-edges" then
+      d
+    else
+      (n, current, (TD.bot (), TD.bot ()))
+
+  let startstate v = (N.bot (), ThreadLifted.bot (), (TD.bot (),TD.bot ()))
+  let exitstate  v = (N.bot (), `Lifted (Thread.threadinit v ~multiple:false), (TD.bot (), TD.bot ()))
 
   let morphstate v _ =
     let tid = Thread.threadinit v ~multiple:false in
     if GobConfig.get_bool "dbg.print_tids" then
       Hashtbl.replace !tids tid ();
-    (N.bot (), `Lifted (tid), TD.bot ())
+    (N.bot (), `Lifted (tid), (TD.bot (), TD.bot ()))
 
-  let create_tid (_, current, td) ((node, index): Node.t * int option) v =
+  let create_tid ?(multiple=false) (_, current, (td, _)) ((node, index): Node.t * int option) v =
     match current with
     | `Lifted current ->
-      let+ tid = Thread.threadenter (current, td) node index v in
+      let+ tid = Thread.threadenter ~multiple (current, td) node index v in
       if GobConfig.get_bool "dbg.print_tids" then
         Hashtbl.replace !tids tid ();
       `Lifted tid
@@ -62,7 +88,18 @@ struct
   let is_unique ctx =
     ctx.ask Queries.MustBeUniqueThread
 
-  let created (_, current, td) =
+  let enter ctx lval f args =
+    let (n, current, (td, _)) = ctx.local in
+    [ctx.local, (n, current, (td,TD.bot ()))]
+
+  let combine_env ctx lval fexp f args fc ((n,current,(_, au_ftd)) as au) f_ask =
+    let (_, _, (td, ftd)) = ctx.local in
+    if not (GobConfig.get_bool "ana.thread.context.create-edges") then
+      (n,current,(TD.join td au_ftd, TD.join ftd au_ftd))
+    else
+      au
+
+  let created (_, current, (td, _)) =
     match current with
     | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
     | _ -> ConcDomain.ThreadSet.top ()
@@ -115,15 +152,15 @@ struct
     | `Lifted node, count -> node, Some count
     | (`Bot | `Top), _ -> ctx.prev_node, None
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args:D.t list =
     let n, i = indexed_node_for_ctx ctx in
-    let+ tid = create_tid ctx.local (n, i) f in
-    (`Lifted (f, n, i), tid, TD.bot ())
+    let+ tid = create_tid ~multiple ctx.local (n, i) f in
+    (`Lifted (f, n, i), tid, (TD.bot (), TD.bot ()))
 
-  let threadspawn ctx lval f args fctx =
-    let (current_n, current, td) = ctx.local in
+  let threadspawn ctx ~multiple lval f args fctx =
+    let (current_n, current, (td,tdl)) = ctx.local in
     let v, n, i = match fctx.local with `Lifted vni, _, _ -> vni | _ -> failwith "ThreadId.threadspawn" in
-    (current_n, current, Thread.threadspawn td n i v)
+    (current_n, current, (Thread.threadspawn ~multiple td n i v, Thread.threadspawn ~multiple tdl n i v))
 
   type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
   let init (m:marshal option): unit =

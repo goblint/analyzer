@@ -19,12 +19,12 @@ struct
 
   let assign_lval (ask: Queries.ask) lval local =
     match ask.f (MayPointTo (AddrOf lval)) with
-    | ls when Queries.LS.is_top ls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls ->
-      D.empty ()
-    | ls when Queries.LS.exists (fun (v, _) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)) ls ->
-      D.empty ()
-    | _ ->
-      local
+    | ad when Queries.AD.is_top ad -> D.empty ()
+    | ad when Queries.AD.exists (function
+        | Queries.AD.Addr.Addr (v,_) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)
+        | _ -> false
+      ) ad -> D.empty ()
+    | _ -> local
 
   let assign ctx lval rval =
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
@@ -39,23 +39,25 @@ struct
 
   let special ctx lval f args =
     let desc = LibraryFunctions.find f in
+    let alloc_var on_stack =
+      match ctx.ask (AllocVar {on_stack = on_stack}) with
+      | `Lifted var -> D.add var ctx.local
+      | _ -> ctx.local
+    in
     match desc.special args with
     | Malloc _
     | Calloc _
-    | Realloc _ ->
-      begin match ctx.ask HeapVar with
-        | `Lifted var -> D.add var ctx.local
-        | _ -> ctx.local
-      end
+    | Realloc _ -> alloc_var false
+    | Alloca _ -> alloc_var true
     | _ ->
       match lval with
       | None -> ctx.local
       | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.empty ()]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     D.empty ()
 
   module A =

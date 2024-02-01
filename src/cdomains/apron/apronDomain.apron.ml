@@ -4,12 +4,9 @@ open Batteries
 open GoblintCil
 open Pretty
 (* A binding to a selection of Apron-Domains *)
-open Apron
+open GobApron
 open RelationDomain
 open SharedFunctions
-
-
-module BI = IntOps.BigIntOps
 
 module M = Messages
 
@@ -29,8 +26,7 @@ let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds_apron
 
-module Var = SharedFunctions.Var
-module V = RelationDomain.V(Var)
+module V = RelationDomain.V
 
 
 module type Manager =
@@ -209,7 +205,6 @@ module type AOpsExtra =
 sig
   type t
   val copy : t -> t
-  val vars_as_array : t -> Var.t array
   val vars : t -> Var.t list
   type marshal
   val unmarshal : marshal -> t
@@ -248,15 +243,6 @@ struct
 
   let copy = A.copy Man.mgr
 
-  let vars_as_array d =
-    let ivs, fvs = Environment.vars (A.env d) in
-    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
-    ivs
-
-  let vars d =
-    let ivs = vars_as_array d in
-    List.of_enum (Array.enum ivs)
-
   (* marshal type: Abstract0.t and an array of var names *)
   type marshal = Man.mt Abstract0.t * string array
 
@@ -266,31 +252,24 @@ struct
     let env = Environment.make vars [||] in
     {abstract0; env}
 
+  let vars x = Environment.ivars_only @@ A.env x
+
   let marshal (x: t): marshal =
-    let vars = Array.map Var.to_string (vars_as_array x) in
+    let vars = Array.map Var.to_string (Array.of_list (vars x)) in
     x.abstract0, vars
 
   let mem_var d v = Environment.mem_var (A.env d) v
 
-  let add_vars_with nd vs =
-    let env' = EnvOps.add_vars (A.env nd) vs in
+  let envop f nd a =
+    let env' = f (A.env nd) a in
     A.change_environment_with Man.mgr nd env' false
 
-  let remove_vars_with nd vs =
-    let env' = EnvOps.remove_vars (A.env nd) vs in
-    A.change_environment_with Man.mgr nd env' false
+  let add_vars_with = envop Environment.add_vars
+  let remove_vars_with = envop Environment.remove_vars
+  let remove_filter_with = envop Environment.remove_filter
+  let keep_vars_with = envop Environment.keep_vars
+  let keep_filter_with = envop Environment.keep_filter
 
-  let remove_filter_with nd f =
-    let env' = EnvOps.remove_filter (A.env nd) f in
-    A.change_environment_with Man.mgr nd env' false
-
-  let keep_vars_with nd vs =
-    let env' = EnvOps.keep_vars (A.env nd) vs in
-    A.change_environment_with Man.mgr nd env' false
-
-  let keep_filter_with nd f =
-    let env' = EnvOps.keep_filter (A.env nd) f in
-    A.change_environment_with Man.mgr nd env' false
 
   let forget_vars_with nd vs =
     (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
@@ -497,9 +476,9 @@ struct
   let to_yojson (x: t) =
     let constraints =
       A.to_lincons_array Man.mgr x
-      |> SharedFunctions.Lincons1Set.of_earray
-      |> SharedFunctions.Lincons1Set.elements
-      |> List.map (fun lincons1 -> `String (SharedFunctions.Lincons1.show lincons1))
+      |> Lincons1Set.of_earray
+      |> Lincons1Set.elements
+      |> List.map (fun lincons1 -> `String (Lincons1.show lincons1))
     in
     let env = `String (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x))
     in
@@ -693,16 +672,16 @@ struct
 
   let join x y =
     (* just to optimize joining folds, which start with bot *)
-    if is_bot x then
+    if is_bot x then (* TODO: also for non-empty env *)
       y
-    else if is_bot y then
+    else if is_bot y then (* TODO: also for non-empty env *)
       x
     else (
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
       let j =
-        if strengthening_enabled then
+        if strengthening_enabled then (* TODO: skip if same envs? *)
           strengthening j x y
         else
           j
@@ -886,7 +865,6 @@ struct
   let unmarshal (b, d) = (BoxD.unmarshal b, D.unmarshal d)
 
   let mem_var (_, d) v = D.mem_var d v
-  let vars_as_array (_, d) = D.vars_as_array d
   let vars (_, d) = D.vars d
 
   let pretty_diff () ((_, d1), (_, d2)) = D.pretty_diff () (d1, d2)

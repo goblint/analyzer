@@ -55,7 +55,7 @@ module PartialEval = struct
     method! vexpr e =
       let eval e = match Queries.ID.to_int ((ask !loc).Queries.f (Queries.EvalInt e)) with
         | Some i ->
-          let e' = integer @@ IntOps.BigIntOps.to_int i in
+          let e' = integer (Z.to_int i) in
           ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' CilType.Location.pretty !loc;
           e'
         | None ->

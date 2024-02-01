@@ -7,32 +7,30 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from threading import Thread
-import http.server
-import socketserver
+import subprocess
 
-PORT = 9000
+PORT = 8080 # has to match port defined in goblint_http.ml
 DIRECTORY = "run"
 IP = "localhost"
 url = 'http://' + IP + ':' + str(PORT) + '/'
 
 # cleanup
-def cleanup(browser, httpd, thread):
+def cleanup(browser, thread):
   print("cleanup")
   browser.close()
-  httpd.shutdown()
-  httpd.server_close()
+  p.kill()
   thread.join()
 
 # serve GobView in different thread so it does not block the testing
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=DIRECTORY, **kwargs)
-class Server(socketserver.TCPServer):
-    allow_reuse_address = True # avoids that during a consecutive run the server cannot connect due to an 'Adress already in use' os error
+def serve():
+  global p
+  goblint_http_path = '_build/default/gobview/goblint-http-server/goblint_http.exe'
+  p = subprocess.Popen(['./' + goblint_http_path,
+                  '-with-goblint', '../analyzer/goblint',
+                  '-goblint', '--set', 'files[+]', '"../analyzer/tests/regression/00-sanity/01-assert.c"'])
 
-httpd = Server((IP, PORT), Handler)
 print("serving at port", PORT)
-thread = Thread(target=httpd.serve_forever, args=())
+thread = Thread(target=serve, args=())
 thread.start()
 
 # installation of browser
@@ -42,6 +40,7 @@ options.add_argument('headless')
 browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)
 print("finished webdriver installation \n")
 browser.maximize_window()
+browser.implicitly_wait(10);
 
 try:
     # retrieve and wait until page is fully loaded and rendered
@@ -128,8 +127,8 @@ try:
     # close "No results found" alert
     leftS.find_element(By.CLASS_NAME, "btn-close").click()
 
-    cleanup(browser, httpd, thread)
+    cleanup(browser, thread)
 
 except Exception as e:
-    cleanup(browser, httpd, thread)
+    cleanup(browser, thread)
     raise e
