@@ -35,6 +35,11 @@ module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
 module FlatBool = BoolDomain.FlatBool
 
+module ProdFlatBool = 
+struct
+  include Lattice.ProdSimple (FlatBool) (FlatBool)
+end
+
 module Unit = Lattice.Unit
 
 (** Different notions of protection for a global variables g by a mutex m
@@ -130,7 +135,7 @@ type _ t =
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MayBeOutOfBounds: maybeoutofbounds -> FlatBool.t t
   | NoOverflow : exp -> MayBool.t t
-  | AllocMayBeOutOfBounds : allocmaybeoutofbounds -> VDQ.ProdID.t t
+  | AllocMayBeOutOfBounds : allocmaybeoutofbounds -> ProdFlatBool.t t
   | AllocAssignedToGlobal : varinfo -> MustBool.t t
 
 type 'a result = 'a
@@ -201,9 +206,9 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
-    | MayBeOutOfBounds _ -> (module FlatBool)
+    | MayBeOutOfBounds _ -> (module FlatBool) (*used for relational VLA OOB detection in arraydomain *)
     | NoOverflow _ -> (module MayBool)
-    | AllocMayBeOutOfBounds _ -> (module VDQ.ProdID)
+    | AllocMayBeOutOfBounds _ -> (module ProdFlatBool) (*used for relational heap OOB detection in memOutOfBounds *)
     | AllocAssignedToGlobal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
@@ -273,9 +278,9 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
-    | MayBeOutOfBounds _ -> ID.top ()
-    | NoOverflow _ -> FlatBool.top ()
-    | AllocMayBeOutOfBounds _ -> VDQ.ProdID.top ()
+    | MayBeOutOfBounds _ -> FlatBool.top ()
+    | NoOverflow _ -> MayBool.top ()
+    | AllocMayBeOutOfBounds _ -> ProdFlatBool.top ()
     | AllocAssignedToGlobal _ -> MustBool.top ()
 end
 

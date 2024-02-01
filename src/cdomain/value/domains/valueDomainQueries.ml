@@ -44,10 +44,6 @@ struct
     | `Top -> false
 end
 
-module ProdID = 
-struct
-  include Lattice.ProdSimple (ID) (ID)
-end
 
 type eval_int = exp -> ID.t
 type may_point_to = exp -> AD.t

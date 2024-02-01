@@ -866,6 +866,10 @@ struct
         ctx.global st esimple
         (fun rel' e' -> RD.eval_int rel' e' no_ov)
     in
+    let convertID_to_FlatBool i = match VDQ.ID.to_bool i with 
+      | Some b -> `Lifted b 
+      | _ -> `Top
+    in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)\n" d_exp e d_plainexp e;
@@ -886,10 +890,7 @@ struct
       if M.tracing then M.trace "relationalArray" "v=%a -> %a %a d=%i\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty newVar d_exp  exp d;
       let i = eval_int comp (no_overflow ask comp ) in 
       if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a\n" d_exp comp ID.pretty i;
-      begin match ValueDomainQueries.ID.to_bool i with 
-        | Some b -> `Lifted b 
-        | _ -> `Top
-      end
+      convertID_to_FlatBool i
     | AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; _} -> 
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
         | a when not (Queries.AD.is_top a) -> 
@@ -912,20 +913,20 @@ struct
           | Some typSize -> 
             let pointerLen = replacePointerWithMapping e typSize in
             let afterZero = Cilfacade.makeBinOp Le  (kinteger (Cilfacade.ptrdiff_ikind()) 0) pointerLen in
-            if M.tracing then M.trace "ikind" "afterzero=%a %a" d_ikind (Cilfacade.get_ikind_exp afterZero) d_ikind (Cilfacade.get_ikind_exp (pointerLen));
+            if M.tracing then M.trace "OOB" "afterzero=%a %a" d_ikind (Cilfacade.get_ikind_exp afterZero) d_ikind (Cilfacade.get_ikind_exp (pointerLen));
             let isAfterZero = eval_int afterZero (no_overflow ask pointerLen) in
             if M.tracing then M.trace "OOB" "result: %a\n" ID.pretty isAfterZero;
             let relExp =  BinOp (PlusA, (kinteger (Cilfacade.ptrdiff_ikind()) structOffset), pointerLen, !ptrdiffType) in
             let isBeforeEnd = inBoundsForAllAddresses relExp in
-            (VDQ.ID.top (), isBeforeEnd)
-          | _ -> (VDQ.ID.top (),VDQ.ID.top ())
+            (convertID_to_FlatBool isAfterZero, convertID_to_FlatBool isBeforeEnd)
+          | _ -> (`Top,`Top)
         end
       in
       let relationEval e structOffset = 
-        if M.tracing then M.trace "OOB" "relationEval: %a %a %a\n" d_exp e IntDomain.IntDomTuple.pretty i RD.pretty st.rel;
-        begin match sizeOfTyp e with 
-          | Some typSize -> 
-            let exp i =  begin match e with 
+        if M.tracing then M.trace "OOB" "relationEval: %a %a \n" d_exp e IntDomain.IntDomTuple.pretty i ;
+        begin match sizeOfTyp e, IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i with 
+          | Some typSize, Some min, Some max -> 
+            let multiplyOffsetWithPointerSize i =  begin match e with 
               | Lval (Var v, _) -> (kinteger (Cilfacade.ptrdiff_ikind())i )
               | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
                 let replaceBinop bi = match bi with
@@ -938,36 +939,39 @@ struct
               | _ -> failwith "unexpected expression!\n"
             end
             in
-            let isAfterZero = 
-              begin match IntDomain.IntDomTuple.minimal i with  
-                | None  -> VDQ.ID.top ()
-                | Some min -> 
-                  begin 
-                    try 
-                      let min = Z.to_int min in 
-                      let mininumExp = exp min in
-                      let afterZero = Cilfacade.makeBinOp Le  (kinteger (Cilfacade.ptrdiff_ikind ()) 0) mininumExp in
-                      eval_int afterZero (no_overflow ask afterZero)
-                    with 
-                    | Z.Overflow -> VDQ.ID.top ()
-                  end
+            let checkAfterZero i = (*checks for the negative index out of bounds access*)
+              begin 
+                try 
+                  let min = Z.to_int i in 
+                  let mininumExp = multiplyOffsetWithPointerSize min in
+                  let afterZero = Cilfacade.makeBinOp Le  (kinteger (Cilfacade.ptrdiff_ikind ()) 0) mininumExp in
+                  let r =eval_int afterZero (no_overflow ask afterZero) in
+                  convertID_to_FlatBool r
+                with 
+                | Z.Overflow -> `Top
               end
             in
-            let isBeforeEnd = 
-              begin match IntDomain.IntDomTuple.maximal i with
-                | None -> ID.top_of (Cilfacade.ptrdiff_ikind())
-                | Some i -> 
-                  begin try
-                      let i = Z.to_int i + structOffset in
-                      let maximumExp = exp i in
-                      inBoundsForAllAddresses maximumExp
-                    with
-                    | Z.Overflow -> VDQ.ID.top ()
-                  end
+            let afterZeroMininumOffset = checkAfterZero min in (*if the minimum offset is not after zero we still can't conclusively say that for the whole expression*)
+            let afterZeroMaximumOffset = checkAfterZero max in
+
+            let isAfterZero = FlatBool.join afterZeroMininumOffset afterZeroMaximumOffset in
+
+            let checkBeforeEnd i = (*checks if the index is smaller than all the ghost variables the expression may point to *)
+              begin try
+                  let i = Z.to_int i + structOffset in
+                  let maximumExp = multiplyOffsetWithPointerSize i in
+                  let r = inBoundsForAllAddresses maximumExp in
+                  convertID_to_FlatBool r
+                with
+                | Z.Overflow -> `Top
               end
-            in  
+            in
+            let beforeEndMinimumOffest = checkBeforeEnd min in
+            let beforeEndMaximumOffset = checkBeforeEnd max in
+
+            let isBeforeEnd = FlatBool.join beforeEndMinimumOffest beforeEndMaximumOffset in 
             (isAfterZero, isBeforeEnd)
-          | _ -> (VDQ.ID.top (),VDQ.ID.top ())
+          | _ -> (`Top,`Top)
         end
       in
       begin match IntDomain.IntDomTuple.maximal o with 
@@ -980,9 +984,9 @@ struct
           let isAfterZero, isBeforeEnd = 
             if GobConfig.get_bool "ana.apron.pointer_tracking" then (
               let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in
-              if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" ID.pretty isAfterZero ID.pretty isBeforeEnd ID.pretty isAfterZero2 ID.pretty isBeforeEnd2;
-              let isAfterZero = ID.meet isAfterZero isAfterZero2 in
-              let isBeforeEnd = ID.meet isBeforeEnd isBeforeEnd2 in
+              if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" FlatBool.pretty isAfterZero FlatBool.pretty isBeforeEnd FlatBool.pretty isAfterZero2 FlatBool.pretty isBeforeEnd2;
+              let isAfterZero = FlatBool.meet isAfterZero isAfterZero2 in
+              let isBeforeEnd = FlatBool.meet isBeforeEnd isBeforeEnd2 in
               isAfterZero, isBeforeEnd 
             )
             else  

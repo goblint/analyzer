@@ -9,6 +9,7 @@ module AS = AnalysisState
 module VDQ = ValueDomainQueries
 module ID = IntDomain.IntDomTuple
 
+module FB = BoolDomain.FlatBool
 (*
   Note:
   * This functionality is implemented as an analysis solely for the sake of maintaining
@@ -232,8 +233,8 @@ struct
                   | Addr (_, o) -> ID.is_top_of (Cilfacade.ptrdiff_ikind ()) (offs_to_idx t o)
                   | _ -> false
                 ) a then (
-                set_mem_safety_flag InvalidDeref;
-                M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
+                (* set_mem_safety_flag InvalidDeref;
+                   M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr *)
               );
               (* Get the address offsets of all points-to set elements *)
               let addr_offsets =
@@ -273,7 +274,11 @@ struct
           | Some t -> 
             let addr_offs = match e with (*pointer offset*)
               | Lval (Var v, _) -> get_addr_offs ctx e 
-              | BinOp (binop, e1 ,e2, t) -> get_addr_offs ctx e1
+              | BinOp (binop, e1 ,e2, t) ->
+
+                let whatIF = get_addr_offs ctx e in 
+                if M.tracing then M.trace "whatIF" "e=%a -> %a\n" d_exp e ID.pretty whatIF;
+                get_addr_offs ctx e1
 
               | _ -> failwith "unexpected expression in calculateOffs!\n"
             in
@@ -292,24 +297,23 @@ struct
             end
             in
             let isAfterZero, isBeforeEnd =  (ctx.ask (Queries.AllocMayBeOutOfBounds {exp=e;e1_offset= addr_offs_casted;struct_offset= structOffset;offset_typ= currentSizeTyp})) in
-            let isAfterZeroBool, isBeforeEndBool = (VDQ.ID.to_bool isAfterZero, VDQ.ID.to_bool isBeforeEnd) in
-            begin match isAfterZeroBool with
-              | None -> 
+            begin match isAfterZero with
+              | `Top | `Bot -> 
                 set_mem_safety_flag InvalidDeref;
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not determine pointer %a offset. Memory out-of-bounds access before allocated memory might occur" d_exp e
-              | Some false -> 
+              | `Lifted false -> 
                 set_mem_safety_flag InvalidDeref;
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a acessess memory before the allocated memory. Memory out-of-bounds access must occur" d_exp e
-              | Some true -> ()
+              | `Lifted true -> ()
             end;
-            begin match isBeforeEndBool with
-              | None -> 
+            begin match isBeforeEnd with
+              | `Top | `Bot -> 
                 set_mem_safety_flag InvalidDeref;
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not determine pointer %a offset. Memory out-of-bounds access after allocated memory are might occur" d_exp e
-              | Some false -> 
+              | `Lifted false -> 
                 set_mem_safety_flag InvalidDeref;
                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Pointer %a accesses memory after the allocated memory. Memory out-of-bounds access must occur" d_exp e
-              | Some true -> ()
+              | `Lifted true -> ()
             end
           | _ -> 
             set_mem_safety_flag InvalidDeref;
@@ -436,56 +440,63 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; offset_typ = t} when not @@ ID.is_bot i-> 
-          if M.tracing then M.trace "OOB"  "e=%a  i=%a o=%a\n" d_exp e ID.pretty i ID.pretty o;
-          let expOffset = match e with 
-            | Lval (Var v, _) -> i 
-            | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
-              let ptr_deref_type = get_ptr_deref_type @@ typeOf e1 in
-              begin match ptr_deref_type with
-                | Some typ-> 
-                  let  e2Offset = eval_ptr_offset_in_binop ctx e2 typ in (*add offset of e2*)
-                  begin match e2Offset with
-                    | `Lifted e2Offset -> 
-                      begin 
-                        try if binop = MinusPI then 
-                            ID.sub i e2Offset
-                          else
-                            ID.add i e2Offset
-                        with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-                      end
-                    | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+      if M.tracing then M.trace "OOB"  "e=%a  i=%a o=%a\n" d_exp e ID.pretty i ID.pretty o;
+      let expOffset = match e with 
+        | Lval (Var v, _) -> i 
+        | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
+          let ptr_deref_type = get_ptr_deref_type @@ typeOf e1 in
+          begin match ptr_deref_type with
+            | Some typ-> 
+              let  e2Offset = eval_ptr_offset_in_binop ctx e2 typ in (*add offset of e2*)
+              begin match e2Offset with
+                | `Lifted e2Offset -> 
+                  begin 
+                    try if binop = MinusPI then 
+                        ID.sub i e2Offset
+                      else
+                        ID.add i e2Offset
+                    with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
                   end
-                | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+                | `Top | `Bot -> ID.top_of (Cilfacade.ptrdiff_ikind ())
               end
-            | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
-          in
-          if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
-          let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
+            | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+          end
+        | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
+      in
+      let convertID_to_FlatBool i = 
+        match ID.to_bool i with
+        | Some b -> `Lifted b
+        | None -> `Top
+      in
 
-          let currentTypSize = size_of_type_in_bytes t in
-          let castedCurrentTypSize = ID.cast_to (Cilfacade.ptrdiff_ikind ()) currentTypSize in (*add size of type*)
-          let expOffset_CurrentTyPSize = 
-            begin try ID.add expOffset castedCurrentTypSize 
-              with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
-            end
-          in
-          if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty currentTypSize;
-          if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_CurrentTyPSize;
-          let expOffset_CurrentTypSize_StructOffset =               
-            (try  (ID.add o expOffset_CurrentTyPSize)
-             with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
-          in
-          if M.tracing then M.trace "OOB"  "exp_Offset_plus_current_index_size_struct_offset %a \n" ID.pretty expOffset_CurrentTypSize_StructOffset;
-          let isBeforeEnd = match  get_size_of_ptr_target ctx e with 
-            | `Lifted size -> 
-              let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
-              if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
-              ID.le expOffset_CurrentTypSize_StructOffset casted_e_size
-            | `Top -> ID.top_of  IInt
-            | `Bot -> ID.top_of  IInt (*Ikind of ID comparisons*)
-          in
-          if M.tracing then M.trace "OOB" "result %a %a\n" ID.pretty isBeforeZero ID.pretty isBeforeEnd;
-          (`Lifted isBeforeZero,`Lifted isBeforeEnd)
+      if M.tracing then M.trace "OOB"  "e=%a  expOffset %a \n" d_exp e ID.pretty expOffset;
+      let isBeforeZero = ID.le (ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) expOffset in (*check for negative Indices*)
+      let isBeforeZeroConverted = convertID_to_FlatBool isBeforeZero in
+
+      let currentTypSize = size_of_type_in_bytes t in
+      let castedCurrentTypSize = ID.cast_to (Cilfacade.ptrdiff_ikind ()) currentTypSize in (*add size of type*)
+      let expOffset_CurrentTyPSize = 
+        begin try ID.add expOffset castedCurrentTypSize 
+          with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
+        end
+      in
+      if M.tracing then M.trace "OOB"  "current_index_size %a \n" ID.pretty currentTypSize;
+      if M.tracing then M.trace "OOB"  "expOffset_plus_current_index_size %a \n" ID.pretty expOffset_CurrentTyPSize;
+      let expOffset_CurrentTypSize_StructOffset =               
+        (try  (ID.add o expOffset_CurrentTyPSize)
+         with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()))
+      in
+      if M.tracing then M.trace "OOB"  "exp_Offset_plus_current_index_size_struct_offset %a \n" ID.pretty expOffset_CurrentTypSize_StructOffset;
+      let isBeforeEnd = match  get_size_of_ptr_target ctx e with 
+        | `Lifted size -> 
+          let casted_e_size = ID.cast_to (Cilfacade.ptrdiff_ikind ()) size in
+          if M.tracing then M.trace "OOB" "casted_e_size %a \n" ID.pretty casted_e_size;
+          let r = ID.le expOffset_CurrentTypSize_StructOffset casted_e_size in
+          convertID_to_FlatBool r
+        | `Top | `Bot -> `Top
+      in
+      if M.tracing then M.trace "OOB" "result %a %a\n" FB.pretty isBeforeZeroConverted FB.pretty isBeforeEnd;
+      (isBeforeZeroConverted, isBeforeEnd)
     | _ -> Queries.Result.top q
 
   let startstate v = ()
