@@ -2,7 +2,7 @@
 #include <assert.h>
 
 int main() {
-  int a;
+  short a;
   a = a % 10;
   int b;
   int c;
