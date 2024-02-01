@@ -671,24 +671,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       of_interval (-. 1., 1.)
 
   let eval_sin_cfun l h =
-    let (dist, l'', h'') = project_and_compress l h 2. in
-    if Messages.tracing then Messages.trace "CstubsTrig" "sin: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
-    if (dist <= Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Up 0.25) && (h'' <= Float_t.of_float Down 0.75) && (l'' <= h'') then
-      (** case: monotonic decreasing interval*)
-      Interval (Float_t.sin Down h, Float_t.sin Up l)
-    else if (dist <= Float_t.of_float Down 0.5) && 
-            ((((l'' >= Float_t.of_float Up 0.75) || (h'' <= Float_t.of_float Down 0.25)) && (l'' <= h'')) || (** two cases with l'' <= h''*)
-             ((l'' >= Float_t.of_float Up 0.75) && (h'' <= Float_t.of_float Down 0.25))) then (** projected interval is "wrapped", i.e., l'' >= h''*)
-      (** case: monotonic increasing interval*)
-      Interval (Float_t.sin Down l, Float_t.sin Up h)
-    else if (dist <= Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Up 0.25) && ((l'' <= h'') || (h'' <= Float_t.of_float Down 0.25)) then
-      (** case: contains at most one minimum*)
-      Interval (Float_t.of_float Down (-.1.), max (Float_t.sin Up l) (Float_t.sin Up h))
-    else if (dist <= Float_t.of_float Down 1.) && (h'' <= Float_t.of_float Down 0.75) && ((l'' <= h'') || (l'' >= Float_t.of_float Up 0.75))then
-      (** case: contains at most one maximum*)
-      Interval (min (Float_t.sin Down l) (Float_t.sin Down h), Float_t.of_float Up 1.)
-    else
-      of_interval (-. 1., 1.)
+    let lcos = Float_t.sub Down l (Float_t.div Up Float_t.pi (Float_t.of_float Down 2.0)) in
+    let hcos = Float_t.sub Up h (Float_t.div Down Float_t.pi (Float_t.of_float Up 2.0)) in
+    eval_cos_cfun lcos hcos
 
   let eval_tan_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 1. in
