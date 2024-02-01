@@ -843,8 +843,11 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
       | None -> 
         (match arrExpDim, e with 
          | Some (Some(Var arr_lval, _),counter ), Some exp ->
-           if M.tracing then M.trace "relationalArray" "c=%a e=%a" CilType.Varinfo.pretty arr_lval d_exp exp;
-           ValueDomainQueries.ID.to_bool (ask.may_be_out_of_bounds (arr_lval, counter ) exp)
+           if M.tracing then M.trace "relationalArray" "c=%a e=%a\n" CilType.Varinfo.pretty arr_lval d_exp exp;
+           begin match (ask.may_be_out_of_bounds (arr_lval, counter ) exp) with 
+             | `Lifted b -> Some  b 
+             | _ -> None 
+           end
          | _, _ -> None) 
       | b -> b in
 

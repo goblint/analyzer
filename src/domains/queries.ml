@@ -33,6 +33,7 @@ module AD = ValueDomain.AD
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
+module FlatBool = BoolDomain.FlatBool
 
 module Unit = Lattice.Unit
 
@@ -127,7 +128,7 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
-  | MayBeOutOfBounds: maybeoutofbounds -> ID.t t
+  | MayBeOutOfBounds: maybeoutofbounds -> FlatBool.t t
   | NoOverflow : exp -> MayBool.t t
   | AllocMayBeOutOfBounds : allocmaybeoutofbounds -> VDQ.ProdID.t t
   | AllocAssignedToGlobal : varinfo -> MustBool.t t
@@ -200,7 +201,7 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
-    | MayBeOutOfBounds _ -> (module ID)
+    | MayBeOutOfBounds _ -> (module FlatBool)
     | NoOverflow _ -> (module MayBool)
     | AllocMayBeOutOfBounds _ -> (module VDQ.ProdID)
     | AllocAssignedToGlobal _ -> (module MustBool)
@@ -273,7 +274,7 @@ struct
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
     | MayBeOutOfBounds _ -> ID.top ()
-    | NoOverflow _ -> MayBool.top ()
+    | NoOverflow _ -> FlatBool.top ()
     | AllocMayBeOutOfBounds _ -> VDQ.ProdID.top ()
     | AllocAssignedToGlobal _ -> MustBool.top ()
 end

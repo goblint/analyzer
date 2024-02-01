@@ -877,7 +877,10 @@ struct
       if M.tracing then M.trace "relationalArray" "v=%a -> %a %a d=%i\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty newVar d_exp  exp d;
       let i = eval_int comp (no_overflow ask comp ) in 
       if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a\n" d_exp comp ID.pretty i;
-      i 
+      begin match ValueDomainQueries.ID.to_bool i with 
+        | Some b -> `Lifted b 
+        | _ -> `Top
+      end
     | AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; _} -> 
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
         | a when not (Queries.AD.is_top a) -> 
