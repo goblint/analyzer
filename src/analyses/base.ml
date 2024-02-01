@@ -1019,7 +1019,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset ~ctx st ofs)
-    | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when CilType.Exp.equal exp (Offset.Index.Exp.any ()) -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset ~ctx st ofs)
     | Index (exp, ofs) ->
       match eval_rv ~ctx st exp with
@@ -2343,7 +2343,7 @@ struct
                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
                | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~ctx st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
                | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~ctx st
-                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
+                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any (), NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
     | Strcmp { s1; s2; n }, _ ->
