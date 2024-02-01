@@ -280,13 +280,22 @@ struct
 
   (* the relational domain is not able to evaluate sizeOf expressions those have to be replaced with constants *)
   let rec replaceSizeOf exp : exp =  
+    (*with correct type casting of SizeOf to prevent incompatible ikinds (in malloc call) *)
+    let rec replaceSizeOfWithTyp exp  t  =  
+      match exp with 
+      | SizeOf typ -> if M.tracing then M.trace "sizeOf" "typeof=%a\n" d_type(typeOf exp ); CastE ( t,sizeOf typ) (*evaluate sizeOf*)
+      | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOfWithTyp e typ, typ)
+      | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOfWithTyp e1 typ, replaceSizeOfWithTyp e2 typ, typ)
+      | Real e -> Real (replaceSizeOfWithTyp e (typeOf e))
+      | Imag e -> Imag (replaceSizeOfWithTyp e (typeOf e))
+      | Question (e1, e2, e3, typ) -> Question (replaceSizeOfWithTyp e1 typ, replaceSizeOfWithTyp e2 typ, replaceSizeOfWithTyp e3 typ, typ)
+      | CastE (t,e) -> (CastE(t,replaceSizeOfWithTyp e t)) (*size_t by CIL those are of type TNamed *)
+      | e ->  e
+    in
     match exp with
-    | SizeOf typ -> CastE ( uintType,sizeOf typ) (*evaluate sizeOf*)
-    | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOf e, typ)
-    | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOf e1, replaceSizeOf e2, typ)
-    | Real e -> Real (replaceSizeOf e)
-    | CastE (t,e) -> (CastE(t,replaceSizeOf e)) (*size_t by CIL those are of type TNamed *)
-    | e ->  e
+    | SizeOf typ -> sizeOf typ (*evaluate sizeOf*)
+    | e -> replaceSizeOfWithTyp e (typeOf e)
+
 
   let assignVariable ctx (lv:lval) e = 
     let st = ctx.local in
