@@ -6,6 +6,10 @@ let for_all p = function
   | Some x -> p x
   | None -> true
 
+let unionWith binop opt1 opt2 =
+  match opt1, opt2 with
+  | Some x1, Some x2 -> Some (binop x1 x2)
+  | _ -> None
 
 (** Open this to use applicative functor/monad syntax for {!option}. *)
 module Syntax =

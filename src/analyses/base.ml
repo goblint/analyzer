@@ -1232,21 +1232,44 @@ struct
     else
       Invariant.none
 
+  (**
+      This query returns false if the expression [exp] will definitely not result in an overflow.
+
+     Each subexpression is analyzed to see if an overflow happened.
+     For each operator in the expression, we use the query EvalInt to approximate the bounds of each
+     operand and we compute if in the worst case there could be an overflow.
+
+      For now we return true if the expression contains a shift left.
+  *)
   let rec exp_may_signed_overflow ctx exp =
     let res = match Cilfacade.get_ikind_exp exp with
       | exception _ -> BoolDomain.MayBool.top ()
       | ik ->
-        let check e =  
-          let res = match (Analyses.ask_of_ctx ctx).f (EvalInt e) with
-            | `Bot -> true (* TODO AWE: Throw exception? But which one? This should never happen according to Michael Schwarz *)
-            | `Lifted i -> if Queries.ID.is_top_of ik (`Lifted i) then true 
-              else (
-                let (minimal, maximal) = IntDomain.Size.range ik in
-                match IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i with
-                | Some min, Some max when  min > minimal && max < maximal -> false
-                | _ -> true )
-            | _   -> true in
-          if M.tracing then M.trace "signed_overflow" "may_signed_overflow-check: %a. Result = %b\n" d_plainexp e res; res
+        let checkBinop e1 e2 binop =
+          match (Analyses.ask_of_ctx ctx).f (EvalInt e1), (Analyses.ask_of_ctx ctx).f (EvalInt e2) with
+          | `Bot, _ -> false
+          | _, `Bot -> false
+          | `Lifted i1, `Lifted i2 ->
+            ( let (min_ik, max_ik) = IntDomain.Size.range ik in
+              let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
+              let (min_i2, max_i2) = (IntDomain.IntDomTuple.minimal i2, IntDomain.IntDomTuple.maximal i2) in
+              let possible_combinations = [binop min_i1 min_i2; binop  min_i1 max_i2; binop max_i1 min_i2; binop max_i1 max_i2] in
+              let min_exp = List.min possible_combinations in
+              let max_exp = List.max possible_combinations in
+              match min_exp, max_exp with
+              | Some min, Some max when min >= min_ik && max <= max_ik -> false
+              | _ -> true)
+          | _   -> true in
+        let checkPredicate e pred =
+          match (Analyses.ask_of_ctx ctx).f (EvalInt e) with
+          | `Bot -> false
+          | `Lifted i ->
+            (let (min_ik, _) = IntDomain.Size.range ik in
+             let (min_i, max_i) = (IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i) in
+             match min_i with
+             | Some min when pred min min_ik -> false
+             | _ -> true)
+          | _   -> true
         in
         match exp with
         | Const _
@@ -1259,14 +1282,33 @@ struct
         | SizeOfE e
         | AlignOfE e
         | CastE (_, e) -> exp_may_signed_overflow ctx e
-        | UnOp (_, e, _) ->
-          if Cil.isSigned ik && check exp then true
-          (** if EvalInt returns top, there was probably an overflow.
-                  Otherwise, to be sure that there is no overflow, we need to check each subexpression *)
-          else exp_may_signed_overflow ctx e
-        | BinOp (_, e1, e2, _) -> 
-          check e1 || check e2 ||exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2 || (Cil.isSigned ik && check exp)
+        | UnOp (unop, e, _) ->
+          (* check if the current operation causes a signed overflow *)
+          begin match unop with
+            | Neg -> (* an overflow happens when the lower bound of the interval is less than MIN_INT *)
+              Cil.isSigned ik && checkPredicate e (Z.lt)
+            (* operations that do not result in overflow in C: *)
+            | BNot|LNot -> false
+          end
+          (* look for overflow in subexpression *)
+          || exp_may_signed_overflow ctx e
+        | BinOp (binop, e1, e2, _) ->
+          (* check if the current operation causes a signed overflow *)
+          (Cil.isSigned ik && begin match binop with
+              | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.unionWith Z.(+))
+              | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.unionWith Z.(-))
+              | Mult -> checkBinop e1 e2 (GobOption.unionWith Z.mul)
+              | Div -> checkBinop e1 e2 (GobOption.unionWith Z.div)
+              | Mod -> (* an overflow happens when the second operand is negative *)
+                checkPredicate e2 (fun interval_bound _ -> Z.lt interval_bound Z.zero)
+              (* operations that do not result in overflow in C: *)
+              | Eq|Shiftrt|BAnd|BOr|BXor|Lt|Gt|Le|Ge|Ne|LAnd|LOr -> false
+              (* Shiftlt can cause overflow and also undefined behaviour in case the second operand is non-positive*)
+              | Shiftlt -> true end)
+          (* look for overflow in subexpression *)
+          || exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2
         | Question (e1, e2, e3, _) ->
+          (* does not result in overflow in C *)
           exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2 || exp_may_signed_overflow ctx e3
         | Lval lval
         | AddrOf lval
