@@ -477,12 +477,20 @@ struct
     if Environment.equal a_env b_env  then
       join a b
     else b
+  let widen a b =
+    let res = widen a b in
+    if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    res
 
   let remove_rels_with_var x var env imp =
     let j0 = Environment.dim_of_var env var in
     if imp then (EArray.forget_variable_with x j0; x) else EArray.forget_variable x j0
 
   let narrow a b = meet a b
+  let narrow a b =
+    let res = narrow a b in
+    if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    res
 
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
