@@ -885,7 +885,7 @@ struct
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context -> query_invariant ctx context
-      (*checks oob access for VLA*)
+    (*checks oob access for VLA*)
     | Queries.MayBeOutOfBounds {var= v ;dimension = d ;index =exp} -> 
       let newVar = ArrayMap.to_varinfo (v, d) in 
       let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
@@ -893,7 +893,7 @@ struct
       let i = eval_int comp (no_overflow ask comp ) in 
       if M.tracing then M.trace "relationalArray" "comp: %a\n result=%a\n" d_exp comp ID.pretty i;
       convertID_to_FlatBool i
-      (*checks oob access for heap allocated variables*)
+    (*checks oob access for heap allocated variables*)
     | AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; _} -> 
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
         | a when not (Queries.AD.is_top a) -> 
