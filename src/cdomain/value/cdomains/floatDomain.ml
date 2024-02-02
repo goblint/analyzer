@@ -618,9 +618,6 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, _) when l > Float_t.zero -> false_zero_IInt ()
     | _ -> unknown_IInt () (* any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
 
-  (**This constant overapproximates pi *)
-  let overapprox_pi = 3.1416
-
   (** This function does two things: 
    ** 1. projects l and h onto the interval [0, k*pi] (for k = 2 this is the phase length of sin/cos, for k = 1 it is the phase length of tan)
    ** 2. compresses/transforms the interval [0, k*pi] to the interval [0, 1] to ease further computations
@@ -708,14 +705,14 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l = h && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: acos argument might be outside of [-1., 1.]";
-      of_interval (0., (overapprox_pi))
+      Interval (Float_t.of_float Down 0., Float_t.succ Float_t.pi)
     | (l, h) -> norm @@ Interval (Float_t.acos Down h, Float_t.acos Up l) (* acos is monotonic decreasing in [-1, 1]*)
 
   let eval_asin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: asin argument might be outside of [-1., 1.]";
-      div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.)
+      div (Interval (Float_t.pred (Float_t.neg Float_t.pi), Float_t.succ Float_t.pi)) (of_const 2.)
     | (l, h) -> norm @@ Interval (Float_t.asin Down l, Float_t.asin Up h) (* asin is monotonic increasing in [-1, 1]*)
 
   let eval_atan = function
