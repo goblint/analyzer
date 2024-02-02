@@ -17,7 +17,7 @@ struct
   module C = EscapeDomain.EscapedVars
 
 
-  let mpt (ask: Queries.ask) e: D.t =
+  let mpt ctx (ask: Queries.ask) e: D.t =
     match ask.f (Queries.MayPointTo e) with
     | ad when not (AD.is_top ad) ->
       let to_extra addr set =
@@ -29,13 +29,13 @@ struct
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | ad ->
       if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e AD.pretty ad;
-      D.empty ()
+      ctx.local
 
   let assign ctx (lval:lval) (rval:exp) = 
     match lval with 
     | (Var v, _) -> if v.vglob then 
         let ask = Analyses.ask_of_ctx ctx in
-        mpt ask rval 
+        mpt ctx ask rval 
       else 
         ctx.local
     | _ ->  
@@ -49,7 +49,7 @@ struct
       begin     match lval  with 
         | (Var v, _) -> if v.vglob then 
             let ask = Analyses.ask_of_ctx ctx in
-            mpt ask fexp 
+            mpt ctx ask fexp 
           else 
             ctx.local
         | _ ->  
@@ -66,7 +66,7 @@ struct
 
   let startstate v = D.bot ()
 
-  let exitstate  v = D.top ()
+  let exitstate  v = D.bot ()
 end
 
 let _ =
