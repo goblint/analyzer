@@ -1,7 +1,7 @@
 // PARAM: --enable ana.float.interval
-#include <assert.h>
 #include <math.h>
 #include <float.h>
+#include <goblint.h>
 
 int main()
 {
@@ -40,28 +40,28 @@ int main()
     }
 
     //acos(x)
-    assert(1.4 < acos(0.1) && acos(0.1) < 1.5); // SUCCESS
+    __goblint_check(1.4 < acos(0.1) && acos(0.1) < 1.5); // SUCCESS
 
     //asin(x)
-    assert(0.6 < asin(0.6) && asin(0.6) < 0.7); // SUCCESS
+    __goblint_check(0.6 < asin(0.6) && asin(0.6) < 0.7); // SUCCESS
 
     //atan(x)
-    assert(0.7 < atan(1.) && atan(1.) < 0.8);   // SUCCESS
+    __goblint_check(0.7 < atan(1.) && atan(1.) < 0.8);   // SUCCESS
 
     //cos(x)
-    assert(-1. <= cos(c1) && cos(c1) < 0.99);   // SUCCESS
-    assert(-0.99 < cos(c2) && cos(c2) <= 1.0);  // SUCCESS
-    assert(-0.99 < cos(sc1) && cos(sc1) < 0.);  // SUCCESS
-    assert(-0.99 < cos(sc2) && cos(sc2) < 0.);  // SUCCESS
+    __goblint_check(-1. <= cos(c1) && cos(c1) < 0.99);   // SUCCESS
+    __goblint_check(-0.99 < cos(c2) && cos(c2) <= 1.0);  // SUCCESS
+    __goblint_check(-0.99 < cos(sc1) && cos(sc1) < 0.);  // SUCCESS
+    __goblint_check(-0.99 < cos(sc2) && cos(sc2) < 0.);  // SUCCESS
 
     //sin(x)
-    assert(-1. <= sin(s1) && sin(s1) < 0.99);   // SUCCESS
-    assert(-0.99 < sin(s2) && sin(s2) <= 1.);   // SUCCESS
-    assert(-0.99 < sin(s3) && sin(s3) <= 0.99);   // SUCCESS
-    assert(0. < sin(sc1) && sin(sc1) < 0.99);   // SUCCESS
-    assert(0. < sin(sc2) && sin(sc2) < 0.99);   // SUCCESS
+    __goblint_check(-1. <= sin(s1) && sin(s1) < 0.99);   // SUCCESS
+    __goblint_check(-0.99 < sin(s2) && sin(s2) <= 1.);   // SUCCESS
+    __goblint_check(-0.99 < sin(s3) && sin(s3) <= 0.99);   // SUCCESS
+    __goblint_check(0. < sin(sc1) && sin(sc1) < 0.99);   // SUCCESS
+    __goblint_check(0. < sin(sc2) && sin(sc2) < 0.99);   // SUCCESS
 
     //tan(x)
-    assert(-0.11 < tan(t1) && tan(t1) < 0.11 );   // SUCCESS
-    assert(-0.1 < tan(t2) && tan(t2) < 0.1 );   // SUCCESS
+    __goblint_check(-0.11 < tan(t1) && tan(t1) < 0.11 );   // SUCCESS
+    __goblint_check(-0.1 < tan(t2) && tan(t2) < 0.1 );   // SUCCESS
 }
