@@ -1229,6 +1229,35 @@ struct
     else
       Invariant.none
 
+
+  module ADGraph = MapDomain.MapBot_LiftTop (Addr) (AD)
+
+  (* Given a set of addresses, collect graph
+     that contains all paths with which these addresses are reachable with a depth-first search *)
+  let collect_graph ctx (start: AD.t) (goal: AD.t) =
+    let rec dfs node (visited, graph) : bool * ADGraph.t =
+      let node = node in
+      let visited = AD.join visited (AD.singleton node) in
+      let reachable_from_node = reachable_from_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.singleton node) in
+      let dfs_add_edge n found =
+        let goal_reached = AD.subset (AD.singleton n) goal in
+        let found, graph = dfs n (visited, graph) in
+        let found = found || goal_reached in
+        if found then
+          let graph = ADGraph.add node (AD.singleton n) graph in
+          (true, graph)
+        else
+          (found, graph)
+      in
+      AD.fold dfs_add_edge reachable_from_node (false, ADGraph.bot ())
+    in
+    let dfs_combine node graph =
+      let _, graph = dfs node (AD.empty (), graph) in
+      graph
+    in
+    let empty_graph = ADGraph.empty () in
+    AD.fold dfs_combine start empty_graph
+
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
@@ -1411,6 +1440,8 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
+    | Q.BaseCPA ->
+      ctx.local.cpa
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

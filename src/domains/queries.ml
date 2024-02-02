@@ -133,6 +133,8 @@ type _ t =
   | Written: WrittenDomain.Written.t t
   | Read: AD.t t
   | IsModular: MustBool.t t
+  | BaseCPA: BaseDomain.CPA.t t
+  | StartCPA: CilType.Fundec.t -> BaseDomain.CPA.t t
 
 type 'a result = 'a
 
@@ -208,6 +210,8 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
+    | BaseCPA -> (module BaseDomain.CPA)
+    | StartCPA _ -> (module BaseDomain.CPA)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -282,6 +286,8 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
+    | BaseCPA -> BaseDomain.CPA.top ()
+    | StartCPA _ -> BaseDomain.CPA.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -353,6 +359,8 @@ struct
     | Any (ReachableAddressesFrom _) -> 61
     | Any (IsModular) -> 62
     | Any Read -> 63
+    | Any BaseCPA -> 64
+    | Any (StartCPA _) -> 65
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -408,6 +416,7 @@ struct
       | Any (ReachableAddressesFrom e1), Any (ReachableAddressesFrom e2) -> CilType.Exp.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
+      | Any (StartCPA f1), Any (StartCPA f2) -> CilType.Fundec.compare f1 f2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -450,6 +459,7 @@ struct
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
+    | Any (StartCPA f) -> CilType.Fundec.hash f
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -518,6 +528,8 @@ struct
     | Any Written -> Pretty.dprintf "Written"
     | Any Read -> Pretty.dprintf "Read"
     | Any IsModular -> Pretty.dprintf "IsModular"
+    | Any BaseCPA -> Pretty.dprintf "BaseCPA"
+    | Any (StartCPA f) -> Pretty.dprintf "StartCPA %a" CilType.Fundec.pretty f
 end
 
 let to_value_domain_ask (ask: ask) =
