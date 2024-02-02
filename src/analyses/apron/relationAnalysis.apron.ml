@@ -286,24 +286,6 @@ struct
     | TPtr (t, _) -> Some ((bitsSizeOf t) / 8)
     | _ -> None 
 
-  (* the relational domain is not able to evaluate sizeOf expressions those have to be replaced with constants *)
-  let rec replaceSizeOf exp : exp =  
-    (*with correct type casting of SizeOf to prevent incompatible ikinds (in malloc call) *)
-    let rec replaceSizeOfWithTyp exp  t  =  
-      match exp with 
-      | SizeOf typ -> if M.tracing then M.trace "sizeOf" "typeof=%a\n" d_type(typeOf exp ); CastE ( t,sizeOf typ) (*evaluate sizeOf*)
-      | UnOp (LNot, e, typ ) -> UnOp (LNot, replaceSizeOfWithTyp e typ, typ)
-      | BinOp (bop, e1, e2, typ) -> BinOp (bop, replaceSizeOfWithTyp e1 typ, replaceSizeOfWithTyp e2 typ, typ)
-      | Real e -> Real (replaceSizeOfWithTyp e (typeOf e))
-      | Imag e -> Imag (replaceSizeOfWithTyp e (typeOf e))
-      | Question (e1, e2, e3, typ) -> Question (replaceSizeOfWithTyp e1 typ, replaceSizeOfWithTyp e2 typ, replaceSizeOfWithTyp e3 typ, typ)
-      | CastE (t,e) -> (CastE(t,replaceSizeOfWithTyp e t)) (*size_t by CIL those are of type TNamed *)
-      | e ->  e
-    in
-    match exp with
-    | SizeOf typ -> sizeOf typ (*evaluate sizeOf*)
-    | e -> replaceSizeOfWithTyp e (typeOf e)
-
   (*assign to the relational domain*)
   let assignLval ctx (lv:lval) e = 
     let st = ctx.local in
@@ -396,7 +378,7 @@ struct
     if M.tracing then M.trace "branch" "e=%a=\n" d_exp e;
     let st = ctx.local in
     let ask = Analyses.ask_of_ctx ctx in
-    let res = assign_from_globals_wrapper ask ctx.global st (replaceSizeOf e) (fun rel' e' ->
+    let res = assign_from_globals_wrapper ask ctx.global st e (fun rel' e' ->
         (* let res = assign_from_globals_wrapper ask ctx.global st ( e) (fun rel' e' -> *)
         (* not an assign, but must remove g#in-s still *)
         RD.assert_inv rel' e' (not b) (no_overflow ask e)
@@ -867,7 +849,7 @@ struct
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
-      let esimple = replace_deref_exps ctx.ask (replaceSizeOf e) in
+      let esimple = replace_deref_exps ctx.ask e in
       if M.tracing then M.trace "ev" "rel %a\n" d_exp esimple;
       read_from_globals_wrapper
         (Analyses.ask_of_ctx ctx)

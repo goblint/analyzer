@@ -94,6 +94,10 @@ struct
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt (i, _, _)) ->
         Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
+      | SizeOf t -> begin match sizeOf t with 
+          | SizeOf t -> raise (Unsupported_CilExp (Exp_not_supported))
+          | t -> texpr1_expr_of_cil_exp t
+        end
       | exp ->
         match Cilfacade.get_ikind_exp exp with
         | ik ->
