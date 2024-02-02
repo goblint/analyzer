@@ -105,6 +105,8 @@ CAMLprim value atof_float(value mode, value str)
     return caml_copy_double(r);
 }
 
+// These are only given for floats as these operations involve no rounding and their OCaml implementation (Float module) can be used
+
 CAMLprim value max_float(value unit)
 {
     return caml_copy_double(FLT_MAX);
