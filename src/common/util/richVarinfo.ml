@@ -1,6 +1,9 @@
 open GoblintCil
 
-let create_var ~isGlobal name typ = Cilfacade.create_var @@ makeVarinfo isGlobal name typ
+let create_var ~isGlobal name typ = 
+  let v = Cilfacade.create_var @@ makeVarinfo isGlobal name typ in
+  v.vattr <- [Attr("ghost",[])]; (*add attribute to track those variables in [relationPriv]*)
+  v
 
 let single ~name typ =
   let vi = lazy (create_var ~isGlobal:true name typ) in
