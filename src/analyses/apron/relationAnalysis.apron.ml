@@ -30,14 +30,22 @@ module VarinfoMapping = struct
     v.vname ^ "->" ^  name_varinfo t
 end 
 
-module PointerType = struct 
+(*Alloc ghost variable need to be global invariants in multithreading*)
+module GlobalPointer = struct 
+  let varType  = !ptrdiffType 
+  let isGlobal = true
+end
+module LocalPointer = struct 
   let varType  = !ptrdiffType 
   let isGlobal = false
 end
 
-module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (PointerType) (*ghost variables for VLA*)
-module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType) (*ghost variables for relationa between pointers *)
-module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerType) (*ghost variables for heap allocated variables *)
+(** C11 does not explicitly name a size-limit for VLAs, some believe it should have the same maximum size as all other objects, 
+    i.e. SIZE_MAX bytes (soucr: https://en.wikipedia.org/wiki/Variable-length_array).*)
+module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (LocalPointer) (*ghost variables for VLA*)
+
+module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (LocalPointer) (*ghost variables for relationa between pointers *)
+module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (GlobalPointer) (*ghost variables for heap allocated variables *)
 
 module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
@@ -418,14 +426,11 @@ struct
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    match RV.to_cil_varinfo var with
-    | Some v when PointerMap.mem_varinfo v -> false
-    | _ ->
-      let vname = Apron.Var.to_string var in
-      let locals = fundec.sformals @ fundec.slocals in
-      match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with 
-      | None -> true
-      | Some v -> any_local_reachable
+    let vname = Apron.Var.to_string var in
+    let locals = fundec.sformals @ fundec.slocals in
+    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with 
+    | None -> true
+    | Some v -> any_local_reachable
 
   (* creates a list of possible AllocSize variables addresses an expression may point to*)
   let mayPointToList ctx x = 
@@ -459,7 +464,7 @@ struct
           | Some typSize -> 
             let x = PointerMap.to_varinfo x in (*map pointer to helper variable*)
             let y = replacePointerWithMapping e typSize in (*replace right side of assignment with pointer mapping*)
-            Some (RV.local x, y) (* assignment only works with local for some reason *)
+            Some (RV.local x, y) (* use RV.local to prevent them from being filtered out later *)
           | _ -> None
         end
       else None
@@ -610,7 +615,8 @@ struct
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
-        | Some (Local v) when AllocSize.mem_varinfo v || PointerMap.mem_varinfo v || ArrayMap.mem_varinfo v -> true (* keep ghost Variables in current scope, ghost variables in the called function are already filtered out in return *)
+        | Some (Global v) when AllocSize.mem_varinfo v -> true (*keep alloc ghost variable*)
+        | Some (Local v) when PointerMap.mem_varinfo v || ArrayMap.mem_varinfo v -> true (* keep ghost Variables in current scope, ghost variables in the called function are already filtered out in return *)
         | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
         | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
         | v -> false (* remove everything else (globals, global privs, reachable things from the caller) *)

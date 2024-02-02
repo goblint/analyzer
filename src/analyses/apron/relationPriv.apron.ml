@@ -578,11 +578,13 @@ struct
     | `Thread ->
       st
 
-  let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
+  let enter_multithreaded (ask:Q.ask) getg sideg (st: relation_components_t): relation_components_t =
     let rel = st.rel in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
         match AV.find_metadata var with
+        | Some (Global v) when v.vattr = [Attr("ghost",[])]-> ask.f (Q.AllocAssignedToGlobal v)
+         (* keep alloc ghost variable if they were assigned to a global variable *)
         | Some (Global _) -> true
         | _ -> false
       ) (RD.vars rel)
