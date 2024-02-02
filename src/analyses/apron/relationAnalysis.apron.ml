@@ -297,12 +297,11 @@ struct
     | e -> replaceSizeOfWithTyp e (typeOf e)
 
   (*assign to the relational domain*)
-  let assignVariable ctx (lv:lval) e = 
+  let assignLval ctx (lv:lval) e = 
     let st = ctx.local in
     if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so env is empty... *)
     else (
-      let e = replaceSizeOf e in
       let simplified_e = replace_deref_exps ctx.ask e in
       if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)\n" d_lval lv  d_exp e d_exp simplified_e;
       let ask = Analyses.ask_of_ctx ctx in
@@ -354,7 +353,7 @@ struct
         in
         let replacedExp = replacePointerWithMapping e typSize in
         if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
-        assignVariable ctx (Var castedPointer,NoOffset) replacedExp 
+        assignLval ctx (Var castedPointer,NoOffset) replacedExp 
       | _ -> ctx.local
     ) 
     else ctx.local
@@ -365,7 +364,7 @@ struct
     match lv with
     | (Var v, NoOffset) when isPointerType v.vtype 
       -> pointerAssign ctx v e 
-    | _ -> assignVariable ctx lv e
+    | _ -> assignLval ctx lv e
 
   let vdecl (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx)  (e:varinfo) = 
     (*track the initialization expression of VLA in a ghost variable *)
@@ -376,7 +375,7 @@ struct
           let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
           let new_ctx = 
             { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
-          let ctx' =  assignVariable new_ctx (Var lenArray, NoOffset) exp in
+          let ctx' =  assignLval new_ctx (Var lenArray, NoOffset) exp in
           let new_ctx = { ctx with  local = ctx'; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in  
           helper new_ctx new_typ (counter+1) (*add for each new dimension a new ghost variable*)
         | _ -> ctx.local
@@ -740,7 +739,7 @@ struct
           let st' = {st with rel = RD.add_vars st.rel [RV.local lenArray]} in (* add newly created variable to Environment *)
           let new_ctx = 
             {ctx with local = st' ; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
-          let st'' = assignVariable new_ctx (Var lenArray, NoOffset) (replaceSizeOf exp) in 
+          let st'' = assignLval new_ctx (Var lenArray, NoOffset) exp in 
           if GobConfig.get_bool "ana.apron.pointer_tracking" then  ( 
             let pointerLen = PointerMap.to_varinfo r in
             let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
