@@ -882,6 +882,7 @@ struct
       convertID_to_FlatBool i
     (*checks oob access for heap allocated variables*)
     | AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; _} -> 
+      (*helper function*)
       let inBoundsForAllAddresses indexExp = begin match ctx.ask (Queries.MayPointTo e) with 
         | a when not (Queries.AD.is_top a) -> 
           Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
@@ -898,6 +899,7 @@ struct
         | _ -> ID.top_of (Cilfacade.ptrdiff_ikind())
       end
       in
+      (*looks at the relational relationship between pointers only when pointer_tracking is enabled*)
       let pointerEval structOffset= 
         begin match sizeOfTyp e with 
           | Some typSize -> 
@@ -913,6 +915,7 @@ struct
           | _ -> (`Top,`Top)
         end
       in
+      (*evaluates OOB based on the expression offset and the binop *)
       let relationEval e structOffset = 
         if M.tracing then M.trace "OOB" "relationEval: %a %a \n" d_exp e IntDomain.IntDomTuple.pretty i ;
         begin match sizeOfTyp e, IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i with 
@@ -947,9 +950,9 @@ struct
 
             let isAfterZero = FlatBool.join afterZeroMininumOffset afterZeroMaximumOffset in
 
-            let checkBeforeEnd i = (*checks if the index is smaller than all the ghost variables the expression may point to *)
+            let checkBeforeEnd i s_offset = (*checks if the index is smaller than all the ghost variables the expression may point to *)
               begin try
-                  let i = Z.to_int i + structOffset in
+                  let i = Z.to_int i + s_offset in
                   let maximumExp = multiplyOffsetWithPointerSize i in
                   let r = inBoundsForAllAddresses maximumExp in
                   convertID_to_FlatBool r
@@ -957,33 +960,38 @@ struct
                 | Z.Overflow -> `Top
               end
             in
-            let beforeEndMinimumOffest = checkBeforeEnd min in
-            let beforeEndMaximumOffset = checkBeforeEnd max in
+            let beforeEndMinimumOffest = checkBeforeEnd min 0 in
+            let beforeEndMaximumOffset = checkBeforeEnd max structOffset in
 
             let isBeforeEnd = FlatBool.join beforeEndMinimumOffest beforeEndMaximumOffset in 
             (isAfterZero, isBeforeEnd)
           | _ -> (`Top,`Top)
         end
       in
-      begin match IntDomain.IntDomTuple.maximal o with 
-        | None -> if M.tracing then M.trace "OOB" "so None\n"; (VDQ.ID.top (),VDQ.ID.top ())
-        | Some structOffset ->
-          let structOffset = Z.to_int structOffset in
-          let isAfterZero, isBeforeEnd = 
-            relationEval e structOffset 
-          in
-          let isAfterZero, isBeforeEnd = 
-            if GobConfig.get_bool "ana.apron.pointer_tracking" then (
-              let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in (*pointerEval may fail when relationEval yields information and vice versa*)
-              if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" FlatBool.pretty isAfterZero FlatBool.pretty isBeforeEnd FlatBool.pretty isAfterZero2 FlatBool.pretty isBeforeEnd2;
-              let isAfterZero = FlatBool.meet isAfterZero isAfterZero2 in
-              let isBeforeEnd = FlatBool.meet isBeforeEnd isBeforeEnd2 in
-              isAfterZero, isBeforeEnd 
-            )
-            else  
-              isAfterZero , isBeforeEnd
-          in
-          (isAfterZero, isBeforeEnd)
+      begin match e with
+        | Lval _ 
+        | BinOp _ -> (*only support dereference to Lval and BinOp*)
+          begin match IntDomain.IntDomTuple.maximal o with 
+            | None -> (`Top,`Top)
+            | Some structOffset ->
+              let structOffset = Z.to_int structOffset in
+              let isAfterZero, isBeforeEnd = 
+                relationEval e structOffset 
+              in
+              let isAfterZero, isBeforeEnd = 
+                if GobConfig.get_bool "ana.apron.pointer_tracking" then (
+                  let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in (*pointerEval may fail when relationEval yields information and vice versa*)
+                  if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" FlatBool.pretty isAfterZero FlatBool.pretty isBeforeEnd FlatBool.pretty isAfterZero2 FlatBool.pretty isBeforeEnd2;
+                  let isAfterZero = FlatBool.meet isAfterZero isAfterZero2 in
+                  let isBeforeEnd = FlatBool.meet isBeforeEnd isBeforeEnd2 in
+                  isAfterZero, isBeforeEnd 
+                )
+                else  
+                  isAfterZero , isBeforeEnd
+              in
+              (isAfterZero, isBeforeEnd)
+          end
+        | _ -> Result.top q
       end
     | _ -> Result.top q
 

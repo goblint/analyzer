@@ -273,14 +273,13 @@ struct
         begin match ptr_deref_type with
           | Some t -> 
             let addr_offs = match e with (*pointer offset*)
-              | Lval (Var v, _) -> get_addr_offs ctx e 
               | BinOp (binop, e1 ,e2, t) ->
 
                 let whatIF = get_addr_offs ctx e in 
                 if M.tracing then M.trace "whatIF" "e=%a -> %a\n" d_exp e ID.pretty whatIF;
                 get_addr_offs ctx e1
-
-              | _ -> failwith "unexpected expression in calculateOffs!\n"
+              | Lval (Var _, _) 
+              | _ ->  get_addr_offs ctx e 
             in
             let addr_offs_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) addr_offs in (*pointer offset + struct offset*)
             let structOffset, currentSizeTyp = begin match o with 
@@ -442,7 +441,6 @@ struct
     | Queries.AllocMayBeOutOfBounds {exp=e;e1_offset= i;struct_offset= o; offset_typ = t} when not @@ ID.is_bot i-> 
       if M.tracing then M.trace "OOB"  "e=%a  i=%a o=%a\n" d_exp e ID.pretty i ID.pretty o;
       let expOffset = match e with 
-        | Lval (Var v, _) -> i
         | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
           let ptr_deref_type = get_ptr_deref_type @@ typeOf e1 in
           begin match ptr_deref_type with
@@ -461,7 +459,8 @@ struct
               end
             | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ())
           end
-        | _ ->failwith "unexpected expression in query AllocMayBeOutOfBounds \n"
+        | Lval (Var _, _)
+        | _ -> i
       in
       let convertID_to_FlatBool i = 
         match ID.to_bool i with
