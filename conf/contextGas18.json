@@ -78,7 +78,6 @@
       "activated": [
         "singleThreaded",
         "mallocWrappers",
-        "noRecursiveIntervals",
         "enums",
         "congruence",
         "octagon",

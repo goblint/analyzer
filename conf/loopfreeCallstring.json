@@ -1,7 +1,7 @@
 {
   "ana": {
     "sv-comp": {
-      "enabled": true,
+      "enabled": false,
       "functions": true
     },
     "int": {
@@ -80,7 +80,6 @@
       "activated": [
         "singleThreaded",
         "mallocWrappers",
-        "noRecursiveIntervals",
         "enums",
         "congruence",
         "octagon",
@@ -109,7 +108,7 @@
   },
   "witness": {
     "graphml": {
-      "enabled": true,
+      "enabled": false,
       "id": "enumerate",
       "unknown": false
     },
