@@ -179,8 +179,8 @@ struct
   let unop_FD = function
     | Neg  -> (fun v -> (Float (FD.neg v):value))
     | LNot -> (fun c -> Int (FD.eq c (FD.of_const (FD.get_fkind c) 0.)))
-    (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> Float (FD.top_of (FD.get_fkind c)))
+    | BNot -> failwith "BNot on a value of type float!"
+
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ: value -> value = function
