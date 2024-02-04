@@ -14,6 +14,9 @@ sig
   module V: Analyses.SpecSysVar
   module G: Lattice.S
 
+  val unop_ID: Cil.unop -> ID.t -> ID.t
+  val unop_FD: Cil.unop -> FD.t -> VD.t
+
   val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
   val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
   val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> lval -> AD.t
@@ -40,16 +43,6 @@ end
 module Make (Eval: Eval) =
 struct
   open Eval
-
-  let unop_ID = function
-    | Neg  -> ID.neg
-    | BNot -> ID.lognot
-    | LNot -> ID.c_lognot
-
-  let unop_FD = function
-    | Neg  -> FD.neg
-    (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> FD.top_of (FD.get_fkind c))
 
   let is_some_bot (x:VD.t) =
     match x with
@@ -589,7 +582,7 @@ struct
              inv_exp (Float zero_float) e st
            | _ -> st
           )
-        | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
+        | UnOp (Neg, e, _), Float c -> inv_exp (unop_FD Neg c) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)
         | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->

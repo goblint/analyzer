@@ -1645,6 +1645,9 @@ struct
     module V = V
     module G = G
 
+    let unop_ID = unop_ID
+    let unop_FD = unop_FD
+
     let eval_rv = eval_rv
     let eval_rv_address = eval_rv_address
     let eval_lv = eval_lv
@@ -2841,6 +2844,9 @@ struct
           module G = G
 
           let ost = octx.local
+
+          let unop_ID = unop_ID
+          let unop_FD = unop_FD
 
           (* all evals happen in octx with non-top values *)
           let eval_rv ~ctx st e = eval_rv ~ctx:octx ost e
