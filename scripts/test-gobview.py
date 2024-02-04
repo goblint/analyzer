@@ -26,8 +26,8 @@ def serve():
   global p
   goblint_http_path = '_build/default/gobview/goblint-http-server/goblint_http.exe'
   p = subprocess.Popen(['./' + goblint_http_path,
-                  '-with-goblint', '../GobContextGas/goblint',
-                  '-goblint', '--set', 'files[+]', '"../GobContextGas/tests/regression/00-sanity/01-assert.c"'])
+                  '-with-goblint', '../analyzer/goblint',
+                  '-goblint', '--set', 'files[+]', '"../analyzer/tests/regression/00-sanity/01-assert.c"'])
 
 print("serving at port", PORT)
 thread = Thread(target=serve, args=())
