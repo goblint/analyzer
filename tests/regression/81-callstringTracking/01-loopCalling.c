@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" callstringTracking --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" loopfreeCallstring --enable ana.int.interval_set
 // Basic example
 #include <stdio.h>
 
