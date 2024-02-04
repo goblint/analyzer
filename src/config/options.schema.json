@@ -978,7 +978,7 @@
             },
             "callStack_height": {
               "title": "ana.context.callStack_height",
-              "description": "Height of the CallStack that should be used as context for the callsting analysis. Must be >= 0!",
+              "description": "Height of the CallStack that should be used as context for the callstring analysis. Must be >= 0!",
               "type": "integer",
               "default": 10
             }
