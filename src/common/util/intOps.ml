@@ -9,6 +9,8 @@ module type IntOpsBase =
 sig
   type t
 
+  val name : unit -> string
+
   (* Constants *)
   val zero : t
   val one : t
@@ -30,11 +32,17 @@ sig
 
   (* Bitwise *)
   val shift_left : t -> int -> t
+  (* shift_left x y shifts x to the left by y bits. *)
   val shift_right : t -> int -> t
-  val bitand : t -> t -> t
-  val bitor : t -> t -> t
-  val bitxor : t -> t -> t
-  val bitnot : t -> t
+  (* shift_right x y shifts x to the right by y bits. *)
+  val logand : t -> t -> t
+  (* Bitwise logical and. *)
+  val logor : t -> t -> t
+  (* Bitwise logical or. *)
+  val logxor : t -> t -> t
+  (* Bitwise logical exclusive or. *)
+  val lognot : t -> t
+  (* Bitwise logical negation. *)
 
   (* Comparison *)
   val compare : t -> t -> int
@@ -53,17 +61,19 @@ sig
   val to_string : t -> string
   val of_bigint : Z.t -> t
   val to_bigint : t -> Z.t
+
+  val arbitrary : unit -> t QCheck.arbitrary
 end
 
 module type IntOps =
 sig
   include IntOpsBase
-  (* Logical: These are intended to be the logical operations in the C sense!   *)
-  (* Int64 calls its bit-wise operations e.g. logand, we call those e.g. bitand *)
-  val logand : t -> t -> t
-  val logor : t -> t -> t
-  val logxor : t -> t -> t
-  val lognot : t -> t
+  (* Logical: These are intended to be the logical operations in the C sense! *)
+  (* Int64 calls its bit-wise operations e.g. logand, without the c_ prefix *)
+  val c_logand : t -> t -> t
+  val c_logor : t -> t -> t
+  val c_logxor : t -> t -> t
+  val c_lognot : t -> t
   val to_bool : t -> bool
   val of_bool : bool -> t
 end
@@ -74,6 +84,7 @@ end
 module NIntOpsBase : IntOpsBase with type t = int =
 struct
   type t = int [@@deriving hash]
+  let name () = "int"
   let zero = 0
   let one = 1
   let lower_bound = Some min_int
@@ -92,10 +103,10 @@ struct
 
   let shift_left = (lsl)
   let shift_right = (lsr)
-  let bitand = (land)
-  let bitor = (lor)
-  let bitxor = (lxor)
-  let bitnot = (lnot)
+  let logand = (land)
+  let logor = (lor)
+  let logxor = (lxor)
+  let lognot = (lnot)
 
 
   let compare = compare
@@ -112,11 +123,14 @@ struct
   let to_string = string_of_int
   let of_bigint = Z.to_int
   let to_bigint = Z.of_int
+
+  let arbitrary () = QCheck.int
 end
 
 module Int32OpsBase : IntOpsBase with type t = int32 =
 struct
   type t = int32 [@@deriving hash]
+  let name () = "int32"
   let zero = 0l
   let one = 1l
   let lower_bound = Some Int32.min_int
@@ -135,11 +149,11 @@ struct
 
   let shift_left = Int32.shift_left
   let shift_right = Int32.shift_right_logical
-  let bitand = Int32.logand (* Int32 calls bitwise operations 'log' *)
-  let bitor = Int32.logor (* Int32 calls bitwise operations 'log' *)
-  let bitxor = Int32.logxor (* Int32 calls bitwise operations 'log' *)
+  let logand = Int32.logand (* Int32 calls bitwise operations 'log' *)
+  let logor = Int32.logor (* Int32 calls bitwise operations 'log' *)
+  let logxor = Int32.logxor (* Int32 calls bitwise operations 'log' *)
 
-  let bitnot = Int32.lognot (* Int32 calls bitwise operations 'log' *)
+  let lognot = Int32.lognot (* Int32 calls bitwise operations 'log' *)
 
   let compare = Int32.compare
   let equal = Int32.equal
@@ -157,11 +171,14 @@ struct
   let to_string = Int32.to_string
   let of_bigint = Z.to_int32
   let to_bigint = Z.of_int32
+
+  let arbitrary () = QCheck.int32
 end
 
 module Int64OpsBase : IntOpsBase with type t = int64 =
 struct
   type t = int64 [@@deriving hash]
+  let name () = "int64"
   let zero = 0L
   let one = 1L
   let lower_bound = Some Int64.min_int
@@ -180,11 +197,11 @@ struct
 
   let shift_left = Int64.shift_left
   let shift_right = Int64.shift_right_logical
-  let bitand = Int64.logand (* Int64 calls bitwise operations 'log' *)
-  let bitor = Int64.logor (* Int64 calls bitwise operations 'log' *)
-  let bitxor = Int64.logxor (* Int64 calls bitwise operations 'log' *)
+  let logand = Int64.logand (* Int64 calls bitwise operations 'log' *)
+  let logor = Int64.logor (* Int64 calls bitwise operations 'log' *)
+  let logxor = Int64.logxor (* Int64 calls bitwise operations 'log' *)
 
-  let bitnot = Int64.lognot (* Int64 calls bitwise operations 'log' *)
+  let lognot = Int64.lognot (* Int64 calls bitwise operations 'log' *)
 
   let compare = Int64.compare
   let equal = Int64.equal
@@ -202,11 +219,14 @@ struct
   let to_string = Int64.to_string
   let of_bigint = Z.to_int64
   let to_bigint = Z.of_int64
+
+  let arbitrary () = QCheck.int64
 end
 
 module BigIntOpsBase : IntOpsBase with type t = Z.t =
 struct
   type t = Z.t
+  let name () = "Z"
   let zero = Z.zero
   let one = Z.one
   let upper_bound = None
@@ -241,27 +261,36 @@ struct
 
   let shift_left = Z.shift_left
   let shift_right = Z.shift_right
-  let bitnot x = sub (neg x) one
-  let bitand = Z.logand
-  let bitor = Z.logor
-  let bitxor = Z.logxor
+  let lognot = Z.lognot
+  let logand = Z.logand
+  let logor = Z.logor
+  let logxor = Z.logxor
 
+  let arbitrary () = QCheck.map ~rev:Z.to_int64 Z.of_int64 QCheck.int64
 end
 
 
 module IntOpsDecorator(B: IntOpsBase) =
 struct
+  include Printable.StdLeaf
   include B
+  let show = to_string
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = to_string
+    end
+    )
   let pred x = sub x one
   let of_bool x = if x then one else zero
   let to_bool x = x <> zero
 
   (* These are logical operations in the C sense! *)
   let log_op op a b = of_bool @@ op (to_bool a) (to_bool b)
-  let lognot x = of_bool (x = zero)
-  let logand = log_op (&&)
-  let logor = log_op (||)
-  let logxor = log_op (<>)
+  let c_lognot x = of_bool (x = zero)
+  let c_logand = log_op (&&)
+  let c_logor = log_op (||)
+  let c_logxor = log_op (<>)
 
   let lt x y = of_bool (compare x y < 0)
   let gt x y = of_bool (compare x y > 0)

@@ -136,7 +136,7 @@ struct
         | Some x ->
           begin match Queries.ID.to_int x with
             (* Evaluable: Definite *)
-            | Some i -> Some (Some (not(IntOps.BigIntOps.equal i IntOps.BigIntOps.zero)))
+            | Some i -> Some (Some (not (Z.equal i Z.zero)))
             (* Evaluable: Inconclusive *)
             | None -> Some None
           end

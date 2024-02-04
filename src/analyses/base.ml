@@ -19,7 +19,6 @@ module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
-module BI = IntOps.BigIntOps
 module PU = PrecisionUtil
 
 module VD     = BaseDomain.VD
@@ -174,8 +173,8 @@ struct
 
   let unop_ID = function
     | Neg  -> ID.neg
-    | BNot -> ID.bitnot
-    | LNot -> ID.lognot
+    | BNot -> ID.lognot
+    | LNot -> ID.c_lognot
 
   let unop_FD = function
     | Neg  -> (fun v -> (Float (FD.neg v):value))
@@ -214,13 +213,13 @@ struct
          evalint: base eval_rv 1 -> (1,[1,1])
          evalint: base query_evalint m == 1 -> (0,[1,1]) *)
     | Ne -> ID.ne
-    | BAnd -> ID.bitand
-    | BOr -> ID.bitor
-    | BXor -> ID.bitxor
+    | BAnd -> ID.logand
+    | BOr -> ID.logor
+    | BXor -> ID.logxor
     | Shiftlt -> ID.shift_left
     | Shiftrt -> ID.shift_right
-    | LAnd -> ID.logand
-    | LOr -> ID.logor
+    | LAnd -> ID.c_logand
+    | LOr -> ID.c_logor
     | b -> (fun x y -> (ID.top_of result_ik))
 
   let binop_FD (result_fk: Cil.fkind) = function
@@ -248,7 +247,7 @@ struct
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
-    let bool_top ik = ID.(join (of_int ik BI.zero) (of_int ik BI.one)) in
+    let bool_top ik = ID.(join (of_int ik Z.zero) (of_int ik Z.one)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
       let typeOffsetOpt o t =
@@ -271,7 +270,7 @@ struct
           begin match t with
             | Some t ->
               let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
-              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int (f_offset_bits / 8)) in
+              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
               begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset
                 | _ -> `Field (f, `Index (n_offset, `NoOffset))
@@ -287,7 +286,7 @@ struct
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
       let default = function
-        | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
+        | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_mval addr with
@@ -389,9 +388,9 @@ struct
               Int (ID.top_of ik)
           end
         | Eq ->
-          Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.zero else match eq p1 p2 with Some x when x -> ID.of_int ik BI.one | _ -> bool_top ik)
+          Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik Z.zero else match eq p1 p2 with Some x when x -> ID.of_int ik Z.one | _ -> bool_top ik)
         | Ne ->
-          Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.one else match eq p1 p2 with Some x when x -> ID.of_int ik BI.zero | _ -> bool_top ik)
+          Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik Z.one else match eq p1 p2 with Some x when x -> ID.of_int ik Z.zero | _ -> bool_top ik)
         | IndexPI when AD.to_string p2 = ["all_index"] ->
           addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
         | IndexPI | PlusPI ->
@@ -873,13 +872,16 @@ struct
       (* CIL's very nice implicit conversion of an array name [a] to a pointer
         * to its first element [&a[0]]. *)
       | StartOf lval ->
-        let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
+        let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
         let array_start = add_offset_varinfo array_ofs in
         Address (AD.map array_start (eval_lv ~ctx st lval))
       | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~ctx st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
-        let v = eval_rv ~ctx st exp in
-        VD.cast ~torg:(Cilfacade.typeOf exp) t v
+        (let v = eval_rv ~ctx st exp in
+         try
+           VD.cast ~torg:(Cilfacade.typeOf exp) t v
+         with Cilfacade.TypeOfError _  ->
+           VD.cast t v)
       | SizeOf _
       | Real _
       | Imag _
@@ -976,11 +978,11 @@ struct
         match op with
         | MinusA when must_be_equal () ->
           let ik = Cilfacade.get_ikind t in
-          Int (ID.of_int ik BI.zero)
+          Int (ID.of_int ik Z.zero)
         | MinusPI (* TODO: untested *)
         | MinusPP when must_be_equal () ->
           let ik = Cilfacade.ptrdiff_ikind () in
-          Int (ID.of_int ik BI.zero)
+          Int (ID.of_int ik Z.zero)
         (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
         | Le
         | Ge when must_be_equal () ->
@@ -1273,7 +1275,7 @@ struct
             | _ -> None
           in
           let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in
-          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (Seq.append slen alen)) in
+          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Z.of_int) (Seq.append slen alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           `Lifted d
         | Bot -> Queries.Result.bot q (* TODO: remove *)
@@ -1306,7 +1308,7 @@ struct
             (match r with
              | Array a ->
                (* unroll into array for Calloc calls *)
-               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) with
                 | Blob (_,s,_) -> `Lifted s
                 | _ -> Queries.Result.top q
                )
@@ -2456,7 +2458,7 @@ struct
           | Isgreaterequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
           | Isless (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
           | Islessequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
-          | Islessgreater (x,y) -> Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+          | Islessgreater (x,y) -> Int(ID.c_logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
           | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
@@ -2476,7 +2478,7 @@ struct
       let st' =
         (* TODO: should invalidate shallowly? https://github.com/goblint/analyzer/pull/1224#discussion_r1405826773 *)
         match eval_rv ~ctx st ret_var with
-        | Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
+        | Int n when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> st
         | Address ret_a ->
           begin match eval_rv ~ctx st id with
             | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx st [ret_var]
@@ -2536,8 +2538,8 @@ struct
             let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             set_many ~ctx st [
-              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (Blob (VD.bot (), blobsize, false))));
-              (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))
+              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, false))));
+              (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset)))))
             ]
           )
         | _ -> st
@@ -2552,7 +2554,7 @@ struct
             match p_rv with
             | Address a -> a
             (* TODO: don't we already have logic for this? *)
-            | Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
+            | Int i when ID.to_int i = Some Z.zero -> AD.null_ptr
             | Int i -> AD.top_ptr
             | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
           in
@@ -2591,7 +2593,7 @@ struct
       in
       begin match lv with
         | Some lv ->
-          set ~ctx st' (eval_lv ~ctx st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt BI.zero))
+          set ~ctx st' (eval_lv ~ctx st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt Z.zero))
         | None -> st'
       end
     | Longjmp {env; value}, _ ->

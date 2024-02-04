@@ -24,8 +24,8 @@ sig
   val of_int: int -> t
   val zero: t
   val one: t
-  val get_den: t -> IntOps.BigIntOps.t
-  val get_num: t -> IntOps.BigIntOps.t
+  val get_den: t -> Z.t
+  val get_num: t -> Z.t
 end
 
 (** It provides more readable infix operators for the functions of RatOps.

@@ -7,7 +7,6 @@ open PrecisionUtil
 include PreValueDomain
 module Offs = Offset.MakeLattice (IndexDomain)
 module M = Messages
-module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
 module AD = VDQ.AD
@@ -27,9 +26,9 @@ sig
   val invalidate_abstract_value: t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
-  val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t ->  t
-  val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) ->  t -> t -> t
-  val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
+  val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t ->  t
+  val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) ->  t -> t -> t
+  val smart_leq: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
   val is_mutex_type: typ -> bool
   val bot_value: ?varAttr:attributes -> typ -> t
@@ -230,7 +229,7 @@ struct
     | _ when is_mutex_type t -> Mutex
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
-    | TInt (ikind, _) -> Int (ID.of_int ikind BI.zero)
+    | TInt (ikind, _) -> Int (ID.of_int ikind Z.zero)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_const fkind 0.0)
     | TPtr _ -> Address AD.null_ptr
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -397,7 +396,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset))) (Some false)
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
@@ -472,7 +471,7 @@ struct
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           Address (match v with
-              | Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
+              | Int x when ID.to_int x = Some Z.zero -> AD.null_ptr
               | Int x -> AD.top_ptr
               (* we ignore casts to void*! TODO report UB! *)
               | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
@@ -531,7 +530,7 @@ struct
     | (_, Bot) -> false
     | (Int x, Int y) -> ID.leq x y
     | (Float x, Float y) -> FD.leq x y
-    | (Int x, Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
+    | (Int x, Address y) when ID.to_int x = Some Z.zero && not (AD.is_not_null y) -> true
     | (Int _, Address y) when AD.may_be_unknown y -> true
     | (Address _, Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (Address x, Address y) -> AD.leq x y
@@ -559,7 +558,7 @@ struct
     | (Float x, Float y) -> Float (FD.join x y)
     | (Int x, Address y)
     | (Address y, Int x) -> Address (match ID.to_int x with
-        | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
+        | Some x when Z.equal x Z.zero -> AD.join AD.null_ptr y
         | Some x -> AD.(join y not_null)
         | None -> AD.join y AD.top_ptr)
     | (Address x, Address y) -> Address (AD.join x y)
@@ -592,7 +591,7 @@ struct
     (* TODO: symmetric widen, wtf? *)
     | (Int x, Address y)
     | (Address y, Int x) -> Address (match ID.to_int x with
-        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | Some x when Z.equal x Z.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
         | Some x -> AD.(widen y (join y not_null))
         | None -> AD.widen y (AD.join y AD.top_ptr))
     | (Address x, Address y) -> Address (AD.widen x y)
@@ -915,7 +914,7 @@ struct
               begin
                 do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
-            | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
+            | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
@@ -959,7 +958,7 @@ struct
               not @@ ask.is_multiple var
               && not @@ Cil.isVoidType t      (* Size of value is known *)
               && Option.is_some blob_size_opt (* Size of blob is known *)
-              && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+              && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
             | _ -> false
           in
           if do_strong_update then
@@ -980,7 +979,7 @@ struct
                 && Option.is_some blob_size_opt (* Size of blob is known *)
                 && ((
                     not @@ Cil.isVoidType t     (* Size of value is known *)
-                    && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
+                    && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.alignOf_int t)
                   ) || blob_destructive)
               | _ -> false
             end
@@ -1061,10 +1060,10 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) Top), offs
+                        Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
-                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
+                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
                   | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
@@ -1101,7 +1100,7 @@ struct
               let new_array_value = CArrays.update_length newl new_array_value in
               Array new_array_value
             | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
-            | x when GobOption.exists (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
+            | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result

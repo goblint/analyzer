@@ -26,8 +26,6 @@ module Mpqf = struct
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
 end
 
-module V = RelationDomain.V
-
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
@@ -214,7 +212,7 @@ struct
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
     match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
+    | Some c when Mpqf.get_den c = Z.one ->
       let int_val = Mpqf.get_num c in
       Some int_val, Some int_val
     | _ -> None, None
@@ -224,7 +222,7 @@ struct
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
+       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
        | _ -> ()
     );
     res
@@ -240,7 +238,7 @@ struct
   include VarManagement (Vc) (Mx)
 
   module Bounds = ExpressionBounds (Vc) (Mx)
-
+  module V = RelationDomain.V
   module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
 
   type var = V.t
@@ -703,9 +701,9 @@ struct
   let unmarshal t = t
 end
 
-module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S3 with type var = Var.t =
+module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.RD with type var = Var.t =
 struct
   module D =  D (Vc) (Mx)
-  include SharedFunctions.AssertionModule (V) (D)
+  include SharedFunctions.AssertionModule (D.V) (D)
   include D
 end

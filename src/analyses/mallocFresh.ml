@@ -39,14 +39,16 @@ struct
 
   let special ctx lval f args =
     let desc = LibraryFunctions.find f in
+    let alloc_var on_stack =
+      match ctx.ask (AllocVar {on_stack = on_stack}) with
+      | `Lifted var -> D.add var ctx.local
+      | _ -> ctx.local
+    in
     match desc.special args with
     | Malloc _
     | Calloc _
-    | Realloc _ ->
-      begin match ctx.ask (AllocVar {on_stack = false}) with
-        | `Lifted var -> D.add var ctx.local
-        | _ -> ctx.local
-      end
+    | Realloc _ -> alloc_var false
+    | Alloca _ -> alloc_var true
     | _ ->
       match lval with
       | None -> ctx.local
