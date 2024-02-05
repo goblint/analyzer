@@ -1,7 +1,7 @@
 {
   "ana": {
     "sv-comp": {
-      "enabled": false,
+      "enabled": true,
       "functions": true
     },
     "int": {
@@ -108,7 +108,7 @@
   },
   "witness": {
     "graphml": {
-      "enabled": false,
+      "enabled": true,
       "id": "enumerate",
       "unknown": false
     },
