@@ -104,8 +104,8 @@ struct
       if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
       && not (Lazy.force no_ov) then
         (raise (Unsupported_CilExp Overflow))
-    with Invalid_argument e -> raise (Unsupported_CilExp (Exp_typeOf expr))(* This exception is raised by Cilfacade.get_ikind_exp
-                                                                              when the expression is not an integer expression, for example if it is a float expression. *)
+    with Invalid_argument e -> raise ((Unsupported_CilExp Exp_not_supported))(* This exception is raised by Cilfacade.get_ikind_exp
+                                                                                when the expression is not an integer expression, for example if it is a float expression. *)
   end
 
   let texpr1_expr_of_cil_exp_old d env exp no_ov =
