@@ -104,8 +104,8 @@ struct
       if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
       && not (Lazy.force no_ov) then
         (raise (Unsupported_CilExp Overflow))
-    with Invalid_argument _ -> () (* This exception is raised by Cilfacade.get_ikind_exp
-                                     when the expression is not an integer expression, for example if it is a float expression. *)
+    with Invalid_argument _ -> (raise (Unsupported_CilExp Overflow)) (* This exception is raised by Cilfacade.get_ikind_exp
+                                                                        when the expression is not an integer expression, for example if it is a float expression. *)
   end
 
   let texpr1_expr_of_cil_exp_old d env exp no_ov =
@@ -203,7 +203,7 @@ struct
         | ik ->
           let expr =
             let simplify e =
-              let ikind = Cilfacade.get_ikind_exp e in (* TODO AWE: raise unsupported cil exception on error *)
+              let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in 
               let simp = query e ikind in
               let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
               match const with
@@ -228,7 +228,7 @@ struct
                 | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))  
                 | true -> texpr1_expr_of_cil_exp ask @@ simplify e
                 | false ->
-                  let res = query e @@ Cilfacade.get_ikind_exp e in
+                  let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
                   let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
                   match const with
                   | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c)))
