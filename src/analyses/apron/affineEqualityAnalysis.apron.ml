@@ -9,16 +9,10 @@ include RelationAnalysis
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module AD = AffineEqualityDomain.D2 (VectorMatrix.ArrayVector) (VectorMatrix.ArrayMatrix) in
-    let module RD: RelationDomain.RD =
-    struct
-      module V = AffineEqualityDomain.V
-      include AD
-    end
-    in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct
-      include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)
+      include SpecFunctor (Priv) (AD) (RelationPrecCompareUtil.DummyUtil)
       let name () = "affeq"
     end
     in

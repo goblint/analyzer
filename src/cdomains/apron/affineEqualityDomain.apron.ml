@@ -15,8 +15,6 @@ open VectorMatrix
 
 module Mpqf = SharedFunctions.Mpqf
 
-module V = RelationDomain.V
-
 module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
 struct
   include Mx(Mpqf) (Vec)
@@ -149,8 +147,9 @@ struct
   include VarManagement (Vc) (Mx)
 
   module Bounds = ExpressionBounds (Vc) (Mx)
-
+  module V = RelationDomain.V
   module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (struct let do_overflow_check = false end) (SharedFunctions.Tracked)
+
 
   type var = V.t
 
@@ -589,9 +588,9 @@ struct
   let unmarshal t = t
 end
 
-module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S3 with type var = Var.t =
+module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.RD with type var = Var.t =
 struct
   module D =  D (Vc) (Mx)
-  include SharedFunctions.AssertionModule (V) (D) (struct let do_overflow_check = false end)
+  include SharedFunctions.AssertionModule (D.V) (D) (struct let do_overflow_check = false end)
   include D
 end

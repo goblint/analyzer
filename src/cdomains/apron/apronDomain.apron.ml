@@ -761,6 +761,7 @@ module type S2 =
 (* TODO: ExS3 or better extend RelationDomain.S3 directly?*)
 sig
   module Man: Manager
+  module V: RV
   include module type of AOps (Tracked) (Man)
   include SLattice with type t = Man.mt A.t
 
@@ -785,6 +786,7 @@ sig
   include SLattice
   include AOps with type t := t
 
+  module V: RV
   module Tracked: RelationDomain.Tracked
 
   val assert_inv : Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
@@ -795,6 +797,7 @@ end
 module D2 (Man: Manager) : S2 with module Man = Man  =
 struct
   include D (Man)
+  module V = RelationDomain.V
 
   type marshal = OctagonD.marshal
 
@@ -908,8 +911,10 @@ struct
     |> Lincons1Set.elements
 end
 
-module BoxProd (D: S3): S3 =
+module BoxProd (D: S3): RD =
 struct
+  module V = D.V
+  type var = V.t
   module BP0 = BoxProd0 (D)
   module Tracked = SharedFunctions.Tracked
   include BP0

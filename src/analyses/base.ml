@@ -177,14 +177,15 @@ struct
     | LNot -> ID.c_lognot
 
   let unop_FD = function
-    | Neg  -> FD.neg
-    (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> FD.top_of (FD.get_fkind c))
+    | Neg  -> (fun v -> (Float (FD.neg v):value))
+    | LNot -> (fun c -> Int (FD.eq c (FD.of_const (FD.get_fkind c) 0.)))
+    | BNot -> failwith "BNot on a value of type float!"
+
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ: value -> value = function
     | Int v1 -> Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
-    | Float v -> Float (unop_FD op v)
+    | Float v -> unop_FD op v
     | Address a when op = LNot ->
       if AD.is_null a then
         Int (ID.of_bool (Cilfacade.get_ikind typ) true)
@@ -1743,6 +1744,9 @@ struct
     module V = V
     module G = G
 
+    let unop_ID = unop_ID
+    let unop_FD = unop_FD
+
     let eval_rv = eval_rv
     let eval_rv_address = eval_rv_address
     let eval_lv = eval_lv
@@ -2939,6 +2943,9 @@ struct
           module G = G
 
           let ost = octx.local
+
+          let unop_ID = unop_ID
+          let unop_FD = unop_FD
 
           (* all evals happen in octx with non-top values *)
           let eval_rv ~ctx st e = eval_rv ~ctx:octx ost e

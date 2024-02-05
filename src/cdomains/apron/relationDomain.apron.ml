@@ -128,7 +128,6 @@ end
 module type S3 =
 sig
   include S2
-
   val cil_exp_of_lincons1: Lincons1.t -> exp option
   val invariant: t -> Lincons1.t list
 end
