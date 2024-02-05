@@ -7,17 +7,12 @@ include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = LinearTwoVarEqualityDomain.D2  in
-    let module RD: RelationDomain.RD =
-    struct
-      module V = LinearTwoVarEqualityDomain.V
-      include AD
-    end
+    let module AD = LinearTwoVarEqualityDomain.D2
     in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct
-      include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)
+      include SpecFunctor (Priv) (AD) (RelationPrecCompareUtil.DummyUtil)
       let name () = "lin2vareq"
     end
     in

@@ -128,9 +128,6 @@ module EqualitiesArray = struct
 
 end
 
-
-module V = RelationDomain.V
-
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
     Furthermore, it provides the function [get_coeff_vec] that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement =
@@ -275,7 +272,7 @@ struct
   include VarManagement
 
   module Bounds = ExpressionBounds
-
+  module V = RelationDomain.V
   module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (struct let do_overflow_check = false end) (SharedFunctions.Tracked)
 
   type var = V.t
@@ -724,9 +721,9 @@ struct
 
 end
 
-module D2: RelationDomain.S3 with type var = Var.t =
+module D2: RelationDomain.RD with type var = Var.t =
 struct
   module D = D
-  include SharedFunctions.AssertionModule (V) (D) (struct let do_overflow_check = false end)
+  include SharedFunctions.AssertionModule (D.V) (D) (struct let do_overflow_check = false end)
   include D
 end
