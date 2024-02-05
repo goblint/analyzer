@@ -1295,10 +1295,10 @@ struct
         | BinOp (binop, e1, e2, _) ->
           (* check if the current operation causes a signed overflow *)
           (Cil.isSigned ik && begin match binop with
-              | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.unionWith Z.(+))
-              | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.unionWith Z.(-))
-              | Mult -> checkBinop e1 e2 (GobOption.unionWith Z.mul)
-              | Div -> checkBinop e1 e2 (GobOption.unionWith Z.div)
+              | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.map2 Z.(+))
+              | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.map2 Z.(-))
+              | Mult -> checkBinop e1 e2 (GobOption.map2 Z.mul)
+              | Div -> checkBinop e1 e2 (GobOption.map2 Z.div)
               | Mod -> (* an overflow happens when the second operand is negative *)
                 checkPredicate e2 (fun interval_bound _ -> Z.gt interval_bound Z.zero)
               (* operations that do not result in overflow in C: *)

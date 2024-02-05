@@ -852,7 +852,7 @@
               "description":
                 "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
               "type": "string",
-              "enum": ["octagon", "interval", "polyhedra", "affeq", "lin2vareq"],
+              "enum": ["octagon", "interval", "polyhedra", "affeq"],
               "default": "octagon"
             },
             "threshold_widening": {

@@ -587,9 +587,9 @@ struct
 
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr ask d e no_ov =
-    match Convert.texpr1_of_cil_exp ask d (env d) e no_ov with (* Resolve AWE: delete no_ov flags. *)
+    match Convert.texpr1_of_cil_exp ask d (env d) e no_ov with
     | texpr1 ->
-      let c = eval_interval ask d texpr1 in c
+      eval_interval ask d texpr1
     | exception Convert.Unsupported_CilExp _ ->
       (None, None)
 

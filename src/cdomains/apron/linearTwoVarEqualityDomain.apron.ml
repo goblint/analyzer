@@ -88,11 +88,7 @@ module EqualitiesArray = struct
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
 
-  (* Forget information about variable var in-place.
-     The name reduce_col_with is because the affineEqualitiesDomain also defines this function,
-     and it represents the equalities with a matrix, not like in this case with an array.
-     We could think about changing this name, then we would need to change it also in
-     shared_Functions.apron.ml and vectorMatrix.ml and affineEqualitiesDomain.ml *)
+  (* Forget information about variable var in-place. *)
   let forget_variable_with d var =
     (let ref_var_opt = fst d.(var) in
      match ref_var_opt with
@@ -161,19 +157,14 @@ struct
       | a, [(b_coeff, None)] -> multiply_with_Z b_coeff a
       | _ -> raise NotLinearExpr
     in
-    let mpqf_to_Z x =
-      if not(Z.equal (Mpqf.get_den x) Z.one) then raise NotIntegerOffset
-      else Mpqf.get_num x in
     let rec convert_texpr texp =
       begin match texp with
         (*If x is a constant, replace it with its const. val. immediately*)
-        | Cst x ->
-          (let open Coeff in
-           match x with
-           | Interval _ -> failwith "Not a constant"
-           | Scalar (Float x) -> raise NotIntegerOffset
-           | Scalar (Mpqf x) -> [(mpqf_to_Z x, None)]
-           | Scalar (Mpfrf x) -> raise NotIntegerOffset)
+        | Cst (Interval _) ->failwith "Not a constant"
+        | Cst (Scalar x) ->
+          begin match SharedFunctions.int_of_scalar ?round:None x with
+            | Some x -> [(x, None)]
+            | None -> raise NotIntegerOffset end
         | Var x ->
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
@@ -215,11 +206,11 @@ struct
           | (None, c_i) -> constant := Z.(!constant + (c * c_i))
       in
       List.iter update cv's;
-      let var_count = BatArray.count_matching (fun a -> a <> Z.zero) expr in
-      if var_count == 0 then Some (None, !constant)
-      else if var_count == 1 then (
-        let var = Array.findi (fun a -> a <> Z.zero) expr in
-        if Z.(expr.(var) == Z.one) then Some (Some var, !constant)
+      let var_count = BatArray.count_matching (fun a -> not @@ Z.equal a Z.zero) expr in
+      if var_count = 0 then Some (None, !constant)
+      else if var_count = 1 then (
+        let var = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
+        if Z.equal expr.(var) Z.one then Some (Some var, !constant)
         else None
       )
       else None
@@ -339,7 +330,7 @@ struct
         | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
         | (Some h2, b2) ->
           if h1 = h2 then
-            (if Z.(b1 <> (b2 + b)) then raise Contradiction)
+            (if not @@ Z.equal b1 Z.(b2 + b) then raise Contradiction)
           else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
           else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
 
@@ -611,7 +602,7 @@ struct
     | Some d ->
       let expr = Array.init (Environment.size t.env) (fun _ -> Z.zero) in
       let constant = ref (Z.zero) in
-      if is_bot_env t then bot_env 
+      if is_bot_env t then bot_env
       else
         match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
         | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
@@ -625,7 +616,7 @@ struct
               | (None, c_i) -> constant := Z.(!constant + (c * c_i))
           in
           List.iter update cv's;
-          let var_count = GobArray.count_matchingi (fun _ a -> Z.(a <> Z.zero)) expr in
+          let var_count = GobArray.count_matchingi (fun _ a ->  not @@ Z.equal a Z.zero) expr in
           if var_count = 0 then
             match Tcons1.get_typ tcons with
             | EQ when Z.equal !constant Z.zero -> t

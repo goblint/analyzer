@@ -177,7 +177,7 @@ struct
 
   let no_overflow_not_constraint (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument _ -> false
+    | exception Invalid_argument _ -> false (* is thrown by get_ikind_exp when the type of the expression is not an integer type *)
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
       if IntDomain.should_wrap ik then
@@ -313,7 +313,6 @@ struct
   let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    let ask = Analyses.ask_of_ctx ctx in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
@@ -326,6 +325,7 @@ struct
       if thread then
         new_rel
       else
+        let ask = Analyses.ask_of_ctx ctx in
         List.fold_left (fun new_rel (var, e) ->
             assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
                 RD.assign_exp ask rel' var e' (no_overflow ask e)
