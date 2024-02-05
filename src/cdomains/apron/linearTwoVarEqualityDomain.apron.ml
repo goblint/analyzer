@@ -650,7 +650,8 @@ struct
     | Some d ->
       let expr = Array.init (Environment.size t.env) (fun _ -> Z.zero) in
       let constant = ref (Z.zero) in
-      if is_bot_env t then bot_env else
+      if is_bot_env t then bot_env 
+      else
         match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
         | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
         | Some cv's ->
@@ -663,7 +664,7 @@ struct
               | (None, c_i) -> constant := Z.(!constant + (c * c_i))
           in
           List.iter update cv's;
-          let var_count = GobArray.count_matchingi (fun _ a -> a <> Z.zero) expr in
+          let var_count = GobArray.count_matchingi (fun _ a -> Z.(a <> Z.zero)) expr in
           if var_count = 0 then
             match Tcons1.get_typ tcons with
             | EQ when Z.equal !constant Z.zero -> t
