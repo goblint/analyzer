@@ -75,9 +75,8 @@ struct
       ctx.local
     end
 
-  let asm ctx =
+  let asm ctx outs ins =
     if not !ignore_asm then begin
-      let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_in exp = access_one_top ctx Read false exp in
       List.iter handle_in ins;
       (* deref needs to be set to true because we have to use AddrOf *)

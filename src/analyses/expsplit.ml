@@ -99,9 +99,10 @@ struct
     | Invalidate {lvals} ->
       let handle_lval local lval =
         let exp = Lval lval in
-        if D.mem exp local then begin
+        if D.mem exp local then
           D.remove exp local
-        end else local
+        else
+          local
       in
       List.fold handle_lval ctx.local lvals
     | _ ->

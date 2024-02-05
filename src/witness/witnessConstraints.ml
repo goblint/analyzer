@@ -189,7 +189,7 @@ struct
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let asm ctx           = map ctx Spec.asm     identity
+  let asm ctx outs ins  = map ctx Spec.asm     (fun h -> h outs ins)
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
   let event ctx e octx = map_event ctx e (* TODO: ???? *)

@@ -304,7 +304,7 @@ struct
 
     emit_unassume {ctx with local = st} (* doesn't query, so no need to redefine ask *)
 
-  let asm ctx =
+  let asm ctx outs ins =
     emit_unassume ctx
 
   let skip ctx =

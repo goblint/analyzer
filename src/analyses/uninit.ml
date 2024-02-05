@@ -229,9 +229,8 @@ struct
     ignore (is_expr_initd (Analyses.ask_of_ctx ctx) rval ctx.local);
     init_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
-  let asm ctx = 
+  let asm ctx outs ins = 
     if not !ignore_asm then begin
-      let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_in exp = ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local) in
       List.iter handle_in ins;
       let handle_out local lval = init_lval (Analyses.ask_of_ctx ctx) lval local in

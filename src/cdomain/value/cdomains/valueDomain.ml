@@ -724,7 +724,7 @@ struct
       Array (CArrays.set ask n (array_idx_top) v)
     |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
     |                 _ , Thread tid   -> Thread (Threads.join (Threads.top ()) tid)
-    |                 _ , JmpBuf (b, c, _)     -> JmpBuf(b, c, true)
+    |                 _ , JmpBuf (b, c, _)     -> JmpBuf(b, c, true) (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 

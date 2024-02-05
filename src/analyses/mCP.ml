@@ -428,7 +428,7 @@ struct
     if q then raise Deadcode else d
 
 
-  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
+  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) outs ins =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in

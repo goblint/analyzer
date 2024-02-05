@@ -169,9 +169,8 @@ struct
       D.add (Addr.of_mval mval) ctx.local
     | _ -> ctx.local
 
-  let asm ctx =
+  let asm ctx outs ins =
     if not !ignore_asm then begin
-      let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_in exp = warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local exp in
       List.iter handle_in ins;
       let handle_out lval = warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval lval) in

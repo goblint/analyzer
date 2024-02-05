@@ -179,9 +179,8 @@ struct
     warn_exp_might_contain_freed "branch" ctx exp;
     ctx.local
 
-  let asm ctx =
+  let asm ctx outs ins =
     if not !ignore_asm then begin
-      let ins, outs = Analyses.asm_extract_ins_outs ctx in
       let handle_out lval = warn_lval_might_contain_freed "asm" ctx lval in
       List.iter handle_out outs;
       let handle_in exp = warn_exp_might_contain_freed "asm" ctx exp in
