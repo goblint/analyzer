@@ -225,6 +225,7 @@ struct
               Binop (Mod, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
             | CastE (TInt (t_ik, _) as t, e) ->
               begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+                | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))  
                 | true -> texpr1_expr_of_cil_exp ask @@ simplify e
                 | false ->
                   let res = query e @@ Cilfacade.get_ikind_exp e in
@@ -238,7 +239,8 @@ struct
                       | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e
                       | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
                   | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
-                  | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
+                  | exception Invalid_argument _ 
+                  | _ -> (* get_ikind in is_cast_injective *)
                     raise (Unsupported_CilExp (Cast_not_injective t))
               end
             | _ ->
