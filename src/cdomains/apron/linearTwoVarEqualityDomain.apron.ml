@@ -79,7 +79,7 @@ module EqualitiesArray = struct
              0 offset_map in
       let remove_offset_from_array_entry (var, offs) =
         Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-      Array.(copy m |>  filteri (fun i _ -> not @@ Array.mem i indexes) (* filter out removed variables*)
+      Array.(filteri (fun i _ -> not @@ Array.mem i indexes) m (* filter out removed variables*)
              |> map remove_offset_from_array_entry) (* adjust variable indexes *)
 
   let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
@@ -295,17 +295,12 @@ module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement
 struct
   include VarManagement
 
-  let bound_texpr t texpr = let texpr = Texpr1.to_expr texpr in
-    match get_coeff t texpr with
-    | Some (None, offset) -> Some offset, Some offset
+  let bound_texpr t texpr =
+    match get_coeff t (Texpr1.to_expr texpr) with
+    | Some (None, offset) ->
+      (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string offset) (IntOps.BigIntOps.to_string offset);
+       Some offset, Some offset)
     | _ -> None, None
-
-
-  let bound_texpr d texpr1 =
-    let res = bound_texpr d texpr1 in
-    match res with
-    | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
-    | _ -> res
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
 end
@@ -472,19 +467,14 @@ struct
     res
 
   let widen a b =
-    let a_env = a.env in
-    let b_env = b.env in
-    if Environment.equal a_env b_env  then
+    if Environment.equal a.env b.env then
       join a b
     else b
+
   let widen a b =
     let res = widen a b in
     if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
-
-  let remove_rels_with_var x var env imp =
-    let j0 = Environment.dim_of_var env var in
-    if imp then (EArray.forget_variable_with x j0; x) else EArray.forget_variable x j0
 
   let narrow a b = meet a b
   let narrow a b =
@@ -498,13 +488,14 @@ struct
   let forget_vars t vars =
     if is_bot_env t || is_top t then t
     else
-      let m = Option.get t.d in
-      if List.is_empty vars then t else
-        let rec rem_vars m vars' =
-          begin match vars' with
-            | [] -> m
-            | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
-        in {d = Some (rem_vars (EArray.copy m) vars); env = t.env}
+    if List.is_empty vars then t else
+      let m = EArray.copy @@ Option.get t.d
+      in
+      List.iter
+        (fun var ->
+           EArray.forget_variable_with m (Environment.dim_of_var t.env var))
+        vars;
+      {d = Some m; env = t.env}
 
   let forget_vars t vars =
     let res = forget_vars t vars in
