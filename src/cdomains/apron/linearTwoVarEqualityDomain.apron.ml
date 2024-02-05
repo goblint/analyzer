@@ -201,7 +201,7 @@ struct
 
   let get_coeff (t: t) texp =
     let d = Option.get t.d in
-    let expr = Array.init (Environment.size t.env) (fun _ -> Z.zero) in
+    let expr = Array.make (Environment.size t.env) Z.zero in
     let constant = ref (Z.zero) in
     match get_coeff_vec t texp with
     | None -> None (*The (in-) equality is not linear, therefore we don't know anything about it. *)
@@ -215,7 +215,7 @@ struct
           | (None, c_i) -> constant := Z.(!constant + (c * c_i))
       in
       List.iter update cv's;
-      let var_count = GobArray.count_matchingi (fun _ a -> a <> Z.zero) expr in
+      let var_count = BatArray.count_matching (fun a -> a <> Z.zero) expr in
       if var_count == 0 then Some (None, !constant)
       else if var_count == 1 then (
         let var = Array.findi (fun a -> a <> Z.zero) expr in
@@ -223,34 +223,6 @@ struct
         else None
       )
       else None
-
-
-
-  (*Parses a Texpr to obtain a (variable, offset) pair to repr. a sum of a variable and an offset.
-    Returns None if the expression is not a sum between a variable (without coefficient) and a constant.
-
-    let exception Not2VarExpr in
-    let sum_next_coefficient (var, current_var_offset, curr_offset) (next_coeff, next_var) =
-    begin match next_var with
-      | None -> (* this element represents a constant offset *)
-        (var, current_var_offset, Z.(curr_offset + next_coeff))
-      | Some _ -> (* this element represents a variable with a coefficient
-                            -> it must be always the same variable, else it's not a two-variable equality*)
-        begin if Option.is_none var || next_var = var then
-            (next_var, Z.(current_var_offset + next_coeff), curr_offset)
-          else raise Not2VarExpr end
-    end in
-    let sum_coefficients summands_list_opt =
-    Option.map (List.fold_left sum_next_coefficient (None, Z.zero, Z.zero)) summands_list_opt
-    in
-    match sum_coefficients (get_coeff_vec t texp) with
-    | exception _ -> None
-    | None -> None
-    | Some (var, var_coeff, offset) ->
-    if Option.is_none var then Some (None, offset)
-    else if Z.equal var_coeff Z.one then Some (var, offset)
-    else None
-  *)
 
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
@@ -467,9 +439,7 @@ struct
     res
 
   let widen a b =
-    if Environment.equal a.env b.env then
-      join a b
-    else b
+    join a b
 
   let widen a b =
     let res = widen a b in
