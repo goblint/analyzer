@@ -1,10 +1,9 @@
 //PARAM --set "ana.activated[+]" taintPartialContexts --set ana.ctx_insens[+] base
 #include <goblint.h>
 
-extern void unknown_fun (int *a);
 
 void mainfunct(int *rptr, int* uptr) {
-      unknown_fun(rptr);
+      asm("nop" : "=x"(*rptr));
 }
 
 int g;
