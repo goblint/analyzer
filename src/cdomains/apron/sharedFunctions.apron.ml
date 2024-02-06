@@ -166,7 +166,7 @@ struct
       let res = match ask.f (EvalInt e) with
         | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
         | `Top -> IntDomain.IntDomTuple.top_of ik
-        | `Lifted x -> x (* According to base.ml:704 cast should be unnecessary because it should be taken care of by EvalInt. *)
+        | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *)
       in
       (* If the returned interval is top of the expected ikind (i.e. the value is unknown ) or the returned interval is in range of the expected interval, return top
          - If top is returned the expression will be rewritten.
