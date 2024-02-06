@@ -97,8 +97,9 @@ struct
   (** This version without an overflow check is used by the affeq and lin2vareq domains.
           They do the overflow handling before converting to Texpr1, and store the result in the "no_ov" flag. Therefore we only check the no_ov flag here. *)
   let no_ov_overflow_handling no_ov ik env expr d exp = begin try
-      if not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
-      && not (Lazy.force no_ov) then
+      if IntDomain.should_wrap (Cilfacade.get_ikind_exp exp) || 
+         (not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
+          && not (Lazy.force no_ov)) then
         (raise (Unsupported_CilExp Overflow))
     with Invalid_argument e -> raise ((Unsupported_CilExp Exp_not_supported))(* This exception is raised by Cilfacade.get_ikind_exp
                                                                                 when the expression is not an integer expression, for example if it is a float expression. *)

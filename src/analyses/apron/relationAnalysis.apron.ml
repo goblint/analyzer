@@ -175,7 +175,7 @@ struct
       Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
       If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
 
-  let no_overflow_not_constraint (ask: Queries.ask) exp =
+  let no_overflow (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
     | exception Invalid_argument _ -> false (* is thrown by get_ikind_exp when the type of the expression is not an integer type *)
     | exception Cilfacade.TypeOfError _ -> false
@@ -186,14 +186,6 @@ struct
         true
       else
         not (ask.f (MaySignedOverflow exp))
-
-  let rec no_overflow (ask: Queries.ask) exp =
-    match exp with
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), e1, e2, _) ->
-      no_overflow_not_constraint ask e1 && no_overflow_not_constraint ask e2
-    | BinOp ((LAnd | LOr), e1, e2, _) -> no_overflow ask e1 && no_overflow ask e2
-    | UnOp (LNot,e,_) -> no_overflow ask e
-    | exp -> no_overflow_not_constraint ask exp
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in
