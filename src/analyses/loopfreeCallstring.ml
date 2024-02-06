@@ -10,7 +10,7 @@ struct
   let name () = "loopfreeCallstring"
 
   module FundecSet = SetDomain.Make (CilType.Fundec)
-  module FundecList = Lattice.Flat(Printable.Liszt(CilType.Fundec))
+  module FundecList = Lattice.Flat(Printable.Liszt(CilType.Fundec)) (* should be a list. Since a Lattice is required, Lattice.Flat is used to fulfill the type *) 
   module D = Lattice.Prod (FundecList) (FundecSet)
   module C = D
   module V = EmptyV

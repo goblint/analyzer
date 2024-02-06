@@ -505,7 +505,7 @@ struct
 end
 
 (** Lifts a [Spec] with the context gas variable. For every function call the context gas is reduced. 
-    If the context gas is 0, the remaining function calls are analyzed context insensitively (before the analysis is context sensitive)*)
+    If the context gas is 0, the remaining function calls are analyzed context insensitively (before the analysis is context sensitive) *)
 module ContextGasLifter (S:Spec)
   : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf)) 
           and module C = Printable.Prod (Printable.Option (S.C) (NoContext)) (Printable.Chain (IntConf))
@@ -531,9 +531,9 @@ struct
     let of_elt (x, _) = of_elt x
   end
 
-  (* returns context gas value of the given ctx*)
+  (* returns context gas value of the given ctx *)
   let cg_val ctx = 
-    (* Note: snd ctx.local = snd (ctx.context ()), but ctx.local must be used here due to initialization*)
+    (* snd ctx.local = snd (ctx.context ()), but ctx.local must be used here due to initialization *)
     snd ctx.local
 
   let name () = S.name ()^" with context gas"

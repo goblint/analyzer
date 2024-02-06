@@ -672,9 +672,9 @@ struct
 
   let join x y =
     (* just to optimize joining folds, which start with bot *)
-    if is_bot_env x then (* TODO: also for non-empty env *)
+    if is_bot x then (* TODO: also for non-empty env *)
       y
-    else if is_bot_env y then (* TODO: also for non-empty env *)
+    else if is_bot y then (* TODO: also for non-empty env *)
       x
     else (
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
