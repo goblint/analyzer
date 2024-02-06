@@ -30,7 +30,9 @@
       "symb_locks",
       "region",
       "thread",
-      "threadJoins"
+      "threadJoins",
+      "taintPartialContexts",
+      "loopfreeCallstring"
     ],
     "path_sens": [
       "mutex",
@@ -42,9 +44,7 @@
       "threadflag"
     ],
     "context": {
-      "widen": false,
-      "ctx_gas": true,
-      "ctx_gas_value": 30
+      "widen": false
     },
     "malloc": {
       "wrappers": [
@@ -53,11 +53,14 @@
         "usb_alloc_urb",
         "__builtin_alloca",
         "kzalloc",
+
         "ldv_malloc",
+
         "kzalloc_node",
         "ldv_zalloc",
         "kmalloc_array",
         "kcalloc",
+
         "ldv_xmalloc",
         "ldv_xzalloc",
         "ldv_calloc",
@@ -80,7 +83,6 @@
         "mallocWrappers",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",

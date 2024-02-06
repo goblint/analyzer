@@ -30,7 +30,9 @@
       "symb_locks",
       "region",
       "thread",
-      "threadJoins"
+      "threadJoins",
+      "taintPartialContexts",
+      "callstring_fundec"
     ],
     "path_sens": [
       "mutex",
@@ -43,8 +45,8 @@
     ],
     "context": {
       "widen": false,
-      "ctx_gas": true,
-      "ctx_gas_value": 10
+      "ctx_gas": false,
+      "callStack_height": 10
     },
     "malloc": {
       "wrappers": [
@@ -80,7 +82,6 @@
         "mallocWrappers",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
