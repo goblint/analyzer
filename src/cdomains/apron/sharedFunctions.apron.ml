@@ -235,8 +235,7 @@ struct
                       | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e
                       | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
                   | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
-                  | exception Invalid_argument _
-                  | _ -> (* get_ikind in is_cast_injective *)
+                  | exception Invalid_argument _ ->
                     raise (Unsupported_CilExp (Cast_not_injective t))
               end
             | _ ->

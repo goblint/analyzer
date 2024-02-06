@@ -1247,7 +1247,7 @@ struct
       | exception _ -> BoolDomain.MayBool.top ()
       | ik ->
         let checkBinop e1 e2 binop =
-          match (Analyses.ask_of_ctx ctx).f (EvalInt e1), (Analyses.ask_of_ctx ctx).f (EvalInt e2) with
+          match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
           | `Bot, _ -> false
           | _, `Bot -> false
           | `Lifted i1, `Lifted i2 ->
@@ -1262,7 +1262,7 @@ struct
               | _ -> true)
           | _   -> true in
         let checkPredicate e pred =
-          match (Analyses.ask_of_ctx ctx).f (EvalInt e) with
+          match ctx.ask (EvalInt e) with
           | `Bot -> false
           | `Lifted i ->
             (let (min_ik, _) = IntDomain.Size.range ik in
