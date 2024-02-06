@@ -688,26 +688,26 @@ struct
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
-  let invariant t =
+  let invariant t = 
+    let get_const acc i (var_opt, const) = if Some i = var_opt then acc
+      else (
+        let xi = Environment.var_of_dim t.env i in
+        let coeff_vars = (Coeff.s_of_int (-1), xi) :: (match var_opt with
+            | Some var_index when i <> var_index ->
+              let var = Environment.var_of_dim t.env var_index in
+              [(Coeff.s_of_int 1, var)]
+            | _ -> [] )
+        in
+        let typ = (Option.get @@ V.to_cil_varinfo xi).vtype in
+        let ikind = Cilfacade.get_ikind typ in (*Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i))*)
+        let cst = Coeff.s_of_mpqf @@ Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z @@IntDomain.Size.cast ikind const) in
+        let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
+        Lincons1.set_list lincons coeff_vars (Some cst);
+        lincons :: acc)
+    in
     match t.d with
     | None -> []
-    | Some d ->
-      Array.fold_lefti (fun acc i (var_opt, const) ->
-          if Some i = var_opt then acc
-          else
-            let xi = Environment.var_of_dim t.env i in
-            let coeff_vars =
-              (Coeff.s_of_int (-1), xi) :: (match var_opt with
-                  | Some var_index when i <> var_index ->
-                    let var = Environment.var_of_dim t.env var_index in
-                    [(Coeff.s_of_int 1, var)]
-                  | _ -> [] )
-            in
-            let cst = Coeff.s_of_int (Z.to_int const) in
-            let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
-            Lincons1.set_list lincons coeff_vars (Some cst);
-            lincons :: acc
-        ) [] d
+    | Some d -> Array.fold_lefti get_const [] d
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
