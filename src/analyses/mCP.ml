@@ -436,7 +436,7 @@ struct
     let ctx'' = outer_ctx "asm" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.asm ctx'
+      n, repr @@ S.asm ctx' outs ins
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
