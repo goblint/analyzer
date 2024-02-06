@@ -660,21 +660,21 @@ struct
   let empty_env = Environment.make [||] [||]
 
   let bot () =
-    top_env empty_env
+    bot_env empty_env
 
   let top () =
-    failwith "D2.top"
+    top_env empty_env
 
   let is_bot = equal (bot ())
-  let is_top _ = false
+  let is_top = equal (top ())
 
   let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
 
   let join x y =
     (* just to optimize joining folds, which start with bot *)
-    if is_bot_env x then (* TODO: also for non-empty env *)
+    if is_bot x then (* TODO: also for non-empty env *)
       y
-    else if is_bot_env y then (* TODO: also for non-empty env *)
+    else if is_bot y then (* TODO: also for non-empty env *)
       x
     else (
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
