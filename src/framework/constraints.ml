@@ -155,8 +155,8 @@ struct
   let return ctx r f =
     S.return (conv ctx) r f
 
-  let asm ctx =
-    S.asm (conv ctx)
+  let asm ctx outs ins =
+    S.asm (conv ctx) outs ins
 
   let skip ctx =
     S.skip (conv ctx)
@@ -1301,7 +1301,7 @@ struct
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
-  let asm ctx = S.asm (conv ctx)
+  let asm ctx outs ins = S.asm (conv ctx) outs ins
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
@@ -1543,7 +1543,7 @@ struct
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
-  let asm ctx = S.asm (conv ctx)
+  let asm ctx outs ins = S.asm (conv ctx) outs ins
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
@@ -1686,7 +1686,7 @@ struct
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
-  let asm ctx = S.asm (conv ctx)
+  let asm ctx outs ins = S.asm (conv ctx) outs ins
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 

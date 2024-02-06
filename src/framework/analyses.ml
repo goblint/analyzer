@@ -177,14 +177,6 @@ let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 (** Convert [ctx] to [Queries.ask]. *)
 let ask_of_ctx ctx: Queries.ask = { Queries.f = ctx.ask }
 
-let asm_extract_ins_outs ctx = 
-  match ctx.edge with
-  | ASM (_, asm_out, asm_in, _) ->
-    let third (_, _, x) = x in
-    List.map third asm_in,
-    List.map third asm_out
-  | _ -> failwith "can't call asm_extract_ins_outs outside of transfer function asm"
-
 module type Spec =
 sig
   module D : Lattice.S
