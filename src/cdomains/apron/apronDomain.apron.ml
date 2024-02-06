@@ -232,7 +232,11 @@ module AOps0 (Tracked: Tracked) (Man: Manager) =
 struct
   open SharedFunctions
   module Bounds = Bounds (Man)
-  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (struct let do_overflow_check = true end) (Tracked)
+  module Arg = struct
+    let allow_global = false
+    let do_overflow_check = true
+  end
+  module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
 
 
@@ -702,7 +706,11 @@ struct
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
-          let module Convert = SharedFunctions.Convert (V) (Bounds(Man)) (struct let allow_global = true end) (struct let do_overflow_check = true end)(Tracked) in
+          let module Arg = struct
+            let allow_global = true
+            let do_overflow_check = true
+          end in
+          let module Convert = SharedFunctions.Convert (V) (Bounds(Man)) (Arg) (Tracked) in
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
               let no_ov = lazy(IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e)) in
@@ -772,7 +780,7 @@ end
 module D (Man: Manager)=
 struct
   module DWO = DWithOps (Man) (DHetero (Man))
-  include SharedFunctions.AssertionModule (V) (DWO) (struct let do_overflow_check = true end)
+  include SharedFunctions.AssertionModule (V) (DWO) (DWO.Arg)
   include DWO
   module Tracked = Tracked
   module Man = Man

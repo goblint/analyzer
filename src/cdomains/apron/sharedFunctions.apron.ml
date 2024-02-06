@@ -42,10 +42,6 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 module type ConvertArg =
 sig
   val allow_global: bool
-end
-
-module type OverflowCheck =
-sig
   val do_overflow_check: bool
 end
 
@@ -73,7 +69,7 @@ end
     It also handles the overflow through the flag "no_ov".
     For this reason it was divided from the Convert module for the pure apron domains "ApronOfCilForApronDomains",
 *)
-module ApronOfCil (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Ov: OverflowCheck) (Tracked: RelationDomain.Tracked) =
+module ApronOfCil (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked) =
 struct
   open Texpr1
   open Tcons1
@@ -203,7 +199,7 @@ struct
         | ik ->
           let expr =
             let simplify e =
-              let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in 
+              let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
               let simp = query e ikind in
               let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
               match const with
@@ -225,7 +221,7 @@ struct
               Binop (Mod, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
             | CastE (TInt (t_ik, _) as t, e) ->
               begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))  
+                | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))
                 | true -> texpr1_expr_of_cil_exp ask @@ simplify e
                 | false ->
                   let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
@@ -239,7 +235,7 @@ struct
                       | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e
                       | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
                   | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
-                  | exception Invalid_argument _ 
+                  | exception Invalid_argument _
                   | _ -> (* get_ikind in is_cast_injective *)
                     raise (Unsupported_CilExp (Cast_not_injective t))
               end
@@ -257,7 +253,7 @@ struct
 
   let texpr1_expr_of_cil_exp ask d env exp no_ov =
     let exp = Cil.constFold false exp in
-    if Ov.do_overflow_check then texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov overflow_handling_apron
+    if Arg.do_overflow_check then texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov overflow_handling_apron
     else texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov no_ov_overflow_handling
 
   let texpr1_of_cil_exp ask d env e no_ov =
@@ -403,9 +399,9 @@ struct
 end
 
 (** Conversion between CIL expressions and Apron. *)
-module Convert (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Ov: OverflowCheck) (Tracked: RelationDomain.Tracked)=
+module Convert (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked)=
 struct
-  include ApronOfCil (V) (Bounds) (Arg) (Ov: OverflowCheck) (Tracked)
+  include ApronOfCil (V) (Bounds) (Arg) (Tracked)
   include CilOfApron (V)
 end
 
@@ -550,13 +546,12 @@ struct
     type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_relation_track" || hasTrackAttribute vi.vattr)
 end
 
-module AssertionModule (V: SV) (AD: AssertionRelS) (Ov: OverflowCheck) =
+module AssertionModule (V: SV) (AD: AssertionRelS) (Arg: ConvertArg) =
 struct
   include AD
   type nonrec var = V.t
   module Tracked = Tracked
-
-  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (Ov) (Tracked)
+  module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
   let rec exp_is_constraint = function
     (* constraint *)

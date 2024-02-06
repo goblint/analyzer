@@ -273,7 +273,11 @@ struct
 
   module Bounds = ExpressionBounds
   module V = RelationDomain.V
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (struct let do_overflow_check = false end) (SharedFunctions.Tracked)
+  module Arg = struct
+    let allow_global = true
+    let do_overflow_check = false
+  end
+  module Convert = SharedFunctions.Convert (V) (Bounds) (Arg) (SharedFunctions.Tracked)
 
   type var = V.t
 
@@ -688,7 +692,7 @@ struct
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
-  let invariant t = 
+  let invariant t =
     let get_const acc i (var_opt, const) = if Some i = var_opt then acc
       else (
         let xi = Environment.var_of_dim t.env i in
@@ -724,6 +728,10 @@ end
 module D2: RelationDomain.RD with type var = Var.t =
 struct
   module D = D
-  include SharedFunctions.AssertionModule (D.V) (D) (struct let do_overflow_check = false end)
+  module ConvArg = struct
+    let allow_global = false
+    let do_overflow_check = false
+  end
+  include SharedFunctions.AssertionModule (D.V) (D) (ConvArg)
   include D
 end
