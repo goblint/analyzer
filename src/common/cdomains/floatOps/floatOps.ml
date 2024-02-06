@@ -75,7 +75,7 @@ module CDouble = struct
   let succ = Float.succ
 
   let hash = Hashtbl.hash
-  let to_string = Float.to_string
+  let to_string = Printf.sprintf "%.17F"
 
   let neg = Float.neg
   let fabs = Float.abs
@@ -118,7 +118,7 @@ module CFloat = struct
   let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound
 
   let hash = Hashtbl.hash
-  let to_string = Float.to_string
+  let to_string = Printf.sprintf "%.9F"
 
   let neg = Float.neg
   let fabs = Float.abs
