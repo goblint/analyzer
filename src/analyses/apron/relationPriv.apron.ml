@@ -127,7 +127,7 @@ struct
     {st with rel = rel_local}
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
-    {rel = RD.bot (); priv = startstate ()}
+    {rel = RD.top (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = ()
   let invariant_vars ask getg st = []
@@ -599,7 +599,7 @@ struct
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
-    {rel = RD.bot (); priv = startstate ()}
+    {rel = RD.top (); priv = startstate ()}
 
   let init () = ()
   let finalize () = ()
@@ -732,7 +732,7 @@ struct
   let lock_get_m oct local_m get_m =
     let joined = LRD.join local_m get_m in
     if M.tracing then M.traceli "relationpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LRD.pretty get_m LRD.pretty joined;
-    let r = LRD.fold (fun _ -> RD.meet) joined (RD.bot ()) in (* bot is top with empty env *)
+    let r = LRD.fold (fun _ -> RD.meet) joined (RD.top ()) in
     if M.tracing then M.trace "relationpriv" "meet=%a\n" RD.pretty r;
     let r = RD.meet oct r in
     if M.tracing then M.traceu "relationpriv" "-> %a\n" RD.pretty r;
@@ -1075,7 +1075,7 @@ struct
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
     let _,lmust,l = st.priv in
-    {rel = RD.bot (); priv = (W.bot (),lmust,l)}
+    {rel = RD.top (); priv = (W.bot (),lmust,l)}
 
   let iter_sys_vars getg vq vf =
     match vq with
