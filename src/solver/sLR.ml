@@ -328,7 +328,7 @@ module Make0 =
           let k = X.get_key x in
           let _ = work := H.insert !work x in
           let _ = P.rem_item stable x in
-          if k >= sk then () else
+          if k < sk then
             let _ = X.set_value x (D.bot ()) in
             (* Logs.debug " also restarting %d: %a" k S.Var.pretty_trace x; *)
             (* flush_all (); *)
@@ -349,7 +349,7 @@ module Make0 =
           let (i,nonfresh) = X.get_index y in
           let _ = if xi <= i then HM.replace wpoint y () in
           let _ = if (V.ver>2) && xi <= i then work := H.insert (!work) y in
-          let _ = if nonfresh then () else solve y in
+          let _ = if not nonfresh then solve y in
           let _ = L.add infl y x in
           X.get_value y
 

@@ -694,8 +694,6 @@ let getGlobalInits (file: file) : edges  =
         Hashtbl.add inits (assign lval) ()
       else if not (Hashtbl.mem inits (assign (any_index lval))) then
         Hashtbl.add inits (assign (any_index lval)) ()
-      else
-        ()
     | CompoundInit (typ, lst) ->
       let ntyp = match typ, lst with
         | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)

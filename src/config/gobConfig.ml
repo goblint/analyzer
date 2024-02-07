@@ -140,7 +140,7 @@ struct
     let rec split' i =
       if i<l then begin
         if xs.[i]=c1 || xs.[i]=c2 then
-          (String.sub xs 0 i, String.sub xs i (l-i))
+          (Str.first_chars xs i, Str.string_after xs i)
         else
           split' (i+1)
       end else

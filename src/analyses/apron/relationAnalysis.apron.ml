@@ -158,13 +158,14 @@ struct
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
-      begin match ask.f (Queries.MayPointTo v) with
-        | ad when Queries.AD.is_top ad -> st
-        | ad ->
-          let mvals = Queries.AD.to_mval ad in
-          let ass' = List.map (fun mval -> assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f) mvals in
-          List.fold_right D.join ass' (D.bot ())
-      end
+      let ad = ask.f (Queries.MayPointTo v) in
+      Queries.AD.fold (fun addr acc ->
+          match addr with
+          | ValueDomain.Addr.Addr mval ->
+            D.join acc (assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f)
+          | UnknownPtr | NullPtr | StrPtr _ ->
+            D.join acc st (* Ignore assign *)
+        ) ad (D.bot ())
     (* Ignoring all other assigns *)
     | _ ->
       st
@@ -217,10 +218,22 @@ struct
       | Lval (Mem e, NoOffset) ->
         begin match ask (Queries.MayPointTo e) with
           | ad when not (Queries.AD.is_top ad) && (Queries.AD.cardinal ad) = 1 ->
-            begin match Queries.AD.Addr.to_mval (Queries.AD.choose ad) with
-              | Some mval -> ValueDomain.Addr.Mval.to_cil_exp mval
-              | None -> Lval (Mem e, NoOffset)
-            end
+            let replace mval =
+              try
+                let pointee = ValueDomain.Addr.Mval.to_cil_exp mval in
+                let pointee_typ = Cil.typeSig @@ Cilfacade.typeOf pointee in
+                let lval_typ = Cil.typeSig @@ Cilfacade.typeOfLval (Mem e, NoOffset) in
+                if pointee_typ = lval_typ then
+                  Some pointee
+                else
+                  (* there is a type-mismatch between pointee and pointer-type *)
+                  (* to avoid mismatch errors, we bail on this expression *)
+                  None
+              with Cilfacade.TypeOfError _ ->
+                None
+            in
+            let r = Option.bind (Queries.AD.Addr.to_mval (Queries.AD.choose ad)) replace in
+            Option.default (Lval (Mem e, NoOffset)) r
           (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
           (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
           | _ -> Lval (Mem e, NoOffset)
@@ -381,6 +394,8 @@ struct
     if M.tracing then M.tracel "combine" "relation f: %a\n" CilType.Varinfo.pretty f.svar;
     if M.tracing then M.tracel "combine" "relation formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
     if M.tracing then M.tracel "combine" "relation args: %a\n" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine" "relation st: %a\n" D.pretty st;
+    if M.tracing then M.tracel "combine" "relation fun_st: %a\n" D.pretty fun_st;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
       let filter_actuals (x,e) =

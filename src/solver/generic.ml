@@ -254,7 +254,7 @@ module SoundBoxSolverImpl =
           H.replace called x ();
           (* set the new value for [x] *)
           eval_rhs_event x;
-          let set_x d = if H.mem called x then set x d else () in
+          let set_x d = if H.mem called x then set x d in
           Option.may (fun f -> set_x (f (eval x) side)) (S.system x);
           (* remove [x] from called *)
           H.remove called x
