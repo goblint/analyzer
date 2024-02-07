@@ -170,7 +170,9 @@ let check_arguments () =
   );
   if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)";
   if get_bool "dbg.print_wpoints" && not (Logs.Level.should_log Debug) then
-    warn "dbg.print_wpoints requires dbg.level debug"
+    warn "dbg.print_wpoints requires dbg.level debug";
+  if get_bool "dbg.print_tids" && not (Logs.Level.should_log Debug) then
+    warn "dbg.print_tids requires dbg.level debug"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
