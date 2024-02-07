@@ -28,7 +28,7 @@ let activate (sys:string) (subsys: string list): unit =
   activated := Strs.union !activated subs;
   Hashtbl.add active_dep sys subs
 let deactivate (sys:string): unit =
-  activated := Strs.diff !activated (try Hashtbl.find active_dep sys with Not_found -> Goblint_logs.Logs.error "WTF? %s" sys; Strs.empty)
+  activated := Strs.diff !activated (try Hashtbl.find active_dep sys with Not_found -> Goblint_logs.Logs.error "Missing tracing active_dep for %s" sys; Strs.empty)
 
 let indent_level = ref 0
 let traceIndent () = indent_level := !indent_level + 2
