@@ -378,15 +378,14 @@ let createCFG (file: file) =
             begin match real_succs () with
               | [] -> failwith "MyCFG.createCFG: 0 Asm succ"
               | [succ, skippedStatements] -> begin
-                if get_bool "asm_is_nop" then begin
-                  addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, false)) (Statement succ);
-                end else
+                addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, false)) (Statement succ);
+                if not (get_bool "asm_is_nop") then
                   let unique_dests = List.fold_left (fun acc label ->
                     let succ', skippedStatements' = find_real_stmt ~parent:stmt !label in
                     match List.assoc_opt succ' acc with
-                    | Some _ -> acc
-                    | None -> (succ', skippedStatements') :: acc
-                    ) [(succ, skippedStatements)] labels in
+                    | None when succ' != succ -> (succ', skippedStatements') :: acc
+                    | _ -> acc
+                    ) [] labels in
                   List.iter (fun (succ, skippedStatements) ->
                     addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, true)) (Statement succ)
                     ) unique_dests;
