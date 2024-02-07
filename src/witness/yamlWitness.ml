@@ -201,9 +201,9 @@ struct
     let is_invariant_node (n : Node.t) =
       let loc = Node.location n in
       match n with
-      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
-        not (is_stub_node n)
-      | _ ->
+      | Statement _ ->
+        not loc.synthetic && WitnessInvariant.is_invariant_node n && not (is_stub_node n)
+      | FunctionEntry _ | Function _ ->
         (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
         false
     in
