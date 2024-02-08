@@ -163,94 +163,86 @@ struct
     texpr1_expr_of_cil_exp exp
 
 
-  let texpr1_expr_of_cil_exp_with_overflow_check (ask: Queries.ask) d env exp no_ov overflow_handling =
-    let query e ik =
-      let res = match ask.f (EvalInt e) with
+  let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
+    let conv exp overflow_handling =
+      let query e ik =
+        match ask.f (EvalInt e) with
         | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
         | `Top -> IntDomain.IntDomTuple.top_of ik
         | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *)
       in
-      (* If the returned interval is top of the expected ikind (i.e. the value is unknown ) or the returned interval is in range of the expected interval, return top
-         - If top is returned the expression will be rewritten.
-         - If a constant is returned this specific value is casted to the expected ikind value
-         - else we got an interval with unsupported bounds i.e. the value expression is known to be unknown and needs casting, which we do not support i.e. the expression is not supported*)
-      let top = IntDomain.IntDomTuple.is_top_of ik res in
-      (* || (Option.is_some min && Option.is_some max && (minimal  != maximal && (Option.get min >= minimal || Option.get max <= maximal))) in*)
-      if top then IntDomain.IntDomTuple.top_of ik else res
-    in
-    (* recurse without env and ask arguments *)
-    let rec texpr1_expr_of_cil_exp = function
-      | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob || Arg.allow_global then
-          let var =
-            if v.vglob then
-              V.global v
-            else
-              V.local v
-          in
-          if Environment.mem_var env var then
-            Var var
-          else
-            raise (Unsupported_CilExp (Var_not_found v))
-        else
-          failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
-      | Const (CInt (i, _, _)) ->
-        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
-      | exp ->
-        match Cilfacade.get_ikind_exp exp with
-        | ik ->
-          let expr =
-            let simplify e =
-              let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
-              let simp = query e ikind in
-              let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
-              BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
+      (* recurse without env and ask arguments *)
+      let rec texpr1_expr_of_cil_exp = function
+        | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
+          if not v.vglob || Arg.allow_global then
+            let var =
+              if v.vglob then
+                V.global v
+              else
+                V.local v
             in
-            let texpr1 e = texpr1_expr_of_cil_exp (simplify e) in
-            let bop_near op e1 e2 =  Binop (op, texpr1 e1, texpr1 e2, Int, Near) in
-            match exp with
-            | UnOp (Neg, e, _) -> Unop (Neg, texpr1 e, Int, Near)
-            | BinOp (PlusA, e1, e2, _) -> bop_near Add e1 e2
-            | BinOp (MinusA, e1, e2, _) -> bop_near Sub e1 e2
-            | BinOp (Mult, e1, e2, _) -> bop_near Mul e1 e2
-            | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
-            | BinOp (Div, e1, e2, _) -> 
-              Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
-            | CastE (TInt (t_ik, _) as t, e) ->
-              begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))
-                | true -> texpr1 e
-                | false ->
-                  let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
-                  let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
-                  match const with
-                  | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c)))
-                  | None -> if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
-                    else (
-                      let (ik_min, ik_max) = IntDomain.Size.range t_ik in
-                      match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with
-                      | Some min, Some max when min >= ik_min && max <= ik_max -> texpr1_expr_of_cil_exp e
-                      | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
-                  | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
-                  | exception Invalid_argument _ ->
-                    raise (Unsupported_CilExp (Cast_not_injective t))
-              end
-            | _ ->
-              raise (Unsupported_CilExp Exp_not_supported)
-          in
-          overflow_handling no_ov ik env expr d exp;
-          expr
-        | exception (Cilfacade.TypeOfError _ as e)
-        | exception (Invalid_argument _ as e) ->
-          raise (Unsupported_CilExp (Exp_typeOf e))
+            if Environment.mem_var env var then
+              Var var
+            else
+              raise (Unsupported_CilExp (Var_not_found v))
+          else
+            failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
+        | Const (CInt (i, _, _)) ->
+          Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
+        | exp ->
+          match Cilfacade.get_ikind_exp exp with
+          | ik ->
+            let expr =
+              let simplify e =
+                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
+                let simp = query e ikind in
+                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
+                BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
+              in
+              let texpr1 e = texpr1_expr_of_cil_exp (simplify e) in
+              let bop_near op e1 e2 =  Binop (op, texpr1 e1, texpr1 e2, Int, Near) in
+              match exp with
+              | UnOp (Neg, e, _) -> Unop (Neg, texpr1 e, Int, Near)
+              | BinOp (PlusA, e1, e2, _) -> bop_near Add e1 e2
+              | BinOp (MinusA, e1, e2, _) -> bop_near Sub e1 e2
+              | BinOp (Mult, e1, e2, _) -> bop_near Mul e1 e2
+              | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
+              | BinOp (Div, e1, e2, _) -> 
+                Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
+              | CastE (TInt (t_ik, _) as t, e) ->
+                begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+                  | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))
+                  | true -> texpr1 e
+                  | false ->
+                    let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
+                    let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
+                    match const with
+                    | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c)))
+                    | None -> if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
+                      else (
+                        let (ik_min, ik_max) = IntDomain.Size.range t_ik in
+                        match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with
+                        | Some min, Some max when min >= ik_min && max <= ik_max -> texpr1_expr_of_cil_exp e
+                        | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
+                    | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
+                    | exception Invalid_argument _ ->
+                      raise (Unsupported_CilExp (Cast_not_injective t))
+                end
+              | _ ->
+                raise (Unsupported_CilExp Exp_not_supported)
+            in
+            overflow_handling no_ov ik env expr d exp;
+            expr
+          | exception (Cilfacade.TypeOfError _ as e)
+          | exception (Invalid_argument _ as e) ->
+            raise (Unsupported_CilExp (Exp_typeOf e))
+      in
+      (* only if we are sure that no overflow / undefined behavior happens we convert the expression *)
+      texpr1_expr_of_cil_exp exp
     in
-    (* only if we are sure that no overflow / undefined behavior happens we convert the expression *)
-    texpr1_expr_of_cil_exp exp
-
-  let texpr1_expr_of_cil_exp ask d env exp no_ov =
     let exp = Cil.constFold false exp in
     let ov_handler = if Arg.do_overflow_check then overflow_handling_apron else no_ov_overflow_handling in
-    texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov ov_handler
+    conv exp ov_handler
 
   let texpr1_of_cil_exp ask d env e no_ov =
     let e = Cil.constFold false e in
