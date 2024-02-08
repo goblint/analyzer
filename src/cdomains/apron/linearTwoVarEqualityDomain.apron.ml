@@ -359,11 +359,12 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' -> (
         try
-        let res_d = Array.copy d1' in
-        Array.iteri (meet_with_one_conj_with res_d) d2';
-        {d = Some res_d; env = sup_env}
+          let res_d = Array.copy d1' in
+          Array.iteri (meet_with_one_conj_with res_d) d2';
+          {d = Some res_d; env = sup_env}
         with Contradiction -> 
-          {d = None; env = sup_env})
+          {d = None; env = sup_env}
+      )
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
