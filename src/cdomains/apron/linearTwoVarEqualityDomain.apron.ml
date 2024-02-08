@@ -324,9 +324,12 @@ struct
 
   let meet_with_one_conj_with ts i (var, b) =
     let subst_var ts x (vart, bt) =
-      let adjust (vare, b') =
-        if Option.eq ~eq:Int.equal (Some x) vare then (vart, Z.(b' + bt)) else (vare, b') in
-      BatArray.modify adjust ts in
+      let adjust = function
+        | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
+        | e -> e
+      in
+      BatArray.modify adjust ts
+    in
     let (var1, b1) = ts.(i) in
     (match var, var1 with
      | None, None -> if not @@ Z.equal b b1 then raise Contradiction
