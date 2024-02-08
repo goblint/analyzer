@@ -110,8 +110,7 @@ struct
 
   let texpr1_expr_of_cil_exp_old d env exp no_ov =
     (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp exp =
-      match exp with
+    let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
         if not v.vglob || Arg.allow_global then
           let var =
@@ -146,7 +145,7 @@ struct
             | BinOp (Mod, e1, e2, _) ->
               Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
             | CastE (TInt (t_ik, _) as t, e) ->
-              begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+              begin match IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
                 | true -> texpr1_expr_of_cil_exp e
                 | false
                 | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
@@ -179,9 +178,8 @@ struct
       (* || (Option.is_some min && Option.is_some max && (minimal  != maximal && (Option.get min >= minimal || Option.get max <= maximal))) in*)
       if top then IntDomain.IntDomTuple.top_of ik else res
     in
-    (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp ask exp =
-      match exp with
+    (* recurse without env and ask arguments *)
+    let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
         if not v.vglob || Arg.allow_global then
           let var =
@@ -212,21 +210,21 @@ struct
             in
             match exp with
             | UnOp (Neg, e, _) ->
-              Unop (Neg, texpr1_expr_of_cil_exp ask @@ simplify e, Int, Near)
+              Unop (Neg, texpr1_expr_of_cil_exp @@ simplify e, Int, Near)
             | BinOp (PlusA, e1, e2, _) ->
-              Binop (Add, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+              Binop (Add, texpr1_expr_of_cil_exp @@ simplify e1, texpr1_expr_of_cil_exp @@ simplify e2, Int, Near)
             | BinOp (MinusA, e1, e2, _) ->
-              Binop (Sub, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+              Binop (Sub, texpr1_expr_of_cil_exp @@ simplify e1, texpr1_expr_of_cil_exp @@ simplify e2, Int, Near)
             | BinOp (Mult, e1, e2, _) ->
-              Binop (Mul, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+              Binop (Mul, texpr1_expr_of_cil_exp @@ simplify e1, texpr1_expr_of_cil_exp @@ simplify e2, Int, Near)
             | BinOp (Div, e1, e2, _) ->
-              Binop (Div, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Zero)
+              Binop (Div, texpr1_expr_of_cil_exp @@ simplify e1, texpr1_expr_of_cil_exp @@ simplify e2, Int, Zero)
             | BinOp (Mod, e1, e2, _) ->
-              Binop (Mod, texpr1_expr_of_cil_exp ask @@ simplify e1, texpr1_expr_of_cil_exp ask @@ simplify e2, Int, Near)
+              Binop (Mod, texpr1_expr_of_cil_exp @@ simplify e1, texpr1_expr_of_cil_exp @@ simplify e2, Int, Near)
             | CastE (TInt (t_ik, _) as t, e) ->
               begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
                 | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))
-                | true -> texpr1_expr_of_cil_exp ask @@ simplify e
+                | true -> texpr1_expr_of_cil_exp @@ simplify e
                 | false ->
                   let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
                   let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
@@ -236,7 +234,7 @@ struct
                     else (
                       let (minimal, maximal) = IntDomain.Size.range t_ik in
                       match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with
-                      | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp ask e
+                      | Some min, Some max when  min >= minimal && max <= maximal -> texpr1_expr_of_cil_exp e
                       | _ -> raise (Unsupported_CilExp (Cast_not_injective t)))
                   | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
                   | exception Invalid_argument _ ->
@@ -252,7 +250,7 @@ struct
           raise (Unsupported_CilExp (Exp_typeOf e))
     in
     (* only if we are sure that no overflow / undefined behavior happens we convert the expression *)
-    texpr1_expr_of_cil_exp ask exp
+    texpr1_expr_of_cil_exp exp
 
   let texpr1_expr_of_cil_exp ask d env exp no_ov =
     let exp = Cil.constFold false exp in
