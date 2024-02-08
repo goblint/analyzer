@@ -288,7 +288,7 @@ struct
   let is_bot t = equal t (bot ())
   let is_bot_env t = t.d = None
 
-  (*this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities*)
+  (* this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities *)
   let top_of env = {d = Some (EArray.make_empty_array (Environment.size env)); env = env}
 
   (** Is not expected to be called but implemented for completeness *)
@@ -472,7 +472,7 @@ struct
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
 
-  (* implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
+  (** implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
      This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     let assigned_var = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
@@ -592,15 +592,14 @@ struct
       The overflow is completely handled by the flag "no_ov",
       which is set in relationAnalysis.ml via the function no_overflow.
       In case of a potential overflow, "no_ov" is set to false
-      and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow *)
+      and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow
 
-  (* meet_tcons -> meet with guard in if statement
+      meet_tcons -> meet with guard in if statement
      texpr -> tree expr (right hand side of equality)
      -> expression used to derive tcons -> used to check for overflow
      tcons -> tree constraint (expression < 0)
      -> does not have types (overflow is type dependent)
   *)
-
   let meet_tcons ask t tcons original_expr no_ov =
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
@@ -672,7 +671,7 @@ struct
     if M.tracing then M.tracel "ops" "unify: %s %s -> %s\n" (show a) (show b) (show res);
     res
 
-  (* Assert a constraint expression. Defined in apronDomain.apron.ml
+  (** Assert a constraint expression. Defined in apronDomain.apron.ml
 
      If the constraint is never fulfilled, then return bottom.
      Else the domain can be modified with the new information given by the constraint.
