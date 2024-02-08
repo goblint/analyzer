@@ -344,21 +344,26 @@ struct
   let meet_with_one_conj t i e =
     match t.d with
     | None -> t
-    | Some d -> let res_d = Array.copy d in
-      match meet_with_one_conj_with res_d i e with
-      | exception Contradiction -> {d = None; env = t.env}
-      | () -> {d = Some res_d; env = t.env}
+    | Some d -> 
+      let res_d = Array.copy d in
+      try
+        meet_with_one_conj_with res_d i e;
+        {d = Some res_d; env = t.env} 
+      with Contradiction -> 
+        {d = None; env = t.env} 
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false
-    in
+    let t1 = change_d t1 sup_env ~add:true ~del:false in
+    let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
     | Some d1', Some d2' -> (
+        try
         let res_d = Array.copy d1' in
-        match Array.iteri (meet_with_one_conj_with res_d) d2' with
-        | exception Contradiction -> {d = None; env = sup_env}
-        | () -> {d = Some res_d; env = sup_env} )
+        Array.iteri (meet_with_one_conj_with res_d) d2';
+        {d = Some res_d; env = sup_env}
+        with Contradiction -> 
+          {d = None; env = sup_env})
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
@@ -416,11 +421,15 @@ struct
       List.iter iterate new_components; Some ad
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
-    if is_bot_env a then b else if is_bot_env b then a
+    if is_bot_env a then 
+      b
+    else if is_bot_env b then 
+      a
     else
       match Option.get a.d, Option.get b.d with
-      | x, y when is_top a || is_top b -> let new_env = Environment.lce a.env b.env
-        in (top_of new_env)
+      | x, y when is_top a || is_top b -> 
+        let new_env = Environment.lce a.env b.env in 
+        top_of new_env
       | x, y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -445,6 +454,7 @@ struct
     res
 
   let narrow a b = meet a b
+
   let narrow a b =
     let res = narrow a b in
     if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
@@ -454,11 +464,10 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let forget_vars t vars =
-    if is_bot_env t || is_top t then t
+    if is_bot_env t || is_top t || List.is_empty vars then 
+      t
     else
-    if List.is_empty vars then t else
-      let m = EArray.copy @@ Option.get t.d
-      in
+      let m = EArray.copy @@ Option.get t.d in
       List.iter
         (fun var ->
            EArray.forget_variable_with m (Environment.dim_of_var t.env var))
@@ -476,23 +485,23 @@ struct
      This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     let assigned_var = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
-    begin match t.d with
-      | Some d ->
-        let abstract_exists_var = abstract_exists var t in
-        begin match get_coeff t texp with
-          | None -> (* Statement "assigned_var = ?" (non-linear assignment) *)
-            abstract_exists_var
-          | Some (None, off) ->
-            (* Statement "assigned_var = off" (constant assignment) *)
-            assign_const abstract_exists_var assigned_var off
-          | Some (Some exp_var, off) when assigned_var = exp_var ->
-            (* Statement "assigned_var = assigned_var + off" *)
-            subtract_const_from_var t assigned_var off
-          | Some (Some exp_var, off) ->
-            (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
-            meet_with_one_conj abstract_exists_var assigned_var (Some exp_var, off)
-        end
-      | None -> bot_env end
+    match t.d with
+    | Some d ->
+      let abstract_exists_var = abstract_exists var t in
+      begin match get_coeff t texp with
+        | None -> (* Statement "assigned_var = ?" (non-linear assignment) *)
+          abstract_exists_var
+        | Some (None, off) ->
+          (* Statement "assigned_var = off" (constant assignment) *)
+          assign_const abstract_exists_var assigned_var off
+        | Some (Some exp_var, off) when assigned_var = exp_var ->
+          (* Statement "assigned_var = assigned_var + off" *)
+          subtract_const_from_var t assigned_var off
+        | Some (Some exp_var, off) ->
+          (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
+          meet_with_one_conj abstract_exists_var assigned_var (Some exp_var, off)
+      end
+    | None -> bot_env
 
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
@@ -520,14 +529,13 @@ struct
     let res = assign_var t v v' in
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
-  (* This functionality is not common to C and is used for assignments of the form: x = y, y=x; which is not legitimate C grammar
-     x and y should be assigned to the value of x and y before the assignment respectively.
-     ==> x = y_old , y = x_old;
-     Therefore first apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y
+
+  (** Parallel assignment of variables.
+      First apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y
      and in a second round assign x' to x and y' to y
   *)
   let assign_var_parallel t vv's =
-    let assigned_vars = List.map (function (v, _) -> v) vv's in
+    let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
     let t_primed = add_vars t primed_vars in
@@ -571,21 +579,23 @@ struct
     forget_vars res [var]
 
   let substitute_exp ask t var exp no_ov =
-    let res = substitute_exp ask t var exp no_ov
-    in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
+    let res = substitute_exp ask t var exp no_ov in 
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
   let show_coeff_vec l (env : Environment.t) =
-    let show_element e = match e with
-      | (a, Some x) -> ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env x)) ^ " + ")
-      | (a, None) -> ((Z.to_string a) ^ "+") in
+    let show_element = function
+      | (a, Some x) -> ((Z.to_string a) ^ " * " ^ (Var.to_string (Environment.var_of_dim env x)) ^ " + ")
+      | (a, None) -> ((Z.to_string a) ^ "+")
+    in
     List.fold_right (fun k result -> show_element k ^ "\n" ^ result) l ""
 
   let show_final_expr l (env : Environment.t) =
     let show_element i a = if i = 0 then ((Z.to_string a) ^ " + ") else
-        ((Z.to_string a) ^ " * " ^ (Var.to_string ( Environment.var_of_dim env (i-1))) ^ " + ") in
+        ((Z.to_string a) ^ " * " ^ (Var.to_string (Environment.var_of_dim env (i-1))) ^ " + ")
+    in
     List.fold_righti (fun i k result -> show_element i k ^ "\n" ^ result) l ""
 
   (** Assert a constraint expression.
@@ -622,7 +632,7 @@ struct
               | (None, c_i) -> constant := Z.(!constant + (c * c_i))
           in
           List.iter update cv's;
-          let var_count = GobArray.count_matchingi (fun _ a ->  not @@ Z.equal a Z.zero) expr in
+          let var_count = Array.count_matching (fun a -> not @@ Z.equal a Z.zero) expr in
           if var_count = 0 then
             match Tcons1.get_typ tcons with
             | EQ when Z.equal !constant Z.zero -> t
