@@ -291,24 +291,30 @@ struct
   (*this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities*)
   let top_of env = {d = Some (EArray.make_empty_array (Environment.size env)); env = env}
 
-  (*Is not expected to be called but implemented for completeness *)
+  (** Is not expected to be called but implemented for completeness *)
   let top () = {d = Some (EArray.empty()); env = empty_env}
 
-  (*is_top returns true for top_of array and empty array *)
+  (** is_top returns true for top_of array and empty array *)
   let is_top t = GobOption.exists EArray.is_top_array t.d
 
-  (* prints the current variable equalities with resolved variable names *)
+  (** prints the current variable equalities with resolved variable names *)
   let show varM =
     let lookup i = Var.to_string (Environment.var_of_dim varM.env i) in
-    let show_var i tuple =
-      match tuple with
-      | (None, offset) -> (lookup i) ^ " = " ^ Z.to_string offset ^ ";\n"
-      | (Some index, offset) -> (lookup i) ^ " = " ^ lookup index ^
-                                (if offset <> Z.zero then " + " ^ Z.to_string offset else "") ^ ";\n"
-    in if is_top varM then "⊤\n" else
-      match varM.d with
-      | None -> "⊥\n"
-      | Some arr -> if is_bot varM then "Bot \n" else Array.fold_left (fun acc elem -> acc ^ elem ) "" (Array.mapi show_var arr)
+    let show_offs o = if Z.equal o Z.zero then "" else " + " ^ Z.to_string o in
+    let show_var i = function
+      | (None, o) -> (lookup i) ^ " = " ^ Z.to_string o ^ ";\n"
+      | (Some index, o) when i <> index -> 
+        (lookup i) ^ " = " ^ lookup index ^ show_offs o ^ ";\n"
+      | _ -> ""
+    in 
+    match varM.d with
+    | None -> "⊥\n"
+    | Some arr when EArray.is_top_array arr -> "⊤\n"
+    | Some arr ->
+      if is_bot varM then 
+        "Bot \n"
+      else
+        Array.fold_lefti (fun acc i elem -> acc ^ show_var i elem) "" arr
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
