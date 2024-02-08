@@ -1,6 +1,2 @@
-(env
- (_
-  (binaries ../../util/yamlWitnessStrip.exe)))
-
 (cram
- (deps (glob_files *.c) %{bin:yamlWitnessStrip}))
+ (deps (glob_files *.c)))
