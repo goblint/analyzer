@@ -254,12 +254,12 @@ struct
 
   let texpr1_expr_of_cil_exp ask d env exp no_ov =
     let exp = Cil.constFold false exp in
-    if Arg.do_overflow_check then texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov overflow_handling_apron
-    else texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov no_ov_overflow_handling
+    let ov_handler = if Arg.do_overflow_check then overflow_handling_apron else no_ov_overflow_handling in
+    texpr1_expr_of_cil_exp_with_overflow_check ask d env exp no_ov ov_handler
 
   let texpr1_of_cil_exp ask d env e no_ov =
     let e = Cil.constFold false e in
-    let res =  texpr1_expr_of_cil_exp ask d env e no_ov in
+    let res = texpr1_expr_of_cil_exp ask d env e no_ov in
     Texpr1.of_expr env res
 
   let tcons1_of_cil_exp_old d env e negate no_ov =
