@@ -693,31 +693,31 @@ struct
 
   let relift t = t
 
-  (* representation as C expression
+  (** representation as C expression
 
      This function returns all the equalities that are saved in our datastructure t.
 
      Lincons -> linear constraint *)
   let invariant t =
-    let get_const acc i (var_opt, const) = if Some i = var_opt then acc
-      else (
-        let xi = Environment.var_of_dim t.env i in
-        let coeff_vars = (Coeff.s_of_int (-1), xi) :: (match var_opt with
-            | Some var_index when i <> var_index ->
-              let var = Environment.var_of_dim t.env var_index in
-              [(Coeff.s_of_int 1, var)]
-            | _ -> [] )
-        in
-        let typ = (Option.get @@ V.to_cil_varinfo xi).vtype in
-        let ikind = Cilfacade.get_ikind typ in (*Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i))*)
-        let cst = Coeff.s_of_mpqf @@ Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z @@IntDomain.Size.cast ikind const) in
-        let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
-        Lincons1.set_list lincons coeff_vars (Some cst);
-        lincons :: acc)
+    let of_coeff xi coeffs o =
+      let typ = (Option.get @@ V.to_cil_varinfo xi).vtype in
+      let ikind = Cilfacade.get_ikind typ in
+      let cst = Coeff.s_of_mpqf @@ Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z @@ IntDomain.Size.cast ikind o) in
+      let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
+      Lincons1.set_list lincons coeffs (Some cst);
+      lincons
     in
-    match t.d with
-    | None -> []
-    | Some d -> Array.fold_lefti get_const [] d
+    let get_const acc i = function
+      | (None, o) -> 
+        let xi = Environment.var_of_dim t.env i in
+        of_coeff xi [(Coeff.s_of_int (-1), xi)] o :: acc
+      | (Some r, _) when r = i -> acc
+      | (Some r, o) -> 
+        let xi = Environment.var_of_dim t.env i in
+        let ri = Environment.var_of_dim t.env r in
+        of_coeff xi [(Coeff.s_of_int (-1), xi); (Coeff.s_of_int 1, ri)] o :: acc
+    in
+    BatOption.map_default (Array.fold_lefti get_const []) [] t.d
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
