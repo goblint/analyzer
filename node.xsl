@@ -108,7 +108,7 @@
         Node:<xsl:value-of select="@id" />
       </div>
       <div class="node-location">
-        @<xsl:value-of select="@file" />:<xsl:value-of select="@line" />
+        @<xsl:value-of select="@file" />:<xsl:value-of select="@line" />:<xsl:value-of select="@column" />-<xsl:value-of select="@endLine" />:<xsl:value-of select="@endColumn" /> (synthetic: <xsl:value-of select="@synthetic" />)
       </div>
     </a>
     <div class="toggle off">
