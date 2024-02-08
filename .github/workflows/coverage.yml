@@ -65,6 +65,9 @@ jobs:
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test lin2vareq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group lin2vareq -s
+
       - name: Test apron termination regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group termination -s
 
