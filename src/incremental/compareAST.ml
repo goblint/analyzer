@@ -309,11 +309,6 @@ let eq_instr (a: instr) (b: instr) ~(rename_mapping: rename_mapping) = match a, 
     eq_lval lv1 lv2 ~rename_mapping &&>> eq_exp f1 f2 &&>> forward_list_equal eq_exp args1 args2
   | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) ->
     eq_exp f1 f2 ~rename_mapping &&>> forward_list_equal eq_exp args1 args2
-  | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) ->
-    (GobList.equal String.equal tmp1 tmp2, rename_mapping) &&>>
-    forward_list_equal (fun (x1,y1,z1) (x2,y2,z2) ~rename_mapping:x-> (x1 = x2, x) &&> (y1 = y2) &&>> eq_lval z1 z2) ci1 ci2 &&>>
-    forward_list_equal (fun (x1,y1,z1) (x2,y2,z2) ~rename_mapping:x-> (x1 = x2, x) &&> (y1 = y2) &&>> eq_exp z1 z2) dj1 dj2 &&>
-    GobList.equal String.equal rk1 rk2(* ignore attributes and locations *)
   | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo v1 v2 ~rename_mapping
   | _, _ -> false, rename_mapping
 
@@ -351,6 +346,12 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   | Switch (exp1, block1, stmts1, _l1, _el1), Switch (exp2, block2, stmts2, _l2, _el2) -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else eq_exp exp1 exp2 ~rename_mapping &&>> eq_block' block1 block2 &&>> forward_list_equal (fun a b -> eq_stmt (a,af) (b,bf)) stmts1 stmts2
   | Loop (block1, _l1, _el1, _con1, _br1), Loop (block2, _l2, _el2, _con2, _br2) -> eq_block' block1 block2 ~rename_mapping
   | Block block1, Block block2 -> eq_block' block1 block2 ~rename_mapping
+  | Asm (attr1, tmp1, ci1, dj1, rk1, lb1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, lb2, l2) ->
+    (GobList.equal String.equal tmp1 tmp2, rename_mapping) &&>>
+    forward_list_equal (fun (x1,y1,z1) (x2,y2,z2) ~rename_mapping:x-> (x1 = x2, x) &&> (y1 = y2) &&>> eq_lval z1 z2) ci1 ci2 &&>>
+    forward_list_equal (fun (x1,y1,z1) (x2,y2,z2) ~rename_mapping:x-> (x1 = x2, x) &&> (y1 = y2) &&>> eq_exp z1 z2) dj1 dj2 &&>
+    GobList.equal String.equal rk1 rk2(* ignore attributes and locations *) &&>
+    GobList.equal (fun st1 st2 -> eq_stmt_with_location (!st1, af) (!st2, bf)) lb1 lb2
   | _, _ -> false, rename_mapping
 
 and eq_stmt ?cfg_comp ((a, af): stmt * fundec) ((b, bf): stmt * fundec) ~(rename_mapping: rename_mapping) =

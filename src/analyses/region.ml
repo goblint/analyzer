@@ -75,6 +75,29 @@ struct
       | Some r when Lvals.is_empty r -> false
       | _ -> true
   end
+
+  let event ctx e octx =
+    match e with
+    | Events.Invalidate {lvals} ->
+        begin
+          match ctx.local with
+          | `Lifted reg ->
+            let old_regpart = ctx.global () in
+            let regpart, reg =
+              List.fold_left
+                (fun (regpart_acc, reg_acc) lval ->
+                  Reg.assign_bullet lval (regpart_acc, reg_acc)
+                )
+                (old_regpart, reg)
+                lvals
+            in
+            if not (RegPart.leq regpart old_regpart) then
+              ctx.sideg () regpart;
+            `Lifted reg
+          | _ -> ctx.local
+        end
+      | _ -> ctx.local
+    
   let access ctx (a: Queries.access) =
     match a with
     | Point ->

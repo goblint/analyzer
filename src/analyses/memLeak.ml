@@ -216,9 +216,8 @@ struct
         | ad when (not (Queries.AD.is_top ad)) && Queries.AD.cardinal ad = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           begin match Queries.AD.choose ad with
-            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) ->
-              ToppedVarInfoSet.remove v ctx.local
-            | _ -> ctx.local
+            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) -> ToppedVarInfoSet.remove v state
+            | _ -> state
           end
         | _ -> ctx.local
       end

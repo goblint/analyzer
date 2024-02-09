@@ -78,7 +78,7 @@ struct
 end
 
 module Threads = ConcDomain.ThreadSet
-module JmpBufs = JmpBufDomain.JmpBufSetTaint
+module JmpBufs = JmpBufDomain.JmpBufSetTaintInvalid
 
 module rec Compound: sig
   type t =
@@ -152,7 +152,7 @@ struct
       Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.bot ())
-    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.Bufs.empty (), false)
+    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.Bufs.empty (), false, false)
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> Bot
 
@@ -723,7 +723,7 @@ struct
       Array (CArrays.set ask n (array_idx_top) v)
     |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
     |                 _ , Thread tid   -> Thread (Threads.join (Threads.top ()) tid)
-    |                 _ , JmpBuf _     -> state (* TODO: no top jmpbuf *)
+    |                 _ , JmpBuf (b, c, _)     -> JmpBuf(b, c, true) (* TODO: no top jmpbuf *)
     | _, Bot -> Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
@@ -1006,7 +1006,7 @@ struct
             | Blob(Bot, _, _) -> Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
             | _ ->
               if !AnalysisState.global_initialization then
-                JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
+                JmpBuf (JmpBufs.Bufs.empty (), false, false) (* if assigning global init, use empty set instead *)
               else
                 Top
           end
@@ -1171,7 +1171,7 @@ struct
 
   let rec mark_jmpbufs_as_copied (v:t):t =
     match v with
-    | JmpBuf (v,t) -> JmpBuf (v, true)
+    | JmpBuf (v,t,i) -> JmpBuf (v, true, i)
     | Array n -> Array (CArrays.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
     | Struct n -> Struct (Structs.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
     | Union (f, n) -> Union (f, mark_jmpbufs_as_copied n)

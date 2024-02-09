@@ -96,6 +96,15 @@ struct
       D.add exp value ctx.local
     | Longjmped _ ->
       emit_splits_ctx ctx
+    | Invalidate {lvals} ->
+      let handle_lval local lval =
+        let exp = Lval lval in
+        if D.mem exp local then
+          D.remove exp local
+        else
+          local
+      in
+      List.fold handle_lval ctx.local lvals
     | _ ->
       ctx.local
 end

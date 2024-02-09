@@ -103,6 +103,13 @@ struct
       (* TODO: why doesn't invalidate_exp involve any reachable for deep write? *)
       List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
 
+  let event ctx e octx =
+    match e with
+    | Events.Invalidate {lvals} ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let invalidate local lval = invalidate_lval ask lval local in
+      List.fold_left invalidate ctx.local lvals
+    | _ -> ctx.local
 
   module A =
   struct

@@ -103,6 +103,18 @@ struct
 
 end
 
+let event ctx e octx =
+  match e with
+  | Events.Invalidate {lvals} ->
+    (* Handle the Invalidate event and update the tainted set *)
+    List.fold_left (fun acc lval ->
+      Spec.taint_lval ctx lval 
+    ) ctx.local lvals
+   
+  | _ -> ctx.local
+
+
+
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
 

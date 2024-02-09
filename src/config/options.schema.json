@@ -17,6 +17,12 @@
       "type": "string",
       "default": ""
     },
+    "asm_is_nop": {
+      "title": "asm_is_nop",
+      "description": "Treat assembly statements as NOOP",
+      "type": "boolean",
+      "default": true
+    },
     "justcil": {
       "title": "justcil",
       "description": "Just parse and output the CIL.",

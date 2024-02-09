@@ -177,7 +177,6 @@ let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 (** Convert [ctx] to [Queries.ask]. *)
 let ask_of_ctx ctx: Queries.ask = { Queries.f = ctx.ask }
 
-
 module type Spec =
 sig
   module D : Lattice.S
@@ -231,8 +230,9 @@ sig
       "return exp" or "return" in the passed function (fundec) *)
   val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
 
-  (** A transfer function meant to handle inline assembler program points *)
-  val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
+  (** A transfer function meant to handle inline assembler program points.
+      It gets outputs (written by asm) and inputs (read by asm) as arguments. *)
+  val asm   : (D.t, G.t, C.t, V.t) ctx -> lval list -> exp list -> D.t
 
   (** A transfer function which works as the identity function, i.e., it skips and does nothing.
       Used for empty loops. *)
@@ -357,10 +357,12 @@ struct
 
   let vdecl ctx _ = ctx.local
 
-  let asm x =
-    M.msg_final Info ~category:Unsound "ASM ignored";
-    M.info ~category:Unsound "ASM statement ignored.";
-    x.local (* Just ignore. *)
+  let asm ctx outs ins =
+    if get_bool "asm_is_nop" then begin
+      M.msg_final Info ~category:Unsound "ASM ignored";
+      M.info ~category:Unsound "ASM statement ignored.";
+    end;
+    ctx.local
 
   let skip x = x.local (* Just ignore. *)
 

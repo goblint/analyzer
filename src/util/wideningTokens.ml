@@ -168,13 +168,13 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx Fun.const S.query (fun (x) -> x q)
-  let assign ctx lv e = lift_fun ctx lift'   S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx lift'   S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx lift'   S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx lift'   S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx lift'   S.return ((|>) f % (|>) r)
-  let asm ctx         = lift_fun ctx lift'   S.asm    identity
-  let skip ctx        = lift_fun ctx lift'   S.skip   identity
+  let assign ctx lv e  = lift_fun ctx lift'   S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v      = lift_fun ctx lift'   S.vdecl  ((|>) v)
+  let branch ctx e tv  = lift_fun ctx lift'   S.branch ((|>) tv % (|>) e)
+  let body ctx f       = lift_fun ctx lift'   S.body   ((|>) f)
+  let return ctx r f   = lift_fun ctx lift'   S.return ((|>) f % (|>) r)
+  let asm ctx outs ins = lift_fun ctx lift'   S.asm    ((|>) ins % (|>) outs)
+  let skip ctx         = lift_fun ctx lift'   S.skip   identity
   let special ctx r f args       = lift_fun ctx lift' S.special ((|>) args % (|>) f % (|>) r)
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)

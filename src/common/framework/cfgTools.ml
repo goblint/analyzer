@@ -212,7 +212,8 @@ let createCFG (file: file) =
 
         | Instr _
         | If _
-        | Return _ ->
+        | Return _
+        | Asm _ ->
           stmt, visited_stmts
 
         | Continue _
@@ -290,7 +291,6 @@ let createCFG (file: file) =
             let edge_of_instr = function
               | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
               | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
-              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
@@ -373,6 +373,24 @@ let createCFG (file: file) =
             (* Nothing to do, find_real_stmt skips over these. *)
             ()
 
+          | Asm (_, tmpls, outs, ins, _, labels, loc) ->
+            begin match real_succs () with
+              | [] -> failwith "MyCFG.createCFG: 0 Asm succ"
+              | [succ, skippedStatements] -> begin
+                addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, false)) (Statement succ);
+                if not (get_bool "asm_is_nop") then
+                  let unique_dests = List.fold_left (fun acc label ->
+                    let succ', skippedStatements' = find_real_stmt ~parent:stmt !label in
+                    match List.assoc_opt succ' acc with
+                    | None when succ' != succ -> (succ', skippedStatements') :: acc
+                    | _ -> acc
+                    ) [] labels in
+                  List.iter (fun (succ, skippedStatements) ->
+                    addEdge ~skippedStatements (Statement stmt) (loc, ASM(tmpls, outs, ins, true)) (Statement succ)
+                    ) unique_dests;
+              end
+              | _ -> failwith "MyCFG.createCFG: >1 Asm succ"
+            end
           | Continue _
           | Break _
           | Switch _ ->
@@ -381,6 +399,7 @@ let createCFG (file: file) =
 
           | ComputedGoto _ ->
             failwith "CfgTools.createCFG: unsupported stmt"
+        
         in
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "handle" (List.iter handle) fd.sallstmts;
 

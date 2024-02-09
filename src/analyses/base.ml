@@ -81,6 +81,7 @@ struct
   let name () = "base"
   let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
   let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
+  let ignore_asm = ref true
 
   (**************************************************************************
    * Helpers
@@ -159,6 +160,7 @@ struct
     end;
     return_varstore := Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType;
     longjmp_return := Cilfacade.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
+    ignore_asm := get_bool "asm_is_nop";
     Priv.init ()
 
   let finalize () =
@@ -1243,9 +1245,11 @@ struct
           if AD.mem Addr.UnknownPtr jmp_buf then
             M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
           begin match get ~ctx ~top:(VD.bot ()) ctx.local jmp_buf None with
-            | JmpBuf (x, copied) ->
+            | JmpBuf (x, copied, invalid) ->
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
+              if invalid then
+                M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a was modified by inline assembly. This is may lead to Undefined Behavior." d_exp e;
               x
             | Top
             | Bot ->
@@ -2588,7 +2592,7 @@ struct
     | Setjmp { env }, _ ->
       let st' = match eval_rv ~ctx st env with
         | Address jmp_buf ->
-          let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
+          let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false, false) in
           let r = set ~ctx st jmp_buf (Cilfacade.typeOf env) value in
           if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
           r
@@ -2907,6 +2911,11 @@ struct
     in
     D.join ctx.local e_d'
 
+  let asm ctx outs ins = 
+    if not !ignore_asm then
+      ctx.emit (Events.Invalidate {lvals=outs});
+    ctx.local
+
   let event ctx e octx =
     let ask = Analyses.ask_of_ctx ctx in
     let st: store = ctx.local in
@@ -2938,6 +2947,9 @@ struct
           {st' with cpa = CPA.remove !longjmp_return st'.cpa}
         | None -> ctx.local
       end
+    | Events.Invalidate {lvals} ->
+      let exps = List.map Cil.mkAddrOrStartOf lvals in
+      invalidate ~ctx st exps
     | _ ->
       ctx.local
 end

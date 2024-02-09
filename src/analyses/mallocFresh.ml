@@ -29,6 +29,14 @@ struct
   let assign ctx lval rval =
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
+  let event ctx e octx =
+    match e with
+    | Events.Invalidate {lvals} ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let handle_lval local lval = assign_lval ask lval local in
+      List.fold_left handle_lval ctx.local lvals
+    | _ -> ctx.local
+
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 

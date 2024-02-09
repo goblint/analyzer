@@ -589,6 +589,10 @@ struct
           remove ask (Cil.var v) st
         in
         List.fold_left remove_var ctx.local (EscapeDomain.EscapedVars.elements vars)
+    | Events.Invalidate {lvals} ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let remove_lval ctx lval = remove ask lval ctx in
+      List.fold_left remove_lval ctx.local lvals
     | _ ->
       ctx.local
 end

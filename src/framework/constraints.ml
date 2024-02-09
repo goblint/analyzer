@@ -71,8 +71,8 @@ struct
   let return ctx r f =
     D.lift @@ S.return (conv ctx) r f
 
-  let asm ctx =
-    D.lift @@ S.asm (conv ctx)
+  let asm ctx outs ins =
+    D.lift @@ S.asm (conv ctx) outs ins
 
   let skip ctx =
     D.lift @@ S.skip (conv ctx)
@@ -155,8 +155,8 @@ struct
   let return ctx r f =
     S.return (conv ctx) r f
 
-  let asm ctx =
-    S.asm (conv ctx)
+  let asm ctx outs ins =
+    S.asm (conv ctx) outs ins
 
   let skip ctx =
     S.skip (conv ctx)
@@ -244,13 +244,13 @@ struct
   let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
   let query' ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity   S.query  (fun x -> x q)
-  let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
-  let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
-  let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
+  let assign ctx lv e  = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v      = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
+  let branch ctx e tv  = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
+  let body ctx f       = lift_fun ctx (lift ctx) S.body   ((|>) f)
+  let return ctx r f   = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
+  let asm ctx outs ins = lift_fun ctx (lift ctx) S.asm    ((|>) ins % (|>) outs)
+  let skip ctx         = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine_env' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
@@ -387,15 +387,15 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
-  let query ctx       = S.query (conv ctx)
-  let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
-  let asm ctx         = lift_fun ctx S.asm    identity
-  let skip ctx        = lift_fun ctx S.skip   identity
+  let sync ctx reason  = lift_fun ctx S.sync   ((|>) reason)
+  let query ctx        = S.query (conv ctx)
+  let assign ctx lv e  = lift_fun ctx S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v      = lift_fun ctx S.vdecl  ((|>) v)
+  let branch ctx e tv  = lift_fun ctx S.branch ((|>) tv % (|>) e)
+  let body ctx f       = lift_fun ctx S.body   ((|>) f)
+  let return ctx r f   = lift_fun ctx S.return ((|>) f % (|>) r)
+  let asm ctx outs ins = lift_fun ctx S.asm    ((|>) ins % (|>) outs)
+  let skip ctx         = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let event ctx e octx = lift_fun ctx S.event ((|>) (conv octx) % (|>) e)
@@ -480,13 +480,13 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
-  let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
-  let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
-  let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
-  let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
-  let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
-  let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
-  let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
+  let assign ctx lv e  = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
+  let vdecl ctx v      = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
+  let branch ctx e tv  = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
+  let body ctx f       = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
+  let return ctx r f   = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
+  let asm ctx outs ins = lift_fun ctx D.lift   S.asm    ((|>) ins % (|>) outs)  `Bot
+  let skip ctx         = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
@@ -765,9 +765,12 @@ struct
     end else
       common_joins ctx funs !r !spawns
 
-  let tf_asm var edge prev_node getl sidel getg sideg d =
+  let tf_asm var edge prev_node outs ins getl sidel getg sideg d =
+    let third (_, _, x) = x in
+    let outs = Util.list_map third outs in
+    let ins = Util.list_map third ins in
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.asm ctx) !r !spawns
+    common_join ctx (S.asm ctx outs ins) !r !spawns
 
   let tf_skip var edge prev_node getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
@@ -775,14 +778,14 @@ struct
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
-      | Assign (lv,rv) -> tf_assign var edge prev_node lv rv
-      | VDecl (v)      -> tf_vdecl var edge prev_node v
-      | Proc (r,f,ars) -> tf_proc var edge prev_node r f ars
-      | Entry f        -> tf_entry var edge prev_node f
-      | Ret (r,fd)     -> tf_ret var edge prev_node r fd
-      | Test (p,b)     -> tf_test var edge prev_node p b
-      | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
-      | Skip           -> tf_skip var edge prev_node
+      | Assign (lv,rv)  -> tf_assign var edge prev_node lv rv
+      | VDecl (v)       -> tf_vdecl var edge prev_node v
+      | Proc (r,f,ars)  -> tf_proc var edge prev_node r f ars
+      | Entry f         -> tf_entry var edge prev_node f
+      | Ret (r,fd)      -> tf_ret var edge prev_node r fd
+      | Test (p,b)      -> tf_test var edge prev_node p b
+      | ASM (_, outs, ins,_) -> tf_asm var edge prev_node outs ins
+      | Skip            -> tf_skip var edge prev_node
     end getl sidel getg sideg d
 
   type Goblint_backtrace.mark += TfLocation of location
@@ -1098,7 +1101,7 @@ struct
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let asm ctx           = map ctx Spec.asm     identity
+  let asm ctx outs ins  = map ctx Spec.asm     (fun h -> h outs ins)
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
@@ -1298,7 +1301,7 @@ struct
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
-  let asm ctx = S.asm (conv ctx)
+  let asm ctx outs ins = S.asm (conv ctx) outs ins
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
@@ -1540,7 +1543,7 @@ struct
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
-  let asm ctx = S.asm (conv ctx)
+  let asm ctx outs ins = S.asm (conv ctx) outs ins
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
@@ -1683,7 +1686,7 @@ struct
   let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
-  let asm ctx = S.asm (conv ctx)
+  let asm ctx outs ins = S.asm (conv ctx) outs ins
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 

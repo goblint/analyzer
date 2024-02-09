@@ -1,6 +1,7 @@
 (** Basic lockset analyses. *)
 
 open Analyses
+open GoblintCil
 
 
 module type DS =
@@ -33,6 +34,20 @@ sig
   val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
 end
 
+let addr_set_of_lval (a: Queries.ask) lval =
+  let exp = Cil.mkAddrOrStartOf lval in
+  let addr_set = a.f (Queries.MayPointTo exp) in
+  addr_set
+
+let locks_of_lvals ctx lvals =
+  let ask = Analyses.ask_of_ctx ctx in
+  let collect_addr_sets locks lval = 
+    let addr_set = addr_set_of_lval ask lval in
+    ValueDomain.AD.union locks addr_set 
+  in
+  let addr_set = List.fold_left collect_addr_sets (ValueDomain.AD.empty ()) lvals in
+  ValueDomain.AD.elements addr_set
+  
 module MakeMay (Arg: MayArg) =
 struct
   include Make (Arg.D)
@@ -60,6 +75,7 @@ module type MustArg =
 sig
   include MayArg
   val remove_all: (D.t, _, D.t, _) ctx -> D.t
+  val is_held: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> bool
 end
 
 module MakeMust (Arg: MustArg) =
@@ -82,6 +98,13 @@ struct
       Arg.remove_all ctx (* remove all locks *)
     | Events.Unlock l ->
       Arg.remove ctx l (* remove definite lock or all in parallel if ambiguous (blob lock is never added) *)
+    | Events.Invalidate {lvals} ->
+      let locks = locks_of_lvals ctx lvals in
+      let is_held lock = Arg.is_held ctx lock in
+      let locks = List.filter is_held locks in
+      let remove_lock ctx lock = {ctx with local = Arg.remove ctx lock} in
+      let ctx = List.fold_left remove_lock ctx locks in
+      ctx.local
     | _ ->
       ctx.local
 end

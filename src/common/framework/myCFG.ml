@@ -17,7 +17,7 @@ type edge = Edge.t =
   | Entry of CilType.Fundec.t
   | Ret of CilType.Exp.t option * CilType.Fundec.t
   | Test of CilType.Exp.t * bool
-  | ASM of string list * Edge.asm_out * Edge.asm_in
+  | ASM of string list * Edge.asm_out * Edge.asm_in * bool
   | VDecl of CilType.Varinfo.t
   | Skip
 

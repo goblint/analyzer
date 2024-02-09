@@ -4,6 +4,7 @@ open GoblintCil
 open Analyses
 open MessageCategory
 open AnalysisStateUtil
+open GobConfig
 
 module AllocaVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All alloca() Variables" end)
 module HeapVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
@@ -24,9 +25,12 @@ struct
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
 
+  let ignore_asm = ref true
+
+  let init _ =
+    ignore_asm := get_bool "asm_is_nop"
+
   let context _ _ = ()
-
-
   (* HELPER FUNCTIONS *)
 
   let get_current_threadid ctx =
@@ -175,6 +179,15 @@ struct
     warn_exp_might_contain_freed "branch" ctx exp;
     ctx.local
 
+  let asm ctx outs ins =
+    if not !ignore_asm then begin
+      let handle_out lval = warn_lval_might_contain_freed "asm" ctx lval in
+      List.iter handle_out outs;
+      let handle_in exp = warn_exp_might_contain_freed "asm" ctx exp in
+      List.iter handle_in ins;
+    end;
+    ctx.local
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
     Option.iter (fun x -> warn_exp_might_contain_freed "return" ctx x) exp;
     ctx.local
@@ -239,7 +252,6 @@ struct
 
   let startstate v = D.bot ()
   let exitstate v = D.top ()
-
 end
 
 let _ =

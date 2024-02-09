@@ -40,6 +40,7 @@ struct
     let remove ctx l =
       let inLockAddrs (e, _, _) = Lock.equal l e in
       D.filter (neg inLockAddrs) ctx.local
+      
   end
 
   include LocksetAnalysis.MakeMay (Arg)
