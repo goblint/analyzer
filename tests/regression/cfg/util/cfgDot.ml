@@ -1,14 +1,17 @@
-open Goblint_lib
-open CfgTools
-
 let main () =
   Cilfacade.init ();
 
   let ast = Cilfacade.getAST (Fpath.v Sys.argv.(1)) in
-  CilCfg.createCFG ast;
-  let _cfgF, cfgB, _skippedByEdge = CfgTools.createCFG ast in
+  (* Part of CilCfg.createCFG *)
+  GoblintCil.iterGlobals ast (function
+      | GFun (fd, _) ->
+        GoblintCil.prepareCFG fd;
+        GoblintCil.computeCFGInfo fd true
+      | _ -> ()
+    );
+  let (module Cfg) = CfgTools.compute_cfg ast in
 
-  let module NoExtraNodeStyles =
+  let module LocationExtraNodeStyles =
   struct
     let defaultNodeStyles = []
     let extraNodeStyles = function
@@ -18,9 +21,16 @@ let main () =
       | _ -> []
   end
   in
-  let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfgB in
-  let ppf = Format.std_formatter in
-  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
-  Format.pp_print_flush ppf ()
+
+  GoblintCil.iterGlobals ast (function
+      | GFun (fd, _) ->
+        let out = open_out (fd.svar.vname ^ ".dot") in
+        let iter_edges = CfgTools.iter_fd_edges (module Cfg) fd in
+        let ppf = Format.formatter_of_out_channel out in
+        CfgTools.fprint_dot (module CfgTools.CfgPrinters (LocationExtraNodeStyles)) iter_edges ppf;
+        Format.pp_print_flush ppf ();
+        close_out out
+      | _ -> ()
+    )
 
 let () = main ()

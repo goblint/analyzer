@@ -1,7 +1,8 @@
 (executable
  (name cfgDot)
  (libraries
-   goblint_lib
+   goblint-cil
+   goblint_common
    fpath
    goblint.sites.dune
    goblint.build-info.dune)
