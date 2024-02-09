@@ -549,9 +549,7 @@ struct
     match multi_t.d with
     | Some arr when not @@ is_top multi_t ->
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
-      let res = drop_vars switched_arr primed_vars ~del:true in
-      let x = Option.get res.d in
-      {d = Some x; env = res.env}
+      drop_vars switched_arr primed_vars ~del:true
     | _ -> t
 
   let assign_var_parallel t vv's =
