@@ -13,9 +13,9 @@
             "interval": true
         },
         "apron": {
-            "domain": "polyhedra",
-            "pointer_tracking": true
+            "domain": "octagon"
         },
+        "arrayoob": true,
         "activated": [
             "base",
             "threadid",
@@ -35,8 +35,6 @@
             "region",
             "thread",
             "threadJoins",
-            "memOutOfBounds",
-            "taintPartialContexts",
             "apron"
         ],
         "path_sens": [

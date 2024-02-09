@@ -12,9 +12,6 @@
     "float": {
       "interval": true
     },
-    "apron": {
-      "domain": "polyhedra"
-    },
     "activated": [
       "base",
       "threadid",
@@ -34,7 +31,9 @@
       "region",
       "thread",
       "threadJoins",
-      "memOutOfBounds"
+      "memOutOfBounds",
+      "allocVarEscaped",
+      "taintPartialContexts"
     ],
     "path_sens": [
       "mutex",

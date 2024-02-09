@@ -13,9 +13,9 @@
             "interval": true
         },
         "apron": {
-            "domain": "polyhedra"
+            "domain": "polyhedra",
+            "pointer_tracking": true
         },
-        "arrayoob": true,
         "activated": [
             "base",
             "threadid",
@@ -34,7 +34,13 @@
             "symb_locks",
             "region",
             "thread",
-            "threadJoins"
+            "threadJoins",
+            "memOutOfBounds",
+            "taintPartialContexts",
+            "apron",
+            "allocVarEscaped",
+            "addressOfPointer",
+            "taintPartialContexts"
         ],
         "path_sens": [
             "mutex",

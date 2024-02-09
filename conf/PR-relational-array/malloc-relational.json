@@ -36,7 +36,9 @@
       "threadJoins",
       "memOutOfBounds",
       "taintPartialContexts",
-      "apron"
+      "apron",
+      "allocVarEscaped",
+      "taintPartialContexts"
     ],
     "path_sens": [
       "mutex",
