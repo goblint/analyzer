@@ -387,7 +387,7 @@ struct
     match lv with
     | (Var v, NoOffset) when isPointerType v.vtype 
       -> pointerAssign ctx v e 
-    | (Mem e, o) -> invalidatePointerAssignment ctx lv e
+    | (Mem _, _) -> invalidatePointerAssignment ctx lv e
     | _ -> assignLval ctx lv e
 
   let vdecl (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx)  (e:varinfo) = 
