@@ -32,11 +32,28 @@ let main () =
 
   let module LocationExtraNodeStyles =
   struct
-    let defaultNodeStyles = []
+    let defaultNodeStyles = ["align=\"left\""]
+
+    let pp_loc ppf (loc: GoblintCil.location) =
+      if loc.line < 0 then
+        Format.pp_print_string ppf "unknown"
+      else if loc.synthetic then
+        Format.fprintf ppf "%a (synthetic)" CilType.Location.pp loc
+      else
+        CilType.Location.pp ppf loc
+
+    let pp_locs ppf {CilLocation.loc; eloc} =
+      Format.fprintf ppf "@[<v 0>%a@;(%a)@]" pp_loc loc pp_loc eloc
+
+    let pp_label_locs ppf label =
+      let locs = CilLocation.get_labelLoc label in
+      Format.fprintf ppf "[%a]" pp_locs locs
+
     let extraNodeStyles = function
-      | Node.Statement _ as node ->
-        let loc = Node.location node in
-        [Printf.sprintf "label=\"%s\\n(synthetic: %B)\"" (CilType.Location.show loc) loc.synthetic]
+      | Node.Statement stmt ->
+        let locs: CilLocation.locs = CilLocation.get_stmtLoc stmt in
+        let label = Format.asprintf "@[<v 2>%a@;%a@]" pp_locs locs (Format.pp_print_list ~pp_sep:Format.pp_print_cut pp_label_locs) stmt.labels in
+        [Printf.sprintf "label=\"%s\"" (Str.global_replace (Str.regexp "\n") "\\n" label)]
       | _ -> []
   end
   in
