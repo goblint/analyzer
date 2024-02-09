@@ -284,6 +284,7 @@ struct
     | NoOverflow _ -> MayBool.top ()
     | AllocMayBeOutOfBounds _ -> ProdFlatBool.top ()
     | AllocAssignedToGlobal _ -> MustBool.top ()
+    | AddressOfPointerTaken _ -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
