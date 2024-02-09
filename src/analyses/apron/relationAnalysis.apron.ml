@@ -334,7 +334,6 @@ struct
   (* tracks the relational relationship between pointers *)
   let pointerAssign ctx (v:varinfo) e = 
     (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
-    if GobConfig.get_bool "ana.apron.pointer_tracking" then (
     if GobConfig.get_bool "ana.apron.pointer_tracking" && (not v.vglob || ctx.ask (Queries.MustBeSingleThreaded {since_start=false}) ) then (
       match sizeOfTyp (Lval (Var v, NoOffset)) with 
       | Some typSize -> 
@@ -357,8 +356,7 @@ struct
 
   (**The purpose of this function is to invalidate pointer relation we have taken the address of
      char **p = &a; // p points to the addrss of a
-     *p = *p + 1;   // we overwrite the where a points to
-  *)
+     *p = *p + 1;   // we overwrite the where a points to *)
   let invalidatePointerAssignment ctx (lv:lval) e = 
     if GobConfig.get_bool "ana.apron.pointer_tracking" then (
       (*TODO improve the precision by limiting replace_deref_exps by returning the list of a possible derefences and not by cardinality 1*)

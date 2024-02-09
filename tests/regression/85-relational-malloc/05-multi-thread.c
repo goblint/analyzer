@@ -17,8 +17,8 @@ void *t_other(void *arg)
         gptr[i - 1] = 42; // WARN
 
         int tmp = gptr[i];     // NOWARN
-        int tmp = gptr[i + 1]; // WARN
-        int tmp = gptr[i - 1]; // WARN
+        tmp = gptr[i + 1]; // WARN
+        tmp = gptr[i - 1]; // WARN
     }
     pthread_mutex_unlock(&mtx);
 }
@@ -40,8 +40,8 @@ int main()
         gptr[i - 1] = 42; // WARN
 
         int tmp = gptr[i];     // NOWARN
-        int tmp = gptr[i + 1]; // WARN
-        int tmp = gptr[i - 1]; // WARN
+        tmp = gptr[i + 1]; // WARN
+        tmp = gptr[i - 1]; // WARN
     }
     pthread_mutex_unlock(&mtx);
 
