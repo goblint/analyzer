@@ -21,5 +21,10 @@ int main(void)
         __goblint_check(i <= x * sizeof(int));
     }
 
+    for (int i = 0; i < x * sizeof(long) / sizeof(char); i++)
+    {
+        __goblint_check(i <= x * sizeof(long) / sizeof(char));
+    }
+
     return 0;
 }
