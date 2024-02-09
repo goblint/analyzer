@@ -573,6 +573,7 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel'\n";
     res
 
+  (* This is supposed to the be the backwards transformer for assign, not sure this is correct *)
   let substitute_exp ask t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     let res = assign_exp ask t var exp no_ov in

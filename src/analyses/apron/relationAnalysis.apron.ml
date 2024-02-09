@@ -411,6 +411,8 @@ struct
     let new_fun_rel = List.fold_left (fun new_fun_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_fun_rel} e (fun rel' e' ->
             (* not an assign, but still works? *)
+            (* substitute is the backwards semantics of assignment *)
+            (* https://antoinemine.github.io/Apron/doc/papers/expose_CEA_2007.pdf *)
             RD.substitute_exp ask rel' var e' (no_overflow ask e)
           )
       ) new_fun_rel arg_substitutes
