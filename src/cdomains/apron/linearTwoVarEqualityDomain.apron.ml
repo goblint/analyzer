@@ -620,62 +620,60 @@ struct
     (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables
        depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     match t.d with
-    | None -> bot_env
+    | None -> bot_env (* same as is_bot_env t *)
     | Some d ->
-      let expr = Array.init (Environment.size t.env) (fun _ -> Z.zero) in
-      let constant = ref (Z.zero) in
-      if is_bot_env t then bot_env
-      else
-        match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-        | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
-        | Some cv's ->
+      match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+      | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
+      | Some cv's ->
+        let expr = Array.make (Environment.size t.env) Z.zero in
+        let refconstant = ref (Z.zero) in
           let update (c, v) =
-            match v with
-            | None -> constant := Z.(!constant + c)
-            | Some idx -> match d.(idx) with
-              | (Some idx_i, c_i) -> constant := Z.(!constant + (c * c_i));
-                expr.(idx_i) <- Z.(expr.(idx_i) + c)
-              | (None, c_i) -> constant := Z.(!constant + (c * c_i))
-          in
-          List.iter update cv's;
-          let var_count = Array.count_matching (fun a -> not @@ Z.equal a Z.zero) expr in
-          if var_count = 0 then
-            match Tcons1.get_typ tcons with
-            | EQ when Z.equal !constant Z.zero -> t
-            | SUPEQ when Z.geq !constant Z.zero -> t
-            | SUP when Z.gt !constant Z.zero -> t
-            | DISEQ when not @@ Z.equal !constant Z.zero -> t
-            | EQMOD scalar -> t
-            | _ -> bot_env
-          else if var_count = 1 then
-            let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
-            let var = (index, expr.(index)) in
-            let c = if Z.divisible !constant @@ snd var then Some (Z.(-(!constant) / (snd var)))
-              else None in
-            match Tcons1.get_typ tcons, c with
-            | EQ, Some c ->
-              let res = meet_with_one_conj t (fst var) (None, c)
-              in res
-            | _ -> t (*Not supported right now*)
-          else if var_count = 2 then
-            let get_vars i a l = if Z.equal a Z.zero then l else (i, a)::l in
-            let v12 = Array.fold_righti get_vars expr [] in
-            let a1 = snd (List.hd v12) in
-            let a2 = snd (List.hd @@ List.tl v12) in
-            let var1 = fst (List.hd v12) in
-            let var2 = fst (List.hd @@ List.tl v12) in
-            match Tcons1.get_typ tcons with
-            | EQ ->
-              let res =
-                if Z.equal a1 Z.one && Z.equal a2 Z.(-one)
-                then meet_with_one_conj t var2 (Some var1, !constant)
-                else if Z.equal a1 Z.(-one) && Z.equal a2 Z.one
-                then meet_with_one_conj t var1 (Some var2, !constant)
-                else t
-              in res
-            | _-> t (*Not supported right now*)
-          else
-            t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
+          match v with
+          | None -> refconstant := Z.(!refconstant + c)
+          | Some idx -> match d.(idx) with
+            | (Some idx_i, c_i) -> refconstant := Z.(!refconstant + (c * c_i));
+              expr.(idx_i) <- Z.(expr.(idx_i) + c)
+            | (None, c_i) -> refconstant := Z.(!refconstant + (c * c_i))
+        in
+        List.iter update cv's; (* abstract simplification of the guard wrt. reference variables *)
+        let var_count = Array.count_matching (fun a -> not @@ Z.equal a Z.zero) expr in
+        let constant = !refconstant in (* containing the reference locally *)
+        if var_count = 0 then
+          match Tcons1.get_typ tcons with
+          | EQ when Z.equal constant Z.zero -> t
+          | SUPEQ when Z.geq constant Z.zero -> t
+          | SUP when Z.gt constant Z.zero -> t
+          | DISEQ when not @@ Z.equal constant Z.zero -> t
+          | EQMOD scalar -> t
+          | _ -> bot_env
+        else if var_count = 1 then
+          let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
+          let varexpr = expr.(index) in
+          if Z.divisible constant varexpr && Tcons1.get_typ tcons = EQ then 
+              meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)))
+          else  
+             t (*Not supported right now*)
+        else if var_count = 2 then
+          let get_vars i a l = if Z.equal a Z.zero then l else (i, a)::l in
+          (* WIP: the following line sums up the next 5, but would yields warning
+             let (var1,a1)::(var2,a2)::_ = Array.fold_righti get_vars expr [] in *)
+          let v12 = Array.fold_righti get_vars expr [] in
+          let a1 = snd (List.hd v12) in
+          let a2 = snd (List.hd @@ List.tl v12) in
+          let var1 = fst (List.hd v12) in
+          let var2 = fst (List.hd @@ List.tl v12) in
+          match Tcons1.get_typ tcons with
+          | EQ ->
+            let res =
+              if Z.equal a1 Z.one && Z.equal a2 Z.(-one)
+              then meet_with_one_conj t var2 (Some var1, constant)
+              else if Z.equal a1 Z.(-one) && Z.equal a2 Z.one
+              then meet_with_one_conj t var1 (Some var2, constant)
+              else t
+            in res
+          | _-> t (*Not supported right now*)
+        else
+          t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
