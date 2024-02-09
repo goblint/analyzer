@@ -1,4 +1,4 @@
-//PARAM --set "ana.activated[+]" taintPartialContexts --set ana.ctx_insens[+] base
+//PARAM --set "ana.activated[+]" taintPartialContexts --set ana.ctx_insens[+] base --disable asm_is_nop
 #include <goblint.h>
 
 
