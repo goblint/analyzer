@@ -620,6 +620,12 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   if get_bool "justcfg" then fprint_hash_dot cfgB;
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
 
+let compute_cfg_skips file =
+  let cfgF, cfgB, skippedByEdge = getCFG file in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
+
+let compute_cfg file = fst (compute_cfg_skips file)
+
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
   let ready      = NH.create 113 in
