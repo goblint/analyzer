@@ -1,6 +1,4 @@
-  $ cfgDot foo.c
-
-  $ graph-easy --as=boxart cfg.dot
+  $ cfgDot foo.c | graph-easy --as=boxart
                                                   ┌────────────────────┐
                                                   │        :-1         │
                                                   │ (synthetic: true)  │

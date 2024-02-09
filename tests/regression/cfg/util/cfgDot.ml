@@ -16,11 +16,9 @@ let main () =
       [Printf.sprintf "label=\"%s\\n(synthetic: %B)\"" (CilType.Location.show loc) loc.synthetic]
   end
   in
-  let out = open_out "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfgB in
-  let ppf = Format.formatter_of_out_channel out in
+  let ppf = Format.std_formatter in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
-  Format.pp_print_flush ppf ();
-  close_out out
+  Format.pp_print_flush ppf ()
 
 let () = main ()
