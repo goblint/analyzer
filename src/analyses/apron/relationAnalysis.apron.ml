@@ -444,7 +444,7 @@ struct
     (* Also, a local *)
     let vname = Apron.Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with 
+    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
     | Some v -> any_local_reachable
 
