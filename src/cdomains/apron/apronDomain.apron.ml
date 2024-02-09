@@ -494,7 +494,9 @@ struct
   include D
   include AOps (Tracked) (Man)
   include Tracked
+
   let eval_interval ask = Bounds.bound_texpr
+
   (** Assert a constraint expression.
 
       LAnd, LOr, LNot are directly supported by Apron domain in order to
@@ -688,8 +690,6 @@ struct
     )
     else
       false
-
-
 
   let widen x y =
     let x_env = A.env x in
