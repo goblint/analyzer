@@ -217,10 +217,6 @@ struct
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
 
-  let abstract_exists var t = match t.d with
-    | Some d -> {t with d = Some (EArray.forget_variable d (Environment.dim_of_var t.env var))}
-    | None -> t (* there are no  variables in the current environment *)
-
   (* Copy because function is not "with" so should not mutate inputs *)
   let assign_const t var const = match t.d with
     | None -> t
@@ -490,22 +486,22 @@ struct
   (** implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
      This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
-    let assigned_var = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
     match t.d with
     | Some d ->
-      let abstract_exists_var = abstract_exists var t in
+      let var_i = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
       begin match get_coeff t texp with
-        | None -> (* Statement "assigned_var = ?" (non-linear assignment) *)
-          abstract_exists_var
+        | None ->
+          (* Statement "assigned_var = ?" (non-linear assignment) *)
+          forget_vars t [var]
         | Some (None, off) ->
           (* Statement "assigned_var = off" (constant assignment) *)
-          assign_const abstract_exists_var assigned_var off
-        | Some (Some exp_var, off) when assigned_var = exp_var ->
+          assign_const (forget_vars t [var]) var_i off
+        | Some (Some exp_var, off) when var_i = exp_var ->
           (* Statement "assigned_var = assigned_var + off" *)
-          subtract_const_from_var t assigned_var off
+          subtract_const_from_var t var_i off
         | Some (Some exp_var, off) ->
           (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
-          meet_with_one_conj abstract_exists_var assigned_var (Some exp_var, off)
+          meet_with_one_conj (forget_vars t [var]) var_i (Some exp_var, off)
       end
     | None -> bot_env
 
@@ -526,6 +522,7 @@ struct
     if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
         (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
+
   let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
