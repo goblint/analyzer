@@ -525,8 +525,7 @@ struct
 
   let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
-    let texpr1 = Texpr1.of_expr (t.env) (Var v') in
-    assign_texpr t v @@ Apron.Texpr1.to_expr texpr1
+    assign_texpr t v (Var v')
 
   let assign_var t v v' =
     let res = assign_var t v v' in
