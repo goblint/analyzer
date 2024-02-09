@@ -79,10 +79,10 @@ int main()
   pthread_t id;
   pthread_t id2;
 
-  // Creat the thread
+  // Create the thread
   pthread_create(&id, NULL, t_sens, NULL);
 
-  // Creat the thread
+  // Create the thread
   pthread_create(&id2, NULL, t_insens, NULL);
   return 0;
 }

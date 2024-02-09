@@ -1,8 +1,8 @@
-// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
+// PARAM: --enable ana.context.inf_callStack --set "ana.activated[+]" callstring_stmt --enable ana.int.interval_set
 // Basic example
 #include <stdio.h>
 
-int num_iterat = 9;
+int num_iterat = 15;
 int a = 20;
 
 int f(int i)
@@ -18,5 +18,5 @@ int f(int i)
 int main(void)
 {
     f(num_iterat);
-    __goblint_check(a == 0);
+    __goblint_check(a == 0); 
 }

@@ -20,16 +20,19 @@ struct
   module CallStack = struct
     include Printable.PQueue (CT)
 
-    let push stack elem = (* pushes elem to the call-stack, guarantees a depth of k *)
+    let push stack elem = (* pushes elem to the call-stack, guarantees a depth of k if inf_callStack = false*)
       match elem with
       | None -> stack
       | Some e -> 
-        let new_stack = BatDeque.cons e stack in (* pushes new element to stack *)         
-        (* removes element from stack, if stack was filled with k elements *)
-        match (BatDeque.size new_stack - (get_int "ana.context.callStack_height")) with
-        | x when x <= 0 -> new_stack
-        | 1 -> fst @@ Option.get (BatDeque.rear new_stack)
-        | _ -> failwith "Callstack Error: It shouldn't happen that more than one element must be deleted to maintain the correct height!"
+        let new_stack = BatDeque.cons e stack in (* pushes new element to stack *)     
+        if get_bool "ana.context.inf_callStack" 
+        then new_stack (* infinite call-stack*)
+        else 
+          (* removes element from stack, if stack was filled with k elements *)
+          match (BatDeque.size new_stack - (get_int "ana.context.callStack_height")) with
+          | x when x <= 0 -> new_stack
+          | 1 -> fst @@ Option.get (BatDeque.rear new_stack)
+          | _ -> failwith "Callstack Error: It shouldn't happen that more than one element must be deleted to maintain the correct height!"
   end
 
   module D = Lattice.Flat (CallStack) (* should be the CallStack (C=D). Since a Lattice is required, Lattice.Flat is used to fulfill the type *) 

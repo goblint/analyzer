@@ -84,7 +84,7 @@ int main()
   pthread_t id2;
   pthread_t id3;
 
-  // Creat the thread
+  // Create the thread
   pthread_create(&id, NULL, t_sens, NULL);
   pthread_create(&id2, NULL, t_sens2, NULL);
   pthread_create(&id3, NULL, t_insens, NULL);

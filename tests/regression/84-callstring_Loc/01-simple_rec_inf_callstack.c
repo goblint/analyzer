@@ -1,8 +1,8 @@
-// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_loc --enable ana.int.interval_set
+// PARAM: --enable ana.context.inf_callStack --set "ana.activated[+]" callstring_loc --enable ana.int.interval_set
 // Basic example
 #include <stdio.h>
 
-int num_iterat = 10;
+int num_iterat = 15;
 int a = 20;
 
 int f(int i)
