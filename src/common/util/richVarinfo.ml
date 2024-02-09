@@ -1,7 +1,8 @@
 open GoblintCil
 
-let create_var ~isGlobal name typ = 
+let create_var ?(attr=[]) ~isGlobal name typ = 
   let v = Cilfacade.create_var @@ makeVarinfo isGlobal name typ in
+  v.vattr <- attr;
   v
 
 let single ~name typ =
@@ -35,6 +36,7 @@ end
 module type Setup = 
 sig 
   val varType : unit -> typ
+  val attr: attributes
 end 
 
 module Make (X: G) (VT : Setup)=
@@ -54,7 +56,7 @@ struct
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var ~isGlobal:isGlobal (X.name_varinfo x) (VT.varType ()) in
+      let vi = create_var ~attr:VT.attr ~isGlobal:isGlobal (X.name_varinfo x) (VT.varType ()) in
       store_f x vi;
       vi
 

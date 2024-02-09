@@ -137,6 +137,7 @@ module MallocWrapper : MCPSpec = struct
 
   module PointerType = struct 
     let varType = fun () -> voidType
+    let attr = []
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode) (PointerType)

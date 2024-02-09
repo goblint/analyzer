@@ -583,12 +583,19 @@ struct
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
         match AV.find_metadata var with
-        | Some (Global v) when v.vattr = [Attr("ghost",[])]-> ask.f (Q.AllocAssignedToGlobal v)
-         (* keep alloc ghost variable if they were assigned to a global variable *)
+        (*can't use [RelationAnalysis.AllocSize.mem_varinfo] here, due to cyclic dependency *)
+        | Some (Global v) when v.vattr = [Attr("alloc",[])]-> ask.f (Q.AllocAssignedToGlobal v)
+        | Some (Global v) when v.vattr = [Attr("pointer",[])] -> true (*there is no point in tracking pointer ghost variables in the global invariants*)
         | Some (Global _) -> true
         | _ -> false
       ) (RD.vars rel)
     in
+    (* let global_pointers = List.filter (fun var ->
+        match AV.find_metadata var with
+        | Some (Global v) when v.vattr = [Attr("pointer",[])] -> true
+        | _ -> false
+      ) (RD.vars rel) 
+    in *)
     let rel_side = RD.keep_vars rel g_vars in
     sideg V.mutex_inits rel_side;
     let rel_local = RD.remove_vars rel g_vars in (* TODO: side effect initial values to mutex_globals? *)

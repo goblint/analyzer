@@ -30,6 +30,7 @@ end
 module type Setup = 
 sig 
   val varType : unit -> typ
+  val attr : attributes
 end 
 
 module Make:

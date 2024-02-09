@@ -31,20 +31,24 @@ module VarinfoMapping = struct
 end 
 
 (*Alloc ghost variable need to be global invariants in multithreading*)
-module GlobalPointer = struct 
+module AllocSizeFields = struct 
   let varType  = fun () -> !ptrdiffType 
-  let isGlobal = true
+  let attr = [Attr("alloc",[])]
 end
-module LocalPointer = struct 
+module PointerMapFields = struct 
   let varType  = fun () -> !ptrdiffType 
-  let isGlobal = false
+  let attr = [Attr("pointer",[])]
+end
+module ArrayMapFields = struct 
+  let varType  = fun () -> !ptrdiffType 
+  let attr = [Attr("array",[])]
 end
 
 (** C11 does not explicitly name a size-limit for VLAs, some believe it should have the same maximum size as all other objects, 
     i.e. SIZE_MAX bytes (soucr: https://en.wikipedia.org/wiki/Variable-length_array).*)
-module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (LocalPointer) (*ghost variables for VLA*)
-module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (LocalPointer) (*ghost variables for relationa between pointers *)
-module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (GlobalPointer) (*ghost variables for heap allocated variables *)
+module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (ArrayMapFields) (*ghost variables for VLA*)
+module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (PointerMapFields) (*ghost variables for relationa between pointers *)
+module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (AllocSizeFields) (*ghost variables for heap allocated variables *)
 
 module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
@@ -351,12 +355,41 @@ struct
     ) 
     else ctx.local
 
+  (**The purpose of this function is to invalidate pointer relation we have taken the address of
+     char **p = &a; // p points to the addrss of a
+     *p = *p + 1;   // we overwrite the where a points to
+  *)
+  let invalidatePointerAssignment ctx (lv:lval) e = 
+    if GobConfig.get_bool "ana.apron.pointer_tracking" then (
+      (*TODO improve the precision by limiting replace_deref_exps by returning the list of a possible derefences and not by cardinality 1*)
+      let rel = match (replace_deref_exps ctx.ask (Lval lv)) with (*try to dereference the expression*)
+        (*the dereferenced expression evaluates to a ghost variable and we at some point we have at some point taken the address of the pointer*)
+        | AddrOf (Var v,  _ ) when PointerMap.keyExists v && ctx.ask (Queries.AddressOfPointerTaken v) -> 
+          if M.tracing then M.trace "pointerAssign" "remove_vars_with %a" CilType.Varinfo.pretty v;
+          if v.vglob then 
+            RD.forget_vars ctx.local.rel [RV.global (PointerMap.to_varinfo ~isGlobal:true v)] (*remove the ghost variable*)
+          else 
+            RD.forget_vars ctx.local.rel [RV.local (PointerMap.to_varinfo ~isGlobal:false v)] (*remove the ghost variable*)
+        | AddrOf (Var v,  _ ) -> 
+          ctx.local.rel
+        | _ -> (*replace deref exps fails to evaulate the expression*)
+          if M.tracing then M.trace "pointerAssign" "remove ALl\n " ;
+          RD.remove_filter ctx.local.rel (fun var -> match RV.to_cil_varinfo var with
+              | None -> false
+              | Some var -> PointerMap.mem_varinfo var && ctx.ask (Queries.AddressOfPointerTaken var) (*remove all pointer ghost variables we have taken the address of*)
+            )
+      in
+      let ctx = {ctx with local = {ctx.local with rel = rel}} in
+      assignLval ctx lv e 
+    ) else assignLval ctx lv e 
+
   (* Basic transfer functions. *)
 
   let assign ctx (lv:lval) e =
     match lv with
     | (Var v, NoOffset) when isPointerType v.vtype 
       -> pointerAssign ctx v e 
+    | (Mem e, o) -> invalidatePointerAssignment ctx lv e
     | _ -> assignLval ctx lv e
 
   let vdecl (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx)  (e:varinfo) = 
@@ -601,7 +634,8 @@ struct
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
         | Some (Global v) when AllocSize.mem_varinfo v -> true (*keep alloc ghost variable*)
-        | Some (Local v) when PointerMap.mem_varinfo v || ArrayMap.mem_varinfo v -> true (* keep ghost Variables in current scope, ghost variables in the called function are already filtered out in return *)
+        | Some (Local v) when ArrayMap.mem_varinfo v -> true (* keep vla ghost variables *)
+        | Some (Local v) | Some (Global v) when PointerMap.mem_varinfo v -> not @@ ask.f (Queries.AddressOfPointerTaken v)  (* don't keep if the address of the pointer was taken once it could be overwritten *)
         | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
         | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
         | v -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
@@ -924,7 +958,7 @@ struct
         begin match sizeOfTyp e, IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i with 
           | Some typSize, Some min, Some max -> 
             let multiplyOffsetWithPointerSize i =  begin match e with 
-              | Lval (Var v, _) -> (kinteger (Cilfacade.ptrdiff_ikind())i )
+              | Lval (_) -> (kinteger (Cilfacade.ptrdiff_ikind())i )
               | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = IndexPI || binop = MinusPI -> 
                 let replaceBinop bi = match bi with
                   | PlusPI | IndexPI -> PlusA
