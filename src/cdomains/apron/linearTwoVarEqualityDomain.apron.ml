@@ -38,26 +38,28 @@ module EqualitiesArray = struct
 
   let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero))
 
-  let add_variables_to_domain m indexes = (* add new variables to domain with particular indices; translates old indices to keep consistency *)
-    (* the semantic of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
+  (** add new variables to domain with particular indices; translates old indices to keep consistency 
+      the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
+  let add_variables_to_domain m indexes = 
     if length indexes = 0 then m else
-      let next_offset_bump_list = (* an ascending list of indices, where the offset is bumped by 1 *)
-        Array.to_list indexes @ [ Array.length m ] (* terminate list with m to avoid out of bounds access *)
-      in
       let offset_map = Array.make (Array.length m) 0 (* maps each variable to the number of variables that are added before this variable *)
       in
-      let rec shift (offset, list) index = (* bumps offset & pops list, if/while index is heading the list *)
-        if index = List.hd list then
-          shift (offset+1, List.tl list) index
-        else (offset, list)
-      in
       let _ =
-        Array.fold_lefti (* iterates over all indices of offset_map, overwrites content with current offset wrt. potential shift *)
-          (fun (offset, offset_bump_list) index _ ->
-             let newoffset, newlist = shift (offset, offset_bump_list) index in
+        let rec shift (offset, list) index = (* bumps offset & pops list, if/while index is heading the list *)
+          match list with
+          | hd::tl when hd = index -> shift (offset+1, tl) index
+          | _ -> (offset, list)
+        in  
+        Array.fold_lefti (* this is not a textbook fold. We rather use it as a means to iterate over the range 
+            of all indices of offset_map, initializing the array at these indices as a side-effect. 
+            We use fold here as a means of having an accumulator to keep track of the current offset 
+            and the rest of the offset list. In case of more frequent use of this pattern, consider this as
+            a candidate template for a new library function *)
+          (fun offsetcontext index _ ->
+             let newoffset, newlist = shift offsetcontext index in
              offset_map.(index) <- newoffset;
              (newoffset, newlist))
-          (0, next_offset_bump_list) offset_map
+          (0, Array.to_list indexes) offset_map
       in
       let add_offset_to_array_entry (var, offs) = (* uses offset_map to obtain a new var_index, that is consistent with the new reference indices *)
         Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
