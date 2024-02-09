@@ -51,10 +51,10 @@ module EqualitiesArray = struct
           | _ -> (offset, list)
         in  
         Array.fold_lefti (* this is not a textbook fold. We rather use it as a means to iterate over the range 
-            of all indices of offset_map, initializing the array at these indices as a side-effect. 
-            We use fold here as a means of having an accumulator to keep track of the current offset 
-            and the rest of the offset list. In case of more frequent use of this pattern, consider this as
-            a candidate template for a new library function *)
+                            of all indices of offset_map, initializing the array at these indices as a side-effect. 
+                            We use fold here as a means of having an accumulator to keep track of the current offset 
+                            and the rest of the offset list. In case of more frequent use of this pattern, consider this as
+                            a candidate template for a new library function *)
           (fun offsetcontext index _ ->
              let newoffset, newlist = shift offsetcontext index in
              offset_map.(index) <- newoffset;
