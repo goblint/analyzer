@@ -598,12 +598,6 @@ struct
     in
     List.fold_right (fun k result -> show_element k ^ "\n" ^ result) l ""
 
-  let show_final_expr l (env : Environment.t) =
-    let show_element i a = if i = 0 then ((Z.to_string a) ^ " + ") else
-        ((Z.to_string a) ^ " * " ^ (Var.to_string (Environment.var_of_dim env (i-1))) ^ " + ")
-    in
-    List.fold_righti (fun i k result -> show_element i k ^ "\n" ^ result) l ""
-
   (** Assert a constraint expression.
       The overflow is completely handled by the flag "no_ov",
       which is set in relationAnalysis.ml via the function no_overflow.
