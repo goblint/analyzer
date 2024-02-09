@@ -11,9 +11,11 @@ let main () =
   let module NoExtraNodeStyles =
   struct
     let defaultNodeStyles = []
-    let extraNodeStyles node =
-      let loc = Node.location node in
-      [Printf.sprintf "label=\"%s\\n(synthetic: %B)\"" (CilType.Location.show loc) loc.synthetic]
+    let extraNodeStyles = function
+      | Node.Statement _ as node ->
+        let loc = Node.location node in
+        [Printf.sprintf "label=\"%s\\n(synthetic: %B)\"" (CilType.Location.show loc) loc.synthetic]
+      | _ -> []
   end
   in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfgB in
