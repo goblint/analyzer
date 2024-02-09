@@ -137,6 +137,7 @@ type _ t =
   | NoOverflow : exp -> MayBool.t t
   | AllocMayBeOutOfBounds : allocmaybeoutofbounds -> ProdFlatBool.t t
   | AllocAssignedToGlobal : varinfo -> MustBool.t t
+  | AddressOfPointerTaken : varinfo -> MustBool.t t
 
 type 'a result = 'a
 
@@ -210,6 +211,7 @@ struct
     | NoOverflow _ -> (module MayBool)
     | AllocMayBeOutOfBounds _ -> (module ProdFlatBool) (*used for relational heap OOB detection in memOutOfBounds *)
     | AllocAssignedToGlobal _ -> (module MustBool)
+    | AddressOfPointerTaken _ -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -351,6 +353,7 @@ struct
     | Any (NoOverflow _) -> 59
     | Any (AllocMayBeOutOfBounds _) -> 60
     | Any (AllocAssignedToGlobal _) -> 61
+    | Any (AddressOfPointerTaken _) -> 62
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -453,6 +456,8 @@ struct
     | Any (NoOverflow e) -> CilType.Exp.hash e
     | Any (AllocMayBeOutOfBounds x) ->  hash_allocmaybeoutofbounds x
     | Any (AllocAssignedToGlobal v) -> CilType.Varinfo.hash v
+    | Any (AddressOfPointerTaken v) -> CilType.Varinfo.hash v
+    | Any (AllocAssignedToGlobal v) -> CilType.Varinfo.hash v
     (* only argumentless queries should remain *)
 
     (* IterSysVars:                                                                    *)
@@ -521,6 +526,7 @@ struct
     | Any (NoOverflow e) -> Pretty.dprintf "NoOverflow %a" CilType.Exp.pretty e
     | Any (AllocMayBeOutOfBounds x) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
     | Any (AllocAssignedToGlobal v) -> Pretty.dprintf "AllocAssignedToGlobal %a" CilType.Varinfo.pretty  v
+    | Any (AddressOfPointerTaken v) -> Pretty.dprintf "AddressOfPointerTaken %a" CilType.Varinfo.pretty v
 end
 
 let to_value_domain_ask (ask: ask) =
