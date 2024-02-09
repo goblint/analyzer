@@ -22,7 +22,7 @@ struct
     | ad when not (AD.is_top ad) ->
       let to_extra addr set =
         match addr with
-        | AD.Addr.Addr (v,_) -> D.add (RelationAnalysis.AllocSize.to_varinfo v) set
+        | AD.Addr.Addr (v,_) -> D.add (RelationAnalysis.AllocSize.to_varinfo ~isGlobal:true v) set
         | _ -> set
       in
       AD.fold to_extra (AD.remove UnknownPtr ad) (D.empty ())

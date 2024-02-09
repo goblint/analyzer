@@ -8,7 +8,8 @@ module type VarinfoMap =
 sig
   type t
   type marshal
-  val to_varinfo : t -> varinfo
+  val to_varinfo : isGlobal:bool -> t -> varinfo
+  val keyExists : t -> bool
   val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
   val bindings: unit -> (t * varinfo) list
@@ -28,8 +29,7 @@ end
 
 module type Setup = 
 sig 
-  val varType : typ
-  val isGlobal : bool
+  val varType : unit -> typ
 end 
 
 module Make:

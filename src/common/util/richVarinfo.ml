@@ -2,7 +2,6 @@ open GoblintCil
 
 let create_var ~isGlobal name typ = 
   let v = Cilfacade.create_var @@ makeVarinfo isGlobal name typ in
-  v.vattr <- [Attr("ghost",[])]; (*add attribute to track those variables in [relationPriv]*)
   v
 
 let single ~name typ =
@@ -14,7 +13,8 @@ module type VarinfoMap =
 sig
   type t
   type marshal
-  val to_varinfo : t -> varinfo
+  val to_varinfo : isGlobal: bool -> t -> varinfo
+  val keyExists : t -> bool
   val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
   val bindings: unit -> (t * varinfo) list
@@ -34,8 +34,7 @@ end
 
 module type Setup = 
 sig 
-  val varType : typ
-  val isGlobal : bool
+  val varType : unit -> typ
 end 
 
 module Make (X: G) (VT : Setup)=
@@ -45,23 +44,26 @@ struct
 
   type t = X.t
   type marshal = varinfo XH.t
-
   let size = 113
   let xh = ref (XH.create size)
 
   let store x vi =
     XH.replace !xh x vi
 
-  let to_varinfo_helper store_f x =
+  let to_varinfo_helper ~isGlobal store_f x =
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var ~isGlobal:VT.isGlobal (X.name_varinfo x) VT.varType in
+      let vi = create_var ~isGlobal:isGlobal (X.name_varinfo x) (VT.varType ()) in
       store_f x vi;
       vi
 
-  let to_varinfo x =
-    to_varinfo_helper store x
+  let to_varinfo ~isGlobal x  =
+    to_varinfo_helper ~isGlobal:false store x
+
+  let keyExists x = match XH.find_opt !xh x with
+    | Some _ -> true
+    | None -> false
 
   let marshal () = !xh
 
@@ -122,18 +124,22 @@ struct
     type marshal = M.marshal * t VH.t
     let vh = ref (VH.create 113)
 
-    let to_varinfo x =
+    let to_varinfo ~(isGlobal:bool) x =
       let store_f x vi =
         M.store x vi;
         VH.replace !vh vi x
       in
-      M.to_varinfo_helper store_f x
+      M.to_varinfo_helper ~isGlobal:isGlobal store_f x
 
     let from_varinfo vi =
       VH.find_opt !vh vi
 
     let mem_varinfo v =
-      VH.mem !vh v
+      let r = VH.mem !vh v in
+      if Messages.tracing then Messages.trace "pointerAssign" "mem_varinfo %a %b %d \n" CilType.Varinfo.pretty v r v.vid;
+      r
+
+    let keyExists = M.keyExists
 
     let describe_varinfo v x =
       X.describe_varinfo v x

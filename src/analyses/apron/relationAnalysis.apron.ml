@@ -32,18 +32,17 @@ end
 
 (*Alloc ghost variable need to be global invariants in multithreading*)
 module GlobalPointer = struct 
-  let varType  = !ptrdiffType 
+  let varType  = fun () -> !ptrdiffType 
   let isGlobal = true
 end
 module LocalPointer = struct 
-  let varType  = !ptrdiffType 
+  let varType  = fun () -> !ptrdiffType 
   let isGlobal = false
 end
 
 (** C11 does not explicitly name a size-limit for VLAs, some believe it should have the same maximum size as all other objects, 
     i.e. SIZE_MAX bytes (soucr: https://en.wikipedia.org/wiki/Variable-length_array).*)
 module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoDimensionMapping) (LocalPointer) (*ghost variables for VLA*)
-
 module PointerMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (LocalPointer) (*ghost variables for relationa between pointers *)
 module AllocSize = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping) (GlobalPointer) (*ghost variables for heap allocated variables *)
 
@@ -308,12 +307,13 @@ struct
       if M.tracing then M.traceu "relation" "-> %a\n" D.pretty r;
       r
     )
+
   (* replaces the pointer with our helper variable for tracking the pointer and  multiplies the second operand with the size of the target type *)
   let replacePointerWithMapping expWithPointer sizeOfTyp = 
     let rec replacePointer e = 
       match e with 
       | Lval (Var v, offset) ->
-        let castedPointer =  PointerMap.to_varinfo v in 
+        let castedPointer =  PointerMap.to_varinfo ~isGlobal:v.vglob v in 
         Lval (Var castedPointer, offset)
       | BinOp (binop, e1, e2, typ) when binop = PlusPI || binop = IndexPI ->  (*pointer is always on the most left*)
         let e2WithMult = BinOp (Mult, kinteger (Cilfacade.ptrdiff_ikind ()) sizeOfTyp , CastE (!ptrdiffType ,e2), !ptrdiffType) in
@@ -331,10 +331,13 @@ struct
   let pointerAssign ctx (v:varinfo) e = 
     (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
     if GobConfig.get_bool "ana.apron.pointer_tracking" then (
-      if M.tracing then M.trace "OOB" "pointerAssign=%b" (GobConfig.get_bool "ana.apron.pointer_tracking");
+    if GobConfig.get_bool "ana.apron.pointer_tracking" && (not v.vglob || ctx.ask (Queries.MustBeSingleThreaded {since_start=false}) ) then (
       match sizeOfTyp (Lval (Var v, NoOffset)) with 
       | Some typSize -> 
-        let castedPointer = PointerMap.to_varinfo v in
+        let castedPointer = match v.vglob with
+          | true -> PointerMap.to_varinfo ~isGlobal:true v
+          | false -> PointerMap.to_varinfo ~isGlobal:false v 
+        in
         let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
             let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
             {ctx with local = st}
@@ -361,7 +364,7 @@ struct
     if GobConfig.get_bool "ana.arrayoob" then (
       let rec helper (ctx: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )ctx ) typ counter = match typ with
         | TArray (new_typ, (Some exp), attr )-> 
-          let lenArray = ArrayMap.to_varinfo (e,counter) in 
+          let lenArray = ArrayMap.to_varinfo ~isGlobal:false (e,counter) in 
           let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local lenArray]} in (* add newly created variable to Environment  *)
           let new_ctx = 
             { ctx with  local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
@@ -421,7 +424,7 @@ struct
       Queries.AD.fold ( fun (addr )  (st )   ->
           match addr with
           | Addr (v,o) -> 
-            let allocatedLength = AllocSize.to_varinfo v in
+            let allocatedLength = AllocSize.to_varinfo ~isGlobal:true v in
             allocatedLength :: st
           | _ -> st
         )  a []
@@ -444,7 +447,7 @@ struct
       if GobConfig.get_bool "ana.apron.pointer_tracking" then 
         begin match sizeOfTyp (Lval (Var x, NoOffset)) with
           | Some typSize -> 
-            let x = PointerMap.to_varinfo x in (*map pointer to helper variable*)
+            let x = PointerMap.to_varinfo ~isGlobal:false x in (*map pointer to helper variable*)
             let y = replacePointerWithMapping e typSize in (*replace right side of assignment with pointer mapping*)
             Some (RV.local x, y) (* use RV.local to prevent them from being filtered out later *)
           | _ -> None
@@ -722,14 +725,14 @@ struct
     let assignVariable (r:varinfo) v exp= 
       ( match (v) with
         | `Lifted vinfo -> 
-          let lenArray = AllocSize.to_varinfo vinfo in
+          let lenArray = AllocSize.to_varinfo ~isGlobal:true vinfo in
           let st = invalidate ctx in
           let st' = {st with rel = RD.add_vars st.rel [RV.local lenArray]} in (* add newly created variable to Environment *)
           let new_ctx = 
             {ctx with local = st' ; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in 
           let st'' = assignLval new_ctx (Var lenArray, NoOffset) exp in 
           if GobConfig.get_bool "ana.apron.pointer_tracking" then  ( 
-            let pointerLen = PointerMap.to_varinfo r in
+            let pointerLen = PointerMap.to_varinfo ~isGlobal:false r in
             let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
             let new_ctx' = {ctx with local = st'''; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in
             assign new_ctx' (Var pointerLen, NoOffset) (kinteger (Cilfacade.ptrdiff_ikind()) 0) (*a new allocated pointer points to the start*)
@@ -874,7 +877,7 @@ struct
     | Queries.Invariant context -> query_invariant ctx context
     (*checks oob access for VLA*)
     | Queries.MayBeOutOfBounds {var= v ;dimension = d ;index =exp} -> 
-      let newVar = ArrayMap.to_varinfo (v, d) in 
+      let newVar = ArrayMap.to_varinfo ~isGlobal:false (v, d) in 
       let comp = Cilfacade.makeBinOp Lt  exp (Lval (Var newVar,NoOffset)) in
       if M.tracing then M.trace "relationalArray" "v=%a -> %a %a d=%i\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty newVar d_exp  exp d;
       let i = eval_int comp (no_overflow ask comp ) in 
@@ -888,7 +891,7 @@ struct
           Queries.AD.fold ( fun (addr : AD.elt)  (st )   ->
               match addr with
               | Addr (v,o) -> 
-                let allocatedLength = AllocSize.to_varinfo v in
+                let allocatedLength = AllocSize.to_varinfo ~isGlobal:true v in
                 let pointerBeforeEnd = Cilfacade.makeBinOp Lt indexExp (Lval (Var allocatedLength, NoOffset)) in
                 if M.tracing then M.trace "OOB" "pointerBeforeEnd: %a\n" d_exp pointerBeforeEnd;
                 let isPointerBeforeEnd = eval_int pointerBeforeEnd (no_overflow ask pointerBeforeEnd) in
