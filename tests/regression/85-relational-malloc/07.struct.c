@@ -20,6 +20,6 @@ int main()
     for (int i = 0; i < len; i++)
     {
         int s = ptr[i].a; // NOWARN
-        int s = ptr[i].b; // WARN
+        s = ptr[i].b; // WARN
     }
 }

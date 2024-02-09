@@ -590,12 +590,6 @@ struct
         | _ -> false
       ) (RD.vars rel)
     in
-    (* let global_pointers = List.filter (fun var ->
-        match AV.find_metadata var with
-        | Some (Global v) when v.vattr = [Attr("pointer",[])] -> true
-        | _ -> false
-      ) (RD.vars rel) 
-    in *)
     let rel_side = RD.keep_vars rel g_vars in
     sideg V.mutex_inits rel_side;
     let rel_local = RD.remove_vars rel g_vars in (* TODO: side effect initial values to mutex_globals? *)
