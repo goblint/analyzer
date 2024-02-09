@@ -1,0 +1,8 @@
+(executable
+ (name cfgDot)
+ (libraries
+   goblint_lib
+   fpath
+   goblint.sites.dune
+   goblint.build-info.dune)
+ (preprocess (pps ppx_deriving.std)))
