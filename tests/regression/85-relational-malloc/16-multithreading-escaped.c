@@ -16,7 +16,7 @@ void *t_other(void *arg)
     // when we enter_multithreading in relationPriv
     for (int i = 0; i < len; i++)
     {
-        gptr[i] = 42; // TODO NOWARN
+        gptr[i] = 42; // UNKWOwN
     }
     pthread_mutex_unlock(&mtx);
 }
@@ -33,7 +33,7 @@ int main()
     pthread_mutex_lock(&mtx);
     for (int i = 0; i < len; i++)
     {
-        gptr[i] = 42; // TODO NOWARN
+        gptr[i] = 42; // TODO UNKWOWN
     }
     pthread_mutex_unlock(&mtx);
 

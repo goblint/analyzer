@@ -21,7 +21,7 @@ struct
 
   let rec pointerAddressTakenOf acc e = match e with 
     (*AddrOf (Mem e) should be already simplified*)
-    | AddrOf (Var v, _) -> D.add v acc
+    | AddrOf (Var v, _) -> D.add (RelationAnalysis.PointerMap.to_varinfo ~isGlobal:v.vglob v) acc
     (* 0 + (int) &p *)
     | BinOp (_, e1, e2, _) -> pointerAddressTakenOf (pointerAddressTakenOf acc e1) e2 
     | CastE (_, e) -> pointerAddressTakenOf acc e

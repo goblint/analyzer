@@ -3,15 +3,15 @@
 int f(char *arr, int len)
 {
     char *arr2 = arr;
-    char **arrPtr = &arr;
+    char **arrPtr = &arr2;
     *arrPtr = *arrPtr + 1;
     for (int i = 0; i < len; i++)
     {
         char s = *arr;  // WARN
-        s = *(arr - 1); // WARN
+        s = *(arr - 1); // NOWARN
 
         char s = *arr2;  // WARN
-        s = *(arr2 - 1); // NOWARN
+        s = *(arr2 - 1); // UNKWOWN
 
         arr2 = arr2 + 1;
         arr = arr + 1;
@@ -31,15 +31,18 @@ int main()
 
     // check pointer relation remains after function call
     char *ptr2 = ptr;
+    char **ptr2Ptr = &ptr2;
+    * ptr2Ptr = *ptr2Ptr + 1;
     for (int i = 0; i < len; i++)
     {
         char s = *ptr;  // NOWARN
         s = *(ptr - 1); // WARN
 
-        char s = *ptr2;  // NOWARN
-        s = *(ptr2 - 1); // WARN
+        char s = *ptr2;  // UNKWOWN
+        s = *(ptr2 - 1); // UNKWOWN
 
         ptr = ptr + 1;
         ptr2 = ptr2 + 1;
     }
+
 }

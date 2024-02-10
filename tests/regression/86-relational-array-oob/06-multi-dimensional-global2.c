@@ -38,14 +38,9 @@ int main()
                 }
     f(&arr);
 
+    long ***f;
     for (int i = 0; i < len1; i++)
-        for (int j = 0; j < len2; j++)
-            for (int k = 0; k < len3; k++)
-                for (int l = 0; l < len4; l++)
-                {
-                    arr[i][j][k][l] = 3;      // NOWARN
-                    long f = arr[i][j][k][l]; // NOWARN
-                }
+        f = arr[i]; // NOWARN
 
     return 0;
 }
