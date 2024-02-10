@@ -615,25 +615,23 @@ struct
       | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
       | Some cv's ->
         let expr = Array.make (Environment.size t.env) Z.zero in
-        let refconstant = ref (Z.zero) in
-          let update (c, v) =
-          match v with
-          | None -> refconstant := Z.(!refconstant + c)
-          | Some idx -> match d.(idx) with
-            | (Some idx_i, c_i) -> refconstant := Z.(!refconstant + (c * c_i));
-              expr.(idx_i) <- Z.(expr.(idx_i) + c)
-            | (None, c_i) -> refconstant := Z.(!refconstant + (c * c_i))
+        (* for use in a fold, accumulating additive constants, and as a side-effect
+           expr is filled with a sum of just the reference variables that cv's is simplified to *)
+        let accumulate_constants a (c, v) = match v with
+          | None -> Z.(a + c)
+          | Some idx -> let (term,con) = d.(idx) in
+            (if Option.is_some term then expr.(idx) <- Z.(expr.(idx) + c) else ();
+             Z.(a + c * con))
         in
-        List.iter update cv's; (* abstract simplification of the guard wrt. reference variables *)
+        let constant = List.fold_left accumulate_constants Z.zero cv's in (* abstract simplification of the guard wrt. reference variables *)
         let var_count = Array.count_matching (fun a -> not @@ Z.equal a Z.zero) expr in
-        let constant = !refconstant in (* containing the reference locally *)
         if var_count = 0 then
           match Tcons1.get_typ tcons with
           | EQ when Z.equal constant Z.zero -> t
           | SUPEQ when Z.geq constant Z.zero -> t
           | SUP when Z.gt constant Z.zero -> t
           | DISEQ when not @@ Z.equal constant Z.zero -> t
-          | EQMOD scalar -> t
+          | EQMOD _ -> t
           | _ -> bot_env
         else if var_count = 1 then
           let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
