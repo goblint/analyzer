@@ -620,7 +620,7 @@ struct
         let accumulate_constants a (c, v) = match v with
           | None -> Z.(a + c)
           | Some idx -> let (term,con) = d.(idx) in
-            (if Option.is_some term then expr.(idx) <- Z.(expr.(idx) + c) else ();
+            (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
              Z.(a + c * con))
         in
         let constant = List.fold_left accumulate_constants Z.zero cv's in (* abstract simplification of the guard wrt. reference variables *)
