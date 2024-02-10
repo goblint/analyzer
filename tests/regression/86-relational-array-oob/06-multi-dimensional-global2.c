@@ -9,11 +9,11 @@ int len2;
 int len3;
 int len4;
 
-int f(long  *** arr[])
+int f(long ***arr[])
 {
     long ***t;
     for (int i = 0; i < len1; i++)
-         t = arr[i]; // TODO NOWARN for some reason eval_offset doesn't know the index epxression here
+        t = arr[i]; // TODO NOWARN for some reason eval_offset doesn't know the index epxression here
 }
 
 int main()
@@ -36,7 +36,7 @@ int main()
                     arr[i][j][k][l] = 3;      // NOWARN
                     long f = arr[i][j][k][l]; // NOWARN
                 }
-    f(&arr); 
+    f(&arr);
 
     for (int i = 0; i < len1; i++)
         for (int j = 0; j < len2; j++)
