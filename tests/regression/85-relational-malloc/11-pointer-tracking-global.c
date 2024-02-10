@@ -1,11 +1,11 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron --set ana.apron.domain polyhedra --enable ana.apron.pointer_tracking  --set sem.int.signed_overflow assume_none --disable warn.integer 
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron --set ana.apron.domain polyhedra --enable ana.apron.pointer_tracking  --set sem.int.signed_overflow assume_none --disable warn.integer
 #include <stdlib.h>
 int readUntil(char *arr, int len)
 {
     for (int i = 0; i < len; i++)
     {
-        char s = *arr;       // WARN
-        char s = *(arr - 1); // NOWARN
+        char s = *arr;  // WARN
+        s = *(arr - 1); // NOWARN
         arr = arr + 1;
     }
 }
@@ -24,9 +24,8 @@ int main()
     // check pointer relation remains after function call
     for (int i = 0; i < len; i++)
     {
-        char s = *ptr;       // NOWARN
-        char s = *(ptr - 1); // WARN
+        char s = *ptr;  // NOWARN
+        s = *(ptr - 1); // WARN
         ptr = ptr + 1;
     }
-
 }

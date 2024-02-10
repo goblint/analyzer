@@ -1,4 +1,4 @@
-// PARAM: --enable ana.arrayoob  --enable ana.int.interval --set ana.activated[+] apron  --set ana.apron.domain octagon
+// PARAM: --enable ana.arrayoob  --enable ana.int.interval --set ana.activated[+] apron --set ana.apron.domain polyhedra
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +12,8 @@ int main()
     int len3 = (rand() % 32) + 2;
     int arr[len][len2][len3];
 
+    // three dimensions doesn't work with polyhedra probably due to widening
+    // we are missing the `i<len` relation with polyhedra
     for (int i = 0; i < len; i++)
     {
         for (int j = 0; j < len2; j++)
@@ -29,16 +31,16 @@ int main()
                 arr[i][j + 1][k] = 3; // WARN
                 arr[i][j][k + 1] = 3; // WARN
 
-                int f = arr[i][j][k];     // NOWARN
-                int f = arr[i + j][j][k]; // WARN
-                int f = arr[i][j + i][k]; // WARN
-                int f = arr[i][j][k - k]; // NOWARN
-                int f = arr[i + 1][j][k]; // WARN
-                int f = arr[i][j + 1][k]; // WARN
-                int f = arr[i][j][k + 1]; // WARN
-                int f = arr[i - 1][j][k]; // WARN
-                int f = arr[i][j - 1][k]; // WARN
-                int f = arr[i][j][k - 1]; // WARN
+                int f = arr[i][j][k]; // NOWARN
+                f = arr[i + j][j][k]; // WARN
+                f = arr[i][j + i][k]; // WARN
+                f = arr[i][j][k - k]; // NOWARN
+                f = arr[i + 1][j][k]; // WARN
+                f = arr[i][j + 1][k]; // WARN
+                f = arr[i][j][k + 1]; // WARN
+                f = arr[i - 1][j][k]; // WARN
+                f = arr[i][j - 1][k]; // WARN
+                f = arr[i][j][k - 1]; // WARN
             }
         }
     }

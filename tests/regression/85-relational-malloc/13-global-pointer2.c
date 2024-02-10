@@ -14,9 +14,9 @@ void *t_other()
         gptr[i + 1] = 42; // WARN
         gptr[i - 1] = 42; // WARN
 
-        int tmp = gptr[i];     // NOWARN
-        int tmp = gptr[i + 1]; // WARN
-        int tmp = gptr[i - 1]; // WARN
+        int tmp = gptr[i]; // NOWARN
+        tmp = gptr[i + 1]; // WARN
+        tmp = gptr[i - 1]; // WARN
     }
 }
 
@@ -33,9 +33,9 @@ int main()
         gptr[i + 1] = 42; // WARN
         gptr[i - 1] = 42; // WARN
 
-        int tmp = gptr[i];     // NOWARN
-        int tmp = gptr[i + 1]; // WARN
-        int tmp = gptr[i - 1]; // WARN
+        int tmp = gptr[i]; // NOWARN
+        tmp = gptr[i + 1]; // WARN
+        tmp = gptr[i - 1]; // WARN
     }
     free(gptr);
     return 0;

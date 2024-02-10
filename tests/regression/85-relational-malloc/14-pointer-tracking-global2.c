@@ -15,9 +15,9 @@ int readUntil(char *arr, int len)
             // Without pointer tracking we would not be able to track the offset here.
             char s = *(arr + tmp - i - i); // NOWARN
         }
-        char s = *arr;       // NOWARN
-        char s = *(arr + 1); // WARN
-        char s = *(arr - 1); // WARN
+        char s = *arr;  // NOWARN
+        s = *(arr + 1); // WARN
+        s = *(arr - 1); // WARN
         arr = arr + 1;
     }
 }

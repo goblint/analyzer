@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron  --set ana.apron.domain polyhedra 
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.activated[+] apron  --set ana.apron.domain polyhedra
 
 #include <stdlib.h>
 
@@ -14,5 +14,8 @@ int main()
         arr[i] = 42;      // NOWARN
         arr[i + 1] = 127; // WARN
         arr[i - 1] = 42;  // WARN
+        int t = arr[i];   // NOWARN
+        t = arr[i + 1];   // WARN
+        t = arr[i - 1];   // WARN
     }
 }

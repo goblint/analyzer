@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --set ana.activated[+] apron  --set ana.apron.domain polyhedra    --set ana.activated[+] threadJoins --enable ana.int.interval --set ana.activated[+] allocVarEscaped
+// PARAM: --set ana.activated[+] memOutOfBounds --set ana.activated[+] apron  --set ana.apron.domain polyhedra  --set ana.activated[+] threadJoins --enable ana.int.interval --set ana.activated[+] allocVarEscaped
 #include <stdlib.h>
 #include <pthread.h>
 

@@ -4,6 +4,7 @@ int readUntil(char arr[], int len)
     for (int i = 0; i < len; i++)
     {
         char s = arr[i]; // NOWARN
+        arr[i] = 's';    // NOWARN
     }
 }
 
