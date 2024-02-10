@@ -20,6 +20,6 @@ int main()
 
         int j = i * 2;
         // a limitation of the current implementation as we compute compute  offset(op1) + op2 < arr$len
-        t = arr[ j - i ]; // UNKNOWN 
+        t = arr[ j - i ]; // WARN 
     }
 }

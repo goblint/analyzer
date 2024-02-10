@@ -18,9 +18,11 @@ int main()
 
     // take the address of ptr3
     long *t = (&ptr3) + 0;
+    // invalidate pointer relation ptr3 
     *t = *t + 0;
 
     long *t2 = (&ptr4) + 1;
+    // invalidate pointer relation ptr4 
     *t2 = *t2 + 0;
 
     for (int i = 0; i < len; i++)
@@ -41,6 +43,7 @@ int main()
     int *ptr6 = ptr;
 
     int *t3 = (int)((&ptr5) + 0);
+    // invalidate pointer relation ptr5 
     *t3 = *t3 - 1;
 
     for (int i = 0; i < len; i++)

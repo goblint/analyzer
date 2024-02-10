@@ -11,7 +11,10 @@ void *t_other(int *len)
 {
     pthread_mutex_lock(&mtx);
     // we loose all information about the relation between the ghost variables and the len after entering multithreaded context
-    int tmp = *gptr;     
+    for (int i = 0; i < *len; i++)
+    {
+        gptr[i] = 42; // UNKOWN
+    }
     pthread_mutex_unlock(&mtx);
 }
 
