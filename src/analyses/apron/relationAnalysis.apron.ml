@@ -357,29 +357,29 @@ struct
   (**The purpose of this function is to invalidate pointer relation we have taken the address of
      char **p = &a; // p points to the addrss of a
      *p = *p + 1;   // we overwrite the where a points to *)
-  let invalidatePointerAssignment ctx (lv:lval) e = 
+  let invalidatePointerAssignment ctx (lv:lval) rval= 
     if GobConfig.get_bool "ana.apron.pointer_tracking" then (
       (*TODO improve the precision by limiting replace_deref_exps by returning the list of a possible derefences and not by cardinality 1*)
       let rel = match (replace_deref_exps ctx.ask (Lval lv)) with (*try to dereference the expression*)
         (*the dereferenced expression evaluates to a ghost variable and we at some point we have at some point taken the address of the pointer*)
-        | AddrOf (Var v,  _ ) when PointerMap.keyExists v && ctx.ask (Queries.AddressOfPointerTaken v) -> 
+        | Lval (Var v,NoOffset) when PointerMap.keyExists v && ctx.ask (Queries.AddressOfPointerTaken v) -> 
           if M.tracing then M.trace "pointerAssign" "remove_vars_with %a" CilType.Varinfo.pretty v;
           if v.vglob then 
             RD.forget_vars ctx.local.rel [RV.global (PointerMap.to_varinfo ~isGlobal:true v)] (*remove the ghost variable*)
           else 
             RD.forget_vars ctx.local.rel [RV.local (PointerMap.to_varinfo ~isGlobal:false v)] (*remove the ghost variable*)
-        | AddrOf (Var v,  _ ) -> 
+        | Lval (Var v,NoOffset) -> 
+          if M.tracing then M.trace "pointerAssign" "%a keyExists %b addressTaken%b" CilType.Varinfo.pretty v (PointerMap.keyExists v) (ctx.ask (Queries.AddressOfPointerTaken v));
           ctx.local.rel
         | _ -> (*replace deref exps fails to evaulate the expression*)
-          if M.tracing then M.trace "pointerAssign" "remove ALl\n " ;
           RD.remove_filter ctx.local.rel (fun var -> match RV.to_cil_varinfo var with
               | None -> false
               | Some var -> PointerMap.mem_varinfo var && ctx.ask (Queries.AddressOfPointerTaken var) (*remove all pointer ghost variables we have taken the address of*)
             )
       in
       let ctx = {ctx with local = {ctx.local with rel = rel}} in
-      assignLval ctx lv e 
-    ) else assignLval ctx lv e 
+      assignLval ctx lv rval 
+    ) else assignLval ctx lv rval 
 
   (* Basic transfer functions. *)
 
