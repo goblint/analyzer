@@ -34,6 +34,7 @@ int main()
         ptr = ptr + 1;
     }
 
+    // reset pointer to start of new malloc block
     ptr = malloc(sizeof(int) * len);
 
     int *ptr5 = ptr;
@@ -42,16 +43,30 @@ int main()
     int *t3 = (int)((&ptr5) + 0);
     *t3 = *t3 - 1;
 
+    for (int i = 0; i < len; i++)
+    {
+        *ptr5 = 2;     // UNKWON
+        int s = *ptr6; // NOWARN
+        s = *ptr;      // NOWAWN
+
+        ptr5 = ptr5 + 1;
+        ptr6 = ptr6 + 1;
+        ptr = ptr + 1;
+    }
+
+    // reset pointer to start of new malloc block
+    ptr = malloc(sizeof(int) * len);
+    ptr6 = ptr;
+
     int *t4 = (rand() ? (&ptr6) : 0);
+    // invalidates all pointer relations as the dereferenced pointer does not has cardinality 1 (or is unknown)
     *t4 = *t4 - 1;
 
     for (int i = 0; i < len; i++)
     {
-        *ptr5 = 2;     // UNKWON
-        int s = *ptr6; // WARN
-        s = *ptr;      // UNKWOWN
+        int s = *ptr6; // UNKWON
+        s = *ptr;      // UNKWON
 
-        ptr5 = ptr5 + 1;
         ptr6 = ptr6 + 1;
         ptr = ptr + 1;
     }

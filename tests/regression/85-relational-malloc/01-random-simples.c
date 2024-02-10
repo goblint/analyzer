@@ -17,5 +17,9 @@ int main()
         int t = arr[i];   // NOWARN
         t = arr[i + 1];   // WARN
         t = arr[i - 1];   // WARN
+
+        int j = i * 2;
+        // a limitation of the current implementation as we compute compute  offset(op1) + op2 < arr$len
+        t = arr[ j - i ]; // UNKNOWN 
     }
 }
