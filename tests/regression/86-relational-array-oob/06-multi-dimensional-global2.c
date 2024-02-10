@@ -26,7 +26,6 @@ int main()
     if (len1 < 0 || len2 < 0 || len3 < 0 || len4 < 0)
         return 1;
 
-    // long arr[len1][len2][len3][len4];
     long arr[len1][len2][len3][len4];
 
     for (int i = 0; i < len1; i++)
@@ -34,8 +33,8 @@ int main()
             for (int k = 0; k < len3; k++)
                 for (int l = 0; l < len4; l++)
                 {
-                    // arr[i][j][k][l] = 3;      // NOWARN
-                    // long f = arr[i][j][k][l]; // NOWARN
+                    arr[i][j][k][l] = 3;      // NOWARN
+                    long f = arr[i][j][k][l]; // NOWARN
                 }
     f(&arr); 
 
@@ -44,8 +43,8 @@ int main()
             for (int k = 0; k < len3; k++)
                 for (int l = 0; l < len4; l++)
                 {
-                    // arr[i][j][k][l] = 3;      // NOWARN
-                    // long f = arr[i][j][k][l]; // NOWARN
+                    arr[i][j][k][l] = 3;      // NOWARN
+                    long f = arr[i][j][k][l]; // NOWARN
                 }
 
     return 0;
