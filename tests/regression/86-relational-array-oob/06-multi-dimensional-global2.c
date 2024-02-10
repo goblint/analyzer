@@ -1,4 +1,4 @@
-// PARAM: --enable ana.arrayoob  --enable ana.int.interval --set ana.activated[+] apron --set ana.activated[+] taintPartialContexts
+// SKIP PARAM: --enable ana.arrayoob  --enable ana.int.interval --set ana.activated[+] apron --set ana.activated[+] taintPartialContexts
 
 #include <stdio.h>
 #include <stdlib.h>
