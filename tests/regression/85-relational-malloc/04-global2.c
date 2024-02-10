@@ -32,5 +32,12 @@ int main()
     numbers[k] = 5; // NOWARN
   }
 
+  char *numbers2 = numbers;
+
   test_fun(numbers, array_size);
+
+  for (char k = 0; k < array_size * sizeof(int) / sizeof(char); k++)
+  {
+    numbers2[k] = 5; // NOWARN
+  }
 }
