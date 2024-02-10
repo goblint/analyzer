@@ -1,4 +1,4 @@
-// PARAM: --enable ana.arrayoob  --enable ana.int.interval --set ana.activated[+] apron --set ana.apron.domain polyhedra
+// PARAM: --enable ana.arrayoob  --enable ana.int.interval --set ana.activated[+] apron
 
 #include <stdio.h>
 #include <stdlib.h>
