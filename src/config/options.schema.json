@@ -2449,6 +2449,12 @@
                 "RETURN"
               ]
             },
+            "all-locals": {
+              "title": "witness.invariant.all-locals",
+              "description": "Emit invariants for local variables under the assumption they are always in scope within their function.",
+              "type": "boolean",
+              "default": true
+            },
             "goblint": {
               "title": "witness.invariant.goblint",
               "description": "Emit non-standard Goblint-specific invariants. Currently array invariants with all_index offsets.",
