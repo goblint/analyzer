@@ -413,6 +413,7 @@ struct
       | Any (NoOverflow e1), Any (NoOverflow e2) -> CilType.Exp.compare e1 e2
       | Any (AllocMayBeOutOfBounds x1), Any (AllocMayBeOutOfBounds x2) -> compare_allocmaybeoutofbounds x1 x2
       | Any (AllocAssignedToGlobal v1), Any (AllocAssignedToGlobal v2) -> CilType.Varinfo.compare v1 v2
+      | Any (AddressOfPointerTaken v1), Any (AddressOfPointerTaken v2) -> CilType.Varinfo.compare v1 v2
       | _, _ -> Stdlib.compare (order a) (order b)
 
   let equal x y = compare x y = 0
@@ -458,7 +459,6 @@ struct
     | Any (AllocMayBeOutOfBounds x) ->  hash_allocmaybeoutofbounds x
     | Any (AllocAssignedToGlobal v) -> CilType.Varinfo.hash v
     | Any (AddressOfPointerTaken v) -> CilType.Varinfo.hash v
-    | Any (AllocAssignedToGlobal v) -> CilType.Varinfo.hash v
     (* only argumentless queries should remain *)
 
     (* IterSysVars:                                                                    *)
