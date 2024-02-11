@@ -122,7 +122,6 @@ let rec pretty_edges () = function
   | [_,x] -> Edge.pretty_plain () x
   | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
-
 let node_scc_global = NH.create 113
 
 exception Not_connect of fundec
