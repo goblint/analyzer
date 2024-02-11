@@ -274,9 +274,6 @@ struct
           | Some t -> 
             let addr_offs = match e with (*pointer offset*)
               | BinOp (binop, e1 ,e2, t) ->
-
-                let whatIF = get_addr_offs ctx e in 
-                if M.tracing then M.trace "whatIF" "e=%a -> %a\n" d_exp e ID.pretty whatIF;
                 get_addr_offs ctx e1
               | Lval (Var _, _) 
               | _ ->  get_addr_offs ctx e 
