@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set
+// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set --set ana.context.ctx_gas_value 10
 // Without context insensitive analysis: Stack Overflow
 #include <stdio.h>
 

@@ -4,44 +4,38 @@
 
 int f(int i)
 {
-  int res = 0;
   if (i == 0)
   {
-    res = 1;
+    return 1;
   }
   if (i > 0)
   {
-    res = f(--i);
+    return f(i - 1);
   }
-  return res;
 }
 
 int g(int i)
 {
-  int res = 0;
   if (i == 0)
   {
-    res = 3;
+    return 2;
   }
   if (i > 0)
   {
-    res = g(--i);
+    return g(i - 1);
   }
-  return res;
 }
 
 int h(int i)
 {
-  int res = 0;
   if (i == 0)
   {
-    res = 2;
+    return 3;
   }
   if (i > 0)
   {
-    res = g(--i);
+    return g(i - 1);
   }
-  return res;
 }
 
 int procedure(int num_iterat)
@@ -56,31 +50,32 @@ int procedure(int num_iterat)
 void *t_sens(void *arg)
 {
   int result = procedure(0);
-  __goblint_check(result == 8);
+  __goblint_check(result == 9);
 
-  result = procedure(5);
-  __goblint_check(result == 10);
+  result = procedure(6);
+  __goblint_check(result == 7);
   return NULL;
 }
 
-void *t_insens(void *arg)
+void *t_sens2(void *arg)
 {
-  int result = procedure(6);
-  __goblint_check(result == 10); // UNKNOWN
+  int result = procedure(1);
+  __goblint_check(result == 7);
 
-  result = procedure(60);
-  __goblint_check(result == 10); // UNKNOWN
+  result = procedure(8);
+  __goblint_check(result == 7);
   return NULL;
 }
 
 int main()
 {
   pthread_t id;
+  pthread_t id2;
 
-  // Creat the thread
+  // Create the thread
   pthread_create(&id, NULL, t_sens, NULL);
 
-  // Creat the thread
-  pthread_create(&id, NULL, t_insens, NULL);
+  // Create the thread
+  pthread_create(&id2, NULL, t_sens2, NULL);
   return 0;
 }
