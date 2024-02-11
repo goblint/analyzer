@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" loopfreeCallstring --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" loopfree_callstring --enable ana.int.interval_set
 #include <stdio.h>
 
 int ack(int n, int m)
@@ -22,6 +22,7 @@ int ack(int n, int m)
 
 int main(void)
 {
+    // main -> ack -> ack -> ...
     ack(4, 1);
     __goblint_check(1); // reachable
 }

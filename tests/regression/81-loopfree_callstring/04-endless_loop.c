@@ -1,9 +1,11 @@
-// PARAM: --set "ana.activated[+]" loopfreeCallstring --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" loopfree_callstring --enable ana.int.interval_set
 // Will result in an endless loop without context insensitive analysis
 #include <stdio.h>
 
 int num_iterat = 2;
 
+// main -> main -> ...
+// {main}
 int main(void)
 {
     if (num_iterat > 0)
