@@ -15,6 +15,11 @@ struct
   (* Value of entries not in mapping: bot, LiftTop such that there is a `Top map. *)
   module D = WrittenDomain.Written
   module C = Lattice.Unit
+  module V = struct
+    include CilType.Fundec
+    let is_write_only _ = false
+  end
+  module G = ValueDomain.ADGraph
 
   let context _ _ = C.bot ()
 
@@ -38,7 +43,20 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
+  let join_address_list (a : AD.t list) =
+    List.fold AD.join (AD.bot ()) a
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
+    let ask = Analyses.ask_of_ctx ctx in
+    let start_state = ask.f (Queries.StartCPA f) in
+    let written = List.map Tuple2.first (D.bindings ctx.local) in
+    let written = join_address_list written in
+    let params = f.sformals in
+    let params = List.map (AD.of_var ~is_modular:true) params in
+    let params = join_address_list params in
+    let graph = ask.f (CollectGraph (start_state, params, written)) in (* TODO: Adapt start and end sets *)
+    M.tracel "startstate" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty written BaseDomain.CPA.pretty start_state;
+    ctx.sideg f graph;
     ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
@@ -98,4 +116,5 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  let dep = ["startstate"] in
+  MCP.register_analysis ~dep (module Spec : MCPSpec)

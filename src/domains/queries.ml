@@ -135,6 +135,7 @@ type _ t =
   | IsModular: MustBool.t t
   | BaseCPA: BaseDomain.CPA.t t
   | StartCPA: CilType.Fundec.t -> BaseDomain.CPA.t t
+  | CollectGraph: BaseDomain.CPA.t * AD.t * AD.t -> ValueDomain.ADGraph.t t
 
 type 'a result = 'a
 
@@ -212,6 +213,7 @@ struct
     | TmpSpecial _ -> (module ML)
     | BaseCPA -> (module BaseDomain.CPA)
     | StartCPA _ -> (module BaseDomain.CPA)
+    | CollectGraph _ -> (module ValueDomain.ADGraph)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -288,6 +290,7 @@ struct
     | TmpSpecial _ -> ML.top ()
     | BaseCPA -> BaseDomain.CPA.top ()
     | StartCPA _ -> BaseDomain.CPA.top ()
+    | CollectGraph _ -> ValueDomain.ADGraph.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -361,6 +364,7 @@ struct
     | Any Read -> 63
     | Any BaseCPA -> 64
     | Any (StartCPA _) -> 65
+    | Any (CollectGraph _) -> 66
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -417,6 +421,17 @@ struct
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       | Any (StartCPA f1), Any (StartCPA f2) -> CilType.Fundec.compare f1 f2
+      | Any (CollectGraph (c, a1, b1)), Any (CollectGraph (c2, a2, b2)) ->
+        let r = BaseDomain.CPA.compare c c2 in
+        if r <> 0 then
+          r
+        else begin
+          let r = AD.compare a1 a2 in
+          if r <> 0 then
+            r
+          else
+            AD.compare b1 b2
+        end
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -530,6 +545,7 @@ struct
     | Any IsModular -> Pretty.dprintf "IsModular"
     | Any BaseCPA -> Pretty.dprintf "BaseCPA"
     | Any (StartCPA f) -> Pretty.dprintf "StartCPA %a" CilType.Fundec.pretty f
+    | Any (CollectGraph (c, s, g)) -> Pretty.dprintf "CollectGraph (%a, %a, %a)" BaseDomain.CPA.pretty c AD.pretty s AD.pretty g
 end
 
 let to_value_domain_ask (ask: ask) =

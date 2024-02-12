@@ -1477,3 +1477,5 @@ let invariant_global find g =
   in
   let module I = ValueInvariant (Arg) in
   I.key_invariant g (find g)
+
+module ADGraph = MapDomain.MapBot_LiftTop (Addr) (AD)

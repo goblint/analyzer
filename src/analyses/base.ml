@@ -514,7 +514,7 @@ struct
     in
     List.fold_right f vals []
 
-  let rec reachable_from_value (ask: Q.ask) (gs:glob_fun) st (value: value) (t: typ) (description: string)  =
+  let rec reachable_from_value (ask: ValueDomainQueries.t) (gs:glob_fun) st (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
     if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
     match value with
@@ -530,7 +530,7 @@ struct
       ValueDomain.Unions.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) u empty
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | Int _ -> empty
@@ -545,7 +545,8 @@ struct
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_address (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
-    let res = reachable_from_value ask gs st (get ask gs st adr None) (AD.type_of adr) (AD.show adr) in
+    let value_domain_ask = Queries.to_value_domain_ask ask in
+    let res = reachable_from_value value_domain_ask gs st (get ask gs st adr None) (AD.type_of adr) (AD.show adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -1230,33 +1231,54 @@ struct
       Invariant.none
 
 
-  module ADGraph = MapDomain.MapBot_LiftTop (Addr) (AD)
+  let is_prefix_of m1 m2 =
+    let m1 = Addr.to_mval m1 in
+    let m2 = Addr.to_mval m2 in
+    match m1, m2 with
+    | Some m1, Some m2 -> Option.is_some (Addr.Mval.prefix m1 m2)
+    | _ -> false
 
   (* Given a set of addresses, collect graph
      that contains all paths with which these addresses are reachable with a depth-first search *)
-  let collect_graph ctx (start: AD.t) (goal: AD.t) =
-    let rec dfs node (visited, graph) : bool * ADGraph.t =
-      let node = node in
-      let visited = AD.join visited (AD.singleton node) in
-      let reachable_from_node = reachable_from_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.singleton node) in
-      let dfs_add_edge n found =
-        let goal_reached = AD.subset (AD.singleton n) goal in
-        let found, graph = dfs n (visited, graph) in
-        let found = found || goal_reached in
-        if found then
-          let graph = ADGraph.add node (AD.singleton n) graph in
-          (true, graph)
-        else
-          (found, graph)
+  let collect_graph (local: CPA.t) (start: AD.t) (goal: AD.t) =
+    if AD.is_empty start || AD.is_empty goal then
+      ValueDomain.ADGraph.bot ()
+    else
+      let ask: Queries.ask = { Queries.f = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)} in
+      let state = D.top () in
+      let local = {state with cpa = local} in
+      let rec dfs node (visited, graph) : bool * ValueDomain.ADGraph.t =
+        let node = node in
+        let visited = AD.join visited (AD.singleton node) in
+        let glob_fun = fun _ -> failwith "Should not lookup globals." in
+        let reachable_from_node = reachable_from_address ask glob_fun local (AD.singleton node) in
+        let dfs_add_edge n found =
+          let goal_reached = AD.exists (fun g -> is_prefix_of n g)  goal in
+          let already_visited = AD.subset (AD.singleton n) visited in
+          if already_visited then
+            false, graph
+          else if goal_reached then
+            let graph = ValueDomain.ADGraph.add node (AD.singleton n) graph in
+            (true, graph)
+          else begin
+            let found, graph = dfs n (visited, graph) in
+            if found then
+              let graph = ValueDomain.ADGraph.add node (AD.singleton n) graph in
+              (true, graph)
+            else
+              (found, graph)
+          end
+        in
+        AD.fold dfs_add_edge reachable_from_node (false, ValueDomain.ADGraph.bot ())
       in
-      AD.fold dfs_add_edge reachable_from_node (false, ADGraph.bot ())
-    in
-    let dfs_combine node graph =
-      let _, graph = dfs node (AD.empty (), graph) in
-      graph
-    in
-    let empty_graph = ADGraph.empty () in
-    AD.fold dfs_combine start empty_graph
+      let dfs_combine node graph =
+        let _, graph = dfs node (AD.empty (), graph) in
+        graph
+      in
+      let empty_graph = ValueDomain.ADGraph.empty () in
+      let result = AD.fold dfs_combine start empty_graph in
+      if M.tracing then M.tracel "collect_graph" "From %a to %a, in graph %a\n" AD.pretty start AD.pretty goal ValueDomain.ADGraph.pretty result;
+      result
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
@@ -1442,6 +1464,8 @@ struct
       query_invariant_global ctx g
     | Q.BaseCPA ->
       ctx.local.cpa
+    | Q.CollectGraph (cpa,start, goal) ->
+      collect_graph cpa start goal
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
@@ -1916,9 +1940,10 @@ struct
    **************************************************************************)
 
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
-  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+  let collect_funargs (ask: Q.ask) ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+    let value_domain_ask = Queries.to_value_domain_ask ask in
     let do_exp e =
-      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      let immediately_reachable = reachable_from_value value_domain_ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ask [immediately_reachable] gs st
     in
     List.concat_map do_exp exps
