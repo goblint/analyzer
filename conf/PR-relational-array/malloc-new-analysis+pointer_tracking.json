@@ -14,7 +14,7 @@
         },
         "apron": {
             "domain": "polyhedra",
-            "pointer_tracking": false
+            "pointer_tracking": true
         },
         "activated": [
             "base",
