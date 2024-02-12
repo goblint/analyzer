@@ -36,7 +36,8 @@
       "threadJoins",
       "apron",
       "memOutOfBounds",
-      "taintPartialContexts"
+      "taintPartialContexts",
+      "derefAfterFree"
     ],
     "path_sens": [
       "mutex",

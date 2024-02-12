@@ -37,6 +37,7 @@
             "threadJoins",
             "memOutOfBounds",
             "taintPartialContexts",
+            "derefAfterFree",
             "apron",
             "allocVarEscaped",
             "addressOfPointer",
@@ -102,7 +103,7 @@
     },
     "witness": {
         "graphml": {
-            "enabled": false,
+            "enabled": true,
             "id": "enumerate",
             "unknown": false
         },
