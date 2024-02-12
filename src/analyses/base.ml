@@ -1256,13 +1256,15 @@ struct
           let goal_reached = AD.exists (fun g -> is_prefix_of n g)  goal in
           let already_visited = AD.subset (AD.singleton n) visited in
           if already_visited then
-            false, graph
-          else if goal_reached then
-            let graph = ValueDomain.ADGraph.add node (AD.singleton n) graph in
-            (true, graph)
-          else begin
+            if goal_reached then
+              let graph = ValueDomain.ADGraph.add node (AD.singleton n) graph in
+              (true, graph)
+            else
+              false, graph
+          else
+            begin
             let found, graph = dfs n (visited, graph) in
-            if found then
+            if goal_reached || found then
               let graph = ValueDomain.ADGraph.add node (AD.singleton n) graph in
               (true, graph)
             else
