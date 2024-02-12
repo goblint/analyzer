@@ -14,7 +14,7 @@
         },
         "apron": {
             "domain": "polyhedra",
-            "pointer_tracking": true
+            "pointer_tracking": false
         },
         "activated": [
             "base",
@@ -102,7 +102,7 @@
     },
     "witness": {
         "graphml": {
-            "enabled": true,
+            "enabled": false,
             "id": "enumerate",
             "unknown": false
         },
@@ -130,7 +130,8 @@
                 ".*____CPAchecker_TMP_[0-9]+",
                 "__VERIFIER_assert__cond",
                 "__ksymtab_.*",
-                "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+"
+                "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+",
+                ".*\\$len.$"
             ]
         }
     },

@@ -35,7 +35,8 @@
             "region",
             "thread",
             "threadJoins",
-            "apron"
+            "apron",
+            "taintPartialContexts"
         ],
         "path_sens": [
             "mutex",
@@ -97,12 +98,12 @@
     },
     "witness": {
         "graphml": {
-            "enabled": true,
+            "enabled": false,
             "id": "enumerate",
             "unknown": false
         },
         "yaml": {
-            "enabled": true,
+            "enabled": false,
             "format-version": "2.0",
             "entry-types": [
                 "invariant_set"
@@ -125,7 +126,8 @@
                 ".*____CPAchecker_TMP_[0-9]+",
                 "__VERIFIER_assert__cond",
                 "__ksymtab_.*",
-                "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+"
+                "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+",
+                ".*\\$len.*"
             ]
         }
     },

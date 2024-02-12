@@ -12,6 +12,9 @@
     "float": {
       "interval": true
     },
+    "apron": {
+      "domain": "polyhedra"
+    },
     "activated": [
       "base",
       "threadid",
@@ -31,8 +34,8 @@
       "region",
       "thread",
       "threadJoins",
+      "apron",
       "memOutOfBounds",
-      "allocVarEscaped",
       "taintPartialContexts"
     ],
     "path_sens": [
@@ -75,7 +78,7 @@
       "call": false
     },
     "autotune": {
-      "enabled": true,
+      "enabled": false,
       "activated": [
         "singleThreaded",
         "mallocWrappers",
@@ -108,7 +111,7 @@
   },
   "witness": {
     "graphml": {
-      "enabled": true,
+      "enabled": false,
       "id": "enumerate",
       "unknown": false
     },
@@ -136,7 +139,8 @@
         ".*____CPAchecker_TMP_[0-9]+",
         "__VERIFIER_assert__cond",
         "__ksymtab_.*",
-        "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+"
+        "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+",
+        ".*\\$.*"
       ]
     }
   },
