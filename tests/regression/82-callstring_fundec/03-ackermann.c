@@ -1,5 +1,4 @@
 // PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
-// This code would result in a StackOverflow if it is analyses fully context sensitive
 #include <stdio.h>
 
 int ack(int n, int m)
@@ -23,6 +22,8 @@ int ack(int n, int m)
 
 int main(void)
 {
+    // main -> ack -> ack -> ...
+    // [main, ack, ...]
     ack(4, 1);
     __goblint_check(1); // reachable
 }

@@ -568,8 +568,8 @@ struct
   let asm ctx                                     = S.asm (conv ctx), cg_val ctx
   let skip ctx                                    = S.skip (conv ctx), cg_val ctx
   let special ctx r f args                        = S.special (conv ctx) r f args, cg_val ctx
-  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc (fun x -> x)) (fst es) f_ask, cg_val ctx
-  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc (fun x -> x)) (fst es) f_ask, cg_val ctx
+  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
+  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
   let paths_as_set ctx                            = List.map (fun (x) -> (x, cg_val ctx)) @@ S.paths_as_set (conv ctx) 
   let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
   let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx

@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" loopfree_callstring --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 2 --set "ana.activated[+]" callstring_fundec --enable ana.int.interval_set
 // Basic example
 #include <stdio.h>
 
@@ -64,15 +64,7 @@ int m(int i)
 int main(void)
 {
     // main -> m(4) -> g(4) -> f(3) -> f(2) -> f(1) -> f(0) -> h(4) -> g(3) -> a(2) -> b(1) -> c(0) -> g(2) -> b(20) -> c(19) -> return 4
-    // m:       [main, m]
-    // g:       [main, m, g]
-    // f:       [main, m, g, f]
-    // f:       [main, m, g] {f} (3 times)
-    // h:       [main, m, g] {f} [h]
-    // g:       [main, m] {g, f, h}
-    // a:       [main, m] {g, f, h} [a]
-    // b:       [main, m] {g, f, h} [a, b]
-    // c:       [main, m] {g, f, h} [a, b, c]
-    // g, b, c: [main, m] {g, f, h, a, b, c} (3 times)
+    // [main, m] and [m, g] an [g, f] and [f, f] (3 times) and
+    // [f, h] and [h, g] and [g, a] and [a, b] and [b, c] and [c, g] and [g, b] and [b, c]
     __goblint_check(m(4) == 4);
 }

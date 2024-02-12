@@ -2,36 +2,32 @@
 // Checks proper handling of recursions in loops + shows that not all 90 recursions are analyzed
 #include <stdio.h>
 
-int num_iterat = 200;
-
 int f(int i);
 
 int g(int i)
 {
-    int res = 0;
     if (i == 0)
     {
-        res = 1;
+        return 1;
     }
     if (i > 0)
     {
-        res = f(--i);
+        return f(i - 1);
     }
-    return res;
+    return 11;
 }
 
 int f(int i)
 {
-    int res = 0;
     if (i == 0)
     {
-        res = 2;
+        return 2;
     }
     if (i > 0)
     {
-        res = g(--i);
+        return g(i - 1);
     }
-    return res;
+    return 12;
 }
 
 int main(void)
@@ -40,8 +36,8 @@ int main(void)
     int res2 = 0;
     for (int i = 2; i > 0; i--)
     {
-        res1 = f(num_iterat);
-        res2 = g(num_iterat);
+        res1 = f(200);
+        res2 = g(200);
         __goblint_check(res1 == 2); // UNKNOWN
         __goblint_check(res2 == 1); // UNKNOWN
     }
