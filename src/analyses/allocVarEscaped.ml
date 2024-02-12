@@ -26,7 +26,6 @@ struct
         | _ -> set
       in
       AD.fold to_extra (AD.remove UnknownPtr ad) (D.empty ())
-    (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | ad ->
       if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e AD.pretty ad;
       ctx.local

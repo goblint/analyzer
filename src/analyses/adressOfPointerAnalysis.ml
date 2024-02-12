@@ -6,10 +6,6 @@
 open GoblintCil
 open Analyses
 
-module M = Messages
-module AD = Queries.AD
-
-
 module Spec =
 struct
   include Analyses.IdentitySpec
