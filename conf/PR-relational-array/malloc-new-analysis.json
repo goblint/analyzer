@@ -36,7 +36,7 @@
       "threadJoins",
       "memOutOfBounds",
       "taintPartialContexts",
-      "derefAfterFree",
+      "useAfterFree",
       "apron",
       "allocVarEscaped",
       "taintPartialContexts"
