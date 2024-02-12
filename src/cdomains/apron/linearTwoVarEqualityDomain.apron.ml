@@ -606,14 +606,12 @@ struct
      -> does not have types (overflow is type dependent)
   *)
   let meet_tcons ask t tcons original_expr no_ov =
-    (* The expression is evaluated using an array of coefficients. The first element of the array belongs to the constant followed by the coefficients of all variables
-       depending on the result in the array after the evaluating including resolving the constraints in t.d the tcons can be evaluated and additional constraints can be added to t.d *)
     match t.d with
     | None -> bot_env (* same as is_bot_env t *)
     | Some d ->
       match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
       | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
-      | Some cv's ->
+      | Some cv's -> (* cv's contains a list of terms (i.e. coefficients and variables) that still need simplification to 2-var-lin *)
         let expr = Array.make (Environment.size t.env) Z.zero in
         (* for use in a fold, accumulating additive constants, and as a side-effect
            expr is filled with a sum of just the reference variables that cv's is simplified to *)
@@ -624,43 +622,33 @@ struct
              Z.(a + c * con))
         in
         let constant = List.fold_left accumulate_constants Z.zero cv's in (* abstract simplification of the guard wrt. reference variables *)
-        let var_count = Array.count_matching (fun a -> not @@ Z.equal a Z.zero) expr in
-        if var_count = 0 then
-          match Tcons1.get_typ tcons with
-          | EQ when Z.equal constant Z.zero -> t
-          | SUPEQ when Z.geq constant Z.zero -> t
-          | SUP when Z.gt constant Z.zero -> t
-          | DISEQ when not @@ Z.equal constant Z.zero -> t
-          | EQMOD _ -> t
-          | _ -> bot_env
-        else if var_count = 1 then
-          let index = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
-          let varexpr = expr.(index) in
-          if Z.divisible constant varexpr && Tcons1.get_typ tcons = EQ then 
+        let sum_of_terms = Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr in
+        match sum_of_terms with
+        | [] -> (* no reference variables in the guard *)
+          begin match Tcons1.get_typ tcons with
+            | EQ when Z.equal constant Z.zero -> t
+            | SUPEQ when Z.geq constant Z.zero -> t
+            | SUP when Z.gt constant Z.zero -> t
+            | DISEQ when not @@ Z.equal constant Z.zero -> t
+            | EQMOD _ -> t
+            | _ -> bot_env (* all other results are violating the guard *)
+          end
+        | [(varexpr, index)] -> (* guard has a single reference variable only *)
+          begin
+            if Tcons1.get_typ tcons = EQ && Z.divisible constant varexpr then
               meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)))
-          else  
-             t (*Not supported right now*)
-        else if var_count = 2 then
-          let get_vars i a l = if Z.equal a Z.zero then l else (i, a)::l in
-          (* WIP: the following line sums up the next 5, but would yields warning
-             let (var1,a1)::(var2,a2)::_ = Array.fold_righti get_vars expr [] in *)
-          let v12 = Array.fold_righti get_vars expr [] in
-          let a1 = snd (List.hd v12) in
-          let a2 = snd (List.hd @@ List.tl v12) in
-          let var1 = fst (List.hd v12) in
-          let var2 = fst (List.hd @@ List.tl v12) in
-          match Tcons1.get_typ tcons with
-          | EQ ->
-            let res =
-              if Z.equal a1 Z.one && Z.equal a2 Z.(-one)
+            else
+              t (* only EQ is supported in equality based domains *)
+          end
+        | (a1,var1)::[(a2,var2)] -> (* two variables in relation needs a little sorting out *)
+          begin match Tcons1.get_typ tcons with
+            | EQ when Z.(a1 * a2 = -one) -> (* var1-var1 or var2-var1 *)
+              if Z.equal a1 Z.one
               then meet_with_one_conj t var2 (Some var1, constant)
-              else if Z.equal a1 Z.(-one) && Z.equal a2 Z.one
-              then meet_with_one_conj t var1 (Some var2, constant)
-              else t
-            in res
-          | _-> t (*Not supported right now*)
-        else
-          t (*For any other case we don't know if the (in-) equality is true or false or even possible therefore we just return t *)
+              else  meet_with_one_conj t var1 (Some var2, constant)
+            | _-> t (* Not supported in equality based 2vars without coeffiients *)
+          end
+        | _ -> t (* For equalities of more then 2 vars we just return t *)
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
