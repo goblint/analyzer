@@ -97,6 +97,9 @@ struct
   module VarMap = Map.Make(CilType.Varinfo)
   let array_map = ref (VarH.create 20)
 
+  (*This is a bit of hack to check if we are currently in a NoOverflow query*)
+  let noOverflow_query_already_started = ref false
+
   type marshal = attributes VarMap.t VarH.t
 
   let array_domain_annotation_enabled = lazy (GobConfig.get_bool "annotation.goblint_array_domain")
@@ -522,7 +525,7 @@ struct
     | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ()) None) t description
     | Blob (e,_,_) -> reachable_from_value ask e t description
     | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask v t description) acc) s empty
     | Int _ -> empty
@@ -639,7 +642,7 @@ struct
         | Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | Address adrs -> (adrs,TS.bot (), AD.may_be_unknown adrs)
         | Union (t,e) -> with_field (reachable_from_value e) t
-        | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()))
+        | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()) None)
         | Blob (e,_,_) -> reachable_from_value e
         | Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -1308,7 +1311,7 @@ struct
             (match r with
              | Array a ->
                (* unroll into array for Calloc calls *)
-               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) with
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) None with
                 | Blob (_,s,_) -> `Lifted s
                 | _ -> Queries.Result.top q
                )
@@ -1398,6 +1401,29 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
+    | Q.NoOverflow e ->  
+      (* NoOverflow calls EvalInt, which in turn can call NoOverflow again in the relational domain. Therefore prevent other NoOverflow queries from resetting the local_no_overflow flag *)
+      if not !noOverflow_query_already_started then (
+        noOverflow_query_already_started := true;
+        IntDomain.local_no_overflow := true;
+        MCP.lookUpCache := false; (*disable caching to force the recomputation of the expression and set the [!Intdomain.local_no_overflow] flag *)
+        let res = try 
+            ignore(query_evalint ~ctx ctx.local  e);
+            !IntDomain.local_no_overflow 
+          with IntDomain.ArithmeticOnIntegerBot _ -> false
+        in
+        MCP.lookUpCache := true;
+        noOverflow_query_already_started := false; 
+        res
+      )else 
+      if not !IntDomain.local_no_overflow  then false (*other NoOverflow query still in computation don't reset flag*)
+      else 
+        let res = try 
+            ignore(query_evalint ~ctx ctx.local  e);
+            !IntDomain.local_no_overflow 
+          with IntDomain.ArithmeticOnIntegerBot _ -> false
+        in
+        res
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

@@ -62,7 +62,7 @@ sig
   val domain_of_t: t -> domain
   (* Returns the domain used for the array*)
 
-  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> (lval option * int) option -> value
   (** Returns the element residing at the given index. *)
 end
 

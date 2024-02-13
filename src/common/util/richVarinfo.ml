@@ -1,9 +1,12 @@
 open GoblintCil
 
-let create_var name = Cilfacade.create_var @@ makeGlobalVar name voidType
+let create_var ?(attr=[]) ~isGlobal name typ = 
+  let v = Cilfacade.create_var @@ makeVarinfo isGlobal name typ in
+  v.vattr <- attr;
+  v
 
-let single ~name =
-  let vi = lazy (create_var name) in
+let single ~name typ =
+  let vi = lazy (create_var ~isGlobal:true name typ) in
   fun () ->
     Lazy.force vi
 
@@ -11,7 +14,8 @@ module type VarinfoMap =
 sig
   type t
   type marshal
-  val to_varinfo : t -> varinfo
+  val to_varinfo : isGlobal: bool -> t -> varinfo
+  val keyExists : t -> bool
   val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
   val bindings: unit -> (t * varinfo) list
@@ -29,30 +33,39 @@ sig
   val describe_varinfo: varinfo -> t -> string
 end
 
-module Make (X: G) =
+module type Setup = 
+sig 
+  val varType : unit -> typ
+  val attr: attributes
+end 
+
+module Make (X: G) (VT : Setup)=
 struct
   (* Mapping from X.t to varinfo *)
   module XH = Hashtbl.Make (X)
 
   type t = X.t
   type marshal = varinfo XH.t
-
   let size = 113
   let xh = ref (XH.create size)
 
   let store x vi =
     XH.replace !xh x vi
 
-  let to_varinfo_helper store_f x =
+  let to_varinfo_helper ~isGlobal store_f x =
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var (X.name_varinfo x) in
+      let vi = create_var ~attr:VT.attr ~isGlobal:isGlobal (X.name_varinfo x) (VT.varType ()) in
       store_f x vi;
       vi
 
-  let to_varinfo x =
-    to_varinfo_helper store x
+  let to_varinfo ~isGlobal x  =
+    to_varinfo_helper ~isGlobal:false store x
+
+  let keyExists x = match XH.find_opt !xh x with
+    | Some _ -> true
+    | None -> false
 
   let marshal () = !xh
 
@@ -104,27 +117,31 @@ struct
 
   (** For technical resaons, this functor cannot register the module it creates in [Collection] itself.
       Thus this functor is private to this file, and should only be used through the [Make] defined below. *)
-  module PrivateMake (X: H) =
+  module PrivateMake (X: H) (VT: Setup)=
   struct
-    module M = Make(X)
+    module M = Make(X) (VT)
     (* Mapping from varinfo to X.t *)
     module VH = Hashtbl.Make (CilType.Varinfo)
     type t = M.t
     type marshal = M.marshal * t VH.t
     let vh = ref (VH.create 113)
 
-    let to_varinfo x =
+    let to_varinfo ~(isGlobal:bool) x =
       let store_f x vi =
         M.store x vi;
         VH.replace !vh vi x
       in
-      M.to_varinfo_helper store_f x
+      M.to_varinfo_helper ~isGlobal:isGlobal store_f x
 
     let from_varinfo vi =
       VH.find_opt !vh vi
 
     let mem_varinfo v =
-      VH.mem !vh v
+      let r = VH.mem !vh v in
+      if Messages.tracing then Messages.trace "pointerAssign" "mem_varinfo %a %b %d \n" CilType.Varinfo.pretty v r v.vid;
+      r
+
+    let keyExists = M.keyExists
 
     let describe_varinfo v x =
       X.describe_varinfo v x
@@ -142,9 +159,9 @@ struct
   end
 
   (** Create a BiVarinfoMap and register it in the collection *)
-  module Make (X: H) =
+  module Make (X: H) (VT:Setup)=
   struct
-    module BiVarinfoMap = PrivateMake(X)
+    module BiVarinfoMap = PrivateMake(X) (VT)
     include BiVarinfoMap
     let () =
       let m = (module BiVarinfoMap: S) in

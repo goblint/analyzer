@@ -144,6 +144,9 @@ let check_arguments () =
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
+  if get_bool "ana.arrayoob" && not (get_bool "ana.int.interval") then (set_bool "ana.int.interval" true; warn "ana.arrayoob enables ana.int.interval.");
+  if get_bool "ana.apron.pointer_tracking" && not @@ List.mem "addressOfPointer" @@ get_string_list "ana.activated" then (set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("addressOfPointer")]); warn "ana.apron.pointer_tracking implicitly activates addressOfPointer analysis");
+
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)
     ignore @@ List.fold_left

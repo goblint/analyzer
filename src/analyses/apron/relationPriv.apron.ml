@@ -578,11 +578,14 @@ struct
     | `Thread ->
       st
 
-  let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
+  let enter_multithreaded (ask:Q.ask) getg sideg (st: relation_components_t): relation_components_t =
     let rel = st.rel in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
         match AV.find_metadata var with
+        (*can't use [RelationAnalysis.AllocSize.mem_varinfo] here, due to cyclic dependency *)
+        | Some (Global v) when v.vattr = [Attr("alloc",[])]-> ask.f (Q.AllocAssignedToGlobal v)
+        | Some (Global v) when v.vattr = [Attr("pointer",[])] -> true (*there is no point in tracking pointer ghost variables in the global invariants*)
         | Some (Global _) -> true
         | _ -> false
       ) (RD.vars rel)

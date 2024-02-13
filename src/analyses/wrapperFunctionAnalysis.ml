@@ -135,7 +135,12 @@ module MallocWrapper : MCPSpec = struct
 
   end
 
-  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
+  module PointerType = struct 
+    let varType = fun () -> voidType
+    let attr = []
+  end
+
+  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode) (PointerType)
 
   let name () = "mallocWrapper"
 
@@ -148,7 +153,7 @@ module MallocWrapper : MCPSpec = struct
         | _ -> node_for_ctx ctx
       in
       let count = UniqueCallCounter.find (`Lifted node) counter in
-      let var = NodeVarinfoMap.to_varinfo (ctx.ask Q.CurrentThreadId, node, count) in
+      let var = NodeVarinfoMap.to_varinfo ~isGlobal:true (ctx.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
       if on_stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
       `Lifted var

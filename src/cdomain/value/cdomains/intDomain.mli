@@ -7,6 +7,8 @@ val should_ignore_overflow: Cil.ikind -> bool
 
 val reset_lazy: unit -> unit
 
+val local_no_overflow : bool ref
+
 type overflow_info = { overflow: bool; underflow: bool;}
 
 module type Arith =

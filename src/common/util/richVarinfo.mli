@@ -2,13 +2,14 @@
 
 open GoblintCil
 
-val single: name:string -> (unit -> varinfo)
+val single: name:string -> typ -> (unit -> varinfo) 
 
 module type VarinfoMap =
 sig
   type t
   type marshal
-  val to_varinfo : t -> varinfo
+  val to_varinfo : isGlobal:bool -> t -> varinfo
+  val keyExists : t -> bool
   val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
   val bindings: unit -> (t * varinfo) list
@@ -26,8 +27,14 @@ sig
   val describe_varinfo: varinfo -> t -> string
 end
 
+module type Setup = 
+sig 
+  val varType : unit -> typ
+  val attr : attributes
+end 
+
 module Make:
-  functor (X: G) ->
+  functor (X: G) (VT:Setup)->
     VarinfoMap with type t = X.t
 
 module BiVarinfoMap:
@@ -48,6 +55,6 @@ sig
   end
 
   module Make:
-    functor (X: H) ->
+    functor (X: H) (VT:Setup) ->
       S with type t = X.t
 end

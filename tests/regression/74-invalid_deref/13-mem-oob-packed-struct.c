@@ -12,15 +12,15 @@ int main(void)
 {
 	struct A *p;
 	p = malloc(2);
-	p->a = 1;
+	p->a = 1; //NOWARN
 	if (p->a != 1) {
 		free(p);
 	}
-	p->b = 2;
+	p->b = 2; //NOWARN
 	if (p->b != 2) {
 		free(p);
 	}
-	p->c = 3;
+	p->c = 3; //NOWARN
 	if (p->c != 3) {
 		free(p);
 	}

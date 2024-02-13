@@ -33,6 +33,12 @@ module AD = ValueDomain.AD
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
+module FlatBool = BoolDomain.FlatBool
+
+module ProdFlatBool = 
+struct
+  include Lattice.ProdSimple (FlatBool) (FlatBool)
+end
 
 module Unit = Lattice.Unit
 
@@ -62,7 +68,8 @@ type invariant_context = Invariant.context = {
   lvals: Lval.Set.t;
 }
 [@@deriving ord, hash]
-
+type maybeoutofbounds = {var: CilType.Varinfo.t; dimension: int; index: CilType.Exp.t} [@@deriving ord, hash]
+type allocmaybeoutofbounds = {exp: CilType.Exp.t; e1_offset: IntDomain.IntDomTuple.t; struct_offset: IntDomain.IntDomTuple.t; offset_typ: CilType.Typ.t} [@@deriving ord, hash]
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -126,6 +133,11 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | MayBeOutOfBounds: maybeoutofbounds -> FlatBool.t t
+  | NoOverflow : exp -> MayBool.t t
+  | AllocMayBeOutOfBounds : allocmaybeoutofbounds -> ProdFlatBool.t t
+  | AllocAssignedToGlobal : varinfo -> MustBool.t t
+  | AddressOfPointerTaken : varinfo -> MustBool.t t
 
 type 'a result = 'a
 
@@ -195,6 +207,11 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
+    | MayBeOutOfBounds _ -> (module FlatBool) (*used for relational VLA OOB detection in arraydomain *)
+    | NoOverflow _ -> (module MayBool)
+    | AllocMayBeOutOfBounds _ -> (module ProdFlatBool) (*used for relational heap OOB detection in memOutOfBounds *)
+    | AllocAssignedToGlobal _ -> (module MustBool)
+    | AddressOfPointerTaken _ -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -263,6 +280,11 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
+    | MayBeOutOfBounds _ -> FlatBool.top ()
+    | NoOverflow _ -> MayBool.top ()
+    | AllocMayBeOutOfBounds _ -> ProdFlatBool.top ()
+    | AllocAssignedToGlobal _ -> MustBool.top ()
+    | AddressOfPointerTaken _ -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -328,6 +350,11 @@ struct
     | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
+    | Any (MayBeOutOfBounds _) -> 58
+    | Any (NoOverflow _) -> 59
+    | Any (AllocMayBeOutOfBounds _) -> 60
+    | Any (AllocAssignedToGlobal _) -> 61
+    | Any (AddressOfPointerTaken _) -> 62
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -381,7 +408,12 @@ struct
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
+      | Any (MayBeOutOfBounds x1), Any (MayBeOutOfBounds x2) -> compare_maybeoutofbounds x1 x2
       (* only argumentless queries should remain *)
+      | Any (NoOverflow e1), Any (NoOverflow e2) -> CilType.Exp.compare e1 e2
+      | Any (AllocMayBeOutOfBounds x1), Any (AllocMayBeOutOfBounds x2) -> compare_allocmaybeoutofbounds x1 x2
+      | Any (AllocAssignedToGlobal v1), Any (AllocAssignedToGlobal v2) -> CilType.Varinfo.compare v1 v2
+      | Any (AddressOfPointerTaken v1), Any (AddressOfPointerTaken v2) -> CilType.Varinfo.compare v1 v2
       | _, _ -> Stdlib.compare (order a) (order b)
 
   let equal x y = compare x y = 0
@@ -422,6 +454,13 @@ struct
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
+    | Any (MayBeOutOfBounds x) -> hash_maybeoutofbounds x
+    | Any (NoOverflow e) -> CilType.Exp.hash e
+    | Any (AllocMayBeOutOfBounds x) ->  hash_allocmaybeoutofbounds x
+    | Any (AllocAssignedToGlobal v) -> CilType.Varinfo.hash v
+    | Any (AddressOfPointerTaken v) -> CilType.Varinfo.hash v
+    (* only argumentless queries should remain *)
+
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -484,13 +523,19 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any (MayBeOutOfBounds x) -> Pretty.dprintf "MayBeOutOfBounds _"
+    | Any (NoOverflow e) -> Pretty.dprintf "NoOverflow %a" CilType.Exp.pretty e
+    | Any (AllocMayBeOutOfBounds x) -> Pretty.dprintf "AllocMayBeOutOfBounds _"
+    | Any (AllocAssignedToGlobal v) -> Pretty.dprintf "AllocAssignedToGlobal %a" CilType.Varinfo.pretty  v
+    | Any (AddressOfPointerTaken v) -> Pretty.dprintf "AddressOfPointerTaken %a" CilType.Varinfo.pretty v
 end
 
 let to_value_domain_ask (ask: ask) =
   let eval_int e = ask.f (EvalInt e) in
   let may_point_to e = ask.f (MayPointTo e) in
   let is_multiple v = ask.f (IsMultiple v) in
-  { VDQ.eval_int; may_point_to; is_multiple }
+  let may_be_out_of_bounds (v, d) e = ask.f (MayBeOutOfBounds {var= v; dimension= d; index= e}) in
+  { VDQ.eval_int; may_point_to; is_multiple; may_be_out_of_bounds}
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
   let eval_int e = ask.f (EvalInt e) in

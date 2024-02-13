@@ -21,6 +21,7 @@ let activated_ctx_sens: (int * spec_modules) list ref = ref []
 let activated_path_sens: (int * spec_modules) list ref = ref []
 let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
 let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
+let lookUpCache = ref(true) (*disable cachedQueries to compute no_overflow flag in apron*)
 
 let register_analysis =
   let count = ref 0 in

@@ -180,13 +180,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-        { ctx with
+         { ctx with
           local = local';
           ask = ask
-        }
-      and ask q = query ctx' q
-      in
-      ctx' *)
+         }
+         and ask q = query ctx' q
+         in
+         ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function
@@ -247,12 +247,12 @@ struct
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
     let anyq = Queries.Any q in
-    if M.tracing then M.traceli "query" "query %a\n" Queries.Any.pretty anyq;
+    (* if M.tracing then M.trace "no_ov" "query %a\n" Queries.Any.pretty anyq; *)
     let r = match Queries.Hashtbl.find_option querycache anyq with
-      | Some r ->
-        if M.tracing then M.trace "query" "cached\n";
+      | Some r when !lookUpCache ->
+        (* if M.tracing then M.trace "no_ov" "cached\n"; *)
         Obj.obj r
-      | None ->
+      | _ ->
         let module Result = (val Queries.Result.lattice q) in
         if Queries.Set.mem anyq asked then (
           if M.tracing then M.trace "query" "cycle\n";
@@ -260,6 +260,7 @@ struct
         )
         else
           let asked' = Queries.Set.add anyq asked in
+          (* if M.tracing then M.trace "no_ov" "no chaced\n"; *)
           let sides = ref [] in
           let ctx'' = outer_ctx "query" ~sides ctx in
           let f ~q a (n,(module S:MCPSpec),d) =
@@ -301,7 +302,7 @@ struct
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;
-            Queries.Hashtbl.replace querycache anyq (Obj.repr r);
+            if !lookUpCache then Queries.Hashtbl.replace querycache anyq (Obj.repr r); (*no need to update cache during NoOverflow query*)
             r
     in
     if M.tracing then (
