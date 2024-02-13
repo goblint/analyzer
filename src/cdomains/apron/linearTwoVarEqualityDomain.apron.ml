@@ -145,7 +145,7 @@ struct
   let get_coeff_vec (t: t) texp =
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
-    let exception NotIntegerOffset in
+    let exception ScalarIsInfinity in
     let negate coeff_var_list = List.map (fun (coeff, var) -> (Z.(-coeff), var)) coeff_var_list in
     let multiply_with_Z number coeff_var_list =
       List.map (fun (coeff, var) -> (Z.(number * coeff, var))) coeff_var_list in
@@ -159,19 +159,19 @@ struct
     let rec convert_texpr texp =
       begin match texp with
         (* If x is a constant, replace it with its const. val. immediately *)
-        | Cst (Interval _) -> failwith "Not a constant"
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
         | Cst (Scalar x) ->
           begin match SharedFunctions.int_of_scalar ?round:None x with
             | Some x -> [(x, None)]
-            | None -> raise NotIntegerOffset end
+            | None -> raise ScalarIsInfinity end
         | Var x ->
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
             | None -> [(Z.one, Some var_dim)]
             | Some d -> 
               (match d.(var_dim) with
-              | (Some i, k) -> [(Z.one, Some i); (k, None)]
-              | (None, k) ->   [(k, None)])
+               | (Some i, k) -> [(Z.one, Some i); (k, None)]
+               | (None, k) ->   [(k, None)])
           end
         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
         | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
@@ -182,7 +182,7 @@ struct
         | Binop _  -> raise NotLinearExpr end
     in match convert_texpr texp with
     | exception NotLinearExpr -> None
-    | exception NotIntegerOffset -> None
+    | exception ScalarIsInfinity -> None
     | x -> Some(x)
 
   let get_coeff (t: t) texp =
@@ -624,18 +624,14 @@ struct
             | _ -> bot_env (* all other results are violating the guard *)
           end
         | [(varexpr, index)] -> (* guard has a single reference variable only *)
-          begin
-            if Tcons1.get_typ tcons = EQ && Z.divisible constant varexpr then
-              meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)))
-            else
-              t (* only EQ is supported in equality based domains *)
-          end
-        | (a1,var1)::[(a2,var2)] -> (* two variables in relation needs a little sorting out *)
+          if Tcons1.get_typ tcons = EQ && Z.divisible constant varexpr then
+            meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)))
+          else
+            t (* only EQ is supported in equality based domains *)
+        | [(a1,var1); (a2,var2)] -> (* two variables in relation needs a little sorting out *)
           begin match Tcons1.get_typ tcons with
             | EQ when Z.(a1 * a2 = -one) -> (* var1-var1 or var2-var1 *)
-              if Z.equal a1 Z.one
-              then meet_with_one_conj t var2 (Some var1, constant)
-              else  meet_with_one_conj t var1 (Some var2, constant)
+              meet_with_one_conj t var2 (Some var1, Z.mul a1 constant)
             | _-> t (* Not supported in equality based 2vars without coeffiients *)
           end
         | _ -> t (* For equalities of more then 2 vars we just return t *)
