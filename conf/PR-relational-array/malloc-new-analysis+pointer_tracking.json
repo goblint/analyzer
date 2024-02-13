@@ -103,7 +103,7 @@
     },
     "witness": {
         "graphml": {
-            "enabled": true,
+            "enabled": false,
             "id": "enumerate",
             "unknown": false
         },
