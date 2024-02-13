@@ -379,6 +379,7 @@ module Timeout = Timeout
 
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
+module AnsiColors = AnsiColors
 module XmlUtil = XmlUtil
 
 (** {2 CIL} *)
