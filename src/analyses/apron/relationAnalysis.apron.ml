@@ -335,24 +335,29 @@ struct
   let pointerAssign ctx (v:varinfo) e = 
     (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
     if GobConfig.get_bool "ana.apron.pointer_tracking" && (not v.vglob || ctx.ask (Queries.MustBeSingleThreaded {since_start=false}) ) then (
-      match sizeOfTyp (Lval (Var v, NoOffset)) with 
-      | Some typSize -> 
-        let castedPointer = match v.vglob with
-          | true -> PointerMap.to_varinfo ~isGlobal:true v
-          | false -> PointerMap.to_varinfo ~isGlobal:false v 
-        in
-        let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
-            let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
-            {ctx with local = st}
-          else 
-            ctx 
-        in
-        let replacedExp = replacePointerWithMapping e typSize in
-        if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
-        assignLval ctx (Var castedPointer,NoOffset) replacedExp 
-      | _ -> ctx.local
+      try
+        match sizeOfTyp (Lval (Var v, NoOffset)) with 
+        | Some typSize -> 
+          let castedPointer = match v.vglob with
+            | true -> PointerMap.to_varinfo ~isGlobal:true v
+            | false -> PointerMap.to_varinfo ~isGlobal:false v 
+          in
+          let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
+              let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
+              {ctx with local = st}
+            else 
+              ctx 
+          in
+          let replacedExp = replacePointerWithMapping e typSize in
+          if M.tracing then M.trace "malloc" "castedPointer=%a replacedExp %a\n" CilType.Varinfo.pretty castedPointer d_exp replacedExp;
+          assignLval ctx (Var castedPointer,NoOffset) replacedExp 
+        | _ -> ctx.local
+      with SizeOfError _ -> ctx.local
     ) 
-    else ctx.local
+    else (
+      if M.tracing then M.trace "OOB" "%a %b %b \n" CilType.Varinfo.pretty v v.vglob (ctx.ask (Queries.MustBeSingleThreaded {since_start=false}));
+      ctx.local
+    )
 
   (**The purpose of this function is to invalidate pointer relation we have taken the address of
      char **p = &a; // p points to the addrss of a
