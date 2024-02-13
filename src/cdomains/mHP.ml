@@ -24,6 +24,12 @@ let current (ask:Queries.ask) =
   }
 
 let pretty () {tid; created; must_joined} =
+  let tid_doc = 
+    if GobConfig.get_bool "dbg.full-output" then
+      Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid)
+    else
+      None
+  in
   (* avoid useless empty sets in race output *)
   let created_doc =
     if ConcDomain.ThreadSet.is_empty created then
@@ -37,7 +43,7 @@ let pretty () {tid; created; must_joined} =
     else
       Some (Pretty.dprintf "must_joined=%a" ConcDomain.ThreadSet.pretty must_joined)
   in
-  let docs = List.filter_map Fun.id [created_doc; must_joined_doc] in
+  let docs = List.filter_map Fun.id [tid_doc; created_doc; must_joined_doc] in
   Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs
 
 include Printable.SimplePretty (

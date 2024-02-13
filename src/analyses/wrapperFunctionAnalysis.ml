@@ -132,13 +132,13 @@ module MallocWrapper : MCPSpec = struct
 
     let name_varinfo (t, node, c) =
         let uniq_count =
-          if UniqueCount.is_top c then
+          if not (GobConfig.get_bool "dbg.full-output") && UniqueCount.is_top c then
             Format.dprintf ""
           else
             Format.dprintf "(#%s)" (UniqueCount.show c)
         in
         let tid =
-          if ThreadLifted.is_top t then
+          if not (GobConfig.get_bool "dbg.full-output") && ThreadLifted.is_top t then
             Format.dprintf ""
           else
             Format.dprintf "@tid:%s%t" (ThreadLifted.show t) uniq_count

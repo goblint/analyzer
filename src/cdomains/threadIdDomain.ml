@@ -60,6 +60,10 @@ struct
       f.vname
       ^ "@" ^ CilType.Location.show (UpdateCil.getLoc n)
       ^ "#" ^ string_of_int i
+    | (f, Some (n, None)) when GobConfig.get_bool "dbg.full-output" ->
+      f.vname
+      ^ "@" ^ CilType.Location.show (UpdateCil.getLoc n)
+      ^ "#top"
     | (f, Some (n, None)) ->
       f.vname
       ^ "@" ^ CilType.Location.show (UpdateCil.getLoc n)
