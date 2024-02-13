@@ -1011,26 +1011,28 @@ struct
       begin match e with
         | Lval _ 
         | BinOp _ -> (*only support dereference to Lval and BinOp*)
-          begin match IntDomain.IntDomTuple.maximal o with 
-            | None -> (`Top,`Top)
-            | Some structOffset ->
-              let structOffset = Z.to_int structOffset in
-              let isAfterZero, isBeforeEnd = 
-                relationEval e structOffset 
-              in
-              let isAfterZero, isBeforeEnd = 
-                if GobConfig.get_bool "ana.apron.pointer_tracking" then (
-                  let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in (*pointerEval may fail when relationEval yields information and vice versa*)
-                  if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" FlatBool.pretty isAfterZero FlatBool.pretty isBeforeEnd FlatBool.pretty isAfterZero2 FlatBool.pretty isBeforeEnd2;
-                  let isAfterZero = FlatBool.meet isAfterZero isAfterZero2 in
-                  let isBeforeEnd = FlatBool.meet isBeforeEnd isBeforeEnd2 in
-                  isAfterZero, isBeforeEnd 
-                )
-                else  
-                  isAfterZero , isBeforeEnd
-              in
-              (isAfterZero, isBeforeEnd)
-          end
+          (try 
+             begin match IntDomain.IntDomTuple.maximal o with 
+               | None -> (`Top,`Top)
+               | Some structOffset ->
+                 let structOffset = Z.to_int structOffset in
+                 let isAfterZero, isBeforeEnd = 
+                   relationEval e structOffset 
+                 in
+                 let isAfterZero, isBeforeEnd = 
+                   if GobConfig.get_bool "ana.apron.pointer_tracking" then (
+                     let isAfterZero2, isBeforeEnd2 = pointerEval structOffset in (*pointerEval may fail when relationEval yields information and vice versa*)
+                     if M.tracing then M.trace "OOB" "aZ=%a bE=%a aZ2=%a bE2=%a\n" FlatBool.pretty isAfterZero FlatBool.pretty isBeforeEnd FlatBool.pretty isAfterZero2 FlatBool.pretty isBeforeEnd2;
+                     let isAfterZero = FlatBool.meet isAfterZero isAfterZero2 in
+                     let isBeforeEnd = FlatBool.meet isBeforeEnd isBeforeEnd2 in
+                     isAfterZero, isBeforeEnd 
+                   )
+                   else  
+                     isAfterZero , isBeforeEnd
+                 in
+                 (isAfterZero, isBeforeEnd)
+             end
+           with Cilfacade.TypeOfError _ -> (`Top,`Top))
         | _ -> Result.top q
       end
     | _ -> Result.top q
