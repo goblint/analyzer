@@ -43,6 +43,7 @@ jobs:
           opam-depext-flags: --with-test # doesn't work
 
       - name: Install graph-easy
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
@@ -121,6 +122,7 @@ jobs:
           opam-depext-flags: --with-test # doesn't work
 
       - name: Install graph-easy
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install spin
