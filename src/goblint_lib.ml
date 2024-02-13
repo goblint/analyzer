@@ -294,6 +294,7 @@ module CilMaps = CilMaps
     Various input/output interfaces and formats. *)
 
 module Messages = Messages
+module Logs = Logs
 
 (** {2 Front-end}
 
