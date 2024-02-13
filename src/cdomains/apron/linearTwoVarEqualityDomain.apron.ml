@@ -191,28 +191,22 @@ struct
 
   let get_coeff (t: t) texp =
     let d = Option.get t.d in
-    let expr = Array.make (Environment.size t.env) Z.zero in
-    let constant = ref (Z.zero) in
     match get_coeff_vec t texp with
     | None -> None (*The (in-) equality is not linear, therefore we don't know anything about it. *)
     | Some cv's ->
-      let update (c, v) =
-        match v with
-        | None -> constant := Z.(!constant + c)
-        | Some idx -> match d.(idx) with
-          | (Some idx_i, c_i) -> constant := Z.(!constant + (c * c_i));
-            expr.(idx_i) <- Z.(expr.(idx_i) + c)
-          | (None, c_i) -> constant := Z.(!constant + (c * c_i))
+      let expr = Array.make (Environment.size t.env) Z.zero in
+      let accumulate_constants a (c, v) = match v with
+        | None -> Z.(a + c)
+        | Some idx -> let (term,con) = d.(idx) in
+          (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
+           Z.(a + c * con))
       in
-      List.iter update cv's;
-      let var_count = BatArray.count_matching (fun a -> not @@ Z.equal a Z.zero) expr in
-      if var_count = 0 then Some (None, !constant)
-      else if var_count = 1 then (
-        let var = Array.findi (fun a -> not @@ Z.equal a Z.zero) expr in
-        if Z.equal expr.(var) Z.one then Some (Some var, !constant)
-        else None
-      )
-      else None
+      let constant = List.fold_left accumulate_constants Z.zero cv's in (* abstract simplification of the guard wrt. reference variables *)
+      let sum_of_terms = Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr in
+      match sum_of_terms with
+      | [] -> Some (None, constant)
+      | [(coeff,var)] when Z.equal coeff Z.one -> Some (Some var, constant)
+      |_ -> None
 
 
   let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
