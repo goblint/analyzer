@@ -17,7 +17,7 @@ type query =
     structure : (CodeQuery.structure [@default None_s]);
     limitation : (CodeQuery.constr [@default None_c]);
 
-    expression : string;
+    expression : (string option [@default None]);
     mode : [ `Must | `May ];
 
   } [@@deriving yojson]
@@ -57,7 +57,11 @@ struct
 
       val global_variables =
         file.globals
-        |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None)
+        |> List.filter_map (function
+            | Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v)
+            | Cil.GFun (f, l) -> Some (f.svar.vname, Cil.Fv f.svar)
+            | Cil.GVarDecl (v, l) -> Some (v.vname, Cil.Fv v)
+            | _ -> None)
       val statements =
         file.globals
         |> List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None)
@@ -74,7 +78,7 @@ struct
         (* Compute the available local variables *)
         let local_variables =
           match Hashtbl.find_option statements location with
-          | Some (function_definition, _) -> function_definition.slocals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
+          | Some (fd, _) -> fd.slocals @ fd.sformals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
           | None -> []
         in
         (* Parse expression *)
@@ -181,8 +185,8 @@ struct
         |> List.group file_compare
         (* Sort, remove duplicates, ungroup *)
         |> List.concat_map (fun ls -> List.sort_uniq byte_compare ls)
-        (* Semantic queries *)
-        |> List.map (fun (n, l, s, i) -> ((n, l, s, i), evaluator#evaluate l query.expression))
+        (* Semantic queries if query.expression is some *)
+        |> List.map (fun (n, l, s, i) -> ((n, l, s, i), Option.map_default (evaluator#evaluate l) (Some true) query.expression))
       in
       let print ((_, loc, _, _), res) =
         match res with
