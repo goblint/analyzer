@@ -131,7 +131,7 @@ module EqualitiesArray = struct
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
-    Furthermore, it provides the function [get_coeff_vec] that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
+    Furthermore, it provides the function [simplified_monomials_from_texp] that converts an apron expression into a list of monomials of reference variables and a constant offset *)
 module VarManagement =
 struct
   module EArray = EqualitiesArray
@@ -140,9 +140,8 @@ struct
   let dim_add = EArray.dim_add
   let size t = BatOption.map_default (fun d -> EArray.length d) 0 t.d
 
-  (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset.
-    **)
-  let get_coeff_vec (t: t) texp =
+  (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
+  let monomials_from_texp (t: t) texp =
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
     let exception ScalarIsInfinity in
@@ -185,9 +184,10 @@ struct
     | exception ScalarIsInfinity -> None
     | x -> Some(x)
 
-  let get_coeff (t: t) texp =
+  (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials and a constant *)
+  let simplified_monomials_from_texp (t: t) texp =
     let d = Option.get t.d in
-    match get_coeff_vec t texp with
+    match monomials_from_texp t texp with
     | None -> None (*The (in-) equality is not linear, therefore we don't know anything about it. *)
     | Some cv's ->
       let expr = Array.make (Environment.size t.env) Z.zero in
@@ -198,14 +198,18 @@ struct
            Z.(a + c * con))
       in
       let constant = List.fold_left accumulate_constants Z.zero cv's in (* abstract simplification of the guard wrt. reference variables *)
-      let sum_of_terms = Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr in
-      match sum_of_terms with
-      | [] -> Some (None, constant)
-      | [(coeff,var)] when Z.equal coeff Z.one -> Some (Some var, constant)
-      |_ -> None
+      Some (Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr, constant)
 
+  let simplify_to_ref_and_offset (t: t) texp =
+    match simplified_monomials_from_texp t texp with
+    | None -> None
+    | Some (sum_of_terms, constant) ->
+      (match sum_of_terms with
+       | [] -> Some (None, constant)
+       | [(coeff,var)] when Z.equal coeff Z.one -> Some (Some var, constant)
+       |_ -> None)
 
-  let get_coeff t texp = timing_wrap "coeff_vec" (get_coeff t) texp
+  let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
   (* Copy because function is not "with" so should not mutate inputs *)
   let assign_const t var const = match t.d with
@@ -244,7 +248,7 @@ struct
   include VarManagement
 
   let bound_texpr t texpr =
-    match get_coeff t (Texpr1.to_expr texpr) with
+    match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
     | Some (None, offset) ->
       (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string offset) (IntOps.BigIntOps.to_string offset);
        Some offset, Some offset)
@@ -479,7 +483,7 @@ struct
     match t.d with
     | Some d ->
       let var_i = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
-      begin match get_coeff t texp with
+      begin match simplify_to_ref_and_offset t texp with
         | None ->
           (* Statement "assigned_var = ?" (non-linear assignment) *)
           forget_vars t [var]
@@ -599,42 +603,31 @@ struct
     match t.d with
     | None -> bot_env (* same as is_bot_env t *)
     | Some d ->
-      match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-      | None -> t (*The (in-) equality is not linear, therefore we don't know anything about it. *)
-      | Some cv's -> (* cv's contains a list of terms (i.e. coefficients and variables) that still need simplification to 2-var-lin *)
-        let expr = Array.make (Environment.size t.env) Z.zero in
-        (* for use in a fold, accumulating additive constants, and as a side-effect
-           expr is filled with a sum of just the reference variables that cv's is simplified to *)
-        let accumulate_constants a (c, v) = match v with
-          | None -> Z.(a + c)
-          | Some idx -> let (term,con) = d.(idx) in
-            (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
-             Z.(a + c * con))
-        in
-        let constant = List.fold_left accumulate_constants Z.zero cv's in (* abstract simplification of the guard wrt. reference variables *)
-        let sum_of_terms = Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr in
-        match sum_of_terms with
-        | [] -> (* no reference variables in the guard *)
-          begin match Tcons1.get_typ tcons with
-            | EQ when Z.equal constant Z.zero -> t
-            | SUPEQ when Z.geq constant Z.zero -> t
-            | SUP when Z.gt constant Z.zero -> t
-            | DISEQ when not @@ Z.equal constant Z.zero -> t
-            | EQMOD _ -> t
-            | _ -> bot_env (* all other results are violating the guard *)
-          end
-        | [(varexpr, index)] -> (* guard has a single reference variable only *)
-          if Tcons1.get_typ tcons = EQ && Z.divisible constant varexpr then
-            meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)))
-          else
-            t (* only EQ is supported in equality based domains *)
-        | [(a1,var1); (a2,var2)] -> (* two variables in relation needs a little sorting out *)
-          begin match Tcons1.get_typ tcons with
-            | EQ when Z.(a1 * a2 = -one) -> (* var1-var1 or var2-var1 *)
-              meet_with_one_conj t var2 (Some var1, Z.mul a1 constant)
-            | _-> t (* Not supported in equality based 2vars without coeffiients *)
-          end
-        | _ -> t (* For equalities of more then 2 vars we just return t *)
+      match simplified_monomials_from_texp t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+      | None -> t
+      | Some (sum_of_terms, constant) ->(
+          match sum_of_terms with
+          | [] -> (* no reference variables in the guard *)
+            begin match Tcons1.get_typ tcons with
+              | EQ when Z.equal constant Z.zero -> t
+              | SUPEQ when Z.geq constant Z.zero -> t
+              | SUP when Z.gt constant Z.zero -> t
+              | DISEQ when not @@ Z.equal constant Z.zero -> t
+              | EQMOD _ -> t
+              | _ -> bot_env (* all other results are violating the guard *)
+            end
+          | [(varexpr, index)] -> (* guard has a single reference variable only *)
+            if Tcons1.get_typ tcons = EQ && Z.divisible constant varexpr then
+              meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)))
+            else
+              t (* only EQ is supported in equality based domains *)
+          | [(a1,var1); (a2,var2)] -> (* two variables in relation needs a little sorting out *)
+            begin match Tcons1.get_typ tcons with
+              | EQ when Z.(a1 * a2 = -one) -> (* var1-var1 or var2-var1 *)
+                meet_with_one_conj t var2 (Some var1, Z.mul a1 constant)
+              | _-> t (* Not supported in equality based 2vars without coeffiients *)
+            end
+          | _ -> t (* For equalities of more then 2 vars we just return t *))
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
