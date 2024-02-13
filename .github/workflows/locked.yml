@@ -37,13 +37,13 @@ jobs:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-          OPAMWITHTEST: true
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test
+          opam-depext-flags: --with-test # doesn't work
 
-      - run: opam install . --dry-run --deps-only -ty | awk '/-> installed/{print $3}' | xargs opam depext -iy
+      - name: Install graph-easy
+        run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
@@ -115,11 +115,13 @@ jobs:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-          OPAMWITHTEST: true
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test
+          opam-depext-flags: --with-test # doesn't work
+
+      - name: Install graph-easy
+        run: sudo apt install -y libgraph-easy-perl
 
       - name: Install spin
         run: sudo apt-get -y install spin
