@@ -150,7 +150,7 @@ struct
     let multiply_with_Z number coeff_var_list =
       List.map (fun (coeff, var) -> (Z.(number * coeff, var))) coeff_var_list in
     let multiply a b =
-      (* if one of them is a constant, then multiply. Otherwise, the expression is not linear*)
+      (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
       match a, b with
       | [(a_coeff, None)], b -> multiply_with_Z a_coeff b
       | a, [(b_coeff, None)] -> multiply_with_Z b_coeff a
@@ -158,8 +158,8 @@ struct
     in
     let rec convert_texpr texp =
       begin match texp with
-        (*If x is a constant, replace it with its const. val. immediately*)
-        | Cst (Interval _) ->failwith "Not a constant"
+        (* If x is a constant, replace it with its const. val. immediately *)
+        | Cst (Interval _) -> failwith "Not a constant"
         | Cst (Scalar x) ->
           begin match SharedFunctions.int_of_scalar ?round:None x with
             | Some x -> [(x, None)]
@@ -168,25 +168,21 @@ struct
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
             | None -> [(Z.one, Some var_dim)]
-            | Some d ->
-              (if Option.is_some (fst d.(var_dim)) then [(Z.one, fst d.(var_dim))]
-               else [])
-              @ [(snd d.(var_dim), None)]
+            | Some d -> 
+              (match d.(var_dim) with
+              | (Some i, k) -> [(Z.one, Some i); (k, None)]
+              | (None, k) ->   [(k, None)])
           end
-        | Unop (u, e, _, _) ->
-          begin match u with
-            | Neg -> negate (convert_texpr e)
-            | Cast -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
-            | Sqrt -> raise NotLinearExpr end
-        | Binop (b, e1, e2, _, _) ->
-          begin match b with
-            | Add -> List.concat [convert_texpr e1; convert_texpr e2]
-            | Sub -> List.concat [convert_texpr e1; negate (convert_texpr e2)]
-            | Mul -> multiply (convert_texpr e1) (convert_texpr e2)
-            | _ -> raise NotLinearExpr end
-      end
+        | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+        | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
+        | Unop  (Sqrt, e, _, _) -> raise NotLinearExpr
+        | Binop (Add, e1, e2, _, _) -> List.concat [convert_texpr e1; convert_texpr e2]
+        | Binop (Sub, e1, e2, _, _) -> List.concat [convert_texpr e1; negate (convert_texpr e2)]
+        | Binop (Mul, e1, e2, _, _) -> multiply (convert_texpr e1) (convert_texpr e2)
+        | Binop _  -> raise NotLinearExpr end
     in match convert_texpr texp with
     | exception NotLinearExpr -> None
+    | exception NotIntegerOffset -> None
     | x -> Some(x)
 
   let get_coeff (t: t) texp =
