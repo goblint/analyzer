@@ -6,5 +6,4 @@
  (applies_to :whole_subtree)
  (deps
    %{bin:goblint}
-   (package goblint) ; need entire package for includes/
-   %{bin:cfgDot}))
+   (package goblint))) ; need entire package for includes/
