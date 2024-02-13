@@ -69,7 +69,7 @@ struct
 
   let text_with_context {text; context; _} =
     match context with
-    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.hash context) (* TODO: this is kind of useless *)
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.tag context) (* TODO: this is kind of useless *)
     | _ -> text
 end
 
