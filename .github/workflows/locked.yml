@@ -43,6 +43,8 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
           opam-depext-flags: --with-test
 
+      - run: opam install . --dry-run --deps-only -ty | awk '/-> installed/{print $3}' | xargs opam depext -iy
+
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
 
