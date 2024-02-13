@@ -54,6 +54,7 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-depext-flags: --with-test
 
       - name: Install dependencies
         run: opam install . --deps-only --with-test
@@ -146,6 +147,7 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-depext-flags: --with-test
 
       - name: Install dependencies
         run: opam install . --deps-only --with-test
@@ -264,6 +266,7 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-depext-flags: --with-test
 
       - name: Install Goblint with test
         run: opam install goblint --with-test
