@@ -28,4 +28,3 @@ void main(){
 	__goblint_check(p != &z); //UNKNOWN
 	__goblint_check(p != zp); //UNKNOWN
 }
-g
