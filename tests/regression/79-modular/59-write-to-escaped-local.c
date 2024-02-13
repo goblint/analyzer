@@ -1,4 +1,4 @@
-//PARAM: --enable modular --set ana.modular.funs "['foo']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"--set ana.activated[+] "'used_globals'" --set ana.activated[+] "'startstate'"
+//PARAM: --enable modular --set ana.modular.funs "['foo']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'" --set ana.activated[+] "'used_globals'" --set ana.activated[+] "'startstate'"
 
 #include <stdio.h>
 #include <pthread.h>

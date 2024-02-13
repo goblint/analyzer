@@ -10,6 +10,7 @@ int z;
 
 void set_to_z(int **i){
 	*i = &z;
+	z = 23;
 }
 
 void main(){
