@@ -14,6 +14,9 @@ sig
   module V: Analyses.SpecSysVar
   module G: Lattice.S
 
+  val unop_ID: Cil.unop -> ID.t -> ID.t
+  val unop_FD: Cil.unop -> FD.t -> VD.t
+
   val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
   val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
   val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> lval -> AD.t
@@ -40,16 +43,6 @@ end
 module Make (Eval: Eval) =
 struct
   open Eval
-
-  let unop_ID = function
-    | Neg  -> ID.neg
-    | BNot -> ID.lognot
-    | LNot -> ID.c_lognot
-
-  let unop_FD = function
-    | Neg  -> FD.neg
-    (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> FD.top_of (FD.get_fkind c))
 
   let is_some_bot (x:VD.t) =
     match x with
@@ -565,18 +558,31 @@ struct
       else
         match exp, c_typed with
         | UnOp (LNot, e, _), Int c ->
-          let ikind = Cilfacade.get_ikind_exp e in
-          let c' =
-            match ID.to_bool (unop_ID LNot c) with
-            | Some true ->
-              (* i.e. e should evaluate to [1,1] *)
-              (* LNot x is 0 for any x != 0 *)
-              ID.of_excl_list ikind [Z.zero]
-            | Some false -> ID.of_bool ikind false
-            | _ -> ID.top_of ikind
-          in
-          inv_exp (Int c') e st
-        | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
+          (match Cilfacade.typeOf e with
+           | TInt  _ | TPtr _ ->
+             let ikind = Cilfacade.get_ikind_exp e in
+             let c' =
+               match ID.to_bool (unop_ID LNot c) with
+               | Some true ->
+                 (* i.e. e should evaluate to [1,1] *)
+                 (* LNot x is 0 for any x != 0 *)
+                 ID.of_excl_list ikind [Z.zero]
+               | Some false -> ID.of_bool ikind false
+               | _ -> ID.top_of ikind
+             in
+             inv_exp (Int c') e st
+           | TFloat(fkind, _) when ID.to_bool (unop_ID LNot c) = Some false ->
+             (* C99 §6.5.3.3/5 *)
+             (* The result of the logical negation operator ! is 0 if the value of its operand compares *)
+             (* unequal to 0, 1 if the value of its operand compares equal to 0. The result has type int. *)
+             (* The expression !E is equivalent to (0==E). *)
+             (* NaN compares unequal to 0 so no problems *)
+             (* We do not have exclusions for floats, so we do not bother here with the other case *)
+             let zero_float = FD.of_const fkind 0. in
+             inv_exp (Float zero_float) e st
+           | _ -> st
+          )
+        | UnOp (Neg, e, _), Float c -> inv_exp (unop_FD Neg c) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)
         | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
