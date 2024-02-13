@@ -2,6 +2,7 @@
  (name cfgDot)
  (libraries
    goblint-cil
+   goblint_logs
    goblint_common
    fpath
    goblint.sites.dune

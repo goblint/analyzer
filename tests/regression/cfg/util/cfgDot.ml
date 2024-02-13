@@ -17,6 +17,7 @@ class allBBVisitor = object (* puts every instruction into its own basic block *
 end
 
 let main () =
+  Goblint_logs.Logs.Level.current := Info;
   Cilfacade.init ();
 
   let ast = Cilfacade.getAST (Fpath.v Sys.argv.(1)) in

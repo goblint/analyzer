@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] expsplit --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.invalidate.args --enable dbg.verbose --disable exp.volatiles_are_top --enable ana.int.interval
+// PARAM: --set ana.activated[+] expsplit --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.invalidate.args --disable exp.volatiles_are_top --enable ana.int.interval
 #include<setjmp.h>
 jmp_buf env_buffer;
 

@@ -294,6 +294,7 @@ module CilMaps = CilMaps
     Various input/output interfaces and formats. *)
 
 module Messages = Messages
+module Logs = Logs
 
 (** {2 Front-end}
 
@@ -378,6 +379,7 @@ module Timeout = Timeout
 
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
+module AnsiColors = AnsiColors
 module XmlUtil = XmlUtil
 
 (** {2 CIL} *)
