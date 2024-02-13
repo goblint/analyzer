@@ -408,18 +408,18 @@ struct
   let narrow = lift2 I.narrow
 
   let show x =
-    if I.is_top_of x.ikind x.v then
+    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
       "⊤"
     else
       I.show x.v  (* TODO add ikind to output *)
   let pretty () x =
-    if I.is_top_of x.ikind x.v then
+    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
       Pretty.text "⊤"
     else
       I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
   let printXml o x =
-    if I.is_top_of x.ikind x.v then
+    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
       BatPrintf.fprintf o "<value>\n<data>\n⊤\n</data>\n</value>\n"
     else
       I.printXml o x.v (* TODO add ikind to output *)
@@ -3612,8 +3612,8 @@ module IntDomTupleImpl = struct
 
   let pretty () x =
     match to_int x with
-    | Some v -> Pretty.text (BI.to_string v)
-    | None ->
+    | Some v when not (GobConfig.get_bool "dbg.full-output") -> Pretty.text (BI.to_string v)
+    | _ ->
       mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> (* assert sf==I.short; *) I.pretty () } x
       |> to_list
       |> (fun xs ->
@@ -3724,8 +3724,8 @@ module IntDomTupleImpl = struct
   (* others *)
   let show x =
     match to_int x with
-    | Some v -> BI.to_string v
-    | None -> mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) } x
+    | Some v  when not (GobConfig.get_bool "dbg.full-output") -> BI.to_string v
+    | _ -> mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) } x
               |> to_list
               |> String.concat "; "
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.to_yojson x }
