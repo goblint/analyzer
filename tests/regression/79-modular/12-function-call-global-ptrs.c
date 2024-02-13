@@ -1,4 +1,4 @@
-//PARAM: --set ana.modular.funs "['set_to_new_memory', 'set_to_z']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
+//PARAM: --set ana.modular.funs "['set_to_new_memory', 'set_to_z']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'" --set ana.activated[+] "'used_globals'" --set ana.activated[+] "'startstate'"
 #include<goblint.h>
 #include<stdlib.h>
 
@@ -28,3 +28,4 @@ void main(){
 	__goblint_check(p != &z); //UNKNOWN
 	__goblint_check(p != zp); //UNKNOWN
 }
+g

@@ -1,4 +1,4 @@
-//PARAM: --set ana.modular.funs "['set_to_five', 'set_to_new_memory', 'set_to_z']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'" --enable ana.int.interval
+//PARAM: --set ana.modular.funs "['set_to_five', 'set_to_new_memory', 'set_to_z']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'" --set ana.activated[+] "'used_globals'" --set ana.activated[+] "'startstate'" --enable ana.int.interval
 #include<goblint.h>
 #include<stdlib.h>
 

@@ -1,4 +1,4 @@
-// PARAM: --enable modular --set ana.modular.funs "['let_escape']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'"  --set ana.activated[+] "'used_globals'"
+// PARAM: --enable modular --set ana.modular.funs "['let_escape']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'read'" --set ana.activated[+] "'used_globals'" --set ana.activated[+] "'startstate'"
 #include<stdlib.h>
 #include<pthread.h>
 

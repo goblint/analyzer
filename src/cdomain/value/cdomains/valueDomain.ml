@@ -1478,4 +1478,10 @@ let invariant_global find g =
   let module I = ValueInvariant (Arg) in
   I.key_invariant g (find g)
 
-module ADGraph = MapDomain.MapBot_LiftTop (Addr) (AD)
+module ADOffset = Printable.Prod (AD) (Offset.Unit)
+module ADOffsetSet = SetDomain.Make(ADOffset)
+
+module ADOffsetMap = MapDomain.MapBot_LiftTop(Offset.Unit) (AD)
+
+module ADGraph = MapDomain.MapBot_LiftTop (Addr) (ADOffsetMap)
+

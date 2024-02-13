@@ -110,6 +110,9 @@ struct
     | Written ->
       let written : D.t = ctx.local in
       written
+    | WriteGraph f ->
+      let written : G.t = ctx.global f in
+      written
     | _ -> Q.Result.top q
 
   let modular_support () = Modular
