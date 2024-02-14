@@ -63,7 +63,7 @@ struct
       let vname_loc = vname ^ "@" ^ CilType.Location.show (UpdateCil.getLoc n) in
       match i_opt with
       | Some i -> vname_loc ^ "#" ^ string_of_int i
-      | None when GobConfig.get_bool "dbg.full-output" -> vname_loc ^ "#top"
+      | None when GobConfig.get_bool "dbg.full-output" -> vname_loc ^ "#⊤"
       | None -> vname_loc
 
   include Printable.SimpleShow (

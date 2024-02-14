@@ -30,8 +30,8 @@ Disable info messages because race summary contains (safe) memory location count
   <   write with thread:[main, t_fun@16-type_rc.c:35:3-35:37] (conf. 100)  (exp: & s->datum) (16-type_rc.c:21:3-21:15)
   <   write with [mhp:{created={[main, t_fun@16-type_rc.c:35:3-35:37]}}, thread:[main]] (conf. 100)  (exp: & *d) (16-type_rc.c:36:3-36:9)
   ---
-  >   write with [mhp:{tid=[main, t_fun@16-type_rc.c:35:3-35:37#top]}, thread:[main, t_fun@16-type_rc.c:35:3-35:37#top]] (conf. 100)  (exp: & s->datum) (16-type_rc.c:21:3-21:15)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@16-type_rc.c:35:3-35:37#top]}}, thread:[main]] (conf. 100)  (exp: & *d) (16-type_rc.c:36:3-36:9)
+  >   write with [mhp:{tid=[main, t_fun@16-type_rc.c:35:3-35:37#⊤]}, thread:[main, t_fun@16-type_rc.c:35:3-35:37#⊤]] (conf. 100)  (exp: & s->datum) (16-type_rc.c:21:3-21:15)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@16-type_rc.c:35:3-35:37#⊤]}}, thread:[main]] (conf. 100)  (exp: & *d) (16-type_rc.c:36:3-36:9)
   [1]
 
   $ goblint --enable warn.deterministic --disable warn.info --disable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs --enable dbg.full-output 16-type_rc.c > full-output-2.txt 2>&1
@@ -40,5 +40,5 @@ Disable info messages because race summary contains (safe) memory location count
   6c6
   <   write with thread:[main, t_fun@16-type_rc.c:35:3-35:37] (conf. 100)  (exp: & s->datum) (16-type_rc.c:21:3-21:15)
   ---
-  >   write with [mhp:{tid=[main, t_fun@16-type_rc.c:35:3-35:37#top]}, thread:[main, t_fun@16-type_rc.c:35:3-35:37#top]] (conf. 100)  (exp: & s->datum) (16-type_rc.c:21:3-21:15)
+  >   write with [mhp:{tid=[main, t_fun@16-type_rc.c:35:3-35:37#⊤]}, thread:[main, t_fun@16-type_rc.c:35:3-35:37#⊤]] (conf. 100)  (exp: & s->datum) (16-type_rc.c:21:3-21:15)
   [1]

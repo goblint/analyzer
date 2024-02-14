@@ -19,6 +19,6 @@
   <   write with thread:[main, t_fun@89-distribute-fields-6.c:25:3-25:40] (conf. 110)  (exp: & t) (89-distribute-fields-6.c:19:3-19:9)
   <   write with [mhp:{created={[main, t_fun@89-distribute-fields-6.c:25:3-25:40]}}, thread:[main]] (conf. 110)  (exp: & t) (89-distribute-fields-6.c:27:3-27:9)
   ---
-  >   write with [mhp:{tid=[main, t_fun@89-distribute-fields-6.c:25:3-25:40#top]}, thread:[main, t_fun@89-distribute-fields-6.c:25:3-25:40#top]] (conf. 110)  (exp: & t) (89-distribute-fields-6.c:19:3-19:9)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@89-distribute-fields-6.c:25:3-25:40#top]}}, thread:[main]] (conf. 110)  (exp: & t) (89-distribute-fields-6.c:27:3-27:9)
+  >   write with [mhp:{tid=[main, t_fun@89-distribute-fields-6.c:25:3-25:40#⊤]}, thread:[main, t_fun@89-distribute-fields-6.c:25:3-25:40#⊤]] (conf. 110)  (exp: & t) (89-distribute-fields-6.c:19:3-19:9)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@89-distribute-fields-6.c:25:3-25:40#⊤]}}, thread:[main]] (conf. 110)  (exp: & t) (89-distribute-fields-6.c:27:3-27:9)
   [1]

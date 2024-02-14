@@ -51,12 +51,12 @@
   <   write with [mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   <   read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
-  >   read with [mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#top]}, thread:[main, t_fun@49-type-invariants.c:20:3-20:40#top]] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  >   read with [mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}, thread:[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
   11c11
   <   write with [mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   [1]
 
   $ goblint --enable warn.deterministic --disable ana.race.direct-arithmetic --enable allglobs --enable dbg.full-output 49-type-invariants.c > full-output-2.txt 2>&1
@@ -66,10 +66,10 @@
   <   write with [mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   <   read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
-  >   read with [mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#top]}, thread:[main, t_fun@49-type-invariants.c:20:3-20:40#top]] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  >   read with [mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}, thread:[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
   11c11
   <   write with [mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   [1]

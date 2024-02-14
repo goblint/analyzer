@@ -30,14 +30,14 @@
   <   read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
   <   write with [mhp:{created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
   ---
-  >   read with [mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#top]}, thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#top]] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#top]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
+  >   read with [mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]}, thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
   11c11
   <   read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
   ---
-  >   read with [mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#top]}, thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#top]] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
+  >   read with [mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]}, thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
   13c13
   <   write with [mhp:{created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#top]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]}}, thread:[main]] (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
   [1]

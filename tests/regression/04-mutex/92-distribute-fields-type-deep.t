@@ -34,14 +34,14 @@
   <   write with thread:[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:36:3-36:20)
   <   write with [mhp:{created={[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:44:3-44:17)
   ---
-  >   write with [mhp:{tid=[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#top]}, thread:[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#top]] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:36:3-36:20)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:44:3-44:17)
+  >   write with [mhp:{tid=[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#⊤]}, thread:[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#⊤]] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:36:3-36:20)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:44:3-44:17)
   12c12
   <   write with thread:[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:36:3-36:20)
   ---
-  >   write with [mhp:{tid=[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#top]}, thread:[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#top]] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:36:3-36:20)
+  >   write with [mhp:{tid=[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#⊤]}, thread:[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#⊤]] (conf. 100)  (exp: & tmp->field) (92-distribute-fields-type-deep.c:36:3-36:20)
   14c14
   <   write with [mhp:{created={[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:44:3-44:17)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:44:3-44:17)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@92-distribute-fields-type-deep.c:42:3-42:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->t) (92-distribute-fields-type-deep.c:44:3-44:17)
   [1]

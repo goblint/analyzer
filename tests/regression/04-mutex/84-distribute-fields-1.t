@@ -21,10 +21,10 @@
   <   write with thread:[main, t_fun@84-distribute-fields-1.c:18:3-18:40] (conf. 110)  (exp: & s.data) (84-distribute-fields-1.c:12:3-12:13)
   <   write with [mhp:{created={[main, t_fun@84-distribute-fields-1.c:18:3-18:40]}}, thread:[main]] (conf. 110)  (exp: & s) (84-distribute-fields-1.c:20:3-20:9)
   ---
-  >   write with [mhp:{tid=[main, t_fun@84-distribute-fields-1.c:18:3-18:40#top]}, thread:[main, t_fun@84-distribute-fields-1.c:18:3-18:40#top]] (conf. 110)  (exp: & s.data) (84-distribute-fields-1.c:12:3-12:13)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@84-distribute-fields-1.c:18:3-18:40#top]}}, thread:[main]] (conf. 110)  (exp: & s) (84-distribute-fields-1.c:20:3-20:9)
+  >   write with [mhp:{tid=[main, t_fun@84-distribute-fields-1.c:18:3-18:40#⊤]}, thread:[main, t_fun@84-distribute-fields-1.c:18:3-18:40#⊤]] (conf. 110)  (exp: & s.data) (84-distribute-fields-1.c:12:3-12:13)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@84-distribute-fields-1.c:18:3-18:40#⊤]}}, thread:[main]] (conf. 110)  (exp: & s) (84-distribute-fields-1.c:20:3-20:9)
   10c10
   <   write with [mhp:{created={[main, t_fun@84-distribute-fields-1.c:18:3-18:40]}}, thread:[main]] (conf. 110)  (exp: & s) (84-distribute-fields-1.c:20:3-20:9)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@84-distribute-fields-1.c:18:3-18:40#top]}}, thread:[main]] (conf. 110)  (exp: & s) (84-distribute-fields-1.c:20:3-20:9)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@84-distribute-fields-1.c:18:3-18:40#⊤]}}, thread:[main]] (conf. 110)  (exp: & s) (84-distribute-fields-1.c:20:3-20:9)
   [1]

@@ -32,10 +32,10 @@
   <   write with thread:[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40] (conf. 100)  (exp: & tmp->field) (79-type-nested-fields-deep1.c:36:3-36:20)
   <   write with [mhp:{created={[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->t.s.field) (79-type-nested-fields-deep1.c:43:3-43:24)
   ---
-  >   write with [mhp:{tid=[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#top]}, thread:[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#top]] (conf. 100)  (exp: & tmp->field) (79-type-nested-fields-deep1.c:36:3-36:20)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->t.s.field) (79-type-nested-fields-deep1.c:43:3-43:24)
+  >   write with [mhp:{tid=[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#⊤]}, thread:[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#⊤]] (conf. 100)  (exp: & tmp->field) (79-type-nested-fields-deep1.c:36:3-36:20)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->t.s.field) (79-type-nested-fields-deep1.c:43:3-43:24)
   12c12
   <   write with thread:[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40] (conf. 100)  (exp: & tmp->field) (79-type-nested-fields-deep1.c:36:3-36:20)
   ---
-  >   write with [mhp:{tid=[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#top]}, thread:[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#top]] (conf. 100)  (exp: & tmp->field) (79-type-nested-fields-deep1.c:36:3-36:20)
+  >   write with [mhp:{tid=[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#⊤]}, thread:[main, t_fun@79-type-nested-fields-deep1.c:42:3-42:40#⊤]] (conf. 100)  (exp: & tmp->field) (79-type-nested-fields-deep1.c:36:3-36:20)
   [1]

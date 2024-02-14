@@ -40,8 +40,8 @@ Disable info messages because race summary contains (safe) memory location count
   <   write with thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
   <   write with [symblock:{p-lock:*.mutex}, mhp:{created={[main, t_fun@21-mult_accs_rc.c:31:3-31:37]}}, thread:[main]] (conf. 100)  (exp: & *d) (21-mult_accs_rc.c:34:3-34:9)
   ---
-  >   write with [mhp:{tid=[main, t_fun@21-mult_accs_rc.c:31:3-31:37#top]}, thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37#top]] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
-  >   write with [symblock:{p-lock:*.mutex}, mhp:{tid=[main]; created={[main, t_fun@21-mult_accs_rc.c:31:3-31:37#top]}}, thread:[main]] (conf. 100)  (exp: & *d) (21-mult_accs_rc.c:34:3-34:9)
+  >   write with [mhp:{tid=[main, t_fun@21-mult_accs_rc.c:31:3-31:37#⊤]}, thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37#⊤]] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
+  >   write with [symblock:{p-lock:*.mutex}, mhp:{tid=[main]; created={[main, t_fun@21-mult_accs_rc.c:31:3-31:37#⊤]}}, thread:[main]] (conf. 100)  (exp: & *d) (21-mult_accs_rc.c:34:3-34:9)
   [1]
 
   $ goblint --enable warn.deterministic --disable warn.info --disable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs --enable dbg.full-output 21-mult_accs_rc.c > full-output-2.txt 2>&1
@@ -50,5 +50,5 @@ Disable info messages because race summary contains (safe) memory location count
   8c8
   <   write with thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
   ---
-  >   write with [mhp:{tid=[main, t_fun@21-mult_accs_rc.c:31:3-31:37#top]}, thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37#top]] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
+  >   write with [mhp:{tid=[main, t_fun@21-mult_accs_rc.c:31:3-31:37#⊤]}, thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37#⊤]] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
   [1]

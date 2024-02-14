@@ -23,8 +23,8 @@
   <   read with [lock:{mutex1}, thread:[main, t_fun@01-simple_rc.c:17:3-17:40]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:10:3-10:22)
   <   read with [mhp:{created={[main, t_fun@01-simple_rc.c:17:3-17:40]}}, lock:{mutex2}, thread:[main]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:19:3-19:22)
   ---
-  >   write with [mhp:{tid=[main, t_fun@01-simple_rc.c:17:3-17:40#top]}, lock:{mutex1}, thread:[main, t_fun@01-simple_rc.c:17:3-17:40#top]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:10:3-10:22)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@01-simple_rc.c:17:3-17:40#top]}}, lock:{mutex2}, thread:[main]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:19:3-19:22)
-  >   read with [mhp:{tid=[main, t_fun@01-simple_rc.c:17:3-17:40#top]}, lock:{mutex1}, thread:[main, t_fun@01-simple_rc.c:17:3-17:40#top]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:10:3-10:22)
-  >   read with [mhp:{tid=[main]; created={[main, t_fun@01-simple_rc.c:17:3-17:40#top]}}, lock:{mutex2}, thread:[main]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:19:3-19:22)
+  >   write with [mhp:{tid=[main, t_fun@01-simple_rc.c:17:3-17:40#⊤]}, lock:{mutex1}, thread:[main, t_fun@01-simple_rc.c:17:3-17:40#⊤]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:10:3-10:22)
+  >   write with [mhp:{tid=[main]; created={[main, t_fun@01-simple_rc.c:17:3-17:40#⊤]}}, lock:{mutex2}, thread:[main]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:19:3-19:22)
+  >   read with [mhp:{tid=[main, t_fun@01-simple_rc.c:17:3-17:40#⊤]}, lock:{mutex1}, thread:[main, t_fun@01-simple_rc.c:17:3-17:40#⊤]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:10:3-10:22)
+  >   read with [mhp:{tid=[main]; created={[main, t_fun@01-simple_rc.c:17:3-17:40#⊤]}}, lock:{mutex2}, thread:[main]] (conf. 110)  (exp: & myglobal) (01-simple_rc.c:19:3-19:22)
   [1]
