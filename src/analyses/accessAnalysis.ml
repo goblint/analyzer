@@ -117,7 +117,7 @@ struct
     in
     let read_addresses = f_ask.f Queries.Read in
     let get_reachable e = ctx.ask (Queries.ReachableAddressesFrom e) in
-    let used_globals = UsedGlobals.get_callee_globals f_ask in
+    let used_globals = UsedGlobals.get_used_globals_exps f_ask in
     let effective_args = args @ used_globals in
     let reachable =
       List.fold_left (fun acc arg -> AD.join acc (get_reachable arg) ) (AD.bot ()) effective_args

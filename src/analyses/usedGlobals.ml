@@ -4,11 +4,19 @@ open Batteries
 open GoblintCil
 open Analyses
 
+let accessed_globals_top_warning = "Accessed globals returned `Top!"
+
+let get_used_globals (ask: Queries.ask) =
+  match ask.f Queries.AccessedGlobals with
+  | `Top -> failwith accessed_globals_top_warning
+  | `Lifted globals ->
+    ModularUtil.VS.to_list globals
+
 (** Get list of pointers to globals for all potentially used globals by function. *)
-let get_callee_globals (callee_ask: Queries.ask) =
-  match callee_ask.f Queries.AccessedGlobals with
+let get_used_globals_exps (ask: Queries.ask) =
+  match ask.f Queries.AccessedGlobals with
   | `Top ->
-    failwith @@ "Accessed globals returned `Top!"
+    failwith accessed_globals_top_warning
   | `Lifted globals ->
     ModularUtil.VS.fold (fun v acc -> mkAddrOf (Cil.var v) :: acc) globals []
 

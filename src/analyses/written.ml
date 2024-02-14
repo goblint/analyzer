@@ -51,8 +51,14 @@ struct
     let start_state = ask.f (Queries.StartCPA f) in
     let written = List.map Tuple2.first (D.bindings ctx.local) in
     let written = join_address_list written in
-    let params = f.sformals in
-    let params = List.map (AD.of_var ~is_modular:true) params in
+
+    (* TODO: Collect used globals in global invariant, as this may omit globals accessed in the return *)
+    let callee_globals = match ask.f Queries.AccessedGlobals with
+      | `Top -> []
+      | `Lifted globals -> ModularUtil.VS.to_list globals
+    in
+    let effective_params = f.sformals @ callee_globals in
+    let params = List.map (AD.of_var ~is_modular:true) effective_params in
     let params = join_address_list params in
     let graph = ask.f (CollectGraph (start_state, params, written)) in (* TODO: Adapt start and end sets *)
     M.tracel "startstate" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty written BaseDomain.CPA.pretty start_state;
@@ -66,7 +72,7 @@ struct
 
   let get_reachable ctx args f_ask  =
     let ask = Analyses.ask_of_ctx ctx in
-    let used_globals = UsedGlobals.get_callee_globals f_ask in
+    let used_globals = UsedGlobals.get_used_globals_exps f_ask in
     let get_reachable_exp (exp: exp) =
       ask.f (Q.ReachableAddressesFrom exp)
     in
