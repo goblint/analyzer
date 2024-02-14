@@ -2040,7 +2040,7 @@
         },
         "full-output": {
           "title": "dbg.full-output",
-          "description": "Should the analysis print full output?",
+          "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
           "type": "boolean",
           "default": false
         }
