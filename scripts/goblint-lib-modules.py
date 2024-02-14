@@ -8,6 +8,7 @@ src_root_path = Path("./src")
 
 goblint_lib_paths = [
     src_root_path / "goblint_lib.ml",
+    src_root_path / "solver" / "goblint_solver.ml",
     src_root_path / "util" / "std" / "goblint_std.ml",
 ]
 goblint_lib_modules = set()
@@ -33,6 +34,7 @@ exclude_module_names = set([
 
     # libraries
     "Goblint_std",
+    "Goblint_solver",
     "Goblint_timing",
     "Goblint_backtrace",
     "Goblint_tracing",
@@ -63,5 +65,5 @@ for ml_path in src_root_path.glob("**/*.ml"):
 
 missing_modules = src_modules - goblint_lib_modules
 if len(missing_modules) > 0:
-    print(f"Modules missing from {goblint_lib_path}: {missing_modules}")
+    print(f"Modules missing from {goblint_lib_paths[0]}: {missing_modules}")
     sys.exit(1)

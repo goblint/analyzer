@@ -134,7 +134,7 @@ type 'a result = 'a
     Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
 (* Must be in a singleton record due to second-order polymorphism.
    See https://ocaml.org/manual/polymorphism.html#s%3Ahigher-rank-poly. *)
-type ask = { f: 'a. 'a t -> 'a result }
+type ask = { f: 'a. 'a t -> 'a result } [@@unboxed]
 
 (* Result cannot implement Lattice.S because the function types are different due to GADT. *)
 module Result =
@@ -267,7 +267,7 @@ end
 
 (* The type any_query can't be directly defined in Any as t,
    because it also refers to the t from the outer scope. *)
-type any_query = Any: 'a t -> any_query
+type any_query = Any: 'a t -> any_query [@@unboxed]
 
 module Any =
 struct

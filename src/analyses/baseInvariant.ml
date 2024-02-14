@@ -7,7 +7,6 @@ module VD = BaseDomain.VD
 module ID = ValueDomain.ID
 module FD = ValueDomain.FD
 module AD = ValueDomain.AD
-module BI = IntOps.BigIntOps
 
 module type Eval =
 sig
@@ -15,18 +14,21 @@ sig
   module V: Analyses.SpecSysVar
   module G: Lattice.S
 
-  val eval_rv: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
-  val eval_rv_address: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
-  val eval_lv: Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
-  val convert_offset: Queries.ask -> (V.t -> G.t) -> D.t -> offset -> ID.t Offset.t
+  val unop_ID: Cil.unop -> ID.t -> ID.t
+  val unop_FD: Cil.unop -> FD.t -> VD.t
 
-  val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
-  val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
-  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
+  val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
+  val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
+  val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> lval -> AD.t
+  val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> offset -> ID.t Offset.t
+
+  val get_var: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> varinfo -> VD.t
+  val get: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> AD.t -> exp option -> VD.t
+  val set: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
   val refine_entire_var: bool
   val map_oldval: VD.t -> typ -> VD.t
-  val eval_rv_lval_refine: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> lval -> VD.t
+  val eval_rv_lval_refine: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> lval -> VD.t
 
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
@@ -42,16 +44,6 @@ module Make (Eval: Eval) =
 struct
   open Eval
 
-  let unop_ID = function
-    | Neg  -> ID.neg
-    | BNot -> ID.bitnot
-    | LNot -> ID.lognot
-
-  let unop_FD = function
-    | Neg  -> FD.neg
-    (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> FD.top_of (FD.get_fkind c))
-
   let is_some_bot (x:VD.t) =
     match x with
     | Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
@@ -62,12 +54,12 @@ struct
       VD.meet old_val new_val
     with Lattice.Uncomparable -> old_val
 
-  let refine_lv_fallback ctx a gs st lval value tv =
+  let refine_lv_fallback ctx st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-    let addr = eval_lv a gs st lval in
+    let addr = eval_lv ~ctx st lval in
     if (AD.is_top addr) then st
     else
-      let old_val = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+      let old_val = get ~ctx st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
       let t_lval = Cilfacade.typeOfLval lval in
       let old_val = map_oldval old_val t_lval in
       let old_val =
@@ -78,8 +70,8 @@ struct
         else
           old_val
       in
-      let state_with_excluded = set a gs st addr t_lval value ~ctx in
-      let value =  get a gs state_with_excluded addr None in
+      let state_with_excluded = set st addr t_lval value ~ctx in
+      let value =  get ~ctx state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -88,18 +80,18 @@ struct
         contra st
       )
       else if VD.is_bot new_val
-      then set a gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
-      else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
+      then set st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
+      else set st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
-  let refine_lv ctx a gs st c x c' pretty exp =
-    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+  let refine_lv ctx st c x c' pretty exp =
+    let set' lval v st = set st (eval_lv ~ctx st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-      let old_val = get_var a gs st var in
+      let old_val = get_var ~ctx st var in
       let old_val = map_oldval old_val var.vtype in
-      let offs = convert_offset a gs st o in
-      let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
+      let offs = convert_offset ~ctx st o in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) old_val offs c' (Some exp) x (var.vtype) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
@@ -111,7 +103,7 @@ struct
     | Var _, _
     | Mem _, _ ->
       (* For accesses via pointers, not yet *)
-      let old_val = eval_rv_lval_refine a gs st exp x in
+      let old_val = eval_rv_lval_refine ~ctx st exp x in
       let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
       let v = apply_invariant ~old_val ~new_val:c' in
       if is_some_bot v then contra st
@@ -120,7 +112,7 @@ struct
         set' x v st
       )
 
-  let invariant_fallback ctx a (gs:V.t -> G.t) st exp tv =
+  let invariant_fallback ctx st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): (lval * VD.t) option =
@@ -140,14 +132,14 @@ struct
               match ID.to_int n with
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
-                if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" d_lval x (BI.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x GobZ.pretty n;
                 let ikind = Cilfacade.get_ikind_exp (Lval lval) in
                 Some (x, Int (ID.of_excl_list ikind [n]))
               | None -> None
             end
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
-              match eval_rv_address a gs st (Lval x) with
+              match eval_rv_address ~ctx st (Lval x) with
               | Address a when AD.is_definite n ->
                 Some (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
@@ -169,11 +161,11 @@ struct
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
               let n = ID.cast_to ikind n in
-              let range_from x = if tv then ID.ending ikind (BI.sub x BI.one) else ID.starting ikind x in
+              let range_from x = if tv then ID.ending ikind (Z.pred x) else ID.starting ikind x in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
@@ -184,11 +176,11 @@ struct
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
               let n = ID.cast_to ikind n in
-              let range_from x = if tv then ID.ending ikind x else ID.starting ikind (BI.add x BI.one) in
+              let range_from x = if tv then ID.ending ikind x else ID.starting ikind (Z.succ x) in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
@@ -205,18 +197,18 @@ struct
       match Cil.unrollType typ with
       | TPtr _                    -> Address AD.null_ptr
       | TEnum({ekind=_;_},_)
-      | _                         -> Int (ID.of_int (Cilfacade.get_ikind typ) BI.zero)
+      | _                         -> Int (ID.of_int (Cilfacade.get_ikind typ) Z.zero)
     in
     let rec derived_invariant exp tv =
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv a gs st rval)) tv
+      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~ctx st rval)) tv
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
-        (match eval_rv a gs st (Lval x) with
+        (match eval_rv ~ctx st (Lval x) with
          | Int v ->
            (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
              * If there is one domain that knows this to be true and the other does not, we
@@ -240,22 +232,22 @@ struct
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
-      refine_lv_fallback ctx a gs st lval value tv
+      refine_lv_fallback ctx st lval value tv
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
 
-  let invariant ctx a gs st exp tv: D.t =
+  let invariant ctx st exp tv: D.t =
     let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%t\n" d_plainexp exp reason;
-      invariant_fallback ctx a gs st exp tv
+      invariant_fallback ctx st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
-        if GobOption.exists (BI.equal BI.zero) (ID.to_int x) then
+        if GobOption.exists (Z.equal Z.zero) (ID.to_int x) then
           (M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
            ID.top_of ikind)
         else
@@ -278,7 +270,7 @@ struct
         (* refine x by information about y, using x * y == c *)
         let refine_by x y = (match ID.to_int y with
             | None -> x
-            | Some v when BI.equal (BI.rem v (BI.of_int 2)) BI.zero (* v % 2 = 0 *) -> x (* A refinement would still be possible here, but has to take non-injectivity into account. *)
+            | Some v when Z.equal (Z.rem v (Z.of_int 2)) Z.zero (* v % 2 = 0 *) -> x (* A refinement would still be possible here, but has to take non-injectivity into account. *)
             | Some v (* when Int64.rem v 2L = 1L *) -> id_meet_down ~old:x ~c:(ID.div c y)) (* Div is ok here, c must be divisible by a and b *)
         in
         (refine_by a b, refine_by b a)
@@ -290,11 +282,11 @@ struct
          * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
          * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
         let rem =
-          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int ikind BI.zero) = Some true in
-          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int ikind BI.zero) = Some true in
+          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
+          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
           let full = ID.rem a b in
-          if is_pos then ID.meet (ID.starting ikind BI.zero) full
-          else if is_neg then ID.meet (ID.ending ikind BI.zero) full
+          if is_pos then ID.meet (ID.starting ikind Z.zero) full
+          else if is_neg then ID.meet (ID.ending ikind Z.zero) full
           else full
         in
         meet_bin (ID.add (ID.mul b c) rem) (ID.div (ID.sub a rem) c)
@@ -310,11 +302,11 @@ struct
          * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
           match bound a with
-          | Some ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some BI.zero
+          | Some ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some Z.zero
           | None -> false
         in
-        let max_pos = match ID.maximal b with None -> true | Some x -> BI.compare x BI.zero >= 0 in
-        let min_neg = match ID.minimal b with None -> true | Some x -> BI.compare x BI.zero < 0 in
+        let max_pos = match ID.maximal b with None -> true | Some x -> Z.compare x Z.zero >= 0 in
+        let min_neg = match ID.minimal b with None -> true | Some x -> Z.compare x Z.zero < 0 in
         let implies a b = not a || b in
         let a'' =
           if implies max_pos (is_divisible ID.maximal) && implies min_neg (is_divisible ID.minimal) then
@@ -333,10 +325,10 @@ struct
         let a,b = meet_bin a''' b' in
         (* Special handling for case a % 2 != c *)
         let a = if PrecisionUtil.(is_congruence_active (int_precision_from_node_or_config ())) then
-            let two = BI.of_int 2 in
+            let two = Z.of_int 2 in
             match ID.to_int b, ID.to_excl_list c with
-            | Some b, Some ([v], _) when BI.equal b two ->
-              let k = if BI.equal (BI.abs (BI.rem v two)) (BI.zero) then BI.one else BI.zero in
+            | Some b, Some ([v], _) when Z.equal b two ->
+              let k = if Z.equal (Z.abs (Z.rem v two)) Z.zero then Z.one else Z.zero in
               ID.meet (ID.of_congruence ikind (k, b)) a
             | _, _ -> a
           else a
@@ -381,8 +373,6 @@ struct
           | _, _ -> a, b
         end
       | Lt | Le | Ge | Gt as op ->
-        let pred x = BI.sub x BI.one in
-        let succ x = BI.add x BI.one in
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
          | Some l1, Some u1, Some l2, Some u2 ->
            (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
@@ -396,9 +386,9 @@ struct
             | Ge, Some true
             | Lt, Some false -> meet_bin (ID.starting ikind l2) (ID.ending ikind u1)
             | Lt, Some true
-            | Ge, Some false -> meet_bin (ID.ending ikind (pred u2)) (ID.starting ikind (succ l1))
+            | Ge, Some false -> meet_bin (ID.ending ikind (Z.pred u2)) (ID.starting ikind (Z.succ l1))
             | Gt, Some true
-            | Le, Some false -> meet_bin (ID.starting ikind (succ l2)) (ID.ending ikind (pred u1))
+            | Le, Some false -> meet_bin (ID.starting ikind (Z.succ l2)) (ID.ending ikind (Z.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
       | BOr | BXor as op->
@@ -414,7 +404,7 @@ struct
         (* we only attempt to refine a here *)
         let a =
           match ID.to_int b with
-          | Some x when BI.equal x BI.one ->
+          | Some x when Z.equal x Z.one ->
             (match ID.to_bool c with
              | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
              | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
@@ -555,7 +545,7 @@ struct
           a, b
       with FloatDomain.ArithmeticOnFloatBot _ -> raise Analyses.Deadcode
     in
-    let eval e st = eval_rv a gs st e in
+    let eval e st = eval_rv ~ctx st e in
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
     let unroll_fk_of_exp e =
       match unrollType (Cilfacade.typeOf e) with
@@ -568,18 +558,31 @@ struct
       else
         match exp, c_typed with
         | UnOp (LNot, e, _), Int c ->
-          let ikind = Cilfacade.get_ikind_exp e in
-          let c' =
-            match ID.to_bool (unop_ID LNot c) with
-            | Some true ->
-              (* i.e. e should evaluate to [1,1] *)
-              (* LNot x is 0 for any x != 0 *)
-              ID.of_excl_list ikind [BI.zero]
-            | Some false -> ID.of_bool ikind false
-            | _ -> ID.top_of ikind
-          in
-          inv_exp (Int c') e st
-        | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
+          (match Cilfacade.typeOf e with
+           | TInt  _ | TPtr _ ->
+             let ikind = Cilfacade.get_ikind_exp e in
+             let c' =
+               match ID.to_bool (unop_ID LNot c) with
+               | Some true ->
+                 (* i.e. e should evaluate to [1,1] *)
+                 (* LNot x is 0 for any x != 0 *)
+                 ID.of_excl_list ikind [Z.zero]
+               | Some false -> ID.of_bool ikind false
+               | _ -> ID.top_of ikind
+             in
+             inv_exp (Int c') e st
+           | TFloat(fkind, _) when ID.to_bool (unop_ID LNot c) = Some false ->
+             (* C99 §6.5.3.3/5 *)
+             (* The result of the logical negation operator ! is 0 if the value of its operand compares *)
+             (* unequal to 0, 1 if the value of its operand compares equal to 0. The result has type int. *)
+             (* The expression !E is equivalent to (0==E). *)
+             (* NaN compares unequal to 0 so no problems *)
+             (* We do not have exclusions for floats, so we do not bother here with the other case *)
+             let zero_float = FD.of_const fkind 0. in
+             inv_exp (Float zero_float) e st
+           | _ -> st
+          )
+        | UnOp (Neg, e, _), Float c -> inv_exp (unop_FD Neg c) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)
         | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
@@ -696,7 +699,7 @@ struct
               | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
               | _ -> failwith "unreachable")
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
-          let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
+          let update_lval c x c' pretty = refine_lv ctx st c x c' pretty exp in
           let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
           if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a\n" d_lval x VD.pretty c_typed d_type t;
           begin match c_typed with
@@ -810,7 +813,7 @@ struct
         let itv = if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
           else
-            ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
+            ID.of_excl_list ik [Z.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
         in
         inv_exp (Int itv) exp st
       | exception Invalid_argument _ ->

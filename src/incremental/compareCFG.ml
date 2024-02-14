@@ -97,7 +97,7 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
          * case the edge is directly added to the diff set to avoid undetected ambiguities during the recursive
          * call. *)
         let testFalseEdge edge = match edge with
-          | Test (p,b) -> p = Cil.one && b = false
+          | Test (p,false) -> p = Cil.one
           | _ -> false in
         let posAmbigEdge edgeList = let findTestFalseEdge (ll,_) = testFalseEdge (snd (List.hd ll)) in
           let numDuplicates l = List.length (List.find_all findTestFalseEdge l) in

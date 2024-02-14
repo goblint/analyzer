@@ -4,6 +4,7 @@ synopsis: "Static analysis framework for C"
 maintainer: [
   "Simmo Saan <simmo.saan@gmail.com>"
   "Michael Schwarz <michael.schwarz93@gmail.com>"
+  "Karoliine Holter"
 ]
 authors: [
   "Simmo Saan"

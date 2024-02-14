@@ -436,7 +436,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 (** Pthread functions. *)
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
-    ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
+    ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg; multiple = false }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
     ("pthread_join", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
     ("pthread_kill", unknown [drop "thread" []; drop "sig" []]);
@@ -1019,6 +1019,21 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
   ]
 
+let rtnl_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[rtnl_lock]" intType)))
+
+(** LDV Klever functions. *)
+let klever_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("pthread_create_N", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg; multiple = true });
+    ("pthread_join_N", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
+    ("ldv_mutex_model_lock", special [__ "lock" []; drop "sign" []] @@ fun lock -> Lock { lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
+    ("ldv_mutex_model_unlock", special [__ "lock" []; drop "sign" []] @@ fun lock -> Unlock lock);
+    ("ldv_spin_model_lock", unknown [drop "sign" []]);
+    ("ldv_spin_model_unlock", unknown [drop "sign" []]);
+    ("rtnl_lock", special [] @@ Lock { lock = rtnl_lock; try_ = false; write = true; return_on_success = true });
+    ("rtnl_unlock", special [] @@ Unlock rtnl_lock);
+    ("__rtnl_unlock", special [] @@ Unlock rtnl_lock);
+  ]
+
 let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("echo", unknown []);
     ("noecho", unknown []);
@@ -1104,6 +1119,7 @@ let libraries = Hashtbl.of_list [
     ("linux-kernel", linux_kernel_descs_list);
     ("goblint", goblint_descs_list);
     ("sv-comp", svcomp_descs_list);
+    ("klever", klever_descs_list);
     ("ncurses", ncurses_descs_list);
     ("zstd", zstd_descs_list);
     ("pcre", pcre_descs_list);
