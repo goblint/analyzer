@@ -171,7 +171,7 @@ struct
       match ofs with
       | NoOffset -> `NoOffset
       | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
-      | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
+      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
         `Index (ID.top (), convert_offset ofs)
       | Index (exp, ofs) ->
         let i = match ctx.ask (Queries.EvalInt exp) with

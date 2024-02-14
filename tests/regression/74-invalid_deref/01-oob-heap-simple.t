@@ -1,5 +1,5 @@
   $ goblint --set ana.activated[+] memOutOfBounds --enable ana.int.interval 01-oob-heap-simple.c 2>&1 | tee default-output.txt
-  Option warning: The memOutOfBounds analysis enables cil.addNestedScopeAttr.
+  [Warning] The memOutOfBounds analysis enables cil.addNestedScopeAttr.
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of pointer in expression ptr + 10 is 5 (in bytes). It is offset by 10 (in bytes). Memory out-of-bounds access must occur (01-oob-heap-simple.c:10:5-10:22)
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare pointer size (5) with offset (⊤). Memory out-of-bounds access may occur (01-oob-heap-simple.c:11:5-11:21)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
