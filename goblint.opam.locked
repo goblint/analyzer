@@ -133,7 +133,7 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.0.3"
-    "git+https://github.com/goblint/cil.git#833378d9102578bab7b62174cb029d385db417a5"
+    "git+https://github.com/goblint/cil.git#da9e00f53bd306ef2546836ccf2dc91bc72fa318"
   ]
   [
     "ppx_deriving.5.2.1"

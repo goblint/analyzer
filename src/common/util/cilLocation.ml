@@ -41,7 +41,7 @@ let rec get_stmtLoc stmt: locs =
     {loc = locUnknown; eloc = locUnknown}
 
   | Instr (hd :: _) -> get_instrLoc hd
-  | Return (_, loc) -> {loc; eloc = locUnknown}
+  | Return (_, loc, eloc) -> {loc; eloc}
   | Goto (_, loc) -> {loc; eloc = locUnknown}
   | ComputedGoto (_, loc) -> {loc; eloc = locUnknown}
   | Break loc -> {loc; eloc = locUnknown}

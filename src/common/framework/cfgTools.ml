@@ -254,7 +254,7 @@ let createCFG (file: file) =
         let pseudo_return = lazy (
           if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s.\n" fd.svar.vname;
           let fd_end_loc = {fd_loc with line = fd_loc.endLine; byte = fd_loc.endByte; column = fd_loc.endColumn} in
-          let newst = mkStmt (Return (None, fd_end_loc)) in
+          let newst = mkStmt (Return (None, fd_end_loc, locUnknown)) in
           newst.sid <- Cilfacade.get_pseudo_return_id fd;
           Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
           Cilfacade.IntH.replace Cilfacade.pseudo_return_stmt_sids newst.sid newst;
@@ -340,8 +340,8 @@ let createCFG (file: file) =
             (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
             failwith "MyCFG.createCFG: unprepared Loop"
 
-          | Return (exp, loc) ->
-            addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
+          | Return (exp, loc, eloc) ->
+            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Ret (exp, fd)) (Function fd)
 
           | Goto (_, loc) ->
             (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
