@@ -144,14 +144,14 @@ struct
   let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let query ctx (type a) (q: a Q.t): a Q.result =
+  let query ctx (type a) (q: a Q.t): a Q.result = (* TODO: Only use in access analysis *)
     match q with
     | Read ->
       let read : D.t = ctx.local in
-      read
+      D.bot ()
     | ReadGraph f ->
       let read : G.t = ctx.global f in
-      read
+      G.bot ()
     | _ -> Q.Result.top q
 
   let modular_support () = Modular

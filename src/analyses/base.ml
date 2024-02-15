@@ -2953,7 +2953,7 @@ struct
   module AddrPairSet = Set.Make (AddrPair)
 
   (** In the given local state, from the start state, find the addresses that correspond to the goals *)
-  let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (goal: AD.t) =
+  let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (globals: varinfo list) (goal: AD.t) =
     let ask = Analyses.ask_of_ctx ctx in
 
     (* TODO: !! Pass addresses instead of params, or, alternatively, pass global variables separetely, as they should be !! *)
@@ -2994,6 +2994,16 @@ struct
           ) dir_reachable_abs;
       ) combined;
 
+    (* Add globals *)
+    let add_global_to_queue (g: varinfo) =
+      let a_c = Addr.of_var ~is_modular:false g in
+      let a = Addr.of_var ~is_modular:true g in
+
+      Queue.add (a_c, a) queue;
+      visited := AddrPairSet.add (a_c, a) !visited;
+    in
+    List.iter add_global_to_queue globals;
+
     (* M.tracel "modular_combine" "Initalized conc: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.first combined);
     M.tracel "modular_combine" "Initalized abs: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.second combined);
        M.tracel "modular_combine" "graph: %a\n" Graph.pretty graph; *)
@@ -3021,14 +3031,15 @@ struct
   let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let ask = Analyses.ask_of_ctx ctx in
     let glob_fun = modular_glob_fun ctx in
-    let callee_globals_exp = UsedGlobals.get_used_globals f_ask in
+    (* let callee_globals_exp = UsedGlobals.get_used_globals f_ask in *)
     let callee_globals = UsedGlobals.get_used_globals f_ask in
-    let callee_globals = List.map (fun v -> Lval (Var v, NoOffset)) callee_globals in
+    (* let callee_globals = List.map (fun v -> Lval (Var v, NoOffset)) callee_globals in *)
 
-    let effective_params = f.sformals @ callee_globals_exp in
-    let effective_args = args @ callee_globals in
+    let params = f.sformals in
+    (* let effective_params = params in
+       let effective_args = args in *)
 
-    M.tracel "modular_combine" "effective_params: %a\n effective_args: %a\n" (d_list ", " CilType.Varinfo.pretty) effective_params (d_list ", " CilType.Exp.pretty) effective_args;
+    (* M.tracel "modular_combine" "effective_params: %a\n effective_args: %a\n" (d_list ", " Addr.pretty) params (d_list ", " CilType.Exp.pretty) effective_args; *)
     (* TODO: Use information from Read and Written graphs to determine subset of reachable that is reachable via arguments like provided in the graph. *)
 (*
     let reachable = collect_funargs ask ~warn:false glob_fun ctx.local effective_args in
@@ -3043,12 +3054,9 @@ struct
     else
       (* TODO: Use information from Read and Written graphs to determine subset of reachable that is reachable via arguments like provided in the graph. *)
       let write_graph = ask.f (WriteGraph f) in
-      let read_graph = ask.f (ReadGraph f) in
-
-      let write_graph = Graph.join write_graph read_graph in
 
       (* TODO: pass goal, use goal in collect_targets_with_graph function*)
-      let reachable = collect_targets_with_graph ctx write_graph effective_args effective_params (AD.bot ()) in
+      let reachable = collect_targets_with_graph ctx write_graph args params callee_globals (AD.bot ()) in
 
       M.tracel "modular_combine_reachable" "reachable: %a\n" AD.pretty reachable;
       let vars_to_writes : value_map VarMap.t =
@@ -3106,17 +3114,12 @@ struct
       combine_env_regular ctx lval fexp f args fc au f_ask
 
   let translate_callee_value_back ctx f f_ask (args: exp list) (value: VD.t): VD.t =
-    let glob_fun = modular_glob_fun ctx in
     let ask = Analyses.ask_of_ctx ctx in
-
-    (* TODO: Is write-graph for return value computation? *)
     let write_graph = ask.f (WriteGraph f) in
-    let read_graph = ask.f (ReadGraph f) in
-    let write_graph = Graph.join write_graph read_graph in
     (* TODO: pass goal, use goal in collect_targets_with_graph function*)
     let callee_globals = UsedGlobals.get_used_globals f_ask in
-    let effective_params = f.sformals @ callee_globals in
-    let reachable = collect_targets_with_graph ctx write_graph args effective_params (AD.bot ()) in
+    let params = f.sformals in
+    let reachable = collect_targets_with_graph ctx write_graph args params callee_globals (AD.bot ()) in
     let value = ModularUtil.ValueDomainExtension.map_back value ~reachable in
     value
 
@@ -3129,10 +3132,7 @@ struct
         else VD.top ()
       in
       let return_val = if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:f then
-          let callee_globals = UsedGlobals.get_used_globals_exps f_ask in
-          (* let effective_args = args @ callee_globals in *)
-          let effective_args = args @ callee_globals in
-          translate_callee_value_back ctx f f_ask effective_args return_val
+          translate_callee_value_back ctx f f_ask args return_val
         else
           return_val
       in

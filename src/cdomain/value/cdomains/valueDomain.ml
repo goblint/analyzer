@@ -1358,7 +1358,7 @@ struct
     | Union u ->
       Unions.fold (fun k v acc -> AD.join (reachable_from v description) acc) u empty
     (* For arrays, we ask to read from an unknown index, this will cause it
-    * join all its values. *)
+     * join all its values. *)
     | Array a ->
       let handle_item (acc: AD.t) (v: t) =
         let reachable = reachable_from v description in
