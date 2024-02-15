@@ -17,7 +17,7 @@ type query =
     structure : (CodeQuery.structure [@default None_s]);
     limitation : (CodeQuery.constr [@default None_c]);
 
-    expression : string;
+    expression : (string option [@default None]);
     mode : [ `Must | `May ];
 
   } [@@deriving yojson]
@@ -36,9 +36,6 @@ struct
     match value_option with
     | Some value -> value
     | None -> raise Stdlib.Exit
-
-  let is_debug () =
-    GobConfig.get_bool "dbg.verbose"
 
   let string_of_evaluation_result evaluation_result =
     match evaluation_result with
@@ -60,7 +57,11 @@ struct
 
       val global_variables =
         file.globals
-        |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None)
+        |> List.filter_map (function
+            | Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v)
+            | Cil.GFun (f, l) -> Some (f.svar.vname, Cil.Fv f.svar)
+            | Cil.GVarDecl (v, l) -> Some (v.vname, Cil.Fv v)
+            | _ -> None)
       val statements =
         file.globals
         |> List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None)
@@ -77,14 +78,14 @@ struct
         (* Compute the available local variables *)
         let local_variables =
           match Hashtbl.find_option statements location with
-          | Some (function_definition, _) -> function_definition.slocals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
+          | Some (fd, _) -> fd.slocals @ fd.sformals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
           | None -> []
         in
         (* Parse expression *)
         match ~? (fun () -> Formatcil.cExp expression_string (local_variables @ global_variables)) with
         (* Expression unparseable at this location *)
         | None ->
-          if is_debug () then print_endline "| (Unparseable)";
+          Logs.debug "| (Unparseable)";
           Some false
         (* Successfully parsed expression *)
         | Some expression ->
@@ -92,7 +93,7 @@ struct
           match self#try_ask location expression with
           (* Dead code or not listed as part of the control flow *)
           | None ->
-            if is_debug () then print_endline "| (Unreachable)";
+            Logs.debug "| (Unreachable)";
             Some false
           (* Valid location *)
           | Some value_before ->
@@ -116,17 +117,11 @@ struct
               (* Prefer successor evaluation *)
               match successor_evaluation with
               | None ->
-                if is_debug () then
-                  begin
-                    print_endline ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement))
-                  end;
+                Logs.debug "%s" ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement));
                 value_before
               | Some value_after ->
-                if is_debug () then
-                  begin
-                    print_endline ("| " ^ (statement |> string_of_statement) ^ "/*" ^ (value_after |> string_of_evaluation_result) ^ "*/");
-                    print_endline ("| " ^ (~! !succeeding_statement |> string_of_statement))
-                  end;
+                Logs.debug "%s" ("| " ^ (statement |> string_of_statement) ^ "/*" ^ (value_after |> string_of_evaluation_result) ^ "*/");
+                Logs.debug "%s" ("| " ^ (~! !succeeding_statement |> string_of_statement));
                 value_after
 
       method private try_ask location expression =
@@ -136,7 +131,7 @@ struct
         | Some x ->
           begin match Queries.ID.to_int x with
             (* Evaluable: Definite *)
-            | Some i -> Some (Some (not(IntOps.BigIntOps.equal i IntOps.BigIntOps.zero)))
+            | Some i -> Some (Some (not (Z.equal i Z.zero)))
             (* Evaluable: Inconclusive *)
             | None -> Some None
           end
@@ -155,8 +150,7 @@ struct
       | Error message ->
         Error ("ExpEval: Unable to parse JSON query file: \"" ^ name ^ "\" (" ^ message ^ ")")
       | Ok query ->
-        if is_debug () then
-          print_endline ("Successfully parsed JSON query file: \"" ^ name ^ "\"");
+        Logs.debug "Successfully parsed JSON query file: \"%s\"" name;
         Ok query
 
   let string_of_location (location : Cil.location) =
@@ -191,23 +185,25 @@ struct
         |> List.group file_compare
         (* Sort, remove duplicates, ungroup *)
         |> List.concat_map (fun ls -> List.sort_uniq byte_compare ls)
-        (* Semantic queries *)
-        |> List.map (fun (n, l, s, i) -> ((n, l, s, i), evaluator#evaluate l query.expression))
+        (* Semantic queries if query.expression is some *)
+        |> List.map (fun (n, l, s, i) -> ((n, l, s, i), Option.map_default (evaluator#evaluate l) (Some true) query.expression))
       in
       let print ((_, loc, _, _), res) =
         match res with
         | Some value ->
           if value then
-            print_endline (loc |> string_of_location)
-          else if is_debug () then
-            print_endline ((loc |> string_of_location) ^ " x")
+            Logs.info "%s" (loc |> string_of_location)
+          else
+            Logs.debug "%s x" (loc |> string_of_location)
         | None ->
-          if query.mode = `May || is_debug () then
-            print_endline ((loc |> string_of_location) ^ " ?")
+          if query.mode = `May then
+            Logs.info "%s ?" (loc |> string_of_location)
+          else
+            Logs.debug "%s ?" (loc |> string_of_location)
       in
       gv_results := results;
       List.iter print results
-    | Error e -> prerr_endline e
+    | Error e -> Logs.error "%s" e
 
   let name = transformation_identifier
 

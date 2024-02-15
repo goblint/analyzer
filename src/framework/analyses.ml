@@ -175,7 +175,7 @@ exception Ctx_failure of string
 let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 
 (** Convert [ctx] to [Queries.ask]. *)
-let ask_of_ctx ctx: Queries.ask = { Queries.f = fun (type a) (q: a Queries.t) -> ctx.ask q }
+let ask_of_ctx ctx: Queries.ask = { Queries.f = ctx.ask }
 
 
 module type Spec =

@@ -1,7 +1,7 @@
 (** Abstract domains for tracking [NULL] bytes in C arrays. *)
 
 module MustSet = struct
-  module M = SetDomain.Reverse (SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All Null" end))
+  module M = SetDomain.Reverse (SetDomain.ToppedSet (IntOps.BigIntOps) (struct let topname = "All Null" end))
   include M
 
   let compute_set len =
@@ -45,7 +45,7 @@ module MustSet = struct
 end
 
 module MaySet = struct
-  module M = SetDomain.ToppedSet (IntDomain.BigInt) (struct let topname = "All Null" end)
+  module M = SetDomain.ToppedSet (IntOps.BigIntOps) (struct let topname = "All Null" end)
   include M
 
   let elements ?max_size may_nulls_set =
@@ -80,7 +80,7 @@ end
 module MustMaySet = struct
   include Lattice.Prod (MustSet) (MaySet)
 
-  module Set = SetDomain.Make (IntDomain.BigInt)
+  module Set = SetDomain.Make (IntOps.BigIntOps)
 
   type mode = Definitely | Possibly
 

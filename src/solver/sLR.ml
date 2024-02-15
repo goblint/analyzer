@@ -153,9 +153,10 @@ module SLR3 =
       stop_event ();
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
-        Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
-        print_newline ();
+        Logs.newline ();
+        Logs.debug "Widening points:";
+        HM.iter (fun k () -> Logs.debug "%a" S.Var.pretty_trace k) wpoint;
+        Logs.newline ();
       );
 
       HM.clear key   ;
@@ -327,15 +328,15 @@ module Make0 =
           let k = X.get_key x in
           let _ = work := H.insert !work x in
           let _ = P.rem_item stable x in
-          if k >= sk then () else
+          if k < sk then
             let _ = X.set_value x (D.bot ()) in
-            (* ignore @@ Pretty.printf " also restarting %d: %a\n" k S.Var.pretty_trace x; *)
+            (* Logs.debug " also restarting %d: %a" k S.Var.pretty_trace x; *)
             (* flush_all (); *)
             let w = L.sub infl x in
             let _ = L.rem_item infl x in
             List.iter handle_one w
         in
-        (* ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x; *)
+        (* Logs.debug "restarting %d: %a" sk S.Var.pretty_trace x; *)
         (* flush_all (); *)
         let w = L.sub infl x in
         let _ = L.rem_item infl x in
@@ -348,14 +349,14 @@ module Make0 =
           let (i,nonfresh) = X.get_index y in
           let _ = if xi <= i then HM.replace wpoint y () in
           let _ = if (V.ver>2) && xi <= i then work := H.insert (!work) y in
-          let _ = if nonfresh then () else solve y in
+          let _ = if not nonfresh then solve y in
           let _ = L.add infl y x in
           X.get_value y
 
       and side x y d =
         let yk, ynonfresh = X.get_index y in
         if X.get_key x > yk then begin
-          (* ignore @@ Pretty.printf "wrong order: %d > %d\n\n"  (X.get_key x) yk; *)
+          (* Logs.warn "wrong order: %d > %d"  (X.get_key x) yk; *)
           ()
         end;
 
@@ -368,9 +369,9 @@ module Make0 =
         in
 
         let old = XY.get_value (x,y) in
-        (* ignore @@ Pretty.printf "key: %a -> %a\nold: %a\n\nd: %a\n\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old S.Dom.pretty d; *)
+        (* Logs.debug "key: %a -> %a\nold: %a\n\nd: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old S.Dom.pretty d; *)
         let tmp = d in
-        (* ignore @@ Pretty.printf "tmp: %a\n\n"  S.Dom.pretty tmp; *)
+        (* Logs.debug "tmp: %a"  S.Dom.pretty tmp; *)
 
         if not (D.eq tmp old) then begin
           let _ = XY.set_value (x,y) tmp in
@@ -387,7 +388,7 @@ module Make0 =
         | None -> a
         | Some p ->
           let xs = P.to_list p in
-          (* ignore (Pretty.printf "%d var %a\n\n" (List.length list) S.Var.pretty_trace x); *)
+          (* Logs.debug "%d var %a" (List.length list) S.Var.pretty_trace x); *)
           List.fold_left (fun a z -> D.cup a (XY.get_value (z,x))) a xs
 
       and solve x =
@@ -447,9 +448,10 @@ module Make0 =
       let _ = loop () in
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
-        Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
-        print_newline ();
+        Logs.newline ();
+        Logs.debug "Widening points:";
+        HM.iter (fun k () -> Logs.debug "%a" S.Var.pretty_trace k) wpoint;
+        Logs.newline ();
       );
 
       X.to_list ()

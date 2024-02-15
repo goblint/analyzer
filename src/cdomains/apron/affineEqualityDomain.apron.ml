@@ -26,8 +26,6 @@ module Mpqf = struct
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
 end
 
-module V = RelationDomain.V
-
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
     Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
@@ -214,7 +212,7 @@ struct
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
     match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
+    | Some c when Mpqf.get_den c = Z.one ->
       let int_val = Mpqf.get_num c in
       Some int_val, Some int_val
     | _ -> None, None
@@ -224,7 +222,7 @@ struct
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
+       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
        | _ -> ()
     );
     res
@@ -240,7 +238,7 @@ struct
   include VarManagement (Vc) (Mx)
 
   module Bounds = ExpressionBounds (Vc) (Mx)
-
+  module V = RelationDomain.V
   module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
 
   type var = V.t
@@ -282,7 +280,7 @@ struct
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
                 ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in
       if String.starts_with res "+" then
-        String.sub res 1 (String.length res - 1)
+        Str.string_after res 1
       else
         res
     in
@@ -680,19 +678,15 @@ struct
 
   let invariant t =
     let invariant m =
-      let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
-      for i = 0 to Lincons1.array_length earray do
+      let one_constraint i =
         let row = Matrix.get_row m i in
         let coeff_vars = List.map (fun x ->  Coeff.s_of_mpqf @@ Vector.nth row (Environment.dim_of_var t.env x), x) (vars t) in
         let cst = Coeff.s_of_mpqf @@ Vector.nth row (Vector.length row - 1) in
-        Lincons1.set_list (Lincons1.array_get earray i) coeff_vars (Some cst)
-      done;
-      let {lincons0_array; array_env}: Lincons1.earray = earray in
-      Array.enum lincons0_array
-      |> Enum.map (fun (lincons0: Lincons0.t) ->
-          Lincons1.{lincons0; env = array_env}
-        )
-      |> List.of_enum
+        let e1 = Linexpr1.make t.env in
+        Linexpr1.set_list e1 coeff_vars (Some cst);
+        Lincons1.make e1 EQ
+      in
+      List.init (Matrix.num_rows m) one_constraint
     in
     BatOption.map_default invariant [] t.d
 
@@ -707,9 +701,9 @@ struct
   let unmarshal t = t
 end
 
-module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S3 with type var = Var.t =
+module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.RD with type var = Var.t =
 struct
   module D =  D (Vc) (Mx)
-  include SharedFunctions.AssertionModule (V) (D)
+  include SharedFunctions.AssertionModule (D.V) (D)
   include D
 end

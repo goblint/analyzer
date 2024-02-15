@@ -164,6 +164,7 @@ module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
+module PtranalAnalysis = PtranalAnalysis
 
 
 (** {1 Domains}
@@ -293,6 +294,7 @@ module CilMaps = CilMaps
     Various input/output interfaces and formats. *)
 
 module Messages = Messages
+module Logs = Logs
 
 (** {2 Front-end}
 
@@ -377,6 +379,7 @@ module Timeout = Timeout
 
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
+module AnsiColors = AnsiColors
 module XmlUtil = XmlUtil
 
 (** {2 CIL} *)

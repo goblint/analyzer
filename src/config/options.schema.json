@@ -1809,11 +1809,12 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
-        "verbose": {
-          "title": "dbg.verbose",
-          "description": "Prints some status information.",
-          "type": "boolean",
-          "default": false
+        "level": {
+          "title": "dbg.level",
+          "description": "Logging level.",
+          "type": "string",
+          "enum": ["debug", "info", "warning", "error", "result"],
+          "default": "info"
         },
         "timing": {
           "title": "dbg.timing",

@@ -67,6 +67,9 @@ The following libraries provide utilities which are completely independent of Go
 {2 Library goblint.tracing}
 {!modules:Goblint_tracing}
 
+{2 Library goblint.logs}
+{!modules:Goblint_logs}
+
 
 {1 Vendored}
 The following libraries are vendored in Goblint.

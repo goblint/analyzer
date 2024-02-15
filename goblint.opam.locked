@@ -132,6 +132,10 @@ post-messages: [
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
+    "goblint-cil.2.0.3"
+    "git+https://github.com/goblint/cil.git#3cb720fe333289aca998d67bd210c57a87248c51"
+  ]
+  [
     "ppx_deriving.5.2.1"
     "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
   ]

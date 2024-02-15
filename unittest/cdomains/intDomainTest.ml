@@ -82,12 +82,12 @@ struct
 
 
   let test_bit _ =
-    assert_equal ~printer:I.show iminus_one (I.bitnot izero);
-    assert_equal ~printer:I.show iminus_two (I.bitnot ione);
-    assert_equal ~printer:I.show i5   (I.bitand i5 i5);
-    assert_equal ~printer:I.show i4   (I.bitand i5 i4);
-    assert_equal ~printer:I.show i5   (I.bitor  i4 ione);
-    assert_equal ~printer:I.show ione (I.bitxor i4 i5);
+    assert_equal ~printer:I.show iminus_one (I.lognot izero);
+    assert_equal ~printer:I.show iminus_two (I.lognot ione);
+    assert_equal ~printer:I.show i5   (I.logand i5 i5);
+    assert_equal ~printer:I.show i4   (I.logand i5 i4);
+    assert_equal ~printer:I.show i5   (I.logor  i4 ione);
+    assert_equal ~printer:I.show ione (I.logxor i4 i5);
     assert_equal ~printer:I.show itwo (I.shift_left  ione ione );
     assert_equal ~printer:I.show ione (I.shift_left  ione izero);
     assert_equal ~printer:I.show ione (I.shift_right itwo ione);
@@ -110,7 +110,7 @@ end
 
 module Ikind = struct let ikind () = Cil.ILong end
 module A = IntTest (IntDomain.Integers (IntOps.BigIntOps))
-module B = IntTest (IntDomain.FlattenedBI)
+module B = IntTest (IntDomain.Flat (IntDomain.Integers (IntOps.BigIntOps)))
 module C = IntTest (IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind))
 module T = struct
   include IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
