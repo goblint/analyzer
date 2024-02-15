@@ -278,7 +278,6 @@ struct
   let to_yojson _ = failwith "ToDo Implement in future"
 
   let is_bot t = equal t (bot ())
-  let is_bot_env t = t.d = None
 
   (* this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities *)
   let top_of env = {d = Some (EArray.make_empty_array (Environment.size env)); env = env}
@@ -417,22 +416,19 @@ struct
       List.iter iterate new_components; Some ad
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
-    if is_bot_env a then 
-      b
-    else if is_bot_env b then 
-      a
-    else
-      match Option.get a.d, Option.get b.d with
-      | x, y when is_top a || is_top b -> 
+      match a.d, b.d with
+      | None, _ -> b
+      | _, None -> a
+      | Some x, Some y when is_top a || is_top b -> 
         let new_env = Environment.lce a.env b.env in 
         top_of new_env
-      | x, y when (Environment.compare a.env b.env <> 0) ->
+      | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
         {d = join_d mod_x mod_y; env = sup_env}
-      | x, y when EArray.equal x y -> {d = Some x; env = a.env}
-      | x, y  -> {d = join_d x y; env = a.env}
+      | Some x, Some y when EArray.equal x y -> {d = Some x; env = a.env}
+      | Some x, Some y  -> {d = join_d x y; env = a.env}
 
   let join a b = timing_wrap "join" (join a) b
 
@@ -601,7 +597,7 @@ struct
   *)
   let meet_tcons ask t tcons original_expr no_ov =
     match t.d with
-    | None -> bot_env (* same as is_bot_env t *)
+    | None -> t
     | Some d ->
       match simplified_monomials_from_texp t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
       | None -> t
