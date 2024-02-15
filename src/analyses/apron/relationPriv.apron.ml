@@ -590,11 +590,6 @@ struct
     )
     else (
       (* Publish delayed unprotected write as if it were protected by the atomic section. *)
-      (* List.iter (fun var ->
-          match AV.find_metadata var with
-          | Some (Global g) -> sideg (V.mutex atomic_mutex) (RD.keep_vars rel [AV.global g])
-          | _ -> ()
-        ) (RD.vars rel); *)
       let rel_side = RD.keep_filter rel (fun var ->
           match AV.find_metadata var with
           | Some (Global g) -> true
