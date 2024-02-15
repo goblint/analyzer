@@ -1757,10 +1757,10 @@ struct
     in
     PP.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in
-    let k2 = Set.of_enum @@ PP.keys h2 in
-    let o1 = Set.cardinal @@ Set.diff k1 k2 in
-    let o2 = Set.cardinal @@ Set.diff k2 k1 in
-    Logs.info "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d" !eq !le o1 !gr o2 !uk *)
+       let k2 = Set.of_enum @@ PP.keys h2 in
+       let o1 = Set.cardinal @@ Set.diff k1 k2 in
+       let o2 = Set.cardinal @@ Set.diff k2 k1 in
+       Logs.info "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d" !eq !le o1 !gr o2 !uk *)
     Logs.info "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =

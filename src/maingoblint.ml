@@ -546,8 +546,7 @@ let do_analyze change_info merged_AST =
     Logs.debug "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
-    Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a"
-                                             L.pretty stf L.pretty exf L.pretty otf;
+    Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a" L.pretty stf L.pretty exf L.pretty otf;
     (* and here we run the analysis! *)
 
     let control_analyze ast funs =
