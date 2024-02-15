@@ -172,8 +172,11 @@ let make ?(input=stdin) ?(output=stdout) file : t =
   }
 
 let bind () =
-  let mode = GobConfig.get_string "server.mode" in
-  if mode = "stdio" then None, None else (
+  match GobConfig.get_string "server.mode" with
+  | "stdio" ->
+    Logs.Result.use_stdout := false;
+    (None, None)
+  | "unix" ->
     let path = GobConfig.get_string "server.unix-socket" in
     if Sys.file_exists path then
       Sys.remove path;
@@ -183,7 +186,8 @@ let bind () =
     let conn, _ = Unix.accept socket in
     Unix.close socket;
     Sys.remove path;
-    Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
+    (Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
+  | _ -> assert false
 
 let start file =
   let input, output = bind () in

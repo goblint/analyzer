@@ -132,7 +132,7 @@ struct
 
     module G =
     struct
-      include Lattice.Lift2 (GProtecting) (GProtected) (Printable.DefaultNames)
+      include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GProtecting) (GProtected)
 
       let protecting = function
         | `Bot -> GProtecting.bot ()
@@ -229,7 +229,7 @@ struct
       let mutex_lockset = Lockset.export_locks @@ Lockset.singleton (mutex, true) in
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
-      (* if LockDomain.Addr.equal mutex verifier_atomic then
+      (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
         true
       else *)
       Mutexes.leq mutex_lockset protecting

@@ -2,6 +2,8 @@ open Goblint_lib
 open OUnit2
 open GoblintCil
 open Pretty
+open ConstrSys
+open Goblint_solver
 
 (* variables are strings *)
 module StringVar =
@@ -43,7 +45,7 @@ module ConstrSys = struct
     | _   -> None
 
   let iter_vars _ _ _ _ _ = ()
-  let sys_change _ _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
+  let sys_change _ _ = {obsolete = []; delete = []; reluctant = []; restart = []}
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)
@@ -55,7 +57,7 @@ struct
   let should_warn = false
   let should_save_run = false
 end
-module Solver = Constraints.GlobSolverFromEqSolver (Constraints.EqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
+module Solver = GlobSolverFromEqSolver (PostSolver.EqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
 
 let test1 _ =
   let id x = x in

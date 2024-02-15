@@ -24,8 +24,8 @@ sig
   val of_int: int -> t
   val zero: t
   val one: t
-  val get_den: t -> IntOps.BigIntOps.t
-  val get_num: t -> IntOps.BigIntOps.t
+  val get_den: t -> Z.t
+  val get_num: t -> Z.t
 end
 
 (** It provides more readable infix operators for the functions of RatOps.
@@ -251,12 +251,14 @@ module ArrayVector: AbstractVector =
 
     let nth = Array.get
 
-    let map2i f v1 v2 = let f' i (v'1, v'2) = f i v'1 v'2 in Array.mapi f' (Array.combine v1 v2) (* TODO: iter2i? *)
+    let map2i f v1 v2 =
+      let f' i = uncurry (f i) in
+      Array.mapi f' (Array.combine v1 v2) (* TODO: iter2i? *)
 
     let map2i_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f i x y) v1 v2
 
-    let find2i f v1 v2 = let f' (v'1, v'2) = f v'1 v'2 in
-      Array.findi f' (Array.combine v1 v2) (* TODO: iter2i? *)
+    let find2i f v1 v2 =
+      Array.findi (uncurry f) (Array.combine v1 v2) (* TODO: iter2i? *)
 
     let to_array v = v
 

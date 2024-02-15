@@ -5,6 +5,7 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
+open ConstrSys
 open GobConfig
 
 module M = Messages
@@ -501,38 +502,6 @@ sig
   val increment: increment_data option
 end
 
-(** Combined variables so that we can also use the more common [EqConstrSys]
-    that uses only one kind of a variable. *)
-module Var2 (LV:VarType) (GV:VarType)
-  : VarType
-    with type t = [ `L of LV.t  | `G of GV.t ]
-=
-struct
-  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord, hash]
-  let relift = function
-    | `L x -> `L (LV.relift x)
-    | `G x -> `G (GV.relift x)
-
-  let pretty_trace () = function
-    | `L a -> Pretty.dprintf "L:%a" LV.pretty_trace a
-    | `G a -> Pretty.dprintf "G:%a" GV.pretty_trace a
-
-  let printXml f = function
-    | `L a -> LV.printXml f a
-    | `G a -> GV.printXml f a
-
-  let var_id = function
-    | `L a -> LV.var_id a
-    | `G a -> GV.var_id a
-
-  let node = function
-    | `L a -> LV.node a
-    | `G a -> GV.node a
-
-  let is_write_only = function
-    | `L a -> LV.is_write_only a
-    | `G a -> GV.is_write_only a
-end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
@@ -789,7 +758,7 @@ struct
         None
     in
     let funs = List.filter_map one_function functions in
-    if [] = funs then begin
+    if [] = funs && not (S.D.is_bot ctx.local) then begin
       M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
       M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
@@ -930,25 +899,25 @@ struct
       | Some {changes; _} -> changes
       | None -> empty_change_info ()
     in
-    List.(Printf.printf "change_info = { unchanged = %d; changed = %d (with unchangedHeader = %d); added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (BatList.count_matching (fun c -> c.unchangedHeader) c.changed) (length c.added) (length c.removed));
+    List.(Logs.info "change_info = { unchanged = %d; changed = %d (with unchangedHeader = %d); added = %d; removed = %d }" (length c.unchanged) (length c.changed) (BatList.count_matching (fun c -> c.unchangedHeader) c.changed) (length c.added) (length c.removed));
 
     let changed_funs = List.filter_map (function
         | {old = {def = Some (Fun f); _}; diff = None; _} ->
-          print_endline ("Completely changed function: " ^ f.svar.vname);
+          Logs.info "Completely changed function: %s" f.svar.vname;
           Some f
         | _ -> None
       ) c.changed
     in
     let part_changed_funs = List.filter_map (function
         | {old = {def = Some (Fun f); _}; diff = Some nd; _} ->
-          print_endline ("Partially changed function: " ^ f.svar.vname);
+          Logs.info "Partially changed function: %s" f.svar.vname;
           Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
         | _ -> None
       ) c.changed
     in
     let removed_funs = List.filter_map (function
         | {def = Some (Fun f); _} ->
-          print_endline ("Removed function: " ^ f.svar.vname);
+          Logs.info "Removed function: %s" f.svar.vname;
           Some f
         | _ -> None
       ) c.removed
@@ -1052,137 +1021,6 @@ struct
 
     {obsolete; delete; reluctant; restart}
 end
-
-(** Convert a non-incremental solver into an "incremental" solver.
-    It will solve from scratch, perform standard postsolving and have no marshal data. *)
-module EqIncrSolverFromEqSolver (Sol: GenericEqSolver): GenericEqIncrSolver =
-  functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  struct
-    module Sol = Sol (S) (VH)
-    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
-
-    type marshal = unit
-    let copy_marshal () = ()
-    let relift_marshal () = ()
-
-    let solve xs vs _ =
-      let vh = Sol.solve xs vs in
-      Post.post xs vs vh;
-      (vh, ())
-  end
-
-
-(** Translate a [GlobConstrSys] into a [EqConstrSys] *)
-module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
-  : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
-                   and type d = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames).t
-                   and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
-=
-struct
-  module Var = Var2(S.LVar)(S.GVar)
-  module Dom =
-  struct
-    include Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
-    let printXml f = function
-      | `Lifted1 a -> S.G.printXml f a
-      | `Lifted2 a -> S.D.printXml f a
-      | (`Bot | `Top) as x -> printXml f x
-  end
-  type v = Var.t
-  type d = Dom.t
-
-  let getG = function
-    | `Lifted1 x -> x
-    | `Bot -> S.G.bot ()
-    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has top value"
-    | `Lifted2 _ -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has local value"
-
-  let getL = function
-    | `Lifted2 x -> x
-    | `Bot -> S.D.bot ()
-    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has top value"
-    | `Lifted1 _ -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has global value"
-
-  let l, g = (fun x -> `L x), (fun x -> `G x)
-  let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
-
-  let conv f get set =
-    f (getL % get % l) (fun x v -> set (l x) (lD v))
-      (getG % get % g) (fun x v -> set (g x) (gD v))
-    |> lD
-
-  let system = function
-    | `G _ -> None
-    | `L x -> Option.map conv (S.system x)
-
-  let sys_change get =
-    S.sys_change (getL % get % l) (getG % get % g)
-end
-
-(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)
-module GlobConstrSolFromEqConstrSolBase (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) (VH: Hashtbl.S with type key = Var2 (S.LVar) (S.GVar).t) =
-struct
-  let split_solution hm =
-    let l' = LH.create 113 in
-    let g' = GH.create 113 in
-    let split_vars x d = match x with
-      | `L x ->
-        begin match d with
-          | `Lifted2 d -> LH.replace l' x d
-          (* | `Bot -> () *)
-          (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
-            This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
-          | `Bot -> LH.replace l' x (S.D.bot ())
-          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has top value"
-          | `Lifted1 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has global value"
-        end
-      | `G x ->
-        begin match d with
-          | `Lifted1 d -> GH.replace g' x d
-          | `Bot -> ()
-          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has top value"
-          | `Lifted2 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has local value"
-        end
-    in
-    VH.iter split_vars hm;
-    (l', g')
-end
-
-(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution. *)
-module GlobConstrSolFromEqConstrSol (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) =
-struct
-  module S2 = EqConstrSysFromGlobConstrSys (S)
-  module VH = Hashtbl.Make (S2.Var)
-
-  include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
-end
-
-(** Transforms a [GenericEqIncrSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
-  = functor (S:GlobConstrSys) ->
-    functor (LH:Hashtbl.S with type key=S.LVar.t) ->
-    functor (GH:Hashtbl.S with type key=S.GVar.t) ->
-    struct
-      module EqSys = EqConstrSysFromGlobConstrSys (S)
-
-      module VH : Hashtbl.S with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
-      module Sol' = Sol (EqSys) (VH)
-
-      module Splitter = GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH) (* reuse EqSys and VH *)
-
-      type marshal = Sol'.marshal
-
-      let copy_marshal = Sol'.copy_marshal
-      let relift_marshal = Sol'.relift_marshal
-
-      let solve ls gs l old_data =
-        let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
-                 @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
-        let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve vs sv old_data in
-        Splitter.split_solution hm, solver_data
-    end
 
 
 (** Add path sensitivity to a analysis *)
@@ -1338,7 +1176,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (S.V) (Node)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (S.V) (Node)
     let name () = "DeadBranch"
     let s x = `Left x
     let node x = `Right x
@@ -1355,7 +1193,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (EM)
     let name () = "deadbranch"
 
     let s = function
@@ -1472,7 +1310,7 @@ struct
 
   module V =
   struct
-    include Printable.Either3 (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
+    include Printable.Either3Conf (struct let expand1 = false let expand2 = true let expand3 = true end) (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
     let name () = "longjmp"
     let s x = `Left x
     let longjmpto x = `Middle x
@@ -1484,7 +1322,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (S.D) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (S.D)
 
     let s = function
       | `Bot -> S.G.bot ()
@@ -1737,7 +1575,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (G) (CallerSet) (Printable.DefaultNames)
+    include Lattice.Lift2 (G) (CallerSet)
 
     let spec = function
       | `Bot -> G.bot ()
@@ -1875,27 +1713,27 @@ struct
         f_eq ()
       else if b1 then begin
         if get_bool "dbg.compare_runs.diff" then
-          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
+          Logs.info "Global %a is more precise using left:\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1);
         f_le ()
       end else if b2 then begin
         if get_bool "dbg.compare_runs.diff" then
-          ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
+          Logs.info "Global %a is more precise using right:\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2);
         f_gr ()
       end else begin
         if get_bool "dbg.compare_runs.diff" then (
-          ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
-          ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
+          Logs.info "Global %a is incomparable (diff):\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2);
+          Logs.info "Global %a is incomparable (reverse diff):\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1);
         );
         f_uk ()
       end
     in
     GH.iter f g1;
-    Printf.printf "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
+    Logs.info "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
   let compare_locals h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
     let f k v1 =
-      if not (PP.mem h2 k) then () else
+      if PP.mem h2 k then
         let v2 = PP.find h2 k in
         let b1 = D.leq v1 v2 in
         let b2 = D.leq v2 v1 in
@@ -1903,27 +1741,27 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
+            Logs.info "%a @@ %a is more precise using left:\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1);
           incr le
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
+            Logs.info "%a @@ %a is more precise using right:\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2);
           incr gr
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
-            ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
+            Logs.info "%a @@ %a is incomparable (diff):\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2);
+            Logs.info "%a @@ %a is incomparable (reverse diff):\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1);
           );
           incr uk
         end
     in
     PP.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in
-    let k2 = Set.of_enum @@ PP.keys h2 in
-    let o1 = Set.cardinal @@ Set.diff k1 k2 in
-    let o2 = Set.cardinal @@ Set.diff k2 k1 in
-    Printf.printf "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d\n" !eq !le o1 !gr o2 !uk *)
-    Printf.printf "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
+       let k2 = Set.of_enum @@ PP.keys h2 in
+       let o1 = Set.cardinal @@ Set.diff k1 k2 in
+       let o2 = Set.cardinal @@ Set.diff k2 k1 in
+       Logs.info "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d" !eq !le o1 !gr o2 !uk *)
+    Logs.info "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =
     let eq, le, gr, uk, no2, no1 = ref 0, ref 0, ref 0, ref 0, ref 0, ref 0 in
@@ -1940,16 +1778,16 @@ struct
           f_eq ()
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a is more precise using left:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
+            Logs.info "%a is more precise using left:\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1);
           f_le ()
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
+            Logs.info "%a is more precise using right:\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2);
           f_gr ()
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
-            ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
+            Logs.info "%a is incomparable (diff):\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2);
+            Logs.info "%a is incomparable (reverse diff):\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1);
           );
           f_uk ()
         end
@@ -1963,7 +1801,7 @@ struct
     (* let k2 = Set.of_enum @@ PP.keys h2 in *)
     (* let o1 = Set.cardinal @@ Set.diff k1 k2 in *)
     (* let o2 = Set.cardinal @@ Set.diff k2 k1 in *)
-    Printf.printf "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\tno_ctx_in_left = %d\n" !eq !le !gr !uk !no2 !no1
+    Logs.info "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\tno_ctx_in_left = %d" !eq !le !gr !uk !no2 !no1
 
   let compare (name1,name2) (l1,g1) (l2,g2) =
     let one_ctx (n,_) v h =
@@ -1975,11 +1813,12 @@ struct
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    Printf.printf "\nComparing GlobConstrSys precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing GlobConstrSys precision of %s (left) with %s (right):" name1 name2;
     compare_globals g1 g2;
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
-    print_newline ();
+    Logs.newline ();
 end
 
 module CompareHashtbl (Var: VarType) (Dom: Lattice.S) (VH: Hashtbl.S with type key = Var.t) =
@@ -2007,11 +1846,12 @@ struct
   module Compare = CompareHashtbl (Sys.Var) (Sys.Dom) (VH)
 
   let compare (name1, name2) vh1 vh2 =
-    Printf.printf "\nComparing EqConstrSys precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing EqConstrSys precision of %s (left) with %s (right):" name1 name2;
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
-    ignore (Pretty.printf "EqConstrSys comparison summary: %t\n" (fun () -> msg));
-    print_newline ();
+    Logs.info "EqConstrSys comparison summary: %t" (fun () -> msg);
+    Logs.newline ();
 end
 
 module CompareGlobal (GVar: VarType) (G: Lattice.S) (GH: Hashtbl.S with type key = GVar.t) =
@@ -2019,11 +1859,12 @@ struct
   module Compare = CompareHashtbl (GVar) (G) (GH)
 
   let compare (name1, name2) vh1 vh2 =
-    Printf.printf "\nComparing globals precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing globals precision of %s (left) with %s (right):" name1 name2;
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
-    ignore (Pretty.printf "Globals comparison summary: %t\n" (fun () -> msg));
-    print_newline ();
+    Logs.info "Globals comparison summary: %t" (fun () -> msg);
+    Logs.newline ();
 end
 
 module CompareNode (C: Printable.S) (D: Lattice.S) (LH: Hashtbl.S with type key = VarF (C).t) =
@@ -2048,37 +1889,12 @@ struct
     nh
 
   let compare (name1, name2) vh1 vh2 =
-    Printf.printf "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing nodes precision of %s (left) with %s (right):" name1 name2;
     let vh1' = join_contexts vh1 in
     let vh2' = join_contexts vh2 in
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
-    ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
-    print_newline ();
-end
-
-(** [EqConstrSys] where [current_var] indicates the variable whose right-hand side is currently being evaluated. *)
-module CurrentVarEqConstrSys (S: EqConstrSys) =
-struct
-  let current_var = ref None
-
-  module S =
-  struct
-    include S
-
-    let system x =
-      match S.system x with
-      | None -> None
-      | Some f ->
-        let f' get set =
-          let old_current_var = !current_var in
-          current_var := Some x;
-          Fun.protect ~finally:(fun () ->
-              current_var := old_current_var
-            ) (fun () ->
-              f get set
-            )
-        in
-        Some f'
-  end
+    Logs.info "Nodes comparison summary: %t" (fun () -> msg);
+    Logs.newline ();
 end

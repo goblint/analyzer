@@ -53,9 +53,10 @@ type special =
   | Assert of { exp: Cil.exp; check: bool; refine: bool; }
   | Lock of { lock: Cil.exp; try_: bool; write: bool; return_on_success: bool; }
   | Unlock of Cil.exp
-  | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
+  | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; multiple: bool }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | ThreadExit of { ret_val: Cil.exp; }
+  | Globalize of Cil.exp
   | Signal of Cil.exp
   | Broadcast of Cil.exp
   | MutexAttrSetType of { attr:Cil.exp; typ: Cil.exp; }
@@ -184,7 +185,8 @@ module MathPrintable = struct
     )
 end
 
-module MathLifted = Lattice.Flat (MathPrintable) (struct
+module MathLifted = Lattice.FlatConf (struct
+    include Printable.DefaultConf
     let top_name = "Unknown or no math desc"
     let bot_name = "Nonexistent math desc"
-  end)
+  end) (MathPrintable)

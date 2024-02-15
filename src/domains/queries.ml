@@ -17,26 +17,17 @@ module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
 module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
 module ML = LibraryDesc.MathLifted
 
-module VI = Lattice.Flat (Basetype.Variables) (struct
-    let top_name = "Unknown line"
-    let bot_name = "Unreachable line"
-  end)
+module VI = Lattice.Flat (Basetype.Variables)
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
 let compare_itervar _ _ = 0
 let compare_iterprevvar _ _ = 0
 
-module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
-    let top_name = "top yojson"
-    let bot_name = "bot yojson"
-  end)
+module FlatYojson = Lattice.Flat (Printable.Yojson)
 
 module SD: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
-  Lattice.Flat (Basetype.RawStrings) (struct
-    let top_name = "?"
-    let bot_name = "-"
-  end)
+  Lattice.Flat (Basetype.RawStrings)
 module VD = ValueDomain.Compound
 module AD = ValueDomain.AD
 
@@ -143,7 +134,7 @@ type 'a result = 'a
     Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
 (* Must be in a singleton record due to second-order polymorphism.
    See https://ocaml.org/manual/polymorphism.html#s%3Ahigher-rank-poly. *)
-type ask = { f: 'a. 'a t -> 'a result }
+type ask = { f: 'a. 'a t -> 'a result } [@@unboxed]
 
 (* Result cannot implement Lattice.S because the function types are different due to GADT. *)
 module Result =
@@ -276,7 +267,7 @@ end
 
 (* The type any_query can't be directly defined in Any as t,
    because it also refers to the t from the outer scope. *)
-type any_query = Any: 'a t -> any_query
+type any_query = Any: 'a t -> any_query [@@unboxed]
 
 module Any =
 struct

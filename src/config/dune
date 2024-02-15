@@ -7,6 +7,7 @@
  (libraries
    batteries.unthreaded
    goblint_std
+   goblint_logs
    goblint_tracing
    fpath
    yojson
@@ -14,10 +15,11 @@
    cpu
    goblint.sites
    qcheck-core.runner)
- (flags :standard -open Goblint_std)
+ (flags :standard -open Goblint_std -open Goblint_logs)
  (preprocess
   (pps
     ppx_blob))
- (preprocessor_deps (file options.schema.json)))
+ (preprocessor_deps (file options.schema.json))
+ (instrumentation (backend bisect_ppx)))
 
 (documentation)

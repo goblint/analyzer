@@ -8,15 +8,17 @@
    batteries.unthreaded
    zarith
    goblint_std
+   goblint_logs
    goblint_config
    goblint_common
    goblint-cil
    fpath)
- (flags :standard -open Goblint_std)
+ (flags :standard -open Goblint_std -open Goblint_logs)
  (preprocess
   (pps
     ppx_deriving.std
     ppx_deriving_hash
-    ppx_deriving_yojson)))
+    ppx_deriving_yojson))
+ (instrumentation (backend bisect_ppx)))
 
 (documentation)

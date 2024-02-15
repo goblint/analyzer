@@ -16,6 +16,7 @@ CfgTools
 {2 Specification}
 {!modules:
 AnalysisState
+AnalysisStateUtil
 ControlSpecC
 }
 
@@ -42,6 +43,7 @@ Messages
 
 {2 General}
 {!modules:
+IntOps
 LazyEval
 ResettableLazy
 MessageUtil
@@ -53,6 +55,11 @@ XmlUtil
 CilType
 Cilfacade
 RichVarinfo
+}
+
+{2 Analysis-specific}
+{!modules:
+ContextUtil
 }
 
 

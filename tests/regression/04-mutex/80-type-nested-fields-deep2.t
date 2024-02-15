@@ -18,9 +18,9 @@
   [Info][Unsound] Write to unknown address: privatization is unsound. (80-type-nested-fields-deep2.c:36:3-36:22)
   [Info][Unsound] Write to unknown address: privatization is unsound. (80-type-nested-fields-deep2.c:43:3-43:24)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (80-type-nested-fields-deep2.c:36:3-36:22)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (80-type-nested-fields-deep2.c:36:3-36:22)
+  [Info][Imprecise] Invalidating expressions: & tmp (80-type-nested-fields-deep2.c:36:3-36:22)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (80-type-nested-fields-deep2.c:43:3-43:24)
-  [Info][Imprecise] Invalidating expressions: AddrOf(Var(tmp, NoOffset)) (80-type-nested-fields-deep2.c:43:3-43:24)
+  [Info][Imprecise] Invalidating expressions: & tmp (80-type-nested-fields-deep2.c:43:3-43:24)
   [Error][Imprecise][Unsound] Function definition missing for getT (80-type-nested-fields-deep2.c:36:3-36:22)
   [Error][Imprecise][Unsound] Function definition missing for getU (80-type-nested-fields-deep2.c:43:3-43:24)
   [Error][Imprecise][Unsound] Function definition missing

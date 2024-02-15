@@ -31,7 +31,7 @@ struct
 
   module N =
   struct
-    include Lattice.Flat (VNI) (struct let bot_name = "unknown node" let top_name = "unknown node" end)
+    include Lattice.FlatConf (struct include Printable.DefaultConf let bot_name = "unknown node" let top_name = "unknown node" end) (VNI)
     let name () = "wrapper call"
   end
   module TD = Thread.D
@@ -175,12 +175,9 @@ struct
     let non_uniques = List.filter_map (fun (a,b) -> if not (Thread.is_unique a) then Some a else None) tids in
     let uc = List.length uniques in
     let nc = List.length non_uniques in
-    Printf.printf "Encountered number of thread IDs (unique): %i (%i)\n" (uc+nc) uc;
-    Printf.printf "unique: ";
-    List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) uniques;
-    Printf.printf "\nnon-unique: ";
-    List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) non_uniques;
-    Printf.printf "\n"
+    M.debug_noloc ~category:Analyzer "Encountered number of thread IDs (unique): %i (%i)" (uc+nc) uc;
+    M.msg_group Debug ~category:Analyzer "Unique TIDs" (List.map (fun tid -> (Thread.pretty () tid, None)) uniques);
+    M.msg_group Debug ~category:Analyzer "Non-unique TIDs" (List.map (fun tid -> (Thread.pretty () tid, None)) non_uniques)
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();
