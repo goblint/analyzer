@@ -102,6 +102,19 @@ struct
     NH.mem loop_heads n && not (is_stub_node n)
 end
 
+module YamlInvariantValidate (FileCfg: MyCFG.FileCfg) =
+struct
+  include Invariant (FileCfg)
+
+  (* TODO: filter synthetic?
+
+     Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
+     Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
+     I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
+
+  let is_loop_head_node = NH.mem loop_heads
+end
+
 module InvariantExp =
 struct
   module ES = SetDomain.Make (CilType.Exp)

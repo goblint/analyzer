@@ -48,18 +48,16 @@ struct
       let file = !Cilfacade.current_file
       module Cfg = (val !MyCFG.current_cfg)
     end  in
-    let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
+    let module WitnessInvariant = WitnessUtil.YamlInvariantValidate (FileCfg) in
 
     (* DFS, copied from CfgTools.find_backwards_reachable *)
     let reachable = NH.create 100 in
     let rec iter_node node =
       if not (NH.mem reachable node) then begin
         NH.replace reachable node ();
-        (* TODO: filter synthetic?
-           See YamlWitness. *)
         if WitnessInvariant.is_invariant_node node then
           Locator.add locator (Node.location node) node;
-        if WitnessUtil.NH.mem WitnessInvariant.loop_heads node then
+        if WitnessInvariant.is_loop_head_node node then
           Locator.add loop_locator (Node.location node) node;
         List.iter (fun (_, prev_node) ->
             iter_node prev_node
