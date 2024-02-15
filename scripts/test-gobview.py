@@ -24,7 +24,7 @@ def cleanup(browser, thread):
 # serve GobView in different thread so it does not block the testing
 def serve():
   global p
-  goblint_http_path = './goblint-http'
+  goblint_http_path = './goblint_http.exe'
   p = subprocess.Popen([goblint_http_path,
                   '-with-goblint', '../analyzer/goblint',
                   '-goblint', '--set', 'files[+]', '"../analyzer/tests/regression/00-sanity/01-assert.c"'])

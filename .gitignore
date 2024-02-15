@@ -10,7 +10,7 @@ goblint
 goblint.byte
 goblint.json
 goblint.domaintest
-goblint-http
+goblint_http.exe
 src/config*.ml
 tests/bench.txt
 .DS_Store
