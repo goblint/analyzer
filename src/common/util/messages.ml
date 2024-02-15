@@ -61,10 +61,12 @@ end
 
 module Piece =
 struct
+  let context_to_yojson context = `Assoc [("tag", `Int (ControlSpecC.tag context))]
+
   type t = {
     loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (ControlSpecC.t [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
+    context: (ControlSpecC.t [@to_yojson context_to_yojson] [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
   } [@@deriving eq, ord, hash, yojson]
 
   let text_with_context {text; context; _} =
