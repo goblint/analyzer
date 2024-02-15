@@ -1,4 +1,4 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic
+// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-atomic --set ana.base.privatization none
 #include <pthread.h>
 #include <goblint.h>
 

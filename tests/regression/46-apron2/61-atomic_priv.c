@@ -1,20 +1,20 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic
+// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-atomic --set ana.base.privatization none
 #include <pthread.h>
 #include <goblint.h>
 
+extern void __VERIFIER_atomic_begin();
+extern void __VERIFIER_atomic_end();
+
 int myglobal = 5;
 
-// atomic by function name prefix
-void __VERIFIER_atomic_fun() {
+void *t_fun(void *arg) {
+  __VERIFIER_atomic_begin();
   __goblint_check(myglobal == 5);
   myglobal++;
   __goblint_check(myglobal == 6);
   myglobal--;
   __goblint_check(myglobal == 5);
-}
-
-void *t_fun(void *arg) {
-  __VERIFIER_atomic_fun();
+  __VERIFIER_atomic_end();
   return NULL;
 }
 
