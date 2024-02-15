@@ -1379,7 +1379,9 @@ struct
           JmpBufDomain.JmpBufSet.top ()
       end
     | Q.EvalInt e ->
-      query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+      let r = query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+      M.tracel "eval_int_base" "%a yields %a\n" CilType.Exp.pretty e Queries.ID.pretty r;
+      r
     | Q.EvalMutexAttr e -> begin
         let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -2994,9 +2996,11 @@ struct
           ) dir_reachable_abs;
       ) combined;
 
+    let caller_is_modular = ctx.ask IsModular in
+
     (* Add globals *)
     let add_global_to_queue (g: varinfo) =
-      let a_c = Addr.of_var ~is_modular:false g in
+      let a_c = Addr.of_var ~is_modular:caller_is_modular g in
       let a = Addr.of_var ~is_modular:true g in
 
       Queue.add (a_c, a) queue;
@@ -3120,8 +3124,9 @@ struct
     let callee_globals = UsedGlobals.get_used_globals f_ask in
     let params = f.sformals in
     let reachable = collect_targets_with_graph ctx write_graph args params callee_globals (AD.bot ()) in
-    let value = ModularUtil.ValueDomainExtension.map_back value ~reachable in
-    value
+    let new_value = ModularUtil.ValueDomainExtension.map_back value ~reachable in
+    M.tracel "translate_callee_value_back" "reachable: %a\nGraph: %a\nOriginal_value: %a\n new_value:%a\n" AD.pretty reachable Graph.pretty write_graph VD.pretty value VD.pretty new_value;
+    new_value
 
   let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
