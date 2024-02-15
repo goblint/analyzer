@@ -677,7 +677,7 @@ struct
     if P.mem x st.priv then
       CPA.find x st.cpa
     else if Param.handle_atomic && ask.f MustBeAtomic then
-      VD.join (CPA.find x st.cpa) (getg (V.unprotected x))
+      VD.join (CPA.find x st.cpa) (getg (V.unprotected x)) (* Account for previous unpublished unprotected writes in current atomic section. *)
     else if is_unprotected ask x then
       getg (V.unprotected x) (* CPA unnecessary because all values in GUnprot anyway *)
     else
@@ -686,13 +686,13 @@ struct
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     if not invariant then (
       if not (Param.handle_atomic && ask.f MustBeAtomic) then
-        sideg (V.unprotected x) v;
+        sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
         sideg (V.protected x) v
         (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
     );
     if Param.handle_atomic && ask.f MustBeAtomic then
-      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
+      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv} (* Keep write local as if it were protected by the atomic section. *)
     else if is_unprotected ask x then
       st
     else
@@ -711,7 +711,7 @@ struct
           if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
             sideg (V.protected x) v;
           if atomic then
-            sideg (V.unprotected x) v;
+            sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
 
           if is_unprotected_without ask x m then (* is_in_V' *)
             {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
@@ -1790,9 +1790,9 @@ let priv_module: (module S) Lazy.t =
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = false end))
-        | "protection-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = true end))
+        | "protection-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = true end)) (* experimental *)
         | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = false end))
-        | "protection-read-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = true end))
+        | "protection-read-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = true end)) (* experimental *)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))

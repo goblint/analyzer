@@ -481,6 +481,7 @@ struct
     let g_var = AV.global g in
     let get_mutex_global_g =
       if Param.handle_atomic then (
+        (* Unprotected invariant is one big relation. *)
         RD.keep_vars (getg (V.mutex atomic_mutex)) [g_var]
       )
       else
@@ -491,6 +492,7 @@ struct
     RD.join get_mutex_global_g get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits_atomic ask getg =
+    (* Unprotected invariant is one big relation. *)
     let get_mutex_global_g = getg (V.mutex atomic_mutex) in
     let get_mutex_inits = getg V.mutex_inits in
     RD.join get_mutex_global_g get_mutex_inits
@@ -501,9 +503,9 @@ struct
     (* lock *)
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
-        rel
+        rel (* Read previous unpublished unprotected write in current atomic section. *)
       else if atomic then
-        RD.meet rel (get_mutex_global_g_with_mutex_inits_atomic ask getg)
+        RD.meet rel (get_mutex_global_g_with_mutex_inits_atomic ask getg) (* Read unprotected invariant as full relation. *)
       else
         RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
     in
@@ -523,7 +525,7 @@ struct
       rel_local'
     )
     else
-      rel_local
+      rel_local (* Keep write local as if it were protected by the atomic section. *)
 
   let write_global ?(invariant=false) (ask: Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
@@ -531,9 +533,9 @@ struct
     (* lock *)
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
-        rel
+        rel (* Read previous unpublished unprotected write in current atomic section. *)
       else if atomic then
-        RD.meet rel (get_mutex_global_g_with_mutex_inits_atomic ask getg)
+        RD.meet rel (get_mutex_global_g_with_mutex_inits_atomic ask getg) (* Read unprotected invariant as full relation. *)
       else
         RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g)
     in
@@ -546,7 +548,7 @@ struct
     if not atomic then (
       let rel_side = RD.keep_vars rel_local [g_var] in
       if Param.handle_atomic then
-        sideg (V.mutex atomic_mutex) rel_side
+        sideg (V.mutex atomic_mutex) rel_side (* Unprotected invariant is one big relation. *)
       else
         sideg (V.global g) rel_side;
       let rel_local' =
@@ -558,7 +560,8 @@ struct
       {st with rel = rel_local'}
     )
     else
-      {st with rel = rel_local}
+      (* Delay publishing unprotected write in the atomic section. *)
+      {st with rel = rel_local} (* Keep write local as if it were protected by the atomic section. *)
 
 
   let lock ask getg (st: relation_components_t) m =
@@ -573,6 +576,7 @@ struct
       {st with rel = rel'}
     )
     else
+      (* Atomic section locking is recursive. *)
       st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
@@ -585,6 +589,7 @@ struct
       {st with rel = rel_local}
     )
     else (
+      (* Publish delayed unprotected write as if it were protected by the atomic section. *)
       (* List.iter (fun var ->
           match AV.find_metadata var with
           | Some (Global g) -> sideg (V.mutex atomic_mutex) (RD.keep_vars rel [AV.global g])
@@ -596,6 +601,7 @@ struct
           | _ -> false
         )
       in
+      (* Unprotected invariant is one big relation. *)
       sideg (V.mutex atomic_mutex) rel_side;
       let rel_local =
         let newly_unprot var = match AV.find_metadata var with
@@ -958,6 +964,7 @@ struct
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let get_mutex_global_g =
       if Param.handle_atomic then (
+        (* Unprotected invariant is one big relation. *)
         get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex)
         |> Cluster.keep_global g
       )
@@ -978,6 +985,7 @@ struct
     r
 
   let get_mutex_global_g_with_mutex_inits_atomic inits ask getg =
+    (* Unprotected invariant is one big relation. *)
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
     if not inits then
       get_mutex_global_g
@@ -995,9 +1003,9 @@ struct
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
-        rel
+        rel (* Read previous unpublished unprotected write in current atomic section. *)
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg) (* Read unprotected invariant as full relation. *)
       else
         Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
     in
@@ -1017,7 +1025,7 @@ struct
       rel_local'
     )
     else
-      rel_local
+      rel_local (* Keep write local as if it were protected by the atomic section. *)
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
@@ -1029,9 +1037,9 @@ struct
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let rel =
       if atomic && RD.mem_var rel (AV.global g) then
-        rel
+        rel (* Read previous unpublished unprotected write in current atomic section. *)
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg) (* Read unprotected invariant as full relation. *)
       else
         Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
     in
@@ -1047,7 +1055,7 @@ struct
       let digest = Digest.current ask in
       let sidev = GMutex.singleton digest rel_side in
       if Param.handle_atomic then
-        sideg (V.mutex atomic_mutex) (G.create_global sidev)
+        sideg (V.mutex atomic_mutex) (G.create_global sidev) (* Unprotected invariant is one big relation. *)
       else
         sideg (V.global g) (G.create_global sidev);
       let l' = L.add lm rel_side l in
@@ -1060,7 +1068,8 @@ struct
       {rel = rel_local'; priv = (W.add g w,LMust.add lm lmust,l')}
     )
     else
-      {rel = rel_local; priv = (W.add g w,lmust,l)}
+      (* Delay publishing unprotected write in the atomic section. *)
+      {rel = rel_local; priv = (W.add g w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
 
   let lock ask getg (st: relation_components_t) m =
     let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
@@ -1076,6 +1085,7 @@ struct
       {st with rel}
     )
     else
+      (* Atomic section locking is recursive. *)
       st (* sound w.r.t. recursive lock *)
 
   let keep_only_globals ask m oct =
@@ -1106,6 +1116,7 @@ struct
         {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
     )
     else (
+      (* Publish delayed unprotected write as if it were protected by the atomic section. *)
       let rel_local = remove_globals_unprotected_after_unlock ask m rel in
       let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
       let side_needed = not (W.is_empty w) in
@@ -1116,6 +1127,7 @@ struct
         let rel_side = Cluster.unlock w rel_side in
         let digest = Digest.current ask in
         let sidev = GMutex.singleton digest rel_side in
+        (* Unprotected invariant is one big relation. *)
         sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
         let (lmust', l') = W.fold (fun g (lmust, l) ->
             let lm = LLock.global g in
@@ -1386,9 +1398,9 @@ let priv_module: (module S) Lazy.t =
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv (NoAtomic))
-         | "mutex-meet-atomic" -> (module PerMutexMeetPriv (struct let handle_atomic = true end))
+         | "mutex-meet-atomic" -> (module PerMutexMeetPriv (struct let handle_atomic = true end)) (* experimental *)
          | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (NoCluster))
-         | "mutex-meet-tid-atomic" -> (module PerMutexMeetPrivTID (struct let handle_atomic = true end) (ThreadDigest) (NoCluster))
+         | "mutex-meet-tid-atomic" -> (module PerMutexMeetPrivTID (struct let handle_atomic = true end) (ThreadDigest) (NoCluster)) (* experimental *)
          | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (DownwardClosedCluster (Clustering12)))
          | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (ArbitraryCluster (Clustering2)))
          | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (ArbitraryCluster (ClusteringMax)))

@@ -12,7 +12,7 @@ module VD     = BaseDomain.VD
 module type AtomicParam =
 sig
   val handle_atomic: bool
-  (** Whether to handle SV-COMP atomic blocks. *)
+  (** Whether to handle SV-COMP atomic blocks (experimental). *)
 end
 
 module NoAtomic: AtomicParam =
