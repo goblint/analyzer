@@ -46,11 +46,27 @@ struct
   let join_address_list (a : AD.t list) =
     List.fold AD.join (AD.bot ()) a
 
+  let collect_addresses_in_values (st: D.t) =
+    let values = List.map Tuple2.second (D.bindings st) in
+    let collect_addresses acc v =
+      let address = VD.reachable_from v (fun () -> VD.show v) in
+      AD.join address acc
+    in
+    List.fold collect_addresses (AD.bot ()) values
+
+  let collect_written_addresses (st: D.t) =
+    let written = List.map Tuple2.first (D.bindings st) in
+    join_address_list written
+
+  let collect_addresses (st: D.t) =
+    let addresses_from_values = collect_addresses_in_values st in
+    let written_addresses = collect_written_addresses st in
+    AD.join addresses_from_values written_addresses
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
     let start_state = ask.f (Queries.StartCPA f) in
-    let written = List.map Tuple2.first (D.bindings ctx.local) in
-    let written = join_address_list written in
+    let addresses = collect_addresses ctx.local in
 
     (* TODO: Collect used globals in global invariant, as this may omit globals accessed in the return *)
     let callee_globals = match ask.f Queries.AccessedGlobals with
@@ -60,8 +76,8 @@ struct
     let effective_params = f.sformals @ callee_globals in
     let params = List.map (AD.of_var ~is_modular:true) effective_params in
     let params = join_address_list params in
-    let graph = ask.f (CollectGraph (start_state, params, written)) in (* TODO: Adapt start and end sets *)
-    M.tracel "startstate" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty written BaseDomain.CPA.pretty start_state;
+    let graph = ask.f (CollectGraph (start_state, params, addresses)) in (* TODO: Adapt start and end sets *)
+    M.tracel "written" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty addresses BaseDomain.CPA.pretty start_state;
     ctx.sideg f graph;
     ctx.local
 

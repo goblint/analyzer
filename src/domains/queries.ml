@@ -137,6 +137,7 @@ type _ t =
   | StartCPA: CilType.Fundec.t -> BaseDomain.CPA.t t
   | CollectGraph: BaseDomain.CPA.t * AD.t * AD.t -> ValueDomain.ADGraph.t t
   | WriteGraph: CilType.Fundec.t -> ValueDomain.ADGraph.t t
+  | ReadGraph: CilType.Fundec.t -> ValueDomain.ADGraph.t t
 
 type 'a result = 'a
 
@@ -216,6 +217,7 @@ struct
     | StartCPA _ -> (module BaseDomain.CPA)
     | CollectGraph _ -> (module ValueDomain.ADGraph)
     | WriteGraph _ -> (module ValueDomain.ADGraph)
+    | ReadGraph _ -> (module ValueDomain.ADGraph)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -294,6 +296,7 @@ struct
     | StartCPA _ -> BaseDomain.CPA.top ()
     | CollectGraph _ -> ValueDomain.ADGraph.top ()
     | WriteGraph _ -> ValueDomain.ADGraph.top ()
+    | ReadGraph _ -> ValueDomain.ADGraph.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -369,6 +372,7 @@ struct
     | Any (StartCPA _) -> 65
     | Any (CollectGraph _) -> 66
     | Any (WriteGraph _) -> 67
+    | Any (ReadGraph _) -> 68
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -479,6 +483,8 @@ struct
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (StartCPA f) -> CilType.Fundec.hash f
+    | Any (WriteGraph f) -> CilType.Fundec.hash f
+    | Any (ReadGraph f) -> CilType.Fundec.hash f
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -551,6 +557,7 @@ struct
     | Any (StartCPA f) -> Pretty.dprintf "StartCPA %a" CilType.Fundec.pretty f
     | Any (CollectGraph (c, s, g)) -> Pretty.dprintf "CollectGraph (%a, %a, %a)" BaseDomain.CPA.pretty c AD.pretty s AD.pretty g
     | Any (WriteGraph f) -> Pretty.dprintf "WriteGraph %a" CilType.Fundec.pretty f;
+    | Any (ReadGraph f) -> Pretty.dprintf "WriteGraph %a" CilType.Fundec.pretty f;
 end
 
 let to_value_domain_ask (ask: ask) =

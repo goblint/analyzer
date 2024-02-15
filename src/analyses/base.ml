@@ -1297,7 +1297,7 @@ struct
   (* Given a set of addresses, collect graph
      that contains all paths with which these addresses are reachable with a depth-first search *)
   let collect_graph (local: CPA.t) (start: AD.t) (goal: AD.t) =
-    if M.tracing then M.tracel "collect_graph" "local: %a\n start: %a\n" CPA.pretty local AD.pretty start;
+    if M.tracing then M.tracel "collect_graph" "start: %a\ngoal: %a\nlocal: %a\n " AD.pretty start AD.pretty goal CPA.pretty local ;
     let r = if AD.is_empty start || AD.is_empty goal then
       ValueDomain.ADGraph.bot ()
     else
@@ -1306,7 +1306,7 @@ struct
       let local = {state with cpa = local} in
       let rec dfs node (visited, graph) : bool * ValueDomain.ADGraph.t =
         let node = node in
-        if M.tracing then M.tracel "collect_graph" "visited-set: %a + %a\n" AD.pretty visited Addr.pretty node;
+        (* if M.tracing then M.tracel "collect_graph" "visited-set: %a + %a\n" AD.pretty visited Addr.pretty node; *)
         let visited = AD.join visited (AD.singleton node) in
         let glob_fun = fun _ -> failwith "Should not lookup globals." in
         let reachable_from_node = reachable_from_address_offset ask glob_fun local (AD.singleton node) in
@@ -1323,8 +1323,14 @@ struct
             begin
               let found, graph = dfs n (visited, graph) in
               if goal_reached || found then begin
-                if M.tracing then M.tracel "collect_graph" "Adding edge from %a via %a to %a graph.\n" Addr.pretty node Offset.Unit.pretty o Addr.pretty n;
-                let graph = ValueDomain.ADGraph.add node (ADOffsetMap.singleton o (AD.singleton n)) graph in
+                (* if M.tracing then M.tracel "collect_graph" "Adding edge from %a via %a to %a graph %a.\n" Addr.pretty node Offset.Unit.pretty o Addr.pretty n Graph.pretty graph; *)
+
+                let old_entry = Graph.find node graph in
+                let new_entry = ADOffsetMap.singleton o (AD.singleton n) in
+                let entry = ADOffsetMap.join old_entry new_entry in
+
+                let graph = ValueDomain.ADGraph.add node entry graph in
+                (* M.tracel "collect_graph" "Resulting in %a\n" Graph.pretty graph; *)
                 (true, graph)
               end else
                 (found, graph)
@@ -2949,7 +2955,10 @@ struct
   (** In the given local state, from the start state, find the addresses that correspond to the goals *)
   let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (goal: AD.t) =
     let ask = Analyses.ask_of_ctx ctx in
+
+    (* TODO: !! Pass addresses instead of params, or, alternatively, pass global variables separetely, as they should be !! *)
     let start = List.map (Addr.of_var ~is_modular:true) params in
+    M.tracel "modular_combine" "collect_targets start: %a\ngraph: %a\n" (d_list ", " Addr.pretty) start Graph.pretty graph;
     (* let queue = List.combine args start in *)
     (* let queue : (Addr.t * Addr.t) Queue.t = queue |> Seq.of_list |> Queue.of_seq in mutable! *)
     let queue = Queue.of_seq Seq.empty in
@@ -2959,7 +2968,7 @@ struct
     let dir_reachable_conc = collect_funargs_immediate_offset ask ctx.global ctx.local args in
     let dir_reachable_abs = List.map (fun a ->
         let r = Graph.find a graph in
-        if M.tracing then M.tracel "modular_combine" "For %a found %a in graph.\n" Addr.pretty a ADOffsetMap.pretty r;
+        (* if M.tracing then M.tracel "modular_combine" "For %a found %a in graph.\n" Addr.pretty a ADOffsetMap.pretty r; *)
         r)
         start
     in
@@ -2985,9 +2994,9 @@ struct
           ) dir_reachable_abs;
       ) combined;
 
-    M.tracel "modular_combine" "Initalized conc: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.first combined);
+    (* M.tracel "modular_combine" "Initalized conc: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.first combined);
     M.tracel "modular_combine" "Initalized abs: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.second combined);
-    M.tracel "modular_combine" "graph: %a\n" Graph.pretty graph;
+       M.tracel "modular_combine" "graph: %a\n" Graph.pretty graph; *)
 
     while not (Queue.is_empty queue) do
       let c, a = Queue.pop queue in
@@ -3013,7 +3022,8 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let glob_fun = modular_glob_fun ctx in
     let callee_globals_exp = UsedGlobals.get_used_globals f_ask in
-    let callee_globals = UsedGlobals.get_used_globals_exps f_ask in
+    let callee_globals = UsedGlobals.get_used_globals f_ask in
+    let callee_globals = List.map (fun v -> Lval (Var v, NoOffset)) callee_globals in
 
     let effective_params = f.sformals @ callee_globals_exp in
     let effective_args = args @ callee_globals in
@@ -3025,17 +3035,22 @@ struct
     let reachable = List.fold AD.join (AD.bot ()) reachable in *)
 
     let writes = f_ask.f Q.Written in
+    let reads = f_ask.f Q.Read in
+
 
     if WrittenDomain.Written.is_top writes then
       failwith "Everything tainted -> should set everything reachable to top!"
     else
       (* TODO: Use information from Read and Written graphs to determine subset of reachable that is reachable via arguments like provided in the graph. *)
       let write_graph = ask.f (WriteGraph f) in
+      let read_graph = ask.f (ReadGraph f) in
+
+      let write_graph = Graph.join write_graph read_graph in
 
       (* TODO: pass goal, use goal in collect_targets_with_graph function*)
       let reachable = collect_targets_with_graph ctx write_graph effective_args effective_params (AD.bot ()) in
 
-      M.tracel "modular_combine" "reachable: %a\n" AD.pretty reachable;
+      M.tracel "modular_combine_reachable" "reachable: %a\n" AD.pretty reachable;
       let vars_to_writes : value_map VarMap.t =
         let update_entry (address: address) (value: value) (acc: value_map VarMap.t) =
           let lvals = AD.to_mval address in
@@ -3093,7 +3108,11 @@ struct
   let translate_callee_value_back ctx f f_ask (args: exp list) (value: VD.t): VD.t =
     let glob_fun = modular_glob_fun ctx in
     let ask = Analyses.ask_of_ctx ctx in
+
+    (* TODO: Is write-graph for return value computation? *)
     let write_graph = ask.f (WriteGraph f) in
+    let read_graph = ask.f (ReadGraph f) in
+    let write_graph = Graph.join write_graph read_graph in
     (* TODO: pass goal, use goal in collect_targets_with_graph function*)
     let callee_globals = UsedGlobals.get_used_globals f_ask in
     let effective_params = f.sformals @ callee_globals in

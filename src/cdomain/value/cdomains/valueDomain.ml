@@ -43,6 +43,7 @@ sig
 
   val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
+  val reachable_from: t -> (unit -> string) -> AD.t
 end
 
 module type Blob =
@@ -1341,6 +1342,37 @@ struct
     | Mutex -> Mutex
     | Bot -> Bot
     | Top -> Top
+
+  let rec reachable_from (value: Compound.t) (description: unit -> string)  =
+    let empty = AD.empty () in
+    if M.tracing then M.trace "reachability" "Checking value %a\n" pretty value;
+    match value with
+    | Top ->
+      M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" (description ()); empty
+    | Bot -> (*M.debug ~category:Analyzer "A bottom value when computing reachable addresses!";*) empty
+    | Address adrs when AD.is_top adrs ->
+      M.info ~category:Unsound "Unknown address in %s has escaped." (description ()); AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+    (* The main thing is to track where pointers go: *)
+    | Address adrs -> AD.remove Addr.NullPtr adrs
+    (* Unions are easy, I just ingore the type info. *)
+    | Union u ->
+      Unions.fold (fun k v acc -> AD.join (reachable_from v description) acc) u empty
+    (* For arrays, we ask to read from an unknown index, this will cause it
+    * join all its values. *)
+    | Array a ->
+      let handle_item (acc: AD.t) (v: t) =
+        let reachable = reachable_from v description in
+        AD.join reachable acc
+      in
+      CArrays.fold_left handle_item (AD.bot ()) a
+    | Blob (e,_,_) -> reachable_from e description
+    | Struct s -> Structs.fold (fun k v acc -> AD.join (reachable_from v description) acc) s empty
+    | Int _ -> empty
+    | Float _ -> empty
+    | MutexAttr _ -> empty
+    | Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
+    | JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
+    | Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
@@ -1484,4 +1516,5 @@ module ADOffsetSet = SetDomain.Make(ADOffset)
 module ADOffsetMap = MapDomain.MapBot_LiftTop(Offset.Unit) (AD)
 
 module ADGraph = MapDomain.MapBot_LiftTop (Addr) (ADOffsetMap)
+
 

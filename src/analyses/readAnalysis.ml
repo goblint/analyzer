@@ -14,6 +14,11 @@ struct
   let name () = "read"
   module D = AD
   module C = Lattice.Unit
+  module V = struct
+    include CilType.Fundec
+    let is_write_only _ = false
+  end
+  module G = ValueDomain.ADGraph
 
   let context _ _ = C.bot ()
 
@@ -80,8 +85,29 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
+  let join_address_list (a : AD.t list) =
+    List.fold AD.join (AD.bot ()) a
+
+  let return_side_effect ctx local exp f =
+    let ask = Analyses.ask_of_ctx ctx in
+    let start_state = ask.f (Queries.StartCPA f) in
+    let read = local in
+    (* TODO: Collect used globals in global invariant, as this may omit globals accessed in the return *)
+    let callee_globals = match ask.f Queries.AccessedGlobals with
+      | `Top -> []
+      | `Lifted globals -> ModularUtil.VS.to_list globals
+    in
+    let effective_params = f.sformals @ callee_globals in
+    let params = List.map (AD.of_var ~is_modular:true) effective_params in
+    let params = join_address_list params in
+    let graph = ask.f (CollectGraph (start_state, params, read)) in (* TODO: Adapt start and end sets *)
+    M.tracel "written" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty read BaseDomain.CPA.pretty start_state;
+    ctx.sideg f graph
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    add_reads_on_optional_exp ctx exp
+    let local = add_reads_on_optional_exp ctx exp in
+    return_side_effect ctx local exp f;
+    local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let callee_state = D.bot () in
@@ -122,6 +148,9 @@ struct
     match q with
     | Read ->
       let read : D.t = ctx.local in
+      read
+    | ReadGraph f ->
+      let read : G.t = ctx.global f in
       read
     | _ -> Q.Result.top q
 
