@@ -1,3 +1,5 @@
+open Goblint_lib
+
 (* Part of CilCfg *)
 class allBBVisitor = object (* puts every instruction into its own basic block *)
   inherit GoblintCil.nopCilVisitor
@@ -19,9 +21,13 @@ end
 let main () =
   Goblint_logs.Logs.Level.current := Info;
   Cilfacade.init ();
+  GobConfig.set_bool "witness.invariant.loop-head" true;
+  GobConfig.set_bool "witness.invariant.after-lock" true;
+  GobConfig.set_bool "witness.invariant.other" true;
 
   let ast = Cilfacade.getAST (Fpath.v Sys.argv.(1)) in
   GoblintCil.visitCilFileSameGlobals (new allBBVisitor) ast;
+  Cilfacade.current_file := ast;
   (* Part of CilCfg.createCFG *)
   GoblintCil.iterGlobals ast (function
       | GFun (fd, _) ->
@@ -30,6 +36,16 @@ let main () =
       | _ -> ()
     );
   let (module Cfg) = CfgTools.compute_cfg ast in
+  let module FileCfg =
+  struct
+    let file = ast
+    module Cfg = Cfg
+  end
+  in
+
+  let module GraphmlWitnessInvariant = WitnessUtil.Invariant (FileCfg) in
+  let module YamlWitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
+  let module YamlWitnessValidateInvariant = WitnessUtil.YamlInvariantValidate (FileCfg) in
 
   let module LocationExtraNodeStyles =
   struct
@@ -48,12 +64,19 @@ let main () =
 
     let pp_label_locs ppf label =
       let locs = CilLocation.get_labelLoc label in
-      Format.fprintf ppf "[%a]" pp_locs locs
+      Format.fprintf ppf "@;[%a]" pp_locs locs
 
     let extraNodeStyles = function
-      | Node.Statement stmt ->
+      | Node.Statement stmt as n ->
         let locs: CilLocation.locs = CilLocation.get_stmtLoc stmt in
-        let label = Format.asprintf "@[<v 2>%a@;%a@]" pp_locs locs (Format.pp_print_list ~pp_sep:Format.pp_print_cut pp_label_locs) stmt.labels in
+        let label =
+          Format.asprintf "@[<v 2>%a%a@;YAML loc: %B, loop: %B@;YAMLval loc: %B, loop: %B@;GraphML: %B; server: %B@]"
+            pp_locs locs
+            (Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_label_locs) stmt.labels
+            (YamlWitnessInvariant.is_invariant_node n) (YamlWitnessInvariant.is_loop_head_node n)
+            (YamlWitnessValidateInvariant.is_invariant_node n) (YamlWitnessValidateInvariant.is_loop_head_node n)
+            (GraphmlWitnessInvariant.is_invariant_node n) (Server.is_server_node n)
+        in
         [Printf.sprintf "label=\"%s\"" (Str.global_replace (Str.regexp "\n") "\\n" label)]
       | _ -> []
   end

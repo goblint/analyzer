@@ -81,6 +81,40 @@ struct
       emit_other
 end
 
+module YamlInvariant (FileCfg: MyCFG.FileCfg) =
+struct
+  include Invariant (FileCfg)
+
+  let is_stub_node n =
+    let fundec = Node.find_fundec n in
+    Cil.hasAttribute "goblint_stub" fundec.svar.vattr
+
+  let is_invariant_node (n : Node.t) =
+    let loc = Node.location n in
+    match n with
+    | Statement _ ->
+      not loc.synthetic && is_invariant_node n && not (is_stub_node n)
+    | FunctionEntry _ | Function _ ->
+      (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
+      false
+
+  let is_loop_head_node n =
+    NH.mem loop_heads n && not (is_stub_node n)
+end
+
+module YamlInvariantValidate (FileCfg: MyCFG.FileCfg) =
+struct
+  include Invariant (FileCfg)
+
+  (* TODO: filter synthetic?
+
+     Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
+     Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
+     I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
+
+  let is_loop_head_node = NH.mem loop_heads
+end
+
 module InvariantExp =
 struct
   module ES = SetDomain.Make (CilType.Exp)
