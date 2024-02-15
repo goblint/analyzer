@@ -81,6 +81,27 @@ struct
       emit_other
 end
 
+module YamlInvariant (FileCfg: MyCFG.FileCfg) =
+struct
+  include Invariant (FileCfg)
+
+  let is_stub_node n =
+    let fundec = Node.find_fundec n in
+    Cil.hasAttribute "goblint_stub" fundec.svar.vattr
+
+  let is_invariant_node (n : Node.t) =
+    let loc = Node.location n in
+    match n with
+    | Statement _ ->
+      not loc.synthetic && is_invariant_node n && not (is_stub_node n)
+    | FunctionEntry _ | Function _ ->
+      (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
+      false
+
+  let is_loop_head_node n =
+    NH.mem loop_heads n && not (is_stub_node n)
+end
+
 module InvariantExp =
 struct
   module ES = SetDomain.Make (CilType.Exp)

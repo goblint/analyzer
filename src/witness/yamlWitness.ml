@@ -165,7 +165,7 @@ struct
   open SpecSys
 
   module NH = BatHashtbl.Make (Node)
-  module WitnessInvariant = WitnessUtil.Invariant (FileCfg)
+  module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module FMap = BatHashtbl.Make (CilType.Fundec)
   module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
   type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
@@ -192,25 +192,6 @@ struct
       ) !Svcomp.task
     in
     let task = Entry.task ~input_files ~data_model ~specification in
-
-    let is_stub_node n =
-      let fundec = Node.find_fundec n in
-      Cil.hasAttribute "goblint_stub" fundec.svar.vattr
-    in
-
-    let is_invariant_node (n : Node.t) =
-      let loc = Node.location n in
-      match n with
-      | Statement _ ->
-        not loc.synthetic && WitnessInvariant.is_invariant_node n && not (is_stub_node n)
-      | FunctionEntry _ | Function _ ->
-        (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
-        false
-    in
-
-    let is_loop_head_node n =
-      WitnessUtil.NH.mem WitnessInvariant.loop_heads n && not (is_stub_node n)
-    in
 
     let local_lvals n local =
       if GobConfig.get_bool "witness.invariant.accessed" then (
@@ -254,7 +235,7 @@ struct
     let entries =
       if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
         LH.fold (fun loc ns acc ->
-            if List.exists is_invariant_node ns then (
+            if List.exists WitnessInvariant.is_invariant_node ns then (
               let inv = List.fold_left (fun acc n ->
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                   let lvals = local_lvals n local in
@@ -287,7 +268,7 @@ struct
     let entries =
       if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
         LH.fold (fun loc ns acc ->
-            if WitnessInvariant.emit_loop_head && List.exists is_loop_head_node ns then (
+            if WitnessInvariant.emit_loop_head && List.exists WitnessInvariant.is_loop_head_node ns then (
               let inv = List.fold_left (fun acc n ->
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                   Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
@@ -392,7 +373,7 @@ struct
 
         (* 3. Generate precondition invariants *)
         LHT.fold (fun ((n, c) as lvar) local acc ->
-            if is_invariant_node n then (
+            if WitnessInvariant.is_invariant_node n then (
               let fundec = Node.find_fundec n in
               let pre_lvar = (Node.FunctionEntry fundec, c) in
               let query = Queries.Invariant Invariant.default_context in
@@ -449,7 +430,7 @@ struct
         let invariants =
           if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
-                if List.exists is_invariant_node ns then (
+                if List.exists WitnessInvariant.is_invariant_node ns then (
                   let inv = List.fold_left (fun acc n ->
                       let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                       let lvals = local_lvals n local in
@@ -482,7 +463,7 @@ struct
         let invariants =
           if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
-                if WitnessInvariant.emit_loop_head && List.exists is_loop_head_node ns then (
+                if WitnessInvariant.emit_loop_head && List.exists WitnessInvariant.is_loop_head_node ns then (
                   let inv = List.fold_left (fun acc n ->
                       let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                       Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
