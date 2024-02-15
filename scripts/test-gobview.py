@@ -25,9 +25,7 @@ def cleanup(browser, thread):
 def serve():
   global p
   goblint_http_path = './goblint_http.exe'
-  p = subprocess.Popen([goblint_http_path,
-                  '-with-goblint', '../analyzer/goblint',
-                  '-goblint', '--set', 'files[+]', '"../analyzer/tests/regression/00-sanity/01-assert.c"'])
+  p = subprocess.Popen([goblint_http_path, 'tests/regression/00-sanity/01-assert.c'])
 
 print("serving at port", PORT)
 thread = Thread(target=serve, args=())
