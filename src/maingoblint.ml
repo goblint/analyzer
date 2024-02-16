@@ -623,7 +623,7 @@ let do_gobview cilfile =
       Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
     )
     else
-      Logs.error "Warning: Cannot locate GobView."
+      Logs.error "Cannot locate GobView."
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
