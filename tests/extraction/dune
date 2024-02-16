@@ -1,3 +1,4 @@
 (cram
+ (alias runcramtest)
  (enabled_if %{bin-available:spin})
  (deps (package goblint) (glob_files *.c) (source_tree ../../spin)))

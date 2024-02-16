@@ -1,5 +1,5 @@
 (rule
- (alias runtest)
+ (aliases runtest runaprontest)
  (enabled_if %{lib-available:apron})
  (deps
    (package goblint)
