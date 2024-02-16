@@ -3,12 +3,14 @@
  (deps
    (package goblint)
    ../../goblint ; update_suite calls local goblint
-   ../../scripts/update_suite.rb
+   (:update_suite ../../scripts/update_suite.rb)
    ../../Makefile ; update_suite calls `make headers`
    ../../make.sh ; needed for Makefile
-   (source_tree .)
+   (glob_files_rec ??-*.c)
+   (glob_files_rec 28-race_reach/racemacros.h)
+   (glob_files_rec 56-witness/??-*.yml) ; excluding witness.yml, etc. which might exist due to running update_suite outside of dune
    (source_tree ../../linux-headers))
- (action (chdir ../.. (run make test))))
+ (action (chdir ../.. (run %{update_suite}))))
 
 (cram
  (applies_to :whole_subtree)
