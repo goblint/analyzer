@@ -597,11 +597,7 @@ let do_html_output () =
 
 let do_gobview cilfile =
   let gobview = GobConfig.get_bool "gobview" in
-  let goblint_root = GobFpath.cwd_append (fst (Fpath.split_base (Fpath.v Sys.argv.(0)))) in
-  let dist_dir = Fpath.(goblint_root // (Fpath.v "_build/default/gobview/dist")) in
-  let js_file = Fpath.(dist_dir / "main.js") in
   if gobview then (
-    if Sys.file_exists (Fpath.to_string js_file) then (
       let save_run = GobConfig.get_string "save_run" in
       let run_dir = Fpath.v(if save_run <> "" then save_run else "run") in
       (* copy relevant c files to gobview directory *)
@@ -625,20 +621,7 @@ let do_gobview cilfile =
       (* marshal timing statistics *)
       let stats = Fpath.(run_dir / "stats.marshalled") in
       Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
-      let dist_files =
-        Sys.files_of (Fpath.to_string dist_dir)
-        |> Enum.filter (fun n -> n <> "dune")
-        |> List.of_enum
-      in
-      List.iter (fun n ->
-          FileUtil.cp
-            [Fpath.to_string (Fpath.(dist_dir / n))]
-            (Fpath.to_string (Fpath.(run_dir / n)))
-        ) dist_files
     )
-    else
-      Logs.error "Warning: Cannot locate GobView."
-  )
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
