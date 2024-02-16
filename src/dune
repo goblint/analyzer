@@ -109,12 +109,6 @@
   (flags :standard -linkall -open Goblint_std)
 )
 
-(rule
-  (alias runtest)
-  (deps ../goblint ../scripts/update_suite.rb ../Makefile ../make.sh (source_tree ../tests/regression) (source_tree ../lib) (source_tree ../linux-headers))
-  (action (chdir .. (run ./make.sh test)))
-)
-
 (env
   (release
     (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal

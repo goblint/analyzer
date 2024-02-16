@@ -1,3 +1,15 @@
+(rule
+ (alias runtest)
+ (deps
+   (package goblint)
+   ../../goblint ; update_suite calls local goblint
+   ../../scripts/update_suite.rb
+   ../../Makefile ; update_suite calls `make headers`
+   ../../make.sh ; needed for Makefile
+   (source_tree .)
+   (source_tree ../../linux-headers))
+ (action (chdir ../.. (run make test))))
+
 (cram
  (applies_to :whole_subtree)
  (deps (package goblint)))
