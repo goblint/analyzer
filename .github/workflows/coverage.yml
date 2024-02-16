@@ -52,9 +52,9 @@ jobs:
         run: ./make.sh headers
 
       - name: Test
-        run: opam exec -- dune runtest
+        run: opam exec -- dune runtest --instrument-with bisect_ppx
 
-      - run: opam exec -- bisect-ppx-report send-to Coveralls --coverage-path=.
+      - run: opam exec -- bisect-ppx-report send-to Coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}
