@@ -86,6 +86,7 @@ else
 end
 
 $testresults = File.expand_path("tests/suite_result")
+Dir.mkdir($testresults) unless Dir.exist?($testresults)
 testfiles    = if incremental then
                  File.expand_path("tests/incremental")
                else
