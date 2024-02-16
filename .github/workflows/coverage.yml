@@ -48,40 +48,11 @@ jobs:
       - name: Build
         run: ./make.sh coverage
 
-      - name: Test regression
-        run: ./make.sh headers testci
+      - name: Download Linux headers
+        run: ./make.sh headers
 
-      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: |
-          ruby scripts/update_suite.rb group apron -s
-          ruby scripts/update_suite.rb group apron2 -s
-
-      - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group octagon -s
-
-      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group affeq -s
-
-      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group apron-mukherjee -s
-
-      - name: Test apron termination regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group termination -s
-
-      - name: Test regression cram
-        run: opam exec -- dune runtest tests/regression
-
-      - name: Test incremental cram
-        run: opam exec -- dune runtest tests/incremental
-
-      - name: Test unit
-        run: opam exec -- dune runtest unittest
-
-      - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
-
-      - name: Test incremental regression with cfg comparison
-        run: ruby scripts/update_suite.rb -c
+      - name: Test
+        run: opam exec -- dune runtest
 
       - run: opam exec -- bisect-ppx-report send-to Coveralls --coverage-path=.
         env:
