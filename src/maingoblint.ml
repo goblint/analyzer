@@ -622,8 +622,6 @@ let do_gobview cilfile =
       let stats = Fpath.(run_dir / "stats.marshalled") in
       Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
     )
-    else
-      Logs.error "Cannot locate GobView."
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
