@@ -658,6 +658,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("daemon", unknown [drop "nochdir" []; drop "noclose" []]);
     ("putw", unknown [drop "w" []; drop "stream" [r_deep; w_deep]]);
   ]
+[@@coverage off]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     (* ("prctl", unknown [drop "option" []; drop "arg2" []; drop "arg3" []; drop "arg4" []; drop "arg5" []]); *)
