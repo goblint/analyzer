@@ -177,14 +177,15 @@ struct
     | LNot -> ID.c_lognot
 
   let unop_FD = function
-    | Neg  -> FD.neg
-    (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> FD.top_of (FD.get_fkind c))
+    | Neg  -> (fun v -> (Float (FD.neg v):value))
+    | LNot -> (fun c -> Int (FD.eq c (FD.of_const (FD.get_fkind c) 0.)))
+    | BNot -> failwith "BNot on a value of type float!"
+
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ: value -> value = function
     | Int v1 -> Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
-    | Float v -> Float (unop_FD op v)
+    | Float v -> unop_FD op v
     | Address a when op = LNot ->
       if AD.is_null a then
         Int (ID.of_bool (Cilfacade.get_ikind typ) true)
@@ -877,9 +878,9 @@ struct
       | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~ctx st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
         (let v = eval_rv ~ctx st exp in
-         try 
+         try
            VD.cast ~torg:(Cilfacade.typeOf exp) t v
-         with Cilfacade.TypeOfError _  -> 
+         with Cilfacade.TypeOfError _  ->
            VD.cast t v)
       | SizeOf _
       | Real _
@@ -1019,7 +1020,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset ~ctx st ofs)
-    | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset ~ctx st ofs)
     | Index (exp, ofs) ->
       match eval_rv ~ctx st exp with
@@ -1643,6 +1644,9 @@ struct
     module D = D
     module V = V
     module G = G
+
+    let unop_ID = unop_ID
+    let unop_FD = unop_FD
 
     let eval_rv = eval_rv
     let eval_rv_address = eval_rv_address
@@ -2343,7 +2347,7 @@ struct
                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
                | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~ctx st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
                | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~ctx st
-                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
+                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Lazy.force Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         | None -> st
       end
     | Strcmp { s1; s2; n }, _ ->
@@ -2840,6 +2844,9 @@ struct
           module G = G
 
           let ost = octx.local
+
+          let unop_ID = unop_ID
+          let unop_FD = unop_FD
 
           (* all evals happen in octx with non-top values *)
           let eval_rv ~ctx st e = eval_rv ~ctx:octx ost e

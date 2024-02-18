@@ -52,7 +52,7 @@ struct
       (* Not using Node.location here to have updated locations in incremental analysis.
          See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc n in
-      BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column;
+      BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\" endLine=\"%d\" endColumn=\"%d\" synthetic=\"%B\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column loc.endLine loc.endColumn loc.synthetic;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
     iter print_one xs
@@ -112,7 +112,7 @@ struct
       in
       let write_file f fn =
         Messages.xml_file_name := fn;
-        BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
+        Logs.info "Writing xml to temp. file: %s" fn;
         BatPrintf.fprintf f "<run>";
         BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
         BatPrintf.fprintf f "<statistics>";
@@ -152,7 +152,7 @@ struct
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
-        printf "Writing json to temp. file: %s\n%!" fn;
+        Logs.info "Writing json to temp. file: %s" fn;
         fprintf f "{\n  \"parameters\": \"%s\",\n  " GobSys.command_line;
         fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
         fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
@@ -166,8 +166,7 @@ struct
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
     | "sarif" ->
-      let open BatPrintf in
-      printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
+      Logs.result "Writing Sarif to file: %s" (get_string "outfile");
       Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
       let json = `Assoc [
