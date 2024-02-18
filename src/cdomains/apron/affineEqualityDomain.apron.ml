@@ -307,7 +307,7 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let top () = failwith "D.top ()"
+  let top () = {d = Some (Matrix.empty ()); env = Environment.make [||] [||]}
 
   let is_top _ = false
 
