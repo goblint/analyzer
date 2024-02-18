@@ -480,7 +480,11 @@ struct
     let get_mutex_inits = getg V.mutex_inits in
     let g_var = AV.global g in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
-    RD.join get_mutex_global_g get_mutex_inits'
+    if not (RD.mem_var get_mutex_inits' g_var) then
+      (* This is an escaped variable whose value was never side-effected to get_mutex_inits' *)
+      get_mutex_global_g
+    else
+      RD.join get_mutex_global_g get_mutex_inits'
 
   let read_global ask getg (st: relation_components_t) g x: RD.t =
     let rel = st.rel in
@@ -500,10 +504,11 @@ struct
     in
     rel_local'
 
-  let write_global ?(invariant=false) ask getg sideg (st: relation_components_t) g x: relation_components_t =
+  (* Like write global but has option to skip meet with current value, as the value will not have been side-effected to a useful location thus far *)
+  let write_global_internal ?(skip_meet=false) ?(invariant=false) ask getg sideg (st: relation_components_t) g x: relation_components_t =
     let rel = st.rel in
     (* lock *)
-    let rel = RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let rel = if not skip_meet then RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g) else rel in
     (* write *)
     let g_var = AV.global g in
     let x_var = AV.local x in
@@ -519,6 +524,9 @@ struct
         rel_local
     in
     {st with rel = rel_local'}
+
+  let write_global = write_global_internal ~skip_meet:false
+  let write_escape = write_global_internal ~skip_meet:true
 
   let lock ask getg (st: relation_components_t) m =
     (* TODO: somehow actually unneeded here? *)
@@ -597,7 +605,7 @@ struct
   let escape node ask getg sideg (st:relation_components_t) escaped : relation_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
     let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
-    let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
+    let escape_one (x:varinfo) st = write_escape ask getg sideg st x x in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
