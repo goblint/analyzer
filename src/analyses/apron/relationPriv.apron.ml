@@ -565,7 +565,9 @@ struct
           ) (RD.vars rel)
         in
         let rel_side = RD.keep_vars rel g_vars in
-        sideg V.mutex_inits rel_side;
+        (* If no globals are contained here, none need to be published *)
+        (* https://github.com/goblint/analyzer/pull/1354 *)
+        if g_vars <> [] then sideg V.mutex_inits rel_side;
         let rel_local = RD.remove_filter rel (fun var ->
             match AV.find_metadata var with
             | Some (Global g) -> is_unprotected ask g
