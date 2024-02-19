@@ -17,7 +17,6 @@ rule() {
     clean)
       git clean -X -f
       dune clean
-    ;; gen) gen
     ;; nat*)
       eval $(opam config env)
       dune build $TARGET.exe &&
