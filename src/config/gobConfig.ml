@@ -179,7 +179,7 @@ struct
         else Select (fld, parse_path' pth)
       end
     with PathParseError ->
-      eprintf "Error: Couldn't parse the json path '%s'\n%!" s;
+      Logs.error "Error: Couldn't parse the json path '%s'" s;
       failwith "parsing"
 
   (** Here we store the actual configuration. *)
@@ -302,10 +302,10 @@ struct
       if Goblint_tracing.tracing then Goblint_tracing.trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
       with Yojson.Safe.Util.Type_error (s, _) ->
-        eprintf "The value for '%s' has the wrong type: %s\n" st s;
+        Logs.error "The value for '%s' has the wrong type: %s" st s;
         failwith "get_path_string"
     with ConfTypeError ->
-      eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
+      Logs.Batteries.error "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?"
         st print;
       failwith "get_path_string"
   let get_json : string -> Yojson.Safe.t = get_path_string Fun.id
@@ -378,7 +378,7 @@ struct
       with Yojson.Json_error _ | TypeError _ ->
         set_string st s
     with e ->
-      eprintf "Cannot set %s to '%s'.\n" st s;
+      Logs.error "Cannot set %s to '%s'." st s;
       raise e
 
   let merge json =

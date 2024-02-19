@@ -469,8 +469,7 @@ let createCFG (file: file) =
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  if get_bool "dbg.verbose" then
-    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (NH.stats cfgF) GobHashtbl.pretty_statistics (NH.stats cfgB));
+  Logs.debug "cfgF (%a), cfgB (%a)" GobHashtbl.pretty_statistics (NH.stats cfgF) GobHashtbl.pretty_statistics (NH.stats cfgB);
   cfgF, cfgB, skippedByEdge
 
 let createCFG = Timing.wrap "createCFG" createCFG
@@ -680,7 +679,7 @@ let getGlobalInits (file: file) : edges  =
       lval
     in
     let rec any_index_offset = function
-      | Index (e,o) -> Index (Cilfacade.any_index_exp, any_index_offset o)
+      | Index (e,o) -> Index (Lazy.force Cilfacade.any_index_exp, any_index_offset o)
       | Field (f,o) -> Field (f, any_index_offset o)
       | NoOffset -> NoOffset
     in

@@ -6,6 +6,8 @@ module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.
 module Offs = Offset.MakeLattice (ID)
 module LV = AddressDomain.AddressLattice (Mval.MakeLattice (Offs))
 
+let () = Cilfacade.init () (* ensure ptrdiff ikind is available *)
+
 let ikind = IntDomain.PtrDiffIkind.ikind ()
 
 let a_var = Cil.makeGlobalVar "a" Cil.intPtrType

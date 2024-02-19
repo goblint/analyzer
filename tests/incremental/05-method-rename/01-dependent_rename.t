@@ -10,5 +10,5 @@ Apply patch
 
 Run Goblint incrementally on new program version and check the change detection result
 
-  $ goblint --conf 01-dependent_rename.json --enable incremental.load 01-dependent_rename.c | grep 'change_info' | sed -r 's/^change_info = \{ unchanged = [[:digit:]]+; (.*) \}$/\1/'
-  changed = 1 (with unchangedHeader = 1); added = 2; removed = 2
+  $ goblint --conf 01-dependent_rename.json --enable incremental.load 01-dependent_rename.c 2>&1 | grep 'change_info' | sed -r 's/change_info = \{ unchanged = [[:digit:]]+; (.*) \}$/\1/'
+  [Info] changed = 1 (with unchangedHeader = 1); added = 2; removed = 2

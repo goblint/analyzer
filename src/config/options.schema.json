@@ -747,7 +747,7 @@
               "description":
                 "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-atomic", "protection-read", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
@@ -901,7 +901,7 @@
               "description":
                 "Which relation privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
-              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-atomic", "mutex-meet-tid", "mutex-meet-tid-atomic", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
@@ -1833,11 +1833,12 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
-        "verbose": {
-          "title": "dbg.verbose",
-          "description": "Prints some status information.",
-          "type": "boolean",
-          "default": false
+        "level": {
+          "title": "dbg.level",
+          "description": "Logging level.",
+          "type": "string",
+          "enum": ["debug", "info", "warning", "error", "result"],
+          "default": "info"
         },
         "timing": {
           "title": "dbg.timing",
@@ -2472,6 +2473,12 @@
                 "cond",
                 "RETURN"
               ]
+            },
+            "all-locals": {
+              "title": "witness.invariant.all-locals",
+              "description": "Emit invariants for local variables under the assumption they are always in scope within their function.",
+              "type": "boolean",
+              "default": true
             },
             "goblint": {
               "title": "witness.invariant.goblint",
