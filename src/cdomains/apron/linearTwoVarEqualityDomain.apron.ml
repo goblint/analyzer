@@ -186,10 +186,9 @@ struct
 
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials and a constant *)
   let simplified_monomials_from_texp (t: t) texp =
-    let d = Option.get t.d in
-    match monomials_from_texp t texp with
-    | None -> None (*The (in-) equality is not linear, therefore we don't know anything about it. *)
-    | Some cv's ->
+    BatOption.bind (monomials_from_texp t texp) 
+    (fun monomiallist ->
+      let d = Option.get t.d in
       let expr = Array.make (Environment.size t.env) Z.zero in
       let accumulate_constants a (c, v) = match v with
         | None -> Z.(a + c)
@@ -197,17 +196,16 @@ struct
           (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
            Z.(a + c * con))
       in
-      let constant = List.fold_left accumulate_constants Z.zero cv's in (* abstract simplification of the guard wrt. reference variables *)
-      Some (Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr, constant)
+      let constant = List.fold_left accumulate_constants Z.zero monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+      Some (Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr, constant) )
 
   let simplify_to_ref_and_offset (t: t) texp =
-    match simplified_monomials_from_texp t texp with
-    | None -> None
-    | Some (sum_of_terms, constant) ->
-      (match sum_of_terms with
-       | [] -> Some (None, constant)
-       | [(coeff,var)] when Z.equal coeff Z.one -> Some (Some var, constant)
-       |_ -> None)
+    BatOption.bind (simplified_monomials_from_texp t texp )
+      (fun (sum_of_terms, constant) ->
+         (match sum_of_terms with
+          | [] -> Some (None, constant)
+          | [(coeff,var)] when Z.equal coeff Z.one -> Some (Some var, constant)
+          |_ -> None))
 
   let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
@@ -277,15 +275,16 @@ struct
 
   let to_yojson _ = failwith "ToDo Implement in future"
 
+  (** t.d is some empty array and env is empty *)
   let is_bot t = equal t (bot ())
 
-  (* this shows "top" for a specific environment to enable the calculations. It is the top_of of all equalities *)
+  (** forall x_i in env, x_i:=X_i+0 *)
   let top_of env = {d = Some (EArray.make_empty_array (Environment.size env)); env = env}
 
-  (** Is not expected to be called but implemented for completeness *)
+  (** env = \emptyset, d = Some([||]) *)
   let top () = {d = Some (EArray.empty()); env = empty_env}
 
-  (** is_top returns true for top_of array and empty array *)
+  (** is_top returns true for top_of array and empty array; precondition: t.env and t.d are of same size *)
   let is_top t = GobOption.exists EArray.is_top_array t.d
 
   (** prints the current variable equalities with resolved variable names *)
@@ -504,8 +503,7 @@ struct
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
     | texp -> assign_texpr t var texp
-    | exception Convert.Unsupported_CilExp _ ->
-      if is_bot_env t then t else forget_vars t [var]
+    | exception Convert.Unsupported_CilExp _ -> forget_vars t [var]
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
@@ -576,12 +574,6 @@ struct
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
-  let show_coeff_vec l (env : Environment.t) =
-    let show_element = function
-      | (a, Some x) -> ((Z.to_string a) ^ " * " ^ (Var.to_string (Environment.var_of_dim env x)) ^ " + ")
-      | (a, None) -> ((Z.to_string a) ^ "+")
-    in
-    List.fold_right (fun k result -> show_element k ^ "\n" ^ result) l ""
 
   (** Assert a constraint expression.
       The overflow is completely handled by the flag "no_ov",
