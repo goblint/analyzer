@@ -47,7 +47,7 @@
       "widen": false,
       "ctx_gas": false,
       "inf_callStack": false,
-      "callStack_height": 10
+      "callStack_height": 2
     },
     "malloc": {
       "wrappers": [
