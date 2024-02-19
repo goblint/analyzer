@@ -66,7 +66,16 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
     let start_state = ask.f (Queries.StartCPA f) in
-    let addresses = collect_addresses ctx.local in
+
+    let update_state exp =
+      (* TODO: Track value for return separately, so that this is may not considered a write through a param. *)
+      let rv = ask.f (Queries.EvalValue exp) in
+      let return_abs = ModularUtil.type_to_varinfo (GoblintCil.typeOf exp) in
+      let return_abs = AD.of_var ~is_modular:true return_abs in
+      add_entry return_abs rv ctx.local
+    in
+    let new_state = Option.map_default update_state ctx.local exp in
+    let addresses = collect_addresses new_state in
 
     (* TODO: Collect used globals in global invariant, as this may omit globals accessed in the return *)
     let callee_globals = match ask.f Queries.AccessedGlobals with
@@ -79,7 +88,7 @@ struct
     let graph = ask.f (CollectGraph (start_state, params, addresses)) in (* TODO: Adapt start and end sets *)
     M.tracel "written" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty addresses BaseDomain.CPA.pretty start_state;
     ctx.sideg f graph;
-    ctx.local
+    new_state
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let callee_state = D.bot () in
