@@ -35,10 +35,6 @@ rule() {
     ;; view)
       eval $(opam config env)
       dune build gobview
-    # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
-    ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
-      dune build $TARGET.bc.js &&
-      node _build/default/$TARGET.bc.js
     ;; watch)
       eval $(opam config env)
       # dune build -w $TARGET.exe
