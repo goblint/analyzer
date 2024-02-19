@@ -17,17 +17,16 @@ type complexityFactors = {
 }
 
 let printFactors f =
-  Printf.printf "functions: %d\n" f.functions;
-  Printf.printf "functionCalls: %d\n" f.functionCalls;
-  Printf.printf "loops: %d\n" f.loops;
-  Printf.printf "loopBreaks: %d\n" f.loopBreaks;
-  Printf.printf "controlFlowStatements: %d\n" f.controlFlowStatements;
-  Printf.printf "expressions: %d\n" f.expressions;
-  Printf.printf "instructions: %d\n" f.instructions;
-  Printf.printf "integralVars: (%d,%d)\n" (fst f.integralVars) (snd f.integralVars);
-  Printf.printf "arrayVars: (%d,%d)\n" (fst f.arrayVars) (snd f.arrayVars);
-  Printf.printf "pointerVars: (%d,%d)\n" (fst f.pointerVars) (snd f.pointerVars);
-  flush stdout;
+  Logs.debug "functions: %d" f.functions;
+  Logs.debug "functionCalls: %d" f.functionCalls;
+  Logs.debug "loops: %d" f.loops;
+  Logs.debug "loopBreaks: %d" f.loopBreaks;
+  Logs.debug "controlFlowStatements: %d" f.controlFlowStatements;
+  Logs.debug "expressions: %d" f.expressions;
+  Logs.debug "instructions: %d" f.instructions;
+  Logs.debug "integralVars: (%d,%d)" (fst f.integralVars) (snd f.integralVars);
+  Logs.debug "arrayVars: (%d,%d)" (fst f.arrayVars) (snd f.arrayVars);
+  Logs.debug "pointerVars: (%d,%d)" (fst f.pointerVars) (snd f.pointerVars)
 
 
 class collectComplexityFactorsVisitor(factors) = object

@@ -251,8 +251,11 @@ struct
     | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
     | _ -> Top
 
-  let tag_name : t -> string = function
+  let show_tag : t -> string = function
     | Top -> "Top" | Int _ -> "Int" | Float _ -> "Float" | Address _ -> "Address" | Struct _ -> "Struct" | Union _ -> "Union" | Array _ -> "Array" | Blob _ -> "Blob" | Thread _ -> "Thread" | Mutex -> "Mutex" | MutexAttr _ -> "MutexAttr" | JmpBuf _ -> "JmpBuf" | Bot -> "Bot"
+
+  let pretty_tag () x = Pretty.text (show_tag x)
+
   include Printable.Std
   let name () = "compound"
 
@@ -410,10 +413,11 @@ struct
           Addr ({ v with vtype = t }, offs) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
         | Addr (v, o) as a ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
-            with CastError s -> (* don't know how to handle this cast :( *)
+            with
+            | CastError s -> (* don't know how to handle this cast :( *)
               M.tracel "caste" "%s\n" s;
               a (* probably garbage, but this is deref's problem *)
-              (*raise (CastError s)*)
+            (*raise (CastError s)*)
             | SizeOfError (s,t) ->
               M.warn "size of error: %s" s;
               a
@@ -468,7 +472,7 @@ struct
            | Int i -> Int(ID.cast_to ?torg (Cilfacade.ptr_ikind ()) i)
            | _ -> v (* TODO: Does it make sense to have things here that are neither Address nor Int? *)
           )
-          (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
+        (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           Address (match v with
               | Int x when ID.to_int x = Some Z.zero -> AD.null_ptr
@@ -519,8 +523,7 @@ struct
 
 
   let warn_type op x y =
-    if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name (x:t)) (tag_name (y:t)) CilType.Location.pretty !Goblint_tracing.current_loc pretty x pretty y
+    Logs.debug "warn_type %s: incomparable abstr. values %a and %a at %a: %a and %a" op pretty_tag x pretty_tag y CilType.Location.pretty !Goblint_tracing.current_loc pretty x pretty y
 
   let rec leq x y =
     match (x,y) with
@@ -638,9 +641,9 @@ struct
     let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) ->
-          Structs.leq_with_fct leq_elem x y
+      Structs.leq_with_fct leq_elem x y
     | (Union (f, x), Union (g, y)) ->
-        UnionDomain.Field.leq f g && leq_elem x y
+      UnionDomain.Field.leq f g && leq_elem x y
     | (Array x, Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
     | _ -> leq x y (* Others can not contain array -> normal leq *)
 
@@ -752,9 +755,9 @@ struct
         (* Remove the first part of an offset, returns (removedPart, remainingOffset) *)
         let removeFirstOffset offset =
           match offset with
-            | Field(f, o) -> Field(f, NoOffset), o
-            | Index(exp, o) -> Index(exp, NoOffset), o
-            | NoOffset -> offset, offset in
+          | Field(f, o) -> Field(f, NoOffset), o
+          | Index(exp, o) -> Index(exp, NoOffset), o
+          | NoOffset -> offset, offset in
         let removed, remaining = removeFirstOffset offset in
         Some (Cil.addOffsetLval removed left), Some(remaining)
       end
@@ -807,39 +810,39 @@ struct
       typeSigWithAttrs (List.filter attrFilter) t
     in
     match left, offset with
-      | Some(Var(_), _), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
-        if not (contains_pointer exp) then
-          Some exp
-        else
-          None
-      | Some((Mem(ptr), NoOffset)), Some(NoOffset) ->
-        begin
-          match v with
-          | Some (v') ->
-            begin
-              try
-                (* This should mean the entire expression we have here is a pointer into the array *)
-                if Cil.isArrayType (Cilfacade.typeOfLval v') then
-                  let expr = ptr in
-                  let start_of_array = StartOf v' in
-                  let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
-                  let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
-                  (* Comparing types for structural equality is incorrect here, use typeSig *)
-                  (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
-                  if start_type = expr_type then
-                    Some (equiv_expr expr v')
-                  else
-                    (* If types do not agree here, this means that we were looking at pointers that *)
-                    (* contain more than one array access. Those are not supported. *)
-                    None
+    | Some(Var(_), _), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
+      if not (contains_pointer exp) then
+        Some exp
+      else
+        None
+    | Some((Mem(ptr), NoOffset)), Some(NoOffset) ->
+      begin
+        match v with
+        | Some (v') ->
+          begin
+            try
+              (* This should mean the entire expression we have here is a pointer into the array *)
+              if Cil.isArrayType (Cilfacade.typeOfLval v') then
+                let expr = ptr in
+                let start_of_array = StartOf v' in
+                let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
+                let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
+                (* Comparing types for structural equality is incorrect here, use typeSig *)
+                (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
+                if start_type = expr_type then
+                  Some (equiv_expr expr v')
                 else
+                  (* If types do not agree here, this means that we were looking at pointers that *)
+                  (* contain more than one array access. Those are not supported. *)
                   None
-              with (Cilfacade.TypeOfError _) -> None
-            end
-          | _ ->
-            None
-        end
-      | _, _ ->  None
+              else
+                None
+            with (Cilfacade.TypeOfError _) -> None
+          end
+        | _ ->
+          None
+      end
+    | _, _ ->  None
 
   let zero_init_calloced_memory orig x t =
     if orig then
@@ -856,68 +859,68 @@ struct
     let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
       if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
       let r =
-      match x, offs with
-      | Blob((va, _, orig) as c), `Index (_, ox) ->
-        begin
-          let l', o' = shift_one_over l o in
-          let ev = do_eval_offset ask f (Blobs.value c) ox exp l' o' v t in
-          zero_init_calloced_memory orig ev t
-        end
-      | Blob((va, _, orig) as c), `Field _ ->
-        begin
-          let l', o' = shift_one_over l o in
-          let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-          zero_init_calloced_memory orig ev t
-        end
-      | Blob((va, _, orig) as c), `NoOffset ->
-      begin
-        let l', o' = shift_one_over l o in
-        let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-        zero_init_calloced_memory orig ev t
-      end
-      | Bot, _ -> Bot
-      | _ ->
-        match offs with
-        | `NoOffset -> x
-        | `Field (fld, offs) when fld.fcomp.cstruct -> begin
-            match x with
-            | Struct str ->
-              let x = Structs.get str fld in
-              let l', o' = shift_one_over l o in
-              do_eval_offset ask f x offs exp l' o' v t
-            | Top -> M.info ~category:Imprecise "Trying to read a field, but the struct is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a struct"; top ()
-          end
-        | `Field (fld, offs) -> begin
-            match x with
-            | Union (`Lifted l_fld, value) ->
-              (match value, fld.ftype with
-               (* only return an actual value if we have a type and return actually the exact same type *)
-               | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
-               | Float _, t -> top_value t
-               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
-               | _ ->
-                 let x = cast ~torg:l_fld.ftype fld.ftype value in
-                 let l', o' = shift_one_over l o in
-                 do_eval_offset ask f x offs exp l' o' v t)
-            | Union _ -> top ()
-            | Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
-          end
-        | `Index (idx, offs) -> begin
+        match x, offs with
+        | Blob((va, _, orig) as c), `Index (_, ox) ->
+          begin
             let l', o' = shift_one_over l o in
-            match x with
-            | Array x ->
-              let e = determine_offset ask l o exp v in
-              do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v t
-            | Address _ ->
-              begin
-                do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
-              end
-            | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
-            | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
+            let ev = do_eval_offset ask f (Blobs.value c) ox exp l' o' v t in
+            zero_init_calloced_memory orig ev t
           end
+        | Blob((va, _, orig) as c), `Field _ ->
+          begin
+            let l', o' = shift_one_over l o in
+            let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+            zero_init_calloced_memory orig ev t
+          end
+        | Blob((va, _, orig) as c), `NoOffset ->
+          begin
+            let l', o' = shift_one_over l o in
+            let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+            zero_init_calloced_memory orig ev t
+          end
+        | Bot, _ -> Bot
+        | _ ->
+          match offs with
+          | `NoOffset -> x
+          | `Field (fld, offs) when fld.fcomp.cstruct -> begin
+              match x with
+              | Struct str ->
+                let x = Structs.get str fld in
+                let l', o' = shift_one_over l o in
+                do_eval_offset ask f x offs exp l' o' v t
+              | Top -> M.info ~category:Imprecise "Trying to read a field, but the struct is unknown"; top ()
+              | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a struct"; top ()
+            end
+          | `Field (fld, offs) -> begin
+              match x with
+              | Union (`Lifted l_fld, value) ->
+                (match value, fld.ftype with
+                 (* only return an actual value if we have a type and return actually the exact same type *)
+                 | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
+                 | Float _, t -> top_value t
+                 | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
+                 | _ ->
+                   let x = cast ~torg:l_fld.ftype fld.ftype value in
+                   let l', o' = shift_one_over l o in
+                   do_eval_offset ask f x offs exp l' o' v t)
+              | Union _ -> top ()
+              | Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
+              | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
+            end
+          | `Index (idx, offs) -> begin
+              let l', o' = shift_one_over l o in
+              match x with
+              | Array x ->
+                let e = determine_offset ask l o exp v in
+                do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v t
+              | Address _ ->
+                begin
+                  do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
+                end
+              | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
+              | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
+              | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
+            end
       in
       if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a\n" pretty r;
       r
@@ -933,72 +936,72 @@ struct
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
       let r =
-      match x, offs with
+        match x, offs with
         | Mutex, _ -> (* hide mutex structure contents, not updated anyway *)
           Mutex
         | Blob (x,s,orig), `Index (_,ofs) ->
-        begin
-          let l', o' = shift_one_over l o in
-          let x = zero_init_calloced_memory orig x t in
-          mu (Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
-        end
+          begin
+            let l', o' = shift_one_over l o in
+            let x = zero_init_calloced_memory orig x t in
+            mu (Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
+          end
         | Blob (x,s,orig), `Field(f, _) ->
-        begin
-          (* We only have Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
-          (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
-          (* consider them in VD *)
-          let l', o' = shift_one_over l o in
-          let x = zero_init_calloced_memory orig x (TComp (f.fcomp, [])) in
-          (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
-          let do_strong_update =
-            match v with
-            | (Var var, Field (fld,_)) ->
-              let toptype = fld.fcomp in
-              let blob_size_opt = ID.to_int s in
-              not @@ ask.is_multiple var
-              && not @@ Cil.isVoidType t      (* Size of value is known *)
-              && Option.is_some blob_size_opt (* Size of blob is known *)
-              && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
-            | _ -> false
-          in
-          if do_strong_update then
-            Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
-          else
-            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
-        end
-        | Blob (x,s,orig), _ ->
-        begin
-          let l', o' = shift_one_over l o in
-          let x = zero_init_calloced_memory orig x t in
-          (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
-          let do_strong_update =
-            begin match v with
-              | (Var var, _) ->
+          begin
+            (* We only have Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
+            (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
+            (* consider them in VD *)
+            let l', o' = shift_one_over l o in
+            let x = zero_init_calloced_memory orig x (TComp (f.fcomp, [])) in
+            (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
+            let do_strong_update =
+              match v with
+              | (Var var, Field (fld,_)) ->
+                let toptype = fld.fcomp in
                 let blob_size_opt = ID.to_int s in
                 not @@ ask.is_multiple var
+                && not @@ Cil.isVoidType t      (* Size of value is known *)
                 && Option.is_some blob_size_opt (* Size of blob is known *)
-                && ((
-                    not @@ Cil.isVoidType t     (* Size of value is known *)
-                    && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.alignOf_int t)
-                  ) || blob_destructive)
+                && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
               | _ -> false
-            end
-          in
-          if do_strong_update then
-            Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
-          else
-            mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
-        end
-        | Thread _, _ ->
-        (* hack for pthread_t variables *)
-        begin match value with
-          | Thread t -> value (* if actually assigning thread, use value *)
-          | _ ->
-            if !AnalysisState.global_initialization then
-              Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+            in
+            if do_strong_update then
+              Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
             else
-              Top
-        end
+              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+          end
+        | Blob (x,s,orig), _ ->
+          begin
+            let l', o' = shift_one_over l o in
+            let x = zero_init_calloced_memory orig x t in
+            (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
+            let do_strong_update =
+              begin match v with
+                | (Var var, _) ->
+                  let blob_size_opt = ID.to_int s in
+                  not @@ ask.is_multiple var
+                  && Option.is_some blob_size_opt (* Size of blob is known *)
+                  && ((
+                      not @@ Cil.isVoidType t     (* Size of value is known *)
+                      && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.alignOf_int t)
+                    ) || blob_destructive)
+                | _ -> false
+              end
+            in
+            if do_strong_update then
+              Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+            else
+              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+          end
+        | Thread _, _ ->
+          (* hack for pthread_t variables *)
+          begin match value with
+            | Thread t -> value (* if actually assigning thread, use value *)
+            | _ ->
+              if !AnalysisState.global_initialization then
+                Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+              else
+                Top
+          end
         | JmpBuf _, _ ->
           (* hack for jmp_buf variables *)
           begin match value with
@@ -1010,100 +1013,100 @@ struct
               else
                 Top
           end
-      | _ ->
-      let result =
-        match offs with
-        | `NoOffset -> begin
-            match value with
-            | Blob (y, s, orig) -> mu (Blob (join x y, s, orig))
-            | Int _ -> cast t value
-            | _ -> value
-          end
-        | `Field (fld, offs) when fld.fcomp.cstruct -> begin
-            let t = fld.ftype in
-            match x with
-            | Struct str ->
-              begin
-                let l', o' = shift_one_over l o in
-                let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t in
-                Struct (Structs.replace str fld value')
+        | _ ->
+          let result =
+            match offs with
+            | `NoOffset -> begin
+                match value with
+                | Blob (y, s, orig) -> mu (Blob (join x y, s, orig))
+                | Int _ -> cast t value
+                | _ -> value
               end
-            | Bot ->
-              let init_comp compinfo =
-                let nstruct = Structs.create (fun fd -> Bot) compinfo in
-                let init_field nstruct fd = Structs.replace nstruct fd Bot in
-                List.fold_left init_field nstruct compinfo.cfields
-              in
-              let strc = init_comp fld.fcomp in
-              let l', o' = shift_one_over l o in
-              Struct (Structs.replace strc fld (do_update_offset ask Bot offs value exp l' o' v t))
-            | Top -> M.warn ~category:Imprecise "Trying to update a field, but the struct is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a struct"; top ()
-          end
-        | `Field (fld, offs) -> begin
-            let t = fld.ftype in
-            let l', o' = shift_one_over l o in
-            match x with
-            | Union (last_fld, prev_val) ->
-              let tempval, tempoffs =
-                if UnionDomain.Field.equal last_fld (`Lifted fld) then
-                  prev_val, offs
-                else begin
-                  match offs with
-                  | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value ~varAttr:fld.fattr fld.ftype), offs
-                  | `Field (fldi, _) -> Union (Unions.top ()), offs
-                  | `NoOffset -> top (), offs
-                  | `Index (idx, _) when Cil.isArrayType fld.ftype ->
-                    begin
-                      match fld.ftype with
-                      | TArray(_, l, _) ->
-                        let len = try Cil.lenOfArray l
-                          with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
-                      | _ -> top (), offs (* will not happen*)
+            | `Field (fld, offs) when fld.fcomp.cstruct -> begin
+                let t = fld.ftype in
+                match x with
+                | Struct str ->
+                  begin
+                    let l', o' = shift_one_over l o in
+                    let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t in
+                    Struct (Structs.replace str fld value')
+                  end
+                | Bot ->
+                  let init_comp compinfo =
+                    let nstruct = Structs.create (fun fd -> Bot) compinfo in
+                    let init_field nstruct fd = Structs.replace nstruct fd Bot in
+                    List.fold_left init_field nstruct compinfo.cfields
+                  in
+                  let strc = init_comp fld.fcomp in
+                  let l', o' = shift_one_over l o in
+                  Struct (Structs.replace strc fld (do_update_offset ask Bot offs value exp l' o' v t))
+                | Top -> M.warn ~category:Imprecise "Trying to update a field, but the struct is unknown"; top ()
+                | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a struct"; top ()
+              end
+            | `Field (fld, offs) -> begin
+                let t = fld.ftype in
+                let l', o' = shift_one_over l o in
+                match x with
+                | Union (last_fld, prev_val) ->
+                  let tempval, tempoffs =
+                    if UnionDomain.Field.equal last_fld (`Lifted fld) then
+                      prev_val, offs
+                    else begin
+                      match offs with
+                      | `Field (fldi, _) when fldi.fcomp.cstruct ->
+                        (top_value ~varAttr:fld.fattr fld.ftype), offs
+                      | `Field (fldi, _) -> Union (Unions.top ()), offs
+                      | `NoOffset -> top (), offs
+                      | `Index (idx, _) when Cil.isArrayType fld.ftype ->
+                        begin
+                          match fld.ftype with
+                          | TArray(_, l, _) ->
+                            let len = try Cil.lenOfArray l
+                              with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
+                            Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
+                          | _ -> top (), offs (* will not happen*)
+                        end
+                      | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) ->
+                        (* Why does cil index unions? We'll just pick the first field. *)
+                        top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
+                      | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
+                        top (), offs
                     end
-                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) ->
-                    (* Why does cil index unions? We'll just pick the first field. *)
-                    top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
-                  | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
-                    top (), offs
-                end
-              in
-              Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
-            | Bot -> Union (`Lifted fld, do_update_offset ask Bot offs value exp l' o' v t)
-            | Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a union"; top ()
-          end
-        | `Index (idx, offs) -> begin
-            let l', o' = shift_one_over l o in
-            match x with
-            | Array x' ->
-              let t = (match t with
-              | TArray(t1 ,_,_) -> t1
-              | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
-              let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
-              let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
-              Array new_array_value
-            | Bot ->
-              let t,len = (match t with
-                  | TArray(t1 ,len,_) -> t1, len
-                  | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
-              let x' = CArrays.bot () in
-              let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask Bot offs value exp l' o' v t in
-              let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
-              let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
-              let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
-              let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
-              let new_array_value = CArrays.update_length newl new_array_value in
-              Array new_array_value
-            | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
-            | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pretty x; top ()
-          end
-      in mu result
+                  in
+                  Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
+                | Bot -> Union (`Lifted fld, do_update_offset ask Bot offs value exp l' o' v t)
+                | Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
+                | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a union"; top ()
+              end
+            | `Index (idx, offs) -> begin
+                let l', o' = shift_one_over l o in
+                match x with
+                | Array x' ->
+                  let t = (match t with
+                      | TArray(t1 ,_,_) -> t1
+                      | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
+                  let e = determine_offset ask l o exp (Some v) in
+                  let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
+                  let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
+                  Array new_array_value
+                | Bot ->
+                  let t,len = (match t with
+                      | TArray(t1 ,len,_) -> t1, len
+                      | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
+                  let x' = CArrays.bot () in
+                  let e = determine_offset ask l o exp (Some v) in
+                  let new_value_at_index = do_update_offset ask Bot offs value exp l' o' v t in
+                  let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
+                  let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
+                  let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
+                  let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
+                  let new_array_value = CArrays.update_length newl new_array_value in
+                  Array new_array_value
+                | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
+                | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
+                | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pretty x; top ()
+              end
+          in mu result
       in
       if M.tracing then M.traceu "update_offset" "do_update_offset -> %a\n" pretty r;
       r
@@ -1141,9 +1144,9 @@ struct
         CArrays.fold_left add_affecting_one_level immediately_affecting a
       end
     | Struct s ->
-        Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
+      Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
     | Union (f, v) ->
-        affecting_vars v
+      affecting_vars v
     (* Blob can not contain Array *)
     | _ -> []
 

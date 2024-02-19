@@ -150,6 +150,9 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
+    | Globalize ptr, _, _ ->
+      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) ptr in
+      D.join ctx.local escaped
     | _, "pthread_setspecific" , [key; pt_value] ->
       let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) pt_value in
       D.join ctx.local escaped

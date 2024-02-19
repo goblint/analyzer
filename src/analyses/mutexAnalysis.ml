@@ -229,7 +229,7 @@ struct
       let mutex_lockset = Lockset.export_locks @@ Lockset.singleton (mutex, true) in
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
-      (* if LockDomain.Addr.equal mutex verifier_atomic then
+      (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
         true
       else *)
       Mutexes.leq mutex_lockset protecting
