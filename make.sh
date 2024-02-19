@@ -59,8 +59,6 @@ rule() {
       dune build goblint.byte &&
       rm -f goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
-    # ;; tag*)
-    #   otags -vi `find src/ -iregex [^.]*\.mli?`
 
     # setup, dependencies
     ;; deps)
