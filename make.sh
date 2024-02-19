@@ -140,9 +140,6 @@ rule() {
       ./scripts/update_suite.rb # run regression tests
     ;; testci)
       ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
-    ;; server)
-      rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
-      ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
 
     ;; *)
       echo "Unknown action '$1'. Try clean, native, byte, profile or doc.";;
