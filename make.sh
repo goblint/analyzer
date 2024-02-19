@@ -140,13 +140,6 @@ rule() {
       ./scripts/update_suite.rb # run regression tests
     ;; testci)
       ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
-    ;; travis) # run a travis docker container with the files tracked by git - intended to debug setup problems on travis-ci.com
-      echo "run ./scripts/travis-ci.sh to setup ocaml"
-      # echo "bind-mount cwd: beware that cwd of host can be modified and IO is very slow!"
-      # docker run -it -u travis -v $(pwd):$(pwd):delegated -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash
-      echo "copy cwd w/o git-ignored files: changes in container won't affect host's cwd."
-      # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
-      docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
     ;; server)
       rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
       ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
