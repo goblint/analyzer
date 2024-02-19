@@ -94,8 +94,6 @@ rule() {
       tar xf master.tar.gz && rm master.tar.gz
       rm -rf linux-headers && mv linux-headers-master linux-headers
       for n in $(compgen -c gcc- | sed 's/gcc-//'); do if [ $n != 5 ]; then cp -n linux-headers/include/linux/compiler-gcc{5,$n}.h; fi; done
-    ;; lock)
-      opam lock
     ;; npm)
       if test ! -e "webapp/package.json"; then
         git submodule update --init --recursive webapp
