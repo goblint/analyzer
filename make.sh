@@ -109,8 +109,6 @@ rule() {
     ;; setup_gobview )
       [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
       opam install --deps-only --locked gobview/
-    # ;; watch)
-    #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; install)
       eval $(opam config env)
       dune build @install
