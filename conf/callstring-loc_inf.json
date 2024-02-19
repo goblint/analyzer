@@ -112,7 +112,7 @@
       "unknown": false
     },
     "yaml": {
-      "enabled": true,
+      "enabled": false,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set"
