@@ -1,0 +1,176 @@
+  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --enable justcil 02-break.c
+  [Info] unrolling loop at 02-break.c:6:5-15:2 with factor 5
+  extern void __goblint_check(int exp ) ;
+  extern void __goblint_assume(int exp ) ;
+  extern void __goblint_assert(int exp ) ;
+  extern void __goblint_assume_join() ;
+  extern void __goblint_globalize(void *ptr ) ;
+  extern void __goblint_split_begin(int exp ) ;
+  extern void __goblint_split_end(int exp ) ;
+  extern void __goblint_bounded(unsigned long long exp ) ;
+  int main(void) 
+  { 
+    int r  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+  
+    {
+    r = 5;
+    i = 0;
+    {
+    {
+    {
+    if (! (i < 2)) {
+      goto loop_end;
+    }
+    {
+    if (i == 0) {
+      goto case_0___4;
+    }
+    if (i == 1) {
+      goto case_1___4;
+    }
+    goto switch_break;
+    case_0: /* CIL Label */ 
+    goto loop_end;
+    case_1: /* CIL Label */ 
+    r = 8;
+    switch_break: /* CIL Label */ ;
+    }
+    r = 17;
+    goto loop_end;
+    i ++;
+    }
+    loop_continue_0: ;
+    }
+    {
+    {
+    if (! (i < 2)) {
+      goto loop_end;
+    }
+    {
+    if (i == 0) {
+      goto case_0___4;
+    }
+    if (i == 1) {
+      goto case_1___4;
+    }
+    goto switch_break___0;
+    case_0___0: /* CIL Label */ 
+    goto loop_end;
+    case_1___0: /* CIL Label */ 
+    r = 8;
+    switch_break___0: /* CIL Label */ ;
+    }
+    r = 17;
+    goto loop_end;
+    i ++;
+    }
+    loop_continue_1: ;
+    }
+    {
+    {
+    if (! (i < 2)) {
+      goto loop_end;
+    }
+    {
+    if (i == 0) {
+      goto case_0___4;
+    }
+    if (i == 1) {
+      goto case_1___4;
+    }
+    goto switch_break___1;
+    case_0___1: /* CIL Label */ 
+    goto loop_end;
+    case_1___1: /* CIL Label */ 
+    r = 8;
+    switch_break___1: /* CIL Label */ ;
+    }
+    r = 17;
+    goto loop_end;
+    i ++;
+    }
+    loop_continue_2: ;
+    }
+    {
+    {
+    if (! (i < 2)) {
+      goto loop_end;
+    }
+    {
+    if (i == 0) {
+      goto case_0___4;
+    }
+    if (i == 1) {
+      goto case_1___4;
+    }
+    goto switch_break___2;
+    case_0___2: /* CIL Label */ 
+    goto loop_end;
+    case_1___2: /* CIL Label */ 
+    r = 8;
+    switch_break___2: /* CIL Label */ ;
+    }
+    r = 17;
+    goto loop_end;
+    i ++;
+    }
+    loop_continue_3: ;
+    }
+    {
+    {
+    if (! (i < 2)) {
+      goto loop_end;
+    }
+    {
+    if (i == 0) {
+      goto case_0___4;
+    }
+    if (i == 1) {
+      goto case_1___4;
+    }
+    goto switch_break___3;
+    case_0___3: /* CIL Label */ 
+    goto loop_end;
+    case_1___3: /* CIL Label */ 
+    r = 8;
+    switch_break___3: /* CIL Label */ ;
+    }
+    r = 17;
+    goto loop_end;
+    i ++;
+    }
+    loop_continue_4: ;
+    }
+    {
+    while (1) {
+      while_continue: /* CIL Label */ ;
+      if (! (i < 2)) {
+        goto while_break;
+      }
+      {
+      if (i == 0) {
+        goto case_0___4;
+      }
+      if (i == 1) {
+        goto case_1___4;
+      }
+      goto switch_break___4;
+      case_0___4: /* CIL Label */ 
+      goto switch_break___4;
+      case_1___4: /* CIL Label */ 
+      r = 8;
+      switch_break___4: /* CIL Label */ ;
+      }
+      r = 17;
+      goto while_break;
+      i ++;
+    }
+    while_break: /* CIL Label */ ;
+    }
+    loop_end: ;
+    }
+    __goblint_check(r == 17);
+    return (0);
+  }
+  }
