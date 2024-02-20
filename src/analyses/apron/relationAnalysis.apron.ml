@@ -210,7 +210,7 @@ struct
 
   (** An extended overflow handling inside relationAnalysis for expression assignments when overflows are assumed to occur.
       Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
-      If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
+      We reevaluate the expression with the base analysis and check if the overflow flag was set by the intdomain *)
   let no_overflow (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
     | exception Invalid_argument _ -> false (* TODO: why this? *)
@@ -334,7 +334,7 @@ struct
   (* tracks the relational relationship between pointers *)
   let pointerAssign ctx (v:varinfo) e = 
     (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
-    if GobConfig.get_bool "ana.apron.pointer_tracking" && (not v.vglob || ctx.ask (Queries.MustBeSingleThreaded {since_start=false}) ) then (
+    if GobConfig.get_bool "ana.apron.pointer_tracking" && (not v.vaddrof || ctx.ask (Queries.MustBeSingleThreaded {since_start=false}) ) then (
       try
         match sizeOfTyp (Lval (Var v, NoOffset)) with 
         | Some typSize -> 

@@ -32,8 +32,9 @@ struct
     D.join au_filtered ctx.local
 
   let enter ctx r f (args:exp list) = 
-    let r = List.fold_left pointerAddressTakenOf ctx.local args in
-    [r, r]
+    (*track all arguments we take the address of*)
+    let ctx_new = List.fold_left pointerAddressTakenOf ctx.local args in
+    [ctx.local, ctx_new]
 
   let query ctx (type a) (q: a Queries.t) : a Queries.result =
     match q with

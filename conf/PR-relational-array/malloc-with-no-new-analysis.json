@@ -13,7 +13,7 @@
       "interval": true
     },
     "apron": {
-      "domain": "polyhedra"
+        "domain": "octagon"
     },
     "activated": [
       "base",
@@ -37,6 +37,8 @@
       "apron",
       "memOutOfBounds",
       "taintPartialContexts",
+      "memLeak",
+      "apron",
       "useAfterFree"
     ],
     "path_sens": [
@@ -79,17 +81,15 @@
       "call": false
     },
     "autotune": {
-      "enabled": false,
+      "enabled": true,
       "activated": [
         "singleThreaded",
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
-        "memsafetySpecification",
         "termination",
         "tmpSpecialAnalysis"
       ]
@@ -112,7 +112,7 @@
   },
   "witness": {
     "graphml": {
-      "enabled": false,
+      "enabled": true,
       "id": "enumerate",
       "unknown": false
     },
@@ -141,14 +141,11 @@
         "__VERIFIER_assert__cond",
         "__ksymtab_.*",
         "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+",
-        ".*\\$.*"
+        ".*\\$len.$"
       ]
     }
   },
   "pre": {
     "enabled": false
-  },
-  "warn": {
-    "integer": false
   }
 }

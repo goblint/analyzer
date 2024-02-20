@@ -13,7 +13,8 @@
       "interval": true
     },
     "apron": {
-        "domain": "octagon"
+        "domain": "octagon",
+        "pointer_tracking": true
     },
     "activated": [
       "base",
@@ -34,12 +35,7 @@
       "region",
       "thread",
       "threadJoins",
-      "apron",
-      "memOutOfBounds",
-      "taintPartialContexts",
-      "memLeak",
-      "apron",
-      "useAfterFree"
+      "apron"
     ],
     "path_sens": [
       "mutex",
@@ -60,11 +56,14 @@
         "usb_alloc_urb",
         "__builtin_alloca",
         "kzalloc",
+
         "ldv_malloc",
+
         "kzalloc_node",
         "ldv_zalloc",
         "kmalloc_array",
         "kcalloc",
+
         "ldv_xmalloc",
         "ldv_xzalloc",
         "ldv_calloc",
@@ -90,6 +89,7 @@
         "congruence",
         "wideningThresholds",
         "loopUnrollHeuristic",
+        "memsafetySpecification",
         "termination",
         "tmpSpecialAnalysis"
       ]
