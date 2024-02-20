@@ -54,6 +54,7 @@ depends: [
 depopts: ["apron" "z3"]
 conflicts: [
   "result" {< "1.5"}
+  "ez-conf-lib" {= "1"}
 ]
 build: [
   ["dune" "subst"] {dev}
