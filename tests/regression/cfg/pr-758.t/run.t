@@ -21,9 +21,9 @@
     │                                                  │ x = 42                              │
     │                                                  ▼                                     │
     │                                                ┌────────────────────────────────────┐  │
-    │                                                │ pr-758.c:6:3-8:3 (synthetic)       │  │
+    │                                                │ pr-758.c:6:3-8:3                   │  │
     │                                                │ (pr-758.c:6:7-6:26 (synthetic))    │  │
-    │                                                │ YAML loc: false, loop: false       │  │
+    │                                                │ YAML loc: true, loop: false        │  │
     │                                                │ YAMLval loc: true, loop: false     │  │
     │                                                │ GraphML: true; server: false       │  │
     │                                                └────────────────────────────────────┘  │

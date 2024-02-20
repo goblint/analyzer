@@ -10,17 +10,17 @@ int main() {
   }
 
   // for loop
-  for (i = 0; i < 10; i++) { // TODO: allow location invariant before initializer (loop)
+  for (i = 0; i < 10; i++) {
     __goblint_check(1);
   }
 
   // for loop with empty body
-  for (i = 0; i < 10; i++) { // TODO: allow location invariant before initializer (loop)
+  for (i = 0; i < 10; i++) {
 
   }
 
   // for loop with empty increment
-  for (i = 0; i < 10;) { // TODO: allow location invariant before initializer (loop)
+  for (i = 0; i < 10;) {
     i++;
   }
 
