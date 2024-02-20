@@ -35,12 +35,24 @@ let main () =
         GoblintCil.computeCFGInfo fd true
       | _ -> ()
     );
-  let (module Cfg) = CfgTools.compute_cfg ast in
+  let ((module Cfg), skipped) = CfgTools.compute_cfg_skips ast in
   let module FileCfg =
   struct
     let file = ast
     module Cfg = Cfg
   end
+  in
+
+  let is_loop_head n =
+    let prevs = Cfg.prev n in
+    List.find_map (fun (edges, prev) ->
+        let stmts = CfgTools.CfgEdgeH.find skipped (prev, edges, n) in
+        List.find_map (fun s ->
+            match s.GoblintCil.skind with
+            | Loop (_, loc, _, _, _) -> Some loc
+            | _ -> None
+          ) stmts
+      ) prevs
   in
 
   let module GraphmlWitnessInvariant = WitnessUtil.Invariant (FileCfg) in
@@ -70,12 +82,13 @@ let main () =
       | Node.Statement stmt as n ->
         let locs: CilLocation.locs = CilLocation.get_stmtLoc stmt in
         let label =
-          Format.asprintf "@[<v 2>%a%a@;YAML loc: %B, loop: %B@;YAMLval loc: %B, loop: %B@;GraphML: %B; server: %B@]"
+          Format.asprintf "@[<v 2>%a%a@;YAML loc: %B, loop: %B@;YAMLval loc: %B, loop: %B@;GraphML: %B; server: %B@;loop: %a@]"
             pp_locs locs
             (Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_label_locs) stmt.labels
             (YamlWitnessInvariant.is_invariant_node n) (YamlWitnessInvariant.is_loop_head_node n)
             (YamlWitnessValidateInvariant.is_invariant_node n) (YamlWitnessValidateInvariant.is_loop_head_node n)
             (GraphmlWitnessInvariant.is_invariant_node n) (Server.is_server_node n)
+            (Format.pp_print_option CilType.Location.pp) (is_loop_head n)
         in
         [Printf.sprintf "label=\"%s\"" (Str.global_replace (Str.regexp "\n") "\\n" label)]
       | _ -> []

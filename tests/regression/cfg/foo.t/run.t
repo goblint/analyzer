@@ -13,6 +13,7 @@
                                                               │ YAML loc: true, loop: false    │
                                                               │ YAMLval loc: true, loop: false │
                                                               │ GraphML: true; server: false   │
+                                                              │ loop:                          │
                                                               └────────────────────────────────┘
                                                                 │
                                                                 │ a = 1
@@ -23,6 +24,7 @@
                                                               │ YAML loc: false, loop: false   │
                                                               │ YAMLval loc: true, loop: false │
                                                               │ GraphML: true; server: false   │
+                                                              │ loop:                          │
                                                               └────────────────────────────────┘
                                                                 │
                                                                 │ b = 1
@@ -31,8 +33,9 @@
              │ foo.c:7:3-7:11                 │               │ foo.c:3:3-6:3 (synthetic)      │
              │ (foo.c:7:10-7:11)              │               │ (foo.c:3:10-3:20 (synthetic))  │
              │ YAML loc: true, loop: false    │               │ YAML loc: false, loop: true    │
-             │ YAMLval loc: true, loop: false │  Neg(a > 0)   │ YAMLval loc: true, loop: true  │
-    ┌──────▶ │ GraphML: true; server: true    │ ◀──────────── │ GraphML: true; server: false   │ ◀┐
+             │ YAMLval loc: true, loop: false │               │ YAMLval loc: true, loop: true  │
+             │ GraphML: true; server: true    │  Neg(a > 0)   │ GraphML: true; server: false   │
+    ┌──────▶ │ loop:                          │ ◀──────────── │ loop: foo.c:3:3-6:3            │ ◀┐
     │        └────────────────────────────────┘               └────────────────────────────────┘  │
     │          │                                                │                                 │
     │          │ return 0                                       │ Pos(a > 0)                      │
@@ -42,7 +45,8 @@
     │ Neg(b) │                                │               │ (foo.c:3:10-3:20 (synthetic))  │  │
     │        │ return of main()               │               │ YAML loc: false, loop: false   │  │
     │        │                                │               │ YAMLval loc: true, loop: false │  │
-    │        │                                │  ┌─────────── │ GraphML: true; server: false   │  │
+    │        │                                │               │ GraphML: true; server: false   │  │
+    │        │                                │  ┌─────────── │ loop:                          │  │
     │        └────────────────────────────────┘  │            └────────────────────────────────┘  │
     │                                            │              │                                 │
     └────────────────────────────────────────────┘              │ Pos(b)                          │ b = b - 1
@@ -53,6 +57,7 @@
                                                               │ YAML loc: true, loop: false    │  │
                                                               │ YAMLval loc: true, loop: false │  │
                                                               │ GraphML: true; server: true    │  │
+                                                              │ loop:                          │  │
                                                               └────────────────────────────────┘  │
                                                                 │                                 │
                                                                 │ a = a + 1                       │
@@ -62,5 +67,6 @@
                                                               │ (foo.c:5:5-5:8)                │  │
                                                               │ YAML loc: true, loop: false    │  │
                                                               │ YAMLval loc: true, loop: false │  │
-                                                              │ GraphML: true; server: true    │ ─┘
+                                                              │ GraphML: true; server: true    │  │
+                                                              │ loop:                          │ ─┘
                                                               └────────────────────────────────┘
