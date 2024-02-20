@@ -445,32 +445,30 @@ class loopUnrollingVisitor(func, totalLoops) = object
   inherit nopCilVisitor
 
   method! vstmt s =
-    match s.skind with
-    | Loop (b,loc, loc2, break , continue) ->
-      let duplicate_and_rem_labels s =
+    let duplicate_and_rem_labels s =
+      match s.skind with
+      | Loop (b,loc, loc2, break , continue) ->
         let factor = loop_unrolling_factor s func totalLoops in
         if(factor > 0) then (
           Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
-          match s.skind with
-          | Loop (b,loc, loc2, break , continue) ->
-            (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
-            let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
-            (* continues should go to the next unrolling *)
-            let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, true)]} in
-            (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
-            let current_continue_target = ref dummyStmt in
-            let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in
-            let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
-            let copies = List.init (factor) (fun i ->
-                current_continue_target := continue_target i;
-                mkStmt (Block (mkBlock [one_copy (); !current_continue_target])))
-            in
-            mkStmt (Block (mkBlock (copies@[s]@[break_target])))
-          | _ -> failwith "invariant broken"
+          (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
+          let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
+          (* continues should go to the next unrolling *)
+          let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, true)]} in
+          (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
+          let current_continue_target = ref dummyStmt in
+          let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in
+          let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
+          let copies = List.init (factor) (fun i ->
+              current_continue_target := continue_target i;
+              mkStmt (Block (mkBlock [one_copy (); !current_continue_target])))
+          in
+          mkStmt (Block (mkBlock (copies@[s]@[break_target])))
         ) else s (*no change*)
-      in ChangeDoChildrenPost(s, duplicate_and_rem_labels);
-    | _ -> DoChildren
+      | _ -> s
+    in
+    ChangeDoChildrenPost(s, duplicate_and_rem_labels)
 end
 
 let unroll_loops fd totalLoops =
