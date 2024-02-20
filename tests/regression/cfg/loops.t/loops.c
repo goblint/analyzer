@@ -30,6 +30,11 @@ int main() {
     __goblint_check(1);
   }
 
+  // for loop with two initializers
+  for (int j = (i = 0); i < 10; i++) {
+    __goblint_check(1);
+  }
+
   // do-while loop
   i = 0;
   do {
