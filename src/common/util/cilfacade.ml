@@ -66,8 +66,27 @@ let parse fileName =
     E.s (E.error "There were parsing errors in %s" fileName_str);
   file
 
+class myCilPrinter =
+object
+  inherit defaultCilPrinterClass as super
+
+  method! pLineDirective ?(forcefile=false) l =
+    Pretty.nil
+
+  method! pGlobal () (g: global) =
+    match g with
+    | GVarDecl (vi, l) when Hashtbl.mem builtinFunctions vi.vname -> Pretty.nil
+    | _ -> super#pGlobal () g
+end
+
+let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
+  Pretty.printDepth := 99999;
+  Pretty.fastMode := true;
+  iterGlobals file (fun g -> dumpGlobal pp out g);
+  flush out
+
 let print (fileAST: file) =
-  dumpFile defaultCilPrinter stdout "stdout" fileAST
+  dumpFile (new myCilPrinter) stdout "stdout" fileAST
 
 let rmTemps fileAST =
   RmUnused.removeUnused fileAST
