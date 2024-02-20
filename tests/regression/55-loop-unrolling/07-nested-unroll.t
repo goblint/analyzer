@@ -37,7 +37,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_0___1: ;
+    loop_continue_0___1: /* CIL Label */ ;
     }
     {
     {
@@ -47,7 +47,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_1___0: ;
+    loop_continue_1___0: /* CIL Label */ ;
     }
     {
     {
@@ -57,7 +57,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_2___0: ;
+    loop_continue_2___0: /* CIL Label */ ;
     }
     {
     {
@@ -67,7 +67,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_3___0: ;
+    loop_continue_3___0: /* CIL Label */ ;
     }
     {
     {
@@ -77,7 +77,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_4___0: ;
+    loop_continue_4___0: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -90,11 +90,11 @@
     }
     while_break: /* CIL Label */ ;
     }
-    loop_end___1: ;
+    loop_end___1: /* CIL Label */ ;
     }
     i ++;
     }
-    loop_continue_0___0: ;
+    loop_continue_0___0: /* CIL Label */ ;
     }
     {
     {
@@ -111,7 +111,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_0___2: ;
+    loop_continue_0___2: /* CIL Label */ ;
     }
     {
     {
@@ -121,7 +121,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_1___2: ;
+    loop_continue_1___2: /* CIL Label */ ;
     }
     {
     {
@@ -131,7 +131,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_2___1: ;
+    loop_continue_2___1: /* CIL Label */ ;
     }
     {
     {
@@ -141,7 +141,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_3___1: ;
+    loop_continue_3___1: /* CIL Label */ ;
     }
     {
     {
@@ -151,7 +151,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_4___1: ;
+    loop_continue_4___1: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -164,11 +164,11 @@
     }
     while_break___0: /* CIL Label */ ;
     }
-    loop_end___2: ;
+    loop_end___2: /* CIL Label */ ;
     }
     i ++;
     }
-    loop_continue_1___1: ;
+    loop_continue_1___1: /* CIL Label */ ;
     }
     {
     {
@@ -185,7 +185,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_0___3: ;
+    loop_continue_0___3: /* CIL Label */ ;
     }
     {
     {
@@ -195,7 +195,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_1___3: ;
+    loop_continue_1___3: /* CIL Label */ ;
     }
     {
     {
@@ -205,7 +205,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_2___3: ;
+    loop_continue_2___3: /* CIL Label */ ;
     }
     {
     {
@@ -215,7 +215,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_3___2: ;
+    loop_continue_3___2: /* CIL Label */ ;
     }
     {
     {
@@ -225,7 +225,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_4___2: ;
+    loop_continue_4___2: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -238,11 +238,11 @@
     }
     while_break___1: /* CIL Label */ ;
     }
-    loop_end___3: ;
+    loop_end___3: /* CIL Label */ ;
     }
     i ++;
     }
-    loop_continue_2___2: ;
+    loop_continue_2___2: /* CIL Label */ ;
     }
     {
     {
@@ -259,7 +259,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_0___4: ;
+    loop_continue_0___4: /* CIL Label */ ;
     }
     {
     {
@@ -269,7 +269,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_1___4: ;
+    loop_continue_1___4: /* CIL Label */ ;
     }
     {
     {
@@ -279,7 +279,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_2___4: ;
+    loop_continue_2___4: /* CIL Label */ ;
     }
     {
     {
@@ -289,7 +289,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_3___4: ;
+    loop_continue_3___4: /* CIL Label */ ;
     }
     {
     {
@@ -299,7 +299,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_4___3: ;
+    loop_continue_4___3: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -312,11 +312,11 @@
     }
     while_break___2: /* CIL Label */ ;
     }
-    loop_end___4: ;
+    loop_end___4: /* CIL Label */ ;
     }
     i ++;
     }
-    loop_continue_3___3: ;
+    loop_continue_3___3: /* CIL Label */ ;
     }
     {
     {
@@ -333,7 +333,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_0___5: ;
+    loop_continue_0___5: /* CIL Label */ ;
     }
     {
     {
@@ -343,7 +343,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_1___5: ;
+    loop_continue_1___5: /* CIL Label */ ;
     }
     {
     {
@@ -353,7 +353,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_2___5: ;
+    loop_continue_2___5: /* CIL Label */ ;
     }
     {
     {
@@ -363,7 +363,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_3___5: ;
+    loop_continue_3___5: /* CIL Label */ ;
     }
     {
     {
@@ -373,7 +373,7 @@
     arr[i][j] = i + j;
     j ++;
     }
-    loop_continue_4___5: ;
+    loop_continue_4___5: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -386,11 +386,11 @@
     }
     while_break___3: /* CIL Label */ ;
     }
-    loop_end___5: ;
+    loop_end___5: /* CIL Label */ ;
     }
     i ++;
     }
-    loop_continue_4___4: ;
+    loop_continue_4___4: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -408,7 +408,7 @@
       arr[i][j] = i + j;
       j ++;
       }
-      loop_continue_0: ;
+      loop_continue_0: /* CIL Label */ ;
       }
       {
       {
@@ -418,7 +418,7 @@
       arr[i][j] = i + j;
       j ++;
       }
-      loop_continue_1: ;
+      loop_continue_1: /* CIL Label */ ;
       }
       {
       {
@@ -428,7 +428,7 @@
       arr[i][j] = i + j;
       j ++;
       }
-      loop_continue_2: ;
+      loop_continue_2: /* CIL Label */ ;
       }
       {
       {
@@ -438,7 +438,7 @@
       arr[i][j] = i + j;
       j ++;
       }
-      loop_continue_3: ;
+      loop_continue_3: /* CIL Label */ ;
       }
       {
       {
@@ -448,7 +448,7 @@
       arr[i][j] = i + j;
       j ++;
       }
-      loop_continue_4: ;
+      loop_continue_4: /* CIL Label */ ;
       }
       {
       while (1) {
@@ -461,13 +461,13 @@
       }
       while_break___5: /* CIL Label */ ;
       }
-      loop_end: ;
+      loop_end: /* CIL Label */ ;
       }
       i ++;
     }
     while_break___4: /* CIL Label */ ;
     }
-    loop_end___0: ;
+    loop_end___0: /* CIL Label */ ;
     }
     i___0 = 0;
     {
@@ -486,7 +486,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_0___8: ;
+    loop_continue_0___8: /* CIL Label */ ;
     }
     {
     {
@@ -496,7 +496,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_1___7: ;
+    loop_continue_1___7: /* CIL Label */ ;
     }
     {
     {
@@ -506,7 +506,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_2___7: ;
+    loop_continue_2___7: /* CIL Label */ ;
     }
     {
     {
@@ -516,7 +516,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_3___7: ;
+    loop_continue_3___7: /* CIL Label */ ;
     }
     {
     {
@@ -526,7 +526,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_4___7: ;
+    loop_continue_4___7: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -539,11 +539,11 @@
     }
     while_break___6: /* CIL Label */ ;
     }
-    loop_end___8: ;
+    loop_end___8: /* CIL Label */ ;
     }
     i___0 ++;
     }
-    loop_continue_0___7: ;
+    loop_continue_0___7: /* CIL Label */ ;
     }
     {
     {
@@ -560,7 +560,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_0___9: ;
+    loop_continue_0___9: /* CIL Label */ ;
     }
     {
     {
@@ -570,7 +570,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_1___9: ;
+    loop_continue_1___9: /* CIL Label */ ;
     }
     {
     {
@@ -580,7 +580,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_2___8: ;
+    loop_continue_2___8: /* CIL Label */ ;
     }
     {
     {
@@ -590,7 +590,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_3___8: ;
+    loop_continue_3___8: /* CIL Label */ ;
     }
     {
     {
@@ -600,7 +600,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_4___8: ;
+    loop_continue_4___8: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -613,11 +613,11 @@
     }
     while_break___7: /* CIL Label */ ;
     }
-    loop_end___9: ;
+    loop_end___9: /* CIL Label */ ;
     }
     i___0 ++;
     }
-    loop_continue_1___8: ;
+    loop_continue_1___8: /* CIL Label */ ;
     }
     {
     {
@@ -634,7 +634,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_0___10: ;
+    loop_continue_0___10: /* CIL Label */ ;
     }
     {
     {
@@ -644,7 +644,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_1___10: ;
+    loop_continue_1___10: /* CIL Label */ ;
     }
     {
     {
@@ -654,7 +654,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_2___10: ;
+    loop_continue_2___10: /* CIL Label */ ;
     }
     {
     {
@@ -664,7 +664,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_3___9: ;
+    loop_continue_3___9: /* CIL Label */ ;
     }
     {
     {
@@ -674,7 +674,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_4___9: ;
+    loop_continue_4___9: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -687,11 +687,11 @@
     }
     while_break___8: /* CIL Label */ ;
     }
-    loop_end___10: ;
+    loop_end___10: /* CIL Label */ ;
     }
     i___0 ++;
     }
-    loop_continue_2___9: ;
+    loop_continue_2___9: /* CIL Label */ ;
     }
     {
     {
@@ -708,7 +708,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_0___11: ;
+    loop_continue_0___11: /* CIL Label */ ;
     }
     {
     {
@@ -718,7 +718,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_1___11: ;
+    loop_continue_1___11: /* CIL Label */ ;
     }
     {
     {
@@ -728,7 +728,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_2___11: ;
+    loop_continue_2___11: /* CIL Label */ ;
     }
     {
     {
@@ -738,7 +738,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_3___11: ;
+    loop_continue_3___11: /* CIL Label */ ;
     }
     {
     {
@@ -748,7 +748,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_4___10: ;
+    loop_continue_4___10: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -761,11 +761,11 @@
     }
     while_break___9: /* CIL Label */ ;
     }
-    loop_end___11: ;
+    loop_end___11: /* CIL Label */ ;
     }
     i___0 ++;
     }
-    loop_continue_3___10: ;
+    loop_continue_3___10: /* CIL Label */ ;
     }
     {
     {
@@ -782,7 +782,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_0___12: ;
+    loop_continue_0___12: /* CIL Label */ ;
     }
     {
     {
@@ -792,7 +792,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_1___12: ;
+    loop_continue_1___12: /* CIL Label */ ;
     }
     {
     {
@@ -802,7 +802,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_2___12: ;
+    loop_continue_2___12: /* CIL Label */ ;
     }
     {
     {
@@ -812,7 +812,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_3___12: ;
+    loop_continue_3___12: /* CIL Label */ ;
     }
     {
     {
@@ -822,7 +822,7 @@
     __goblint_check(arr[i___0][j___0] == i___0 + j___0);
     j___0 ++;
     }
-    loop_continue_4___12: ;
+    loop_continue_4___12: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -835,11 +835,11 @@
     }
     while_break___10: /* CIL Label */ ;
     }
-    loop_end___12: ;
+    loop_end___12: /* CIL Label */ ;
     }
     i___0 ++;
     }
-    loop_continue_4___11: ;
+    loop_continue_4___11: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -857,7 +857,7 @@
       __goblint_check(arr[i___0][j___0] == i___0 + j___0);
       j___0 ++;
       }
-      loop_continue_0___6: ;
+      loop_continue_0___6: /* CIL Label */ ;
       }
       {
       {
@@ -867,7 +867,7 @@
       __goblint_check(arr[i___0][j___0] == i___0 + j___0);
       j___0 ++;
       }
-      loop_continue_1___6: ;
+      loop_continue_1___6: /* CIL Label */ ;
       }
       {
       {
@@ -877,7 +877,7 @@
       __goblint_check(arr[i___0][j___0] == i___0 + j___0);
       j___0 ++;
       }
-      loop_continue_2___6: ;
+      loop_continue_2___6: /* CIL Label */ ;
       }
       {
       {
@@ -887,7 +887,7 @@
       __goblint_check(arr[i___0][j___0] == i___0 + j___0);
       j___0 ++;
       }
-      loop_continue_3___6: ;
+      loop_continue_3___6: /* CIL Label */ ;
       }
       {
       {
@@ -897,7 +897,7 @@
       __goblint_check(arr[i___0][j___0] == i___0 + j___0);
       j___0 ++;
       }
-      loop_continue_4___6: ;
+      loop_continue_4___6: /* CIL Label */ ;
       }
       {
       while (1) {
@@ -910,13 +910,13 @@
       }
       while_break___12: /* CIL Label */ ;
       }
-      loop_end___6: ;
+      loop_end___6: /* CIL Label */ ;
       }
       i___0 ++;
     }
     while_break___11: /* CIL Label */ ;
     }
-    loop_end___7: ;
+    loop_end___7: /* CIL Label */ ;
     }
     return (0);
   }

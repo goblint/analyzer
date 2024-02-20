@@ -24,7 +24,7 @@
     a[i] = i;
     i ++;
     }
-    loop_continue_0: ;
+    loop_continue_0: /* CIL Label */ ;
     }
     {
     {
@@ -34,7 +34,7 @@
     a[i] = i;
     i ++;
     }
-    loop_continue_1: ;
+    loop_continue_1: /* CIL Label */ ;
     }
     {
     {
@@ -44,7 +44,7 @@
     a[i] = i;
     i ++;
     }
-    loop_continue_2: ;
+    loop_continue_2: /* CIL Label */ ;
     }
     {
     {
@@ -54,7 +54,7 @@
     a[i] = i;
     i ++;
     }
-    loop_continue_3: ;
+    loop_continue_3: /* CIL Label */ ;
     }
     {
     {
@@ -64,7 +64,7 @@
     a[i] = i;
     i ++;
     }
-    loop_continue_4: ;
+    loop_continue_4: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -77,7 +77,7 @@
     }
     while_break: /* CIL Label */ ;
     }
-    loop_end: ;
+    loop_end: /* CIL Label */ ;
     }
     __goblint_check(a[0] == 0);
     __goblint_check(a[3] == 3);

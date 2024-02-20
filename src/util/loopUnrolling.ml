@@ -453,9 +453,9 @@ class loopUnrollingVisitor(func, totalLoops) = object
           Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
           (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
-          let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
+          let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, false)]} in
           (* continues should go to the next unrolling *)
-          let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, true)]} in
+          let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
           (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
           let current_continue_target = ref dummyStmt in
           let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in

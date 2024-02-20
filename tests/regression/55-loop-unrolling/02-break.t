@@ -40,7 +40,7 @@
     goto loop_end;
     i ++;
     }
-    loop_continue_0: ;
+    loop_continue_0: /* CIL Label */ ;
     }
     {
     {
@@ -65,7 +65,7 @@
     goto loop_end;
     i ++;
     }
-    loop_continue_1: ;
+    loop_continue_1: /* CIL Label */ ;
     }
     {
     {
@@ -90,7 +90,7 @@
     goto loop_end;
     i ++;
     }
-    loop_continue_2: ;
+    loop_continue_2: /* CIL Label */ ;
     }
     {
     {
@@ -115,7 +115,7 @@
     goto loop_end;
     i ++;
     }
-    loop_continue_3: ;
+    loop_continue_3: /* CIL Label */ ;
     }
     {
     {
@@ -140,7 +140,7 @@
     goto loop_end;
     i ++;
     }
-    loop_continue_4: ;
+    loop_continue_4: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -168,7 +168,7 @@
     }
     while_break: /* CIL Label */ ;
     }
-    loop_end: ;
+    loop_end: /* CIL Label */ ;
     }
     __goblint_check(r == 17);
     return (0);

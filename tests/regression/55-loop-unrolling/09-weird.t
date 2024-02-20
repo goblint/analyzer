@@ -27,7 +27,7 @@
     j = 8;
     i ++;
     }
-    loop_continue_0: ;
+    loop_continue_0: /* CIL Label */ ;
     }
     {
     {
@@ -39,7 +39,7 @@
     j = 8;
     i ++;
     }
-    loop_continue_1: ;
+    loop_continue_1: /* CIL Label */ ;
     }
     {
     while (1) {
@@ -54,7 +54,7 @@
     }
     while_break: /* CIL Label */ ;
     }
-    loop_end: ;
+    loop_end: /* CIL Label */ ;
     }
     __goblint_check(j == 8);
     return;

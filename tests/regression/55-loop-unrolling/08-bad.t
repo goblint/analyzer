@@ -15,7 +15,7 @@
       goto loop_end;
     }
     }
-    loop_continue_0: ;
+    loop_continue_0: /* CIL Label */ ;
     }
     switch_default: /* CIL Label */ 
     {
@@ -27,7 +27,7 @@
     }
     while_break: /* CIL Label */ ;
     }
-    loop_end: ;
+    loop_end: /* CIL Label */ ;
     }
     switch_break: /* CIL Label */ ;
     }
@@ -39,7 +39,7 @@
       goto loop_end___0;
     }
     }
-    loop_continue_0___0: ;
+    loop_continue_0___0: /* CIL Label */ ;
     }
     lab: 
     {
@@ -51,7 +51,7 @@
     }
     while_break___0: /* CIL Label */ ;
     }
-    loop_end___0: ;
+    loop_end___0: /* CIL Label */ ;
     }
     return (0);
   }
