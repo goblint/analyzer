@@ -10,7 +10,7 @@
                                                               ┌────────────────────────────────┐
                                                               │ foo.c:2:3-2:19                 │
                                                               │ (foo.c:2:7-2:12 (synthetic))   │
-                                                              │ YAML loc: false, loop: false   │
+                                                              │ YAML loc: true, loop: false    │
                                                               │ YAMLval loc: true, loop: false │
                                                               │ GraphML: true; server: false   │
                                                               └────────────────────────────────┘

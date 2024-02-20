@@ -13,7 +13,7 @@
     │                                                ┌────────────────────────────────────┐  │
     │                                                │ pr-758.c:5:3-5:13                  │  │
     │                                                │ (pr-758.c:5:7-5:13 (synthetic))    │  │
-    │                                                │ YAML loc: false, loop: false       │  │
+    │                                                │ YAML loc: true, loop: false        │  │
     │                                                │ YAMLval loc: true, loop: false     │  │
     │                                                │ GraphML: true; server: false       │  │
     │                                                └────────────────────────────────────┘  │
@@ -63,7 +63,7 @@
                                                      ┌────────────────────────────────────┐
                                                      │ pr-758.c:20:3-20:25                │
                                                      │ (pr-758.c:20:15-20:24 (synthetic)) │
-                                                     │ YAML loc: false, loop: false       │
+                                                     │ YAML loc: true, loop: false        │
                                                      │ YAMLval loc: true, loop: false     │
                                                      │ GraphML: true; server: false       │
                                                      └────────────────────────────────────┘
