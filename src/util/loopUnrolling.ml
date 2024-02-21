@@ -456,13 +456,12 @@ class loopUnrollingVisitor(func, totalLoops) = object
           let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, false)]} in
           (* continues should go to the next unrolling *)
           let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
-          (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
-          let current_continue_target = ref dummyStmt in
-          let patcher = new copyandPatchLabelsVisitor (break_target, current_continue_target) in
-          let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
-          let copies = List.init (factor) (fun i ->
-              current_continue_target := continue_target i;
-              mkStmt (Block (mkBlock [one_copy (); !current_continue_target])))
+          let copies = List.init factor (fun i ->
+              let current_continue_target = continue_target i in
+              let patcher = new copyandPatchLabelsVisitor (break_target, ref current_continue_target) in (* TODO: remove ref *)
+              let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
+              mkStmt (Block (mkBlock [one_copy (); current_continue_target]))
+            )
           in
           mkStmt (Block (mkBlock (copies@[s]@[break_target])))
         ) else s (*no change*)
