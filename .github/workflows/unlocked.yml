@@ -34,9 +34,6 @@ jobs:
           - os: ubuntu-latest
             ocaml-compiler: 4.14.x
             z3: true
-          - os: ubuntu-latest
-            ocaml-compiler: 5.0.0
-            apron: false
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
@@ -65,7 +62,7 @@ jobs:
         if: ${{ matrix.apron }}
         run: |
           opam depext apron
-          opam install apron
+          opam install apron mlgmpidl.1.2.15
 
       - name: Install Z3 dependencies
         if: ${{ matrix.z3 }}
@@ -159,7 +156,7 @@ jobs:
       - name: Install Apron dependencies
         run: |
           opam depext apron
-          opam install apron
+          opam install apron mlgmpidl.1.2.15
 
       - name: Build
         if: ${{ false }}
@@ -280,7 +277,7 @@ jobs:
       - name: Install Apron dependencies
         run: |
           opam depext apron
-          opam install apron
+          opam install apron mlgmpidl.1.2.15
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
