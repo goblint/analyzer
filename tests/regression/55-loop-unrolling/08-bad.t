@@ -9,10 +9,8 @@
     {
     goto switch_default;
     {
-    {
     if (! 0) {
       goto loop_end;
-    }
     }
     loop_continue_0: /* CIL Label */ ;
     switch_default: /* CIL Label */ 
@@ -31,10 +29,8 @@
     }
     goto lab;
     {
-    {
     if (! 0) {
       goto loop_end___0;
-    }
     }
     loop_continue_0___0: /* CIL Label */ ;
     lab: 

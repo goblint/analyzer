@@ -458,8 +458,13 @@ class loopUnrollingVisitor(func, totalLoops) = object
               (* continues should go to the next unrolling *)
               let current_continue_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
               let patcher = new copyandPatchLabelsVisitor (break_target, current_continue_target) in
-              let one_copy = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in (* TODO: avoid this block, removing breaks some continue labels for some reason *)
-              [one_copy; current_continue_target]
+              let one_copy = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
+              let one_copy_stmts = (* TODO: avoid this nonsense, directly visiting only b.bstmts breaks some continue labels for some reason *)
+                match one_copy.skind with
+                | Block b -> b.bstmts
+                | _ -> assert false
+              in
+              one_copy_stmts @ [current_continue_target]
             )
           in
           mkStmt (Block (mkBlock (List.flatten copies @ [s; break_target])))

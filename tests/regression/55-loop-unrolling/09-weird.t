@@ -17,7 +17,6 @@
     j = 0;
     i = 0;
     {
-    {
     if (! (i < 50)) {
       goto loop_end;
     }
@@ -25,9 +24,7 @@
     somelab___0: 
     j = 8;
     i ++;
-    }
     loop_continue_0: /* CIL Label */ ;
-    {
     if (! (i < 50)) {
       goto loop_end;
     }
@@ -35,7 +32,6 @@
     somelab___1: 
     j = 8;
     i ++;
-    }
     loop_continue_1: /* CIL Label */ ;
     {
     while (1) {
