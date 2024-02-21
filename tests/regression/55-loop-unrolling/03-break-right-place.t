@@ -10,8 +10,8 @@
   extern void __goblint_bounded(unsigned long long exp ) ;
   int main(void) 
   { 
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int j  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
+    int j ;
   
     {
     i = 0;

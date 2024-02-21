@@ -11,7 +11,7 @@
   void main(void) 
   { 
     int a[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
   
     {
     i = 0;

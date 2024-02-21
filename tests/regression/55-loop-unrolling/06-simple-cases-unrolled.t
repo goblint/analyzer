@@ -10,7 +10,7 @@
   [Info] unrolling loop at 06-simple-cases-unrolled.c:157:2-165:2 with factor 5
   [Info] unrolling loop at 06-simple-cases-unrolled.c:174:2-178:2 with factor 5
   [Info] unrolling loop at 06-simple-cases-unrolled.c:187:2-194:2 with factor 5
-  extern void __goblint_check(int exp )  __attribute__((__goblint_array_domain__("unroll"))) ;
+  extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;
   extern void __goblint_assert(int exp ) ;
   extern void __goblint_assume_join() ;
@@ -50,7 +50,7 @@
   void example1(void) 
   { 
     int a[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
   
     {
     i = 0;
@@ -106,7 +106,7 @@
   void example2(void) 
   { 
     int a[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
   
     {
     i = 0;
@@ -162,7 +162,7 @@
   void example3(void) 
   { 
     int a[10]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
   
     {
     i = 0;
@@ -219,8 +219,8 @@
   void example4(void) 
   { 
     int a[10]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int first_iteration  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
+    int first_iteration ;
   
     {
     i = 0;
@@ -319,8 +319,8 @@
   void example5(void) 
   { 
     int a[4]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int top  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
+    int top ;
   
     {
     i = 0;
@@ -414,7 +414,7 @@
   void example6(void) 
   { 
     int a[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
     int top ;
   
     {
@@ -476,7 +476,6 @@
     return;
   }
   }
-  int update(int i )  __attribute__((__goblint_array_domain__("unroll"))) ;
   int update(int i ) 
   { 
   
@@ -492,8 +491,8 @@
   void example7(void) 
   { 
     int a[10]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int tmp  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
+    int tmp ;
   
     {
     i = 0;
@@ -556,8 +555,8 @@
   { 
     int a[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
     int b[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int j  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
+    int j ;
   
     {
     b[0] = 0;
@@ -886,7 +885,7 @@
   void example9(void) 
   { 
     int a[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
   
     {
     i = 0;
@@ -958,7 +957,7 @@
   void example10(void) 
   { 
     int a[5]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
   
     {
     i = 0;

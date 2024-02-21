@@ -299,7 +299,7 @@ class arrayVisitor = object
   inherit nopCilVisitor
 
   method! vvrbl info =
-    if not @@ (hasAttribute "goblint_array_domain" info.vattr || AutoTune0.is_large_array info.vtype) then
+    if Cil.isArrayType info.vtype && not @@ (hasAttribute "goblint_array_domain" info.vattr || AutoTune0.is_large_array info.vtype) then
       info.vattr <- addAttribute (Attr ("goblint_array_domain", [AStr "unroll"]) ) info.vattr;
     DoChildren
 end

@@ -1,6 +1,6 @@
   $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 11 --enable justcil --set dbg.justcil-printer clean 10-continue-right-place.c
   [Info] unrolling loop at 10-continue-right-place.c:7:3-15:3 with factor 11
-  extern void __goblint_check(int exp )  __attribute__((__goblint_array_domain__("unroll"))) ;
+  extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;
   extern void __goblint_assert(int exp ) ;
   extern void __goblint_assume_join() ;
@@ -10,8 +10,8 @@
   extern void __goblint_bounded(unsigned long long exp ) ;
   int main(void) 
   { 
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int j  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
+    int j ;
   
     {
     i = 0;
