@@ -1270,7 +1270,7 @@
     }
     if (i == 3) {
       i ++;
-      goto loop_continue_4;
+      goto loop_continue_0;
     }
     a[i] = i;
     i ++;
@@ -1284,7 +1284,7 @@
     }
     if (i == 3) {
       i ++;
-      goto loop_continue_4;
+      goto loop_continue_1;
     }
     a[i] = i;
     i ++;
@@ -1298,7 +1298,7 @@
     }
     if (i == 3) {
       i ++;
-      goto loop_continue_4;
+      goto loop_continue_2;
     }
     a[i] = i;
     i ++;
@@ -1312,7 +1312,7 @@
     }
     if (i == 3) {
       i ++;
-      goto loop_continue_4;
+      goto loop_continue_3;
     }
     a[i] = i;
     i ++;

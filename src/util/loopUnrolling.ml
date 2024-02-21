@@ -426,13 +426,13 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
     | Continue loc ->
       if loopNestingDepth = 0 then
         (* turn top-level continues into gotos to end of current unrolling *)
-        ChangeDoChildrenPost(rename_labels {s with skind = Goto (!currentIterationEnd, loc)}, after)
+        ChangeDoChildrenPost(rename_labels {s with skind = Goto (ref !currentIterationEnd, loc)}, after)
       else
         ChangeDoChildrenPost(rename_labels s, after)
     | Break loc ->
       if loopNestingDepth = 0 then
         (* turn top-level breaks into gotos to end of current unrolling *)
-        ChangeDoChildrenPost(rename_labels {s with skind = Goto (loopEnd,loc)}, after)
+        ChangeDoChildrenPost(rename_labels {s with skind = Goto (ref loopEnd,loc)}, after)
       else
         ChangeDoChildrenPost(rename_labels s, after)
     | Loop _ -> loopNestingDepth <- loopNestingDepth+1;
@@ -458,7 +458,7 @@ class loopUnrollingVisitor(func, totalLoops) = object
           let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
           (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
           let current_continue_target = ref dummyStmt in
-          let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in
+          let patcher = new copyandPatchLabelsVisitor (break_target, current_continue_target) in
           let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
           let copies = List.init (factor) (fun i ->
               current_continue_target := continue_target i;
