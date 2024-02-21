@@ -817,4 +817,5 @@ let analyze change_info (file: file) fs =
   Logs.debug "Generating the control flow graph.";
   let (module CFG), skippedByEdge = compute_cfg_skips file in
   MyCFG.current_cfg := (module CFG);
+  CfgTools.current_skipped := skippedByEdge;
   analyze_loop (module CFG) file fs change_info skippedByEdge

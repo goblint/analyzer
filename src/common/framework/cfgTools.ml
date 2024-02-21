@@ -722,3 +722,18 @@ let numGlobals file =
   (* GVar Cannot have storage Extern or function type *)
   Cil.iterGlobals file (function GVar _ -> incr n | _ -> ());
   !n
+
+
+let current_skipped = ref (CfgEdgeH.create 0)
+
+let is_loop_head n =
+  let (module Cfg: CfgBidir) = !current_cfg in
+  let prevs = Cfg.prev n in
+  List.find_map (fun (edges, prev) ->
+      let stmts = CfgEdgeH.find !current_skipped (prev, edges, n) in
+      List.find_map (fun s ->
+          match s.GoblintCil.skind with
+          | Loop (_, loc, _, _, _) -> Some s
+          | _ -> None
+        ) stmts
+    ) prevs
