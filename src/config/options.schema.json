@@ -344,7 +344,7 @@
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
             "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
-            "assert"
+            "assert", "loopunroll"
           ]
         },
         "path_sens": {
@@ -352,7 +352,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp","memLeak" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp","memLeak", "loopunroll" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
