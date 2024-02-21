@@ -52,7 +52,15 @@ struct
     emit_splits_ctx ctx
 
   let branch ctx (exp:exp) (tv:bool) =
-    emit_splits_ctx ctx
+    let d = ctx.local in
+    let d' =
+      match CfgTools.is_loop_head ctx.prev_node with
+      | Some s when tv = false ->
+        D.remove ctx.prev_node d
+      | _ ->
+        d
+    in
+    emit_splits ctx d'
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
     [ctx.local, ctx.local]
