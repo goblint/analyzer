@@ -18,7 +18,6 @@
     i = 0;
     {
     {
-    {
     if (! (i < 50)) {
       goto loop_end;
     }
@@ -28,8 +27,6 @@
     i ++;
     }
     loop_continue_0: /* CIL Label */ ;
-    }
-    {
     {
     if (! (i < 50)) {
       goto loop_end;
@@ -40,7 +37,6 @@
     i ++;
     }
     loop_continue_1: /* CIL Label */ ;
-    }
     {
     while (1) {
       while_continue: /* CIL Label */ ;
