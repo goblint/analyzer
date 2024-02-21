@@ -216,9 +216,12 @@ struct
     | exception Invalid_argument _ -> false (* TODO: why this? *)
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
-      let rec  containsOnlySigned e = match e with
-        | BinOp (_, e1, e2, typ) -> Cil.isSigned @@ Cilfacade.get_ikind typ && containsOnlySigned e1 && containsOnlySigned e2
-        | e -> Cilfacade.get_ikind_exp e |> Cil.isSigned
+      let rec  containsOnlySigned e = 
+        try 
+          match e with
+          | BinOp (_, e1, e2, typ) -> Cil.isSigned @@ Cilfacade.get_ikind typ && containsOnlySigned e1 && containsOnlySigned e2
+          | e ->   Cilfacade.get_ikind_exp e |> Cil.isSigned 
+        with Invalid_argument _ -> false
       in
       if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" && containsOnlySigned exp then
         true
@@ -481,13 +484,14 @@ struct
     (*maps keep the relational information about pointers in the new called function*)
     let argPointerMapping (x,e) = 
       if GobConfig.get_bool "ana.apron.pointer_tracking" then 
-        begin match sizeOfTyp (Lval (Var x, NoOffset)) with
+        try 
+          match sizeOfTyp (Lval (Var x, NoOffset)) with
           | Some typSize -> 
             let x = PointerMap.to_varinfo ~isGlobal:false x in (*map pointer to helper variable*)
             let y = replacePointerWithMapping e typSize in (*replace right side of assignment with pointer mapping*)
             Some (RV.local x, y) (* use RV.local to prevent them from being filtered out later *)
           | _ -> None
-        end
+        with SizeOfError _ -> None
       else None
     in
     let arg_assigns =
@@ -941,7 +945,7 @@ struct
       in
       (*looks at the relational relationship between pointers only when pointer_tracking is enabled*)
       let pointerEval structOffset= 
-        begin match sizeOfTyp e with 
+        try match sizeOfTyp e with 
           | Some typSize -> 
             let pointerLen = replacePointerWithMapping e typSize in
             if M.tracing then M.trace "OOB" "pointerEval: %a  \n" d_exp e ;
@@ -953,12 +957,13 @@ struct
             let isBeforeEnd = inBoundsForAllAddresses relExp in
             (convertID_to_FlatBool isAfterZero, convertID_to_FlatBool isBeforeEnd)
           | _ -> (`Top,`Top)
-        end
+        with SizeOfError _ -> (`Top,`Top)
       in
       (*evaluates OOB based on the expression offset and the binop *)
       let relationEval e structOffset = 
         if M.tracing then M.trace "OOB" "relationEval: %a %a \n" d_exp e IntDomain.IntDomTuple.pretty i ;
-        begin match sizeOfTyp e, IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i with 
+        try 
+          match sizeOfTyp e, IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i with 
           | Some typSize, Some min, Some max -> 
             let multiplyOffsetWithPointerSize i =  begin match e with 
               | Lval (_) -> (kinteger (Cilfacade.ptrdiff_ikind())i )
@@ -1006,7 +1011,7 @@ struct
             let isBeforeEnd = FlatBool.join beforeEndMinimumOffest beforeEndMaximumOffset in 
             (isAfterZero, isBeforeEnd)
           | _ -> (`Top,`Top)
-        end
+        with SizeOfError _ -> (`Top,`Top)
       in
       begin match e with
         | Lval _ 
