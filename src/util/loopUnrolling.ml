@@ -426,7 +426,7 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
     | Continue loc ->
       if loopNestingDepth = 0 then
         (* turn top-level continues into gotos to end of current unrolling *)
-        ChangeDoChildrenPost(rename_labels {s with skind = Goto (ref !currentIterationEnd, loc)}, after)
+        ChangeDoChildrenPost(rename_labels {s with skind = Goto (ref currentIterationEnd, loc)}, after)
       else
         ChangeDoChildrenPost(rename_labels s, after)
     | Break loc ->
@@ -454,13 +454,12 @@ class loopUnrollingVisitor(func, totalLoops) = object
           annotateArrays b;
           (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
           let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, false)]} in
-          (* continues should go to the next unrolling *)
-          let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
           let copies = List.init factor (fun i ->
-              let current_continue_target = continue_target i in
-              let patcher = new copyandPatchLabelsVisitor (break_target, ref current_continue_target) in (* TODO: remove ref *)
-              let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
-              mkStmt (Block (mkBlock [one_copy (); current_continue_target]))
+              (* continues should go to the next unrolling *)
+              let current_continue_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
+              let patcher = new copyandPatchLabelsVisitor (break_target, current_continue_target) in
+              let one_copy = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
+              mkStmt (Block (mkBlock [one_copy; current_continue_target]))
             )
           in
           mkStmt (Block (mkBlock (copies@[s]@[break_target])))
