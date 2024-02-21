@@ -1,4 +1,4 @@
-  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil 06-simple-cases-unrolled.c
+  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 06-simple-cases-unrolled.c
   [Info] unrolling loop at 06-simple-cases-unrolled.c:27:5-30:5 with factor 5
   [Info] unrolling loop at 06-simple-cases-unrolled.c:42:5-45:19 with factor 5
   [Info] unrolling loop at 06-simple-cases-unrolled.c:57:5-60:5 with factor 5

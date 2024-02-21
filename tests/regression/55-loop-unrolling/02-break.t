@@ -1,4 +1,4 @@
-  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --enable justcil 02-break.c
+  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 02-break.c
   [Info] unrolling loop at 02-break.c:6:5-15:2 with factor 5
   extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;

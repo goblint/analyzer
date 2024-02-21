@@ -1,4 +1,4 @@
-  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil 04-simple.c
+  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 04-simple.c
   [Info] unrolling loop at 04-simple.c:10:5-13:5 with factor 5
   extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;

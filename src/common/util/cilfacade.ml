@@ -66,7 +66,7 @@ let parse fileName =
     E.s (E.error "There were parsing errors in %s" fileName_str);
   file
 
-class myCilPrinter =
+class cleanCilPrinterClass =
 object
   inherit defaultCilPrinterClass as super
 
@@ -79,14 +79,19 @@ object
     | _ -> super#pGlobal () g
 end
 
-let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
+let cleanCilPrinter = new cleanCilPrinterClass
+
+let cleanDumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
   Pretty.printDepth := 99999;
   Pretty.fastMode := true;
   iterGlobals file (fun g -> dumpGlobal pp out g);
   flush out
 
 let print (fileAST: file) =
-  dumpFile (new myCilPrinter) stdout "stdout" fileAST
+  match GobConfig.get_string "dbg.justcil-printer" with
+  | "default" -> dumpFile defaultCilPrinter stdout "stdout" fileAST
+  | "clean" -> cleanDumpFile cleanCilPrinter stdout "stdout" fileAST
+  | _ -> assert false
 
 let rmTemps fileAST =
   RmUnused.removeUnused fileAST

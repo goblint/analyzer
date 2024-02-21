@@ -1860,6 +1860,13 @@
           "type": "string",
           "default": ""
         },
+        "justcil-printer": {
+          "title": "dbg.justcil-printer",
+          "description": "Printer to use for justcil",
+          "type": "string",
+          "enum": ["default", "clean"],
+          "default": "default"
+        },
         "timeout": {
           "title": "dbg.timeout",
           "description":

@@ -1,4 +1,4 @@
-  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil 07-nested-unroll.c
+  $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 07-nested-unroll.c
   [Info] unrolling loop at 07-nested-unroll.c:7:9-9:9 with factor 5
   [Info] unrolling loop at 07-nested-unroll.c:6:5-10:5 with factor 5
   [Info] unrolling loop at 07-nested-unroll.c:13:9-15:9 with factor 5
