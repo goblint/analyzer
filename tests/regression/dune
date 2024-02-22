@@ -1,3 +1,9 @@
+(env
+ (_
+  (binaries ./cfg/util/cfgDot.exe)))
+
 (cram
  (applies_to :whole_subtree)
- (deps %{bin:goblint} (package goblint))) ; need entire package for includes/
+ (deps
+   %{bin:goblint}
+   (package goblint))) ; need entire package for includes/

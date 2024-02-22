@@ -307,7 +307,7 @@ struct
         }
       in
       let edges = CfgTools.getGlobalInits file in
-      if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
+      Logs.debug "Executing %d assigns." (List.length edges);
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
@@ -374,21 +374,21 @@ struct
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
-      ignore (Pretty.printf "domain testing...: %s\n" (D.name ()));
+      Logs.debug "domain testing...: %s" (D.name ());
       let errcode = QCheck_base_runner.run_tests DP.tests in
       if (errcode <> 0) then
         failwith "domain tests failed"
     in
     let _ =
       if (get_bool "dbg.test.domain") then (
-        ignore (Pretty.printf "domain testing analysis...: %s\n" (Spec.name ()));
+        Logs.debug "domain testing analysis...: %s" (Spec.name ());
         test_domain (module Spec.D);
         test_domain (module Spec.G);
       )
     in
 
     let startstate, more_funs =
-      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (CfgTools.numGlobals file)^" globals.");
+      Logs.debug "Initializing %d globals." (CfgTools.numGlobals file);
       Timing.wrap "global_inits" do_global_inits file
     in
 
@@ -482,7 +482,7 @@ struct
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
-            if d1 = d2 then print_endline "Beware that you are comparing a run with itself! There should be no differences.";
+            if d1 = d2 then Logs.warn "Beware that you are comparing a run with itself! There should be no differences.";
             (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
             let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
             let module S2 = Splitter.S2 in
@@ -528,8 +528,7 @@ struct
                 Some solver_data
             | None -> None
           in
-          if get_bool "dbg.verbose" then
-            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
+          Logs.debug "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
           if GobConfig.get_bool "incremental.save" then
@@ -543,9 +542,7 @@ struct
             let cil = Fpath.(save_run / "cil.marshalled") in
             let warnings = Fpath.(save_run / "warnings.marshalled") in
             let stats = Fpath.(save_run / "stats.marshalled") in
-            if get_bool "dbg.verbose" then (
-              Format.printf "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a\n" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
-            );
+            Logs.Format.debug "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
             GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
             let module Meta = struct
@@ -556,9 +553,7 @@ struct
             (* Yojson.Safe.to_file meta Meta.json; *)
             Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
             if gobview then (
-              if get_bool "dbg.verbose" then (
-                Format.printf "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a\n" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
-              );
+              Logs.Format.debug "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
@@ -732,7 +727,7 @@ struct
       CfgTools.dead_code_cfg (module FileCfg) liveness;
 
     let warn_global g v =
-      (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
+      (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
       match g with
       | `Left g -> (* Spec global *)
         R.ask_global (WarnGlobal (Obj.repr g))
@@ -787,7 +782,7 @@ struct
       if not (get_bool "server.enabled") then
         Serialize.Cache.store_data ()
     );
-    if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
+    if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
 
     Messages.finalize ();
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
@@ -811,15 +806,9 @@ let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge =
     (* TODO: do some more incremental refinement and reuse parts of solution *)
     analyze_loop (module CFG) file fs change_info skippedByEdge
 
-let compute_cfg_skips file =
-  let cfgF, cfgB, skippedByEdge = CfgTools.getCFG file in
-  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
-
-let compute_cfg = fst % compute_cfg_skips
-
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
-  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
-  let (module CFG), skippedByEdge = compute_cfg_skips file in
+  Logs.debug "Generating the control flow graph.";
+  let (module CFG), skippedByEdge = CfgTools.compute_cfg_skips file in
   MyCFG.current_cfg := (module CFG);
   analyze_loop (module CFG) file fs change_info skippedByEdge

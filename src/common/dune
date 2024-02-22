@@ -8,6 +8,7 @@
    batteries.unthreaded
    zarith
    goblint_std
+   goblint_logs
    goblint_config
    goblint_tracing
    goblint-cil
@@ -15,7 +16,7 @@
    yojson
    goblint_timing
    qcheck-core.runner)
- (flags :standard -open Goblint_std)
+ (flags :standard -open Goblint_std -open Goblint_logs)
  (foreign_stubs (language c) (names stubs))
  (ocamlopt_flags :standard -no-float-const-prop)
  (preprocess

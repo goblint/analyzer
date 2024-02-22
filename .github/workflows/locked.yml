@@ -40,6 +40,11 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
+
+      - name: Install graph-easy # TODO: remove if depext --with-test works
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
@@ -117,6 +122,11 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
+
+      - name: Install graph-easy # TODO: remove if depext --with-test works
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: sudo apt install -y libgraph-easy-perl
 
       - name: Install spin
         run: sudo apt-get -y install spin
@@ -173,7 +183,7 @@ jobs:
         run: ./make.sh nat
 
       - name: Build Gobview
-        run: opam exec -- dune build gobview
+        run: ./make.sh view
 
       - name: Install selenium
         run: pip3 install selenium webdriver-manager

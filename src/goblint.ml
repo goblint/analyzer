@@ -1,7 +1,6 @@
 open Goblint_lib
 open GobConfig
 open Maingoblint
-open Printf
 
 (** the main function *)
 let main () =
@@ -34,10 +33,8 @@ let main () =
     handle_extraspecials ();
     GoblintDir.init ();
 
-    if get_bool "dbg.verbose" then (
-      print_endline (GobUnix.localtime ());
-      print_endline GobSys.command_line;
-    );
+    Logs.debug "%s" (GobUnix.localtime ());
+    Logs.debug "%s" GobSys.command_line;
     (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
     if get_bool "ana.autotune.enabled" && AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
@@ -76,12 +73,12 @@ let main () =
   | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
     do_stats ();
     Printexc.print_backtrace stderr;
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+    Logs.error "%s" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
   | Timeout.Timeout ->
     do_stats ();
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+    Logs.error "%s" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();
     exit 124
 

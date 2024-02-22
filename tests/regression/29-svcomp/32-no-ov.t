@@ -1,5 +1,5 @@
   $ goblint --enable ana.int.interval --enable ana.sv-comp.enabled --enable ana.sv-comp.functions --set ana.specification "CHECK( init(main()), LTL(G ! overflow) )"  32-no-ov.c
-  SV-COMP specification: CHECK( init(main()), LTL(G ! overflow) )
+  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! overflow) )
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow (32-no-ov.c:5:6-5:159)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow (32-no-ov.c:5:6-5:159)
   [Warning][Integer > Overflow][CWE-191] Unsigned integer underflow (32-no-ov.c:5:6-5:159)

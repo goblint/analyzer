@@ -469,8 +469,7 @@ let createCFG (file: file) =
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  if get_bool "dbg.verbose" then
-    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (NH.stats cfgF) GobHashtbl.pretty_statistics (NH.stats cfgB));
+  Logs.debug "cfgF (%a), cfgB (%a)" GobHashtbl.pretty_statistics (NH.stats cfgF) GobHashtbl.pretty_statistics (NH.stats cfgB);
   cfgF, cfgB, skippedByEdge
 
 let createCFG = Timing.wrap "createCFG" createCFG
@@ -620,6 +619,12 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   if get_bool "justcfg" then fprint_hash_dot cfgB;
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
 
+let compute_cfg_skips file =
+  let cfgF, cfgB, skippedByEdge = getCFG file in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
+
+let compute_cfg file = fst (compute_cfg_skips file)
+
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
   let ready      = NH.create 113 in
@@ -680,7 +685,7 @@ let getGlobalInits (file: file) : edges  =
       lval
     in
     let rec any_index_offset = function
-      | Index (e,o) -> Index (Cilfacade.any_index_exp, any_index_offset o)
+      | Index (e,o) -> Index (Lazy.force Cilfacade.any_index_exp, any_index_offset o)
       | Field (f,o) -> Field (f, any_index_offset o)
       | NoOffset -> NoOffset
     in

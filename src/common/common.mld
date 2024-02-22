@@ -54,6 +54,7 @@ XmlUtil
 {!modules:
 CilType
 Cilfacade
+CilLocation
 RichVarinfo
 }
 
