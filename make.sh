@@ -144,8 +144,6 @@ rule() {
     # tests, CI
     ;; test)
       ./scripts/update_suite.rb # run regression tests
-    ;; testci)
-      ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
     ;; travis) # run a travis docker container with the files tracked by git - intended to debug setup problems on travis-ci.com
       echo "run ./scripts/travis-ci.sh to setup ocaml"
       # echo "bind-mount cwd: beware that cwd of host can be modified and IO is very slow!"
