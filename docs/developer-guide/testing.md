@@ -2,7 +2,7 @@
 
 ### Running
 
-* Run _all_ tests with: `dune runtest`.
+* Run _all_ tests with: `make test` or `dune runtest`.
 
     This runs all regression tests, cram tests, incremental tests and unit tests.
 
