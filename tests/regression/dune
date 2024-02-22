@@ -1,3 +1,7 @@
+(env
+ (_
+  (binaries ./cfg/util/cfgDot.exe)))
+
 (rule
  (alias runtest)
  (deps

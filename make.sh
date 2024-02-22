@@ -17,7 +17,6 @@ rule() {
     clean)
       git clean -X -f
       dune clean
-    ;; gen) gen
     ;; nat*)
       eval $(opam config env)
       dune build $TARGET.exe &&
@@ -33,10 +32,9 @@ rule() {
       dune build --profile=release $TARGET.exe &&
       rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
-    # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
-    ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
-      dune build $TARGET.bc.js &&
-      node _build/default/$TARGET.bc.js
+    ;; view)
+      eval $(opam config env)
+      dune build gobview
     ;; watch)
       eval $(opam config env)
       # dune build -w $TARGET.exe
@@ -61,8 +59,6 @@ rule() {
       dune build goblint.byte &&
       rm -f goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
-    # ;; tag*)
-    #   otags -vi `find src/ -iregex [^.]*\.mli?`
 
     # setup, dependencies
     ;; deps)
@@ -98,8 +94,6 @@ rule() {
       tar xf master.tar.gz && rm master.tar.gz
       rm -rf linux-headers && mv linux-headers-master linux-headers
       for n in $(compgen -c gcc- | sed 's/gcc-//'); do if [ $n != 5 ]; then cp -n linux-headers/include/linux/compiler-gcc{5,$n}.h; fi; done
-    ;; lock)
-      opam lock
     ;; npm)
       if test ! -e "webapp/package.json"; then
         git submodule update --init --recursive webapp
@@ -115,8 +109,6 @@ rule() {
     ;; setup_gobview )
       [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
       opam install --deps-only --locked gobview/
-    # ;; watch)
-    #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; install)
       eval $(opam config env)
       dune build @install
@@ -141,20 +133,10 @@ rule() {
       cp _opam/share/apron/lib/libboxD.so $PREFIX/share/apron/lib/
       cp _opam/share/apron/lib/libpolkaMPQ.so $PREFIX/share/apron/lib/
 
-    # tests, CI
+    # tests
     ;; test)
       eval $(opam env)
       dune runtest
-    ;; travis) # run a travis docker container with the files tracked by git - intended to debug setup problems on travis-ci.com
-      echo "run ./scripts/travis-ci.sh to setup ocaml"
-      # echo "bind-mount cwd: beware that cwd of host can be modified and IO is very slow!"
-      # docker run -it -u travis -v $(pwd):$(pwd):delegated -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash
-      echo "copy cwd w/o git-ignored files: changes in container won't affect host's cwd."
-      # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
-      docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
-    ;; server)
-      rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
-      ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
 
     ;; *)
       echo "Unknown action '$1'. Try clean, native, byte, profile or doc.";;
