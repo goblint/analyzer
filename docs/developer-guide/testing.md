@@ -1,5 +1,11 @@
 # Testing
 
+### Running
+
+* Run _all_ tests with: `dune runtest`.
+
+    This runs all regression tests, cram tests, incremental tests and unit tests.
+
 ## Regression tests
 Regression tests are small programs that can be used to quickly verify that existing functionality hasn't been broken.
 They can be found in `./tests/regression/`.
@@ -8,7 +14,8 @@ Options that should be passed to Goblint when executing a regression test are sp
 ### Running
 Regression tests can be run with various granularity:
 
-* Run all tests with: `./scripts/update_suite.rb`.
+* Run all (non-Apron) regression tests with: `./scripts/update_suite.rb`.
+* Run all Apron tests with: `dune build @runaprontest`.
 * Run a group of tests with: `./scripts/update_suite.rb group sanity`.
 
     Unfortunately this also runs skipped tests.
@@ -71,18 +78,22 @@ They can be used to test arbitrary output from Goblint, such as program transfor
 Cram tests are located next to regression tests in `./tests/regression/`.
 
 ### Running
-Cram tests are run as part of a complete test run:
+Cram tests can be run with various granularity:
 
-* `dune runtest`
+* Run all cram tests with: `dune build @runcramtest`.
+* Run cram tests in directory (e.g. `00-sanity`) with:
 
-This might take a while though. Pass the test directory to `dune` to run only cram tests in a that directory:
+    ```
+    dune build @tests/regression/00-sanity/runcramtest
+    ```.
 
-* `dune runtest tests/regression/` runs all cram tests.
-* `dune runtest tests/regression/00-sanity` runs all cram tests in `00-sanity`.
+* Run a single cram test (e.g. `01-assert.t`) with:
 
-To run a single cram test, pass the file name without the `.t` extension and with a leading `@` to `dune build`:
+    ```
+    dune build @tests/regression/00-sanity/01-assert
+    ```.
 
-* `dune build @01-assert` runs only `tests/regression/00-sanity/01-assert.t`.
+    Pass the file name without the `.t` extension and with a leading `@` to `dune build`.
 
 ### Writing
 Create new cram tests in a subdirectory of `tests/regression` with the extension `.t`. The basic syntax of a cram test is as follows:
@@ -119,8 +130,11 @@ incrementally (activating the option `incremental.load`) with some changes to th
 configuration. The respective `asserts` and expected results are checked in both runs.
 
 ### Running
-The incremental tests can be run with `./scripts/update_suite.rb -i`. With `./scripts/update_suite.rb -c` the
-incremental tests are run using the more fine-grained cfg-based change detection.
+Incremental tests can be run with various granularity:
+
+* Run all incremental tests with: `dune runtest tests/incremental`.
+* Run incremental tests using AST change detection with: `./scripts/update_suite.rb -i`.
+* Run incremental tests using CFG change detection with: `./scripts/update_suite.rb -c`.
 
 ### Writing
 An incremental test case consists of three files with the same file name: the `.c` file with the initial program, a
