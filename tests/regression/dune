@@ -10,6 +10,7 @@
    (glob_files_rec 28-race_reach/racemacros.h)
    (glob_files_rec 56-witness/??-*.yml) ; excluding witness.yml, etc. which might exist due to running update_suite outside of dune
    (source_tree ../../linux-headers))
+ (locks /update_suite)
  (action (chdir ../.. (run %{update_suite}))))
 
 (cram
