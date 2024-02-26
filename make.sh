@@ -133,13 +133,10 @@ rule() {
       cp _opam/share/apron/lib/libboxD.so $PREFIX/share/apron/lib/
       cp _opam/share/apron/lib/libpolkaMPQ.so $PREFIX/share/apron/lib/
 
-    # tests, CI
+    # tests
     ;; test)
-      chmod -R +w ./tests/ # dune runtest normally has everything read-only, but update_suite wants to write a lot of things
-      mkdir -p ./tests/suite_result
-      ./scripts/update_suite.rb # run regression tests
-    ;; testci)
-      ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
+      eval $(opam env)
+      dune runtest
 
     ;; *)
       echo "Unknown action '$1'. Try clean, native, byte, profile or doc.";;

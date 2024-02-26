@@ -2038,6 +2038,12 @@
             "Should the analysis call Check.checkFile after creating the CFG (helpful to verify that transformations respect CIL's invariants.",
           "type": "boolean",
           "default": false
+        },
+        "full-output": {
+          "title": "dbg.full-output",
+          "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
