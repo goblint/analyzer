@@ -131,8 +131,19 @@ module MallocWrapper : MCPSpec = struct
       CilType.Location.show loc
 
     let name_varinfo (t, node, c) =
-      Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (UniqueCount.show c)
-
+        let uniq_count =
+          if not (GobConfig.get_bool "dbg.full-output") && UniqueCount.is_top c then
+            Format.dprintf ""
+          else
+            Format.dprintf "(#%s)" (UniqueCount.show c)
+        in
+        let tid =
+          if not (GobConfig.get_bool "dbg.full-output") && ThreadLifted.is_top t then
+            Format.dprintf ""
+          else
+            Format.dprintf "@tid:%s%t" (ThreadLifted.show t) uniq_count
+        in
+        Format.asprintf "(alloc@sid:%s%t)" (Node.show_id node) tid
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
