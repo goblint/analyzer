@@ -776,7 +776,7 @@ struct
             let pointerLen = PointerMap.to_varinfo ~isGlobal:false r in
             let st''' = {st'' with rel = RD.add_vars st''.rel [RV.local pointerLen]} in
             let new_ctx' = {ctx with local = st'''; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask; node = ctx.node } in
-            assign new_ctx' (Var pointerLen, NoOffset) (kinteger (Cilfacade.ptrdiff_ikind()) 0) (*a new allocated pointer points to the start*)
+            assignLval new_ctx' (Var pointerLen, NoOffset) (kinteger (Cilfacade.ptrdiff_ikind()) 0) (*a new allocated pointer points to the start*)
           )
           else st''
         | _ -> invalidate ctx)
