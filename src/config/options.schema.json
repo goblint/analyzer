@@ -1862,7 +1862,7 @@
         },
         "justcil-printer": {
           "title": "dbg.justcil-printer",
-          "description": "Printer to use for justcil",
+          "description": "Printer to use for justcil: default, or clean (excludes line directives and builtin declarations).",
           "type": "string",
           "enum": ["default", "clean"],
           "default": "default"
