@@ -3614,8 +3614,8 @@ module IntDomTupleImpl = struct
     match to_int x with
     | Some v  when not (GobConfig.get_bool "dbg.full-output") -> Z.to_string v
     | _ -> mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) } x
-              |> to_list
-              |> String.concat "; "
+           |> to_list
+           |> String.concat "; "
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.to_yojson x }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.hash }
 
