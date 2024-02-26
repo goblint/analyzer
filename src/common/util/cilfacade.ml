@@ -68,8 +68,7 @@ let parse fileName =
 
 (** Version of {!defaultCilPrinterClass} which excludes line directives and builtin signatures (in comments).
     Used for [dbg.justcil-printer]. *)
-class cleanCilPrinterClass =
-object
+class cleanCilPrinterClass = object
   inherit defaultCilPrinterClass as super
 
   method! pLineDirective ?(forcefile=false) l =
