@@ -337,7 +337,7 @@ struct
   (* tracks the relational relationship between pointers *)
   let pointerAssign ctx (v:varinfo) e = 
     (* check if we assign to a global pointer add all possible addresses to escapedAllocSize to prevent them from being filtered *)
-    if GobConfig.get_bool "ana.apron.pointer_tracking" && (not v.vaddrof || ctx.ask (Queries.MustBeSingleThreaded {since_start=false}) ) then (
+    if not !AnalysisState.global_initialization && GobConfig.get_bool "ana.apron.pointer_tracking" && (not v.vaddrof || ctx.ask (Queries.MustBeSingleThreaded {since_start=false})) then (
       try
         match sizeOfTyp (Lval (Var v, NoOffset)) with 
         | Some typSize -> 
@@ -345,7 +345,7 @@ struct
             | true -> PointerMap.to_varinfo ~isGlobal:true v
             | false -> PointerMap.to_varinfo ~isGlobal:false v 
           in
-          let ctx = if not @@ RD.Tracked.varinfo_tracked v then 
+          let ctx = if not v.vglob && not @@ RD.Tracked.varinfo_tracked v then 
               let st = {ctx.local with rel = RD.add_vars ctx.local.rel [RV.local castedPointer]} in (* add temporary g#out *)
               {ctx with local = st}
             else 
