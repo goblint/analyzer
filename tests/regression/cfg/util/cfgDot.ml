@@ -35,7 +35,7 @@ let main () =
         GoblintCil.computeCFGInfo fd true
       | _ -> ()
     );
-  let ((module Cfg), skipped) = CfgTools.compute_cfg_skips ast in
+  let (module Cfg) = CfgTools.compute_cfg ast in
   let module FileCfg =
   struct
     let file = ast
@@ -46,7 +46,7 @@ let main () =
   let is_loop_head n =
     let prevs = Cfg.prev n in
     List.find_map (fun (edges, prev) ->
-        let stmts = CfgTools.CfgEdgeH.find skipped (prev, edges, n) in
+        let stmts = MyCFG.CfgEdgeH.find Cfg.skippedByEdge (prev, edges, n) in
         List.find_map (fun s ->
             match s.GoblintCil.skind with
             | Loop (_, loc, _, _, _) -> Some loc

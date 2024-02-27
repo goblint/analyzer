@@ -489,7 +489,7 @@ let () =
     let process { fname } serv =
       let fundec = Cilfacade.find_name_fundec fname in
       let live _ = true in (* TODO: fix this *)
-      let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
+      let cfg = CfgTools.sprint_fundec_html_dot (module (val !MyCFG.current_cfg: MyCFG.CfgBidirSkip): MyCFG.CfgBidir) live fundec in
       { cfg }
   end);
 

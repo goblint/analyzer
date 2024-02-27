@@ -132,13 +132,7 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
-(** Type of CFG "edges": keyed by 'from' and 'to' nodes,
-    along with the list of connecting instructions. *)
-module CfgEdge = struct
-  type t = Node.t * MyCFG.edges * Node.t [@@deriving eq, hash]
-end
 
-module CfgEdgeH = BatHashtbl.Make (CfgEdge)
 
 let createCFG (file: file) =
   let cfgF = H.create 113 in
@@ -619,11 +613,9 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   if get_bool "justcfg" then fprint_hash_dot cfgB;
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
 
-let compute_cfg_skips file =
+let compute_cfg file =
   let cfgF, cfgB, skippedByEdge = getCFG file in
-  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
-
-let compute_cfg file = fst (compute_cfg_skips file)
+  (module struct let prev = cfgB let next = cfgF let skippedByEdge = skippedByEdge end : CfgBidirSkip)
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
