@@ -86,13 +86,13 @@ struct
 
   let escape node ask getg sideg (st:relation_components_t) escaped:relation_components_t =
     let rel = st.rel in
-    let esc_vars = List.filter (fun var -> match AV.find_metadata var with
+    let rel_local = RD.remove_filter rel (fun var ->
+        match AV.find_metadata var with
         | Some (Global _) -> false
         | Some (Local r) -> EscapeDomain.EscapedVars.mem r escaped
         | _ -> false
-      ) (RD.vars rel)
+      )
     in
-    let rel_local = RD.remove_vars rel esc_vars in
     { st with rel = rel_local }
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
@@ -626,13 +626,12 @@ struct
         st
       else
         let rel = st.rel in
-        let g_vars = List.filter (fun var ->
+        let rel_side = RD.keep_filter rel (fun var ->
             match AV.find_metadata var with
             | Some (Global _) -> true
             | _ -> false
-          ) (RD.vars rel)
+          )
         in
-        let rel_side = RD.keep_vars rel g_vars in
         sideg V.mutex_inits rel_side;
         let rel_local = RD.remove_filter rel (fun var ->
             match AV.find_metadata var with
