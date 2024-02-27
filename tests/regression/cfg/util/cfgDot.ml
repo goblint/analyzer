@@ -43,18 +43,6 @@ let main () =
   end
   in
 
-  let is_loop_head n =
-    let prevs = Cfg.prev n in
-    List.find_map (fun (edges, prev) ->
-        let stmts = MyCFG.CfgEdgeH.find Cfg.skippedByEdge (prev, edges, n) in
-        List.find_map (fun s ->
-            match s.GoblintCil.skind with
-            | Loop (_, loc, _, _, _) -> Some loc
-            | _ -> None
-          ) stmts
-      ) prevs
-  in
-
   let module GraphmlWitnessInvariant = WitnessUtil.Invariant (FileCfg) in
   let module YamlWitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
   let module YamlWitnessValidateInvariant = WitnessUtil.YamlInvariantValidate (FileCfg) in
@@ -91,7 +79,7 @@ let main () =
             (YamlWitnessInvariant.is_invariant_node n) (YamlWitnessInvariant.is_loop_head_node n)
             (YamlWitnessValidateInvariant.is_invariant_node n) (YamlWitnessValidateInvariant.is_loop_head_node n)
             (GraphmlWitnessInvariant.is_invariant_node n) (Server.is_server_node n)
-            (Format.pp_print_option pp_loop_loc) (is_loop_head n)
+            (Format.pp_print_option pp_loop_loc) (GraphmlWitnessInvariant.find_syntactic_loop_head n)
         in
         [Printf.sprintf "label=\"%s\"" (Str.global_replace (Str.regexp "\n") "\\n" label)]
       | _ -> []
