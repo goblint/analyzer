@@ -16,7 +16,6 @@
     │                                                │ YAML loc: true, loop: false        │  │
     │                                                │ YAMLval loc: true, loop: false     │  │
     │                                                │ GraphML: true; server: false       │  │
-    │                                                │ loop:                              │  │
     │                                                └────────────────────────────────────┘  │
     │                                                  │                                     │ x = x + 1
     │                                                  │ x = 42                              │
@@ -27,7 +26,6 @@
     │                                                │ YAML loc: true, loop: false        │  │
     │                                                │ YAMLval loc: true, loop: false     │  │
     │                                                │ GraphML: true; server: false       │  │
-    │                                                │ loop:                              │  │
     │                                                └────────────────────────────────────┘  │
     │                                                  │                                     │
     │                                                  │ x = 0                               │
@@ -38,7 +36,7 @@
   │ YAML loc: false, loop: false    │                │ YAML loc: false, loop: true        │  │
   │ YAMLval loc: true, loop: false  │                │ YAMLval loc: true, loop: true      │  │
   │ GraphML: true; server: false    │  Pos(x < 10)   │ GraphML: true; server: false       │  │
-  │ loop:                           │ ◀───────────── │ loop: pr-758.c:6:3-8:3             │ ◀┘
+  │                                 │ ◀───────────── │ loop: pr-758.c:6:3-8:3             │ ◀┘
   └─────────────────────────────────┘                └────────────────────────────────────┘
                                                        │
                                                        │ Neg(x < 10)
@@ -49,7 +47,6 @@
                                                      │ YAML loc: true, loop: false        │
                                                      │ YAMLval loc: true, loop: false     │
                                                      │ GraphML: true; server: true        │
-                                                     │ loop:                              │
                                                      └────────────────────────────────────┘
                                                        │
                                                        │ k = 0
@@ -60,7 +57,6 @@
                                                      │ YAML loc: false, loop: false       │
                                                      │ YAMLval loc: true, loop: false     │
                                                      │ GraphML: true; server: false       │
-                                                     │ loop:                              │
                                                      └────────────────────────────────────┘
                                                        │
                                                        │ i = k
@@ -71,7 +67,6 @@
                                                      │ YAML loc: true, loop: false        │
                                                      │ YAMLval loc: true, loop: false     │
                                                      │ GraphML: true; server: false       │
-                                                     │ loop:                              │
                                                      └────────────────────────────────────┘
                                                        │
                                                        │ a.kaal = 2
@@ -82,7 +77,6 @@
                                                      │ YAML loc: false, loop: false       │
                                                      │ YAMLval loc: true, loop: false     │
                                                      │ GraphML: true; server: false       │
-                                                     │ loop:                              │
                                                      └────────────────────────────────────┘
                                                        │
                                                        │ a.hind = 3
@@ -93,7 +87,6 @@
                                                      │ YAML loc: true, loop: false        │
                                                      │ YAMLval loc: true, loop: false     │
                                                      │ GraphML: true; server: true        │
-                                                     │ loop:                              │
                                                      └────────────────────────────────────┘
                                                        │
                                                        │ return 0

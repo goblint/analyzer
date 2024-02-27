@@ -16,8 +16,8 @@
     │    │    │                                         │             ┌───────────────────────────────────┐  │               │    │    │
     │    │    │    ┌────────────────────────────────────┘             │ main()                            │  │               │    │    │
     │    │    │    │                                                  └───────────────────────────────────┘  │               │    │    │
-    │    │    │    │                                                    │                                    │               │    │    │
-    │    │    │    │                                                    │ (body)                             │               │    │    │ i = i + 1
+    │    │    │    │                                                    │                                    │               │    │    │ i = i + 1
+    │    │    │    │                                                    │ (body)                             │               │    │    │
     │    │    │    │                                                    ▼                                    │               │    │    │
     │    │    │    │                                                  ┌───────────────────────────────────┐  │               │    │    │
     │    │    │    │                                                  │ loops.c:7:3-7:8                   │  │               │    │    │
@@ -25,7 +25,6 @@
     │    │    │    │                                                  │ YAML loc: true, loop: false       │  │               │    │    │
     │    │    │    │                                                  │ YAMLval loc: true, loop: false    │  │               │    │    │
     │    │    │    │                                                  │ GraphML: true; server: true       │  │               │    │    │
-    │    │    │    │                                                  │ loop:                             │  │               │    │    │
     │    │    │    │                                                  └───────────────────────────────────┘  │               │    │    │
     │    │    │    │                                                    │                                    │               │    │    │
     │    │    │    │                                                    │ i = 0                              │               │    │    │
@@ -36,7 +35,7 @@
     │    │    │  │ YAML loc: true, loop: false       │                │ YAML loc: false, loop: true       │  │               │    │    │
     │    │    │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │  │               │    │    │
     │    │    │  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  │               │    │    │
-    │    │    │  │ loop:                             │ ◀───────────── │ loop: loops.c:8:3-10:3            │ ◀┼───────────────┼────┼────┘
+    │    │    │  │                                   │ ◀───────────── │ loop: loops.c:8:3-10:3            │ ◀┼───────────────┼────┼────┘
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘  │               │    │
     │    │    │                                                         │                                    │               │    │
     │    │    │                                                         │ Neg(i < 10)                        │               │    │
@@ -44,10 +43,9 @@
     │    │    │                                                       ┌───────────────────────────────────┐  │               │    │
     │    │    │                                                       │ loops.c:13:3-15:3                 │  │               │    │
     │    │    │                                                       │ (loops.c:13:7-13:26 (synthetic))  │  │               │    │
-    │    │    │                                                       │ YAML loc: true, loop: false       │  │               │    │
-    │    │    │                                                       │ YAMLval loc: true, loop: false    │  │ i = i + 1     │    │
+    │    │    │                                                       │ YAML loc: true, loop: false       │  │ i = i + 1     │    │
+    │    │    │                                                       │ YAMLval loc: true, loop: false    │  │               │    │
     │    │    │                                                       │ GraphML: true; server: false      │  │               │    │
-    │    │    │                                                       │ loop:                             │  │               │    │
     │    │    │                                                       └───────────────────────────────────┘  │               │    │
     │    │    │                                                         │                                    │               │    │
     │    │    │                                                         │ i = 0                              │               │    │
@@ -58,7 +56,7 @@
     │    │    │  │ YAML loc: true, loop: false       │                │ YAML loc: false, loop: true       │  │               │    │
     │    │    │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │  │               │    │
     │    │    │  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  │               │    │
-    │    │    │  │ loop:                             │ ◀───────────── │ loop: loops.c:13:3-15:3           │ ◀┘               │    │
+    │    │    │  │                                   │ ◀───────────── │ loop: loops.c:13:3-15:3           │ ◀┘               │    │
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘                  │    │
     │    │    │    │                                                    │                                                    │    │
     │    │    │    │ __goblint_check(1)                                 │ Neg(i < 10)                                        │    │
@@ -68,8 +66,7 @@
     │    │    │  │ (loops.c:13:7-13:26 (synthetic))  │                │ (loops.c:18:7-18:26 (synthetic))  │                  │    │
     │    │    │  │ YAML loc: false, loop: false      │                │ YAML loc: true, loop: false       │                  │    │
     │    │    │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: false    │                  │    │
-    │    │    │  │ GraphML: true; server: false      │                │ GraphML: true; server: false      │                  │    │
-    │    │    └─ │ loop:                             │                │ loop:                             │                  │    │
+    │    │    └─ │ GraphML: true; server: false      │                │ GraphML: true; server: false      │                  │    │
     │    │       └───────────────────────────────────┘                └───────────────────────────────────┘                  │    │
     │    │                                                              │                                                    │    │
     │    │                                                              │ i = 0                                              │    │
@@ -80,7 +77,7 @@
     │    │       │ YAML loc: false, loop: false      │                │ YAML loc: false, loop: true       │                  │    │
     │    │       │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │                  │    │
     │    │       │ GraphML: true; server: false      │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1       │    │
-    │    └────── │ loop:                             │ ◀───────────── │ loop: loops.c:18:3-20:3           │ ◀────────────────┘    │
+    │    └────── │                                   │ ◀───────────── │ loop: loops.c:18:3-20:3           │ ◀────────────────┘    │
     │            └───────────────────────────────────┘                └───────────────────────────────────┘                       │
     │                                                                   │                                                         │
     │                                                                   │ Neg(i < 10)                                             │
@@ -91,7 +88,6 @@
     │                                                                 │ YAML loc: true, loop: false       │                       │
     │                                                                 │ YAMLval loc: true, loop: false    │                       │
     │                                                                 │ GraphML: true; server: false      │                       │
-    │                                                                 │ loop:                             │                       │
     │                                                                 └───────────────────────────────────┘                       │
     │                                                                   │                                                         │
     │                                                                   │ i = 0                                                   │
@@ -102,7 +98,7 @@
     │            │ YAML loc: true, loop: false       │                │ YAML loc: false, loop: true       │                       │
     │            │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │                       │
     │            │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1            │
-    └─────────── │ loop:                             │ ◀───────────── │ loop: loops.c:23:3-25:3           │ ◀─────────────────────┘
+    └─────────── │                                   │ ◀───────────── │ loop: loops.c:23:3-25:3           │ ◀─────────────────────┘
                  └───────────────────────────────────┘                └───────────────────────────────────┘
                                                                         │
                                                                         │ Neg(i < 10)
@@ -113,7 +109,6 @@
                                                                       │ YAML loc: true, loop: false       │
                                                                       │ YAMLval loc: true, loop: false    │
                                                                       │ GraphML: true; server: true       │
-                                                                      │ loop:                             │
                                                                       └───────────────────────────────────┘
                                                                         │
                                                                         │ i = 0
@@ -124,7 +119,7 @@
                  │ YAML loc: true, loop: false       │                │ YAML loc: false, loop: true       │
                  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │
                  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1
-                 │ loop:                             │ ◀───────────── │ loop: loops.c:29:3-31:3           │ ◀─────────────────────┐
+                 │                                   │ ◀───────────── │ loop: loops.c:29:3-31:3           │ ◀─────────────────────┐
                  └───────────────────────────────────┘                └───────────────────────────────────┘                       │
                    │                                                    │                                                         │
                    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │
@@ -135,7 +130,6 @@
                  │ YAML loc: false, loop: false      │                │ YAML loc: true, loop: false       │                       │
                  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: false    │                       │
                  │ GraphML: true; server: false      │                │ GraphML: true; server: false      │                       │
-                 │ loop:                             │                │ loop:                             │                       │
                  └───────────────────────────────────┘                └───────────────────────────────────┘                       │
                    │                                                    │                                                         │
                    │                                                    │ i = 0                                                   │
@@ -146,7 +140,6 @@
                    │                                                  │ YAML loc: false, loop: false      │                       │
                    │                                                  │ YAMLval loc: true, loop: false    │                       │
                    │                                                  │ GraphML: true; server: false      │                       │
-                   │                                                  │ loop:                             │                       │
                    │                                                  └───────────────────────────────────┘                       │
                    │                                                    │                                                         │
               ┌────┘                                                    │ j = i                                                   │
@@ -157,7 +150,7 @@
               │  │ YAML loc: true, loop: false       │                │ YAML loc: false, loop: true       │                       │
               │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │                       │
               │  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1            │
-              │  │ loop:                             │ ◀───────────── │ loop: loops.c:34:3-36:3           │ ◀─────────────────────┼────┐
+              │  │                                   │ ◀───────────── │ loop: loops.c:34:3-36:3           │ ◀─────────────────────┼────┐
               │  └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │
               │    │                                                    │                                                         │    │
               │    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │    │
@@ -167,8 +160,7 @@
               │  │ (loops.c:34:12-34:23 (synthetic)) │                │ (loops.c:39:3-39:8)               │                       │    │
               │  │ YAML loc: false, loop: false      │                │ YAML loc: true, loop: false       │                       │    │
               │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: false    │                       │    │
-              │  │ GraphML: true; server: false      │                │ GraphML: true; server: true       │                       │    │
-              │  │ loop:                             │ ─┐             │ loop:                             │                       │    │
+              │  │ GraphML: true; server: false      │ ─┐             │ GraphML: true; server: true       │                       │    │
               │  └───────────────────────────────────┘  │             └───────────────────────────────────┘                       │    │
               │                                         │               │                                                         │    │
               │                                         │               │ i = 0                                                   │    │
@@ -189,8 +181,7 @@
               │                                         │             │ (loops.c:42:12-42:19 (synthetic)) │  │                    │    │
               │                                         │             │ YAML loc: false, loop: false      │  │                    │    │
               │                                         │             │ YAMLval loc: true, loop: false    │  │                    │    │
-              │                                         │             │ GraphML: true; server: false      │  │                    │    │
-              │                                         │             │ loop:                             │ ─┘                    │    │
+              │                                         │             │ GraphML: true; server: false      │ ─┘                    │    │
               │                                         │             └───────────────────────────────────┘                       │    │
               │                                         │               │                                                         │    │
               │                                         │               │ Neg(i < 10)                                             │    │
@@ -201,7 +192,6 @@
               │                                         │             │ YAML loc: true, loop: false       │                       │    │
               │                                         │             │ YAMLval loc: true, loop: false    │                       │    │
               │                                         │             │ GraphML: true; server: true       │                       │    │
-              │                                         │             │ loop:                             │                       │    │
               │                                         │             └───────────────────────────────────┘                       │    │
               │                                         │               │                                                         │    │
               │                                         │               │ return 0                                                │    │
