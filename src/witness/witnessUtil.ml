@@ -83,7 +83,7 @@ struct
   let find_syntactic_loop_head n =
     let prevs = Cfg.prev n in
     List.find_map (fun (edges, prev) ->
-        let stmts = MyCFG.CfgEdgeH.find Cfg.skippedByEdge (prev, edges, n) in
+        let stmts = Cfg.skippedByEdge prev edges n in
         List.find_map (fun s ->
             match s.GoblintCil.skind with
             | Loop (_, loc, _, _, _) -> Some loc

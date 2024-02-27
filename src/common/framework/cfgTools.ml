@@ -602,7 +602,7 @@ let fprint_hash_dot cfg  =
   close_out out
 
 
-let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
+let getCFG (file: file) : cfg * cfg * _ =
   let cfgF, cfgB, skippedByEdge = createCFG file in
   let cfgF, cfgB, skippedByEdge =
     if get_bool "exp.mincfg" then
@@ -611,7 +611,7 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
       (cfgF, cfgB, skippedByEdge)
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
-  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
+  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), (fun u e v -> CfgEdgeH.find skippedByEdge (u, e, v))
 
 let compute_cfg file =
   let cfgF, cfgB, skippedByEdge = getCFG file in

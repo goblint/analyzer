@@ -656,7 +656,10 @@ struct
         let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
 
         let skipped_statements from_node edge to_node =
-          MyCFG.CfgEdgeH.find_default Cfg.skippedByEdge (from_node, edge, to_node) []
+          try
+            Cfg.skippedByEdge from_node edge to_node
+          with Not_found ->
+            []
         in
 
         Transform.run_transformations file active_transformations

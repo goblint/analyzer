@@ -53,7 +53,7 @@ module CfgEdgeH = BatHashtbl.Make (CfgEdge)
 module type CfgBidirSkip =
 sig
   include CfgBidir
-  val skippedByEdge: stmt list CfgEdgeH.t
+  val skippedByEdge: node -> edges -> node -> stmt list
 end
 
 
@@ -66,7 +66,7 @@ let current_cfg : (module CfgBidirSkip) ref =
   struct
     let next _ = raise Not_found
     let prev _ = raise Not_found
-    let skippedByEdge = CfgEdgeH.create 0 (* TODO: make functional instead? *)
+    let skippedByEdge _ _ _ = raise Not_found
   end
   in
   ref (module Cfg: CfgBidirSkip)
