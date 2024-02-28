@@ -75,6 +75,9 @@
     "base": {
       "arrays": {
         "domain": "partitioned"
+      },
+      "invariant":{
+        "unassume": "fixpoint"
       }
     },
     "race": {
