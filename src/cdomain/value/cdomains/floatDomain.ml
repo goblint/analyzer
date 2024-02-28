@@ -5,6 +5,21 @@ open FloatOps
 
 exception ArithmeticOnFloatBot of string
 
+(** Define records that hold mutable variables representing different Configuration values.
+  * These values are used to keep track of whether or not the corresponding Config values are en-/disabled  *)
+type ana_int_config_values = {
+  mutable math_fun_eval_cstub : bool option;
+}
+
+let ana_int_config: ana_int_config_values = {
+  math_fun_eval_cstub = None;
+}
+
+let get_math_fun_eval_cstub () =
+  if ana_int_config.math_fun_eval_cstub = None then
+    ana_int_config.math_fun_eval_cstub <- Some (GobConfig.get_bool "ana.float.math_fun_eval_cstub");
+  Option.get ana_int_config.math_fun_eval_cstub
+
 module type FloatArith = sig
   type t
 
@@ -706,34 +721,46 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: acos argument might be outside of [-1., 1.]";
       Interval (Float_t.of_float Down 0., Float_t.pi)
-    | (l, h) -> norm @@ Interval (Float_t.acos Down h, Float_t.acos Up l) (* acos is monotonic decreasing in [-1, 1]*)
+    | (l, h) when get_math_fun_eval_cstub () ->
+      norm @@ Interval (Float_t.acos Down h, Float_t.acos Up l) (* acos is monotonic decreasing in [-1, 1]*)
+    | _ -> Interval (Float_t.of_float Down 0., Float_t.pi)
 
   let eval_asin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: asin argument might be outside of [-1., 1.]";
       div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
-    | (l, h) -> norm @@ Interval (Float_t.asin Down l, Float_t.asin Up h) (* asin is monotonic increasing in [-1, 1]*)
+    | (l, h) when get_math_fun_eval_cstub () ->
+      norm @@ Interval (Float_t.asin Down l, Float_t.asin Up h) (* asin is monotonic increasing in [-1, 1]*)
+    | _ -> div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
 
   let eval_atan = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
-    | (l, h) -> norm @@ Interval (Float_t.atan Down l, Float_t.atan Up h) (* atan is monotonic increasing*)
+    | (l, h) when get_math_fun_eval_cstub () ->
+      norm @@ Interval (Float_t.atan Down l, Float_t.atan Up h) (* atan is monotonic increasing*)
+    | _ -> div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
 
   let eval_cos = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
-    | (l, h) -> norm @@ eval_cos_cfun l h
+    | (l, h) when get_math_fun_eval_cstub () ->
+      norm @@ eval_cos_cfun l h
+    | _ -> of_interval (-. 1., 1.)
 
   let eval_sin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
-    | (l, h) -> norm @@ eval_sin_cfun l h
+    | (l, h) when get_math_fun_eval_cstub () ->
+      norm @@ eval_sin_cfun l h
+    | _ -> of_interval (-. 1., 1.)
 
   let eval_tan = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
-    | (l, h) -> norm @@ eval_tan_cfun l h
+    | (l, h) when get_math_fun_eval_cstub () ->
+      norm @@ eval_tan_cfun l h
+    | _ -> top ()
 
   let eval_sqrt = function
     | (l, h) when l = Float_t.zero && h = Float_t.zero -> of_const 0.
-    | (l, h) when l >= Float_t.zero ->
+    | (l, h) when l >= Float_t.zero && get_math_fun_eval_cstub () ->
       let low = Float_t.sqrt Down l in
       let high = Float_t.sqrt Up h in
       Interval (low, high)

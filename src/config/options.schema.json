@@ -463,6 +463,13 @@
                 "Use FloatDomain: (float * float) option.",
               "type": "boolean",
               "default": false
+            },
+            "math_fun_eval_cstub": {
+              "title": "ana.float.math_fun_eval_cstub",
+              "description":
+                "Allow evaluation of functions from math.h using C-stubs. Evaluation of functions may differ depending on the implementation of math.h. Only produces sound results, if the analyzed program and Goblint are used with the same version of math.h.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
