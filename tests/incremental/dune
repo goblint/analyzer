@@ -1,3 +1,20 @@
+(rule
+ (alias runtest)
+ (deps
+   (package goblint)
+   ../../goblint ; update_suite calls local goblint
+   (:update_suite ../../scripts/update_suite.rb)
+   (glob_files_rec ??-*.c)
+   (glob_files_rec ??-*.json)
+   (glob_files_rec ??-*.patch))
+ (locks /update_suite)
+ (action
+  (chdir ../..
+   (progn
+     (run %{update_suite} -i) ; with AST comparison
+     (run %{update_suite} -c))))) ; with CFG comparison
+
 (cram
  (applies_to :whole_subtree)
- (deps %{bin:goblint} (package goblint))) ; need entire package for includes/
+ (alias runcramtest)
+ (deps (package goblint)))

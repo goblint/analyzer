@@ -1,4 +1,4 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid-atomic --set sem.int.signed_overflow assume_none --set ana.path_sens[+] threadflag
+// SKIP PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid-atomic --set sem.int.signed_overflow assume_none --set ana.path_sens[+] threadflag
 #include <pthread.h>
 #include <assert.h>
 

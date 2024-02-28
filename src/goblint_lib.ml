@@ -388,6 +388,7 @@ module XmlUtil = XmlUtil
 
 module CilType = CilType
 module Cilfacade = Cilfacade
+module CilLocation = CilLocation
 module RichVarinfo = RichVarinfo
 
 module CilCfg = CilCfg

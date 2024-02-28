@@ -54,6 +54,7 @@ depends: [
 depopts: ["apron" "z3"]
 conflicts: [
   "result" {< "1.5"}
+  "ez-conf-lib" {= "1"}
 ]
 build: [
   ["dune" "subst"] {dev}
@@ -77,9 +78,12 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
   # published goblint-cil 2.0.3 is currently up-to-date, so no pin needed
-  [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#3cb720fe333289aca998d67bd210c57a87248c51" ]
+  [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#833378d9102578bab7b62174cb029d385db417a5" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+]
+depexts: [
+  ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
 ]
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
