@@ -219,7 +219,7 @@ struct
           | `Lifted2 d -> LH.replace l' x d
           (* | `Bot -> () *)
           (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
-            This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
+             This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
           | `Bot -> LH.replace l' x (S.D.bot ())
           | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has top value"
           | `Lifted1 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has global value"

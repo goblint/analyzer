@@ -2,8 +2,7 @@ name: docs
 
 on:
   push:
-    branches:
-      - master
+  pull_request:
 
   workflow_dispatch:
 
@@ -11,10 +10,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
 
 jobs:
   api-build:
@@ -55,7 +50,7 @@ jobs:
         run: opam exec -- dune build @doc
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: _build/default/_doc/_html/
 
@@ -65,7 +60,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: api-build
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    concurrency:
+      group: "pages"
+      cancel-in-progress: true
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v3
+        uses: actions/deploy-pages@v4

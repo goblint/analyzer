@@ -1,23 +1,5 @@
 open Goblint_lib
 
-(* Part of CilCfg *)
-class allBBVisitor = object (* puts every instruction into its own basic block *)
-  inherit GoblintCil.nopCilVisitor
-  method! vstmt s =
-    match s.skind with
-    | Instr(il) ->
-      let list_of_stmts =
-        List.map (fun one_inst -> GoblintCil.mkStmtOneInstr one_inst) il in
-      let block = GoblintCil.mkBlock list_of_stmts in
-      ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
-    | _ -> DoChildren
-
-  method! vvdec _ = SkipChildren
-  method! vexpr _ = SkipChildren
-  method! vlval _ = SkipChildren
-  method! vtype _ = SkipChildren
-end
-
 let main () =
   Goblint_logs.Logs.Level.current := Info;
   Cilfacade.init ();
@@ -26,7 +8,7 @@ let main () =
   GobConfig.set_bool "witness.invariant.other" true;
 
   let ast = Cilfacade.getAST (Fpath.v Sys.argv.(1)) in
-  GoblintCil.visitCilFileSameGlobals (new allBBVisitor) ast;
+  CilCfg0.end_basic_blocks ast;
   Cilfacade.current_file := ast;
   (* Part of CilCfg.createCFG *)
   GoblintCil.iterGlobals ast (function

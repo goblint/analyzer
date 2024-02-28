@@ -232,7 +232,7 @@ sig
   val invariant: Cil.exp -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
-   TODO: Should be ported to S in the future. *)
+    TODO: Should be ported to S in the future. *)
 
 module type S =
 sig

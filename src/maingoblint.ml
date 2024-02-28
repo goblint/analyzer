@@ -144,6 +144,7 @@ let check_arguments () =
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
+  if (not @@ get_bool "witness.invariant.all-locals") && (not @@ get_bool "cil.addNestedScopeAttr") then (set_bool "cil.addNestedScopeAttr" true; warn "Disabling witness.invariant.all-locals implicitly enables cil.addNestedScopeAttr.");
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)
     ignore @@ List.fold_left
@@ -546,8 +547,7 @@ let do_analyze change_info merged_AST =
     Logs.debug "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
-    Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a"
-                                             L.pretty stf L.pretty exf L.pretty otf;
+    Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a" L.pretty stf L.pretty exf L.pretty otf;
     (* and here we run the analysis! *)
 
     let control_analyze ast funs =
@@ -598,11 +598,7 @@ let do_html_output () =
 
 let do_gobview cilfile =
   let gobview = GobConfig.get_bool "gobview" in
-  let goblint_root = GobFpath.cwd_append (fst (Fpath.split_base (Fpath.v Sys.argv.(0)))) in
-  let dist_dir = Fpath.(goblint_root // (Fpath.v "_build/default/gobview/dist")) in
-  let js_file = Fpath.(dist_dir / "main.js") in
   if gobview then (
-    if Sys.file_exists (Fpath.to_string js_file) then (
       let save_run = GobConfig.get_string "save_run" in
       let run_dir = Fpath.v(if save_run <> "" then save_run else "run") in
       (* copy relevant c files to gobview directory *)
@@ -626,20 +622,7 @@ let do_gobview cilfile =
       (* marshal timing statistics *)
       let stats = Fpath.(run_dir / "stats.marshalled") in
       Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
-      let dist_files =
-        Sys.files_of (Fpath.to_string dist_dir)
-        |> Enum.filter (fun n -> n <> "dune")
-        |> List.of_enum
-      in
-      List.iter (fun n ->
-          FileUtil.cp
-            [Fpath.to_string (Fpath.(dist_dir / n))]
-            (Fpath.to_string (Fpath.(run_dir / n)))
-        ) dist_files
     )
-    else
-      Logs.error "Warning: Cannot locate GobView."
-  )
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in

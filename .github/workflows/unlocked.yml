@@ -34,9 +34,6 @@ jobs:
           - os: ubuntu-latest
             ocaml-compiler: 4.14.x
             z3: true
-          - os: ubuntu-latest
-            ocaml-compiler: 5.0.0
-            apron: false
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
@@ -52,9 +49,9 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work
+          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
-      - name: Install graph-easy
+      - name: Install graph-easy # TODO: remove if depext --with-test works
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -65,7 +62,7 @@ jobs:
         if: ${{ matrix.apron }}
         run: |
           opam depext apron
-          opam install apron
+          opam install apron mlgmpidl.1.2.15
 
       - name: Install Z3 dependencies
         if: ${{ matrix.z3 }}
@@ -76,48 +73,14 @@ jobs:
       - name: Build
         run: ./make.sh nat
 
-      - name: Test regression
-        run: ./make.sh headers testci
+      - name: Download Linux headers
+        run: ./make.sh headers
 
-      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        if: ${{ matrix.apron }}
-        run: |
-          ruby scripts/update_suite.rb group apron -s
-          ruby scripts/update_suite.rb group apron2 -s
+      - name: Test
+        run: opam exec -- dune runtest
 
-      - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group octagon -s
-
-      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group affeq -s
-
-      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group apron-mukherjee -s
-
-      - name: Test apron termination regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group termination -s
-
-      - name: Test regression cram
-        run: opam exec -- dune runtest tests/regression
-
-      - name: Test incremental cram
-        run: opam exec -- dune runtest tests/incremental
-
-      - name: Test unit
-        run: opam exec -- dune runtest unittest
-
-      - name: Test marshal regression
+      - name: Test marshal regression # not part of @runtest due to time
         run: ruby scripts/update_suite.rb -m
-
-      - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
-
-      - name: Test incremental regression with cfg comparison
-        run: ruby scripts/update_suite.rb -c
 
   lower-bounds-downgrade:
     # use external 0install solver to downgrade: https://github.com/ocaml-opam/opam-0install-solver
@@ -147,9 +110,9 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work
+          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
-      - name: Install graph-easy
+      - name: Install graph-easy # TODO: remove if depext --with-test works
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -159,7 +122,7 @@ jobs:
       - name: Install Apron dependencies
         run: |
           opam depext apron
-          opam install apron
+          opam install apron mlgmpidl.1.2.15
 
       - name: Build
         if: ${{ false }}
@@ -176,42 +139,14 @@ jobs:
       - name: Build
         run: ./make.sh nat
 
-      - name: Test regression
-        run: ./make.sh headers testci
+      - name: Download Linux headers
+        run: ./make.sh headers
 
-      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        # if: ${{ matrix.apron }}
-        run: |
-          ruby scripts/update_suite.rb group apron -s
-          ruby scripts/update_suite.rb group apron2 -s
+      - name: Test
+        run: opam exec -- dune runtest
 
-      - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group octagon -s
-
-      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group affeq -s
-
-      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        # if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group apron-mukherjee -s
-
-      - name: Test regression cram
-        run: opam exec -- dune runtest tests/regression
-
-      - name: Test incremental cram
-        run: opam exec -- dune runtest tests/incremental
-
-      - name: Test unit
-        run: opam exec -- dune runtest unittest
-
-      - name: Test marshal regression
+      - name: Test marshal regression # not part of @runtest due to time
         run: ruby scripts/update_suite.rb -m
-
-      - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
-
-      - name: Test incremental regression with cfg comparison
-        run: ruby scripts/update_suite.rb -c
 
   lower-bounds-docker:
     # use builtin-0install solver to remove and downgrade, opam normally compiled without, Docker images have it compiled
@@ -268,9 +203,9 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work
+          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
-      - name: Install graph-easy
+      - name: Install graph-easy # TODO: remove if depext --with-test works
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -280,16 +215,19 @@ jobs:
       - name: Install Apron dependencies
         run: |
           opam depext apron
-          opam install apron
+          opam install apron mlgmpidl.1.2.15
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
+
+      - name: Download Linux headers
+        run: ./make.sh headers
 
       - name: Set gobopt with pre.kernel-root # because linux-headers are not installed
         run: echo "gobopt=--set pre.kernel-root $PWD/linux-headers" >> $GITHUB_ENV
 
       - name: Test regression
-        run: ./make.sh headers testci
+        run: ruby scripts/update_suite.rb -s
 
       - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         # if: ${{ matrix.apron }}

@@ -11,8 +11,7 @@
  * - space (false) ? only keep values at widening points (TDspace + side) in rho : keep all values in rho
  * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
  * - space_restore (true) ? eval each rhs and store all in rho : do not restore missing values
- * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml.
- *)
+ * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml. *)
 
 open Batteries
 open ConstrSys
@@ -318,16 +317,15 @@ module Base =
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
           let wpd = (* d after widen/narrow (if wp) *)
             if not wp then eqd
+            else if term then
+              match phase with
+              | Widen -> S.Dom.widen old (S.Dom.join old eqd)
+              | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
+              | Narrow ->
+                (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
+                S.Dom.narrow old eqd
             else
-              if term then
-                match phase with
-                | Widen -> S.Dom.widen old (S.Dom.join old eqd)
-                | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
-                | Narrow ->
-                  (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
-                  S.Dom.narrow old eqd
-              else
-                box old eqd
+              box old eqd
           in
           if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nEqd: %a\nNew value: %a\n" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty eqd S.Dom.pretty wpd;
           if cache then (
@@ -464,12 +462,13 @@ module Base =
             (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
           | "sides-pp" ->
-            (match x with
-            | Some x ->
-              let n = S.Var.node x in
-              let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
-              wpoint_if sided
-            | None -> ())
+            begin match x with
+              | Some x ->
+                let n = S.Var.node x in
+                let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
+                wpoint_if sided
+              | None -> ()
+            end
           | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
             (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
             let destabilized_vs = destabilize_vs y in
