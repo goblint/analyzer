@@ -3,7 +3,7 @@
 
 void foo(int n) {
   int i = 0;
-  while (i < n) {
+  while (i < n) { // TODO: (precondition) location invariant before loop doesn't work anymore
     i++;
   }
   assert(i == n);

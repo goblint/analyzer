@@ -193,7 +193,7 @@ struct
         let inv = precondition_loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt location_locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some nodes ->
           unassume_precondition_nodes_invariant ~loc ~nodes pre inv
         | None ->

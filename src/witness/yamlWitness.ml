@@ -328,11 +328,11 @@ struct
         entries
     in
 
-    (* Generate precondition invariants.
+    (* Generate precondition loop invariants.
        We do this in three steps:
        1. Collect contexts for each function
        2. For each function context, find "matching"/"weaker" contexts that may satisfy its invariant
-       3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states. *)
+       3. Generate precondition loop invariants. The postcondition is a disjunction over the invariants for matching states. *)
     let entries =
       if entry_type_enabled YamlWitnessType.PreconditionLoopInvariant.entry_type then (
         (* 1. Collect contexts for each function *)
@@ -380,47 +380,48 @@ struct
 
         (* 3. Generate precondition invariants *)
         LHT.fold (fun ((n, c) as lvar) local acc ->
-            if WitnessInvariant.is_invariant_node n then (
+            match WitnessInvariant.loop_location n with
+            | Some loc ->
               let fundec = Node.find_fundec n in
               let pre_lvar = (Node.FunctionEntry fundec, c) in
               let query = Queries.Invariant Invariant.default_context in
-              match R.ask_local pre_lvar query with
-              | `Lifted c_inv ->
-                let loc = Node.location n in
-                (* Find unknowns for which the preceding start state satisfies the precondtion *)
-                let xs = find_matching_states lvar in
+              begin match R.ask_local pre_lvar query with
+                | `Lifted c_inv ->
+                  let loc = Node.location n in
+                  (* Find unknowns for which the preceding start state satisfies the precondtion *)
+                  let xs = find_matching_states lvar in
 
-                (* Generate invariants. Give up in case one invariant could not be generated. *)
-                let invs = GobList.fold_while_some (fun acc local ->
-                    let lvals = local_lvals n local in
-                    match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
-                    | `Lifted c -> Some ((`Lifted c)::acc)
-                    | `Bot | `Top -> None
-                  ) [] xs
-                in
-                begin match invs with
-                  | None
-                  | Some [] -> acc
-                  | Some (x::xs) ->
-                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with (* bisect_ppx cannot handle redefined (||) *)
-                      | `Lifted inv ->
-                        let invs = WitnessUtil.InvariantExp.process_exp inv in
-                        let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-                        List.fold_left (fun acc inv ->
-                            let location_function = (Node.find_fundec n).svar.vname in
-                            let location = Entry.location ~location:loc ~location_function in
-                            let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                            let invariant = Entry.invariant (CilType.Exp.show inv) in
-                            let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                            entry :: acc
-                          ) acc invs
-                      | `Bot | `Top -> acc
-                    end
-                end
-              | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
-                acc
-            )
-            else
+                  (* Generate invariants. Give up in case one invariant could not be generated. *)
+                  let invs = GobList.fold_while_some (fun acc local ->
+                      let lvals = local_lvals n local in
+                      match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
+                      | `Lifted c -> Some ((`Lifted c)::acc)
+                      | `Bot | `Top -> None
+                    ) [] xs
+                  in
+                  begin match invs with
+                    | None
+                    | Some [] -> acc
+                    | Some (x::xs) ->
+                      begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with (* bisect_ppx cannot handle redefined (||) *)
+                        | `Lifted inv ->
+                          let invs = WitnessUtil.InvariantExp.process_exp inv in
+                          let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+                          List.fold_left (fun acc inv ->
+                              let location_function = (Node.find_fundec n).svar.vname in
+                              let location = Entry.location ~location:loc ~location_function in
+                              let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                              let invariant = Entry.invariant (CilType.Exp.show inv) in
+                              let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                              entry :: acc
+                            ) acc invs
+                        | `Bot | `Top -> acc
+                      end
+                  end
+                | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
+                  acc
+              end
+            | None ->
               acc
           ) lh entries
       )
@@ -708,7 +709,7 @@ struct
         in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt location_locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some lvars ->
           begin match InvariantParser.parse_cabs pre with
             | Ok pre_cabs ->
