@@ -109,8 +109,11 @@ struct
       (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
       false
 
-  let is_loop_head_node n =
-    NH.mem loop_heads n && not (is_stub_node n)
+  let loop_location n =
+    find_syntactic_loop_head n
+    |> BatOption.filter (fun _loc -> not (is_stub_node n))
+
+  let is_loop_head_node n = Option.is_some (loop_location n)
 end
 
 module YamlInvariantValidate (FileCfg: MyCFG.FileCfg) =

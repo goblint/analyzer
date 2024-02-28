@@ -12,7 +12,7 @@
   │ (20-if-0-realnode.c:8:9-8:10)    │
   │ [20-if-0-realnode.c:7:5-8:5      │
   │ (unknown)]                       │   Neg(0)
-  │ YAML loc: true, loop: true       │ ─────────┐
+  │ YAML loc: true, loop: false      │ ─────────┐
   │ YAMLval loc: true, loop: true    │          │
   │ GraphML: true; server: true      │ ◀────────┘
   └──────────────────────────────────┘

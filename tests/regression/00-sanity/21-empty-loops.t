@@ -12,7 +12,7 @@
   │ (unknown)                      │
   │ [21-empty-loops.c:56:1-57:3    │
   │ (unknown)]                     │   skip
-  │ YAML loc: true, loop: true     │ ───────┐
+  │ YAML loc: true, loop: false    │ ───────┐
   │ YAMLval loc: true, loop: true  │        │
   │ GraphML: true; server: true    │ ◀──────┘
   └────────────────────────────────┘
@@ -100,7 +100,7 @@
              │ (unknown)                            │  │
              │ [21-empty-loops.c:72:1-73:3          │  │
       skip   │ (unknown)]                           │  │
-    ┌─────── │ YAML loc: true, loop: true           │  │
+    ┌─────── │ YAML loc: true, loop: false          │  │
     │        │ YAMLval loc: true, loop: true        │  │
     └──────▶ │ GraphML: true; server: true          │ ─┘
              └──────────────────────────────────────┘
@@ -157,7 +157,7 @@
   ┌──────────────────────────────────┐
   │ 21-empty-loops.c:93:3-93:9       │
   │ (21-empty-loops.c:93:3-93:9)     │   body()
-  │ YAML loc: true, loop: true       │ ─────────┐
+  │ YAML loc: true, loop: false      │ ─────────┐
   │ YAMLval loc: true, loop: true    │          │
   │ GraphML: true; server: true      │ ◀────────┘
   └──────────────────────────────────┘
@@ -236,7 +236,7 @@
   │ (unknown)                            │
   │ [21-empty-loops.c:114:1-115:3        │
   │ (unknown)]                           │   skip
-  │ YAML loc: true, loop: true           │ ───────┐
+  │ YAML loc: true, loop: false          │ ───────┐
   │ YAMLval loc: true, loop: true        │        │
   │ GraphML: true; server: true          │ ◀──────┘
   └──────────────────────────────────────┘
@@ -311,7 +311,7 @@
   │ (unknown)                               │
   │ [21-empty-loops.c:127:1-128:3           │
   │ (unknown)]                              │   skip
-  │ YAML loc: false, loop: true             │ ───────┐
+  │ YAML loc: false, loop: false            │ ───────┐
   │ YAMLval loc: true, loop: true           │        │
   │ GraphML: true; server: true             │ ◀──────┘
   └─────────────────────────────────────────┘
@@ -376,7 +376,7 @@
   │ (unknown)                              │
   │ [21-empty-loops.c:142:1-143:3          │
   │ (unknown)]                             │   skip
-  │ YAML loc: true, loop: true             │ ───────┐
+  │ YAML loc: true, loop: false            │ ───────┐
   │ YAMLval loc: true, loop: true          │        │
   │ GraphML: true; server: true            │ ◀──────┘
   └────────────────────────────────────────┘
@@ -409,7 +409,7 @@
   │ (unknown)                                              │
   │ [21-empty-loops.c:150:1-151:3                          │
   │ (unknown)]                                             │   skip
-  │ YAML loc: false, loop: true                            │ ───────┐
+  │ YAML loc: false, loop: false                           │ ───────┐
   │ YAMLval loc: true, loop: true                          │        │
   │ GraphML: true; server: true                            │ ◀──────┘
   └────────────────────────────────────────────────────────┘
@@ -442,7 +442,7 @@
   │ (unknown)                                               │
   │ [21-empty-loops.c:159:1-160:3                           │
   │ (unknown)]                                              │   skip
-  │ YAML loc: true, loop: true                              │ ───────┐
+  │ YAML loc: true, loop: false                             │ ───────┐
   │ YAMLval loc: true, loop: true                           │        │
   │ GraphML: true; server: true                             │ ◀──────┘
   └─────────────────────────────────────────────────────────┘
@@ -475,7 +475,7 @@
   │ (unknown)                                             │
   │ [21-empty-loops.c:168:1-169:3                         │
   │ (unknown)]                                            │   skip
-  │ YAML loc: false, loop: true                           │ ───────┐
+  │ YAML loc: false, loop: false                          │ ───────┐
   │ YAMLval loc: true, loop: true                         │        │
   │ GraphML: true; server: true                           │ ◀──────┘
   └───────────────────────────────────────────────────────┘
