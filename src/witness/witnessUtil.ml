@@ -100,14 +100,19 @@ struct
     let fundec = Node.find_fundec n in
     Cil.hasAttribute "goblint_stub" fundec.svar.vattr
 
-  let is_invariant_node (n : Node.t) =
+  let location_location (n : Node.t) = (* great naming... *)
     match n with
     | Statement s ->
-      let locs = CilLocation.get_stmtLoc s in
-      not locs.loc.synthetic && is_invariant_node n && not (is_stub_node n)
+      let {loc; _}: CilLocation.locs = CilLocation.get_stmtLoc s in
+      if not loc.synthetic && is_invariant_node n && not (is_stub_node n) then (* TODO: remove is_invariant_node? *)
+        Some loc
+      else
+        None
     | FunctionEntry _ | Function _ ->
       (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
-      false
+      None
+
+  let is_invariant_node n = Option.is_some (location_location n)
 
   let loop_location n =
     find_syntactic_loop_head n
