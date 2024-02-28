@@ -633,6 +633,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, _) when l > Float_t.zero -> false_zero_IInt ()
     | _ -> unknown_IInt () (* any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
 
+  (** returns the max of the given mfun once computed with rounding mode Up and once with rounding mode down*)
+  let safe_mathfun_up mfun f = max (mfun Down f) (mfun Up f)
+  (** returns the min of the given mfun once computed with rounding mode Up and once with rounding mode down*)
+  let safe_mathfun_down mfun f = min (mfun Down f) (mfun Up f)
+
   (** This function does two things: 
    ** 1. projects l and h onto the interval [0, k*pi] (for k = 2 this is the phase length of sin/cos, for k = 1 it is the phase length of tan)
    ** 2. compresses/transforms the interval [0, k*pi] to the interval [0, 1] to ease further computations
@@ -668,16 +673,16 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if (dist <= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) && (l'' <= h'') then
       (* case: monotonic decreasing interval*)
-      Interval (Float_t.cos Down h, Float_t.cos Up l)
+      Interval (safe_mathfun_down Float_t.cos h, safe_mathfun_up Float_t.cos l)
     else if (dist <= Float_t.of_float Down 0.5) && (l'' >= Float_t.of_float Up 0.5) && (l'' <= h'') then
       (* case: monotonic increasing interval*)
-      Interval (Float_t.cos Down l, Float_t.cos Up h)
+      Interval (safe_mathfun_down Float_t.cos l, safe_mathfun_up Float_t.cos h)
     else if (dist <= Float_t.of_float Down 1.) && (l'' <= h'') then
       (* case: contains at most one minimum*)
-      Interval (Float_t.of_float Down (-.1.), max (Float_t.cos Up l) (Float_t.cos Up h))
+      Interval (Float_t.of_float Down (-.1.), max (safe_mathfun_up Float_t.cos l) (safe_mathfun_up Float_t.cos h))
     else if (dist <= Float_t.of_float Down 1.) && (l'' >= Float_t.of_float Up 0.5) && (h'' <= Float_t.of_float Down 0.5) then
       (* case: contains at most one maximum*)
-      Interval (min (Float_t.cos Down l) (Float_t.cos Down h), Float_t.of_float Up 1.)
+      Interval (min (safe_mathfun_down Float_t.cos l) (safe_mathfun_down Float_t.cos h), Float_t.of_float Up 1.)
     else
       of_interval (-. 1., 1.)
 
@@ -691,7 +696,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if (dist <= Float_t.of_float Down 1.) && (Bool.not ((l'' <= Float_t.of_float Up 0.5) && (h'' >= Float_t.of_float Up 0.5))) then
       (* case: monotonic increasing interval*)
-      Interval (Float_t.tan Down l, Float_t.tan Up h)
+      Interval (safe_mathfun_down Float_t.tan l, safe_mathfun_up Float_t.tan h)
     else
       top ()
 
@@ -722,7 +727,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: acos argument might be outside of [-1., 1.]";
       Interval (Float_t.of_float Down 0., Float_t.pi)
     | (l, h) when get_math_fun_eval_cstub () ->
-      norm @@ Interval (Float_t.acos Down h, Float_t.acos Up l) (* acos is monotonic decreasing in [-1, 1]*)
+      norm @@ Interval (safe_mathfun_down Float_t.acos h, safe_mathfun_up Float_t.acos l) (* acos is monotonic decreasing in [-1, 1]*)
     | _ -> Interval (Float_t.of_float Down 0., Float_t.pi)
 
   let eval_asin = function
@@ -731,13 +736,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: asin argument might be outside of [-1., 1.]";
       div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
     | (l, h) when get_math_fun_eval_cstub () ->
-      norm @@ Interval (Float_t.asin Down l, Float_t.asin Up h) (* asin is monotonic increasing in [-1, 1]*)
+      norm @@ Interval (safe_mathfun_down Float_t.asin l, safe_mathfun_up Float_t.asin h) (* asin is monotonic increasing in [-1, 1]*)
     | _ -> div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
 
   let eval_atan = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
     | (l, h) when get_math_fun_eval_cstub () ->
-      norm @@ Interval (Float_t.atan Down l, Float_t.atan Up h) (* atan is monotonic increasing*)
+      norm @@ Interval (safe_mathfun_down Float_t.atan l, safe_mathfun_up Float_t.atan h) (* atan is monotonic increasing*)
     | _ -> div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
 
   let eval_cos = function
@@ -761,8 +766,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let eval_sqrt = function
     | (l, h) when l = Float_t.zero && h = Float_t.zero -> of_const 0.
     | (l, h) when l >= Float_t.zero && get_math_fun_eval_cstub () ->
-      let low = Float_t.sqrt Down l in
-      let high = Float_t.sqrt Up h in
+      let low = safe_mathfun_down Float_t.sqrt l in
+      let high = safe_mathfun_up Float_t.sqrt h in
       Interval (low, high)
     | _ -> top ()
 
