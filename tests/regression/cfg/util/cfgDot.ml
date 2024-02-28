@@ -66,6 +66,12 @@ let main () =
       let locs = CilLocation.get_labelLoc label in
       Format.fprintf ppf "@;[%a]" pp_locs locs
 
+    let pp_yaml_loc ppf loc =
+      Format.fprintf ppf "@;YAML loc: %a" CilType.Location.pp loc
+
+    let pp_yaml_loop ppf loc =
+      Format.fprintf ppf "@;YAML loop: %a" CilType.Location.pp loc
+
     let pp_loop_loc ppf loop =
       Format.fprintf ppf "@;loop: %a" CilType.Location.pp loop
 
@@ -73,10 +79,11 @@ let main () =
       | Node.Statement stmt as n ->
         let locs: CilLocation.locs = CilLocation.get_stmtLoc stmt in
         let label =
-          Format.asprintf "@[<v 2>%a%a@;YAML loc: %B, loop: %B@;YAMLval loc: %B, loop: %B@;GraphML: %B; server: %B%a@]"
+          Format.asprintf "@[<v 2>%a%a%a%a@;YAMLval loc: %B, loop: %B@;GraphML: %B; server: %B%a@]"
             pp_locs locs
             (Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_label_locs) stmt.labels
-            (YamlWitnessInvariant.is_invariant_node n) (YamlWitnessInvariant.is_loop_head_node n)
+            (Format.pp_print_option pp_yaml_loc) (YamlWitnessInvariant.location_location n)
+            (Format.pp_print_option pp_yaml_loop) (YamlWitnessInvariant.loop_location n)
             (YamlWitnessValidateInvariant.is_invariant_node n) (YamlWitnessValidateInvariant.is_loop_head_node n)
             (GraphmlWitnessInvariant.is_invariant_node n) (Server.is_server_node n)
             (Format.pp_print_option pp_loop_loc) (GraphmlWitnessInvariant.find_syntactic_loop_head n)

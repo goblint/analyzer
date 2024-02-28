@@ -38,7 +38,7 @@ int main() {
   // do-while loop
   i = 0;
   do {
-    i++; // TODO: wrong loop head location
+    i++;
   } while (i < 10);
 
   return 0;
