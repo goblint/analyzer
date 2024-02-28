@@ -625,13 +625,16 @@ struct
            let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
            let hashtbl_size = if fast_count node_values then count node_values else 123 in
            let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
-           node_values |> iter (fun (node, v) ->
-               let loc = Node.location node in
-               (* join values once for the same location and once for the same node *)
-               let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
-               Hashtbl.modify_opt loc join by_loc;
-               NodeH.modify_opt node join by_node;
-             );
+           iter (fun (node, v) ->
+              let loc = match node with
+                | Statement s -> Cil.get_stmtLoc s.skind (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
+                | FunctionEntry _ | Function _ -> Node.location node
+              in
+              (* join values once for the same location and once for the same node *)
+              let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
+              Hashtbl.modify_opt loc join by_loc;
+              NodeH.modify_opt node join by_node;
+            ) node_values;
            by_loc, by_node
         in
 
