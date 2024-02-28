@@ -133,6 +133,7 @@ struct
 
   let is_loop_head_node = NH.mem loop_heads
 end
+[@@deprecated]
 
 module InvariantExp =
 struct

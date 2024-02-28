@@ -48,7 +48,7 @@ struct
       let file = !Cilfacade.current_file
       module Cfg = (val !MyCFG.current_cfg)
     end  in
-    let module WitnessInvariant = WitnessUtil.YamlInvariantValidate (FileCfg) in
+    let module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
 
     (* DFS, copied from CfgTools.find_backwards_reachable *)
     let reachable = NH.create 100 in

@@ -10,10 +10,9 @@
   ┌───────────────────────────────────────┐
   │ 21-empty-loops.c:57:3-57:31           │
   │ (unknown)                             │
-  │ [21-empty-loops.c:56:1-57:3           │
-  │ (unknown)]                            │   skip
-  │ YAML loc: 21-empty-loops.c:57:3-57:31 │ ───────┐
-  │ YAMLval loc: true, loop: true         │        │
+  │ [21-empty-loops.c:56:1-57:3           │   skip
+  │ (unknown)]                            │ ───────┐
+  │ YAML loc: 21-empty-loops.c:57:3-57:31 │        │
   │ GraphML: true; server: true           │ ◀──────┘
   └───────────────────────────────────────┘
     │
@@ -23,7 +22,6 @@
   │ 21-empty-loops.c:58:1-58:1            │
   │ (unknown)                             │
   │ YAML loc: 21-empty-loops.c:58:1-58:1  │
-  │ YAMLval loc: true, loop: false        │
   │ GraphML: true; server: true           │
   └───────────────────────────────────────┘
     │
@@ -42,9 +40,8 @@
     ▼
   ┌────────────────────────────────────────────┐
   │ 21-empty-loops.c:62:3-62:14 (synthetic)    │
-  │ (21-empty-loops.c:62:10-62:11 (synthetic)) │
-  │ YAML loop: 21-empty-loops.c:62:3-62:14     │   Pos(1)
-  │ YAMLval loc: true, loop: true              │ ─────────┐
+  │ (21-empty-loops.c:62:10-62:11 (synthetic)) │   Pos(1)
+  │ YAML loop: 21-empty-loops.c:62:3-62:14     │ ─────────┐
   │ GraphML: true; server: false               │          │
   │ loop: 21-empty-loops.c:62:3-62:14          │ ◀────────┘
   └────────────────────────────────────────────┘
@@ -55,7 +52,6 @@
   │ 21-empty-loops.c:63:1-63:1                 │
   │ (unknown)                                  │
   │ YAML loc: 21-empty-loops.c:63:1-63:1       │
-  │ YAMLval loc: true, loop: false             │
   │ GraphML: true; server: true                │
   └────────────────────────────────────────────┘
     │
@@ -70,7 +66,6 @@
              │ 21-empty-loops.c:75:3-75:11           │
              │ (21-empty-loops.c:75:3-75:11)         │
              │ YAML loc: 21-empty-loops.c:75:3-75:11 │
-             │ YAMLval loc: true, loop: false        │
              │ GraphML: true; server: true           │
              └───────────────────────────────────────┘
                │
@@ -80,7 +75,6 @@
              │ 21-empty-loops.c:76:1-76:1            │
              │ (unknown)                             │
              │ YAML loc: 21-empty-loops.c:76:1-76:1  │
-             │ YAMLval loc: true, loop: false        │
              │ GraphML: true; server: true           │ ◀┐
              └───────────────────────────────────────┘  │
                │                                        │
@@ -98,10 +92,9 @@
              ┌───────────────────────────────────────┐  │
              │ 21-empty-loops.c:73:3-73:38           │  │
              │ (unknown)                             │  │
-             │ [21-empty-loops.c:72:1-73:3           │  │
-      skip   │ (unknown)]                            │  │
-    ┌─────── │ YAML loc: 21-empty-loops.c:73:3-73:38 │  │
-    │        │ YAMLval loc: true, loop: true         │  │
+      skip   │ [21-empty-loops.c:72:1-73:3           │  │
+    ┌─────── │ (unknown)]                            │  │
+    │        │ YAML loc: 21-empty-loops.c:73:3-73:38 │  │
     └──────▶ │ GraphML: true; server: true           │ ─┘
              └───────────────────────────────────────┘
 
@@ -114,9 +107,8 @@
     ▼
   ┌────────────────────────────────────────────┐
   │ 21-empty-loops.c:80:3-80:14 (synthetic)    │
-  │ (21-empty-loops.c:80:10-80:11 (synthetic)) │
-  │ YAML loop: 21-empty-loops.c:80:3-80:14     │   Pos(1)
-  │ YAMLval loc: true, loop: true              │ ─────────┐
+  │ (21-empty-loops.c:80:10-80:11 (synthetic)) │   Pos(1)
+  │ YAML loop: 21-empty-loops.c:80:3-80:14     │ ─────────┐
   │ GraphML: true; server: false               │          │
   │ loop: 21-empty-loops.c:80:3-80:14          │ ◀────────┘
   └────────────────────────────────────────────┘
@@ -127,7 +119,6 @@
   │ 21-empty-loops.c:82:3-82:11                │
   │ (21-empty-loops.c:82:3-82:11)              │
   │ YAML loc: 21-empty-loops.c:82:3-82:11      │
-  │ YAMLval loc: true, loop: false             │
   │ GraphML: true; server: true                │
   └────────────────────────────────────────────┘
     │
@@ -137,7 +128,6 @@
   │ 21-empty-loops.c:83:1-83:1                 │
   │ (unknown)                                  │
   │ YAML loc: 21-empty-loops.c:83:1-83:1       │
-  │ YAMLval loc: true, loop: false             │
   │ GraphML: true; server: true                │
   └────────────────────────────────────────────┘
     │
@@ -155,10 +145,9 @@
     │ (body)
     ▼
   ┌──────────────────────────────────────┐
-  │ 21-empty-loops.c:93:3-93:9           │
-  │ (21-empty-loops.c:93:3-93:9)         │   body()
-  │ YAML loc: 21-empty-loops.c:93:3-93:9 │ ─────────┐
-  │ YAMLval loc: true, loop: true        │          │
+  │ 21-empty-loops.c:93:3-93:9           │   body()
+  │ (21-empty-loops.c:93:3-93:9)         │ ─────────┐
+  │ YAML loc: 21-empty-loops.c:93:3-93:9 │          │
   │ GraphML: true; server: true          │ ◀────────┘
   └──────────────────────────────────────┘
     │
@@ -168,7 +157,6 @@
   │ 21-empty-loops.c:95:1-95:1           │
   │ (unknown)                            │
   │ YAML loc: 21-empty-loops.c:95:1-95:1 │
-  │ YAMLval loc: true, loop: false       │
   │ GraphML: true; server: true          │
   └──────────────────────────────────────┘
     │
@@ -192,7 +180,6 @@
   │ 21-empty-loops.c:101:5-101:11           │           │ 21-empty-loops.c:99:3-102:3 (synthetic)    │  │
   │ (21-empty-loops.c:101:5-101:11)         │           │ (21-empty-loops.c:99:10-99:11 (synthetic)) │  │
   │ YAML loc: 21-empty-loops.c:101:5-101:11 │           │ YAML loop: 21-empty-loops.c:99:3-102:3     │  │
-  │ YAMLval loc: true, loop: false          │           │ YAMLval loc: true, loop: true              │  │
   │ GraphML: true; server: true             │  Pos(1)   │ GraphML: true; server: false               │  │
   │                                         │ ◀──────── │ loop: 21-empty-loops.c:99:3-102:3          │ ◀┘
   └─────────────────────────────────────────┘           └────────────────────────────────────────────┘
@@ -203,7 +190,6 @@
                                                         │ 21-empty-loops.c:103:1-103:1               │
                                                         │ (unknown)                                  │
                                                         │ YAML loc: 21-empty-loops.c:103:1-103:1     │
-                                                        │ YAMLval loc: true, loop: false             │
                                                         │ GraphML: true; server: true                │
                                                         └────────────────────────────────────────────┘
                                                           │
@@ -225,7 +211,6 @@
   │ 21-empty-loops.c:112:3-112:11           │
   │ (21-empty-loops.c:112:3-112:11)         │
   │ YAML loc: 21-empty-loops.c:112:3-112:11 │
-  │ YAMLval loc: true, loop: false          │
   │ GraphML: true; server: true             │
   └─────────────────────────────────────────┘
     │
@@ -234,10 +219,9 @@
   ┌─────────────────────────────────────────┐
   │ 21-empty-loops.c:115:3-115:38           │
   │ (unknown)                               │
-  │ [21-empty-loops.c:114:1-115:3           │
-  │ (unknown)]                              │   skip
-  │ YAML loc: 21-empty-loops.c:115:3-115:38 │ ───────┐
-  │ YAMLval loc: true, loop: true           │        │
+  │ [21-empty-loops.c:114:1-115:3           │   skip
+  │ (unknown)]                              │ ───────┐
+  │ YAML loc: 21-empty-loops.c:115:3-115:38 │        │
   │ GraphML: true; server: true             │ ◀──────┘
   └─────────────────────────────────────────┘
     │
@@ -247,7 +231,6 @@
   │ 21-empty-loops.c:116:1-116:1            │
   │ (unknown)                               │
   │ YAML loc: 21-empty-loops.c:116:1-116:1  │
-  │ YAMLval loc: true, loop: false          │
   │ GraphML: true; server: true             │
   └─────────────────────────────────────────┘
     │
@@ -268,7 +251,6 @@
   │ 21-empty-loops.c:120:3-120:11                │
   │ (21-empty-loops.c:120:3-120:11)              │
   │ YAML loc: 21-empty-loops.c:120:3-120:11      │
-  │ YAMLval loc: true, loop: false               │
   │ GraphML: true; server: true                  │
   └──────────────────────────────────────────────┘
     │
@@ -276,9 +258,8 @@
     ▼
   ┌──────────────────────────────────────────────┐
   │ 21-empty-loops.c:122:3-122:14 (synthetic)    │
-  │ (21-empty-loops.c:122:10-122:11 (synthetic)) │
-  │ YAML loop: 21-empty-loops.c:122:3-122:14     │   Pos(1)
-  │ YAMLval loc: true, loop: true                │ ─────────┐
+  │ (21-empty-loops.c:122:10-122:11 (synthetic)) │   Pos(1)
+  │ YAML loop: 21-empty-loops.c:122:3-122:14     │ ─────────┐
   │ GraphML: true; server: false                 │          │
   │ loop: 21-empty-loops.c:122:3-122:14          │ ◀────────┘
   └──────────────────────────────────────────────┘
@@ -289,7 +270,6 @@
   │ 21-empty-loops.c:123:1-123:1                 │
   │ (unknown)                                    │
   │ YAML loc: 21-empty-loops.c:123:1-123:1       │
-  │ YAMLval loc: true, loop: false               │
   │ GraphML: true; server: true                  │
   └──────────────────────────────────────────────┘
     │
@@ -308,10 +288,9 @@
     ▼
   ┌─────────────────────────────────────────┐
   │ unknown                                 │
-  │ (unknown)                               │
-  │ [21-empty-loops.c:127:1-128:3           │   skip
-  │ (unknown)]                              │ ───────┐
-  │ YAMLval loc: true, loop: true           │        │
+  │ (unknown)                               │   skip
+  │ [21-empty-loops.c:127:1-128:3           │ ───────┐
+  │ (unknown)]                              │        │
   │ GraphML: true; server: true             │ ◀──────┘
   └─────────────────────────────────────────┘
     │
@@ -321,7 +300,6 @@
   │ 21-empty-loops.c:131:1-131:1            │
   │ (unknown)                               │
   │ YAML loc: 21-empty-loops.c:131:1-131:1  │
-  │ YAMLval loc: true, loop: false          │
   │ GraphML: true; server: true             │
   └─────────────────────────────────────────┘
     │
@@ -340,9 +318,8 @@
     ▼
   ┌──────────────────────────────────────────────┐
   │ 21-empty-loops.c:135:3-137:3 (synthetic)     │
-  │ (21-empty-loops.c:135:10-135:11 (synthetic)) │
-  │ YAML loop: 21-empty-loops.c:135:3-137:3      │   Pos(1)
-  │ YAMLval loc: true, loop: true                │ ─────────┐
+  │ (21-empty-loops.c:135:10-135:11 (synthetic)) │   Pos(1)
+  │ YAML loop: 21-empty-loops.c:135:3-137:3      │ ─────────┐
   │ GraphML: true; server: false                 │          │
   │ loop: 21-empty-loops.c:135:3-137:3           │ ◀────────┘
   └──────────────────────────────────────────────┘
@@ -353,7 +330,6 @@
   │ 21-empty-loops.c:138:1-138:1                 │
   │ (unknown)                                    │
   │ YAML loc: 21-empty-loops.c:138:1-138:1       │
-  │ YAMLval loc: true, loop: false               │
   │ GraphML: true; server: true                  │
   └──────────────────────────────────────────────┘
     │
@@ -373,10 +349,9 @@
   ┌─────────────────────────────────────────┐
   │ 21-empty-loops.c:143:3-143:42           │
   │ (unknown)                               │
-  │ [21-empty-loops.c:142:1-143:3           │
-  │ (unknown)]                              │   skip
-  │ YAML loc: 21-empty-loops.c:143:3-143:42 │ ───────┐
-  │ YAMLval loc: true, loop: true           │        │
+  │ [21-empty-loops.c:142:1-143:3           │   skip
+  │ (unknown)]                              │ ───────┐
+  │ YAML loc: 21-empty-loops.c:143:3-143:42 │        │
   │ GraphML: true; server: true             │ ◀──────┘
   └─────────────────────────────────────────┘
     │
@@ -386,7 +361,6 @@
   │ 21-empty-loops.c:146:1-146:1            │
   │ (unknown)                               │
   │ YAML loc: 21-empty-loops.c:146:1-146:1  │
-  │ YAMLval loc: true, loop: false          │
   │ GraphML: true; server: true             │
   └─────────────────────────────────────────┘
     │
@@ -405,10 +379,9 @@
     ▼
   ┌────────────────────────────────────────────────────────┐
   │ unknown                                                │
-  │ (unknown)                                              │
-  │ [21-empty-loops.c:150:1-151:3                          │   skip
-  │ (unknown)]                                             │ ───────┐
-  │ YAMLval loc: true, loop: true                          │        │
+  │ (unknown)                                              │   skip
+  │ [21-empty-loops.c:150:1-151:3                          │ ───────┐
+  │ (unknown)]                                             │        │
   │ GraphML: true; server: true                            │ ◀──────┘
   └────────────────────────────────────────────────────────┘
     │
@@ -418,7 +391,6 @@
   │ 21-empty-loops.c:155:1-155:1                           │
   │ (unknown)                                              │
   │ YAML loc: 21-empty-loops.c:155:1-155:1                 │
-  │ YAMLval loc: true, loop: false                         │
   │ GraphML: true; server: true                            │
   └────────────────────────────────────────────────────────┘
     │
@@ -438,10 +410,9 @@
   ┌─────────────────────────────────────────────────────────┐
   │ 21-empty-loops.c:160:3-160:59                           │
   │ (unknown)                                               │
-  │ [21-empty-loops.c:159:1-160:3                           │
-  │ (unknown)]                                              │   skip
-  │ YAML loc: 21-empty-loops.c:160:3-160:59                 │ ───────┐
-  │ YAMLval loc: true, loop: true                           │        │
+  │ [21-empty-loops.c:159:1-160:3                           │   skip
+  │ (unknown)]                                              │ ───────┐
+  │ YAML loc: 21-empty-loops.c:160:3-160:59                 │        │
   │ GraphML: true; server: true                             │ ◀──────┘
   └─────────────────────────────────────────────────────────┘
     │
@@ -451,7 +422,6 @@
   │ 21-empty-loops.c:164:1-164:1                            │
   │ (unknown)                                               │
   │ YAML loc: 21-empty-loops.c:164:1-164:1                  │
-  │ YAMLval loc: true, loop: false                          │
   │ GraphML: true; server: true                             │
   └─────────────────────────────────────────────────────────┘
     │
@@ -470,10 +440,9 @@
     ▼
   ┌───────────────────────────────────────────────────────┐
   │ unknown                                               │
-  │ (unknown)                                             │
-  │ [21-empty-loops.c:168:1-169:3                         │   skip
-  │ (unknown)]                                            │ ───────┐
-  │ YAMLval loc: true, loop: true                         │        │
+  │ (unknown)                                             │   skip
+  │ [21-empty-loops.c:168:1-169:3                         │ ───────┐
+  │ (unknown)]                                            │        │
   │ GraphML: true; server: true                           │ ◀──────┘
   └───────────────────────────────────────────────────────┘
     │
@@ -483,7 +452,6 @@
   │ 21-empty-loops.c:174:1-174:1                          │
   │ (unknown)                                             │
   │ YAML loc: 21-empty-loops.c:174:1-174:1                │
-  │ YAMLval loc: true, loop: false                        │
   │ GraphML: true; server: true                           │
   └───────────────────────────────────────────────────────┘
     │

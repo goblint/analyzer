@@ -546,7 +546,7 @@ struct
 
   module Locator = WitnessUtil.Locator (EQSys.LVar)
   module LvarS = Locator.ES
-  module WitnessInvariant = WitnessUtil.YamlInvariantValidate (FileCfg)
+  module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
 

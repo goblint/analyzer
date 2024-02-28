@@ -13,8 +13,7 @@
   ┌─────────────────────────────────────────┐                             ┌─────────────────────────────────────────┐  │
   │ issue-1356.c:9:3-9:53 (synthetic)       │                             │ issue-1356.c:9:3-9:53                   │  │
   │ (issue-1356.c:9:3-9:53 (synthetic))     │                             │ (issue-1356.c:9:3-9:53)                 │  │
-  │ YAMLval loc: true, loop: false          │                             │ YAML loc: issue-1356.c:9:3-9:53         │  │
-  │ GraphML: true; server: false            │  Pos(b <= 0)                │ YAMLval loc: true, loop: false          │  │
+  │ GraphML: true; server: false            │  Pos(b <= 0)                │ YAML loc: issue-1356.c:9:3-9:53         │  │
   │                                         │ ◀────────────────────────── │ GraphML: true; server: true             │  │
   └─────────────────────────────────────────┘                             └─────────────────────────────────────────┘  │
     │                                                                       │                                          │
@@ -23,7 +22,6 @@
     │                                                                     ┌─────────────────────────────────────────┐  │
     │                                                                     │ issue-1356.c:9:3-9:53 (synthetic)       │  │
     │                                                                     │ (issue-1356.c:9:3-9:53 (synthetic))     │  │
-    │                                                                     │ YAMLval loc: true, loop: false          │  │
     │                                                                     │ GraphML: true; server: false            │ ─┘
     │                                                                     └─────────────────────────────────────────┘
     │                                                                       │
@@ -32,7 +30,6 @@
     │                                                                     ┌─────────────────────────────────────────┐
     │                                                                     │ issue-1356.c:9:3-9:53 (synthetic)       │
     │                                                                     │ (issue-1356.c:9:3-9:53 (synthetic))     │
-    │                                                                     │ YAMLval loc: true, loop: false          │
     │                                                                     │ GraphML: true; server: false            │
     │                                                                     └─────────────────────────────────────────┘
     │                                                                       │
@@ -40,8 +37,7 @@
     │                                                                       ▼
     │                                                                     ┌─────────────────────────────────────────┐
     │                                                                     │ issue-1356.c:9:3-9:53 (synthetic)       │
-    │                                                                     │ (issue-1356.c:9:3-9:53 (synthetic))     │
-    │                                         tmp = 1                     │ YAMLval loc: true, loop: false          │
+    │                                         tmp = 1                     │ (issue-1356.c:9:3-9:53 (synthetic))     │
     └───────────────────────────────────────────────────────────────────▶ │ GraphML: true; server: false            │
                                                                           └─────────────────────────────────────────┘
                                                                             │
@@ -51,7 +47,6 @@
                                                                           │ issue-1356.c:10:3-10:53                 │
                                                                           │ (issue-1356.c:10:3-10:53)               │
                                                                           │ YAML loc: issue-1356.c:10:3-10:53       │
-                                                                          │ YAMLval loc: true, loop: false          │
                                                                           │ GraphML: true; server: true             │ ─┐
                                                                           └─────────────────────────────────────────┘  │
                                                                             │                                          │
@@ -59,8 +54,7 @@
                                                                             ▼                                          │
   ┌─────────────────────────────────────────┐                             ┌─────────────────────────────────────────┐  │
   │ issue-1356.c:10:3-10:53 (synthetic)     │                             │ issue-1356.c:10:3-10:53 (synthetic)     │  │
-  │ (issue-1356.c:10:3-10:53 (synthetic))   │                             │ (issue-1356.c:10:3-10:53 (synthetic))   │  │
-  │ YAMLval loc: true, loop: false          │  Neg(a <= b + 2147483647)   │ YAMLval loc: true, loop: false          │  │ Pos(b >= 0)
+  │ (issue-1356.c:10:3-10:53 (synthetic))   │  Neg(a <= b + 2147483647)   │ (issue-1356.c:10:3-10:53 (synthetic))   │  │ Pos(b >= 0)
   │ GraphML: true; server: false            │ ◀────────────────────────── │ GraphML: true; server: false            │  │
   └─────────────────────────────────────────┘                             └─────────────────────────────────────────┘  │
     │                                                                       │                                          │
@@ -69,7 +63,6 @@
     │                                                                     ┌─────────────────────────────────────────┐  │
     │                                                                     │ issue-1356.c:10:3-10:53 (synthetic)     │  │
     │                                                                     │ (issue-1356.c:10:3-10:53 (synthetic))   │  │
-    │                                                                     │ YAMLval loc: true, loop: false          │  │
     │                                                                     │ GraphML: true; server: false            │ ◀┘
     │                                                                     └─────────────────────────────────────────┘
     │                                                                       │
@@ -77,8 +70,7 @@
     │                                                                       ▼
     │                                                                     ┌─────────────────────────────────────────┐
     │                                                                     │ issue-1356.c:10:3-10:53 (synthetic)     │
-    │                                                                     │ (issue-1356.c:10:3-10:53 (synthetic))   │
-    │                                         tmp___0 = 0                 │ YAMLval loc: true, loop: false          │
+    │                                         tmp___0 = 0                 │ (issue-1356.c:10:3-10:53 (synthetic))   │
     └───────────────────────────────────────────────────────────────────▶ │ GraphML: true; server: false            │
                                                                           └─────────────────────────────────────────┘
                                                                             │
@@ -88,7 +80,6 @@
                                                                           │ issue-1356.c:11:3-11:15                 │
                                                                           │ (issue-1356.c:11:10-11:15)              │
                                                                           │ YAML loc: issue-1356.c:11:3-11:15       │
-                                                                          │ YAMLval loc: true, loop: false          │
                                                                           │ GraphML: true; server: true             │
                                                                           └─────────────────────────────────────────┘
                                                                             │

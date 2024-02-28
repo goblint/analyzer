@@ -23,7 +23,6 @@
     │    │    │    │                                                  │ loops.c:7:3-7:8                   │  │               │    │    │
     │    │    │    │                                                  │ (loops.c:7:3-7:8)                 │  │               │    │    │
     │    │    │    │                                                  │ YAML loc: loops.c:7:3-7:8         │  │               │    │    │
-    │    │    │    │                                                  │ YAMLval loc: true, loop: false    │  │               │    │    │
     │    │    │    │                                                  │ GraphML: true; server: true       │  │               │    │    │
     │    │    │    │                                                  └───────────────────────────────────┘  │               │    │    │
     │    │    │    │                                                    │                                    │               │    │    │
@@ -33,7 +32,6 @@
     │    │    │  │ loops.c:9:5-9:8                   │                │ loops.c:8:3-10:3 (synthetic)      │  │               │    │    │
     │    │    │  │ (loops.c:9:5-9:8)                 │                │ (loops.c:8:10-8:16 (synthetic))   │  │               │    │    │
     │    │    │  │ YAML loc: loops.c:9:5-9:8         │                │ YAML loop: loops.c:8:3-10:3       │  │               │    │    │
-    │    │    │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │  │               │    │    │
     │    │    │  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  │               │    │    │
     │    │    │  │                                   │ ◀───────────── │ loop: loops.c:8:3-10:3            │ ◀┼───────────────┼────┼────┘
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘  │               │    │
@@ -44,7 +42,6 @@
     │    │    │                                                       │ loops.c:13:3-15:3                 │  │               │    │
     │    │    │                                                       │ (loops.c:13:7-13:26 (synthetic))  │  │               │    │
     │    │    │                                                       │ YAML loc: loops.c:13:3-15:3       │  │ i = i + 1     │    │
-    │    │    │                                                       │ YAMLval loc: true, loop: false    │  │               │    │
     │    │    │                                                       │ GraphML: true; server: false      │  │               │    │
     │    │    │                                                       └───────────────────────────────────┘  │               │    │
     │    │    │                                                         │                                    │               │    │
@@ -54,7 +51,6 @@
     │    │    │  │ loops.c:14:5-14:23                │                │ loops.c:13:3-15:3 (synthetic)     │  │               │    │
     │    │    │  │ (loops.c:14:5-14:23)              │                │ (loops.c:13:7-13:26 (synthetic))  │  │               │    │
     │    │    │  │ YAML loc: loops.c:14:5-14:23      │                │ YAML loop: loops.c:13:3-15:3      │  │               │    │
-    │    │    │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │  │               │    │
     │    │    │  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  │               │    │
     │    │    │  │                                   │ ◀───────────── │ loop: loops.c:13:3-15:3           │ ◀┘               │    │
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘                  │    │
@@ -64,8 +60,7 @@
     │    │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                  │    │
     │    │    │  │ loops.c:13:3-15:3 (synthetic)     │                │ loops.c:18:3-20:3                 │                  │    │
     │    │    │  │ (loops.c:13:7-13:26 (synthetic))  │                │ (loops.c:18:7-18:26 (synthetic))  │                  │    │
-    │    │    │  │ YAMLval loc: true, loop: false    │                │ YAML loc: loops.c:18:3-20:3       │                  │    │
-    │    │    │  │ GraphML: true; server: false      │                │ YAMLval loc: true, loop: false    │                  │    │
+    │    │    │  │ GraphML: true; server: false      │                │ YAML loc: loops.c:18:3-20:3       │                  │    │
     │    │    └─ │                                   │                │ GraphML: true; server: false      │                  │    │
     │    │       └───────────────────────────────────┘                └───────────────────────────────────┘                  │    │
     │    │                                                              │                                                    │    │
@@ -75,7 +70,6 @@
     │    │       │                                   │                │ loops.c:18:3-20:3 (synthetic)     │                  │    │
     │    │       │ loops.c:18:3-20:3 (synthetic)     │                │ (loops.c:18:7-18:26 (synthetic))  │                  │    │
     │    │       │ (loops.c:18:7-18:26 (synthetic))  │                │ YAML loop: loops.c:18:3-20:3      │                  │    │
-    │    │       │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │                  │    │
     │    │       │ GraphML: true; server: false      │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1       │    │
     │    └────── │                                   │ ◀───────────── │ loop: loops.c:18:3-20:3           │ ◀────────────────┘    │
     │            └───────────────────────────────────┘                └───────────────────────────────────┘                       │
@@ -86,7 +80,6 @@
     │                                                                 │ loops.c:23:3-25:3                 │                       │
     │                                                                 │ (loops.c:23:7-23:22 (synthetic))  │                       │
     │                                                                 │ YAML loc: loops.c:23:3-25:3       │                       │
-    │                                                                 │ YAMLval loc: true, loop: false    │                       │
     │                                                                 │ GraphML: true; server: false      │                       │
     │                                                                 └───────────────────────────────────┘                       │
     │                                                                   │                                                         │
@@ -96,7 +89,6 @@
     │            │ loops.c:24:5-24:8                 │                │ loops.c:23:3-25:3 (synthetic)     │                       │
     │            │ (loops.c:24:5-24:8)               │                │ (loops.c:23:7-23:22 (synthetic))  │                       │
     │            │ YAML loc: loops.c:24:5-24:8       │                │ YAML loop: loops.c:23:3-25:3      │                       │
-    │            │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │                       │
     │            │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1            │
     └─────────── │                                   │ ◀───────────── │ loop: loops.c:23:3-25:3           │ ◀─────────────────────┘
                  └───────────────────────────────────┘                └───────────────────────────────────┘
@@ -107,7 +99,6 @@
                                                                       │ loops.c:28:3-28:8                 │
                                                                       │ (loops.c:28:3-28:8)               │
                                                                       │ YAML loc: loops.c:28:3-28:8       │
-                                                                      │ YAMLval loc: true, loop: false    │
                                                                       │ GraphML: true; server: true       │
                                                                       └───────────────────────────────────┘
                                                                         │
@@ -117,7 +108,6 @@
                  │ loops.c:30:5-30:23                │                │ loops.c:29:3-31:3 (synthetic)     │
                  │ (loops.c:30:5-30:23)              │                │ (loops.c:29:7-29:21 (synthetic))  │
                  │ YAML loc: loops.c:30:5-30:23      │                │ YAML loop: loops.c:29:3-31:3      │
-                 │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │
                  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1
                  │                                   │ ◀───────────── │ loop: loops.c:29:3-31:3           │ ◀─────────────────────┐
                  └───────────────────────────────────┘                └───────────────────────────────────┘                       │
@@ -127,8 +117,7 @@
                  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │
                  │ loops.c:29:3-31:3 (synthetic)     │                │ loops.c:34:8-34:23                │                       │
                  │ (loops.c:29:7-29:21 (synthetic))  │                │ (loops.c:34:12-34:23 (synthetic)) │                       │
-                 │ YAMLval loc: true, loop: false    │                │ YAML loc: loops.c:34:8-34:23      │                       │
-                 │ GraphML: true; server: false      │                │ YAMLval loc: true, loop: false    │                       │
+                 │ GraphML: true; server: false      │                │ YAML loc: loops.c:34:8-34:23      │                       │
                  │                                   │                │ GraphML: true; server: false      │                       │
                  └───────────────────────────────────┘                └───────────────────────────────────┘                       │
                    │                                                    │                                                         │
@@ -137,7 +126,6 @@
                    │                                                  ┌───────────────────────────────────┐                       │
                    │                                                  │ loops.c:34:8-34:23 (synthetic)    │                       │
                    │                                                  │ (loops.c:34:12-34:23 (synthetic)) │                       │
-                   │                                                  │ YAMLval loc: true, loop: false    │                       │
                    │                                                  │ GraphML: true; server: false      │                       │
                    │                                                  └───────────────────────────────────┘                       │
                    │                                                    │                                                         │
@@ -147,7 +135,6 @@
               │  │ loops.c:35:5-35:23                │                │ loops.c:34:3-36:3 (synthetic)     │                       │
               │  │ (loops.c:35:5-35:23)              │                │ (loops.c:34:7-34:36 (synthetic))  │                       │
               │  │ YAML loc: loops.c:35:5-35:23      │                │ YAML loop: loops.c:34:3-36:3      │                       │
-              │  │ YAMLval loc: true, loop: false    │                │ YAMLval loc: true, loop: true     │                       │
               │  │ GraphML: true; server: true       │  Pos(i < 10)   │ GraphML: true; server: false      │  i = i + 1            │
               │  │                                   │ ◀───────────── │ loop: loops.c:34:3-36:3           │ ◀─────────────────────┼────┐
               │  └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │
@@ -157,8 +144,7 @@
               │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │    │
               │  │ loops.c:34:8-34:23 (synthetic)    │                │ loops.c:39:3-39:8                 │                       │    │
               │  │ (loops.c:34:12-34:23 (synthetic)) │                │ (loops.c:39:3-39:8)               │                       │    │
-              │  │ YAMLval loc: true, loop: false    │                │ YAML loc: loops.c:39:3-39:8       │                       │    │
-              │  │ GraphML: true; server: false      │                │ YAMLval loc: true, loop: false    │                       │    │
+              │  │ GraphML: true; server: false      │                │ YAML loc: loops.c:39:3-39:8       │                       │    │
               │  │                                   │ ─┐             │ GraphML: true; server: true       │                       │    │
               │  └───────────────────────────────────┘  │             └───────────────────────────────────┘                       │    │
               │                                         │               │                                                         │    │
@@ -169,7 +155,6 @@
               │                                         │             │ (loops.c:41:5-41:8)               │                       │    │
               │                                         │             │ YAML loc: loops.c:41:5-41:8       │                       │    │
               │                                         │             │ YAML loop: loops.c:40:3-42:19     │                       │    │
-              │                                         │             │ YAMLval loc: true, loop: true     │                       │    │
               │                                         │             │ GraphML: true; server: true       │                       │    │
               │                                         │             │ loop: loops.c:40:3-42:19          │ ◀┐                    │    │
               │                                         │             └───────────────────────────────────┘  │                    │    │
@@ -179,7 +164,6 @@
               │                                         │             ┌───────────────────────────────────┐  │                    │    │
               │                                         │             │ loops.c:40:3-42:19 (synthetic)    │  │                    │    │
               │                                         │             │ (loops.c:42:12-42:19 (synthetic)) │  │                    │    │
-              │                                         │             │ YAMLval loc: true, loop: false    │  │                    │    │
               │                                         │             │ GraphML: true; server: false      │ ─┘                    │    │
               │                                         │             └───────────────────────────────────┘                       │    │
               │                                         │               │                                                         │    │
@@ -189,7 +173,6 @@
               │                                         │             │ loops.c:44:3-44:11                │                       │    │
               │                                         │             │ (loops.c:44:10-44:11)             │                       │    │
               │                                         │             │ YAML loc: loops.c:44:3-44:11      │                       │    │
-              │                                         │             │ YAMLval loc: true, loop: false    │                       │    │
               │                                         │             │ GraphML: true; server: true       │                       │    │
               │                                         │             └───────────────────────────────────┘                       │    │
               │                                         │               │                                                         │    │
