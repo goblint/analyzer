@@ -187,4 +187,444 @@
                                                         │                                                                              │
                                                         └──────────────────────────────────────────────────────────────────────────────┘
 
+  $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant", "loop_invariant"]' loops.c
+  [Success][Assert] Assertion "1" will succeed (loops.c:14:5-14:23)
+  [Success][Assert] Assertion "1" will succeed (loops.c:30:5-30:23)
+  [Success][Assert] Assertion "1" will succeed (loops.c:35:5-35:23)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 18
+    dead: 0
+    total lines: 18
+  [Info][Witness] witness generation summary:
+    total generation entries: 39
 
+  $ yamlWitnessStrip < witness.yml
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 40
+      column: 2
+      function: main
+    loop_invariant:
+      string: j == 0
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 40
+      column: 2
+      function: main
+    loop_invariant:
+      string: i <= 9
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 40
+      column: 2
+      function: main
+    loop_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 34
+      column: 2
+      function: main
+    loop_invariant:
+      string: j == 0
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 34
+      column: 2
+      function: main
+    loop_invariant:
+      string: i <= 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 34
+      column: 2
+      function: main
+    loop_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 29
+      column: 2
+      function: main
+    loop_invariant:
+      string: i <= 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 29
+      column: 2
+      function: main
+    loop_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 23
+      column: 2
+      function: main
+    loop_invariant:
+      string: i <= 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 23
+      column: 2
+      function: main
+    loop_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 18
+      column: 2
+      function: main
+    loop_invariant:
+      string: i <= 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 18
+      column: 2
+      function: main
+    loop_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 13
+      column: 2
+      function: main
+    loop_invariant:
+      string: i <= 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 13
+      column: 2
+      function: main
+    loop_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 8
+      column: 2
+      function: main
+    loop_invariant:
+      string: i <= 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 8
+      column: 2
+      function: main
+    loop_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 44
+      column: 2
+      function: main
+    location_invariant:
+      string: j == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 44
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 41
+      column: 4
+      function: main
+    location_invariant:
+      string: j == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 41
+      column: 4
+      function: main
+    location_invariant:
+      string: i <= 9
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 41
+      column: 4
+      function: main
+    location_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 39
+      column: 2
+      function: main
+    location_invariant:
+      string: j == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 39
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 35
+      column: 4
+      function: main
+    location_invariant:
+      string: j == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 35
+      column: 4
+      function: main
+    location_invariant:
+      string: i <= 9
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 35
+      column: 4
+      function: main
+    location_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 34
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 30
+      column: 4
+      function: main
+    location_invariant:
+      string: i <= 9
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 30
+      column: 4
+      function: main
+    location_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 28
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 24
+      column: 4
+      function: main
+    location_invariant:
+      string: i <= 9
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 24
+      column: 4
+      function: main
+    location_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 23
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 18
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 14
+      column: 4
+      function: main
+    location_invariant:
+      string: i <= 9
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 14
+      column: 4
+      function: main
+    location_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 13
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 4
+      function: main
+    location_invariant:
+      string: i <= 9
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: loops.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 4
+      function: main
+    location_invariant:
+      string: 0 <= i
+      type: assertion
+      format: C
