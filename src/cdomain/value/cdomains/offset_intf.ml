@@ -129,12 +129,12 @@ sig
       (** Special index expression for some unknown index.
           Weakly updates array in assignment.
           Used for [exp.fast_global_inits]. *)
-      val any: GoblintCil.exp
+      val any: GoblintCil.exp Lazy.t
 
       (** Special index expression for all indices.
           Strongly updates array in assignment.
           Used for Goblint-specific witness invariants. *)
-      val all: GoblintCil.exp
+      val all: GoblintCil.exp Lazy.t
     end
   end
 

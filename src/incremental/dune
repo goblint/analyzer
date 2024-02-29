@@ -8,11 +8,12 @@
    batteries.unthreaded
    zarith
    goblint_std
+   goblint_logs
    goblint_config
    goblint_common
    goblint-cil
    fpath)
- (flags :standard -open Goblint_std)
+ (flags :standard -open Goblint_std -open Goblint_logs)
  (preprocess
   (pps
     ppx_deriving.std

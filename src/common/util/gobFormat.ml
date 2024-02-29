@@ -3,13 +3,13 @@ let pp_set_ansi_color_tags ppf =
   let stag_functions = Format.pp_get_formatter_stag_functions ppf () in
   let mark_open_stag = function
     | Format.String_tag s ->
-      begin match List.assoc_opt s MessageUtil.ansi_color_table with
+      begin match List.assoc_opt s AnsiColors.table with
         | Some code -> code
         | None -> Format.sprintf "{%s}" s
       end
     | _ -> ""
   in
-  let reset_code = List.assoc "reset" MessageUtil.ansi_color_table in (* assoc only once *)
+  let reset_code = List.assoc "reset" AnsiColors.table in (* assoc only once *)
   let mark_close_stag = function
     | Format.String_tag _ -> reset_code
     | _ -> ""

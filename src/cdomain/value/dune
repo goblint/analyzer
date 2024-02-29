@@ -7,13 +7,14 @@
  (libraries
    batteries.unthreaded
    goblint_std
+   goblint_logs
    goblint_common
    goblint_config
    goblint_library
    goblint_domain
    goblint_incremental
    goblint-cil)
- (flags :standard -open Goblint_std)
+ (flags :standard -open Goblint_std -open Goblint_logs)
  (preprocess
   (pps
     ppx_deriving.std

@@ -313,10 +313,22 @@ struct
   let widen = lift2 I.widen
   let narrow = lift2 I.narrow
 
-  let show x = I.show x.v  (* TODO add ikind to output *)
-  let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
+  let show x =
+    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+      "⊤"
+    else
+      I.show x.v  (* TODO add ikind to output *)
+  let pretty () x =
+    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+      Pretty.text "⊤"
+    else
+      I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
-  let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
+  let printXml o x =
+    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+      BatPrintf.fprintf o "<value>\n<data>\n⊤\n</data>\n</value>\n"
+    else
+      I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
@@ -1898,21 +1910,21 @@ struct
   let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
-        if R.leq r r' then (* upcast -> no change *)
-          `Excluded (s, r)
-        else if ik = IBool then (* downcast to bool *)
-          if S.mem Z.zero s then
-            `Definite Z.one
-          else
-            `Excluded (S.empty(), r')
+      if R.leq r r' then (* upcast -> no change *)
+        `Excluded (s, r)
+      else if ik = IBool then (* downcast to bool *)
+        if S.mem Z.zero s then
+          `Definite Z.one
         else
-          (* downcast: may overflow *)
-          (* let s' = S.map (Size.cast ik) s in *)
-          (* We want to filter out all i in s' where (t)x with x in r could be i. *)
-          (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
-          (* S.diff s' s, r' *)
-          (* The above is needed for test 21/03, but not sound! See example https://github.com/goblint/analyzer/pull/95#discussion_r483023140 *)
-          `Excluded (S.empty (), r')
+          `Excluded (S.empty(), r')
+      else
+        (* downcast: may overflow *)
+        (* let s' = S.map (Size.cast ik) s in *)
+        (* We want to filter out all i in s' where (t)x with x in r could be i. *)
+        (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
+        (* S.diff s' s, r' *)
+        (* The above is needed for test 21/03, but not sound! See example https://github.com/goblint/analyzer/pull/95#discussion_r483023140 *)
+        `Excluded (S.empty (), r')
     | `Definite x -> `Definite (Size.cast ik x)
     | `Bot -> `Bot
 
@@ -3477,9 +3489,27 @@ module IntDomTupleImpl = struct
     in
     mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
+  let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
+    if n = 1 then Some (List.hd xs)
+    else (
+      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
+      None
+    )
+  let to_int = same Z.to_string % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_int }
 
-  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
-
+  let pretty () x =
+    match to_int x with
+    | Some v when not (GobConfig.get_bool "dbg.full-output") -> Pretty.text (Z.to_string v)
+    | _ ->
+      mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> (* assert sf==I.short; *) I.pretty () } x
+      |> to_list
+      |> (fun xs ->
+          text "(" ++ (
+            try
+              List.reduce (fun a b -> a ++ text "," ++ b) xs
+            with Invalid_argument _ ->
+              nil)
+          ++ text ")") (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
   let refine_functions ik : (t -> t) list =
     let maybe reffun ik domtup dom =
@@ -3575,20 +3605,17 @@ module IntDomTupleImpl = struct
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top
-  let same show x =
-    let us = List.unique (to_list_some x) in
-    match us with
-    | [x] -> Some x
-    | [] -> None
-    | _ ->
-      Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
-      None
-  let to_int = same Z.to_string % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_int }
+
   let to_bool = same string_of_bool % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.to_bool }
   let minimal = flat (List.max ~cmp:Z.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.minimal }
   let maximal = flat (List.min ~cmp:Z.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.maximal }
   (* others *)
-  let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
+  let show x =
+    match to_int x with
+    | Some v  when not (GobConfig.get_bool "dbg.full-output") -> Z.to_string v
+    | _ -> mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) } x
+           |> to_list
+           |> String.concat "; "
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.to_yojson x }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.hash }
 
@@ -3698,7 +3725,10 @@ module IntDomTupleImpl = struct
 
   (* printing boilerplate *)
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
+  let printXml f x =
+    match to_int x with
+    | Some v when not (GobConfig.get_bool "dbg.full-output") -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Z.to_string v)
+    | _ -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant_ikind e ik x =
     match to_int x with

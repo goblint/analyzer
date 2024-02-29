@@ -66,8 +66,33 @@ let parse fileName =
     E.s (E.error "There were parsing errors in %s" fileName_str);
   file
 
+(** Version of {!defaultCilPrinterClass} which excludes line directives and builtin signatures (in comments).
+    Used for [dbg.justcil-printer]. *)
+class cleanCilPrinterClass = object
+  inherit defaultCilPrinterClass as super
+
+  method! pLineDirective ?(forcefile=false) l =
+    Pretty.nil
+
+  method! pGlobal () (g: global) =
+    match g with
+    | GVarDecl (vi, l) when Hashtbl.mem builtinFunctions vi.vname -> Pretty.nil
+    | _ -> super#pGlobal () g
+end
+
+let cleanCilPrinter = new cleanCilPrinterClass
+
+let cleanDumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
+  Pretty.printDepth := 99999;
+  Pretty.fastMode := true;
+  iterGlobals file (fun g -> dumpGlobal pp out g);
+  flush out
+
 let print (fileAST: file) =
-  dumpFile defaultCilPrinter stdout "stdout" fileAST
+  match GobConfig.get_string "dbg.justcil-printer" with
+  | "default" -> dumpFile defaultCilPrinter stdout "stdout" fileAST
+  | "clean" -> cleanDumpFile cleanCilPrinter stdout "stdout" fileAST
+  | _ -> assert false
 
 let rmTemps fileAST =
   RmUnused.removeUnused fileAST
@@ -96,7 +121,7 @@ class addConstructors cons = object
   val mutable cons1 = cons
   method! vfunc fd =
     if List.mem fd.svar.vname (get_string_list "mainfun") then begin
-      if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
+      Logs.debug "Adding constructors to: %s" fd.svar.vname;
       let loc = match fd.sbody.bstmts with
         | s :: _ -> get_stmtLoc s
         | [] -> locUnknown
@@ -136,7 +161,7 @@ let callConstructors ast =
     !cons
   in
   let d_fundec () fd = Pretty.text fd.svar.vname in
-  if get_bool "dbg.verbose" then ignore (Pretty.printf "Constructors: %a\n" (Pretty.d_list ", " d_fundec) constructors);
+  Logs.debug "Constructors: %a" (Pretty.d_list ", " d_fundec) constructors;
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
 
@@ -161,9 +186,9 @@ let getFuns fileAST : startfuns =
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") -> add_exit def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") -> add_other def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
-      Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
+      Logs.debug "Start function: %s" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
-      Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
+      Logs.debug "Cleanup function: %s" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; vattr; _}; _} as def, _) when get_bool "nonstatic" && not (Cil.hasAttribute "goblint_stub" vattr) -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
     | _ -> acc
@@ -712,4 +737,4 @@ let add_function_declarations (file: Cil.file): unit =
 (** Special index expression for some unknown index.
     Weakly updates array in assignment.
     Used for [exp.fast_global_inits]. *)
-let any_index_exp = CastE (TInt (ptrdiff_ikind (), []), mkString "any_index") (* TODO: move back to Offset *)
+let any_index_exp = lazy (CastE (TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)
