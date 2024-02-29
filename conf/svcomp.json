@@ -84,7 +84,6 @@
         "congruence",
         "octagon",
         "wideningThresholds",
-        "loopUnrollHeuristic",
         "memsafetySpecification",
         "termination",
         "tmpSpecialAnalysis"

@@ -145,6 +145,8 @@ let check_arguments () =
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
   if (not @@ get_bool "witness.invariant.all-locals") && (not @@ get_bool "cil.addNestedScopeAttr") then (set_bool "cil.addNestedScopeAttr" true; warn "Disabling witness.invariant.all-locals implicitly enables cil.addNestedScopeAttr.");
+  if (get_int "exp.unrolling-factor" > 0 || AutoTune0.isActivated "loopUnrollHeuristic") && (get_bool "witness.yaml.enabled" || get_string "witness.yaml.validate" <> "" || get_string "witness.yaml.unassume" <> "") then
+    fail "YAML witnesses are incompatible with syntactic loop unrolling (https://github.com/goblint/analyzer/pull/1370).";
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)
     ignore @@ List.fold_left
