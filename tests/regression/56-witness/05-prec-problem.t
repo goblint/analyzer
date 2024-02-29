@@ -8,6 +8,8 @@
   [Info][Witness] witness generation summary:
     total generation entries: 6
 
+TODO: Don't generate duplicate entries from each context: should have generated just 3.
+
 Witness shouldn't contain two unsound precondition_loop_invariant-s with precondition `*ptr1 == 5 && *ptr2 == 5`,
 and separately invariants `result == 0` and `result == 1`.
 The sound invariant is `result == 1 || result == 0`.
