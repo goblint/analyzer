@@ -9,7 +9,8 @@ int foo(int* ptr1, int* ptr2){
     } else {
         result = 1;
     }
-    // cram test checks for precondition invariant soundness
+
+    while (0); // cram test checks for precondition invariant soundness
     return result;
 }
 
