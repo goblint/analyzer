@@ -6,7 +6,7 @@ int main ()
 
   int y = (three == &x);
 
-  // &x equaling the constant 3 is exceedinly unlikely
+  // &x equaling the constant 3 is exceedingly unlikely
   __goblint_check(y == 1); //UNKNOWN!
 
   return 0;
