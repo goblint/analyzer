@@ -115,9 +115,9 @@
                    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │
                    ▼                                                    ▼                                                         │
                  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │
-                 │ loops.c:29:3-31:3 (synthetic)     │                │ loops.c:34:8-34:17                │                       │
+                 │ loops.c:29:3-31:3 (synthetic)     │                │ loops.c:34:3-36:3                 │                       │
                  │ (loops.c:29:7-29:21 (synthetic))  │                │ (loops.c:34:12-34:17 (synthetic)) │                       │
-                 │ GraphML: true; server: false      │                │ YAML loc: loops.c:34:8-34:17      │                       │
+                 │ GraphML: true; server: false      │                │ YAML loc: loops.c:34:3-36:3       │                       │
          ┌────── │                                   │                │ GraphML: true; server: false      │                       │
          │       └───────────────────────────────────┘                └───────────────────────────────────┘                       │
          │                                                              │                                                         │
@@ -134,16 +134,16 @@
          │         │ __goblint_check(1)                                 │ Neg(j < 10)                                             │    │
          │         ▼                                                    ▼                                                         │    │
          │       ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │    │
-         │       │ loops.c:34:8-34:17 (synthetic)    │                │ loops.c:39:8-39:23                │                       │    │
+         │       │ loops.c:34:3-36:3 (synthetic)     │                │ loops.c:39:3-41:3                 │                       │    │
          │       │ (loops.c:34:12-34:17 (synthetic)) │                │ (loops.c:39:12-39:23 (synthetic)) │                       │    │
-         │       │ GraphML: true; server: false      │                │ YAML loc: loops.c:39:8-39:23      │                       │    │
+         │       │ GraphML: true; server: false      │                │ YAML loc: loops.c:39:3-41:3       │                       │    │
          │       │                                   │                │ GraphML: true; server: false      │                       │    │
          │       └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │
          │         │                                                    │                                                         │    │
          │         │                                                    │ i = 0                                                   │    │
          │         │                                                    ▼                                                         │    │
          │         │                                                  ┌───────────────────────────────────┐                       │    │
-         │         │                                                  │ loops.c:39:8-39:23 (synthetic)    │                       │    │
+         │         │                                                  │ loops.c:39:3-41:3 (synthetic)     │                       │    │
          │         │                                                  │ (loops.c:39:12-39:23 (synthetic)) │                       │    │
          │         │                                                  │ GraphML: true; server: false      │                       │    │
          │         │                                                  └───────────────────────────────────┘                       │    │
@@ -161,7 +161,7 @@
          │    │    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │    │             │
          │    │    ▼                                                    ▼                                                         │    │             │
          │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │    │             │
-         │    │  │ loops.c:39:8-39:23 (synthetic)    │                │ loops.c:44:3-44:8                 │                       │    │             │
+         │    │  │ loops.c:39:3-41:3 (synthetic)     │                │ loops.c:44:3-44:8                 │                       │    │             │
          │    │  │ (loops.c:39:12-39:23 (synthetic)) │                │ (loops.c:44:3-44:8)               │                       │    │             │
          │    │  │ GraphML: true; server: false      │                │ YAML loc: loops.c:44:3-44:8       │                       │    │             │
          │    │  │                                   │                │ GraphML: true; server: true       │                       │    │             │
