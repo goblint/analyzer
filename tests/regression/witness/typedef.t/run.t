@@ -59,7 +59,7 @@
       column: 2
       function: main
     location_invariant:
-      string: '*((myint *)p) == 42'
+      string: '*((int *)p) == 42'
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -70,7 +70,7 @@
       column: 2
       function: main
     location_invariant:
-      string: ((s *)q)->f == 43
+      string: ((struct __anonstruct_s_109580352 *)q)->f == 43
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -114,7 +114,7 @@
       column: 2
       function: main
     location_invariant:
-      string: '*((myint *)p) == 42'
+      string: '*((int *)p) == 42'
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -147,7 +147,7 @@
       column: 2
       function: main
     location_invariant:
-      string: '*((myint *)p) == 42'
+      string: '*((int *)p) == 42'
       type: assertion
       format: C
   - entry_type: location_invariant

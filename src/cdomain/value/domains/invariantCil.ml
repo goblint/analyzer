@@ -13,15 +13,24 @@ class exp_replace_original_name_visitor = object
   method! vvrbl (vi: varinfo) =
     ChangeTo (var_replace_original_name vi)
 end
-let exp_replace_original_name e =
+let exp_replace_original_name e = (* TODO: curry to create object only once *)
   let visitor = new exp_replace_original_name_visitor in
   visitCilExpr visitor e
+
+class exp_deep_unroll_types_visitor = object
+  inherit nopCilVisitor
+  method! vtype (t: typ) =
+    ChangeTo (unrollTypeDeep t)
+end
+let exp_deep_unroll_types =
+  let visitor = new exp_deep_unroll_types_visitor in
+  visitCilExpr visitor
 
 
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
   | None -> vi.vstorage <> Static (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
-  | Some fd -> 
+  | Some fd ->
     if CilType.Fundec.equal fd scope then
       GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr)
     else

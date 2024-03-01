@@ -160,7 +160,11 @@ struct
     | e -> to_conjunct_set e
 
   let process_exp inv =
-    let inv' = InvariantCil.exp_replace_original_name inv in
+    let inv' =
+      inv
+      |> InvariantCil.exp_deep_unroll_types
+      |> InvariantCil.exp_replace_original_name
+    in
     if GobConfig.get_bool "witness.invariant.split-conjunction" then
       ES.elements (pullOutCommonConjuncts inv')
     else
