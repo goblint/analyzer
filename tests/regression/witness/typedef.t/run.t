@@ -4,7 +4,7 @@
     dead: 0
     total lines: 6
   [Info][Witness] witness generation summary:
-    total generation entries: 14
+    total generation entries: 13
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
@@ -60,17 +60,6 @@
       function: main
     location_invariant:
       string: '*((int *)p) == 42'
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: typedef.c
-      file_hash: $FILE_HASH
-      line: 14
-      column: 2
-      function: main
-    location_invariant:
-      string: ((struct __anonstruct_s_109580352 *)q)->f == 43
       type: assertion
       format: C
   - entry_type: location_invariant

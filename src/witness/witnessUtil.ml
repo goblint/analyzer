@@ -167,6 +167,7 @@ struct
     in
     if GobConfig.get_bool "witness.invariant.split-conjunction" then
       ES.elements (pullOutCommonConjuncts inv')
+      |> List.filter (Fun.negate InvariantCil.exp_contains_anon_type)
     else
       [inv']
 end

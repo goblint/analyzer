@@ -84,6 +84,22 @@ let exp_contains_tmp e =
   ignore (visitCilExpr visitor e);
   !acc
 
+class exp_contains_anon_type_visitor = object
+  inherit nopCilVisitor
+  method! vtype (t: typ) =
+    match t with
+    | TComp ({cname; _}, _) when BatString.starts_with_stdlib ~prefix:"__anon" cname ->
+      raise Stdlib.Exit
+    | _ ->
+      DoChildren
+end
+let exp_contains_anon_type e = (* TODO: curry to create object only once *)
+  let visitor = new exp_contains_anon_type_visitor in
+  match visitCilExpr visitor e with
+  | _ -> false
+  | exception Stdlib.Exit -> true
+
+
 (* TODO: synchronize magic constant with BaseDomain *)
 let var_is_heap {vname; _} = BatString.starts_with vname "(alloc@"
 
