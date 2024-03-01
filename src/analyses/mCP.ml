@@ -272,7 +272,9 @@ struct
               }
             in
             (* meet results so that precision from all analyses is combined *)
-            Result.meet a @@ S.query ctx' q
+            let res = S.query ctx' q in
+            M.trace "queryanswers" "analysis %s query %a -> answer %a\n" (S.name ()) Queries.Any.pretty anyq Result.pretty res;
+            Result.meet a @@ res
           in
           match q with
           | Queries.WarnGlobal g ->
