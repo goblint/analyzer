@@ -659,6 +659,7 @@ struct
 
   let empty_env = Environment.make [||] [||]
 
+  (* top and bottom over the empty environment are different, pending  https://github.com/goblint/analyzer/issues/1380 *)
   let bot () =
     bot_env empty_env
 
