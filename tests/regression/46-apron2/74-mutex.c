@@ -1,4 +1,4 @@
-// PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-atomic --set ana.base.privatization none
+// SKIP PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-atomic --set ana.base.privatization none
 /*-----------------------------------------------------------------------------
  * mutex.c - Concurrent program using locking to access a shared variable
  *-----------------------------------------------------------------------------

@@ -164,6 +164,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
     ("signal", unknown [drop "signum" []; drop "handler" [s]]);
   ]
+[@@coverage off]
 
 (** C POSIX library functions.
     These are {e not} specified by the C standard, but available on POSIX systems. *)
@@ -433,6 +434,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("mmap", unknown [drop "addr" []; drop "length" []; drop "prot" []; drop "flags" []; drop "fd" []; drop "offset" []]);
     ("munmap", unknown [drop "addr" []; drop "length" []]);
   ]
+[@@coverage off]
 
 (** Pthread functions. *)
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -514,6 +516,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("sem_post", special [__ "sem" []] @@ fun sem -> SemPost sem);
     ("sem_destroy", special [__ "sem" []] @@ fun sem -> SemDestroy sem);
   ]
+[@@coverage off]
 
 (** GCC builtin functions.
     These are not builtin versions of functions from other lists. *)
@@ -592,6 +595,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("alloca", special [__ "size" []] @@ fun size -> Alloca size);
     ("__builtin_alloca", special [__ "size" []] @@ fun size -> Alloca size);
   ]
+[@@coverage off]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
@@ -654,6 +658,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("daemon", unknown [drop "nochdir" []; drop "noclose" []]);
     ("putw", unknown [drop "w" []; drop "stream" [r_deep; w_deep]]);
   ]
+[@@coverage off]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     (* ("prctl", unknown [drop "option" []; drop "arg2" []; drop "arg3" []; drop "arg4" []; drop "arg5" []]); *)
@@ -687,6 +692,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__libc_current_sigrtmax", unknown []);
     ("__libc_current_sigrtmin", unknown []);
   ]
+[@@coverage off]
 
 let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
 let console_sem = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[console semaphore]" intType)))
@@ -752,6 +758,7 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
     ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
+[@@coverage off]
 
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -764,6 +771,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_split_end", unknown [drop "exp" []]);
     ("__goblint_bounded", special [__ "exp"[]] @@ fun exp -> Bounded { exp });
   ]
+[@@coverage off]
 
 (** zstd functions.
     Only used with extraspecials. *)
@@ -772,6 +780,7 @@ let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
     ("ZSTD_customFree", special [__ "ptr" [f]; drop "customMem" [r]] @@ fun ptr -> Free ptr);
   ]
+[@@coverage off]
 
 (** math functions.
     Functions and builtin versions of function and macros defined in math.h. *)
@@ -1006,6 +1015,7 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fpclassifyf", unknown [drop "x" []]);
     ("__fpclassifyl", unknown [drop "x" []]);
   ]
+[@@coverage off]
 
 let verifier_atomic_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
 let verifier_atomic = AddrOf (Cil.var (Cilfacade.create_var verifier_atomic_var))
@@ -1019,6 +1029,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
   ]
+[@@coverage off]
 
 let rtnl_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[rtnl_lock]" intType)))
 
@@ -1034,6 +1045,7 @@ let klever_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("rtnl_unlock", special [] @@ Unlock rtnl_lock);
     ("__rtnl_unlock", special [] @@ Unlock rtnl_lock);
   ]
+[@@coverage off]
 
 let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("echo", unknown []);
@@ -1071,6 +1083,7 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("printw", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
     ("werase", unknown [drop "win" [r_deep; w_deep]]);
   ]
+[@@coverage off]
 
 let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pcre_compile", unknown [drop "pattern" [r]; drop "options" []; drop "errptr" [w]; drop "erroffset" [w]; drop "tableptr" [r]]);
@@ -1080,6 +1093,7 @@ let pcre_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pcre_study", unknown [drop "code" [r_deep]; drop "options" []; drop "errptr" [w]]);
     ("pcre_version", unknown []);
   ]
+[@@coverage off]
 
 let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("inflate", unknown [drop "strm" [r_deep; w_deep]; drop "flush" []]);
@@ -1097,6 +1111,7 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gzread", unknown [drop "file" [r_deep; w_deep]; drop "buf" [w]; drop "len" []]);
     ("gzclose", unknown [drop "file" [f_deep]]);
   ]
+[@@coverage off]
 
 let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("lzma_code", unknown [drop "strm" [r_deep; w_deep]; drop "action" []]);
@@ -1109,6 +1124,7 @@ let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("lzma_version_string", unknown []);
     ("lzma_lzma_preset", unknown [drop "options" [w_deep]; drop "preset" []]);
   ]
+[@@coverage off]
 
 let libraries = Hashtbl.of_list [
     ("c", c_descs_list @ math_descs_list);

@@ -55,19 +55,23 @@ struct
             (struct let name = "no index" end)))
         (struct let name = "no node" end))
 
-  let show = function
-    | (f, Some (n, i)) ->
-      f.vname
-      ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
-      ^ "#" ^ Option.fold ~none:"top" ~some:string_of_int i
-    | (f, None) -> f.vname
+  let show (f, ni_opt) = 
+    let vname = f.vname in
+    match ni_opt with
+    | None -> vname
+    | Some (n, i_opt) ->
+      let vname_loc = vname ^ "@" ^ CilType.Location.show (UpdateCil.getLoc n) in
+      match i_opt with
+      | Some i -> vname_loc ^ "#" ^ string_of_int i
+      | None when GobConfig.get_bool "dbg.full-output" -> vname_loc ^ "#⊤"
+      | None -> vname_loc
 
   include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   let threadinit v ~multiple: t = (v, None)
 
@@ -128,9 +132,9 @@ struct
       include S
       let name () = "created (once)"
     end) (struct
-    include S
-    let name () = "created (multiple times)"
-  end)
+      include S
+      let name () = "created (multiple times)"
+    end)
 
 
   let is_unique (_, s) =

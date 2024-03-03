@@ -86,6 +86,11 @@ else
 end
 
 $testresults = File.expand_path("tests/suite_result")
+begin
+  Dir.mkdir($testresults)
+rescue
+  # exited or was created in parallel
+end
 testfiles    = if incremental then
                  File.expand_path("tests/incremental")
                else

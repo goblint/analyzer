@@ -61,15 +61,17 @@ end
 
 module Piece =
 struct
+  let context_to_yojson context = `Assoc [("tag", `Int (ControlSpecC.tag context))]
+
   type t = {
     loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (ControlSpecC.t [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
+    context: (ControlSpecC.t [@to_yojson context_to_yojson] [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
   } [@@deriving eq, ord, hash, yojson]
 
   let text_with_context {text; context; _} =
     match context with
-    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.hash context) (* TODO: this is kind of useless *)
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.tag context) (* TODO: this is kind of useless *)
     | _ -> text
 end
 

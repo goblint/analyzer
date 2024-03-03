@@ -1860,6 +1860,13 @@
           "type": "string",
           "default": ""
         },
+        "justcil-printer": {
+          "title": "dbg.justcil-printer",
+          "description": "Printer to use for justcil: default, or clean (excludes line directives and builtin declarations).",
+          "type": "string",
+          "enum": ["default", "clean"],
+          "default": "default"
+        },
         "timeout": {
           "title": "dbg.timeout",
           "description":
@@ -2036,6 +2043,12 @@
           "title": "dbg.run_cil_check",
           "description":
             "Should the analysis call Check.checkFile after creating the CFG (helpful to verify that transformations respect CIL's invariants.",
+          "type": "boolean",
+          "default": false
+        },
+        "full-output": {
+          "title": "dbg.full-output",
+          "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
           "type": "boolean",
           "default": false
         }
@@ -2449,6 +2462,12 @@
                 "cond",
                 "RETURN"
               ]
+            },
+            "all-locals": {
+              "title": "witness.invariant.all-locals",
+              "description": "Emit invariants for local variables under the assumption they are always in scope within their function.",
+              "type": "boolean",
+              "default": true
             },
             "goblint": {
               "title": "witness.invariant.goblint",
