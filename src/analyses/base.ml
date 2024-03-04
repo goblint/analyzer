@@ -321,12 +321,26 @@ struct
     | Address p, Int n
     | Int n, Address p when op=Eq || op=Ne ->
       let ik = Cilfacade.get_ikind t in
-      Int (match ID.to_int n, ID.to_int (AD.to_int p)  with
-          | Some a, Some b -> ID.of_bool ik (op=Eq && Z.equal a b || op=Ne && not @@ Z.equal a b)
-          | Some a, _ -> if AD.is_null p then ID.of_bool ik (op=Eq && Z.equal a Z.zero || op=Ne && not @@ Z.equal a Z.zero)
-            else if AD.is_not_null p && Z.equal a Z.zero then ID.of_bool ik (not @@ (op=Eq))
-            else bool_top ik
-          | _ -> bool_top ik)
+      let res =
+        if AD.is_null p then
+          match ID.equal_to Z.zero n with
+          | `Neq ->
+            (* n is definitely not 0, p is NULL *)
+            ID.of_bool ik (op = Ne)
+          | `Eq ->
+            (* n is zero, p is NULL*)
+            ID.of_bool ik (op = Eq)
+          | _ -> bool_top ik
+        else if AD.is_not_null p then
+          match ID.equal_to Z.zero n with
+          | `Eq ->
+            (* n is zero, p is not NULL *)
+            ID.of_bool ik (op = Ne)
+          | _ -> bool_top ik
+        else
+          bool_top ik
+      in
+      Int res
     | Address p, Int n  ->
       addToAddrOp p n
     | Address p, Top ->
