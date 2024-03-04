@@ -638,10 +638,10 @@ struct
         let rel = st.rel in
         (* Replace with remove_filter once issues are fixed *)
         let g_vars = List.filter (fun var ->
-          match AV.find_metadata var with
-          | Some (Global _) -> true
-          | _ -> false
-        ) (RD.vars rel)
+            match AV.find_metadata var with
+            | Some (Global _) -> true
+            | _ -> false
+          ) (RD.vars rel)
         in
         let rel_side = RD.keep_vars rel g_vars in
         (* If no globals are contained here, none need to be published *)
