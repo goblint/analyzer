@@ -666,8 +666,8 @@ struct
   let top () =
     top_env empty_env
 
-  let is_bot = equal (bot ())
-  let is_top = equal (top ())
+  let is_bot x = equal (bot ()) x
+  let is_top x = equal (top ()) x
 
   let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
 
