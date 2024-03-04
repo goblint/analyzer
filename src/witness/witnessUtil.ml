@@ -160,9 +160,15 @@ struct
     | e -> to_conjunct_set e
 
   let process_exp inv =
+    let exp_deep_unroll_types =
+      if GobConfig.get_bool "witness.invariant.typedefs" then
+        Fun.id
+      else
+        InvariantCil.exp_deep_unroll_types
+    in
     let inv' =
       inv
-      |> InvariantCil.exp_deep_unroll_types
+      |> exp_deep_unroll_types
       |> InvariantCil.exp_replace_original_name
     in
     if GobConfig.get_bool "witness.invariant.split-conjunction" then
