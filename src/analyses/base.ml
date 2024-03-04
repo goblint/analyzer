@@ -323,17 +323,17 @@ struct
       let ik = Cilfacade.get_ikind t in
       let res =
         if AD.is_null p then
-          match (ID.to_bool n) with
-          | Some true ->
+          match ID.equal_to Z.zero n with
+          | `Neq ->
             (* n is definitely not 0, p is NULL *)
             ID.of_bool ik (op = Ne)
-          | Some false ->
+          | `Eq ->
             (* n is zero, p is NULL*)
             ID.of_bool ik (op = Eq)
           | _ -> bool_top ik
         else if AD.is_not_null p then
-          match (ID.to_int n) with
-          | Some i when Z.equal i Z.zero ->
+          match ID.equal_to Z.zero n with
+          | `Eq ->
             (* n is zero, p is not NULL *)
             ID.of_bool ik (op = Ne)
           | _ -> bool_top ik
