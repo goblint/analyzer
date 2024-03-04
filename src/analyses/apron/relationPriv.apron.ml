@@ -489,7 +489,7 @@ struct
     in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
-    if not (RD.mem_var get_mutex_inits' g_var) then
+    if not (RD.mem_var get_mutex_inits' g_var) then (* TODO: is this just a workaround for an escape bug? https://github.com/goblint/analyzer/pull/1354/files#r1498882657 *)
       (* This is an escaped variable whose value was never side-effected to get_mutex_inits' *)
       get_mutex_global_g
     else
