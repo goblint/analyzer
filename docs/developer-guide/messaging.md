@@ -1,7 +1,8 @@
 # Messaging
 
-The message system in `Messages` module should be used for outputting all (non-[tracing](./debugging.md#tracing)) information instead of printing them directly to `stdout`.
+The message system in `Messages` module should be used for outputting all analysis results of the program to the user, instead of printing them directly to `stdout`.
 This allows for consistent pretty terminal output, as well as export to Goblint result viewers and IDEs.
+For other kinds of (debug) output, see [Debugging](./debugging.md).
 
 ## Message structure
 

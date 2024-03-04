@@ -269,7 +269,7 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* accesses *)
-          (* ignore (Pretty.printf "WarnGlobal %a\n" Access.MemoRoot.pretty g'); *)
+          (* Logs.debug "WarnGlobal %a" Access.MemoRoot.pretty g'; *)
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
           let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =

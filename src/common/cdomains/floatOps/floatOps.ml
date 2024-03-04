@@ -1,3 +1,4 @@
+(* Order must match with round_mode in stubs.c *)
 type round_mode =
   | Nearest
   | ToZero

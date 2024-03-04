@@ -59,6 +59,7 @@
   )
   (conflicts
     (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind
+    (ez-conf-lib (= 1)) ; https://github.com/nberth/ez-conf-lib/issues/3
   )
   (sites
     (share lib)

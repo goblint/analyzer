@@ -21,7 +21,11 @@ let exp_replace_original_name e =
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
   | None -> vi.vstorage <> Static (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
-  | Some fd -> CilType.Fundec.equal fd scope
+  | Some fd -> 
+    if CilType.Fundec.equal fd scope then
+      GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr)
+    else
+      false
 
 class exp_is_in_scope_visitor (scope: fundec) (acc: bool ref) = object
   inherit nopCilVisitor
