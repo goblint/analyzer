@@ -13,9 +13,9 @@ class exp_replace_original_name_visitor = object
   method! vvrbl (vi: varinfo) =
     ChangeTo (var_replace_original_name vi)
 end
-let exp_replace_original_name e = (* TODO: curry to create object only once *)
+let exp_replace_original_name =
   let visitor = new exp_replace_original_name_visitor in
-  visitCilExpr visitor e
+  visitCilExpr visitor
 
 class exp_deep_unroll_types_visitor = object
   inherit nopCilVisitor
@@ -93,11 +93,12 @@ class exp_contains_anon_type_visitor = object
     | _ ->
       DoChildren
 end
-let exp_contains_anon_type e = (* TODO: curry to create object only once *)
+let exp_contains_anon_type =
   let visitor = new exp_contains_anon_type_visitor in
-  match visitCilExpr visitor e with
-  | _ -> false
-  | exception Stdlib.Exit -> true
+  fun e ->
+    match visitCilExpr visitor e with
+    | _ -> false
+    | exception Stdlib.Exit -> true
 
 
 (* TODO: synchronize magic constant with BaseDomain *)
