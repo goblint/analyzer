@@ -715,7 +715,14 @@ struct
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
               let no_ov = lazy(IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e)) in
-              match Convert.tcons1_of_cil_exp_old y y_env e false no_ov with
+              let dummyask = let f (type a) (q : a Queries.t) : a =
+                               (* Convert.tcons1_of_cil_exp supports fancy aggressive simplifications of expressions 
+                                  via querying the context for int constants that replace subexpressions;
+                                  we do not have a context here, so we just use a dummy ask replying top all the time *)
+                               Queries.Result.top q
+                in
+                ({ f } : Queries.ask) in
+              match Convert.tcons1_of_cil_exp dummyask y y_env e false no_ov with
               | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
                 Some tcons1
               | _

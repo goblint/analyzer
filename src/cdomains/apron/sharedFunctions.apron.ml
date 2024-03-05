@@ -108,61 +108,6 @@ struct
          is not an integer expression, for example if it is a float expression. *)
       raise (Unsupported_CilExp Exp_not_supported)
 
-  let texpr1_expr_of_cil_exp_old d env exp no_ov =
-    (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp = function
-      | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob || Arg.allow_global then
-          let var =
-            if v.vglob then
-              V.global v
-            else
-              V.local v
-          in
-          if Environment.mem_var env var then
-            Var var
-          else
-            raise (Unsupported_CilExp (Var_not_found v))
-        else
-          failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
-      | Const (CInt (i, _, _)) ->
-        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
-      | exp ->
-        match Cilfacade.get_ikind_exp exp with
-        | ik ->
-          let expr =
-            match exp with
-            | UnOp (Neg, e, _) ->
-              Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
-            | BinOp (PlusA, e1, e2, _) ->
-              Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | BinOp (MinusA, e1, e2, _) ->
-              Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | BinOp (Mult, e1, e2, _) ->
-              Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | BinOp (Div, e1, e2, _) ->
-              Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
-            | BinOp (Mod, e1, e2, _) ->
-              Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-            | CastE (TInt (t_ik, _) as t, e) ->
-              begin match IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                | true -> texpr1_expr_of_cil_exp e
-                | false
-                | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
-                | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
-                  raise (Unsupported_CilExp (Cast_not_injective t))
-              end
-            | _ ->
-              raise (Unsupported_CilExp Exp_not_supported)
-          in overflow_handling_apron no_ov ik env expr d exp;
-          expr
-        | exception (Cilfacade.TypeOfError _ as e)
-        | exception (Invalid_argument _ as e) ->
-          raise (Unsupported_CilExp (Exp_typeOf e))
-    in
-    texpr1_expr_of_cil_exp exp
-
-
   let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
     let conv exp overflow_handling =
       let query e ik =
@@ -254,40 +199,6 @@ struct
     let e = Cil.constFold false e in
     let res = texpr1_expr_of_cil_exp ask d env e no_ov in
     Texpr1.of_expr env res
-
-  let tcons1_of_cil_exp_old d env e negate no_ov =
-    let (texpr1_plus, texpr1_minus, typ) =
-      match e with
-      | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp_old d env e1 no_ov in
-        let texpr1_2 = texpr1_expr_of_cil_exp_old d env e2 no_ov in
-        (* Apron constraints always compare with 0 and only have comparisons one way *)
-        begin match r with
-          | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
-          | Gt -> (texpr1_1, texpr1_2, SUP)   (* e1 > e2   ==>  e1 - e2 > 0  *)
-          | Le -> (texpr1_2, texpr1_1, SUPEQ) (* e1 <= e2  ==>  e2 - e1 >= 0 *)
-          | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
-          | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
-          | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
-          | _ -> raise (Unsupported_CilExp BinOp_not_supported)
-        end
-      | _ -> raise (Unsupported_CilExp Exp_not_supported)
-    in
-    let inverse_typ = function
-      | EQ -> DISEQ
-      | DISEQ -> EQ
-      | SUPEQ -> SUP
-      | SUP -> SUPEQ
-      | EQMOD _ -> failwith "tcons1_of_cil_exp: cannot invert EQMOD"
-    in
-    let (texpr1_plus, texpr1_minus, typ) =
-      if negate then
-        (texpr1_minus, texpr1_plus, inverse_typ typ)
-      else
-        (texpr1_plus, texpr1_minus, typ)
-    in
-    let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
-    Tcons1.make (Texpr1.of_expr env texpr1') typ
 
   let tcons1_of_cil_exp ask d env e negate no_ov =
     let e = Cil.constFold false e in
