@@ -235,12 +235,6 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
-  let find_one_var e =
-    Basetype.CilExp.get_vars e
-    |> List.filter Tracked.varinfo_tracked
-    |> function
-    | [v] -> Some v
-    | _ -> None
 end
 
 (** Conversion from Apron to CIL expressions. *)
