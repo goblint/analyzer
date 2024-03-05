@@ -196,7 +196,6 @@ struct
     res
 
   let texpr1_of_cil_exp ask d env e no_ov =
-    let e = Cil.constFold false e in
     let res = texpr1_expr_of_cil_exp ask d env e no_ov in
     Texpr1.of_expr env res
 
