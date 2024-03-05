@@ -706,7 +706,29 @@ struct
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
       let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
       let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
-      let rel = RD.assert_inv ask rel e false (no_overflow ask e_orig) in (* assume *)
+      let rec dummyask = 
+        (* assert_inv calls texpr1_expr_of_cil_exp, which simplifies the constraint based on the pre-state of the transition; 
+           this does not reflect the state after RD.forget_vars rel .... has been performed; to prevent this aggressive
+           simplification, we restrict read_int queries to a local dummy ask, that only dispatches to rel instead of the 
+           full state *)
+        let f (type a) (q : a Queries.t) : a =
+          let eval_int e no_ov =
+            let esimple = replace_deref_exps dummyask.f e in
+            read_from_globals_wrapper
+              (dummyask)
+              ctx.global { st with rel } esimple
+              (fun rel' e' -> RD.eval_int (dummyask) rel' e' no_ov)
+          in
+          match q with
+          | EvalInt e ->
+            if M.tracing then M.traceli "relation" "evalint query %a (%a), ctx %a\n" d_exp e d_plainexp e D.pretty ctx.local;
+            let r = eval_int e (no_overflow (dummyask) e) in
+            if M.tracing then M.trace "relation" "evalint response %a -> %a\n" d_exp e ValueDomainQueries.ID.pretty r;
+            r
+          |_ -> Queries.Result.top q
+        in
+        ({ f } : Queries.ask) in
+      let rel = RD.assert_inv dummyask rel e false (no_overflow ask e_orig) in (* assume *)
       let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
 
       (* TODO: parallel write_global? *)

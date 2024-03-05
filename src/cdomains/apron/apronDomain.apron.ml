@@ -390,7 +390,7 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
-  let meet_tcons ask d tcons1 e =
+  let meet_tcons _ d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     A.meet_tcons_array Man.mgr d earray
@@ -536,6 +536,7 @@ struct
         | tcons1 ->
           if M.tracing then M.trace "apron" "assert_constraint %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
           if M.tracing then M.trace "apron" "assert_constraint st: %a\n" D.pretty d;
+          if M.tracing then M.trace "apron" "assert_constraint tcons1: %s\n" (Format.asprintf "%a" Tcons1.print tcons1);
           let r = meet_tcons ask d tcons1 e in
           if M.tracing then M.trace "apron" "assert_constraint r: %a\n" D.pretty r;
           r

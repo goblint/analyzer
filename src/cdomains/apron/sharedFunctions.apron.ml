@@ -166,10 +166,13 @@ struct
   let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
     let conv exp overflow_handling =
       let query e ik =
+        let res =
         match ask.f (EvalInt e) with
         | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
         | `Top -> IntDomain.IntDomTuple.top_of ik
-        | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *)
+        | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
+        if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/query: %a -> %a\n" d_plainexp e IntDomain.IntDomTuple.pretty res;
+        res
       in
       (* recurse without env and ask arguments *)
       let rec texpr1_expr_of_cil_exp = function
@@ -197,6 +200,7 @@ struct
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
+                if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a\n" d_plainexp e IntDomain.IntDomTuple.pretty simp;
                 BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
               in
               let texpr1 e = texpr1_expr_of_cil_exp (simplify e) in
@@ -242,7 +246,9 @@ struct
     in
     let exp = Cil.constFold false exp in
     let ov_handler = if Arg.do_overflow_check then overflow_handling_apron else no_ov_overflow_handling in
-    conv exp ov_handler
+    let res = conv exp ov_handler in
+    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s\n" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res);
+    res
 
   let texpr1_of_cil_exp ask d env e no_ov =
     let e = Cil.constFold false e in
