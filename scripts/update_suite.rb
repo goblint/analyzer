@@ -36,7 +36,11 @@ class Array
 end
 # clear the current line
 def clearline
-  print "\r\e[K"
+  if $stdout.isatty
+    print "\r\e[K"
+  else
+    print "\n"
+  end
 end
 
 $goblint = File.join(Dir.getwd,"goblint")
