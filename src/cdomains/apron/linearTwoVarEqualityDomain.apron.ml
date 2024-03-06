@@ -38,9 +38,9 @@ module EqualitiesArray = struct
 
   let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero))
 
-  (** add new variables to domain with particular indices; translates old indices to keep consistency 
+  (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
-  let add_variables_to_domain m indexes = 
+  let add_variables_to_domain m indexes =
     if length indexes = 0 then m else
       let offset_map = Array.make (Array.length m) 0 (* maps each variable to the number of variables that are added before this variable *)
       in
@@ -49,10 +49,10 @@ module EqualitiesArray = struct
           match list with
           | hd::tl when hd = index -> shift (offset+1, tl) index
           | _ -> (offset, list)
-        in  
-        Array.fold_lefti (* this is not a textbook fold. We rather use it as a means to iterate over the range 
-                            of all indices of offset_map, initializing the array at these indices as a side-effect. 
-                            We use fold here as a means of having an accumulator to keep track of the current offset 
+        in
+        Array.fold_lefti (* this is not a textbook fold. We rather use it as a means to iterate over the range
+                            of all indices of offset_map, initializing the array at these indices as a side-effect.
+                            We use fold here as a means of having an accumulator to keep track of the current offset
                             and the rest of the offset list. In case of more frequent use of this pattern, consider this as
                             a candidate template for a new library function *)
           (fun offsetcontext index _ ->
@@ -167,7 +167,7 @@ struct
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
             | None -> [(Z.one, Some var_dim)]
-            | Some d -> 
+            | Some d ->
               (match d.(var_dim) with
                | (Some i, k) -> [(Z.one, Some i); (k, None)]
                | (None, k) ->   [(k, None)])
@@ -186,7 +186,7 @@ struct
 
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials and a constant *)
   let simplified_monomials_from_texp (t: t) texp =
-    BatOption.bind (monomials_from_texp t texp) 
+    BatOption.bind (monomials_from_texp t texp)
     (fun monomiallist ->
       let d = Option.get t.d in
       let expr = Array.make (Environment.size t.env) Z.zero in
@@ -265,7 +265,6 @@ struct
   module V = RelationDomain.V
   module Arg = struct
     let allow_global = true
-    let do_overflow_check = false
   end
   module Convert = SharedFunctions.Convert (V) (Bounds) (Arg) (SharedFunctions.Tracked)
 
@@ -293,15 +292,15 @@ struct
     let show_offs o = if Z.equal o Z.zero then "" else " + " ^ Z.to_string o in
     let show_var i = function
       | (None, o) -> (lookup i) ^ " = " ^ Z.to_string o ^ ";\n"
-      | (Some index, o) when i <> index -> 
+      | (Some index, o) when i <> index ->
         (lookup i) ^ " = " ^ lookup index ^ show_offs o ^ ";\n"
       | _ -> ""
-    in 
+    in
     match varM.d with
     | None -> "⊥\n"
     | Some arr when EArray.is_top_array arr -> "⊤\n"
     | Some arr ->
-      if is_bot varM then 
+      if is_bot varM then
         "Bot \n"
       else
         Array.fold_lefti (fun acc i elem -> acc ^ show_var i elem) "" arr
@@ -337,13 +336,13 @@ struct
   let meet_with_one_conj t i e =
     match t.d with
     | None -> t
-    | Some d -> 
+    | Some d ->
       let res_d = Array.copy d in
       try
         meet_with_one_conj_with res_d i e;
-        {d = Some res_d; env = t.env} 
-      with Contradiction -> 
-        {d = None; env = t.env} 
+        {d = Some res_d; env = t.env}
+      with Contradiction ->
+        {d = None; env = t.env}
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -355,7 +354,7 @@ struct
           let res_d = Array.copy d1' in
           Array.iteri (meet_with_one_conj_with res_d) d2';
           {d = Some res_d; env = sup_env}
-        with Contradiction -> 
+        with Contradiction ->
           {d = None; env = sup_env}
       )
     | _ -> {d = None; env = sup_env}
@@ -418,8 +417,8 @@ struct
       match a.d, b.d with
       | None, _ -> b
       | _, None -> a
-      | Some x, Some y when is_top a || is_top b -> 
-        let new_env = Environment.lce a.env b.env in 
+      | Some x, Some y when is_top a || is_top b ->
+        let new_env = Environment.lce a.env b.env in
         top_of new_env
       | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
@@ -455,7 +454,7 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let forget_vars t vars =
-    if is_bot_env t || is_top t || List.is_empty vars then 
+    if is_bot_env t || is_top t || List.is_empty vars then
       t
     else
       let m = EArray.copy @@ Option.get t.d in
@@ -568,7 +567,7 @@ struct
     forget_vars res [var]
 
   let substitute_exp ask t var exp no_ov =
-    let res = substitute_exp ask t var exp no_ov in 
+    let res = substitute_exp ask t var exp no_ov in
     if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
@@ -663,11 +662,11 @@ struct
       lincons
     in
     let get_const acc i = function
-      | (None, o) -> 
+      | (None, o) ->
         let xi = Environment.var_of_dim t.env i in
         of_coeff xi [(Coeff.s_of_int (-1), xi)] o :: acc
       | (Some r, _) when r = i -> acc
-      | (Some r, o) -> 
+      | (Some r, o) ->
         let xi = Environment.var_of_dim t.env i in
         let ri = Environment.var_of_dim t.env r in
         of_coeff xi [(Coeff.s_of_int (-1), xi); (Coeff.s_of_int 1, ri)] o :: acc
@@ -691,7 +690,6 @@ struct
   module D = D
   module ConvArg = struct
     let allow_global = false
-    let do_overflow_check = false
   end
   include SharedFunctions.AssertionModule (D.V) (D) (ConvArg)
   include D

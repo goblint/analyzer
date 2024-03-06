@@ -151,7 +151,6 @@ struct
   module V = RelationDomain.V
   module Arg = struct
     let allow_global = true
-    let do_overflow_check = false
   end
   module Convert = SharedFunctions.Convert (V) (Bounds) (Arg) (SharedFunctions.Tracked)
 
@@ -598,7 +597,6 @@ struct
   module D =  D (Vc) (Mx)
   module ConvArg = struct
     let allow_global = false
-    let do_overflow_check = false
   end
   include SharedFunctions.AssertionModule (D.V) (D) (ConvArg)
   include D

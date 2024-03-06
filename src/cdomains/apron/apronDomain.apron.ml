@@ -234,7 +234,6 @@ struct
   module Bounds = Bounds (Man)
   module Arg = struct
     let allow_global = false
-    let do_overflow_check = true
   end
   module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
@@ -709,14 +708,13 @@ struct
           let exps = ResettableLazy.force WideningThresholds.exps in
           let module Arg = struct
             let allow_global = true
-            let do_overflow_check = true
           end in
           let module Convert = SharedFunctions.Convert (V) (Bounds(Man)) (Arg) (Tracked) in
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
               let no_ov = lazy(IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e)) in
               let dummyask = let f (type a) (q : a Queries.t) : a =
-                               (* Convert.tcons1_of_cil_exp supports fancy aggressive simplifications of expressions 
+                               (* Convert.tcons1_of_cil_exp supports fancy aggressive simplifications of expressions
                                   via querying the context for int constants that replace subexpressions;
                                   we do not have a context here, so we just use a dummy ask replying top all the time *)
                                Queries.Result.top q

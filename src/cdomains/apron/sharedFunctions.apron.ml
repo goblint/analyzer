@@ -42,7 +42,6 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 module type ConvertArg =
 sig
   val allow_global: bool
-  val do_overflow_check: bool
 end
 
 module type SV =  RelationDomain.RV with type t = Var.t
@@ -81,35 +80,28 @@ struct
       | _ -> None (* for other exception *)
     )
 
-  (** This version with an overflow check is used by the apron domains such as polyhedra and octagons.
-      They do the overflow handling while they convert the expression to Texpr1. *)
-  let overflow_handling_apron no_ov ik env expr d exp =
-    if not (Lazy.force no_ov) then (
-      let (type_min, type_max) = IntDomain.Size.range ik in
-      let texpr1 = Texpr1.of_expr env expr in
-      match Bounds.bound_texpr d texpr1 with
-      | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 -> ()
-      | min_opt, max_opt ->
-        if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
-        raise (Unsupported_CilExp Overflow)
-    )
-
-  (** This version without an overflow check is used by the affeq and lin2vareq domains.
-      They do the overflow handling before converting to Texpr1, and store the result in the "no_ov" flag. 
-      Therefore we only check the no_ov flag here. *)
-  let no_ov_overflow_handling no_ov _ _ _ _ exp =
+  (** This still tries to establish bounds via Bounds.bound_texpr, which may be more precise in case ana.int.interval
+      is disabled and the relational analysis manages to evaluate a value to an interval, which can then not be represented
+      as the result of an EvalInt query. This is a workaround and works as long as only one relational domain is used. *)
+  let overflow_handling no_ov ik env expr d exp =
     try
-      if IntDomain.should_wrap (Cilfacade.get_ikind_exp exp) || 
-         (not @@ IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp)
-          && not (Lazy.force no_ov)) then
-        (raise (Unsupported_CilExp Overflow))
-    with Invalid_argument e -> 
-      (* This exception is raised by Cilfacade.get_ikind_exp) when the expression 
+      if IntDomain.should_wrap (Cilfacade.get_ikind_exp exp) || not (Lazy.force no_ov) then (
+        let (type_min, type_max) = IntDomain.Size.range ik in
+        let texpr1 = Texpr1.of_expr env expr in
+        match Bounds.bound_texpr d texpr1 with
+        | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 ->
+          ()
+        | min_opt, max_opt ->
+          if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
+          raise (Unsupported_CilExp Overflow)
+      )
+    with Invalid_argument e ->
+      (* This exception is raised by Cilfacade.get_ikind_exp) when the expression
          is not an integer expression, for example if it is a float expression. *)
       raise (Unsupported_CilExp Exp_not_supported)
 
   let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
-    let conv exp overflow_handling =
+    let conv exp  =
       let query e ik =
         let res =
         match ask.f (EvalInt e) with
@@ -156,7 +148,7 @@ struct
               | BinOp (MinusA, e1, e2, _) -> bop_near Sub e1 e2
               | BinOp (Mult, e1, e2, _) -> bop_near Mul e1 e2
               | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
-              | BinOp (Div, e1, e2, _) -> 
+              | BinOp (Div, e1, e2, _) ->
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
               | CastE (TInt (t_ik, _) as t, e) ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
@@ -190,8 +182,7 @@ struct
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
-    let ov_handler = if Arg.do_overflow_check then overflow_handling_apron else no_ov_overflow_handling in
-    let res = conv exp ov_handler in
+    let res = conv exp in
     if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s\n" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res);
     res
 
@@ -504,7 +495,10 @@ struct
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr ask d e no_ov with
-        | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
+        | (Some min, Some max) ->
+          let r = ID.of_interval ~suppress_ovwarn:true ik (min, max) in
+          M.tracel "grannie" "smith %s %s -> %a \n" (Z.to_string min) (Z.to_string max) ID.pretty r;
+          r
         | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
         | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
         | (None, None) -> ID.top_of ik
