@@ -138,6 +138,9 @@ rule() {
       eval $(opam env)
       dune runtest
 
+    ;; sanitytest)
+      ./scripts/update_suite.rb
+
     ;; *)
       echo "Unknown action '$1'. Try clean, native, byte, profile or doc.";;
   esac;
