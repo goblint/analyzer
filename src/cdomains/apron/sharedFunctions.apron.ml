@@ -497,7 +497,6 @@ struct
         match eval_interval_expr ask d e no_ov with
         | (Some min, Some max) ->
           let r = ID.of_interval ~suppress_ovwarn:true ik (min, max) in
-          M.tracel "grannie" "smith %s %s -> %a \n" (Z.to_string min) (Z.to_string max) ID.pretty r;
           r
         | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
         | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
