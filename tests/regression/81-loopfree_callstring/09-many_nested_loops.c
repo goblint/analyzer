@@ -67,12 +67,12 @@ int main(void)
     // m:       [main, m]
     // g:       [main, m, g]
     // f:       [main, m, g, f]
-    // f:       [main, m, g] {f} (3 times)
-    // h:       [main, m, g] {f} [h]
-    // g:       [main, m] {g, f, h}
-    // a:       [main, m] {g, f, h} [a]
-    // b:       [main, m] {g, f, h} [a, b]
-    // c:       [main, m] {g, f, h} [a, b, c]
-    // g, b, c: [main, m] {g, f, h, a, b, c} (3 times)
+    // f:       [main, m, g, {f}] (3 times)
+    // h:       [main, m, g, {f}, h]
+    // g:       [main, m, {g, f, h}]
+    // a:       [main, m, {g, f, h}, a]
+    // b:       [main, m, {g, f, h}, a, b]
+    // c:       [main, m, {g, f, h}, a, b, c]
+    // g, b, c: [main, m, {g, f, h, a, b, c}} (3 times)
     __goblint_check(m(4) == 4);
 }

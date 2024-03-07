@@ -44,14 +44,14 @@ int h(int i)
 int main(void)
 {
     // main -> f(3) -> ... -> f(0) -> return 11
-    // [main, f] and [main] {f} (3 times)
+    // [main, f] and [main, {f}] (3 times)
     __goblint_check(f(3) == 11);
 
     // main -> g(3) -> f(2) -> f(1) -> f(0) -> return 11
-    // [main, g, f] and [main, g] {f}
+    // [main, g, f] and [main, g, {f}]
     __goblint_check(g(3) == 11);
 
     // main -> h(5) -> g(4) -> f(3) -> ... -> f(0) -> return 11
-    // [main, h, g, f] and [main, h, g] {f}
+    // [main, h, g, f] and [main, h, g, {f}]
     __goblint_check(h(5) == 11);
 }

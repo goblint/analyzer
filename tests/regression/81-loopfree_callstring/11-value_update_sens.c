@@ -17,7 +17,7 @@ int f(int i)
 int main(void)
 {
     // main -> f(10) -> f(9) -> ... f(0)
-    // [main, f] and [main] {f}
+    // [main, f] and [main, {f}]
     f(1);
     __goblint_check(a == 0);
 }

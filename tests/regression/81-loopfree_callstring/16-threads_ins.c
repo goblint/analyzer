@@ -54,7 +54,7 @@ int procedure(int num_iterat)
 void *t_ins(void *arg)
 {
   // main -> t_ins -> procedure -> f(12) -> ... -> f(0)
-  // [main, t_ins, procedure, f] and [main, t_ins, procedure] {f} (12 times)
+  // [main, t_ins, procedure, f] and [main, t_ins, procedure, {f}] (12 times)
   // main -> t_ins -> procedure -> g(12) -> g(11) -> ... -> g(0)
   // main -> t_ins -> procedure -> h(12) -> g(11) -> ... -> g(0)
   __goblint_check(procedure(12) == 10); // UNKNOWN

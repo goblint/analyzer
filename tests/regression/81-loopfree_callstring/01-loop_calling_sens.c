@@ -19,7 +19,7 @@ int f(int i)
 int main()
 {
     // main -> f(7) -> g(6) -> f(5) -> ... -> f(1) -> g(0) -> return 2
-    // [main, f, g] and [main] {f, g} (3 times)
+    // [main, f, g] and [main, {f, g}] (3 times)
     __goblint_check(f(7) == 2);
     return 0;
 }

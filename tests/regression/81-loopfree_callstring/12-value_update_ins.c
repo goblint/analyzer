@@ -17,7 +17,7 @@ int f(int i)
 int main(void)
 {
     // main -> f(10) -> f(9) -> ... f(0)
-    // [main, f] and [main] {f} (2 times)
+    // [main, f] and [main, {f}] (2 times)
     f(2);
     __goblint_check(a == 0); // UNKNOWN
 }

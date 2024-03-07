@@ -63,11 +63,11 @@ void *t_sens(void *arg)
 void *t_sens2(void *arg)
 {
   // main -> t_sens2 -> procedure -> f(3) -> ... -> f(0)
-  // [main, t_sens2, procedure, f] and [main, t_sens2, procedure] {f} (3 times)
+  // [main, t_sens2, procedure, f] and [main, t_sens2, procedure, {f}] (3 times)
   // main -> t_sens2 -> procedure -> g(3) -> ... -> g(0)
-  // [main, t_sens2, procedure, g] and [main, t_sens2, procedure] {g} (3 times)
+  // [main, t_sens2, procedure, g] and [main, t_sens2, procedure, {g}] (3 times)
   // main -> t_sens2 -> procedure -> h(3) -> g(2) -> ... -> g(0)
-  // [main, t_sens2, procedure, h, g] and [main, t_sens2, procedure, h] {g} (2 times)
+  // [main, t_sens2, procedure, h, g] and [main, t_sens2, procedure, h, {g}] (2 times)
   __goblint_check(procedure(3) == 10);
   return NULL;
 }

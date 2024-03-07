@@ -20,7 +20,7 @@ int main(void)
     for (int i = 5; i > 0; i--)
     {
         // main -> f(3) -> ... -> f(0) -> return 1
-        // [main, f] and {f} (3 times)
+        // [main, f] and [main, {f}] (3 times)
         __goblint_check(f(3) == 1);
     }
 }

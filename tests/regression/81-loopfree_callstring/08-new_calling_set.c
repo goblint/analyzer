@@ -31,6 +31,6 @@ int g(int i)
 int main(void)
 {
     // main -> g(20) -> ... -> g(5) -> f(4) -> ... -> f(0) -> return 1
-    // [main] {g} (16 times) and [main] {g, f} (5 times)
+    // [main, {g}] (16 times) and [main, {g, f}] (5 times)
     __goblint_check(g(20) == 1); // UNKNOWN
 }

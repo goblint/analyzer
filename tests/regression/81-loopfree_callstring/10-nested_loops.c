@@ -27,6 +27,6 @@ int f(int i)
 int main(void)
 {
     // main -> f(4) -> f(3) -> ... -> f(0) -> g(2) -> h(2) -> return 3
-    // [main] {f} [g,h] (4 times)
+    // [main, {f}, g, h] (4 times)
     __goblint_check(f(4) == 3); // UNKNOWN
 }
