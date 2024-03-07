@@ -209,8 +209,7 @@ module ArrayVector: AbstractVector =
   struct
     include ConvenienceOps (A)
     include Array
-    type t = A.t array [@@deriving eq, ord]
-    let hash = Array.fold_left (fun acc a -> 31 * acc + A.hash a) 0 (* TODO: array in ppx_deriving_hash *)
+    type t = A.t array [@@deriving eq, ord, hash]
 
     let show t =
       let t = Array.to_list t in
