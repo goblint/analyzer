@@ -27,6 +27,11 @@ struct
   let name () = "used_globals"
   module D = SetDomain.Make(CilType.Varinfo)
   module C = Lattice.Unit
+  module V = struct
+    include CilType.Fundec
+    let is_write_only _ = false
+  end
+  module G = D
 
   let context _ _ = ()
 
@@ -95,31 +100,38 @@ struct
     in
     collect_in_expression exp is_global
 
-  let add_globals_from_exp_option (exp: exp option) (globals: D.t) : D.t =
-    let new_globals = Option.map_default collect_globals (D.bot ()) exp in
+  let collect_globals ctx exp =
+    let used_globals = collect_globals exp in
+    let current_fundec = Node.find_fundec ctx.node in
+    ctx.sideg current_fundec used_globals;
+    used_globals
+
+  let add_globals_from_exp_option ctx (exp: exp option) (globals: D.t) : D.t =
+    let new_globals = Option.map_default (collect_globals ctx) (D.bot ()) exp in
     D.join globals new_globals
 
-  let add_globals_from_list (args: exp list) (globals : D.t) : D.t =
-    List.fold (fun acc exp -> D.join acc (collect_globals exp)) globals args
+  let add_globals_from_list ctx (args: exp list) (globals : D.t) : D.t =
+    List.fold (fun acc exp -> D.join acc ((collect_globals ctx) exp)) globals args
 
   let lval_opt_to_exp_opt (lval: lval option) : exp option =
     Option.map (fun lv -> Lval lv) lval
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let lval_globals = collect_globals (Lval lval) in
-    let rval_globals = collect_globals rval in
+    let lval_globals = collect_globals ctx (Lval lval) in
+    let rval_globals = collect_globals ctx rval in
     D.join ctx.local (D.join lval_globals rval_globals)
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    let globals = collect_globals exp in
+    let globals = collect_globals ctx exp in
     D.join ctx.local globals
 
   let body ctx (f:fundec) : D.t =
     ctx.local
 
   let return ctx (exp: exp option) (f:fundec) : D.t =
-    add_globals_from_exp_option exp ctx.local
+    let used_globals = add_globals_from_exp_option ctx exp ctx.local in
+    used_globals
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let callee_state = D.bot () in
@@ -127,13 +139,13 @@ struct
 
   let combine_env ctx lval fexp f args fc callee_globals f_ask =
     let globals = D.join ctx.local callee_globals in
-    add_globals_from_list args globals
+    add_globals_from_list ctx args globals
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    add_globals_from_exp_option (lval_opt_to_exp_opt lval) ctx.local
+    add_globals_from_exp_option ctx (lval_opt_to_exp_opt lval) ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    add_globals_from_exp_option (lval_opt_to_exp_opt lval) ctx.local
+    add_globals_from_exp_option ctx (lval_opt_to_exp_opt lval) ctx.local
 
   let startstate v = D.bot ()
   let threadenter ctx ~multiple lval f args = [D.bot ()]
