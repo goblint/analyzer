@@ -83,9 +83,8 @@ rule() {
       echo "Installing opam packages for test and doc..."
       opam install -y . --deps-only --locked --with-test --with-doc
       echo "Installing opam packages for development..."
-      opam install -y utop ocaml-lsp-server ocp-indent ocamlformat ounit2
+      opam install -y ocaml-lsp-server ocp-indent
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
-      echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -sf ../../scripts/hooks/pre-commit; cd -
       # Use `git commit -n` to temporarily bypass the hook if necessary.
