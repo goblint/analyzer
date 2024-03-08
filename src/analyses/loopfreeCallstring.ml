@@ -10,53 +10,36 @@ struct
   let name () = "loopfree_callstring"
 
   module FundecSet = SetDomain.Make (CilType.Fundec)
-  module Either = struct 
-    include Lattice.Flat (Printable.Either (CilType.Fundec) (FundecSet)) (* should be a list. Since a Lattice is required, Lattice.Flat is used to fulfill the type *) 
+  module Either =  Printable.Either (CilType.Fundec) (FundecSet) 
 
-    let printXml f = function
-      | `Lifted x -> 
-        begin
-          match x with 
-          | `Left x -> BatPrintf.fprintf f "<value>%a</value>" CilType.Fundec.printXml x
-          | `Right x -> BatPrintf.fprintf f "<value>set:\n%a</value>" FundecSet.printXml x
-        end;
-      | _ -> failwith "Error loopfreeCallstring (printXml): the Flat Lattice containing Either shouldn't be `Top or `Bottom!"
-  end
-
-  module D = Lattice.Liszt (Either)
+  module D = Lattice.Flat (Printable.Liszt (Either)) (* should be a list of Fundecs and sets of Fundecs. Lattice.Flat is used to fulfill the type *) 
   module C = D
   module V = EmptyV
   module G = Lattice.Unit
-  let startstate v = []
-  let exitstate  v = []
+  let startstate v = `Lifted([])
+  let exitstate  v = `Lifted([])
 
-  let get_either either = match either with
+  let get_list list = match list with
     | `Lifted e -> e
-    | _ -> failwith "Error loopfreeCallstring (get_either): the Flat Lattice containing Either shouldn't be `Top or `Bottom!"
+    | _ -> failwith "Error loopfreeCallstring (get_list): D should represent a call stack not `Top or `Bottom!"
 
-  let rec callee_state f prev_set prev_list cur_list = 
-    match cur_list with 
-    | [] -> (`Lifted(`Left f))::(List.rev prev_list)
+  let loop_detected f = function
+    | `Left ele -> CilType.Fundec.equal f ele
+    | `Right set -> FundecSet.mem f set 
+
+  let add_to_set old = function
+    | `Left ele -> FundecSet.add ele old
+    | `Right set -> FundecSet.join old set
+
+  let rec callee_state f prev_set prev_list = function
+    | [] -> (`Left f)::(List.rev prev_list) (* f is not yet contained in the call stack*)
     | e::rem_list -> 
-      begin
-        match get_either e with
-        | `Left ele -> 
-          if CilType.Fundec.equal f ele
-            then (let new_set = FundecSet.add f prev_set in
-                (`Lifted(`Right new_set))::rem_list)
-          else
-            (let new_prev_set = FundecSet.add ele prev_set in
-             let new_prev_list = `Lifted(`Left ele)::prev_list in
-             callee_state f new_prev_set new_prev_list rem_list)
-        | `Right set -> 
-          let new_set = FundecSet.join prev_set set in
-          if FundecSet.mem f set 
-          then (`Lifted(`Right new_set))::rem_list
-          else (let new_prev_list = `Lifted(`Right set)::prev_list in
-                callee_state f new_set new_prev_list rem_list)
-      end
+      let new_set = add_to_set prev_set e in
+      if loop_detected f e 
+      then (`Right new_set)::rem_list
+      else callee_state f new_set (e::prev_list) rem_list
 
-  let callee_state f ctx = callee_state f (FundecSet.empty ()) [] ctx.local
+  let callee_state f ctx = `Lifted(callee_state f (FundecSet.empty ()) [] (get_list ctx.local))
 
   let enter ctx r f args = [ctx.local, callee_state f ctx]
 
