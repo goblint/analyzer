@@ -495,9 +495,7 @@ struct
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr ask d e no_ov with
-        | (Some min, Some max) ->
-          let r = ID.of_interval ~suppress_ovwarn:true ik (min, max) in
-          r
+        | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
         | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
         | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
         | (None, None) -> ID.top_of ik

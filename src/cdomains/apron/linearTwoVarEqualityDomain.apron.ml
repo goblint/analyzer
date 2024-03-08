@@ -175,8 +175,8 @@ struct
         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
         | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
         | Unop  (Sqrt, e, _, _) -> raise NotLinearExpr
-        | Binop (Add, e1, e2, _, _) -> List.concat [convert_texpr e1; convert_texpr e2]
-        | Binop (Sub, e1, e2, _, _) -> List.concat [convert_texpr e1; negate (convert_texpr e2)]
+        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
+        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
         | Binop (Mul, e1, e2, _, _) -> multiply (convert_texpr e1) (convert_texpr e2)
         | Binop _  -> raise NotLinearExpr end
     in match convert_texpr texp with
