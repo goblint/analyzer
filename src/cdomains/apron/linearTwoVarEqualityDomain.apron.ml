@@ -32,7 +32,7 @@ module EqualitiesArray = struct
   let show m =
     Array.fold_right (fun k result -> Equality.show k ^ "\n" ^ result) m ""
 
-  let hash : t -> int = Array.fold_left (fun acc a -> 31 * acc + Equality.hash a) 0
+  let hash : t -> int = Array.fold_left (fun acc a -> 31 * acc + Equality.hash a) 0 (* TODO: derive *)
 
   let empty () = [||]
 
@@ -50,6 +50,7 @@ module EqualitiesArray = struct
           | hd::tl when hd = index -> shift (offset+1, tl) index
           | _ -> (offset, list)
         in
+        (* TODO: https://github.com/goblint/analyzer/pull/1297#discussion_r1479505621 *)
         Array.fold_lefti (* this is not a textbook fold. We rather use it as a means to iterate over the range
                             of all indices of offset_map, initializing the array at these indices as a side-effect.
                             We use fold here as a means of having an accumulator to keep track of the current offset
@@ -561,6 +562,7 @@ struct
     res
 
   (* This is supposed to the be the backwards transformer for assign, not sure this is correct *)
+  (* TODO: https://github.com/goblint/analyzer/pull/1297#discussion_r1484783039 *)
   let substitute_exp ask t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     let res = assign_exp ask t var exp no_ov in

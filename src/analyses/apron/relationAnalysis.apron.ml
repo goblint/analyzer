@@ -201,6 +201,7 @@ struct
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
       let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik type_min), intType) in
+      (* TODO: do not duplicate no_overflow defined via ask: https://github.com/goblint/analyzer/pull/1297#discussion_r1477281950 *)
       let rel = RD.assert_inv ask rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
       let rel = RD.assert_inv ask rel e2 false (no_overflow ask e2) in
       rel
@@ -706,10 +707,10 @@ struct
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
       let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
       let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
-      let rec dummyask = 
-        (* assert_inv calls texpr1_expr_of_cil_exp, which simplifies the constraint based on the pre-state of the transition; 
+      let rec dummyask =
+        (* assert_inv calls texpr1_expr_of_cil_exp, which simplifies the constraint based on the pre-state of the transition;
            this does not reflect the state after RD.forget_vars rel .... has been performed; to prevent this aggressive
-           simplification, we restrict read_int queries to a local dummy ask, that only dispatches to rel instead of the 
+           simplification, we restrict read_int queries to a local dummy ask, that only dispatches to rel instead of the
            full state *)
         let f (type a) (q : a Queries.t) : a =
           let eval_int e no_ov =

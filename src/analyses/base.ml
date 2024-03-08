@@ -1259,6 +1259,7 @@ struct
 
       For now we return true if the expression contains a shift left.
   *)
+  (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
   let rec exp_may_signed_overflow ctx exp =
     let res = match Cilfacade.get_ikind_exp exp with
       | exception _ -> BoolDomain.MayBool.top ()
