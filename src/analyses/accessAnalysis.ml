@@ -107,7 +107,6 @@ struct
   let modular_combine_env ctx lv f args (f_ask: Queries.ask) : D.t =
     let open ValueDomain in
     let open WrittenDomain in
-    (* TODO: Handle values that are read in modular functions *)
     let written = f_ask.f Queries.Written in
     (* Collect all addreses that were written to. *)
     let written_addresses =

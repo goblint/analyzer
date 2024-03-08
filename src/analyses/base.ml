@@ -3032,34 +3032,20 @@ struct
     let concretes = AddrPairSet.to_seq pairs |> Seq.map Tuple2.first in
     Seq.fold_left (fun acc a -> AD.join (AD.singleton a) acc) (AD.bot ()) concretes
 
-  let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
+  let get_reachable_for_callee ctx f f_ask (args: exp list) (goal: AD.t) =
     let ask = Analyses.ask_of_ctx ctx in
+    let graph = ask.f (WriteGraph f) in
+    let globals = UsedGlobals.get_used_globals f_ask in
+    collect_targets_with_graph ctx graph args f.sformals globals goal
+
+  let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let glob_fun = modular_glob_fun ctx in
-    (* let callee_globals_exp = UsedGlobals.get_used_globals f_ask in *)
-    let callee_globals = UsedGlobals.get_used_globals f_ask in
-    (* let callee_globals = List.map (fun v -> Lval (Var v, NoOffset)) callee_globals in *)
-
-    let params = f.sformals in
-    (* let effective_params = params in
-       let effective_args = args in *)
-
-    (* M.tracel "modular_combine" "effective_params: %a\n effective_args: %a\n" (d_list ", " Addr.pretty) params (d_list ", " CilType.Exp.pretty) effective_args; *)
-    (* TODO: Use information from Read and Written graphs to determine subset of reachable that is reachable via arguments like provided in the graph. *)
-(*
-    let reachable = collect_funargs ask ~warn:false glob_fun ctx.local effective_args in
-    let reachable = List.fold AD.join (AD.bot ()) reachable in *)
-
     let writes = f_ask.f Q.Written in
-
     if WrittenDomain.Written.is_top writes then
       failwith "Everything tainted -> should set everything reachable to top!"
     else
-      (* TODO: Use information from Read and Written graphs to determine subset of reachable that is reachable via arguments like provided in the graph. *)
-      let write_graph = ask.f (WriteGraph f) in
-
-      (* TODO: pass goal, use goal in collect_targets_with_graph function*)
-      let reachable = collect_targets_with_graph ctx write_graph args params callee_globals (AD.bot ()) in
-
+      let reachable =
+        get_reachable_for_callee ctx f f_ask args (AD.bot ()) in
       M.tracel "modular_combine_reachable" "reachable: %a\n" AD.pretty reachable;
       let vars_to_writes : value_map VarMap.t =
         let update_entry (address: address) (value: value) (acc: value_map VarMap.t) =
@@ -3116,14 +3102,9 @@ struct
       combine_env_regular ctx lval fexp f args fc au f_ask
 
   let translate_callee_value_back ctx f f_ask (args: exp list) (value: VD.t): VD.t =
-    let ask = Analyses.ask_of_ctx ctx in
-    let write_graph = ask.f (WriteGraph f) in
-    (* TODO: pass goal, use goal in collect_targets_with_graph function*)
-    let callee_globals = UsedGlobals.get_used_globals f_ask in
-    let params = f.sformals in
-    let reachable = collect_targets_with_graph ctx write_graph args params callee_globals (AD.bot ()) in
+    let reachable = get_reachable_for_callee ctx f f_ask args (AD.bot ()) in
     let new_value = ModularUtil.ValueDomainExtension.map_back value ~reachable in
-    M.tracel "translate_callee_value_back" "reachable: %a\nGraph: %a\nOriginal_value: %a\n new_value:%a\n" AD.pretty reachable Graph.pretty write_graph VD.pretty value VD.pretty new_value;
+    M.tracel "translate_callee_value_back" "reachable: %a\nOriginal_value: %a\n new_value:%a\n" AD.pretty reachable VD.pretty value VD.pretty new_value;
     new_value
 
   let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
