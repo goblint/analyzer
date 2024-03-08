@@ -3050,8 +3050,6 @@ struct
     let reachable = List.fold AD.join (AD.bot ()) reachable in *)
 
     let writes = f_ask.f Q.Written in
-    let reads = f_ask.f Q.Read in
-
 
     if WrittenDomain.Written.is_top writes then
       failwith "Everything tainted -> should set everything reachable to top!"
