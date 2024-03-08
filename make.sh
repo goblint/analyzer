@@ -80,6 +80,8 @@ rule() {
       opam_setup
     ;; dev)
       eval $(opam env)
+      echo "Installing opam packages for test and doc..."
+      opam install -y . --deps-only --locked --with-test --with-doc
       echo "Installing opam packages for development..."
       opam install -y utop ocaml-lsp-server ocp-indent ocamlformat ounit2
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
