@@ -148,10 +148,10 @@ struct
     match q with
     | Read ->
       let read : D.t = ctx.local in
-      D.bot ()
+      read
     | ReadGraph f ->
       let read : G.t = ctx.global f in
-      G.bot ()
+      read
     | _ -> Q.Result.top q
 
   let modular_support () = Modular
