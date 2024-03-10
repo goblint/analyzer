@@ -7,18 +7,20 @@ exception ArithmeticOnFloatBot of string
 
 (** Define records that hold mutable variables representing different Configuration values.
   * These values are used to keep track of whether or not the corresponding Config values are en-/disabled  *)
-type ana_int_config_values = {
-  mutable math_fun_eval_cstub : bool option;
+type ana_float_config_values = {
+  mutable evaluate_math_functions : bool option;
 }
 
-let ana_int_config: ana_int_config_values = {
-  math_fun_eval_cstub = None;
+let ana_float_config: ana_float_config_values = {
+  evaluate_math_functions = None;
 }
 
-let get_math_fun_eval_cstub () =
-  if ana_int_config.math_fun_eval_cstub = None then
-    ana_int_config.math_fun_eval_cstub <- Some (GobConfig.get_bool "ana.float.math_fun_eval_cstub");
-  Option.get ana_int_config.math_fun_eval_cstub
+let get_evaluate_math_functions () =
+  if ana_float_config.evaluate_math_functions = None then
+    ana_float_config.evaluate_math_functions <- Some (GobConfig.get_bool "ana.float.evaluate_math_functions");
+  Option.get ana_float_config.evaluate_math_functions
+
+let reset_lazy () = ana_float_config.evaluate_math_functions <- None
 
 module type FloatArith = sig
   type t
@@ -738,7 +740,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: acos argument might be outside of [-1., 1.]";
       Interval (Float_t.of_float Down 0., Float_t.pi)
-    | (l, h) when get_math_fun_eval_cstub () ->
+    | (l, h) when get_evaluate_math_functions () ->
       norm @@ Interval (safe_mathfun_down Float_t.acos h, safe_mathfun_up Float_t.acos l) (* acos is monotonic decreasing in [-1, 1]*)
     | _ -> Interval (Float_t.of_float Down 0., Float_t.pi)
 
@@ -747,37 +749,37 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) ->
       Messages.warn ~category:Messages.Category.Float "Domain error might occur: asin argument might be outside of [-1., 1.]";
       div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
-    | (l, h) when get_math_fun_eval_cstub () ->
+    | (l, h) when get_evaluate_math_functions () ->
       norm @@ Interval (safe_mathfun_down Float_t.asin l, safe_mathfun_up Float_t.asin h) (* asin is monotonic increasing in [-1, 1]*)
     | _ -> div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
 
   let eval_atan = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
-    | (l, h) when get_math_fun_eval_cstub () ->
+    | (l, h) when get_evaluate_math_functions () ->
       norm @@ Interval (safe_mathfun_down Float_t.atan l, safe_mathfun_up Float_t.atan h) (* atan is monotonic increasing*)
     | _ -> div (Interval (Float_t.neg Float_t.pi, Float_t.pi)) (of_const 2.)
 
   let eval_cos = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
-    | (l, h) when get_math_fun_eval_cstub () ->
+    | (l, h) when get_evaluate_math_functions () ->
       norm @@ eval_cos_cfun l h
     | _ -> of_interval (-. 1., 1.)
 
   let eval_sin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
-    | (l, h) when get_math_fun_eval_cstub () ->
+    | (l, h) when get_evaluate_math_functions () ->
       norm @@ eval_sin_cfun l h
     | _ -> of_interval (-. 1., 1.)
 
   let eval_tan = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
-    | (l, h) when get_math_fun_eval_cstub () ->
+    | (l, h) when get_evaluate_math_functions () ->
       norm @@ eval_tan_cfun l h
     | _ -> top ()
 
   let eval_sqrt = function
     | (l, h) when l = Float_t.zero && h = Float_t.zero -> of_const 0.
-    | (l, h) when l >= Float_t.zero && get_math_fun_eval_cstub () ->
+    | (l, h) when l >= Float_t.zero && get_evaluate_math_functions () ->
       let low = safe_mathfun_down Float_t.sqrt l in
       let high = safe_mathfun_up Float_t.sqrt h in
       Interval (low, high)

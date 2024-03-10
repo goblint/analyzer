@@ -1,4 +1,4 @@
-// PARAM: --enable ana.float.interval --enable ana.float.math_fun_eval_cstub
+// PARAM: --enable ana.float.interval --enable ana.float.evaluate_math_functions
 #include <math.h>
 #include <float.h>
 #include <goblint.h>

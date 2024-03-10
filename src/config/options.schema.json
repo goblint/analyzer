@@ -464,10 +464,10 @@
               "type": "boolean",
               "default": false
             },
-            "math_fun_eval_cstub": {
-              "title": "ana.float.math_fun_eval_cstub",
+            "evaluate_math_functions": {
+              "title": "ana.float.evaluate_math_functions",
               "description":
-                "Allow evaluation of functions from math.h using C-stubs. Evaluation of functions may differ depending on the implementation of math.h. Only produces sound results, if the analyzed program and Goblint are used with the same version of math.h.",
+                "Allow a more precise evaluation of some functions from math.h. Evaluation of functions may differ depending on the implementation of math.h. Caution: For some implementations of functions it is not guaranteed that they behave monotonic where they mathematically should, thus possibly leading to unsoundness.",
               "type": "boolean",
               "default": false
             }

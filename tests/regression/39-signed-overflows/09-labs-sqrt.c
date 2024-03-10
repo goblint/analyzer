@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval --enable ana.float.interval --enable ana.float.math_fun_eval_cstub --set ana.activated[+] tmpSpecial
+//PARAM: --enable ana.int.interval --enable ana.float.interval --enable ana.float.evaluate_math_functions --set ana.activated[+] tmpSpecial
 #include<math.h>
 int main() {
     int data;
