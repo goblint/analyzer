@@ -559,6 +559,7 @@ struct
               Serialize.marshal (file, Cabs2cil.environment) cil;
               let oc = Stdlib.open_out (Fpath.to_string cilfile) in
               Cil.dumpFile defaultCilPrinter oc (Fpath.to_string cilfile) file;
+              Stdlib.close_out oc;
               Serialize.marshal !Messages.Table.messages_list warnings;
             );
             GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
