@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+#define _GNU_SOURCE // necessary for M_PI to be defined
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
