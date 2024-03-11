@@ -4,10 +4,10 @@
 int main() {
   int x, y;
   x = 0;
-  if (x < y) {
+  if (x <= y) {
     __goblint_check(x == 0); // UNKNOWN (intentional by unassume)
     __goblint_check(x >= 0);
-    __goblint_check(x < y); // TODO: https://github.com/goblint/analyzer/issues/1373
+    __goblint_check(x <= y);
   }
   return 0;
 }
