@@ -82,10 +82,15 @@ struct
 
   (** This still tries to establish bounds via Bounds.bound_texpr, which may be more precise in case ana.int.interval
       is disabled and the relational analysis manages to evaluate a value to an interval, which can then not be represented
-      as the result of an EvalInt query. This is a workaround and works as long as only one relational domain is used. *)
+      as the result of an EvalInt query. This is a workaround and works as long as only one relational domain is used.
+      With multiple domains and disabled interval domain, the queries will not be able to exchange interval information,
+      and each analysis will only be able to establish constant bounds, but only its own interval bounds and not interval bounds
+      established by other analyses.*)
   let overflow_handling no_ov ik env expr d exp =
-    try
-      if IntDomain.should_wrap (Cilfacade.get_ikind_exp exp) || not (Lazy.force no_ov) then (
+    match Cilfacade.get_ikind_exp exp with
+    | exception Invalid_argument e ->  raise (Unsupported_CilExp Exp_not_supported)       (* expression is not an integer expression, i.e. float *)
+    | ik ->
+      if IntDomain.should_wrap ik || not (Lazy.force no_ov) then (
         let (type_min, type_max) = IntDomain.Size.range ik in
         let texpr1 = Texpr1.of_expr env expr in
         match Bounds.bound_texpr d texpr1 with
@@ -95,10 +100,6 @@ struct
           if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
           raise (Unsupported_CilExp Overflow)
       )
-    with Invalid_argument e ->
-      (* This exception is raised by Cilfacade.get_ikind_exp) when the expression
-         is not an integer expression, for example if it is a float expression. *)
-      raise (Unsupported_CilExp Exp_not_supported)
 
   let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
     let conv exp  =
@@ -133,6 +134,9 @@ struct
           match Cilfacade.get_ikind_exp exp with
           | ik ->
             let expr =
+              (** simplify asks for a constant value of some subexpression e, similar to a constant fold. In particular but not exclusively
+                  this query is answered by the 2 var equalities domain itself. This normalizes arbitrary expressions to a point where they
+                  might be able to be represented by means of 2 var equalities *)
               let simplify e =
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
                 let simp = query e ikind in
@@ -152,15 +156,18 @@ struct
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
               | CastE (TInt (t_ik, _) as t, e) ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                  | exception _ -> raise (Unsupported_CilExp (Cast_not_injective t))
+                  | exception Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)
                   | true -> texpr1 e
-                  | false ->
+                  | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
+                    (* try to evaluate e by EvalInt Query *)
                     let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
+                    (* convert response to a constant *)
                     let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
                     match const with
-                    | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c)))
+                    | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c))) (* Got a constant value -> use it straight away *)
+                    (* I gotten top, we can not guarantee injectivity *)
                     | None -> if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
-                      else (
+                      else ( (* Got a ranged value different from top, so let's check bounds manually *)
                         let (ik_min, ik_max) = IntDomain.Size.range t_ik in
                         match IntDomain.IntDomTuple.minimal res, IntDomain.IntDomTuple.maximal res with
                         | Some min, Some max when min >= ik_min && max <= ik_max -> texpr1_expr_of_cil_exp e
@@ -178,7 +185,6 @@ struct
           | exception (Invalid_argument _ as e) ->
             raise (Unsupported_CilExp (Exp_typeOf e))
       in
-      (* only if we are sure that no overflow / undefined behavior happens we convert the expression *)
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
