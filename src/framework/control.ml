@@ -540,7 +540,7 @@ struct
             let meta = Fpath.(save_run / "meta.json") in
             let solver_stats = Fpath.(save_run / "solver_stats.csv") in (* see Generic.SolverStats... *)
             let cil = Fpath.(save_run / "cil.marshalled") in
-            let cilfile = Fpath.(save_run / "files" / "file.cil") in
+            let cilfile = Fpath.(save_run / "file.cil") in
             let warnings = Fpath.(save_run / "warnings.marshalled") in
             let stats = Fpath.(save_run / "stats.marshalled") in
             Logs.Format.debug "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
