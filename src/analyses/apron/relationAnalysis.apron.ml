@@ -722,7 +722,9 @@ struct
       in
       let rel = RD.remove_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
 
+      if M.tracing then M.traceli "apron" "unassume join\n";
       let st = D.join ctx.local {st with rel} in (* (strengthening) join *)
+      if M.tracing then M.traceu "apron" "unassume join\n";
       M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
       st
     | _ ->
