@@ -18,7 +18,5 @@ int main() {
     __goblint_check(x >= 0);
     __goblint_check(x < y); // TODO? Used to work without type bounds: https://github.com/goblint/analyzer/issues/1373.
   }
-
-  // TODO: Why swapped with polyhedra?
   return 0;
 }

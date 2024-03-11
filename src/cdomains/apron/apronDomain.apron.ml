@@ -639,13 +639,20 @@ struct
       (* Whether [con1] contains a var in [env]. *)
       let env_exists_mem_con1 env con1 =
         try
-          Lincons1.iter (fun _ var ->
-              if Environment.mem_var env var then
+          Lincons1.iter (fun coeff var ->
+              (* Lincons1 from polyhedra may contain variable with zero coefficient.
+                 These are silently not printed! *)
+              if not (Coeff.is_zero coeff) && Environment.mem_var env var then
                 raise Not_found
             ) con1;
           false
         with Not_found ->
           true
+      in
+      let env_exists_mem_con1 env con1 =
+        let r = env_exists_mem_con1 env con1 in
+        if M.tracing then M.trace "apron" "env_exists_mem_con1 %s %s -> %B\n" (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) env) (Lincons1.show con1) r;
+        r
       in
       (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)
       (* Put those constraints which strictly are in one argument's env first, to (hopefully) ensure they remain. *)
