@@ -93,7 +93,7 @@ struct
     let start_state = ask.f (Queries.StartCPA f) in
     let read = local in
     (* TODO: Collect used globals in global invariant, as this may omit globals accessed in the return *)
-    let callee_globals = match ask.f Queries.AccessedGlobals with
+    let callee_globals = match ask.f (Queries.AccessedGlobals f) with
       | `Top -> []
       | `Lifted globals -> ModularUtil.VS.to_list globals
     in
@@ -114,9 +114,9 @@ struct
     [ctx.local, callee_state]
 
 
-  let get_reachable ctx args f_ask  =
+  let get_reachable ctx args f f_ask  =
     let ask = Analyses.ask_of_ctx ctx in
-    let used_globals = UsedGlobals.get_used_globals_exps f_ask in
+    let used_globals = UsedGlobals.get_used_globals_exps f_ask f in
     let get_reachable_exp (exp: exp) =
       ask.f (Q.ReachableAddressesFrom exp)
     in

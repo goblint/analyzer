@@ -6,15 +6,15 @@ open Analyses
 
 let accessed_globals_top_warning = "Accessed globals returned `Top!"
 
-let get_used_globals (ask: Queries.ask) =
-  match ask.f Queries.AccessedGlobals with
+let get_used_globals (ask: Queries.ask) (f: CilType.Fundec.t) =
+  match ask.f (Queries.AccessedGlobals f) with
   | `Top -> failwith accessed_globals_top_warning
   | `Lifted globals ->
     ModularUtil.VS.to_list globals
 
 (** Get list of pointers to globals for all potentially used globals by function. *)
-let get_used_globals_exps (ask: Queries.ask) =
-  match ask.f Queries.AccessedGlobals with
+let get_used_globals_exps (ask: Queries.ask) (f: CilType.Fundec.t) =
+  match ask.f (Queries.AccessedGlobals f) with
   | `Top ->
     failwith accessed_globals_top_warning
   | `Lifted globals ->
@@ -100,10 +100,13 @@ struct
     in
     collect_in_expression exp is_global
 
+  let side_effect_globals ctx globals =
+    let current_fundec = Node.find_fundec ctx.node in
+    ctx.sideg current_fundec globals
+
   let collect_globals ctx exp =
     let used_globals = collect_globals exp in
-    let current_fundec = Node.find_fundec ctx.node in
-    ctx.sideg current_fundec used_globals;
+    side_effect_globals ctx used_globals;
     used_globals
 
   let add_globals_from_exp_option ctx (exp: exp option) (globals: D.t) : D.t =
@@ -139,6 +142,7 @@ struct
 
   let combine_env ctx lval fexp f args fc callee_globals f_ask =
     let globals = D.join ctx.local callee_globals in
+    side_effect_globals ctx callee_globals;
     add_globals_from_list ctx args globals
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
@@ -154,7 +158,9 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | AccessedGlobals -> `Lifted ctx.local
+    | AccessedGlobals f ->
+      let accessed_globals = ctx.global f in
+      `Lifted accessed_globals
     | _ -> Queries.Result.top q
 
   let modular_support () = Modular

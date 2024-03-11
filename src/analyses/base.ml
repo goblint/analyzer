@@ -3035,7 +3035,7 @@ struct
   let get_reachable_for_callee ctx f f_ask (args: exp list) (goal: AD.t) =
     let ask = Analyses.ask_of_ctx ctx in
     let graph = ask.f (WriteGraph f) in
-    let globals = UsedGlobals.get_used_globals f_ask in
+    let globals = UsedGlobals.get_used_globals f_ask f in
     collect_targets_with_graph ctx graph args f.sformals globals goal
 
   let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =

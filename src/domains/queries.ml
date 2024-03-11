@@ -129,7 +129,7 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
-  | AccessedGlobals: VS.t t
+  | AccessedGlobals: CilType.Fundec.t -> VS.t t
   | Written: WrittenDomain.Written.t t
   | Read: AD.t t
   | IsModular: MustBool.t t
@@ -205,7 +205,7 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module AD)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
-    | AccessedGlobals -> (module VS)
+    | AccessedGlobals _ -> (module VS)
     | Written -> (module WrittenDomain.Written)
     | Read -> (module AD)
     | IsModular -> (module MustBool)
@@ -286,7 +286,7 @@ struct
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | Written -> WrittenDomain.Written.top ()
     | Read -> AD.top ()
-    | AccessedGlobals -> VS.top ()
+    | AccessedGlobals _ -> VS.top ()
     | IsModular -> MustBool.top ()
     | MustTermLoop _ -> MustBool.top ()
     | MustTermAllLoops -> MustBool.top ()
@@ -364,7 +364,7 @@ struct
     | Any (IsAllocVar _) -> 57
     | Any Written -> 58
     | Any (EvalLval _) -> 59
-    | Any AccessedGlobals -> 60
+    | Any AccessedGlobals _ -> 60
     | Any (ReachableAddressesFrom _) -> 61
     | Any (IsModular) -> 62
     | Any Read -> 63
@@ -429,6 +429,7 @@ struct
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       | Any (StartCPA f1), Any (StartCPA f2) -> CilType.Fundec.compare f1 f2
+      | Any (AccessedGlobals f1), Any (AccessedGlobals f2) -> CilType.Fundec.compare f1 f2
       | Any (CollectGraph (c, a1, b1)), Any (CollectGraph (c2, a2, b2)) ->
         let r = BaseDomain.CPA.compare c c2 in
         if r <> 0 then
@@ -485,6 +486,7 @@ struct
     | Any (StartCPA f) -> CilType.Fundec.hash f
     | Any (WriteGraph f) -> CilType.Fundec.hash f
     | Any (ReadGraph f) -> CilType.Fundec.hash f
+    | Any (AccessedGlobals f) -> CilType.Fundec.hash f
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -549,7 +551,7 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
-    | Any AccessedGlobals -> Pretty.printf "AccessedGlobals"
+    | Any AccessedGlobals _ -> Pretty.printf "AccessedGlobals"
     | Any Written -> Pretty.dprintf "Written"
     | Any Read -> Pretty.dprintf "Read"
     | Any IsModular -> Pretty.dprintf "IsModular"

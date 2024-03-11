@@ -78,7 +78,7 @@ struct
     let addresses = collect_addresses new_state in
 
     (* TODO: Collect used globals in global invariant, as this may omit globals accessed in the return *)
-    let callee_globals = match ask.f Queries.AccessedGlobals with
+    let callee_globals = match ask.f (Queries.AccessedGlobals f) with
       | `Top -> []
       | `Lifted globals -> ModularUtil.VS.to_list globals
     in
@@ -95,9 +95,9 @@ struct
     [ctx.local, callee_state]
 
 
-  let get_reachable ctx args f_ask  =
+  let get_reachable ctx args f f_ask  =
     let ask = Analyses.ask_of_ctx ctx in
-    let used_globals = UsedGlobals.get_used_globals_exps f_ask in
+    let used_globals = UsedGlobals.get_used_globals_exps f_ask f in
     let get_reachable_exp (exp: exp) =
       ask.f (Q.ReachableAddressesFrom exp)
     in
@@ -106,7 +106,7 @@ struct
     List.fold AD.join (AD.bot ()) reachable
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    let reachable = get_reachable ctx args f_ask in
+    let reachable = get_reachable ctx args f f_ask in
     let translate_and_insert (k: AD.t) (v: VD.t) (map: D.t) =
       let k' = match ModularUtil.ValueDomainExtension.map_back (Address k) ~reachable with
         | Address a -> a
@@ -119,7 +119,7 @@ struct
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     let assign_return_val lval =
-      let reachable = get_reachable ctx args f_ask in
+      let reachable = get_reachable ctx args f f_ask in
       let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in
       let return_value = ModularUtil.ValueDomainExtension.map_back return_value ~reachable in
       let ask = Analyses.ask_of_ctx ctx in
