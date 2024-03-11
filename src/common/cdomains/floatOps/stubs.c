@@ -140,7 +140,7 @@ CAMLprim value smallest_float(value unit)
     // No need to use CAMLreturn because we don't use CAMLparam.
 }
 
-CAMLprim value pi(value unit)
+CAMLprim value pi_float(value unit)
 {
     return caml_copy_double(M_PI);
 }

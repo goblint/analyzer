@@ -106,7 +106,7 @@ module CFloat = struct
 
   external upper': unit -> float = "max_float"
   external smallest': unit -> float = "smallest_float"
-  external pi': unit -> float = "pi"
+  external pi': unit -> float = "pi_float"
 
   let upper_bound = upper' ()
   let lower_bound = -. upper_bound
