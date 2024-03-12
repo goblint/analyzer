@@ -13,6 +13,7 @@ module type CFloatType = sig
   val upper_bound: t
   val lower_bound: t
   val smallest : t
+  val pi : t
 
   val of_float: round_mode -> float -> t
   val to_float: t -> float option
@@ -37,6 +38,14 @@ module type CFloatType = sig
   val mul: round_mode -> t -> t -> t
   val div: round_mode -> t -> t -> t
   val sqrt: round_mode -> t -> t
+
+  val acos: round_mode -> t -> t
+  val asin: round_mode -> t -> t
+  val atan: round_mode -> t -> t
+  val cos: round_mode -> t -> t
+  val sin: round_mode -> t -> t
+  val tan: round_mode -> t -> t
+
   val atof: round_mode -> string -> t
 end
 
@@ -56,6 +65,7 @@ module CDouble = struct
   let upper_bound = Float.max_float
   let lower_bound = -. Float.max_float
   let smallest = Float.min_float
+  let pi = Float.pi
 
   let of_float _ x = x
   let to_float x = Some x
@@ -78,6 +88,13 @@ module CDouble = struct
   external div: round_mode -> t -> t -> t = "div_double"
   external sqrt: round_mode -> t -> t = "sqrt_double"
 
+  external acos: round_mode -> t -> t = "acos_double"
+  external asin: round_mode -> t -> t = "asin_double"
+  external atan: round_mode -> t -> t = "atan_double"
+  external cos: round_mode -> t -> t = "cos_double"
+  external sin: round_mode -> t -> t = "sin_double"
+  external tan: round_mode -> t -> t = "tan_double"
+
   external atof: round_mode -> string -> t = "atof_double"
 end
 
@@ -89,10 +106,12 @@ module CFloat = struct
 
   external upper': unit -> float = "max_float"
   external smallest': unit -> float = "smallest_float"
+  external pi': unit -> float = "pi_float"
 
   let upper_bound = upper' ()
   let lower_bound = -. upper_bound
   let smallest = smallest' ()
+  let pi = pi' ()
 
   let to_float x = Some x
   let to_big_int = big_int_of_float
@@ -111,6 +130,13 @@ module CFloat = struct
   external mul: round_mode -> t -> t -> t = "mul_float"
   external div: round_mode -> t -> t -> t = "div_float"
   external sqrt: round_mode -> t -> t = "sqrt_float"
+
+  external acos: round_mode -> t -> t = "acos_float"
+  external asin: round_mode -> t -> t = "asin_float"
+  external atan: round_mode -> t -> t = "atan_float"
+  external cos: round_mode -> t -> t = "cos_float"
+  external sin: round_mode -> t -> t = "sin_float"
+  external tan: round_mode -> t -> t = "tan_float"
 
   external atof: round_mode -> string -> t = "atof_float"
 
