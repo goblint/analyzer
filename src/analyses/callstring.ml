@@ -88,10 +88,10 @@ end
 (* Lifters for the call string approach with different call stack element types *)
 let _ =
   (* call string approach *)
-  MCP.register_analysis (module Spec (Callstring) : MCPSpec); (* [call_string_og] *)
+  MCP.register_analysis (module Spec (Callstring) : MCPSpec); (* [call_string] *)
 
   (* call string approach: additionally tracks the callee function in the call stack *)
-  MCP.register_analysis (module Spec (Callstring_Callee) : MCPSpec); (* [call_string_incl_callee] *)
+  MCP.register_analysis (module Spec (Callstring_Callee) : MCPSpec); (* [call_string_withCallee] *)
 
   (* call site approach *)
   MCP.register_analysis (module Spec (Callsite) : MCPSpec); (* [call_site] *)

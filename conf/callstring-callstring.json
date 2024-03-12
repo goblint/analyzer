@@ -32,7 +32,7 @@
       "thread",
       "threadJoins",
       "taintPartialContexts",
-      "callstring_stmt"
+      "call_string"
     ],
     "path_sens": [
       "mutex",
@@ -45,8 +45,8 @@
     ],
     "context": {
       "widen": false,
-      "ctx_gas": false,
-      "inf_callStack": true
+      "gas_value": -1,
+      "callStack_height": 2
     },
     "malloc": {
       "wrappers": [

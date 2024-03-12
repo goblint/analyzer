@@ -44,8 +44,7 @@
     ],
     "context": {
       "widen": false,
-      "ctx_gas": true,
-      "ctx_gas_value": 10
+      "gas_value": 10
     },
     "malloc": {
       "wrappers": [
