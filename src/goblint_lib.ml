@@ -150,7 +150,7 @@ module UnitAnalysis = UnitAnalysis
 
 module Assert = Assert
 module LoopTermination = LoopTermination
-module CallstringAnalysis = CallstringAnalysis
+module Callstring = Callstring
 module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit

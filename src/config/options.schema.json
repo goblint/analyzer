@@ -976,15 +976,9 @@
               "type": "integer",
               "default": 10
             },
-            "inf_callStack": {
-              "title": "ana.context.inf_callStack",
-              "description": "If true, the call-stack of the call.string analysis is infinite.",
-              "type": "boolean",
-              "default": false
-            },
             "callStack_height": {
               "title": "ana.context.callStack_height",
-              "description": "Height of the call-stack that should be used as context for the call-string analysis. Must be >= 0!",
+              "description": "Height of the call stack that should be used as context for the call string analysis. In case the value is zero, the analysis is context-insensitive. For a negative value an infinite call stack is used!",
               "type": "integer",
               "default": 10
             }

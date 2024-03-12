@@ -67,7 +67,7 @@ struct
 
   let specific_cont_sens xs =
     (* most analysis must be set to context-insensitive, because we only want to analyse context-sensitive for one specific analysis *)
-    let sens_ana = ["callstring_fundec"; "callstring_stmt"; "callstring_loc"; "loopfree_callstring"] in
+    let sens_ana = ["call_string_withCallee"; "call_string"; "call_site"; "loopfree_callstring"] in
     let enabled = List.fold_left (fun acc x -> acc || (mem x xs)) false sens_ana in
     (* returns the edited list of insensitive analyses if enabled *)
     if enabled then Some(filter (fun x -> not (mem x sens_ana)) xs) else None
