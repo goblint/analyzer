@@ -1,5 +1,7 @@
 //PARAM: --enable ana.int.interval --set ana.activated[+] tmpSpecial
 #include<stdlib.h>
+#include<math.h>
+
 int main() {
     long data;
     if (data > (-0xffffffff - 1))
