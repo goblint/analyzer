@@ -533,6 +533,10 @@ struct
   (* returns context gas value of the given ctx *)
   let cg_val ctx = snd ctx.local
 
+  type marshal = S.marshal
+  let init = S.init
+  let finalize = S.finalize
+
   let name () = S.name ()^" with context gas"
   let startstate v = S.startstate v, get_int "ana.context.gas_value"
   let exitstate v = S.exitstate v, get_int "ana.context.gas_value" (* TODO: probably doesn't matter*)
