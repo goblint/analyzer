@@ -1,6 +1,6 @@
 // PARAM: --enable ana.sv-comp.functions --enable ana.int.interval
 
-void __VERIFIER_assert(int cond) {
+void __VERIFIER_assert(int cond) { // NOWARN (update_suite assert detection spurious)
   int x = 1 << 80;
 }
 
