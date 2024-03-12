@@ -22,6 +22,7 @@ let print_version ch =
         Logs.result "  %s: %s" name version
       ) Goblint_build_info.statically_linked_libraries
   );
+  Logs.result "Build time:      %s" Goblint_build_info.datetime;
   exit 0
 
 (** Print helpful messages. *)

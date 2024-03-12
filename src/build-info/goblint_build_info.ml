@@ -32,3 +32,6 @@ let version =
 
 (** Statically linked libraries with versions. *)
 let statically_linked_libraries = Dune_build_info.statically_linked_libraries
+
+(** Build date and time. *)
+let datetime = ConfigDatetime.datetime
