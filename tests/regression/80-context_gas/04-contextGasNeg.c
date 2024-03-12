@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set --set ana.context.ctx_gas_value -5
+// PARAM: --enable ana.int.interval_set --set ana.context.gas_value -5
 
 int f(int x, int y)
 {
@@ -11,5 +11,5 @@ int f(int x, int y)
 
 int main()
 {
-    __goblint_check(f(5, 5) == 0); // UNKNOWN
+    __goblint_check(f(20, 20) == 0); // is analyzed fully context sensitive
 }

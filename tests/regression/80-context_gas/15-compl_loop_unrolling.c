@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set --set exp.unrolling-factor 3 --set ana.context.ctx_gas_value 10
+// PARAM: --enable ana.int.interval_set --set exp.unrolling-factor 3 --set ana.context.gas_value 10
 // TODO
 #include <stdio.h>
 

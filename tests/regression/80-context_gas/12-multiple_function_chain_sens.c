@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval_set --enable ana.context.ctx_gas --set ana.context.ctx_gas_value 10
+// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
 // Tests multiple recursive function calls
 #include <stdio.h>
 

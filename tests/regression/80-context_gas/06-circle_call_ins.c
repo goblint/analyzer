@@ -1,4 +1,4 @@
-// PARAM: --enable ana.context.ctx_gas --enable ana.int.interval_set --set ana.context.ctx_gas_value 15
+// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 15
 // Checks if recursion in loops is handled properly
 #include <stdio.h>
 

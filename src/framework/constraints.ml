@@ -534,8 +534,8 @@ struct
   let cg_val ctx = snd ctx.local
 
   let name () = S.name ()^" with context gas"
-  let startstate v = S.startstate v, get_int "ana.context.ctx_gas_value"
-  let exitstate v = S.exitstate v, get_int "ana.context.ctx_gas_value" (* TODO: probably doesn't matter*)
+  let startstate v = S.startstate v, get_int "ana.context.gas_value"
+  let exitstate v = S.exitstate v, get_int "ana.context.gas_value" (* TODO: probably doesn't matter*)
   let morphstate v (d,i) = S.morphstate v d, i
 
   let context fd (d,i) = 

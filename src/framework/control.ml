@@ -22,7 +22,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 = (val
             (module MCP.MCP2 : Spec)
-            |> lift (get_bool "ana.context.ctx_gas") (module ContextGasLifter) 
+            |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter) 
             |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
             |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)

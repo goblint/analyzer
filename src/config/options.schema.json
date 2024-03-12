@@ -964,17 +964,11 @@
               "type": "boolean",
               "default": false
             },
-            "ctx_gas": {
-              "title": "ana.context.ctx_gas",
-              "description": "If enabled, the first x recursions of each path are analyzed context-sensitive, the remaining context-insensitive. x denotes the context gas, which is defined in ana.context.ctx_gas_value.",
-              "type": "boolean",
-              "default": false
-            },
-            "ctx_gas_value": {
-              "title": "ana.context.ctx_gas_value",
-              "description": "Number of calls that are analyzed context-sensitive. Used for the ContextGasLifter, which is enabled with ana.context.ctx_gas. Must be >= 0!",
+            "gas_value": {
+              "title": "ana.context.gas_value",
+              "description": "x denotes the gas value for the ContextGasLifter. Negative value means deactivated, zero means context-insensitve analysis. If enabled, the first x recursive calls of the call stack are analyzed context-sensitive, the remaining with empty context.",
               "type": "integer",
-              "default": 10
+              "default": -1
             },
             "callStack_height": {
               "title": "ana.context.callStack_height",
