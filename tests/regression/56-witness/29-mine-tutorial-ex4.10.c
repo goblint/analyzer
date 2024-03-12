@@ -3,7 +3,7 @@
 #include <goblint.h>
 int main() {
   int v = 1; // Not explicitly stated in Miné's example
-  while (v <= 50) {
+  while (v <= 50) { // TODO: location invariant before loop doesn't work anymore
     __goblint_check(1 <= v);
     v += 2;
     __goblint_check(v <= 52);

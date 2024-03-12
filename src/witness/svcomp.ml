@@ -7,10 +7,8 @@ module Specification = SvcompSpec
 
 module type Task =
 sig
-  val file: Cil.file
+  include MyCFG.FileCfg
   val specification: Specification.multi
-
-  module Cfg: MyCFG.CfgBidir
 end
 
 let task: (module Task) option ref = ref None

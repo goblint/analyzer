@@ -2,7 +2,7 @@
 #include <goblint.h>
 int main() {
   int i = 0;
-  while (1) {
+  while (1) { // TODO: location invariant before loop doesn't work anymore
     i++;
     int j = 0;
     while (j < 10) {

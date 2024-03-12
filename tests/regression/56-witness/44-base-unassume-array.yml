@@ -21,7 +21,7 @@
     file_name: 44-base-unassume-array.c
     file_hash: 9d9dc013c8d8aee483852aa73d0b4ac48ee7ea0f5433dc86ee28c3fe54c49726
     line: 7
-    column: 6
+    column: 2
     function: main
   loop_invariant:
     string: 0 <= a[(long )"all_index"]
@@ -50,7 +50,7 @@
     file_name: 44-base-unassume-array.c
     file_hash: 9d9dc013c8d8aee483852aa73d0b4ac48ee7ea0f5433dc86ee28c3fe54c49726
     line: 7
-    column: 6
+    column: 2
     function: main
   loop_invariant:
     string: a[(long )"all_index"] < 3

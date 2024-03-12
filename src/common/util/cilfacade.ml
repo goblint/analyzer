@@ -494,7 +494,7 @@ class countFnVisitor = object
   inherit nopCilVisitor
   method! vstmt s =
     match s.skind with
-    | Return (_, loc)
+    | Return (_, loc, _)
     | Goto (_, loc)
     | ComputedGoto (_, loc)
     | Break loc
