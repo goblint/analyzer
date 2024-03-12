@@ -44,10 +44,10 @@ struct
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
       x
     else
-      D.bot () (* just like startstate, heterogeneous RD.bot () means top over empty set of variables *)
+      D.top ()
 
-  let exitstate  _ = { rel = RD.bot (); priv = Priv.startstate () }
-  let startstate _ = { rel = RD.bot (); priv = Priv.startstate () }
+  let exitstate  _ = { rel = RD.top (); priv = Priv.startstate () }
+  let startstate _ = { rel = RD.top (); priv = Priv.startstate () }
 
   (* Functions for manipulating globals as temporary locals. *)
 

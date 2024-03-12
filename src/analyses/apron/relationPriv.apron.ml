@@ -127,7 +127,7 @@ struct
     {st with rel = rel_local}
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
-    {rel = RD.bot (); priv = startstate ()}
+    {rel = RD.top (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = ()
   let invariant_vars ask getg st = []
@@ -489,7 +489,11 @@ struct
     in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
-    RD.join get_mutex_global_g get_mutex_inits'
+    if not (RD.mem_var get_mutex_inits' g_var) then (* TODO: is this just a workaround for an escape bug? https://github.com/goblint/analyzer/pull/1354/files#r1498882657 *)
+      (* This is an escaped variable whose value was never side-effected to get_mutex_inits' *)
+      get_mutex_global_g
+    else
+      RD.join get_mutex_global_g get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits_atomic ask getg =
     (* Unprotected invariant is one big relation. *)
@@ -527,12 +531,15 @@ struct
     else
       rel_local (* Keep write local as if it were protected by the atomic section. *)
 
-  let write_global ?(invariant=false) (ask: Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
+  (** Like write global but has option to skip meet with current value, as the value will not have been side-effected to a useful location thus far *)
+  let write_global_internal ?(skip_meet=false)  ?(invariant=false) (ask: Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let rel = st.rel in
     (* lock *)
     let rel =
-      if atomic && RD.mem_var rel (AV.global g) then
+      if skip_meet then
+        rel
+      else if atomic && RD.mem_var rel (AV.global g) then
         rel (* Read previous unpublished unprotected write in current atomic section. *)
       else if atomic then
         RD.meet rel (get_mutex_global_g_with_mutex_inits_atomic ask getg) (* Read unprotected invariant as full relation. *)
@@ -563,6 +570,9 @@ struct
       (* Delay publishing unprotected write in the atomic section. *)
       {st with rel = rel_local} (* Keep write local as if it were protected by the atomic section. *)
 
+
+  let write_global = write_global_internal ~skip_meet:false
+  let write_escape = write_global_internal ~skip_meet:true
 
   let lock ask getg (st: relation_components_t) m =
     let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
@@ -626,13 +636,17 @@ struct
         st
       else
         let rel = st.rel in
-        let rel_side = RD.keep_filter rel (fun var ->
+        (* Replace with remove_filter once issues are fixed *)
+        let g_vars = List.filter (fun var ->
             match AV.find_metadata var with
             | Some (Global _) -> true
             | _ -> false
-          )
+          ) (RD.vars rel)
         in
-        sideg V.mutex_inits rel_side;
+        let rel_side = RD.keep_vars rel g_vars in
+        (* If no globals are contained here, none need to be published *)
+        (* https://github.com/goblint/analyzer/pull/1354 *)
+        if g_vars <> [] then sideg V.mutex_inits rel_side;
         let rel_local = RD.remove_filter rel (fun var ->
             match AV.find_metadata var with
             | Some (Global g) -> is_unprotected ask g
@@ -662,11 +676,11 @@ struct
   let escape node ask getg sideg (st:relation_components_t) escaped : relation_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
     let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
-    let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
+    let escape_one (x:varinfo) st = write_escape ask getg sideg st x x in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
-    {rel = RD.bot (); priv = startstate ()}
+    {rel = RD.top (); priv = startstate ()}
 
   let init () = ()
   let finalize () = ()
@@ -799,7 +813,7 @@ struct
   let lock_get_m oct local_m get_m =
     let joined = LRD.join local_m get_m in
     if M.tracing then M.traceli "relationpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LRD.pretty get_m LRD.pretty joined;
-    let r = LRD.fold (fun _ -> RD.meet) joined (RD.bot ()) in (* bot is top with empty env *)
+    let r = LRD.fold (fun _ -> RD.meet) joined (RD.top ()) in
     if M.tracing then M.trace "relationpriv" "meet=%a\n" RD.pretty r;
     let r = RD.meet oct r in
     if M.tracing then M.traceu "relationpriv" "-> %a\n" RD.pretty r;
@@ -1220,7 +1234,7 @@ struct
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
     let _,lmust,l = st.priv in
-    {rel = RD.bot (); priv = (W.bot (),lmust,l)}
+    {rel = RD.top (); priv = (W.bot (),lmust,l)}
 
   let iter_sys_vars getg vq vf =
     match vq with
