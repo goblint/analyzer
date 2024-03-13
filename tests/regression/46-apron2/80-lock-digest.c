@@ -1,4 +1,5 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet
+// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-tid --set ana.path_sens[+] threadflag
+// cherry-picked from https://github.com/goblint/analyzer/pull/1286: works with mutex-meet-tid, without lock digests
 #include <pthread.h>
 #include <goblint.h>
 
@@ -8,7 +9,7 @@ pthread_mutex_t a = PTHREAD_MUTEX_INITIALIZER;
 void *t2(void *arg) {
   pthread_mutex_lock(&a);
   // wrong in more-traces!
-  __goblint_check(h < g); // TODO
+  __goblint_check(h < g);
   pthread_mutex_unlock(&a);
   return NULL;
 }
