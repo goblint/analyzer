@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" call_string_withCallee --enable ana.int.interval_set  --set ana.context.callStack_height -1
+// PARAM: --set "ana.activated[+]" call_string_withCallee --set ana.ctx_sens "['call_string_withCallee']"  --enable ana.int.interval_set  --set ana.context.callStack_height -1
 
 #include <stdio.h>
 

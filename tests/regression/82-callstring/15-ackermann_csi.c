@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callStack_height 2 --set "ana.activated[+]" call_site --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 2 --set "ana.activated[+]" call_site --set ana.ctx_sens "['call_site']"  --enable ana.int.interval_set
 
 int ack(int n, int m)
 {

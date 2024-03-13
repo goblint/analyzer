@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callStack_height 2 --set "ana.activated[+]" call_string --enable ana.int.interval_set --set exp.unrolling-factor 2
+// PARAM: --set ana.context.callStack_height 2 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']"  --enable ana.int.interval_set --set exp.unrolling-factor 2
 
 int f(int i)
 {

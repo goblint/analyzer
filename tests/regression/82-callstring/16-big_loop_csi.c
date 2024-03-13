@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" call_site --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" call_site --set ana.ctx_sens "['call_site']"  --enable ana.int.interval_set
 // Checks proper handling of recursions in loops + shows that not all 200 iterations are analyzed
 
 int f(int i);

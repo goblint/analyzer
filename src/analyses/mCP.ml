@@ -36,6 +36,7 @@ struct
   let name () = "MCP2"
 
   let path_sens = ref []
+  let cont_sens = ref []
   let cont_inse = ref []
   let base_id   = ref (-1)
 
@@ -65,13 +66,6 @@ struct
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
-  let specific_cont_sens xs =
-    (* most analysis must be set to context-insensitive, because we only want to analyse context-sensitive for one specific analysis *)
-    let sens_ana = ["call_string_withCallee"; "call_string"; "call_site"; "loopfree_callstring"] in
-    let enabled = List.fold_left (fun acc x -> acc || (mem x xs)) false sens_ana in
-    (* returns the edited list of insensitive analyses if enabled *)
-    if enabled then Some(filter (fun x -> not (mem x sens_ana)) xs) else None
-
   type marshal = Obj.t list
   let init marshal =
     let map' f =
@@ -82,20 +76,21 @@ struct
       List.map f
     in
     let xs = get_string_list "ana.activated" in
-    let special_inse = specific_cont_sens xs in
     let xs = map' find_id xs in
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
     path_sens := map' find_id @@ get_string_list "ana.path_sens";
-    (* checks if an analysis is enabled which requires special handling of context-sensitivity *)
-    begin
-      match special_inse with 
-      | Some ins -> cont_inse := map' find_id ins;
-      | None -> cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
-    end;
     check_deps !activated;
     activated := topo_sort_an !activated;
-    activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
+    begin
+      match get_string_list "ana.ctx_sens" with 
+      | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
+        cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
+        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;      
+      | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
+        cont_sens := map' find_id @@ sens;
+        activated_ctx_sens := List.filter (fun (n, _) -> List.mem n !cont_sens) !activated;
+    end;
     activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
@@ -120,7 +115,7 @@ struct
   let context fd x =
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
-        if mem n !cont_inse then
+        if (mem n !cont_inse) || not @@ (List.is_empty !cont_sens || mem n !cont_sens) then (* TODO: do I need to check if it is contained in activated ana?*)
           None
         else
           Some (n, repr @@ S.context fd (obj d))
@@ -192,13 +187,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-        { ctx with
+         { ctx with
           local = local';
           ask = ask
-        }
-      and ask q = query ctx' q
-      in
-      ctx' *)
+         }
+         and ask q = query ctx' q
+         in
+         ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function

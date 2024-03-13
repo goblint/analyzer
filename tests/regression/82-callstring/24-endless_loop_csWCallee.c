@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" call_string_withCallee --enable ana.int.interval_set
+// PARAM: --set ana.context.callStack_height 10 --set "ana.activated[+]" call_string_withCallee --set ana.ctx_sens "['call_string_withCallee']"  --enable ana.int.interval_set
 // Will result in an endless loop without context insensitive analysis
 
 int num_iterat = 2;

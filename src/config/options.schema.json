@@ -356,10 +356,17 @@
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
-          "description": "List of context-insensitive analyses",
+          "description": "List of context-insensitive analyses, which is ignored if `ctx_sens` is not empty.",
           "type": "array",
           "items": { "type": "string" },
           "default": [ "stack_loc", "stack_trace_set" ]
+        },
+        "ctx_sens": {
+          "title": "ana.ctx_sens",
+          "description": "List of context-sensitive analyses. In case of an empty array `ctx_insens` is used, otherwise `ctx_insens` is ignored.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
         },
         "setjmp" : {
           "title": "ana.setjmp",
