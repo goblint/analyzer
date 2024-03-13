@@ -367,7 +367,12 @@ struct
             | `Left g -> (* Spec global *)
               begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
                 | `Lifted _ as inv ->
-                  Queries.YS.fold List.cons inv acc
+                  Queries.YS.fold (fun entry acc ->
+                      if BatList.mem_cmp YamlWitnessType.Entry.compare entry acc then (* TODO: be efficient *)
+                        acc
+                      else
+                        entry :: acc
+                    ) inv acc
                 | `Top ->
                   acc
               end

@@ -562,7 +562,7 @@ struct
 
   type t = {
     entry_type: EntryType.t;
-    metadata: Metadata.t;
+    metadata: Metadata.t [@equal fun _ _ -> true] [@compare fun _ _ -> 0] [@hash fun _ -> 1];
   }
   [@@deriving eq, ord, hash]
 
