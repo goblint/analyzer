@@ -413,6 +413,60 @@ struct
   let entry_type = "precondition_loop_invariant_certificate"
 end
 
+module GhostVariable =
+struct
+  type t = {
+    variable: string;
+    scope: string;
+    type_: string;
+    initial: string;
+  }
+
+  let entry_type = "ghost_variable"
+
+  let to_yaml' {variable; scope; type_; initial} =
+    [
+      ("variable", `String variable);
+      ("scope", `String scope);
+      ("type", `String type_);
+      ("initial", `String initial);
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ variable = y |> find "variable" >>= to_string
+    and+ scope = y |> find "scope" >>= to_string
+    and+ type_ = y |> find "type" >>= to_string
+    and+ initial = y |> find "initial" >>= to_string in
+    {variable; scope; type_; initial}
+end
+
+module GhostUpdate =
+struct
+  type t = {
+    variable: string;
+    expression: string;
+    location: Location.t;
+    (* TODO: branching? *)
+  }
+
+  let entry_type = "ghost_update"
+
+  let to_yaml' {variable; expression; location} =
+    [
+      ("variable", `String variable);
+      ("expression", `String expression);
+      ("location", Location.to_yaml location);
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ variable = y |> find "variable" >>= to_string
+    and+ expression = y |> find "expression" >>= to_string
+    and+ location = y |> find "location" >>= Location.of_yaml in
+    {variable; expression; location}
+end
+
 (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
 module EntryType =
 struct
@@ -424,6 +478,8 @@ struct
     | LoopInvariantCertificate of LoopInvariantCertificate.t
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
     | InvariantSet of InvariantSet.t
+    | GhostVariable of GhostVariable.t
+    | GhostUpdate of GhostUpdate.t
 
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type
@@ -433,6 +489,8 @@ struct
     | LoopInvariantCertificate _ -> LoopInvariantCertificate.entry_type
     | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
+    | GhostVariable _ -> GhostVariable.entry_type
+    | GhostUpdate _ -> GhostUpdate.entry_type
 
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -442,6 +500,8 @@ struct
     | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
     | PreconditionLoopInvariantCertificate x -> PreconditionLoopInvariantCertificate.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
+    | GhostVariable x -> GhostVariable.to_yaml' x
+    | GhostUpdate x -> GhostUpdate.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -467,8 +527,14 @@ struct
     else if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
+    else if entry_type = GhostVariable.entry_type then
+      let+ x = y |> GhostVariable.of_yaml in
+      GhostVariable x
+    else if entry_type = GhostUpdate.entry_type then
+      let+ x = y |> GhostUpdate.of_yaml in
+      GhostUpdate x
     else
-      Error (`Msg "entry_type")
+      Error (`Msg ("entry_type " ^ entry_type))
 end
 
 module Entry =

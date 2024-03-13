@@ -141,6 +141,25 @@ struct
       };
     metadata = metadata ();
   }
+
+  let ghost_variable ~task ~variable ~type_ ~(initial): Entry.t = {
+    entry_type = GhostVariable {
+        variable;
+        scope = "global";
+        type_;
+        initial;
+      };
+    metadata = metadata ~task ();
+  }
+
+  let ghost_update ~task ~location ~variable ~(expression): Entry.t = {
+    entry_type = GhostUpdate {
+        variable;
+        expression;
+        location;
+      };
+    metadata = metadata ~task ();
+  }
 end
 
 let yaml_entries_to_file yaml_entries file =
