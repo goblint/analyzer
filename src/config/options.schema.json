@@ -973,7 +973,7 @@
             },
             "gas_value": {
               "title": "ana.context.gas_value",
-              "description": "x denotes the gas value for the ContextGasLifter. Negative value means deactivated, zero means context-insensitve analysis. If enabled, the first x recursive calls of the call stack are analyzed context-sensitive, the remaining with empty context.",
+              "description": "x denotes the gas value for the ContextGasLifter. Negative value means deactivated, zero means context-insensitve analysis. If enabled, the first x recursive calls of the call stack are analyzed context-sensitive, the remaining with no context.",
               "type": "integer",
               "default": -1
             },
