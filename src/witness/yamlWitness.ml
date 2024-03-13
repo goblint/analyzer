@@ -829,7 +829,7 @@ struct
         None
       | _ ->
         incr cnt_unsupported;
-        M.info_noloc ~category:Witness "cannot validate entry of type %s" target_type;
+        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type;
         None
     in
 
@@ -841,7 +841,7 @@ struct
           Option.to_list yaml_certificate_entry @ yaml_entry :: yaml_entries'
         | Error (`Msg e) ->
           incr cnt_error;
-          M.info_noloc ~category:Witness "couldn't parse entry: %s" e;
+          M.error_noloc ~category:Witness "couldn't parse entry: %s" e;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in
