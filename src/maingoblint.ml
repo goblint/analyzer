@@ -9,6 +9,7 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
+  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level"); (* duplicated from handle_options to be affected by -v *)
   Logs.result "Goblint version: %s" Goblint_build_info.version;
   Logs.result "Cil version:     %s" Cil.cilVersion;
   Logs.result "Dune profile:    %s" Goblint_build_info.dune_profile;
@@ -21,6 +22,7 @@ let print_version ch =
         Logs.result "  %s: %s" name version
       ) Goblint_build_info.statically_linked_libraries
   );
+  Logs.result "Build time:      %s" Goblint_build_info.datetime;
   exit 0
 
 (** Print helpful messages. *)

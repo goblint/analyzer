@@ -14,6 +14,7 @@ module type CFloatType = sig
   val upper_bound: t
   val lower_bound: t
   val smallest : t
+  val pi : t
 
   val of_float: round_mode -> float -> t
   val to_float: t -> float option
@@ -39,6 +40,12 @@ module type CFloatType = sig
   val mul: round_mode -> t -> t -> t
   val div: round_mode -> t -> t -> t
   val sqrt: round_mode -> t -> t
+  val acos: round_mode -> t -> t
+  val asin: round_mode -> t -> t
+  val atan: round_mode -> t -> t
+  val cos: round_mode -> t -> t
+  val sin: round_mode -> t -> t
+  val tan: round_mode -> t -> t
   val atof: round_mode -> string -> t
 end
 

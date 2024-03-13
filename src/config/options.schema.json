@@ -470,6 +470,13 @@
                 "Use FloatDomain: (float * float) option.",
               "type": "boolean",
               "default": false
+            },
+            "evaluate_math_functions": {
+              "title": "ana.float.evaluate_math_functions",
+              "description":
+                "Allow a more precise evaluation of some functions from math.h. Evaluation of functions may differ depending on the implementation of math.h. Caution: For some implementations of functions it is not guaranteed that they behave monotonic where they mathematically should, thus possibly leading to unsoundness.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
