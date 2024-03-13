@@ -43,6 +43,7 @@
       "threadflag"
     ],
     "context": {
+      "gas_value": -1,
       "widen": false
     },
     "malloc": {

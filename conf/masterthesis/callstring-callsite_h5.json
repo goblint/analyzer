@@ -32,7 +32,7 @@
       "thread",
       "threadJoins",
       "taintPartialContexts",
-      "loopfree_callstring"
+      "call_site"
     ],
     "path_sens": [
       "mutex",
@@ -44,7 +44,9 @@
       "threadflag"
     ],
     "context": {
-      "widen": false
+      "widen": false,
+      "gas_value": -1,
+      "callStack_height": 5
     },
     "malloc": {
       "wrappers": [
@@ -53,14 +55,11 @@
         "usb_alloc_urb",
         "__builtin_alloca",
         "kzalloc",
-
         "ldv_malloc",
-
         "kzalloc_node",
         "ldv_zalloc",
         "kmalloc_array",
         "kcalloc",
-
         "ldv_xmalloc",
         "ldv_xzalloc",
         "ldv_calloc",
