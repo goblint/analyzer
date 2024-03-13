@@ -138,6 +138,7 @@ type _ t =
   | CollectGraph: BaseDomain.CPA.t * AD.t * AD.t -> ValueDomain.ADGraph.t t
   | WriteGraph: CilType.Fundec.t -> ValueDomain.ADGraph.t t
   | ReadGraph: CilType.Fundec.t -> ValueDomain.ADGraph.t t
+  | ReachableForCallee: (CilType.Fundec.t * ValueDomain.ADGraph.t * CilType.Exp.t list * CilType.Varinfo.t list * AD.t) -> AD.t t
 
 type 'a result = 'a
 
@@ -218,6 +219,7 @@ struct
     | CollectGraph _ -> (module ValueDomain.ADGraph)
     | WriteGraph _ -> (module ValueDomain.ADGraph)
     | ReadGraph _ -> (module ValueDomain.ADGraph)
+    | ReachableForCallee _ -> (module AD)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -297,6 +299,7 @@ struct
     | CollectGraph _ -> ValueDomain.ADGraph.top ()
     | WriteGraph _ -> ValueDomain.ADGraph.top ()
     | ReadGraph _ -> ValueDomain.ADGraph.top ()
+    | ReachableForCallee _ -> AD.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -373,6 +376,7 @@ struct
     | Any (CollectGraph _) -> 66
     | Any (WriteGraph _) -> 67
     | Any (ReadGraph _) -> 68
+    | Any (ReachableForCallee _) -> 69
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -440,6 +444,27 @@ struct
             r
           else
             AD.compare b1 b2
+        end
+      | Any (ReachableForCallee (f1, g1, e1, v1, a1)), Any (ReachableForCallee (f2, g2, e2, v2, a2)) ->
+        let r = CilType.Fundec.compare f1 f2 in
+        if r <> 0 then
+          r
+        else begin
+          let r = ValueDomain.ADGraph.compare g1 g2 in
+          if r <> 0 then
+            r
+          else begin
+            let r = Stdlib.compare e1 e2 in
+            if r <> 0 then
+              r
+            else begin
+              let r = Stdlib.compare v1 v2 in
+              if r <> 0 then
+                r
+              else
+                AD.compare a1 a2
+            end
+          end
         end
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
@@ -560,6 +585,7 @@ struct
     | Any (CollectGraph (c, s, g)) -> Pretty.dprintf "CollectGraph (%a, %a, %a)" BaseDomain.CPA.pretty c AD.pretty s AD.pretty g
     | Any (WriteGraph f) -> Pretty.dprintf "WriteGraph %a" CilType.Fundec.pretty f;
     | Any (ReadGraph f) -> Pretty.dprintf "WriteGraph %a" CilType.Fundec.pretty f;
+    | Any (ReachableForCallee  (f, g, e, v, a)) -> Pretty.dprintf "ReachableForCallee (%a, %a, %a, %a, %a)" CilType.Fundec.pretty f ValueDomain.ADGraph.pretty g (GoblintCil.Pretty.d_list ", " CilType.Exp.pretty) e (GoblintCil.Pretty.d_list ", " CilType.Varinfo.pretty) v AD.pretty a
 end
 
 let to_value_domain_ask (ask: ask) =

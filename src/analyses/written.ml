@@ -63,6 +63,13 @@ struct
     let written_addresses = collect_written_addresses st in
     AD.join addresses_from_values written_addresses
 
+  let get_reachable_for_callee ctx (args: exp list) f f_ask  =
+    let ask = Analyses.ask_of_ctx ctx in
+    let graph = ask.f (WriteGraph f) in
+    let globals = UsedGlobals.get_used_globals f_ask f in
+    let reachable = ask.f (ReachableForCallee (f, graph, args, globals, AD.top ())) in
+    reachable
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
     let start_state = ask.f (Queries.StartCPA f) in
@@ -94,19 +101,8 @@ struct
     let callee_state = D.bot () in
     [ctx.local, callee_state]
 
-
-  let get_reachable ctx args f f_ask  =
-    let ask = Analyses.ask_of_ctx ctx in
-    let used_globals = UsedGlobals.get_used_globals_exps f_ask f in
-    let get_reachable_exp (exp: exp) =
-      ask.f (Q.ReachableAddressesFrom exp)
-    in
-    let effective_args = used_globals @ args in
-    let reachable = List.map get_reachable_exp effective_args in
-    List.fold AD.join (AD.bot ()) reachable
-
   let combine_env ctx lval fexp f args fc au f_ask =
-    let reachable = get_reachable ctx args f f_ask in
+    let reachable = get_reachable_for_callee ctx args f f_ask in
     let translate_and_insert (k: AD.t) (v: VD.t) (map: D.t) =
       let k' = match ModularUtil.ValueDomainExtension.map_back (Address k) ~reachable with
         | Address a -> a
@@ -119,7 +115,7 @@ struct
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     let assign_return_val lval =
-      let reachable = get_reachable ctx args f f_ask in
+      let reachable = get_reachable_for_callee ctx args f f_ask in
       let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in
       let return_value = ModularUtil.ValueDomainExtension.map_back return_value ~reachable in
       let ask = Analyses.ask_of_ctx ctx in

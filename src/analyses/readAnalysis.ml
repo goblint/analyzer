@@ -113,17 +113,6 @@ struct
     let callee_state = D.bot () in
     [ctx.local, callee_state]
 
-
-  let get_reachable ctx args f f_ask  =
-    let ask = Analyses.ask_of_ctx ctx in
-    let used_globals = UsedGlobals.get_used_globals_exps f_ask f in
-    let get_reachable_exp (exp: exp) =
-      ask.f (Q.ReachableAddressesFrom exp)
-    in
-    let effective_args = used_globals @ args in
-    let reachable = List.map get_reachable_exp effective_args in
-    List.fold AD.join (AD.bot ()) reachable
-
   let combine_env ctx lval fexp f args fc au f_ask =
     add_reads_on_exps ctx args
 
