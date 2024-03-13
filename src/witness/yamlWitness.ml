@@ -359,6 +359,26 @@ struct
         entries
     in
 
+    (* Generate flow-insensitive invariants *)
+    let entries =
+      if true then (
+        GHT.fold (fun g v acc ->
+            match g with
+            | `Left g -> (* Spec global *)
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
+                | `Lifted _ as inv ->
+                  Queries.YS.fold List.cons inv acc
+                | `Top ->
+                  acc
+              end
+            | `Right _ -> (* contexts global *)
+              acc
+          ) gh entries
+      )
+      else
+        entries
+    in
+
     (* Generate precondition invariants.
        We do this in three steps:
        1. Collect contexts for each function

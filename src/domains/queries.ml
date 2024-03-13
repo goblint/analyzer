@@ -63,6 +63,8 @@ type invariant_context = Invariant.context = {
 }
 [@@deriving ord, hash]
 
+module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
+
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -126,6 +128,7 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t
 
 type 'a result = 'a
 
@@ -195,6 +198,7 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
+    | YamlEntryGlobal _ -> (module YS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -263,6 +267,7 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
+    | YamlEntryGlobal _ -> YS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -328,6 +333,7 @@ struct
     | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
+    | Any (YamlEntryGlobal _) -> 58
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -375,6 +381,7 @@ struct
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
+      | Any (YamlEntryGlobal (vi1, task1)), Any (YamlEntryGlobal (vi2, task2)) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2) (* TODO: compare task *)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
@@ -418,6 +425,7 @@ struct
     | Any (Invariant i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
+    | Any (YamlEntryGlobal (vi, task)) -> Hashtbl.hash vi (* TODO: hash task *)
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
@@ -474,6 +482,7 @@ struct
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
+    | Any (YamlEntryGlobal (i, task)) -> Pretty.dprintf "YamlEntryGlobal _"
     | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"
     | Any (EvalMutexAttr a) ->  Pretty.dprintf "EvalMutexAttr _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"

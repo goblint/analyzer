@@ -9,6 +9,7 @@ struct
     command_line: string option;
     (* TODO: description *)
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {name; version; command_line} =
     `O ([
@@ -39,6 +40,7 @@ struct
     language: string;
     specification: string option;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {input_files; input_file_hashes; data_model; language; specification} =
     `O ([
@@ -78,6 +80,7 @@ struct
     producer: Producer.t;
     task: Task.t option;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {format_version; uuid; creation_time; producer; task} =
     `O ([
@@ -111,6 +114,7 @@ struct
     column: int;
     function_: string;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {file_name; file_hash; line; column; function_} =
     `O [
@@ -138,6 +142,7 @@ struct
     type_: string;
     format: string;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -160,6 +165,7 @@ struct
     location: Location.t;
     loop_invariant: Invariant.t;
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "loop_invariant"
 
@@ -182,6 +188,7 @@ struct
     location: Location.t;
     location_invariant: Invariant.t;
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "location_invariant"
 
@@ -203,6 +210,7 @@ struct
   type t = {
     flow_insensitive_invariant: Invariant.t;
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "flow_insensitive_invariant"
 
@@ -224,6 +232,7 @@ struct
     loop_invariant: Invariant.t;
     precondition: Invariant.t;
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "precondition_loop_invariant"
 
@@ -251,6 +260,7 @@ struct
       value: string;
       format: string;
     }
+    [@@deriving eq, ord, hash]
 
     let invariant_type = "loop_invariant"
 
@@ -282,6 +292,7 @@ struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
+    [@@deriving eq, ord, hash]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
@@ -309,6 +320,7 @@ struct
     type t = {
       invariant_type: InvariantType.t;
     }
+    [@@deriving eq, ord, hash]
 
     let to_yaml {invariant_type} =
       `O [
@@ -327,6 +339,7 @@ struct
   type t = {
     content: Invariant.t list;
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "invariant_set"
 
@@ -346,6 +359,7 @@ struct
     type_: string;
     file_hash: string;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {uuid; type_; file_hash} =
     `O [
@@ -369,6 +383,7 @@ struct
     type_: string;
     format: string;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -391,6 +406,7 @@ struct
     target: Target.t;
     certification: Certification.t;
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "loop_invariant_certificate"
 
@@ -421,6 +437,7 @@ struct
     type_: string;
     initial: string;
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "ghost_variable"
 
@@ -449,6 +466,7 @@ struct
     location: Location.t;
     (* TODO: branching? *)
   }
+  [@@deriving eq, ord, hash]
 
   let entry_type = "ghost_update"
 
@@ -480,6 +498,7 @@ struct
     | InvariantSet of InvariantSet.t
     | GhostVariable of GhostVariable.t
     | GhostUpdate of GhostUpdate.t
+  [@@deriving eq, ord, hash]
 
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type
@@ -539,10 +558,21 @@ end
 
 module Entry =
 struct
+  include Printable.StdLeaf
+
   type t = {
     entry_type: EntryType.t;
     metadata: Metadata.t;
   }
+  [@@deriving eq, ord, hash]
+
+  let name () = "YAML entry"
+
+  let show _ = "TODO"
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
 
   let to_yaml {entry_type; metadata} =
     `O ([

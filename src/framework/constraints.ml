@@ -1250,6 +1250,14 @@ struct
         | `Right g ->
           Queries.Result.top q
       end
+    | YamlEntryGlobal (g, task) ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (YamlEntryGlobal (Obj.repr g, task))
+        | `Right g ->
+          Queries.Result.top q
+      end
     | IterSysVars (vq, vf) ->
       (* vars for S *)
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
@@ -1362,6 +1370,14 @@ struct
       begin match g with
         | `Left g ->
           S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | _ ->
+          Queries.Result.top q
+      end
+    | YamlEntryGlobal (g, task) ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (YamlEntryGlobal (Obj.repr g, task))
         | _ ->
           Queries.Result.top q
       end
@@ -1647,6 +1663,14 @@ struct
       begin match v with
         | `Left v ->
           S.query (conv ctx) (InvariantGlobal (Obj.repr v))
+        | `Right v ->
+          Queries.Result.top q
+      end
+    | YamlEntryGlobal (v, task) ->
+      let v: V.t = Obj.obj v in
+      begin match v with
+        | `Left v ->
+          S.query (conv ctx) (YamlEntryGlobal (Obj.repr v, task))
         | `Right v ->
           Queries.Result.top q
       end
