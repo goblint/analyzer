@@ -1237,13 +1237,20 @@ struct
       Invariant.none
 
   let query_invariant_global ctx g =
-    if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
+    if GobConfig.get_bool "ana.base.invariant.enabled" then (
       (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
          Otherwise, the values of globals in single-threaded mode are not accounted for. *)
       (* TODO: account for single-threaded values without earlyglobs. *)
       match g with
       | `Left g' -> (* priv *)
-        Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g'
+        let inv = Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g' in
+        if get_bool "exp.earlyglobs" then
+          inv
+        else (
+          let variable = "multithreaded" in
+          let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
+          Invariant.(inv || of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType))) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        )
       | `Right _ -> (* thread return *)
         Invariant.none
     )

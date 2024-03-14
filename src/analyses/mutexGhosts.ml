@@ -24,14 +24,21 @@ struct
     include LockDomain.Mutexes
     let name () = "unlocked"
   end
-  module G = Lattice.Prod (Locked) (Unlocked)
+  module MultiThread =
+  struct
+    include BoolDomain.MayBool
+    let name () = "multithread"
+  end
+  module G = Lattice.Prod3 (Locked) (Unlocked) (MultiThread)
 
   let event ctx e octx =
     begin match e with
       | Events.Lock (l, _) ->
-        ctx.sideg ctx.prev_node (Locked.singleton l, Unlocked.bot ())
+        ctx.sideg ctx.prev_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ())
       | Events.Unlock l ->
-        ctx.sideg ctx.prev_node (Locked.bot (), Unlocked.singleton l)
+        ctx.sideg ctx.prev_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ())
+      | Events.EnterMultiThreaded ->
+        ctx.sideg ctx.prev_node (Locked.bot (), Unlocked.bot (), true)
       | _ -> ()
     end;
     ctx.local
@@ -40,7 +47,7 @@ struct
     match q with
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
-      let (locked, unlocked) = ctx.global g in
+      let (locked, unlocked, multithread) = ctx.global g in
       let loc = Node.location g in
       let location_function = (Node.find_fundec g).svar.vname in
       let location = YamlWitness.Entry.location ~location:loc ~location_function in
@@ -69,6 +76,19 @@ struct
             let entry = YamlWitness.Entry.ghost_update ~task ~location ~variable ~expression in
             Queries.YS.add entry acc
           ) unlocked entries
+      in
+      let entries =
+        if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
+          let variable = "multithreaded" in
+          let type_ = "int" in
+          let initial = "0" in
+          let entry = YamlWitness.Entry.ghost_variable ~task ~variable ~type_ ~initial in
+          let expression = "1" in
+          let entry' = YamlWitness.Entry.ghost_update ~task ~location ~variable ~expression in
+          Queries.YS.add entry (Queries.YS.add entry' entries)
+        )
+        else
+          entries
       in
       entries
     | _ -> Queries.Result.top q
