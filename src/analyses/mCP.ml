@@ -58,7 +58,7 @@ struct
       let y = find_id yn in
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = find_spec_name x in
-        Logs.error "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
+        Logs.error "Activated analysis '%s' depends on '%s' and '%s' is not activated." xn yn yn;
         raise Stdlib.Exit
       end
     in
