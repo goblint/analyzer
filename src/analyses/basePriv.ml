@@ -801,11 +801,15 @@ struct
     | `Right g' -> (* protected *)
       let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
       let locks = ask.f (Q.MustProtectingLocks g') in
-      Q.AD.fold (fun m acc ->
-          let variable = LockDomain.Addr.show m ^ "_locked" in (* TODO: valid C name *)
-          let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
-          Invariant.(of_exp (Lval (GoblintCil.var var)) || acc) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-        ) locks inv
+      if Q.AD.is_top locks then
+        Invariant.none
+      else (
+        Q.AD.fold (fun m acc ->
+            let variable = LockDomain.Addr.show m ^ "_locked" in (* TODO: valid C name *)
+            let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
+            Invariant.(of_exp (Lval (GoblintCil.var var)) || acc) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          ) locks inv
+      )
 
   let invariant_vars ask getg st = protected_vars ask
 end

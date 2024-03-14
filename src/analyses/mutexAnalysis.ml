@@ -235,7 +235,10 @@ struct
       Mutexes.leq mutex_lockset protecting
     | Queries.MustProtectingLocks g ->
       let protecting = protecting ~write:true Strong g in
-      Mutexes.fold Queries.AD.add protecting (Queries.AD.empty ())
+      if Mutexes.is_top protecting then
+        Queries.AD.top ()
+      else
+        Mutexes.fold Queries.AD.add protecting (Queries.AD.empty ())
     | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       Mutexes.fold (fun addr ls -> Queries.AD.add addr ls) held_locks (Queries.AD.empty ())
