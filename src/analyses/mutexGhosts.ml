@@ -47,7 +47,7 @@ struct
       let entries =
         (* TODO: do ghost_variable-s only once *)
         Locked.fold (fun l acc ->
-            let variable = LockDomain.Addr.show l in (* TODO: valid C name *)
+            let variable = LockDomain.Addr.show l ^ "_locked" in (* TODO: valid C name *)
             let type_ = "int" in
             let initial = "0" in
             let entry = YamlWitness.Entry.ghost_variable ~task ~variable ~type_ ~initial in
@@ -56,7 +56,7 @@ struct
       in
       let entries =
         Locked.fold (fun l acc ->
-            let variable = LockDomain.Addr.show l in (* TODO: valid C name *)
+            let variable = LockDomain.Addr.show l ^ "_locked" in (* TODO: valid C name *)
             let expression = "1" in
             let entry = YamlWitness.Entry.ghost_update ~task ~location ~variable ~expression in
             Queries.YS.add entry acc
@@ -64,7 +64,7 @@ struct
       in
       let entries =
         Unlocked.fold (fun l acc ->
-            let variable = LockDomain.Addr.show l in (* TODO: valid C name *)
+            let variable = LockDomain.Addr.show l ^ "_locked" in (* TODO: valid C name *)
             let expression = "0" in
             let entry = YamlWitness.Entry.ghost_update ~task ~location ~variable ~expression in
             Queries.YS.add entry acc

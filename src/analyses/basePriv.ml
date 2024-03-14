@@ -785,7 +785,7 @@ struct
       let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
       let locks = ask.f (Q.MustProtectingLocks g') in
       Q.AD.fold (fun m acc ->
-          let variable = LockDomain.Addr.show m in (* TODO: valid C name *)
+          let variable = LockDomain.Addr.show m ^ "_locked" in (* TODO: valid C name *)
           let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
           Invariant.(acc || of_exp (Lval (Var var, NoOffset)))
         ) locks inv
