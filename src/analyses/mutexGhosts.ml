@@ -1,4 +1,4 @@
-(** ([mutexGhosts]). *)
+(** Analysis for generating ghost variables corresponding to mutexes ([mutexGhosts]). *)
 
 open Analyses
 
