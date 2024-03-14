@@ -756,7 +756,7 @@ struct
       let te2 = Cilfacade.typeOf e2 in
       let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
       let is_safe = (extra_is_safe || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
-      M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
+      if M.tracing then M.tracel "cast" "remove cast on both sides for %a? -> %b" d_exp exp is_safe;
       if is_safe then ( (* we can ignore the casts if the casts can't change the value *)
         let e1 = if isArithmeticType te1 then c1 else e1 in
         let e2 = if isArithmeticType te2 then c2 else e2 in
@@ -772,7 +772,7 @@ struct
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv ~ctx st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) ->
-        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
+        (match str with Some x -> if M.tracing then M.tracel "casto" "CInt (%s, %a, %s)" (Z.to_string num) d_ikind ikind x | None -> ());
         Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) && num = 0.0 -> Float (FD.of_const fkind num) (* constant 0 is ok, CIL creates these for zero-initializers; it is safe across float types *)
@@ -918,7 +918,7 @@ struct
     | (Var v, ofs) -> get ~ctx st (eval_lv ~ctx st (Var v, ofs)) (Some exp)
     (* | Lval (Mem e, ofs) -> get ~ctx st (eval_lv ~ctx (Mem e, ofs)) *)
     | (Mem e, ofs) ->
-      (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+      (*if M.tracing then M.tracel "cast" "Deref: lval: %a" d_plainlval lv;*)
       let rec contains_vla (t:typ) = match t with
         | TPtr (t, _) -> contains_vla t
         | TArray(t, None, args) -> true
@@ -1935,7 +1935,7 @@ struct
     if M.tracing && exps <> [] then (
       let addrs = List.map (Tuple3.first) invalids' in
       let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+      if M.tracing then M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
     set_many ~ctx st invalids'
 
