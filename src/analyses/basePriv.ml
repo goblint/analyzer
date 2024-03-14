@@ -304,7 +304,7 @@ struct
       in
       let variable = LockDomain.Addr.show m' ^ "_locked" in (* TODO: valid C name *)
       let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
-      Invariant.(inv || of_exp (Lval (GoblintCil.var var))) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+      Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
     | g -> (* global *)
       invariant_global ask getg g
 
@@ -804,7 +804,7 @@ struct
       Q.AD.fold (fun m acc ->
           let variable = LockDomain.Addr.show m ^ "_locked" in (* TODO: valid C name *)
           let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
-          Invariant.(acc || of_exp (Lval (GoblintCil.var var))) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          Invariant.(of_exp (Lval (GoblintCil.var var)) || acc) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
         ) locks inv
 
   let invariant_vars ask getg st = protected_vars ask

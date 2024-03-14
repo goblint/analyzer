@@ -1249,7 +1249,7 @@ struct
         else (
           let variable = "multithreaded" in
           let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
-          Invariant.(inv || of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType))) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
         )
       | `Right _ -> (* thread return *)
         Invariant.none
