@@ -329,8 +329,11 @@ struct
     in
     if not invariant then (
       if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
-      sideg (V.global x) (CPA.singleton x v)
-      (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
+      let side_cpa = CPA.singleton x v in
+      sideg (V.global x) side_cpa;
+      if !earlyglobs && not (ThreadFlag.is_currently_multi ask) then
+        sideg V.mutex_inits side_cpa (* Also side to inits because with earlyglobs enter_multithreaded does not side everything to inits *)
+        (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
     );
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
