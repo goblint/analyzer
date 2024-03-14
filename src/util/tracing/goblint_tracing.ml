@@ -39,7 +39,7 @@ let traceTag (sys : string) : Pretty.doc =
   (text ((ind !indent_level) ^ "%%% " ^ sys ^ ": "))
 
 let printtrace sys d: unit =
-  fprint stderr ~width:max_int ((traceTag sys) ++ d);
+  fprint stderr ~width:max_int ((traceTag sys) ++ d ++ line);
   flush stderr
 
 let gtrace always f sys var ?loc do_subsys fmt =
