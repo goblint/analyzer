@@ -1447,7 +1447,7 @@ struct
    * precise information about arrays. *)
   let set ~(ctx: _ ctx) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
-      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n" x.vname VD.pretty y CPA.pretty z;
+      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x t y z in (* refers to defintion that is outside of set *)
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
@@ -1492,7 +1492,7 @@ struct
         else
           new_value
       in
-      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n" AD.pretty (AD.of_mval (x,offs)) d_type x.vtype D.pretty st;
+      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a" AD.pretty (AD.of_mval (x,offs)) d_type x.vtype D.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: returning: '%a' is a function type " d_type x.vtype;
         st
@@ -1517,7 +1517,7 @@ struct
         let new_value = update_offset old_value in
         if M.tracing then M.tracel "set" "update_offset %a -> %a" VD.pretty old_value VD.pretty new_value;
         let r = Priv.write_global ~invariant ask priv_getg (priv_sideg ctx.sideg) st x new_value in
-        if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n" x.vname D.pretty r;
+        if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a" x.vname D.pretty r;
         r
       end else begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a local var '%s' ..." x.vname;
@@ -2675,7 +2675,7 @@ struct
               begin
                 let address = AD.singleton addr in
                 let new_val = get ~ctx fun_st address None in
-                if M.tracing then M.trace "taintPC" "update val: %a\n" VD.pretty new_val;
+                if M.tracing then M.trace "taintPC" "update val: %a" VD.pretty new_val;
                 let st' = set_savetop ~ctx st address lval_type new_val in
                 match Dep.find_opt v fun_st.deps with
                 | None -> st'

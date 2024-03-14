@@ -165,7 +165,7 @@ struct
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n" d_lval x GobZ.pretty n;
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
@@ -180,7 +180,7 @@ struct
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n" d_lval x GobZ.pretty n;
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
@@ -189,7 +189,7 @@ struct
       | Gt, x, value, _ -> helper Le x value (not tv)
       | Ge, x, value, _ -> helper Lt x value (not tv)
       | _ ->
-        if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n";
+        if M.tracing then M.trace "invariant" "Failed! (operation not supported)";
         None
     in
     if M.tracing then M.traceli "invariant" "assume expression %a is %B" d_exp exp tv;
@@ -227,7 +227,7 @@ struct
         helper Ne x (null_val (Cilfacade.typeOf exp)) tv
       | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
       | _ ->
-        if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n" d_plainexp exp;
+        if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)" d_plainexp exp;
         None
     in
     match derived_invariant exp tv with
@@ -513,7 +513,7 @@ struct
                 else
                   b
               | _ -> b) in
-          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
+          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a)" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
           meet_bin a' b'
         | Eq | Ne as op ->
           let both x = x, x in

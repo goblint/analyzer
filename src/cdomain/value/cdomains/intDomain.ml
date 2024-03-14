@@ -3059,7 +3059,7 @@ struct
   let add ?no_ov ik x y =
     let res = add ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "add : %a %a -> %a \n" pretty x pretty y
+      M.trace "congruence" "add : %a %a -> %a" pretty x pretty y
         pretty res ;
     res
 
@@ -3069,7 +3069,7 @@ struct
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "sub : %a %a -> %a \n" pretty x pretty y
+      M.trace "congruence" "sub : %a %a -> %a" pretty x pretty y
         pretty res ;
     res
 
@@ -3141,7 +3141,7 @@ struct
   let div ?no_ov ik x y =
     let res = div ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "div : %a %a -> %a \n" pretty x pretty y pretty
+      M.trace "congruence" "div : %a %a -> %a" pretty x pretty y pretty
         res ;
     res
 

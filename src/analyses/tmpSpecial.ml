@@ -76,7 +76,7 @@ struct
 
     in
 
-    if M.tracing then M.tracel "tmpSpecial" "Result: %a\n" D.pretty d;
+    if M.tracing then M.tracel "tmpSpecial" "Result: %a" D.pretty d;
     d
 
 

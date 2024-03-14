@@ -331,7 +331,7 @@ struct
 
   let wrap_get f x =
     (* self-observe options, which Spec construction depends on *)
-    if !building_spec && Goblint_tracing.tracing then Goblint_tracing.trace "config" "get during building_spec: %s\n" x;
+    if !building_spec && Goblint_tracing.tracing then Goblint_tracing.trace "config" "get during building_spec: %s" x;
     (* TODO: blacklist such building_spec option from server mode modification since it will have no effect (spec is already built) *)
     f x
 

@@ -306,7 +306,7 @@ struct
     in
     if M.tracing then (
       let module Result = (val Queries.Result.lattice q) in
-      M.traceu "query" "-> %a\n" Result.pretty r
+      M.traceu "query" "-> %a" Result.pretty r
     );
     r
 

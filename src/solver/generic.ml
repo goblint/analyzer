@@ -45,7 +45,7 @@ struct
   let increase (v:Var.t) =
     let set v c =
       if not full_trace && (c > start_c && c > !max_c && (Option.is_none !max_var || not (Var.equal (Option.get !max_var) v))) then begin
-        if tracing then trace "sol" "Switched tracing to %a\n" Var.pretty_trace v;
+        if tracing then trace "sol" "Switched tracing to %a" Var.pretty_trace v;
         max_c := c;
         max_var := Some v
       end
@@ -63,21 +63,21 @@ struct
 
   let new_var_event x =
     incr SolverStats.vars;
-    if tracing then trace "sol" "New %a\n" Var.pretty_trace x
+    if tracing then trace "sol" "New %a" Var.pretty_trace x
 
   let get_var_event x =
-    if full_trace then trace "sol" "Querying %a\n" Var.pretty_trace x
+    if full_trace then trace "sol" "Querying %a" Var.pretty_trace x
 
   let eval_rhs_event x =
-    if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
+    if full_trace then trace "sol" "(Re-)evaluating %a" Var.pretty_trace x;
     incr SolverStats.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; Logs.debug "%d" !stack_d)
 
   let update_var_event x o n =
     if tracing then increase x;
     if full_trace || ((not (Dom.is_bot o)) && Option.is_some !max_var && Var.equal (Option.get !max_var) x) then begin
-      if tracing then tracei "sol_max" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
-      if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
+      if tracing then tracei "sol_max" "(%d) Update to %a" !max_c Var.pretty_trace x;
+      if tracing then traceu "sol_max" "%a" Dom.pretty_diff (n, o)
     end
 
   (* solvers can assign this to print solver specific statistics using their data structures *)
@@ -296,7 +296,7 @@ module SoundBoxSolverImpl =
           H.remove infl x;
           H.replace infl x [x];
           if full_trace
-          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: trace-not-in-tracing *)
+          then Messages.trace "sol" "Need to review %d deps." (List.length deps); (* nosemgrep: trace-not-in-tracing *)
           (* solve all dependencies *)
           solve_all deps
         end

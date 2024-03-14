@@ -107,9 +107,9 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   if Messages.tracing then (
     List.iter (fun scc ->
         let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
-        Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
+        Messages.trace "cfg" "SCC: %a" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
         NH.iter (fun node _ ->
-            Messages.trace "cfg" "SCC entry: %s\n" (Node.show_id node)
+            Messages.trace "cfg" "SCC entry: %s" (Node.show_id node)
           ) scc.prev
       ) sccs
   );
@@ -148,7 +148,7 @@ let createCFG (file: file) =
      which do not otherwise appear in the control flow graph. *)
   let skippedByEdge = CfgEdgeH.create 113 in
 
-  if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n";
+  if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.";
 
   let fd_nodes = NH.create 113 in
 
@@ -163,7 +163,7 @@ let createCFG (file: file) =
     H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
     H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
     CfgEdgeH.replace skippedByEdge (fromNode, edges, toNode) skippedStatements;
-    if Messages.tracing then Messages.trace "cfg" "done\n"
+    if Messages.tracing then Messages.trace "cfg" "done"
   in
   let addEdge ?skippedStatements fromNode edge toNode =
     addEdges ?skippedStatements fromNode [edge] toNode
@@ -184,7 +184,7 @@ let createCFG (file: file) =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d" not_found stmt.sid;
     let rec find visited_stmts stmt =
       if Messages.tracing then
-        Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n"
+        Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a"
           (d_list "; " (fun () x -> Pretty.text (string_of_int x)))
           (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
       if
@@ -468,7 +468,7 @@ let createCFG (file: file) =
           raise (Not_connect fd)
       | _ -> ()
     );
-  if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n";
+  if Messages.tracing then Messages.trace "cfg" "CFG building finished.";
   Logs.debug "cfgF (%a), cfgB (%a)" GobHashtbl.pretty_statistics (NH.stats cfgF) GobHashtbl.pretty_statistics (NH.stats cfgB);
   cfgF, cfgB, skippedByEdge
 
