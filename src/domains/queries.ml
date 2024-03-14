@@ -117,6 +117,7 @@ type _ t =
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
+  | MustProtectingLocks: CilType.Varinfo.t -> AD.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -187,6 +188,7 @@ struct
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
+    | MustProtectingLocks _ -> (module AD)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
@@ -256,6 +258,7 @@ struct
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
+    | MustProtectingLocks _ -> AD.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
@@ -334,6 +337,7 @@ struct
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
     | Any (YamlEntryGlobal _) -> 58
+    | Any (MustProtectingLocks _) -> 59
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -385,6 +389,7 @@ struct
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
+      | Any (MustProtectingLocks g1), Any (MustProtectingLocks g2) -> CilType.Varinfo.compare g1 g2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
@@ -427,6 +432,7 @@ struct
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (YamlEntryGlobal (vi, task)) -> Hashtbl.hash vi (* TODO: hash task *)
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
+    | Any (MustProtectingLocks g) -> CilType.Varinfo.hash g
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
@@ -478,6 +484,7 @@ struct
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
     | Any ThreadsJoinedCleanly -> Pretty.dprintf "ThreadsJoinedCleanly"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
+    | Any (MustProtectingLocks g) -> Pretty.dprintf "MustProtectingLocks _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
