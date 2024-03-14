@@ -294,12 +294,15 @@ module PerMutexMeetPrivBase =
 struct
   include PerMutexPrivBase
 
-  let invariant_global ask getg = function
+  let invariant_global (ask: Q.ask) getg = function
     | `Left m' as m -> (* mutex *)
       let cpa = getg m in
       let inv = CPA.fold (fun v _ acc ->
-          let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
-          Invariant.(acc && inv)
+          if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
+            let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
+            Invariant.(acc && inv)
+          else
+            acc
         ) cpa Invariant.none
       in
       let variable = LockDomain.Addr.show m' ^ "_locked" in (* TODO: valid C name *)
