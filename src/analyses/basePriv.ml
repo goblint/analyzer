@@ -799,11 +799,11 @@ struct
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
     | `Right g' -> (* protected *)
-      let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
       let locks = ask.f (Q.MustProtectingLocks g') in
-      if Q.AD.is_top locks then
+      if Q.AD.is_top locks || Q.AD.is_empty locks then
         Invariant.none
       else (
+        let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
         Q.AD.fold (fun m acc ->
             let variable = LockDomain.Addr.show m ^ "_locked" in (* TODO: valid C name *)
             let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
