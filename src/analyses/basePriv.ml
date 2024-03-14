@@ -42,7 +42,7 @@ sig
   val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
   val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseComponents (D).t -> BaseComponents (D).t
 
-  val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t
+  val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
   val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
 
   val init: unit -> unit
@@ -131,7 +131,7 @@ struct
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
-  let invariant_global getg g =
+  let invariant_global ask getg g =
     ValueDomain.invariant_global getg g
 
   let invariant_vars ask getg st = []
@@ -211,7 +211,7 @@ struct
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
-  let invariant_global getg = function
+  let invariant_global ask getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g'
     | _ -> (* mutex *)
@@ -621,7 +621,7 @@ struct
     let get_mutex_inits' = CPA.find x get_mutex_inits in
     VD.join get_mutex_global_x' get_mutex_inits'
 
-  let invariant_global getg = function
+  let invariant_global ask getg = function
     | `Middle  g -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g
     | `Left _
@@ -777,7 +777,7 @@ struct
       vf (V.protected g);
     | _ -> ()
 
-  let invariant_global getg g =
+  let invariant_global ask getg g =
     match g with
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
@@ -841,7 +841,7 @@ struct
 
   open Locksets
 
-  let invariant_global getg = function
+  let invariant_global ask getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (fun x ->
           GWeak.fold (fun s' tm acc ->
@@ -1633,7 +1633,7 @@ struct
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
   let threadspawn ask get set st = time "threadspawn" (Priv.threadspawn ask get set) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
-  let invariant_global getg v = time "invariant_global" (Priv.invariant_global getg) v
+  let invariant_global ask getg v = time "invariant_global" (Priv.invariant_global ask getg) v
   let invariant_vars ask getg st = time "invariant_vars" (Priv.invariant_vars ask getg) st
 
   let thread_join ?(force=false) ask get e st = time "thread_join" (Priv.thread_join ~force ask get e) st
