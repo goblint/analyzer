@@ -25,7 +25,7 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    if M.tracing then M.tracel "tmpSpecial" "assignment of %a\n" d_lval lval;
+    if M.tracing then M.tracel "tmpSpecial" "assignment of %a" d_lval lval;
     (* Invalidate all entrys from the map that are possibly written by the assignment *)
     invalidate (Analyses.ask_of_ctx ctx) (mkAddrOf lval) ctx.local
 
@@ -44,8 +44,8 @@ struct
     (* Just dbg prints *)
     (if M.tracing then
        match lval with
-       | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with lval %a\n" f.vname d_lval lv
-       | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s\n" f.vname);
+       | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with lval %a" f.vname d_lval lv
+       | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s" f.vname);
 
 
     let desc = LibraryFunctions.find f in
@@ -76,7 +76,7 @@ struct
 
     in
 
-    if M.tracing then M.tracel "tmpSpecial" "Result: %a\n\n" D.pretty d;
+    if M.tracing then M.tracel "tmpSpecial" "Result: %a\n" D.pretty d;
     d
 
 

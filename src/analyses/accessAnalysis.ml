@@ -32,7 +32,7 @@ struct
     emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
-    if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
+    if M.tracing then M.trace "access" "do_access %a %a %B" d_exp e AccessKind.pretty kind reach;
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
     let ad = ctx.ask reach_or_mpt in
     ctx.emit (Access {exp=e; ad; kind; reach})
@@ -42,15 +42,15 @@ struct
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)\n" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
+    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
       if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
         do_access ctx kind reach exp;
-      if M.tracing then M.tracei "access" "distribute_access_exp\n";
+      if M.tracing then M.tracei "access" "distribute_access_exp";
       Access.distribute_access_exp (do_access ctx Read false) exp;
-      if M.tracing then M.traceu "access" "distribute_access_exp\n";
+      if M.tracing then M.traceu "access" "distribute_access_exp";
     );
-    if M.tracing then M.traceu "access" "access_one_top\n"
+    if M.tracing then M.traceu "access" "access_one_top"
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()

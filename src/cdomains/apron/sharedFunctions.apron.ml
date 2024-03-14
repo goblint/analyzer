@@ -129,7 +129,7 @@ struct
             match Bounds.bound_texpr d texpr1 with
             | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 -> ()
             | min_opt, max_opt ->
-              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
+              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
               raise (Unsupported_CilExp Overflow)
           );
           expr
@@ -335,7 +335,7 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "relation" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
+      if M.tracing then M.trace "relation" "eval_int: exp_is_cons %a = %B" d_plainexp e (exp_is_cons e);
       if exp_is_cons e then
         match check_assert d e no_ov with
         | `True -> ID.of_bool ik true

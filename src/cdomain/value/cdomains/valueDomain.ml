@@ -857,7 +857,7 @@ struct
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
-      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
+      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
       let r =
         match x, offs with
         | Blob((va, _, orig) as c), `Index (_, ox) ->
@@ -922,7 +922,7 @@ struct
               | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
             end
       in
-      if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a\n" pretty r;
+      if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a" pretty r;
       r
     in
     let l, o = match exp with
@@ -933,7 +933,7 @@ struct
 
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
       let r =
         match x, offs with
@@ -1108,7 +1108,7 @@ struct
               end
           in mu result
       in
-      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a\n" pretty r;
+      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a" pretty r;
       r
     in
     let l, o = match exp with

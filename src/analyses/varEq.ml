@@ -307,7 +307,7 @@ struct
           else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
     *)
-    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B" CilType.Exp.pretty b CilType.Exp.pretty a r;
     r
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -459,7 +459,7 @@ struct
 
   let remove_reachable ~deep ask es st =
     let rs = reachables ~deep ask es in
-    if M.tracing then M.tracel "var_eq" "remove_reachable %a: %a\n" (Pretty.d_list ", " d_exp) es AD.pretty rs;
+    if M.tracing then M.tracel "var_eq" "remove_reachable %a: %a" (Pretty.d_list ", " d_exp) es AD.pretty rs;
     (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
        each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
        It is unknown, why that was necessary. *)
@@ -516,7 +516,7 @@ struct
       D.B.fold add es (Queries.ES.empty ())
 
   let rec eq_set_clos e s =
-    if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
+    if M.tracing then M.traceli "var_eq" "eq_set_clos %a" d_plainexp e;
     let r = match e with
       | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
         (* convert IndexPI to Index offset *)
@@ -552,7 +552,7 @@ struct
       | CastE (t,e) ->
         Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
     in
-    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a" d_plainexp e Queries.ES.pretty r;
     r
 
 
@@ -562,7 +562,7 @@ struct
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a" d_plainexp e Queries.ES.pretty r;
       r
     | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
       let scope = Node.find_fundec ctx.node in

@@ -55,7 +55,7 @@ struct
     with Lattice.Uncomparable -> old_val
 
   let refine_lv_fallback ctx st lval value tv =
-    if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+    if M.tracing then M.tracec "invariant" "Restricting %a with %a" d_lval lval VD.pretty value;
     let addr = eval_lv ~ctx st lval in
     if (AD.is_top addr) then st
     else
@@ -73,10 +73,10 @@ struct
       let state_with_excluded = set st addr t_lval value ~ctx in
       let value =  get ~ctx state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
-      if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
+      if M.tracing then M.traceu "invariant" "New value is %a" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
       if is_some_bot new_val then (
-        if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
+        if M.tracing then M.tracel "branch" "C The branch %B is dead!" tv;
         contra st
       )
       else if VD.is_bot new_val
@@ -95,9 +95,9 @@ struct
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
-        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" CilType.Varinfo.pretty var VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)" CilType.Varinfo.pretty var VD.pretty old_val VD.pretty v pretty c VD.pretty c';
         let r = set' (Var var,NoOffset) v st in
-        if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
+        if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )
     | Var _, _
@@ -108,7 +108,7 @@ struct
       let v = apply_invariant ~old_val ~new_val:c' in
       if is_some_bot v then contra st
       else (
-        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
         set' x v st
       )
 
@@ -119,7 +119,7 @@ struct
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
-        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
+        if M.tracing then M.tracec "invariant" "Yes, %a equals %a" d_lval x VD.pretty value;
         (match value with
          | Int n ->
            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
@@ -132,27 +132,27 @@ struct
               match ID.to_int n with
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
-                if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x GobZ.pretty n;
+                if M.tracing then M.tracec "invariant" "Yes, %a is not %a" d_lval x GobZ.pretty n;
                 let ikind = Cilfacade.get_ikind_exp (Lval lval) in
                 Some (x, Int (ID.of_excl_list ikind [n]))
               | None -> None
             end
           | Address n -> begin
-              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
+              if M.tracing then M.tracec "invariant" "Yes, %a is not %a" d_lval x AD.pretty n;
               match eval_rv_address ~ctx st (Lval x) with
               | Address a when AD.is_definite n ->
                 Some (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
                 Some (x, Address AD.not_null)
               | v ->
-                if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pretty v AD.pretty n;
+                if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a" VD.pretty v AD.pretty n;
                 None
             end
           (* | Address a -> Some (x, value) *)
           | _ ->
             (* We can't say anything else, exclusion sets are finite, so not
              * being in one means an infinite number of values *)
-            if M.tracing then M.tracec "invariant" "Failed! (not a definite value)\n";
+            if M.tracing then M.tracec "invariant" "Failed! (not a definite value)";
             None
         end
       | Ne, x, value, _ -> helper Eq x value (not tv)
@@ -165,7 +165,7 @@ struct
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
@@ -180,7 +180,7 @@ struct
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n" d_lval x GobZ.pretty n;
                 Some (x, Int (range_from n))
               | None -> None
             end
@@ -189,10 +189,10 @@ struct
       | Gt, x, value, _ -> helper Le x value (not tv)
       | Ge, x, value, _ -> helper Lt x value (not tv)
       | _ ->
-        if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n\n";
+        if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n";
         None
     in
-    if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" d_exp exp tv;
+    if M.tracing then M.traceli "invariant" "assume expression %a is %B" d_exp exp tv;
     let null_val (typ:typ):VD.t =
       match Cil.unrollType typ with
       | TPtr _                    -> Address AD.null_ptr
@@ -227,20 +227,20 @@ struct
         helper Ne x (null_val (Cilfacade.typeOf exp)) tv
       | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
       | _ ->
-        if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" d_plainexp exp;
+        if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n" d_plainexp exp;
         None
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
       refine_lv_fallback ctx st lval value tv
     | None ->
-      if M.tracing then M.traceu "invariant" "Doing nothing.\n";
+      if M.tracing then M.traceu "invariant" "Doing nothing.";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
 
   let invariant ctx st exp tv: D.t =
     let fallback reason st =
-      if M.tracing then M.tracel "inv" "Can't handle %a.\n%t\n" d_plainexp exp reason;
+      if M.tracing then M.tracel "inv" "Can't handle %a.\n%t" d_plainexp exp reason;
       invariant_fallback ctx st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
@@ -368,14 +368,14 @@ struct
             in
             let a' = excl b a in
             let b' = excl a b in
-            if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
+            if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
             meet_bin a' b'
           | _, _ -> a, b
         end
       | Lt | Le | Ge | Gt as op ->
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
          | Some l1, Some u1, Some l2, Some u2 ->
-           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
+           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld" (show_binop op) l1 u1 l2 u2; *)
            (* TODO: This causes inconsistent results:
               def_exc and interval in conflict:
                 binop m < 0 with (Not {-1}([-31,31]),[-1,0]) < (0,[0,0]) == (1,[1,1])
@@ -392,7 +392,7 @@ struct
             | _, _ -> a, b)
          | _ -> a, b)
       | BOr | BXor as op->
-        if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
+        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         a, b
       | LAnd ->
@@ -408,12 +408,12 @@ struct
             (match ID.to_bool c with
              | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
              | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
-             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a\n" d_binop op ID.pretty c; a)
-          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a\n" d_binop op ID.pretty b ID.pretty c; a
+             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a" d_binop op ID.pretty c; a)
+          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a" d_binop op ID.pretty b ID.pretty c; a
         in
         a, b
       | op ->
-        if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
+        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
         a, b
     in
     let inv_bin_float (a, b) c op =
@@ -513,7 +513,7 @@ struct
                 else
                   b
               | _ -> b) in
-          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n\n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
+          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
           meet_bin a' b'
         | Eq | Ne as op ->
           let both x = x, x in
@@ -541,7 +541,7 @@ struct
               | _, _ -> a, b)
            | _ -> a, b)
         | op ->
-          if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
+          if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
           a, b
       with FloatDomain.ArithmeticOnFloatBot _ -> raise Analyses.Deadcode
     in
@@ -672,20 +672,20 @@ struct
         | (BinOp (op, e1, e2, _) as e, Float _)
         | (BinOp (op, e1, e2, _) as e, Int _) ->
           let invert_binary_op c pretty c_int c_float =
-            if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) pretty c;
+            if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) pretty c;
             (match eval e1 st, eval e2 st with
              | Int a, Int b ->
                let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
                let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
                let a', b' = inv_bin_int (a, b) ikind (c_int ikres) op in
-               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
+               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
                let st' = inv_exp (Int a') e1 st in
                let st'' = inv_exp (Int b') e2 st' in
                st''
              | Float a, Float b ->
                let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
                let a', b' = inv_bin_float (a, b) (c_float fkind) op in
-               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e FD.pretty (c_float fkind) FD.pretty a' FD.pretty b';
+               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a" d_exp e FD.pretty (c_float fkind) FD.pretty a' FD.pretty b';
                let st' = inv_exp (Float a') e1 st in
                let st'' = inv_exp (Float b') e2 st' in
                st''
@@ -701,7 +701,7 @@ struct
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
           let update_lval c x c' pretty = refine_lv ctx st c x c' pretty exp in
           let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
-          if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a\n" d_lval x VD.pretty c_typed d_type t;
+          if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a" d_lval x VD.pretty c_typed d_type t;
           begin match c_typed with
             | Int c ->
               let c' = match t with
@@ -715,7 +715,7 @@ struct
               begin match x, t with
                 | (Var v, offs), TInt (ik, _) ->
                   let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a" Queries.ML.pretty tmpSpecial;
                   begin match tmpSpecial with
                     | `Lifted (Abs (ik, xInt)) ->
                       let c' = ID.cast_to ik c in (* different ik! *)
@@ -753,7 +753,7 @@ struct
               begin match x, t with
                 | (Var v, offs), TFloat (fk, _) ->
                   let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty tmpSpecial;
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a" Queries.ML.pretty tmpSpecial;
                   begin match tmpSpecial with
                     | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
                     | `Lifted (Floor (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
@@ -792,7 +792,7 @@ struct
                | TEnum ({ekind = ik_e; _ }, _) ->
                  (* let c' = ID.cast_to ik_e c in *)
                  let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
-                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                  inv_exp (Int c') e st
                | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
              else

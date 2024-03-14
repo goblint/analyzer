@@ -221,16 +221,16 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
-      if M.tracing then M.tracei "witness" "IterPrevVars\n";
+      if M.tracing then M.tracei "witness" "IterPrevVars";
       Dom.iter (fun x r ->
-          if M.tracing then M.tracei "witness" "x = %a\n" Spec.D.pretty x;
+          if M.tracing then M.tracei "witness" "x = %a" Spec.D.pretty x;
           R.iter (function ((n, c, j), e) ->
-              if M.tracing then M.tracec "witness" "n = %a\n" Node.pretty_plain n;
-              if M.tracing then M.tracec "witness" "c = %a\n" Spec.C.pretty c;
-              if M.tracing then M.tracec "witness" "j = %a\n" Spec.D.pretty j;
+              if M.tracing then M.tracec "witness" "n = %a" Node.pretty_plain n;
+              if M.tracing then M.tracec "witness" "c = %a" Spec.C.pretty c;
+              if M.tracing then M.tracec "witness" "j = %a" Spec.D.pretty j;
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r;
-          if M.tracing then M.traceu "witness" "\n"
+          if M.tracing then M.traceu "witness" ""
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
@@ -239,7 +239,7 @@ struct
            | Function _ -> () (* returns post-sync in FromSpec *)
            | _ -> assert (Sync.is_bot (snd ctx.local));
          end; *)
-      if M.tracing then M.traceu "witness" "\n";
+      if M.tracing then M.traceu "witness" "";
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->

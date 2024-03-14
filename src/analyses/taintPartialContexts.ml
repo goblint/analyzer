@@ -40,7 +40,7 @@ struct
             | _ -> false
           ) d
     in
-    if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a\n" f.svar.vname D.pretty d D.pretty d_return;
+    if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a" f.svar.vname D.pretty d D.pretty d_return;
     d_return
 
 
@@ -49,7 +49,7 @@ struct
     [ctx.local, (D.bot ())]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a\n" f.svar.vname D.pretty au D.pretty ctx.local;
+    if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a" f.svar.vname D.pretty au D.pretty ctx.local;
     D.union ctx.local au
 
   let combine_assign ctx (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =

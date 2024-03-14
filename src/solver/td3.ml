@@ -410,9 +410,9 @@ module Base =
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let widen a b =
-          if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+          if M.tracing then M.traceli "sol2" "side widen %a %a" S.Dom.pretty a S.Dom.pretty b;
           let r = S.Dom.widen a (S.Dom.join a b) in
-          if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+          if M.tracing then M.traceu "sol2" "-> %a" S.Dom.pretty r;
           r
         in
         let old_sides = HM.find_default sides y VS.empty in
@@ -1120,7 +1120,7 @@ module DepVals: GenericEqIncrSolver =
             in
             match all_deps_unchanged with
             | Some oldv ->
-              if M.tracing then M.trace "sol2" "All deps unchanged for %a, not evaluating RHS\n" S.Var.pretty_trace x;
+              if M.tracing then M.trace "sol2" "All deps unchanged for %a, not evaluating RHS" S.Var.pretty_trace x;
               oldv
             | None ->
               (* This needs to be done here as a local wrapper around get to avoid polluting dep_vals during earlier checks *)

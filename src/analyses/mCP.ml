@@ -206,16 +206,16 @@ struct
           let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
           n, repr @@ S.event ctx' e octx'
         in
-        if M.tracing then M.traceli "event" "%a\n  before: %a\n" Events.pretty e D.pretty ctx.local;
+        if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pretty e D.pretty ctx.local;
         let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
-        if M.tracing then M.traceu "event" "%a\n  after:%a\n" Events.pretty e D.pretty d;
+        if M.tracing then M.traceu "event" "%a\n  after:%a" Events.pretty e D.pretty d;
         do_sideg ctx !sides;
         do_spawns ctx !spawns;
         do_splits ctx d !splits !emits;
         let d = do_emits ctx !emits d q in
         if q then raise Deadcode else ctx_with_local ctx d
     in
-    if M.tracing then M.traceli "event" "do_emits:\n";
+    if M.tracing then M.traceli "event" "do_emits:";
     let emits =
       if dead then
         List.filter Events.emit_on_deadcode emits
@@ -224,7 +224,7 @@ struct
     in
     (* [emits] is in reverse order. *)
     let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) (List.rev emits) in
-    if M.tracing then M.traceu "event" "\n";
+    if M.tracing then M.traceu "event" "";
     ctx'.local
 
   and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
@@ -247,15 +247,15 @@ struct
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
     let anyq = Queries.Any q in
-    if M.tracing then M.traceli "query" "query %a\n" Queries.Any.pretty anyq;
+    if M.tracing then M.traceli "query" "query %a" Queries.Any.pretty anyq;
     let r = match Queries.Hashtbl.find_option querycache anyq with
       | Some r ->
-        if M.tracing then M.trace "query" "cached\n";
+        if M.tracing then M.trace "query" "cached";
         Obj.obj r
       | None ->
         let module Result = (val Queries.Result.lattice q) in
         if Queries.Set.mem anyq asked then (
-          if M.tracing then M.trace "query" "cycle\n";
+          if M.tracing then M.trace "query" "cycle";
           Result.top () (* query cycle *)
         )
         else

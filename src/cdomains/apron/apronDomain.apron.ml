@@ -279,10 +279,10 @@ struct
   let assign_exp_with nd v e no_ov =
     match Convert.texpr1_of_cil_exp nd (A.env nd) e (Lazy.force no_ov) with
     | texpr1 ->
-      if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
+      if M.tracing then M.trace "apron" "assign_exp converted: %s" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
-      if M.tracing then M.trace "apron" "assign_exp unsupported\n";
+      if M.tracing then M.trace "apron" "assign_exp unsupported";
       forget_vars_with nd [v]
 
   let assign_exp_parallel_with nd ves no_ov =
@@ -548,13 +548,13 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate no_ov with
         | tcons1 ->
-          if M.tracing then M.trace "apron" "assert_cons %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
-          if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pretty d;
+          if M.tracing then M.trace "apron" "assert_cons %a %s" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_cons st: %a" D.pretty d;
           let r = meet_tcons d tcons1 e in
-          if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pretty r;
+          if M.tracing then M.trace "apron" "assert_cons r: %a" D.pretty r;
           r
         | exception Convert.Unsupported_CilExp reason ->
-          if M.tracing then M.trace "apron" "assert_cons %a unsupported: %s\n" d_exp e (SharedFunctions.show_unsupported_cilExp reason);
+          if M.tracing then M.trace "apron" "assert_cons %a unsupported: %s" d_exp e (SharedFunctions.show_unsupported_cilExp reason);
           d
       end
 
@@ -603,7 +603,7 @@ struct
 
   let strengthening j x y =
     (* TODO: optimize strengthening *)
-    if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
+    if M.tracing then M.traceli "apron" "strengthening %a" pretty j;
     let x_env = A.env x in
     let y_env = A.env y in
     let j_env = A.env j in
@@ -612,21 +612,21 @@ struct
     let x_cons = A.to_lincons_array Man.mgr x_j in
     let y_cons = A.to_lincons_array Man.mgr y_j in
     let try_add_con j con1 =
-      if M.tracing then M.tracei "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.print: Format.formatter -> Lincons1.t -> unit) con1);
+      if M.tracing then M.tracei "apron" "try_add_con %s" (Format.asprintf "%a" (Lincons1.print: Format.formatter -> Lincons1.t -> unit) con1);
       let t = meet_lincons j con1 in
       let t_x = A.change_environment Man.mgr t x_env false in
       let t_y = A.change_environment Man.mgr t y_env false in
       let leq_x = A.is_leq Man.mgr x t_x in
       let leq_y = A.is_leq Man.mgr y t_y in
-      if M.tracing then M.trace "apron" "t: %a\n" pretty t;
-      if M.tracing then M.trace "apron" "t_x (leq x %B): %a\n" leq_x pretty t_x;
-      if M.tracing then M.trace "apron" "t_y (leq y %B): %a\n" leq_y pretty t_y;
+      if M.tracing then M.trace "apron" "t: %a" pretty t;
+      if M.tracing then M.trace "apron" "t_x (leq x %B): %a" leq_x pretty t_x;
+      if M.tracing then M.trace "apron" "t_y (leq y %B): %a" leq_y pretty t_y;
       if leq_x && leq_y then (
-        if M.tracing then M.traceu "apron" "added\n";
+        if M.tracing then M.traceu "apron" "added";
         t
       )
       else (
-        if M.tracing then M.traceu "apron" "not added\n";
+        if M.tracing then M.traceu "apron" "not added";
         j
       )
     in
@@ -654,7 +654,7 @@ struct
       Array.concat [x_cons1_only_x; y_cons1_only_y; x_cons1_some_y; y_cons1_some_x]
     in
     let j = Array.fold_left try_add_con j cons1 in
-    if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+    if M.tracing then M.traceu "apron" "-> %a" pretty j;
     j
 
   let empty_env = Environment.make [||] [||]
@@ -678,16 +678,16 @@ struct
     else if is_bot y then (* TODO: also for non-empty env *)
       x
     else (
-      if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
+      if M.tracing then M.traceli "apron" "join %a %a" pretty x pretty y;
       let j = join x y in
-      if M.tracing then M.trace "apron" "j = %a\n" pretty j;
+      if M.tracing then M.trace "apron" "j = %a" pretty j;
       let j =
         if strengthening_enabled then (* TODO: skip if same envs? *)
           strengthening j x y
         else
           j
       in
-      if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+      if M.tracing then M.traceu "apron" "-> %a" pretty j;
       j
     )
 
@@ -750,10 +750,10 @@ struct
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
   let widen x y =
-    if M.tracing then M.traceli "apron" "widen %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "apron" "widen %a %a" pretty x pretty y;
     let w = widen x y in
-    if M.tracing then M.trace "apron" "widen same %B\n" (equal y w);
-    if M.tracing then M.traceu "apron" "-> %a\n" pretty w;
+    if M.tracing then M.trace "apron" "widen same %B" (equal y w);
+    if M.tracing then M.traceu "apron" "-> %a" pretty w;
     w
 
   let narrow x y =

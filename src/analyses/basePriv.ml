@@ -97,7 +97,7 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     if invariant then (
       (* Do not impose invariant, will not hold without privatization *)
-      if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
+      if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! " (not invariant);
       st
     )
     else (
@@ -113,16 +113,16 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     (* For each global variable, we create the side effect *)
     let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s" v.vname;
       let res =
         if is_global ask v then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
+          if M.tracing then M.tracec "globalize" "Publishing its value: %a" VD.pretty value;
           sideg v value;
           {st with cpa = CPA.remove v st.cpa}
         end else
           st
       in
-      if M.tracing then M.traceu "globalize" "Done!\n";
+      if M.tracing then M.traceu "globalize" "Done!";
       res
     in
     (* We fold over the local state, and side effect the globals *)
@@ -154,7 +154,7 @@ struct
     let get_mutex_inits = getg V.mutex_inits in
     let is_in_Gm x _ = is_protected_by ask m x in
     let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
-    if M.tracing then M.tracel "priv" "get_m_with_mutex_inits %a:\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits';
+    if M.tracing then M.tracel "priv" "get_m_with_mutex_inits %a:\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits';
     CPA.join get_m get_mutex_inits'
 
   (** [get_m_with_mutex_inits] optimized for implementation-specialized [read_global]. *)
@@ -178,7 +178,7 @@ struct
 
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
           sideg (V.global x) (CPA.singleton x v);
           CPA.remove x acc
         )
@@ -194,8 +194,8 @@ struct
 
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" CilType.Varinfo.pretty x;
-          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
+          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a" CilType.Varinfo.pretty x;
+          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
           sideg (V.global x) (CPA.singleton x v);
           CPA.remove x acc
         )
@@ -255,7 +255,7 @@ struct
          No other privatization uses is_unprotected, so this hack is only needed here. *)
       let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
       let cpa' = CPA.filter is_in_V get_m in
-      if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
+      if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a" LockDomain.Addr.pretty m CPA.pretty cpa';
       {st with cpa = CPA.fold CPA.add cpa' st.cpa}
     )
     else
@@ -264,7 +264,7 @@ struct
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     let side_m_cpa = CPA.filter is_in_Gm st.cpa in
-    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.unlock m=%a side_m_cpa=%a\n" LockDomain.Addr.pretty m CPA.pretty side_m_cpa;
+    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.unlock m=%a side_m_cpa=%a" LockDomain.Addr.pretty m CPA.pretty side_m_cpa;
     sideg (V.mutex m) side_m_cpa;
     st
 
@@ -318,7 +318,7 @@ struct
       CPA.find x st.cpa
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a" CilType.Varinfo.pretty x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
     v
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' =
@@ -328,7 +328,7 @@ struct
         CPA.add x v st.cpa
     in
     if not invariant then (
-      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
+      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
       sideg (V.global x) (CPA.singleton x v)
       (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
     );
@@ -346,7 +346,7 @@ struct
       let get_m = CPA.filter is_in_Gm get_m in
       let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
       let meet = long_meet st.cpa get_m in
-      if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
+      if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
       {st with cpa = meet}
     )
     else
@@ -373,12 +373,12 @@ struct
 
       let cpa' = CPA.fold (fun x v cpa ->
           if is_global ask x && is_unprotected ask x (* && not (VD.is_top v) *) then (
-            if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
+            if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
             sideg (V.global x) (CPA.singleton x v);
             CPA.remove x cpa
           )
           else (
-            if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
+            if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
             cpa
           )
         ) st.cpa st.cpa
@@ -457,7 +457,7 @@ struct
 
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ~protection:Weak ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a" CilType.Varinfo.pretty x (is_unprotected ~protection:Weak ask x) CPA.pretty st.cpa VD.pretty v;
     v
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -469,7 +469,7 @@ struct
       else
         CPA.add x v st.cpa
     in
-    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
+    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
     let digest = Digest.current ask in
     let sidev = GMutex.singleton digest (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
@@ -569,7 +569,7 @@ struct
     sideg V.mutex_inits (G.create_mutex sidev);
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
           let sidev = GMutex.singleton digest (CPA.singleton x v) in
           sideg (V.global x) (G.create_global sidev);
           CPA.remove x acc
@@ -1204,10 +1204,10 @@ struct
       else
         GWeak.find lockset_init weaks
     in
-    if M.tracing then M.trace "priv" "d_cpa: %a\n" VD.pretty d_cpa;
-    if M.tracing then M.trace "priv" "d_sync: %a\n" VD.pretty d_sync;
-    if M.tracing then M.trace "priv" "d_weak: %a\n" VD.pretty d_weak;
-    if M.tracing then M.trace "priv" "d_init: %a\n" VD.pretty d_init;
+    if M.tracing then M.trace "priv" "d_cpa: %a" VD.pretty d_cpa;
+    if M.tracing then M.trace "priv" "d_sync: %a" VD.pretty d_sync;
+    if M.tracing then M.trace "priv" "d_weak: %a" VD.pretty d_weak;
+    if M.tracing then M.trace "priv" "d_init: %a" VD.pretty d_init;
     let d_weak = VD.join d_weak d_init in
     let d = VD.join d_cpa (VD.join d_sync d_weak) in
     d
@@ -1364,9 +1364,9 @@ struct
           acc
       ) weaks (VD.bot ())
     in
-    if M.tracing then M.trace "priv" "d_cpa: %a\n" VD.pretty d_cpa;
-    if M.tracing then M.trace "priv" "d_sync: %a\n" VD.pretty d_sync;
-    if M.tracing then M.trace "priv" "d_weak: %a\n" VD.pretty d_weak;
+    if M.tracing then M.trace "priv" "d_cpa: %a" VD.pretty d_cpa;
+    if M.tracing then M.trace "priv" "d_sync: %a" VD.pretty d_sync;
+    if M.tracing then M.trace "priv" "d_weak: %a" VD.pretty d_weak;
     let d = VD.join d_cpa (VD.join d_sync d_weak) in
     d
 
@@ -1394,11 +1394,11 @@ struct
     let s = Lockset.remove m (current_lockset ask) in
     let (w, p) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
-    if M.tracing then M.traceli "priv" "unlock %a %a\n" Lock.pretty m CPA.pretty st.cpa;
+    if M.tracing then M.traceli "priv" "unlock %a %a" Lock.pretty m CPA.pretty st.cpa;
     let side_gsyncw = CPA.fold (fun x v acc ->
         if is_global ask x then (
           let w_x = W.find x w in
-          if M.tracing then M.trace "priv" "gsyncw %a %a %a\n" CilType.Varinfo.pretty x VD.pretty v MinLocksets.pretty w_x;
+          if M.tracing then M.trace "priv" "gsyncw %a %a %a" CilType.Varinfo.pretty x VD.pretty v MinLocksets.pretty w_x;
           MinLocksets.fold (fun w acc ->
               let v = distr_init getg x v in
               GSyncW.add w (CPA.add x v (GSyncW.find w acc)) acc
@@ -1407,7 +1407,7 @@ struct
           acc
       ) st.cpa (GSyncW.bot ())
     in
-    if M.tracing then M.traceu "priv" "unlock %a %a\n" Lock.pretty m GSyncW.pretty side_gsyncw;
+    if M.tracing then M.traceu "priv" "unlock %a %a" Lock.pretty m GSyncW.pretty side_gsyncw;
     sideg (V.mutex m) (G.create_sync (GSync.singleton s side_gsyncw));
     {st with priv = (w, p')}
 
@@ -1685,98 +1685,98 @@ struct
   module BaseComponents = BaseComponents (D)
 
   let read_global ask getg st x =
-    if M.tracing then M.traceli "priv" "read_global %a\n" CilType.Varinfo.pretty x;
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.traceli "priv" "read_global %a" CilType.Varinfo.pretty x;
+    if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let v = Priv.read_global ask getg st x in
-    if M.tracing then M.traceu "priv" "-> %a\n" VD.pretty v;
+    if M.tracing then M.traceu "priv" "-> %a" VD.pretty v;
     v
 
   let write_global ?invariant ask getg sideg st x v =
-    if M.tracing then M.traceli "priv" "write_global %a %a\n" CilType.Varinfo.pretty x VD.pretty v;
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.traceli "priv" "write_global %a %a" CilType.Varinfo.pretty x VD.pretty v;
+    if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = write_global ?invariant ask getg sideg st x v in
-    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    if M.tracing then M.traceu "priv" "-> %a" BaseComponents.pretty r;
     r
 
   let lock ask getg st m =
-    if M.tracing then M.traceli "priv" "lock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.traceli "priv" "lock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let r = lock ask getg st m in
-    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    if M.tracing then M.traceu "priv" "-> %a" BaseComponents.pretty r;
     r
 
   let unlock ask getg sideg st m =
-    if M.tracing then M.traceli "priv" "unlock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.traceli "priv" "unlock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = unlock ask getg sideg st m in
-    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    if M.tracing then M.traceu "priv" "-> %a" BaseComponents.pretty r;
     r
 
   let enter_multithreaded ask getg sideg st =
-    if M.tracing then M.traceli "priv" "enter_multithreaded\n";
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.traceli "priv" "enter_multithreaded";
+    if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = enter_multithreaded ask getg sideg st in
-    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    if M.tracing then M.traceu "priv" "-> %a" BaseComponents.pretty r;
     r
 
   let threadenter ask st =
-    if M.tracing then M.traceli "priv" "threadenter\n";
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.traceli "priv" "threadenter";
+    if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let r = threadenter ask st in
-    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    if M.tracing then M.traceu "priv" "-> %a" BaseComponents.pretty r;
     r
 
   let sync ask getg sideg st reason =
-    if M.tracing then M.traceli "priv" "sync\n";
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.traceli "priv" "sync";
+    if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = sync ask getg sideg st reason in
-    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    if M.tracing then M.traceu "priv" "-> %a" BaseComponents.pretty r;
     r
 
 end
