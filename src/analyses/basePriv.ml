@@ -294,6 +294,20 @@ module PerMutexMeetPrivBase =
 struct
   include PerMutexPrivBase
 
+  let invariant_global ask getg = function
+    | `Left m' as m -> (* mutex *)
+      let cpa = getg m in
+      let inv = CPA.fold (fun v _ acc ->
+          let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
+          Invariant.(acc && inv)
+        ) cpa Invariant.none
+      in
+      let variable = LockDomain.Addr.show m' ^ "_locked" in (* TODO: valid C name *)
+      let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
+      Invariant.(inv || of_exp (Lval (GoblintCil.var var))) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+    | g -> (* global *)
+      invariant_global ask getg g
+
   let invariant_vars ask getg (st: _ BaseDomain.basecomponents_t) =
     (* Mutex-meet local states contain precisely the protected global variables,
        so we can do fewer queries than {!protected_vars}. *)
