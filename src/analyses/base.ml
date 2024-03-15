@@ -1353,6 +1353,298 @@ struct
     if M.tracing then M.tracel "collect_graph" "Result: %a\n" Graph.pretty r;
     r
 
+
+  module AddrMap = Map.Make (Addr)
+  type value_map = VD.t AddrMap.t
+
+  let modular_glob_fun ctx v =
+    let ask = Analyses.ask_of_ctx ctx in
+    if ask.f IsModular then
+      failwith "glob fun should not be called."
+    else
+      ctx.global v
+
+  module AddrPair = Lattice.Prod (Addr) (Addr)
+  module AddrPairSet = Set.Make (AddrPair)
+
+  let collect_funargs_immediate_offset (ask: Q.ask) ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+    let value_domain_ask = Queries.to_value_domain_ask ask in
+    let do_exp e =
+      let immediately_reachable = reachable_from_value_offset value_domain_ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      [immediately_reachable]
+    in
+    List.concat_map do_exp exps
+
+  (** In the given local state, from the start state, find the addresses that correspond to the goals *)
+  let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (globals: varinfo list) (goal: AD.t) =
+    let ask = Analyses.ask_of_ctx ctx in
+
+    (* TODO: !! Pass addresses instead of params, or, alternatively, pass global variables separetely, as they should be !! *)
+    let start = List.map (Addr.of_var ~is_modular:true) params in
+    M.tracel "modular_combine" "collect_targets start: %a\ngraph: %a\n" (d_list ", " Addr.pretty) start Graph.pretty graph;
+    (* let queue = List.combine args start in *)
+    (* let queue : (Addr.t * Addr.t) Queue.t = queue |> Seq.of_list |> Queue.of_seq in mutable! *)
+    let queue = Queue.of_seq Seq.empty in
+    let visited = ref AddrPairSet.empty in
+
+
+    let dir_reachable_conc = collect_funargs_immediate_offset ask ctx.global ctx.local args in
+    let dir_reachable_abs = List.map (fun a ->
+        let r = Graph.find a graph in
+        (* if M.tracing then M.tracel "modular_combine" "For %a found %a in graph.\n" Addr.pretty a ADOffsetMap.pretty r; *)
+        r)
+        start
+    in
+    let combined = try
+        List.combine dir_reachable_conc dir_reachable_abs
+      with Invalid_argument e -> (
+          ignore @@ Pretty.printf "Lenghts differ: conc: %d, abs: %d\n" (List.length dir_reachable_conc) (List.length dir_reachable_abs);
+          ignore @@ Pretty.printf "conc: %a\n abs: %a\n, args: %a\n" (d_list ", " ADOffsetMap.pretty) dir_reachable_conc (d_list ", " ADOffsetMap.pretty) dir_reachable_abs (d_list ", " CilType.Exp.pretty) args;
+          raise (Invalid_argument e);)
+    in
+    (* Initialized with directly reachable *)
+    List.iter (fun (dir_reachable_conc, dir_reachable_abs) ->
+        ValueDomain.ADOffsetMap.iter (fun o a ->
+            let a_c = ValueDomain.ADOffsetMap.find o dir_reachable_conc in
+            AD.iter (fun a ->
+                AD.iter (fun a_c ->
+                    if not (AddrPairSet.mem (a_c, a) !visited) then begin
+                      Queue.add (a_c, a) queue;
+                      visited := AddrPairSet.add (a_c, a) !visited;
+                    end;
+                  ) a_c
+              ) a
+          ) dir_reachable_abs;
+      ) combined;
+
+    let caller_is_modular = ctx.ask IsModular in
+
+    (* Add globals *)
+    let add_global_to_queue (g: varinfo) =
+      let a_c = Addr.of_var ~is_modular:caller_is_modular g in
+      let a = Addr.of_var ~is_modular:true g in
+
+      Queue.add (a_c, a) queue;
+      visited := AddrPairSet.add (a_c, a) !visited;
+    in
+    List.iter add_global_to_queue globals;
+
+    (* M.tracel "modular_combine" "Initalized conc: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.first combined);
+       M.tracel "modular_combine" "Initalized abs: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.second combined);
+        M.tracel "modular_combine" "graph: %a\n" Graph.pretty graph; *)
+
+    while not (Queue.is_empty queue) do
+      let c, a = Queue.pop queue in
+      let dir_reachable_conc = reachable_from_address_offset ask ctx.global ctx.local (AD.singleton c) in
+      let dir_reachable_abs = Graph.find a graph in
+      ValueDomain.ADOffsetMap.iter (fun o a ->
+          let a_c = ValueDomain.ADOffsetMap.find o dir_reachable_conc in
+          AD.iter (fun a ->
+              AD.iter (fun a_c ->
+                  if not (AddrPairSet.mem (a_c, a) !visited) then begin
+                    Queue.add (a_c, a) queue;
+                    visited := AddrPairSet.add (a_c, a) !visited;
+                  end;
+                ) a_c
+            ) a
+        ) dir_reachable_abs;
+    done;
+    let pairs = !visited in
+    let concretes = AddrPairSet.to_seq pairs |> Seq.map Tuple2.first in
+    Seq.fold_left (fun acc a -> AD.join (AD.singleton a) acc) (AD.bot ()) concretes
+
+  let query ctx (type a) (q: a Q.t): a Q.result =
+    match q with
+    | Q.EvalFunvar e ->
+      eval_funvar ctx e
+    | Q.EvalJumpBuf e ->
+      begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | Address jmp_buf ->
+          if AD.mem Addr.UnknownPtr jmp_buf then
+            M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
+          begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
+            | JmpBuf (x, copied) ->
+              if copied then
+                M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
+              x
+            | Top
+            | Bot ->
+              JmpBufDomain.JmpBufSet.top ()
+            | y ->
+              M.debug ~category:Imprecise "EvalJmpBuf %a is %a, not JmpBuf." CilType.Exp.pretty e VD.pretty y;
+              JmpBufDomain.JmpBufSet.top ()
+          end
+        | _ ->
+          M.debug ~category:Imprecise "EvalJmpBuf is not Address";
+          JmpBufDomain.JmpBufSet.top ()
+      end
+    | Q.EvalInt e ->
+      let r = query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+      M.tracel "eval_int_base" "%a yields %a\n" CilType.Exp.pretty e Queries.ID.pretty r;
+      r
+    | Q.EvalMutexAttr e -> begin
+        let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
+        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | MutexAttr a -> a
+        | v -> MutexAttrDomain.top ()
+      end
+    | Q.EvalLength e -> begin
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | Address a ->
+          let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
+          let lenOf = function
+            | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
+            | _ -> None
+          in
+          let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in
+          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (Seq.append slen alen)) in
+          (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
+          `Lifted d
+        | Bot -> Queries.Result.bot q (* TODO: remove *)
+        | _ -> Queries.Result.top q
+      end
+    | Q.EvalValue e ->
+      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+    | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
+        let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
+        match p with
+        | Address a ->
+          (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
+          (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
+          if AD.exists (function
+              | Addr (v,o) -> is_not_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
+              | _ -> false) a then
+            Queries.Result.bot q
+          else (
+            (* If we need the BlobSize from the base address, then remove any offsets *)
+            let a =
+              if from_base_addr then AD.map (function
+                  | Addr (v, o) -> Addr (v, `NoOffset)
+                  | addr -> addr) a
+              else
+                a
+            in
+            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a None in
+            (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
+            (match r with
+             | Array a ->
+               (* unroll into array for Calloc calls *)
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
+                | Blob (_,s,_) -> `Lifted s
+                | _ -> Queries.Result.top q
+               )
+             | Blob (_,s,_) -> `Lifted s
+             | _ -> Queries.Result.top q)
+          )
+        | _ -> Queries.Result.top q
+      end
+    | Q.MayPointTo e -> begin
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | Address a -> a
+        | Bot -> Queries.Result.bot q (* TODO: remove *)
+        | Int i -> AD.of_int i
+        | _ -> Queries.Result.top q
+      end
+    | Q.EvalThread e -> begin
+        let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
+        match v with
+        | Thread a -> a
+        | Bot -> Queries.Result.bot q (* TODO: remove *)
+        | _ -> Queries.Result.top q
+      end
+    | Q.ReachableFrom e -> begin
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | Top -> Queries.Result.top q
+        | Bot -> Queries.Result.bot q (* TODO: remove *)
+        | Address a ->
+          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
+          let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
+          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
+          if AD.may_be_unknown a then
+            AD.add UnknownPtr addrs' (* add unknown back *)
+          else
+            addrs'
+        | Int i ->
+          begin match Cilfacade.typeOf e with
+            | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
+            | _
+            | exception Cilfacade.TypeOfError _ -> AD.empty () (* avoid unknown pointer result for non-pointer expression *)
+          end
+        | _ -> AD.empty ()
+      end
+    | Q.ReachableAddressesFrom e ->
+      begin
+        let ask = Analyses.ask_of_ctx ctx in
+        match eval_rv_address ask ctx.global ctx.local e with
+        | Address a ->
+          let reachable = reachable_vars ask [a] ctx.global ctx.local in
+          let reachable = List.fold AD.join (AD.bot ()) reachable in
+          reachable
+        | Top ->
+          Queries.Result.top q
+        | Bot
+        | _ -> (* Not an address *)
+          Queries.Result.bot q
+      end
+    | Q.ReachableUkTypes e -> begin
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | Top -> Queries.Result.top q
+        | Bot -> Queries.Result.bot q (* TODO: remove *)
+        | Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
+          Q.TS.top ()
+        | Address a ->
+          reachable_top_pointers_types ctx a
+        | _ -> Q.TS.empty ()
+      end
+    | Q.EvalStr e -> begin
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        (* exactly one string in the set (works for assignments of string constants) *)
+        | Address a when List.compare_length_with (AD.to_string a) 1 = 0 -> (* exactly one string *)
+          `Lifted (List.hd (AD.to_string a))
+        (* check if we have an array of chars that form a string *)
+        (* TODO return may-points-to-set of strings *)
+        | Address a when List.compare_length_with (AD.to_string a) 1 > 0 -> (* oh oh *)
+          M.debug "EvalStr (%a) returned %a" d_exp e AD.pretty a;
+          Queries.Result.top q
+        | Address a when List.compare_length_with (AD.to_var_may a) 1 = 0 -> (* some other address *)
+          (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
+          (* ignore @@ printf "EvalStr Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
+          begin match unrollType (Cilfacade.typeOf e) with
+            | TPtr(TInt(IChar, _), _) ->
+              let mval = List.hd (AD.to_mval a) in
+              let lval = Addr.Mval.to_cil mval in
+              (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
+               with Not_found -> Queries.Result.top q)
+            | _ -> (* what about ISChar and IUChar? *)
+              (* ignore @@ printf "Type %a\n" d_plaintype t; *)
+              Queries.Result.top q
+          end
+        | x ->
+          (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
+          Queries.Result.top q
+      end
+    | Q.EvalLval lval ->
+      let addrs = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+      addrs
+    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak ||
+                        (hasAttribute "thread" v.vattr && v.vaddrof) (* thread-local variables if they have their address taken, as one could then compare several such variables *)
+    | Q.IterSysVars (vq, vf) ->
+      let vf' x = vf (Obj.repr (V.priv x)) in
+      Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
+    | Q.Invariant context -> query_invariant ctx context
+    | Q.InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      query_invariant_global ctx g
+    | Q.BaseCPA ->
+      ctx.local.cpa
+    | Q.CollectGraph (cpa,start, goal) ->
+      collect_graph cpa start goal
+    | Q.ReachableForCallee (f, graph, args, globals, goal) ->
+      collect_targets_with_graph ctx graph args f.sformals globals goal
+    | _ -> Q.Result.top q
+
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
       CPA.add variable (VD.top_value ~varAttr:variable.vattr typ) cpa
@@ -1830,14 +2122,6 @@ struct
     let do_exp e =
       let immediately_reachable = reachable_from_value value_domain_ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ask [immediately_reachable] gs st
-    in
-    List.concat_map do_exp exps
-
-  let collect_funargs_immediate_offset (ask: Q.ask) ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
-    let value_domain_ask = Queries.to_value_domain_ask ask in
-    let do_exp e =
-      let immediately_reachable = reachable_from_value_offset value_domain_ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
-      [immediately_reachable]
     in
     List.concat_map do_exp exps
 
@@ -2751,97 +3035,6 @@ struct
     in
     combine_one ctx.local au
 
-  module AddrMap = Map.Make (Addr)
-  type value_map = VD.t AddrMap.t
-
-  let modular_glob_fun ctx v =
-    let ask = Analyses.ask_of_ctx ctx in
-    if ask.f IsModular then
-      failwith "glob fun should not be called."
-    else
-      ctx.global v
-
-  module AddrPair = Lattice.Prod (Addr) (Addr)
-  module AddrPairSet = Set.Make (AddrPair)
-
-  (** In the given local state, from the start state, find the addresses that correspond to the goals *)
-  let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (globals: varinfo list) (goal: AD.t) =
-    let ask = Analyses.ask_of_ctx ctx in
-
-    (* TODO: !! Pass addresses instead of params, or, alternatively, pass global variables separetely, as they should be !! *)
-    let start = List.map (Addr.of_var ~is_modular:true) params in
-    M.tracel "modular_combine" "collect_targets start: %a\ngraph: %a\n" (d_list ", " Addr.pretty) start Graph.pretty graph;
-    (* let queue = List.combine args start in *)
-    (* let queue : (Addr.t * Addr.t) Queue.t = queue |> Seq.of_list |> Queue.of_seq in mutable! *)
-    let queue = Queue.of_seq Seq.empty in
-    let visited = ref AddrPairSet.empty in
-
-
-    let dir_reachable_conc = collect_funargs_immediate_offset ask ctx.global ctx.local args in
-    let dir_reachable_abs = List.map (fun a ->
-        let r = Graph.find a graph in
-        (* if M.tracing then M.tracel "modular_combine" "For %a found %a in graph.\n" Addr.pretty a ADOffsetMap.pretty r; *)
-        r)
-        start
-    in
-    let combined = try
-        List.combine dir_reachable_conc dir_reachable_abs
-      with Invalid_argument e -> (
-          ignore @@ Pretty.printf "Lenghts differ: conc: %d, abs: %d\n" (List.length dir_reachable_conc) (List.length dir_reachable_abs);
-          ignore @@ Pretty.printf "conc: %a\n abs: %a\n, args: %a\n" (d_list ", " ADOffsetMap.pretty) dir_reachable_conc (d_list ", " ADOffsetMap.pretty) dir_reachable_abs (d_list ", " CilType.Exp.pretty) args;
-          raise (Invalid_argument e);)
-    in
-    (* Initialized with directly reachable *)
-    List.iter (fun (dir_reachable_conc, dir_reachable_abs) ->
-        ValueDomain.ADOffsetMap.iter (fun o a ->
-            let a_c = ValueDomain.ADOffsetMap.find o dir_reachable_conc in
-            AD.iter (fun a ->
-                AD.iter (fun a_c ->
-                    if not (AddrPairSet.mem (a_c, a) !visited) then begin
-                      Queue.add (a_c, a) queue;
-                      visited := AddrPairSet.add (a_c, a) !visited;
-                    end;
-                  ) a_c
-              ) a
-          ) dir_reachable_abs;
-      ) combined;
-
-    let caller_is_modular = ctx.ask IsModular in
-
-    (* Add globals *)
-    let add_global_to_queue (g: varinfo) =
-      let a_c = Addr.of_var ~is_modular:caller_is_modular g in
-      let a = Addr.of_var ~is_modular:true g in
-
-      Queue.add (a_c, a) queue;
-      visited := AddrPairSet.add (a_c, a) !visited;
-    in
-    List.iter add_global_to_queue globals;
-
-    (* M.tracel "modular_combine" "Initalized conc: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.first combined);
-    M.tracel "modular_combine" "Initalized abs: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.second combined);
-       M.tracel "modular_combine" "graph: %a\n" Graph.pretty graph; *)
-
-    while not (Queue.is_empty queue) do
-      let c, a = Queue.pop queue in
-      let dir_reachable_conc = reachable_from_address_offset ask ctx.global ctx.local (AD.singleton c) in
-      let dir_reachable_abs = Graph.find a graph in
-      ValueDomain.ADOffsetMap.iter (fun o a ->
-          let a_c = ValueDomain.ADOffsetMap.find o dir_reachable_conc in
-          AD.iter (fun a ->
-              AD.iter (fun a_c ->
-                  if not (AddrPairSet.mem (a_c, a) !visited) then begin
-                    Queue.add (a_c, a) queue;
-                    visited := AddrPairSet.add (a_c, a) !visited;
-                  end;
-                ) a_c
-            ) a
-        ) dir_reachable_abs;
-    done;
-    let pairs = !visited in
-    let concretes = AddrPairSet.to_seq pairs |> Seq.map Tuple2.first in
-    Seq.fold_left (fun acc a -> AD.join (AD.singleton a) acc) (AD.bot ()) concretes
-
   let get_reachable_for_callee ctx f f_ask (args: exp list) (goal: AD.t) =
     let ask = Analyses.ask_of_ctx ctx in
     let graph = ask.f (WriteGraph f) in
@@ -3100,198 +3293,6 @@ struct
         )
     in
     D.join ctx.local e_d'
-
-  let query ctx (type a) (q: a Q.t): a Q.result =
-    match q with
-    | Q.EvalFunvar e ->
-      eval_funvar ctx e
-    | Q.EvalJumpBuf e ->
-      begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Address jmp_buf ->
-          if AD.mem Addr.UnknownPtr jmp_buf then
-            M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
-          begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
-            | JmpBuf (x, copied) ->
-              if copied then
-                M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
-              x
-            | Top
-            | Bot ->
-              JmpBufDomain.JmpBufSet.top ()
-            | y ->
-              M.debug ~category:Imprecise "EvalJmpBuf %a is %a, not JmpBuf." CilType.Exp.pretty e VD.pretty y;
-              JmpBufDomain.JmpBufSet.top ()
-          end
-        | _ ->
-          M.debug ~category:Imprecise "EvalJmpBuf is not Address";
-          JmpBufDomain.JmpBufSet.top ()
-      end
-    | Q.EvalInt e ->
-      let r = query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-      M.tracel "eval_int_base" "%a yields %a\n" CilType.Exp.pretty e Queries.ID.pretty r;
-      r
-    | Q.EvalMutexAttr e -> begin
-        let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | MutexAttr a -> a
-        | v -> MutexAttrDomain.top ()
-      end
-    | Q.EvalLength e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Address a ->
-          let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
-          let lenOf = function
-            | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
-            | _ -> None
-          in
-          let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in
-          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (Seq.append slen alen)) in
-          (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          `Lifted d
-        | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | _ -> Queries.Result.top q
-      end
-    | Q.EvalValue e ->
-      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
-    | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
-        let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
-        match p with
-        | Address a ->
-          (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
-          if AD.exists (function
-              | Addr (v,o) -> is_not_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
-              | _ -> false) a then
-            Queries.Result.bot q
-          else (
-            (* If we need the BlobSize from the base address, then remove any offsets *)
-            let a =
-              if from_base_addr then AD.map (function
-                  | Addr (v, o) -> Addr (v, `NoOffset)
-                  | addr -> addr) a
-              else
-                a
-            in
-            let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a None in
-            (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
-            (match r with
-             | Array a ->
-               (* unroll into array for Calloc calls *)
-               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero)) with
-                | Blob (_,s,_) -> `Lifted s
-                | _ -> Queries.Result.top q
-               )
-             | Blob (_,s,_) -> `Lifted s
-             | _ -> Queries.Result.top q)
-          )
-        | _ -> Queries.Result.top q
-      end
-    | Q.MayPointTo e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Address a -> a
-        | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | Int i -> AD.of_int i
-        | _ -> Queries.Result.top q
-      end
-    | Q.EvalThread e -> begin
-        let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
-        match v with
-        | Thread a -> a
-        | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | _ -> Queries.Result.top q
-      end
-    | Q.ReachableFrom e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Top -> Queries.Result.top q
-        | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local in
-          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
-          if AD.may_be_unknown a then
-            AD.add UnknownPtr addrs' (* add unknown back *)
-          else
-            addrs'
-        | Int i ->
-          begin match Cilfacade.typeOf e with
-            | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
-            | _
-            | exception Cilfacade.TypeOfError _ -> AD.empty () (* avoid unknown pointer result for non-pointer expression *)
-          end
-        | _ -> AD.empty ()
-      end
-    | Q.ReachableAddressesFrom e ->
-      begin
-        let ask = Analyses.ask_of_ctx ctx in
-        match eval_rv_address ask ctx.global ctx.local e with
-        | Address a ->
-          let reachable = reachable_vars ask [a] ctx.global ctx.local in
-          let reachable = List.fold AD.join (AD.bot ()) reachable in
-          reachable
-        | Top ->
-          Queries.Result.top q
-        | Bot
-        | _ -> (* Not an address *)
-          Queries.Result.bot q
-      end
-    | Q.ReachableUkTypes e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | Top -> Queries.Result.top q
-        | Bot -> Queries.Result.bot q (* TODO: remove *)
-        | Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
-          Q.TS.top ()
-        | Address a ->
-          reachable_top_pointers_types ctx a
-        | _ -> Q.TS.empty ()
-      end
-    | Q.EvalStr e -> begin
-        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        (* exactly one string in the set (works for assignments of string constants) *)
-        | Address a when List.compare_length_with (AD.to_string a) 1 = 0 -> (* exactly one string *)
-          `Lifted (List.hd (AD.to_string a))
-        (* check if we have an array of chars that form a string *)
-        (* TODO return may-points-to-set of strings *)
-        | Address a when List.compare_length_with (AD.to_string a) 1 > 0 -> (* oh oh *)
-          M.debug "EvalStr (%a) returned %a" d_exp e AD.pretty a;
-          Queries.Result.top q
-        | Address a when List.compare_length_with (AD.to_var_may a) 1 = 0 -> (* some other address *)
-          (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
-          (* ignore @@ printf "EvalStr Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
-          begin match unrollType (Cilfacade.typeOf e) with
-            | TPtr(TInt(IChar, _), _) ->
-              let mval = List.hd (AD.to_mval a) in
-              let lval = Addr.Mval.to_cil mval in
-              (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
-               with Not_found -> Queries.Result.top q)
-            | _ -> (* what about ISChar and IUChar? *)
-              (* ignore @@ printf "Type %a\n" d_plaintype t; *)
-              Queries.Result.top q
-          end
-        | x ->
-          (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
-          Queries.Result.top q
-      end
-    | Q.EvalLval lval ->
-      let addrs = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
-      addrs
-    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak ||
-                        (hasAttribute "thread" v.vattr && v.vaddrof) (* thread-local variables if they have their address taken, as one could then compare several such variables *)
-    | Q.IterSysVars (vq, vf) ->
-      let vf' x = vf (Obj.repr (V.priv x)) in
-      Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
-    | Q.Invariant context -> query_invariant ctx context
-    | Q.InvariantGlobal g ->
-      let g: V.t = Obj.obj g in
-      query_invariant_global ctx g
-    | Q.BaseCPA ->
-      ctx.local.cpa
-    | Q.CollectGraph (cpa,start, goal) ->
-      collect_graph cpa start goal
-    | Q.ReachableForCallee (f, graph, args, globals, goal) ->
-      collect_targets_with_graph ctx graph args f.sformals globals goal
-    | _ -> Q.Result.top q
 
   let event ctx e octx =
     let st: store = ctx.local in
