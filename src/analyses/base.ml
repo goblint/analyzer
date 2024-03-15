@@ -1247,8 +1247,7 @@ struct
         if get_bool "exp.earlyglobs" then
           inv
         else (
-          let variable = "multithreaded" in
-          let var = Cilfacade.create_var (GoblintCil.makeGlobalVar variable GoblintCil.intType) in
+          let var = WitnessGhost.to_varinfo Multithreaded in
           Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
         )
       | `Right _ -> (* thread return *)
