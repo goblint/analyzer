@@ -48,43 +48,29 @@ struct
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
       let (locked, unlocked, multithread) = ctx.global g in
-      let loc = Node.location g in
-      let location_function = (Node.find_fundec g).svar.vname in
-      let location = YamlWitness.Entry.location ~location:loc ~location_function in
       let entries =
-        (* TODO: do ghost_variable-s only once *)
+        (* TODO: do variable_entry-s only once *)
         Locked.fold (fun l acc ->
-            let variable = WitnessGhost.name_varinfo (Locked l) in
-            let type_ = "int" in
-            let initial = "0" in
-            let entry = YamlWitness.Entry.ghost_variable ~task ~variable ~type_ ~initial in
+            let entry = WitnessGhost.variable_entry ~task (Locked l) in
             Queries.YS.add entry acc
           ) (Locked.union locked unlocked) (Queries.YS.empty ())
       in
       let entries =
         Locked.fold (fun l acc ->
-            let variable = WitnessGhost.name_varinfo (Locked l) in
-            let expression = "1" in
-            let entry = YamlWitness.Entry.ghost_update ~task ~location ~variable ~expression in
+            let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.one in
             Queries.YS.add entry acc
           ) locked entries
       in
       let entries =
         Unlocked.fold (fun l acc ->
-            let variable = WitnessGhost.name_varinfo (Locked l) in
-            let expression = "0" in
-            let entry = YamlWitness.Entry.ghost_update ~task ~location ~variable ~expression in
+            let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.zero in
             Queries.YS.add entry acc
           ) unlocked entries
       in
       let entries =
         if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
-          let variable = WitnessGhost.name_varinfo Multithreaded in
-          let type_ = "int" in
-          let initial = "0" in
-          let entry = YamlWitness.Entry.ghost_variable ~task ~variable ~type_ ~initial in
-          let expression = "1" in
-          let entry' = YamlWitness.Entry.ghost_update ~task ~location ~variable ~expression in
+          let entry = WitnessGhost.variable_entry ~task Multithreaded in
+          let entry' = WitnessGhost.update_entry ~task ~node:g Multithreaded GoblintCil.one in
           Queries.YS.add entry (Queries.YS.add entry' entries)
         )
         else
