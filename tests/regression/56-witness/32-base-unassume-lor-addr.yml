@@ -4,11 +4,8 @@
     uuid: d2a65147-2d04-49f8-8f27-fe3a7c8553b7
     creation_time: 2022-10-07T12:50:05Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''32-base-unassume-lor-addr.c''
-        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable''
-        ''dbg.timing.enabled'' ''--set'' ''goblint-dir'' ''.goblint-56-32'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 32-base-unassume-lor-addr.c
