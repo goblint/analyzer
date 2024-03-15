@@ -1389,19 +1389,10 @@ struct
 
 
     let dir_reachable_conc = collect_funargs_immediate_offset ask ctx.global ctx.local args in
-    let dir_reachable_abs = List.map (fun a ->
-        let r = Graph.find a graph in
-        (* if M.tracing then M.tracel "modular_combine" "For %a found %a in graph.\n" Addr.pretty a ADOffsetMap.pretty r; *)
-        r)
-        start
-    in
-    let combined = try
-        List.combine dir_reachable_conc dir_reachable_abs
-      with Invalid_argument e -> (
-          ignore @@ Pretty.printf "Lenghts differ: conc: %d, abs: %d\n" (List.length dir_reachable_conc) (List.length dir_reachable_abs);
-          ignore @@ Pretty.printf "conc: %a\n abs: %a\n, args: %a\n" (d_list ", " ADOffsetMap.pretty) dir_reachable_conc (d_list ", " ADOffsetMap.pretty) dir_reachable_abs (d_list ", " CilType.Exp.pretty) args;
-          raise (Invalid_argument e);)
-    in
+    let dir_reachable_abs = List.map (fun a -> Graph.find a graph) start in
+
+    (* gIgnore parameters for varargs for now. *)
+    let combined = GobList.combine_short dir_reachable_conc dir_reachable_abs in
     (* Initialized with directly reachable *)
     List.iter (fun (dir_reachable_conc, dir_reachable_abs) ->
         ValueDomain.ADOffsetMap.iter (fun o a ->
