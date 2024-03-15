@@ -230,6 +230,8 @@ class Tests
         check.call warnings[idx] != "race"
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
+      when "nofail"
+        check.call(warnings[idx] != "fail")
       end
     end
   end
@@ -309,33 +311,43 @@ class Project
         i = $1.to_i - 1
       end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
-      todo << i if obj =~ /TODO|SKIP/
+      todo << i if obj =~ /(\b|\/)(TODO|SKIP)/
       tests_line[i] = obj
-      if obj =~ /RACE/ then
-        tests[i] = if obj =~ /NORACE/ then "norace" else "race" end
-      elsif obj =~ /DEADLOCK/ then
-        tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
-      elsif obj =~ /WARN/ then
-        tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
-      elsif obj =~ /SUCCESS/ then
+      if obj =~ /(\b|\/)NOFAIL/ then
+        tests[i] = "nofail"
+      elsif obj =~ /(\b|\/)RACE/ then
+        tests[i] = "race"
+      elsif obj =~ /(\b|\/)NORACE/ then
+        tests[i] = "norace"
+      elsif obj =~ /(\b|\/)DEADLOCK/ then
+        tests[i] = "deadlock"
+      elsif obj =~ /(\b|\/)NODEADLOCK/ then
+        tests[i] = "nodeadlock"
+      elsif obj =~ /(\b|\/)WARN/ then
+        tests[i] = "warn"
+      elsif obj =~ /(\b|\/)NOWARN/ then
+        tests[i] = "nowarn"
+      elsif obj =~ /(\b|\/)SUCCESS/ then
         tests[i] = "success"
-      elsif obj =~ /FAIL/ then
+      elsif obj =~ /(\b|\/)FAIL/ then
         tests[i] = "fail"
-      elsif obj =~ /NONTERMLOOP/ then
+      elsif obj =~ /(\b|\/)NONTERMLOOP/ then
         tests[i] = "loop"
-      elsif obj =~ /NONTERMGOTO/ then
+      elsif obj =~ /(\b|\/)NONTERMGOTO/ then
         tests[i] = "goto"
-      elsif obj =~ /NONTERMFUNDEC/ then
+      elsif obj =~ /(\b|\/)NONTERMFUNDEC/ then
         tests[i] = "fundec"
-      elsif obj =~ /UNKNOWN/ then
+      elsif obj =~ /(\b|\/)UNKNOWN/ then
         tests[i] = "unknown"
-      elsif obj =~ /(assert|__goblint_check).*\(/ then
-        if obj =~ /FAIL/ then
-          tests[i] = "fail"
-        elsif obj =~ /UNKNOWN/ then
-          tests[i] = "unknown"
-        else
-          tests[i] = "assert"
+      elsif obj =~ /(\b|\/)(assert|__goblint_check).*\(/ then
+        unless obj =~ /^\s*extern\b/
+          if obj =~ /(\b|\/)FAIL/ then
+            tests[i] = "fail"
+          elsif obj =~ /(\b|\/)UNKNOWN/ then
+            tests[i] = "unknown"
+          else
+            tests[i] = "assert"
+          end
         end
       end
     end
@@ -385,6 +397,7 @@ class Project
         lastline = (File.readlines testset.warnfile).last()
         filename = File.basename(@path)
         puts lastline.strip().sub filename, relpath(@path).to_s unless lastline.nil?
+        puts "Content of the warn-file: \n #{File.read(testset.warnfile)}"
         puts stats[0..9].itemize
       elsif status == 3 then
         warn = File.readlines testset.warnfile
@@ -574,9 +587,10 @@ regs.sort.each do |d|
       config_path = File.expand_path(f[0..-3] + ".json", grouppath)
       params = if cfg then "--conf #{config_path} --set incremental.compare cfg" else "--conf #{config_path}" end
     else
-      lines[0] =~ /PARAM: (.*)$/
-      if $1 then params = $1 else params = "" end
+      params = ""
     end
+    lines[0] =~ /PARAM: (.*)$/
+    if $1 then params << " #{$1}" else params << "" end
     # always enable debugging so that the warnings would work
     params << " --set warn.debug true"
     p = if incremental then

@@ -1540,6 +1540,20 @@
           "description": "Output filename for transformations that output a transformed file.",
           "type":"string",
           "default": "transformed.c"
+        },
+        "assert" : {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "goblint-check": {
+              "title": "trans.assert.goblint-check",
+              "description":
+                "Write __goblint_check(exp) in the file instead of __VERIFIER_assert(exp).",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
