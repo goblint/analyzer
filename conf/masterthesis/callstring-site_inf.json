@@ -82,6 +82,7 @@
         "mallocWrappers",
         "enums",
         "congruence",
+        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -112,7 +113,7 @@
       "unknown": false
     },
     "yaml": {
-      "enabled": false,
+      "enabled": true,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set"
