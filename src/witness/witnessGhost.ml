@@ -11,9 +11,7 @@ struct
     | Locked l -> LockDomain.Addr.show l ^ "_locked" (* TODO: valid C name *)
     | Multithreaded -> "multithreaded"
 
-  (* TODO: define correct types *)
-
-  let type_ = function
+  let typ = function
     | Locked _ -> GoblintCil.intType
     | Multithreaded -> GoblintCil.intType
 
@@ -30,7 +28,7 @@ include Map
 
 let variable_entry ~task x =
   let variable = name_varinfo x in
-  let type_ = String.trim (CilType.Typ.show (type_ x)) in (* CIL printer puts space at the end of some types *)
+  let type_ = String.trim (CilType.Typ.show (typ x)) in (* CIL printer puts space at the end of some types *)
   let initial = CilType.Exp.show (initial x) in
   YamlWitness.Entry.ghost_variable ~task ~variable ~type_ ~initial
 
