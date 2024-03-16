@@ -90,6 +90,7 @@ module Malloc_null = Malloc_null
 module MemLeak = MemLeak
 module UseAfterFree = UseAfterFree
 module MemOutOfBounds = MemOutOfBounds
+module WeaklyRelationalPointerAnalysis = WeaklyRelationalPointerAnalysis
 
 (** {2 Concurrency}
 
@@ -216,6 +217,7 @@ module Mval = Mval
 module Offset = Offset
 module StringDomain = StringDomain
 module AddressDomain = AddressDomain
+module WeaklyRelationalPointerDomain = WeaklyRelationalPointerDomain
 
 (** {5 Complex} *)
 
