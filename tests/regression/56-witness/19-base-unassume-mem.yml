@@ -4,10 +4,8 @@
     uuid: ddb9942d-998c-425d-a74f-228044bc38fb
     creation_time: 2022-09-01T10:15:07Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-base-0-ged336aa6c-dirty
-      command_line: '''../../../goblint'' ''--enable'' ''ana.int.interval'' ''--enable''
-        ''witness.yaml.enabled'' ''19-base-unassume-mem.c'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 19-base-unassume-mem.c
@@ -31,10 +29,8 @@
     uuid: ddb9942d-998c-425d-a74f-228044bc38fb
     creation_time: 2022-09-01T10:15:07Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-base-0-ged336aa6c-dirty
-      command_line: '''../../../goblint'' ''--enable'' ''ana.int.interval'' ''--enable''
-        ''witness.yaml.enabled'' ''19-base-unassume-mem.c'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 19-base-unassume-mem.c

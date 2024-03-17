@@ -4,12 +4,8 @@
     uuid: 8c07adbd-908d-45be-af99-943634ad66b4
     creation_time: 2022-10-07T13:43:40Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-gd4687e4f4-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''33-base-unassume-lor-enums.c''
-        ''--enable'' ''ana.int.enums'' ''--enable'' ''witness.yaml.enabled'' ''--set''
-        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
-        ''.goblint-56-33'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 33-base-unassume-lor-enums.c
