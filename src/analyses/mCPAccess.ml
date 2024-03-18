@@ -14,10 +14,11 @@ struct
   include DomListPrintable (PrintableOfMCPASpec (AccListSpec))
 
   let unop_fold f a (x:t) =
-    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
+    let x = List.to_seq x in
+    Seq.fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let binop_for_all f (x:t) (y:t) =
-    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+    GobList.for_all3_seq (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
   let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
       S.may_race (obj x) (obj y)

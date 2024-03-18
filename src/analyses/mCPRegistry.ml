@@ -57,31 +57,31 @@ type unknown = Obj.t
 module type DomainListPrintableSpec =
 sig
   val assoc_dom : int -> (module Printable.S)
-  val domain_list : unit -> (int * (module Printable.S)) list
+  val domain_list : unit -> (int * (module Printable.S)) Seq.t
 end
 
 module type DomainListRepresentativeSpec =
 sig
   val assoc_dom : int -> (module DisjointDomain.Representative)
-  val domain_list : unit -> (int * (module DisjointDomain.Representative)) list
+  val domain_list : unit -> (int * (module DisjointDomain.Representative)) Seq.t
 end
 
 module type DomainListSysVarSpec =
 sig
   val assoc_dom : int -> (module SpecSysVar)
-  val domain_list : unit -> (int * (module SpecSysVar)) list
+  val domain_list : unit -> (int * (module SpecSysVar)) Seq.t
 end
 
 module type DomainListMCPASpec =
 sig
   val assoc_dom : int -> (module MCPA)
-  val domain_list : unit -> (int * (module MCPA)) list
+  val domain_list : unit -> (int * (module MCPA)) Seq.t
 end
 
 module type DomainListLatticeSpec =
 sig
   val assoc_dom : int -> (module Lattice.T)
-  val domain_list : unit -> (int * (module Lattice.T)) list
+  val domain_list : unit -> (int * (module Lattice.T)) Seq.t
 end
 
 module PrintableOfLatticeSpec (D:DomainListLatticeSpec) : DomainListPrintableSpec =
@@ -93,7 +93,7 @@ struct
 
   let domain_list () =
     let f (module L:Lattice.T) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    Seq.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
 module PrintableOfRepresentativeSpec (D:DomainListRepresentativeSpec) : DomainListPrintableSpec =
@@ -105,7 +105,7 @@ struct
 
   let domain_list () =
     let f (module L:DisjointDomain.Representative) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    Seq.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
 module PrintableOfMCPASpec (D:DomainListMCPASpec) : DomainListPrintableSpec =
@@ -117,7 +117,7 @@ struct
 
   let domain_list () =
     let f (module L:MCPA) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    Seq.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
 module PrintableOfSysVarSpec (D:DomainListSysVarSpec) : DomainListPrintableSpec =
@@ -129,7 +129,7 @@ struct
 
   let domain_list () =
     let f (module L:SpecSysVar) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    Seq.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
@@ -145,7 +145,8 @@ struct
   type t = (int * unknown) list
 
   let unop_fold f a (x:t) =
-    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
+    let x = Seq.of_list x in
+    Seq.fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let unop_map f x =
     List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
@@ -175,7 +176,7 @@ struct
     in `Assoc (unop_fold f [] xs)
 
   let binop_for_all f (x:t) (y:t) =
-    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+    GobList.for_all3_seq (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
   (* too specific for GobList *)
   let rec compare3 f l1 l2 l3 = match l1, l2, l3 with
@@ -188,8 +189,20 @@ struct
         (compare3 [@tailcall]) f l1 l2 l3
     | _, _, _ -> invalid_arg "DomListPrintable.compare3"
 
+
+  (* Like [compare3] but with the third argument being a sequence. *)
+  let rec compare3_seq f l1 l2 s3 = match l1, l2, Seq.uncons s3 with
+    | [], [], None -> 0
+    | x1 :: l1, x2 :: l2, Some (x3, s3) ->
+      let c = f x1 x2 x3 in
+      if c <> 0 then
+        c
+      else
+        (compare3_seq [@tailcall]) f l1 l2 s3
+    | _, _, _ -> invalid_arg "DomListPrintable.compare3"
+
   let binop_compare f (x:t) (y:t) =
-    compare3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+    compare3_seq (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
   let equal   x y = binop_for_all (fun n (module S : Printable.S) x y -> S.equal (obj x) (obj y)) x y
   let compare x y = binop_compare (fun n (module S : Printable.S) x y -> S.compare (obj x) (obj y)) x y
@@ -215,7 +228,8 @@ struct
     unop_fold print_one () xs
 
   let arbitrary () =
-    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
+    let arbs = Seq.map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
+    let arbs = List.of_seq arbs in
     GobQCheck.Arbitrary.sequence arbs
 
   let relift = unop_map (fun (module S: Printable.S) x -> Obj.repr (S.relift (Obj.obj x)))
@@ -277,7 +291,8 @@ struct
       let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.name ()
     in
-    IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
+    let domain_list = List.of_seq (domain_list ()) in
+    IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list)
 
   let printXml f = unop_map (fun n (module S: Printable.S) x ->
       BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
@@ -286,7 +301,8 @@ struct
     )
 
   let arbitrary () =
-    let arbs = map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
+    let arbs = Seq.map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
+    let arbs = List.of_seq arbs in
     QCheck.oneof arbs
 
   let relift = unop_map (fun n (module S: Printable.S) x -> (n, Obj.repr (S.relift (Obj.obj x))))
@@ -334,7 +350,8 @@ struct
         aux xs' ss acc
       | [], _ :: _ -> invalid_arg "DomListRepresentative.of_elt"
     in
-    List.rev (aux xs (domain_list ()) [])
+    let domain_list = List.of_seq (domain_list ()) in
+    List.rev (aux xs domain_list [])
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
@@ -349,16 +366,17 @@ struct
   let name () = "MCP.D"
 
   let binop_fold f a (x:t) (y:t) =
-    GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
+    GobList.fold_left3_seq (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
 
   let binop_map (f: (module Lattice.T) -> Obj.t -> Obj.t -> Obj.t) x y =
     List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
 
   let binop_for_all f (x:t) (y:t) =
-    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+    GobList.for_all3_seq (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
   let unop_for_all f (x:t) =
-    List.for_all2 (fun (n,d) (n',s) -> assert (n = n'); f n s d) x (domain_list ())
+    let x = Seq.of_list x in
+    Seq.for_all2 (fun (n,d) (n',s) -> assert (n = n'); f n s d) x (domain_list ())
 
   let narrow = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.narrow (obj x) (obj y))
   let widen  = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.widen  (obj x) (obj y))
@@ -370,8 +388,12 @@ struct
   let is_top = unop_for_all (fun n (module S : Lattice.T) x -> S.is_top (obj x))
   let is_bot = unop_for_all (fun n (module S : Lattice.T) x -> S.is_bot (obj x))
 
-  let top () = map (fun (n,(module S : Lattice.T)) -> (n,repr @@ S.top ())) @@ domain_list ()
-  let bot () = map (fun (n,(module S : Lattice.T)) -> (n,repr @@ S.bot ())) @@ domain_list ()
+  let top () =
+    let domain_list = List.of_seq (domain_list ()) in
+    List.map (fun (n,(module S : Lattice.T)) -> (n,repr @@ S.top ())) @@ domain_list
+  let bot () =
+    let domain_list = List.of_seq (domain_list ()) in
+    List.map (fun (n,(module S : Lattice.T)) -> (n,repr @@ S.bot ())) @@ domain_list
 
   let pretty_diff () (xs, ys) =
     let pretty_one a n (module S: Lattice.T) x y =
@@ -388,7 +410,8 @@ struct
     Pretty.dprintf "[@[%a@]]" Pretty.insert doc
 
   let unop_fold f a (x:t) =
-    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
+    let x = Seq.of_list x in
+    Seq.fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let unop_map f x =
     List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
@@ -450,35 +473,35 @@ end
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (find_spec n).dom
-  let domain_list () = List.map (fun (n,p) -> n, p.dom) !activated
+  let domain_list () = Seq.map (fun (n,p) -> n, p.dom) (Seq.of_list !activated)
 end
 
 module GlobalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (find_spec n).glob
-  let domain_list () = List.map (fun (n,p) -> n, p.glob) !activated
+  let domain_list () = Seq.map (fun (n,p) -> n, p.dom) (Seq.of_list !activated)
 end
 
 module ContextListSpec : DomainListPrintableSpec =
 struct
   let assoc_dom n = (find_spec n).cont
-  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
+  let domain_list () = Seq.map (fun (n,p) -> n, p.cont) (Seq.of_list !activated_ctx_sens)
 end
 
 module VarListSpec : DomainListSysVarSpec =
 struct
   let assoc_dom n = (find_spec n).var
-  let domain_list () = List.map (fun (n,p) -> n, p.var) !activated
+  let domain_list () = Seq.map (fun (n,p) -> n, p.var) (Seq.of_list !activated)
 end
 
 module AccListSpec : DomainListMCPASpec =
 struct
   let assoc_dom n = (find_spec n).acc
-  let domain_list () = List.map (fun (n,p) -> n, p.acc) !activated
+  let domain_list () = Seq.map (fun (n,p) -> n, p.acc) (Seq.of_list !activated)
 end
 
 module PathListSpec : DomainListRepresentativeSpec =
 struct
   let assoc_dom n = (find_spec n).path
-  let domain_list () = List.map (fun (n,p) -> n, p.path) !activated_path_sens
+  let domain_list () = Seq.map (fun (n,p) -> n, p.path) (Seq.of_list !activated_path_sens)
 end
