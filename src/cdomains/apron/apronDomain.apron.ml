@@ -666,14 +666,15 @@ struct
 
   let empty_env = Environment.make [||] [||]
 
+  (* top and bottom over the empty environment are different, pending  https://github.com/goblint/analyzer/issues/1380 *)
   let bot () =
-    top_env empty_env
+    bot_env empty_env
 
   let top () =
-    failwith "D2.top"
+    top_env empty_env
 
-  let is_bot = equal (bot ())
-  let is_top _ = false
+  let is_bot x = equal (bot ()) x
+  let is_top x = equal (top ()) x
 
   let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
 

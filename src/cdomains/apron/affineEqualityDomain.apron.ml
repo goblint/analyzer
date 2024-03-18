@@ -305,9 +305,9 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let top () = failwith "D.top ()"
+  let top () = {d = Some (Matrix.empty ()); env = Environment.make [||] [||]}
 
-  let is_top _ = false
+  let is_top t = Environment.equal empty_env t.env && GobOption.exists Matrix.is_empty t.d
 
   let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists Matrix.is_empty t.d
 
