@@ -104,7 +104,7 @@ struct
     match n with
     | Statement s ->
       let {loc; _}: CilLocation.locs = CilLocation.get_stmtLoc s in
-      if not loc.synthetic && is_invariant_node n && not (is_stub_node n) then (* TODO: remove is_invariant_node? *)
+      if not loc.synthetic && is_invariant_node n && not (is_stub_node n) then (* TODO: remove is_invariant_node? i.e. exclude witness.invariant.loop-head check *)
         Some loc
       else
         None

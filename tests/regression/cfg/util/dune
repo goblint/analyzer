@@ -4,7 +4,7 @@
    goblint-cil
    goblint_logs
    goblint_common
-   goblint_lib ; TODO: avoid
+   goblint_lib ; TODO: avoid: extract WitnessUtil node predicates from goblint_lib
    fpath
    goblint.sites.dune
    goblint.build-info.dune)

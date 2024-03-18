@@ -275,7 +275,7 @@ struct
     let entries =
       if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
         LH.fold (fun loc ns acc ->
-            if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
+            if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? needs both loop_invariant entry enabled and witness.invariant.loop-head option enabled *)
               let inv = List.fold_left (fun acc n ->
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                   Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
