@@ -643,10 +643,10 @@ struct
               (* Lincons1 from polyhedra may contain variable with zero coefficient.
                  These are silently not printed! *)
               if not (Coeff.is_zero coeff) && Environment.mem_var env var then
-                raise Not_found
+                raise Stdlib.Exit (* found *)
             ) con1;
           false
-        with Not_found ->
+        with Stdlib.Exit -> (* found *)
           true
       in
       let env_exists_mem_con1 env con1 =
