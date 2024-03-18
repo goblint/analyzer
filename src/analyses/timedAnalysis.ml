@@ -11,6 +11,9 @@ struct
 
   let time s f x = Timing.wrap (name () ^ "."^ s) f x
 
+  let query ctx (type a) (q: a Queries.t) : a Queries.result =
+    time "query" (query ctx) q
+
   let sync ctx reason =
     time "sync" (sync ctx) reason
 
