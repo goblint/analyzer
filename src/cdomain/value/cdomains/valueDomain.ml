@@ -433,32 +433,32 @@ struct
     let rec adjust_offs v o d =
       let ta = try Addr.Offs.type_of ~base:v.vtype o with Offset.Type_of_error (t,s) -> raise (CastError s) in
       let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
-      M.tracel "casta" "%s\n" info;
+      if M.tracing then M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
       | 0 ->
-        M.tracel "casta" "same size\n";
+        if M.tracing then M.tracel "casta" "same size\n";
         if not (typ_eq t ta) then err "Cast to different type of same size."
         else (M.tracel "casta" "SUCCESS!\n"; o)
       | c when c > 0 -> (* cast to bigger/outer type *)
-        M.tracel "casta" "cast to bigger size\n";
+        if M.tracing then M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
         else if Addr.Offs.cmp_zero_offset o = `MustZero then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
-        M.tracel "casta" "cast to smaller size\n";
+        if M.tracing then M.tracel "casta" "cast to smaller size\n";
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
           begin match ta, t with
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
-              M.tracel "casta" "cast struct to its first field\n";
+              if M.tracing then M.tracel "casta" "cast struct to its first field\n";
               adjust_offs v (Addr.Offs.add_offset o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
             | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
             (* array to its first element *)
             | TArray _, _ ->
-              M.tracel "casta" "cast array to its first element\n";
+              if M.tracing then M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
@@ -474,17 +474,17 @@ struct
         | Addr (v, o) as a ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
             with CastError s -> (* don't know how to handle this cast :( *)
-              M.tracel "caste" "%s\n" s;
+              if M.tracing then M.tracel "caste" "%s\n" s;
               a (* probably garbage, but this is deref's problem *)
-              (*raise (CastError s)*)
-            | SizeOfError (s,t) ->
-              M.warn "size of error: %s" s;
-              a
+               (*raise (CastError s)*)
+               | SizeOfError (s,t) ->
+                 if M.tracing then M.warn "size of error: %s" s;
+                 a
           end
         | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
-    M.tracel "cast" "cast_addr %a to %a is %a!\n" AD.pretty a d_type t AD.pretty a'; a'
+    if M.tracing then M.tracel "cast" "cast_addr %a to %a is %a!\n" AD.pretty a d_type t AD.pretty a'; a'
 
   (* this is called for:
    * 1. normal casts

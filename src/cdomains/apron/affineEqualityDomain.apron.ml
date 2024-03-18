@@ -224,7 +224,7 @@ struct
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
+       | Some min, Some max -> if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max)
        | _ -> ()
     );
     res

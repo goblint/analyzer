@@ -93,7 +93,7 @@ struct
     let params = List.map (AD.of_var ~is_modular:true) effective_params in
     let params = join_address_list params in
     let graph = ask.f (CollectGraph (start_state, params, addresses)) in (* TODO: Adapt start and end sets *)
-    M.tracel "written" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty addresses BaseDomain.CPA.pretty start_state;
+    if M.tracing then M.tracel "written" "Looking for path from %a to %a in state %a\n" AD.pretty params AD.pretty addresses BaseDomain.CPA.pretty start_state;
     ctx.sideg f graph;
     new_state
 

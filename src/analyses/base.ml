@@ -806,7 +806,7 @@ struct
       let te2 = Cilfacade.typeOf e2 in
       let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
       let is_safe = (extra_is_safe || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
-      M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
+      if M.tracing then M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
       if is_safe then ( (* we can ignore the casts if the casts can't change the value *)
         let e1 = if isArithmeticType te1 then c1 else e1 in
         let e2 = if isArithmeticType te2 then c2 else e2 in
@@ -822,7 +822,7 @@ struct
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) ->
-        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
+        (match str with Some x -> if M.tracing then M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
         Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) && num = 0.0 -> Float (FD.of_const fkind num) (* constant 0 is ok, CIL creates these for zero-initializers; it is safe across float types *)
@@ -1381,7 +1381,7 @@ struct
 
     (* TODO: !! Pass addresses instead of params, or, alternatively, pass global variables separetely, as they should be !! *)
     let start = List.map (Addr.of_var ~is_modular:true) params in
-    M.tracel "modular_combine" "collect_targets start: %a\ngraph: %a\n" (d_list ", " Addr.pretty) start Graph.pretty graph;
+    if M.tracing then M.tracel "modular_combine" "collect_targets start: %a\ngraph: %a\n" (d_list ", " Addr.pretty) start Graph.pretty graph;
     (* let queue = List.combine args start in *)
     (* let queue : (Addr.t * Addr.t) Queue.t = queue |> Seq.of_list |> Queue.of_seq in mutable! *)
     let queue = Queue.of_seq Seq.empty in
@@ -1419,10 +1419,6 @@ struct
       visited := AddrPairSet.add (a_c, a) !visited;
     in
     List.iter add_global_to_queue globals;
-
-    (* M.tracel "modular_combine" "Initalized conc: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.first combined);
-       M.tracel "modular_combine" "Initalized abs: %a\n" (d_list ", " ADOffsetMap.pretty) (List.map Tuple2.second combined);
-        M.tracel "modular_combine" "graph: %a\n" Graph.pretty graph; *)
 
     while not (Queue.is_empty queue) do
       let c, a = Queue.pop queue in
@@ -1471,7 +1467,7 @@ struct
       end
     | Q.EvalInt e ->
       let r = query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-      M.tracel "eval_int_base" "%a yields %a\n" CilType.Exp.pretty e Queries.ID.pretty r;
+      if M.tracing then M.tracel "eval_int_base" "%a yields %a\n" CilType.Exp.pretty e Queries.ID.pretty r;
       r
     | Q.EvalMutexAttr e -> begin
         let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
@@ -2128,7 +2124,7 @@ struct
     )
 
   let invalidate ?(deep=true) ~ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
-    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
+    if M.tracing && exps <> [] then if M.tracing then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
@@ -2152,7 +2148,7 @@ struct
     if M.tracing && exps <> [] then (
       let addrs = List.map (Tuple3.first) invalids' in
       let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+      if M.tracing then M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
     set_many ~ctx ask gs st invalids'
 
@@ -3040,7 +3036,7 @@ struct
     else
       let reachable =
         get_reachable_for_callee ctx f f_ask args (AD.bot ()) in
-      M.tracel "modular_combine_reachable" "reachable: %a\n" AD.pretty reachable;
+      if M.tracing then M.tracel "modular_combine_reachable" "reachable: %a\n" AD.pretty reachable;
       let vars_to_writes : value_map VarMap.t =
         let update_entry (address: address) (value: value) (acc: value_map VarMap.t) =
           let lvals = AD.to_mval address in
@@ -3098,7 +3094,7 @@ struct
   let translate_callee_value_back ctx f f_ask (args: exp list) (value: VD.t): VD.t =
     let reachable = get_reachable_for_callee ctx f f_ask args (AD.bot ()) in
     let new_value = ModularUtil.ValueDomainExtension.map_back value ~reachable in
-    M.tracel "translate_callee_value_back" "reachable: %a\nOriginal_value: %a\n new_value:%a\n" AD.pretty reachable VD.pretty value VD.pretty new_value;
+    if M.tracing then M.tracel "translate_callee_value_back" "reachable: %a\nOriginal_value: %a\n new_value:%a\n" AD.pretty reachable VD.pretty value VD.pretty new_value;
     new_value
 
   let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
