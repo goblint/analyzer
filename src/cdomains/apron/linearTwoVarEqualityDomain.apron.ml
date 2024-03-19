@@ -285,7 +285,7 @@ struct
   let top () = {d = Some (EArray.empty()); env = empty_env}
 
   (** is_top returns true for top_of array and empty array; precondition: t.env and t.d are of same size *)
-  let is_top t = GobOption.exists EArray.is_top_array t.d
+  let is_top t = Environment.equal empty_env t.env && GobOption.exists EArray.is_top_array t.d
 
   (** prints the current variable equalities with resolved variable names *)
   let show varM =
