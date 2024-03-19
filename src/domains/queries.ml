@@ -385,6 +385,7 @@ struct
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
+      | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
