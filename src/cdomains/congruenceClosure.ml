@@ -1,7 +1,9 @@
 (** OCaml implementation of a quantitative congruence closure. *)
 
+open Batteries
+
+(** (value * offset) ref * size of equivalence class *)
 type 'v node = ('v * Z.t) ref * int
-(* (value * offset) ref * size of equivalence class *)
 
 module type Val = sig
   type t
@@ -15,12 +17,12 @@ module UnionFind (Val: Val)  = struct
   module ZMap = Map.Make(Z)
   module ValSet = Set.Make(Val)
 
-  type t = Val.t node ValMap.t (* Union Find Map: maps value to a node type *)
+  type t = Val.t node ValMap.t (** Union Find Map: maps value to a node type *)
 
   exception UnknownValue of Val.t
   exception InvalidUnionFind of string
 
-  (* create empty union find map *)
+  (** create empty union find map *)
   let init : Val.t list -> t =
     List.fold_left (fun map v -> ValMap.add v (ref (v, Z.zero), 1) map) (ValMap.empty)
 
@@ -29,7 +31,7 @@ module UnionFind (Val: Val)  = struct
     | Some (refv, _)  -> Val.compare v (fst !refv) = 0
 
   (**
-     for a variable t it returns the reference variable v and the offset r
+     For a variable t it returns the reference variable v and the offset r
   *)
   let find cc v = match ValMap.find_opt v cc with
     | None -> raise (UnknownValue v)
@@ -69,6 +71,10 @@ module UnionFind (Val: Val)  = struct
                 let _ = print_string "\n" in
         *)
         v1,r
+  let find_opt cc v = match find cc v with
+    | exception (UnknownValue _)
+    | exception (InvalidUnionFind _) -> None
+    | res -> Some res
 
   let union cc v'1 v'2 r = let v1,r1 = find cc v'1 in
     let v2,r2 = find cc v'2 in
@@ -136,12 +142,12 @@ end
 
 module CongruenceClosure (Var:Val) = struct
   module T = Term (Var)
-  module TUF = UnionFind (T) (* union find on terms *)
+  module TUF = UnionFind (T) (** Union find on terms *)
   module TSet = TUF.ValSet
   module ZMap = TUF.ZMap
   module TMap = TUF.ValMap
 
-  type map_t = T.t ZMap.t TMap.t (* lookup map *)
+  type map_t = T.t ZMap.t TMap.t (** Lookup map *)
   type t = (TUF.t * map_t)
 
   let string_of_prop = function
@@ -250,6 +256,8 @@ module CongruenceClosure (Var:Val) = struct
       List.map (fun x ->
           List.map (fun y -> f x y) l2) l1)
 
+  (** Splits the conjunction into two groups: the first one contains all equality propositions,
+      and the second one contains all inequality propositions.  *)
   let split conj = List.fold_left (fun (pos,neg) -> function
       | Eq (t1,t2,r) -> ((t1,t2,r)::pos,neg)
       | Neq(t1,t2,r) -> (pos,(t1,t2,r)::neg)) ([],[]) conj
@@ -298,7 +306,7 @@ module CongruenceClosure (Var:Val) = struct
           (t, Z.zero), (part, set, map)
 
   (**
-     returns true if t1 and t2 are equivalent
+     Returns true if t1 and t2 are equivalent
   *)
   let eq_query (part,set,map) (t1,t2,r) =
     let (v1,r1),(part,set,map) = insert (part,set,map) t1 in
@@ -306,7 +314,7 @@ module CongruenceClosure (Var:Val) = struct
     (T.compare v1 v2 = 0 && r1 = Z.(r2 + r), (part, set, map))
 
   (**
-     returns true if t1 and t2 are not equivalent
+     Returns true if t1 and t2 are not equivalent
   *)
   let neq_query (part,set,map) conj (t1,t2,r) =
     let (v1,r1),(part,set,map) = insert (part,set,map) t1 in
@@ -317,7 +325,7 @@ module CongruenceClosure (Var:Val) = struct
     else false (* TODO *)
 
   (**
-     add proposition t1 = t2 + r to the data structure
+     Add proposition t1 = t2 + r to the data structure
   *)
   let add_eq (part, set, map) (t1, t2, r) =
     (* should use ineq. for refuting equality *)
@@ -325,5 +333,51 @@ module CongruenceClosure (Var:Val) = struct
     let (v2, r2), (part, set, map) = insert (part, set, map) t2 in
     let part, map = closure (part, map) [v1, v2, Z.(r2 - r1 + r)] in
     part, set, map
+
+end
+
+
+module QFA (Var:Val) =
+struct
+  module CC = CongruenceClosure(Var)
+  include CC
+
+  type state = T.t (** The state is represented by the representative  -> or by the minimal term. *)
+
+  type initial_states = Var.t -> (state * Z.t) (** Maps each variable to its initial state. *)
+
+  type transitions =  Z.t -> state -> (Z.t * state) option
+
+  type qfa = transitions
+
+  (* let get_vars = List.filter_map (function
+      | Addr var -> Some var
+      |  _ -> None) % TSet.elements *)
+
+  (** Returns the initial state of the QFA for a certain variable
+
+      Parameters: Union Find Map and variable for which we want to know the initial state *)
+  let get_initial_state part var = TUF.find_opt part (Addr var)
+
+  (* pag. 8 before proposition 1 *)
+  (** Returns the transition of the QFA for a certain Z, starting from a certain state
+
+      Parameters:
+
+      - Lookup Map
+
+      - Z and State for which we want to know the next state *)
+  let transition_qfa map z state = TUF.map_find_opt (state, z) map
+
+  (* Question: is this not the same as find_opt?? *)
+  (** Returns the state we get from the automata after it has read the term
+
+      Parameters: Union Find Map and term for which we want to know the final state *)
+  let rec get_state (part, map) = function
+    | Addr v -> get_initial_state part v
+    | Deref (z, t) -> match get_state (part, map) t with
+      | None -> None
+      | Some (next_state, z1) -> transition_qfa map (Z.(z + z1)) next_state
+
 
 end
