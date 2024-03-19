@@ -189,7 +189,7 @@ struct
     in
     let exp = Cil.constFold false exp in
     let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s\n" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res);
+    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)\n" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
     res
 
   let texpr1_of_cil_exp ask d env e no_ov =
