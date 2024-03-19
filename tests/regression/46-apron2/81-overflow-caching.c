@@ -10,5 +10,8 @@ int main() {
 
     while(num > 0)
         num++; // Here num overflows
+
+    __goblint_check(1); // reachable
+    
     return 0;
 }
