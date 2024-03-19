@@ -625,13 +625,20 @@ struct
       (* Whether [con1] contains a var in [env]. *)
       let env_exists_mem_con1 env con1 =
         try
-          Lincons1.iter (fun _ var ->
-              if Environment.mem_var env var then
-                raise Not_found
+          Lincons1.iter (fun coeff var ->
+              (* Lincons1 from polyhedra may contain variable with zero coefficient.
+                 These are silently not printed! *)
+              if not (Coeff.is_zero coeff) && Environment.mem_var env var then
+                raise Stdlib.Exit (* found *)
             ) con1;
           false
-        with Not_found ->
+        with Stdlib.Exit -> (* found *)
           true
+      in
+      let env_exists_mem_con1 env con1 =
+        let r = env_exists_mem_con1 env con1 in
+        if M.tracing then M.trace "apron" "env_exists_mem_con1 %s %s -> %B\n" (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) env) (Lincons1.show con1) r;
+        r
       in
       (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)
       (* Put those constraints which strictly are in one argument's env first, to (hopefully) ensure they remain. *)
@@ -645,14 +652,15 @@ struct
 
   let empty_env = Environment.make [||] [||]
 
+  (* top and bottom over the empty environment are different, pending  https://github.com/goblint/analyzer/issues/1380 *)
   let bot () =
-    top_env empty_env
+    bot_env empty_env
 
   let top () =
-    failwith "D2.top"
+    top_env empty_env
 
-  let is_bot = equal (bot ())
-  let is_top _ = false
+  let is_bot x = equal (bot ()) x
+  let is_top x = equal (top ()) x
 
   let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
 

@@ -4,11 +4,8 @@
     uuid: e9cde5db-0c69-4413-ad46-7a15b93f1834
     creation_time: 2022-08-30T15:00:25Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-ge4b5d9f12-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''43-apron-unassume-precheck.c''
-        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
-        ''printstats'' ''true'' ''--set'' ''goblint-dir'' ''.goblint-56-18'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 43-apron-unassume-precheck.c
@@ -32,11 +29,8 @@
     uuid: e9cde5db-0c69-4413-ad46-7a15b93f1834
     creation_time: 2022-08-30T15:00:25Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-ge4b5d9f12-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''43-apron-unassume-precheck.c''
-        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
-        ''printstats'' ''true'' ''--set'' ''goblint-dir'' ''.goblint-56-18'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 43-apron-unassume-precheck.c

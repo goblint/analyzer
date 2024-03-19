@@ -44,10 +44,10 @@ struct
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
       x
     else
-      D.bot () (* just like startstate, heterogeneous RD.bot () means top over empty set of variables *)
+      D.top ()
 
-  let exitstate  _ = { rel = RD.bot (); priv = Priv.startstate () }
-  let startstate _ = { rel = RD.bot (); priv = Priv.startstate () }
+  let exitstate  _ = { rel = RD.top (); priv = Priv.startstate () }
+  let startstate _ = { rel = RD.top (); priv = Priv.startstate () }
 
   (* Functions for manipulating globals as temporary locals. *)
 
@@ -743,7 +743,9 @@ struct
       in
       let rel = RD.remove_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
 
+      if M.tracing then M.traceli "apron" "unassume join\n";
       let st = D.join ctx.local {st with rel} in (* (strengthening) join *)
+      if M.tracing then M.traceu "apron" "unassume join\n";
       M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
       st
     | _ ->
