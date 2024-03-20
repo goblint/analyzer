@@ -2,7 +2,7 @@ open Analyses
 open GoblintCil
 open GobConfig
 
-(* Specifies the type of the call stack elements for the call string analysis *)
+(* Specifies the type of the call stack elements *)
 module type Callstack_Type =
 sig
   include CilType.S
@@ -10,7 +10,7 @@ sig
   val stackEle: fundec -> ('d,'g,'c,'v) ctx -> t option (* returns an element that should be pushed to the call stack *)
 end
 
-(** Analysis with the k-call string approach, which uses the last k call stack elements as context.
+(** Call string approach and Call site approach. It is possible to use an infinite call stack of the k-CFA approach, which tracks the last k stack elements.
     With the CT argument it is possible to specify the type of the call stack elements *)
 module Spec (CT:Callstack_Type) : MCPSpec = 
 struct
@@ -27,8 +27,7 @@ struct
         let new_stack = BatDeque.cons e stack in (* pushes new element to stack *)     
         if get_int "ana.context.callStack_height" < 0
         then new_stack (* infinite call stack *)
-        else 
-          (* removes element from stack, if stack was filled with k elements *)
+        else (* maximum of k elements *)
           match (BatDeque.size new_stack - (get_int "ana.context.callStack_height")) with
           | x when x <= 0 -> new_stack
           | 1 -> fst @@ Option.get (BatDeque.rear new_stack)
@@ -85,7 +84,6 @@ module Callsite:Callstack_Type = struct
     | _ -> None (* first statement is filtered *)
 end
 
-(* Lifters for the call string approach with different call stack element types *)
 let _ =
   (* call string approach *)
   MCP.register_analysis (module Spec (Callstring) : MCPSpec); (* [call_string] *)

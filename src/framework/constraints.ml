@@ -504,8 +504,8 @@ struct
   let names x = Format.asprintf "%d" x
 end
 
-(** Lifts a [Spec] with the context gas variable. For every function call the context gas is reduced. 
-    If the gas is 0, the remaining function calls are analyzed without context-information *)
+(** Lifts a [Spec] with the context gas variable. For every function call the gas is reduced. 
+    If the gas is zero, the remaining function calls are analyzed without context-information *)
 module ContextGasLifter (S:Spec)
   : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf)) 
           and module C = Printable.Option (S.C) (NoContext)
@@ -555,7 +555,7 @@ struct
                  ; context = (fun () -> Option.get (ctx.context ()))}
 
   let enter ctx r f args =
-    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, max 0 (cg_val ctx - 1))) in
+    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, max 0 (cg_val ctx - 1))) in (* callee gas = caller gas - 1 *)
     liftmap_tup (S.enter (conv ctx) r f args) 
 
   let threadenter ctx ~multiple lval f args = 
