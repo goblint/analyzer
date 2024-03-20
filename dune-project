@@ -30,7 +30,7 @@
     (yojson (>= 2.0.0))
     (qcheck-core (>= 0.19))
     ppx_deriving
-    ppx_deriving_hash
+    (ppx_deriving_hash (>= 0.1.2))
     (ppx_deriving_yojson (>= 3.7.0))
     (ounit2 :with-test)
     (qcheck-ounit :with-test)
