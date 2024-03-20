@@ -49,7 +49,7 @@ let big_int_of_float f =
     (Z.pow (Z.of_int 2) (n - shift))
 
 module CDouble = struct
-  type t = float [@@deriving eq, ord, to_yojson]
+  type t = float [@@deriving eq, ord, hash, to_yojson]
 
   let name = "double"
   let zero = Float.zero
@@ -65,7 +65,6 @@ module CDouble = struct
   let pred = Float.pred
   let succ = Float.succ
 
-  let hash = Hashtbl.hash
   let to_string = Float.to_string
 
   let neg = Float.neg
@@ -82,7 +81,7 @@ module CDouble = struct
 end
 
 module CFloat = struct
-  type t = float [@@deriving eq, ord, to_yojson]
+  type t = float [@@deriving eq, ord, hash, to_yojson]
 
   let name = "float"
   let zero = Float.zero
@@ -99,7 +98,6 @@ module CFloat = struct
 
   let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound
 
-  let hash = Hashtbl.hash
   let to_string = Float.to_string
 
   let neg = Float.neg
