@@ -604,6 +604,9 @@ struct
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" ADOffsetMap.pretty res;
     res
 
+  let reachable_from_address_offset ask gs st adr =
+    Timing.wrap "reachable_from_address_offset" (reachable_from_address_offset ask gs st) adr
+
   (* The code for getting the variables reachable from the list of parameters.
    * This section is very confusing, because I use the same construct, a set of
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
@@ -1293,10 +1296,51 @@ struct
     | _ -> false
 
   module Graph = ValueDomain.ADGraph
+  module AddrMap = Map.Make(Addr)
+
+  (* For profiling purposes, we want to know how often elements are re-encountered during the dfs *)
+  module AddrHT = Hashtbl.Make(Addr)
 
   (* Given a set of addresses, collect graph
      that contains all paths with which these addresses are reachable with a depth-first search *)
   let collect_graph (local: CPA.t) (start: AD.t) (goal: AD.t) =
+
+    (* for profiling*)
+    let start_time = Sys.time() in
+    let counter = AddrHT.create 101 in
+    let add_elem elem =
+      let value = AddrHT.find_default counter elem 0 in
+      AddrHT.replace counter elem (value + 1)
+    in
+
+    let glob_fun = fun _ -> failwith "Should not lookup globals." in
+    (* let set_connection ~start ~via ~sink ~graph =
+       ValueDomain.ADGraph.add start (ADOffsetMap.singleton via (AD.singleton sink)) graph
+       in *)
+    let update_connection_with ~start ~via ~sink ~graph =
+      let old_entry = Graph.find start graph in
+      let new_entry = ADOffsetMap.singleton via (AD.singleton sink) in
+      let entry = ADOffsetMap.join old_entry new_entry in
+      let graph = ValueDomain.ADGraph.add start entry graph in
+      graph
+    in
+    let already_visited ~visited x =
+      AD.subset (AD.singleton x) visited
+    in
+    let already_reaches_goal ~reach_target x =
+      AddrMap.find_default false x reach_target
+    in
+    let is_goal x =
+      AD.exists (is_prefix_of x) goal
+    in
+    let reaches_goal ~reach_target x =
+      already_reaches_goal ~reach_target x || is_goal x
+    in
+    let update_reach_target ~n ~goal_reachable ~reach_target =
+      if goal_reachable then
+        AddrMap.add n true reach_target
+      else reach_target
+    in
     if M.tracing then M.tracel "collect_graph" "start: %a\ngoal: %a\nlocal: %a\n " AD.pretty start AD.pretty goal CPA.pretty local ;
     let r = if AD.is_empty start || AD.is_empty goal then
       ValueDomain.ADGraph.bot ()
@@ -1304,57 +1348,59 @@ struct
       let ask: Queries.ask = { Queries.f = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)} in
       let state = D.top () in
       let local = {state with cpa = local} in
-      let rec dfs node (visited, graph) : bool * ValueDomain.ADGraph.t =
-        let node = node in
-        (* if M.tracing then M.tracel "collect_graph" "visited-set: %a + %a\n" AD.pretty visited Addr.pretty node; *)
+      let rec dfs node (reach_target, visited, graph) : bool AddrMap.t * AD.t * ValueDomain.ADGraph.t =
         let visited = AD.join visited (AD.singleton node) in
-        let glob_fun = fun _ -> failwith "Should not lookup globals." in
+        add_elem node;
         let reachable_from_node = reachable_from_address_offset ask glob_fun local (AD.singleton node) in
-        let dfs_add_edge o (n: Addr.t) (found, graph) =
-          let goal_reached = AD.exists (fun g -> is_prefix_of n g)  goal in
-          let already_visited = AD.subset (AD.singleton n) visited in
-          if already_visited then
-            if goal_reached then
-              let graph = ValueDomain.ADGraph.add node (ADOffsetMap.singleton o (AD.singleton n)) graph in
-              (true, graph)
+
+        let dfs_add_edge o (n: Addr.t) (reach_target, visited, grap) =
+          let reach_target, visited, graph =
+            if already_visited ~visited n then
+              reach_target, visited, graph
             else
-              false, graph
-          else
-            begin
-              let found, graph = dfs n (visited, graph) in
-              if goal_reached || found then begin
-                (* if M.tracing then M.tracel "collect_graph" "Adding edge from %a via %a to %a graph %a.\n" Addr.pretty node Offset.Unit.pretty o Addr.pretty n Graph.pretty graph; *)
-
-                let old_entry = Graph.find node graph in
-                let new_entry = ADOffsetMap.singleton o (AD.singleton n) in
-                let entry = ADOffsetMap.join old_entry new_entry in
-
-                let graph = ValueDomain.ADGraph.add node entry graph in
-                (* M.tracel "collect_graph" "Resulting in %a\n" Graph.pretty graph; *)
-                (true, graph)
-              end else
-                (found, graph)
-            end
+              dfs n (reach_target, visited, graph)
+          in
+          let goal_reachable = reaches_goal ~reach_target n in
+          let reach_target =
+            update_reach_target ~n ~goal_reachable ~reach_target
+          in
+          let graph = if goal_reachable then
+              update_connection_with ~start:node ~via:o ~sink:n ~graph
+            else graph
+          in
+          reach_target, visited, graph
         in
         let dfs_add_edge o n g =
-          AD.fold (fun a g->
-              let f, g = dfs_add_edge o a g in
-              f, g) n g
+          AD.fold (dfs_add_edge o) n g
         in
-        ADOffsetMap.fold dfs_add_edge reachable_from_node (false, graph)
-      in
-      let dfs_combine node (_, graph) =
-        dfs node (AD.empty (), graph)
+        ADOffsetMap.fold dfs_add_edge reachable_from_node (reach_target, visited, graph)
       in
       let empty_graph = ValueDomain.ADGraph.empty () in
-      let _, result = AD.fold dfs_combine start (false, empty_graph) in
+      let _, _, result = AD.fold dfs start (AddrMap.empty, AD.bot (), empty_graph) in
       result
     in
     if M.tracing then M.tracel "collect_graph" "Result: %a\n" Graph.pretty r;
+
+
+    if M.tracing then
+      begin
+        let do_entry _address c (sum, max) =
+          c + sum, Int.max max c
+        in
+        let sum, max = AddrHT.fold do_entry counter (0, 0) in
+        let length = AddrHT.length counter in
+        let average () =
+          if length <> 0 then
+            string_of_int (sum / length)
+          else
+            "-"
+        in
+        let current_time = Sys.time () in
+        M.tracel "collect_graph_count" "Max occurence count: %d, average: %s, number of items: %d, runtime: %fs\n" max (average ()) length (current_time -. start_time)
+      end;
     r
 
-
-  module AddrMap = Map.Make (Addr)
+  (* module AddrMap = Map.Make (Addr) *)
   type value_map = VD.t AddrMap.t
 
   let modular_glob_fun ctx v =
