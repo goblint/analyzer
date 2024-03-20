@@ -4,12 +4,8 @@
     uuid: 1a354f1e-76e8-40e9-808a-8d5efbe35496
     creation_time: 2022-10-12T10:45:49Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-g8b307fe1f-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''35-hh-ex1b.c''
-        ''--enable'' ''ana.int.interval'' ''--disable'' ''solvers.td3.remove-wpoint''
-        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable''
-        ''dbg.timing.enabled'' ''--set'' ''goblint-dir'' ''.goblint-56-35'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 35-hh-ex1b.c
