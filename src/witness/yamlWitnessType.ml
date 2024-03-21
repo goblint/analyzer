@@ -111,6 +111,7 @@ struct
     column: int;
     function_: string;
   }
+  [@@deriving ord]
 
   let to_yaml {file_name; file_hash; line; column; function_} =
     `O [
@@ -138,6 +139,7 @@ struct
     type_: string;
     format: string;
   }
+  [@@deriving ord]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -160,6 +162,7 @@ struct
     location: Location.t;
     loop_invariant: Invariant.t;
   }
+  [@@deriving ord]
 
   let entry_type = "loop_invariant"
 
@@ -182,6 +185,7 @@ struct
     location: Location.t;
     location_invariant: Invariant.t;
   }
+  [@@deriving ord]
 
   let entry_type = "location_invariant"
 
@@ -203,6 +207,7 @@ struct
   type t = {
     flow_insensitive_invariant: Invariant.t;
   }
+  [@@deriving ord]
 
   let entry_type = "flow_insensitive_invariant"
 
@@ -224,6 +229,7 @@ struct
     loop_invariant: Invariant.t;
     precondition: Invariant.t;
   }
+  [@@deriving ord]
 
   let entry_type = "precondition_loop_invariant"
 
@@ -251,6 +257,7 @@ struct
       value: string;
       format: string;
     }
+    [@@deriving ord]
 
     let invariant_type = "loop_invariant"
 
@@ -282,6 +289,7 @@ struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
+    [@@deriving ord]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
@@ -309,6 +317,7 @@ struct
     type t = {
       invariant_type: InvariantType.t;
     }
+    [@@deriving ord]
 
     let to_yaml {invariant_type} =
       `O [
@@ -327,6 +336,7 @@ struct
   type t = {
     content: Invariant.t list;
   }
+  [@@deriving ord]
 
   let entry_type = "invariant_set"
 
@@ -346,6 +356,7 @@ struct
     type_: string;
     file_hash: string;
   }
+  [@@deriving ord]
 
   let to_yaml {uuid; type_; file_hash} =
     `O [
@@ -369,6 +380,7 @@ struct
     type_: string;
     format: string;
   }
+  [@@deriving ord]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -391,6 +403,7 @@ struct
     target: Target.t;
     certification: Certification.t;
   }
+  [@@deriving ord]
 
   let entry_type = "loop_invariant_certificate"
 
@@ -424,6 +437,7 @@ struct
     | LoopInvariantCertificate of LoopInvariantCertificate.t
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
     | InvariantSet of InvariantSet.t
+  [@@deriving ord]
 
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type

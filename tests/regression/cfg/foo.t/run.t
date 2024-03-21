@@ -57,3 +57,159 @@
                                                            │ YAML loc: foo.c:5:5-5:8       │  │
                                                            │ GraphML: true; server: true   │ ─┘
                                                            └───────────────────────────────┘
+
+  $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant", "loop_invariant"]' --set sem.int.signed_overflow assume_none foo.c
+  [Warning][Integer > Overflow][CWE-190] Signed integer overflow (foo.c:4:5-4:8)
+  [Warning][Integer > Overflow][CWE-191] Signed integer underflow (foo.c:5:5-5:8)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 6
+    dead: 0
+    total lines: 6
+  [Warning][Deadcode][CWE-571] condition 'a > 0' (possibly inserted by CIL) is always true (foo.c:3:10-3:20)
+  [Info][Witness] witness generation summary:
+    total generation entries: 13
+
+  $ yamlWitnessStrip < witness.yml
+  - entry_type: loop_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 3
+      column: 2
+      function: main
+    loop_invariant:
+      string: b <= 1
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 3
+      column: 2
+      function: main
+    loop_invariant:
+      string: 1 <= a
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 7
+      column: 2
+      function: main
+    location_invariant:
+      string: b == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 7
+      column: 2
+      function: main
+    location_invariant:
+      string: a != 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 7
+      column: 2
+      function: main
+    location_invariant:
+      string: 1 <= a
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 5
+      column: 4
+      function: main
+    location_invariant:
+      string: b <= 1
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 5
+      column: 4
+      function: main
+    location_invariant:
+      string: b != 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 5
+      column: 4
+      function: main
+    location_invariant:
+      string: a != 1
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 5
+      column: 4
+      function: main
+    location_invariant:
+      string: 2 <= a
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 4
+      column: 4
+      function: main
+    location_invariant:
+      string: b <= 1
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 4
+      column: 4
+      function: main
+    location_invariant:
+      string: b != 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 4
+      column: 4
+      function: main
+    location_invariant:
+      string: a != 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: foo.c
+      file_hash: $FILE_HASH
+      line: 4
+      column: 4
+      function: main
+    location_invariant:
+      string: 1 <= a
+      type: assertion
+      format: C

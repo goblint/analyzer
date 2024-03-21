@@ -3,7 +3,7 @@
 int main() {
   // for loop
   int x = 42;
-  for (x = 0; x < 10; x++) { // there shouldn't be invariants x <= 9, x <= 10 and 0 <= x before this line
+  for (x = 0; x < 10; x++) { // there shouldn't be location invariants x <= 9, x <= 10 and 0 <= x before this line
     // ...
   }
 
