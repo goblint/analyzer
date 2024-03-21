@@ -237,7 +237,7 @@ struct
     | `Refine (lval, value) ->
       refine_lv_fallback ctx st lval value tv
     | `NothingToRefine ->
-      if M.tracing then M.traceu "invariant" "Doing to refine.\n";
+      if M.tracing then M.traceu "invariant" "Nothing to refine.\n";
       st
     | `NotUnderstood ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
