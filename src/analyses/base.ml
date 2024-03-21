@@ -1680,6 +1680,7 @@ struct
 
     let id_meet_down ~old ~c = ID.meet old c
     let fd_meet_down ~old ~c = FD.meet old c
+    let ad_meet_down ~old ~c = AD.meet old c
 
     let contra _ = raise Deadcode
   end
@@ -2886,6 +2887,7 @@ struct
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c
           let fd_meet_down ~old ~c = c
+          let ad_meet_down ~old ~c = c
 
           let contra st = st
         end

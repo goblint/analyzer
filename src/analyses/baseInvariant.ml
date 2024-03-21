@@ -32,6 +32,7 @@ sig
 
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
+  val ad_meet_down: old:AD.t -> c:AD.t -> AD.t
 
   (** Handle contradiction.
 
@@ -416,6 +417,34 @@ struct
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         a, b
     in
+    let inv_bin_addr (a, b) c op =
+      let meet_bin a' b'  = ad_meet_down ~old:a ~c:a', ad_meet_down ~old:b ~c:b' in
+      match op with
+      | Eq | Ne as op ->
+        begin match op, ID.to_bool c with
+          | Eq, Some true
+          | Ne, Some false -> (* def. equal: if they compare equal, both values must be from the meet *)
+            (ad_meet_down ~old:a ~c:b, ad_meet_down ~old:b ~c:a)
+          | Eq, Some false
+          | Ne, Some true -> (* def. unequal *)
+            (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
+             * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
+             * Only if a is a definite value, we can exclude it from b: *)
+            (* Used to cause inconsistent results:
+               interval not sufficiently refined:
+                 inv_bin_int: unequal: (Unknown int([-31,31]),[0,1]) and (0,[0,0]); ikind: int; a': (Not {0}([-31,31]),[-2147483648,2147483647]), b': (0,[0,0])
+                 binop: m == 0, a': (Not {0}([-31,31]),[0,1]), b': (0,[0,0]) *)
+            let excl a b = b in
+            let a' = excl b a in
+            let b' = excl a b in
+            if M.tracing then M.tracel "inv" "inv_bin_addr: unequal: %a and %a; a': %a, b': %a\n" AD.pretty a AD.pretty b AD.pretty a' AD.pretty b';
+            meet_bin a' b'
+          | _, _ -> a, b
+        end
+      | op ->
+        if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
+        a, b
+    in
     let inv_bin_float (a, b) c op =
       let open Stdlib in
       let meet_bin a' b'  = fd_meet_down ~old:a ~c:a', fd_meet_down ~old:b ~c:b' in
@@ -691,7 +720,13 @@ struct
                st''
              (* Mixed Float and Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
              | Int _, Float _ | Float _, Int _ -> failwith "ill-typed program";
-               (* | Address a, Address b -> ... *)
+             | Address a, Address b ->
+               let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
+               let a', b' = inv_bin_addr (a, b) (c_int ikres) op in
+               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty (c_int ikres) AD.pretty a' AD.pretty b';
+               let st' = inv_exp (Address a') e1 st in
+               let st'' = inv_exp (Address b') e2 st' in
+               st''
              | a1, a2 -> fallback (fun () -> Pretty.dprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
             (* use closures to avoid unused casts *)
           in (match c_typed with
@@ -772,7 +807,7 @@ struct
               update_lval c x c' AD.pretty
             | _ -> assert false
           end
-        | Const _ , _ -> st (* nothing to do *)
+        | (Const _| AddrOf _) , _ -> st (* nothing to do *)
         | CastE ((TFloat (_, _)), e), Float c ->
           (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
            | TFloat (FLongDouble as fk, _), FFloat
