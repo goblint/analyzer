@@ -1324,8 +1324,10 @@ struct
       let graph = ValueDomain.ADGraph.add start entry graph in
       graph
     in
+    (* TODO: Use AddrHT or AddrMap consistently *)
+    (* In case AddrHT is used, no need to pase tables around as arguments. *)
     let already_visited ~visited x =
-      AD.subset (AD.singleton x) visited
+      AddrHT.mem visited x
     in
     let already_reaches_goal ~reach_target x =
       AddrMap.find_default false x reach_target
@@ -1348,8 +1350,8 @@ struct
       let ask: Queries.ask = { Queries.f = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)} in
       let state = D.top () in
       let local = {state with cpa = local} in
-      let rec dfs node (reach_target, visited, graph) : bool AddrMap.t * AD.t * ValueDomain.ADGraph.t =
-        let visited = AD.join visited (AD.singleton node) in
+      let rec dfs node (reach_target, visited, graph) : bool AddrMap.t * unit AddrHT.t * ValueDomain.ADGraph.t =
+        AddrHT.add visited node ();
         add_elem node;
         let reachable_from_node = reachable_from_address_offset ask glob_fun local (AD.singleton node) in
 
@@ -1376,7 +1378,7 @@ struct
         ADOffsetMap.fold dfs_add_edge reachable_from_node (reach_target, visited, graph)
       in
       let empty_graph = ValueDomain.ADGraph.empty () in
-      let _, _, result = AD.fold dfs start (AddrMap.empty, AD.bot (), empty_graph) in
+      let _, _, result = AD.fold dfs start (AddrMap.empty, AddrHT.create 101, empty_graph) in
       result
     in
     if M.tracing then M.tracel "collect_graph" "Result: %a\n" Graph.pretty r;
@@ -1485,6 +1487,9 @@ struct
     let pairs = !visited in
     let concretes = AddrPairSet.to_seq pairs |> Seq.map Tuple2.first in
     Seq.fold_left (fun acc a -> AD.join (AD.singleton a) acc) (AD.bot ()) concretes
+
+  let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (globals: varinfo list) (goal: AD.t) =
+    Timing.wrap "collect_targets_with_graph" (collect_targets_with_graph ctx graph args params globals) goal
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
