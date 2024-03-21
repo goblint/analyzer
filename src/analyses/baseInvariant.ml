@@ -115,7 +115,7 @@ struct
   let invariant_fallback ctx st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
-    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): (lval * VD.t) option =
+    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): [`Refine of lval * VD.t | `NotUnderstood] =
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
@@ -123,8 +123,8 @@ struct
         (match value with
          | Int n ->
            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-           Some (x, Int (ID.cast_to ikind n))
-         | _ -> Some(x, value))
+           `Refine (x, Int (ID.cast_to ikind n))
+         | _ -> `Refine (x, value))
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
           match value with
@@ -134,26 +134,26 @@ struct
                 (* When x != n, we can return a singleton exclusion set *)
                 if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x GobZ.pretty n;
                 let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-                Some (x, Int (ID.of_excl_list ikind [n]))
-              | None -> None
+                `Refine (x, Int (ID.of_excl_list ikind [n]))
+              | None -> `NotUnderstood
             end
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
               match eval_rv_address ~ctx st (Lval x) with
               | Address a when AD.is_definite n ->
-                Some (x, Address (AD.diff a n))
+                `Refine (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
-                Some (x, Address AD.not_null)
+                `Refine (x, Address AD.not_null)
               | v ->
                 if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pretty v AD.pretty n;
-                None
+                `NotUnderstood
             end
-          (* | Address a -> Some (x, value) *)
+          (* | Address a -> `Refine (x, value) *)
           | _ ->
             (* We can't say anything else, exclusion sets are finite, so not
              * being in one means an infinite number of values *)
             if M.tracing then M.tracec "invariant" "Failed! (not a definite value)\n";
-            None
+            `NotUnderstood
         end
       | Ne, x, value, _ -> helper Eq x value (not tv)
       | Lt, x, value, _ -> begin
@@ -166,10 +166,10 @@ struct
               match limit_from n with
               | Some n ->
                 if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
-                Some (x, Int (range_from n))
-              | None -> None
+                `Refine (x, Int (range_from n))
+              | None -> `NotUnderstood
             end
-          | _ -> None
+          | _ -> `NotUnderstood
         end
       | Le, x, value, _ -> begin
           match value with
@@ -181,16 +181,16 @@ struct
               match limit_from n with
               | Some n ->
                 if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a\n\n" d_lval x GobZ.pretty n;
-                Some (x, Int (range_from n))
-              | None -> None
+                `Refine (x, Int (range_from n))
+              | None -> `NotUnderstood
             end
-          | _ -> None
+          | _ -> `NotUnderstood
         end
       | Gt, x, value, _ -> helper Le x value (not tv)
       | Ge, x, value, _ -> helper Lt x value (not tv)
       | _ ->
         if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n\n";
-        None
+        `NotUnderstood
     in
     if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" d_exp exp tv;
     let null_val (typ:typ):VD.t =
@@ -199,7 +199,7 @@ struct
       | TEnum({ekind=_;_},_)
       | _                         -> Int (ID.of_int (Cilfacade.get_ikind typ) Z.zero)
     in
-    let rec derived_invariant exp tv =
+    let rec derived_invariant exp tv: [`Refine of lval * VD.t | `NotUnderstood] =
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
@@ -216,8 +216,8 @@ struct
            if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
              derived_invariant (BinOp (op, Lval x, rval, typ)) tv
            else
-             None
-         | _ -> None)
+            `NotUnderstood
+         | _ -> `NotUnderstood)
       | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       (* Cases like if (x) are treated like if (x != 0) *)
@@ -228,12 +228,12 @@ struct
       | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
       | _ ->
         if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" d_plainexp exp;
-        None
+        `NotUnderstood
     in
     match derived_invariant exp tv with
-    | Some (lval, value) ->
+    | `Refine (lval, value) ->
       refine_lv_fallback ctx st lval value tv
-    | None ->
+    | `NotUnderstood ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
