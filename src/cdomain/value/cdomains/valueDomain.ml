@@ -35,7 +35,7 @@ sig
   val is_bot_value: t -> bool
   val init_value: ?varAttr:attributes -> typ -> t
   val top_value: ?varAttr:attributes -> typ -> t
-  val top_value_typed_address_targets: ?varAttr:attributes -> typ -> t * varinfo list
+  val top_value_typed_address_targets: typ -> t * varinfo list
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
@@ -211,64 +211,79 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> Top
 
+  module Typtbl = Hashtbl.Make(CilType.Typ)
+
+  let memo = Typtbl.create 101
+
   (* top values, except type-based target for addresses *)
-  let rec top_value_typed_address_targets ?(varAttr=[]) (t: typ): t * varinfo list =
-    match t with
-    | _ when is_mutex_type t -> Mutex, []
-    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ()), []
-    | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik))), []
-    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind), []
-    | TPtr (t, _) ->
-      let target_and_address_from_type t =
-        let target = TypeVarinfoMap.to_varinfo t in
-        target, AD.of_var ~is_modular:true target
-      in
-      let target_and_address_from_array t =
-        let target = TypeVarinfoMap.to_varinfo t in
-        let offset = `Index (PreValueDomain.IndexDomain.top (), `NoOffset) in
-        let mval = target, offset in
-        target, AD.of_mval ~is_modular:true mval
-      in
-      let target, target_address = target_and_address_from_type t in
+  let rec top_value_typed_address_targets  (t: typ): t * varinfo list =
+    let top_value_typed_address_targets' t =
+      match t with
+      | _ when is_mutex_type t -> Mutex, []
+      | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ()), []
+      | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik))), []
+      | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind), []
+      | TPtr (t, _) ->
+        let target_and_address_from_type t =
+          let target = TypeVarinfoMap.to_varinfo t in
+          target, AD.of_var ~is_modular:true target
+        in
+        let target_and_address_from_array t =
+          let target = TypeVarinfoMap.to_varinfo t in
+          let offset = `Index (PreValueDomain.IndexDomain.top (), `NoOffset) in
+          let mval = target, offset in
+          target, AD.of_mval ~is_modular:true mval
+        in
+        let target, target_address = target_and_address_from_type t in
 
-      let tarray = TArray (t, None, []) in
-      let target_array, target_array_address = target_and_address_from_array tarray in
+        let tarray = TArray (t, None, []) in
+        let target_array, target_array_address = target_and_address_from_array tarray in
 
-      let null_ptr = AD.null_ptr in
-      let address = AD.join (AD.join target_address null_ptr) target_array_address in
-      Address address, [target; target_array]
-    | TComp ({cstruct=true; _} as ci,_) ->
-      let init_field s fd =
-        let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
-        (Structs.replace s fd v), targets
-      in
-      let init_field (s, acc) fd =
-        let v, targets = init_field s fd in
-        (v, targets @ acc)
-      in
-      let s, vs = List.fold_left init_field (Structs.top (), []) ci.cfields in
-      if M.tracing then M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
-      Struct s, vs
-    | TComp ({cstruct=false; _} as ci,_) ->
-      (* TODO: Deduplicate w.r.t. case for Structs above *)
-      let init_field s fd =
-        let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
-        (Unions.replace s fd v), targets
-      in
-      let init_field (s, acc) fd =
-        let v, targets = init_field s fd in
-        (v, targets @ acc)
-      in
-      let s, vs = List.fold_left init_field (Unions.bot (), []) ci.cfields in
-      if M.tracing then M.tracel "top_value_typed" "default_value for union type %a is %a\n" d_type t Unions.pretty s;
-      Union s, vs
-    | TArray (ai, length, _) ->
-      let typAttr = typeAttrs ai in
-      let base_value, targets = top_value_typed_address_targets ai in
-      let len = array_length_idx (IndexDomain.top ()) length in
-      Array (CArrays.make ~varAttr ~typAttr len base_value), targets
-    | TNamed ({ttype=t; _}, _) -> top_value_typed_address_targets ~varAttr t
-    | _ -> Top, []
+        let null_ptr = AD.null_ptr in
+        let address = AD.join (AD.join target_address null_ptr) target_array_address in
+        Address address, [target; target_array]
+      | TComp ({cstruct=true; _} as ci,_) ->
+        let init_field s fd =
+          let v, targets = top_value_typed_address_targets fd.ftype in
+          (Structs.replace s fd v), targets
+        in
+        let init_field (s, acc) fd =
+          let v, targets = init_field s fd in
+          (v, targets @ acc)
+        in
+        let s, vs = List.fold_left init_field (Structs.top (), []) ci.cfields in
+        if M.tracing then M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
+        Struct s, vs
+      | TComp ({cstruct=false; _} as ci,_) ->
+        (* TODO: Deduplicate w.r.t. case for Structs above *)
+        let init_field s fd =
+          let v, targets = top_value_typed_address_targets fd.ftype in
+          (Unions.replace s fd v), targets
+        in
+        let init_field (s, acc) fd =
+          let v, targets = init_field s fd in
+          (v, targets @ acc)
+        in
+        let s, vs = List.fold_left init_field (Unions.bot (), []) ci.cfields in
+        if M.tracing then M.tracel "top_value_typed" "default_value for union type %a is %a\n" d_type t Unions.pretty s;
+        Union s, vs
+      | TArray (ai, length, _) ->
+        let typAttr = typeAttrs ai in
+        let base_value, targets = top_value_typed_address_targets ai in
+        let len = array_length_idx (IndexDomain.top ()) length in
+        Array (CArrays.make ~typAttr len base_value), targets
+      | TNamed ({ttype=t; _}, _) -> top_value_typed_address_targets  t
+      | _ -> Top, []
+    in
+    try
+      Typtbl.find memo t
+    with Not_found ->
+      let result = top_value_typed_address_targets' t in
+      Typtbl.add memo t result;
+      result
+
+  let top_value_typed_address_targets (t: typ): t * varinfo list =
+    Timing.wrap "top_value_typed_address_targets" top_value_typed_address_targets  t
 
   let is_top_value x (t: typ) =
     match x with
