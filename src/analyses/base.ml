@@ -1336,9 +1336,9 @@ struct
     let reaches_goal ~reach_target x =
       already_reaches_goal ~reach_target x || is_goal x
     in
-    let update_reach_target ~n ~goal_reachable ~reach_target =
+    let update_reach_target ~node ~goal_reachable ~reach_target =
       if goal_reachable then
-        AddrMap.add n true reach_target
+        AddrMap.add node true reach_target
       else reach_target
     in
     if M.tracing then M.tracel "collect_graph" "start: %a\ngoal: %a\nlocal: %a\n " AD.pretty start AD.pretty goal CPA.pretty local ;
@@ -1353,7 +1353,7 @@ struct
         add_elem node;
         let reachable_from_node = reachable_from_address_offset ask glob_fun local (AD.singleton node) in
 
-        let dfs_add_edge o (n: Addr.t) (reach_target, visited, grap) =
+        let dfs_add_edge o (n: Addr.t) (reach_target, visited, graph) =
           let reach_target, visited, graph =
             if already_visited ~visited n then
               reach_target, visited, graph
@@ -1362,7 +1362,7 @@ struct
           in
           let goal_reachable = reaches_goal ~reach_target n in
           let reach_target =
-            update_reach_target ~n ~goal_reachable ~reach_target
+            update_reach_target ~node ~goal_reachable ~reach_target
           in
           let graph = if goal_reachable then
               update_connection_with ~start:node ~via:o ~sink:n ~graph
