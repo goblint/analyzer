@@ -76,6 +76,20 @@ module UnionFind (Val: Val)  = struct
     | exception (InvalidUnionFind _) -> None
     | res -> Some res
 
+  (**
+     Parameters: part v1 v2 r
+
+     chages the union find data structure `part` such that the equivalence classes of `v1` and `v2` are merged and `v1 = v2 + r`
+
+     returns v,part,b where
+
+     - `v` is the new reference variable of the merged equivalence class. It is either the old reference variable of v1 or of v2, depending on which equivalence class is bigger.
+
+     - `part` is the new union find data structure
+
+     - `b` is true iff v = find v1
+
+  *)
   let union cc v'1 v'2 r = let v1,r1 = find cc v'1 in
     let v2,r2 = find cc v'2 in
     if Val.compare v1 v2 = 0 then
@@ -85,10 +99,10 @@ module UnionFind (Val: Val)  = struct
       | Some (refv1,s1),
         Some (refv2,s2) ->
         if s1 <= s2 then (
-          refv1 := (v2,Z.(r2-r1+r));
+          refv1 := (v2, Z.(r2 - r1 + r));
           v2, ValMap.add v2 (refv2,s1+s2) cc, false
         ) else (
-          refv2 := (v1,Z.(r1-r2-r));
+          refv2 := (v1, Z.(r1 - r2 - r));
           v1, ValMap.add v1 (refv1,s1+s2) cc, true
         )
       | None, _ -> raise (UnknownValue v1)
@@ -122,10 +136,9 @@ module UnionFind (Val: Val)  = struct
               ) (ValMap.bindings map)
 end
 
-
 exception Unsat
 
-type 'v term = Addr of 'v | Deref of Z.t * 'v term
+type 'v term = Addr of 'v | Deref of 'v term * Z.t
 type 'v prop = Eq of 'v term * 'v term * Z.t | Neq of 'v term * 'v term * Z.t
 
 module Term (Var:Val) = struct
@@ -133,12 +146,10 @@ module Term (Var:Val) = struct
   let compare = compare
   let rec show = function
     | Addr v -> "&" ^ Var.show v
-    | Deref (z, Addr v) when Z.equal z Z.zero -> Var.show v
-    | Deref (z, t) when Z.equal z Z.zero -> "*" ^ show t
-    | Deref (z, t) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
+    | Deref (Addr v, z) when Z.equal z Z.zero -> Var.show v
+    | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
+    | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
 end
-
-
 
 module CongruenceClosure (Var:Val) = struct
   module T = Term (Var)
@@ -147,8 +158,12 @@ module CongruenceClosure (Var:Val) = struct
   module ZMap = TUF.ZMap
   module TMap = TUF.ValMap
 
+  type part_t = TUF.t
+  type set_t = TSet
   type map_t = T.t ZMap.t TMap.t (** Lookup map *)
-  type t = (TUF.t * map_t)
+  type min_repr_t = (T.t * Z.t) TMap.t
+
+  type t = (part_t * set_t * map_t * min_repr_t)
 
   let string_of_prop = function
     | Eq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
@@ -163,7 +178,7 @@ module CongruenceClosure (Var:Val) = struct
 
   let rec subterms_of_term (set,map) t = match t with
     | Addr _ -> (TSet.add t set, map)
-    | Deref (z,t') ->
+    | Deref (t',z) ->
       let set = TSet.add t set in
       let map = TUF.map_add (t',z) t map in
       (* let arg = TUF.map_set_add (t,z) t' arg in *)
@@ -175,22 +190,6 @@ module CongruenceClosure (Var:Val) = struct
 
   let subterms_of_conj list = List.fold_left subterms_of_prop (TSet.empty,TMap.empty) list
 
-  (**
-     returns (part, set, map), where:
-
-     part = empty union find structure where the elements are all subterms occuring in the conjunction
-
-     set = set of all subterms occuring in the conjunction
-
-     map = for each subterm *(z + t') the map maps t' to a map that maps z to *(z + t')
-
-  *)
-  let init_cc conj =
-    let (set,map) = subterms_of_conj conj in
-    let part = TSet.elements set |>
-               TUF.init in
-    (part,set,map)
-
   let shift v r v' map = (* value at v' is shifted by r and then added for v *)
     match TMap.find_opt v' map with
     | None -> map
@@ -199,53 +198,200 @@ module CongruenceClosure (Var:Val) = struct
           ZMap.add Z.(r' + r) v' zmap) ZMap.empty infl in
       TMap.add v zmap map
 
+
+  let print_min_rep min_representatives =
+    let print_one_rep (state, (rep, z)) =
+      print_string "\tState rep: ";
+      print_string @@ T.show state;
+      print_string "\n\tMin. Representative: (";
+      print_string @@ T.show rep;
+      print_string ", ";
+      Z.print z;
+      print_string ")\n\n" in
+    List.iter print_one_rep @@ TMap.bindings min_representatives
+
+
+  (** Uses dijkstra algorithm to update the minimal representatives of
+      all edges in the queue and if necessary also updates the minimal representatives of
+      the successor nodes of the automata
+
+      parameters:
+
+      `(part, map)` represent the union find data tructure and the corresponding lookup map
+
+      `min_representatives` maps each representative of the union find data structure to the minimal representative of the equivalence class
+
+      `queue` contains the states that need to be processed.
+      The states of the automata are the equivalence classes and each state of the automata is represented by the representative term.
+      Therefore the queue is a list of representative terms. *)
+  let rec update_min_repr (part, map) min_representatives = function
+    | [] -> min_representatives
+    | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
+      match ZMap.bindings (TMap.find state map) with
+      | exception Not_found -> (* no outgoing edges *)
+        update_min_repr (part, map) min_representatives queue
+      | edges ->
+        let process_edge (min_representatives, queue) (edge_z, next_term) =
+          let (next_state, next_z) = TUF.find part next_term in
+          let (min_term, min_z) = TMap.find state min_representatives in
+          let next_min = (Deref (min_term, Z.(edge_z - min_z)), next_z) in
+          match TMap.find_opt next_state min_representatives
+          with
+          | None ->
+            (TMap.add next_state next_min min_representatives, queue @ [next_state])
+          | Some current_min when next_min < current_min ->
+            (TMap.add next_state next_min min_representatives, queue @ [next_state])
+          | _ -> (min_representatives, queue)
+        in
+        let (min_representatives, queue) = List.fold_left process_edge (min_representatives, queue) edges
+        in update_min_repr (part, map) min_representatives queue
+
+  let get_atoms set =
+    (* elements set returns a sorted list of the elements. The atoms are always smaller that pther terms,
+       according to our comparison function. Therefore take_while is enough.*)
+    BatList.take_while (function Addr _ -> true | _ -> false) (TSet.elements set)
+
   (**
-      parameters: (part, map) equalities
-
-      returns updated (part, map), where:
-
-      part is the new union find data structure after having added all equalities
-
-      map maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z)
-
+     Computes a map that maps each representative of an equivalence class to the minimal representative of the equivalence class.
+     I think it's not used for now, because we compute the minimal representatives incrementally.
   *)
-  let rec closure (part,map) = function
+  let compute_minimal_representatives (part, set, map) =
+    let atoms = get_atoms set in
+    (* process all atoms in increasing order *)
+    let atoms =
+      List.sort (fun el1 el2 -> compare (TUF.find part el1) (TUF.find part el2)) atoms in
+    let add_atom_to_map (min_representatives, queue) a =
+      let (rep, offs) = TUF.find part a in
+      if not (TMap.mem rep min_representatives) then
+        (TMap.add rep (a, offs) min_representatives, queue @ [rep])
+      else (min_representatives, queue)
+    in
+    let (min_representatives, queue) = List.fold_left add_atom_to_map (TMap.empty, []) atoms
+    (* compute the minimal representative of all remaining edges *)
+    in update_min_repr (part, map) min_representatives queue
+
+  (**
+      Computes the initial map if minimal representatives.
+        It maps each element `e` in the set to `(e, 0)`. *)
+  let initial_minimal_representatives set =
+    List.fold_left (fun map element -> TMap.add element (element, Z.zero) map) TMap.empty  (TSet.elements set)
+
+  let get_transitions (part, map) =
+    List.flatten @@ List.map (fun (t, imap) -> List.map (fun (edge_z, res_t) -> (edge_z, t, TUF.find part res_t)) @@ZMap.bindings imap) (TMap.bindings map)
+
+  let get_normal_form (part, set, map, min_repr) =
+    let normalize_equality (t1, t2, z) =
+      if t1 = t2 && Z.(compare z zero) = 0 then None else
+        Some (Eq (t1, t2, z)) in
+    let conjunctions_of_atoms =
+      let atoms = get_atoms set in
+      List.filter_map (fun atom ->
+          let (rep_state, rep_z) = TUF.find part atom in
+          let (min_state, min_z) = TMap.find rep_state min_repr in
+          normalize_equality (atom, min_state, Z.(rep_z - min_z))
+        ) atoms
+    in
+    let conjunctions_of_transitions =
+      let transitions = get_transitions (part, map) in
+      List.filter_map (fun (z,s,(s',z')) ->
+          let (min_state, min_z) = TMap.find s min_repr in
+          let (min_state', min_z') = TMap.find s' min_repr in
+          normalize_equality (Deref(min_state, Z.(z - min_z)), min_state', Z.(z' - min_z'))
+        ) transitions
+    in BatList.unique (conjunctions_of_atoms @ conjunctions_of_transitions)
+
+  (**
+     returns (part, set, map, min_repr), where:
+
+     - `part` = empty union find structure where the elements are all subterms occuring in the conjunction
+
+     - `set` = set of all subterms occuring in the conjunction
+
+     - `map` = for each subterm *(z + t') the map maps t' to a map that maps z to *(z + t')
+
+     - `min_repr` = maps each representative of an equivalence class to the minimal representative of the equivalence class
+  *)
+  let init_cc conj =
+    let (set, map) = subterms_of_conj conj in
+    let part = TSet.elements set |>
+               TUF.init in
+    let min_repr = initial_minimal_representatives set in
+    print_endline "after init_cc the initial representatives are:";
+    print_min_rep min_repr;
+    (part, set, map, min_repr)
+
+  (**
+       parameters: (part, map) equalities
+
+     returns updated (part, map, queue), where:
+
+     part is the new union find data structure after having added all equalities
+
+     map maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z)
+
+     queue is a list of equivalence classes (represented by their representative) that have a new representative after the execution of this function.
+     It can be given as a parameter to `update_min_repr` in order to update the representatives in the representative map
+  *)
+  let rec closure (part, map, min_repr) queue = function
     (* should also operate on dmap *)
-    | [] -> (part,map)
-    | (t1,t2,r)::rest -> (match TUF.find part t1, TUF.find part t2 with
+    | [] -> (part, map, queue, min_repr)
+    | (t1, t2, r)::rest -> (match TUF.find part t1, TUF.find part t2 with
         | (v1,r1), (v2,r2) ->
           if T.compare v1 v2 = 0 then
             (* t1 and t2 are in the same equivalence class *)
-            if r1 = Z.(r2+r) then closure (part,map) rest
+            if r1 = Z.(r2 + r) then closure (part, map, min_repr) queue rest
             else raise Unsat
-          else let v,part,b = TUF.union part v1 v2 Z.(r2-r1+r) in (* union *)
-            match TMap.find_opt v1 map, TMap.find_opt v2 map, b with
-            | None,_,false ->       closure (part,map) rest
-            | None, Some _, true -> let map = shift v1 Z.(r1-r2-r) v2 map in
-              closure (part,map) rest
-            | Some _, None,false -> let map = shift v2 Z.(r2-r1+r) v1 map in
-              closure (part,map) rest
-            | _,None,true -> closure (part,map) rest (* either v1 or v2 does not occur inside Deref *)
-            | Some imap1, Some imap2, true -> (* v1 is new root *)
-              (* zmap describes args of Deref *)
-              let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
-              let infl2 = List.map (fun (r',v') -> Z.(-r0+r'),v') (ZMap.bindings imap2) in
-              let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                  match ZMap.find_opt r' zmap with
-                  | None -> (ZMap.add r' v' zmap, rest)
-                  | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap1,rest) infl2 in
-              let map = TMap.add v zmap map in
-              closure (part,map) rest
-            | Some imap1, Some imap2, false -> (* v2 is new root *)
-              let r0 = Z.(r1-r2-r) in
-              let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (ZMap.bindings imap1) in
-              let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                  match ZMap.find_opt r' zmap with
-                  | None -> (ZMap.add r' v' zmap, rest)
-                  | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap2,rest) infl1 in
-              let map = TMap.add v zmap map in
-              closure (part,map) rest
+          else let v, part, b = TUF.union part v1 v2 Z.(r2 - r1 + r) in (* union *)
+            (* update map *)
+            let map, rest = match TMap.find_opt v1 map, TMap.find_opt v2 map, b with
+              | None, _, false -> map, rest
+              | None, Some _, true -> shift v1 Z.(r1-r2-r) v2 map, rest
+              | Some _, None,false -> shift v2 Z.(r2-r1+r) v1 map, rest
+              | _,None,true -> map, rest (* either v1 or v2 does not occur inside Deref *)
+              | Some imap1, Some imap2, true -> (* v1 is new root *)
+                (* zmap describes args of Deref *)
+                let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
+                let infl2 = List.map (fun (r',v') -> Z.(-r0+r'),v') (ZMap.bindings imap2) in
+                let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
+                    match ZMap.find_opt r' zmap with
+                    | None -> (ZMap.add r' v' zmap, rest)
+                    | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap1,rest) infl2 in
+                TMap.add v zmap map, rest
+              | Some imap1, Some imap2, false -> (* v2 is new root *)
+                let r0 = Z.(r1-r2-r) in
+                let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (ZMap.bindings imap1) in
+                let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
+                    match ZMap.find_opt r' zmap with
+                    | None -> (ZMap.add r' v' zmap, rest)
+                    | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap2, rest) infl1 in
+                TMap.add v zmap map, rest
+            in
+            (* update min_repr *)
+            let min_repr =
+              let min_v1, min_v2 = TMap.find v1 min_repr, TMap.find v2 min_repr in
+              let new_min = if min_v1 <= min_v2 then fst min_v1 else fst min_v1 in
+              TMap.add v (new_min, snd (TUF.find part new_min)) min_repr in
+            closure (part, map, min_repr) (v :: queue) rest
       )
+
+  (**
+     Parameters: (part, map, min_repr) conjunctions
+
+     returns updated (part, map, min_repr), where:
+
+     - `part` is the new union find data structure after having added all equalities
+
+     - `map` maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z)
+
+     - `min_repr` maps each equivalence class to its minimal representative
+
+  *)
+  let closure (part, set, map, min_repr) conjs =
+    let (part, map, queue, min_repr) = closure (part, map, min_repr) [] conjs in
+    (* sort queue by representative size *)
+    let queue = List.sort (fun el1 el2 -> let cmp_repr = compare (TUF.find part el1) (TUF.find part el2) in if cmp_repr = 0 then compare el1 el2 else cmp_repr) queue in
+    let min_repr = update_min_repr (part, map) min_repr queue in
+    (part, set, map, min_repr)
 
   let fold_left2 f acc l1 l2 =
     List.fold_left (
@@ -263,11 +409,10 @@ module CongruenceClosure (Var:Val) = struct
       | Neq(t1,t2,r) -> (pos,(t1,t2,r)::neg)) ([],[]) conj
 
   let congruence conj =
-    let part,set,map = init_cc conj in
-    let pos,_ = split conj in
+    let cc = init_cc conj in
+    let pos, _ = split conj in
     (* propagating equalities through derefs *)
-    let part,map = closure (part,map) pos in
-    (part,set,map)
+    closure cc pos
 
   let print_eq cmap =
     let clist = TMap.bindings cmap in
@@ -288,51 +433,65 @@ module CongruenceClosure (Var:Val) = struct
 
   (** Add a term to the data structure
 
-      returns (reference variable, offset), updated (part, set, map)*)
-  let rec insert (part,set,map) t =
+      Returns (reference variable, offset), updated (part, set, map, min_repr),
+      and queue, that needs to be passed as a parameter to `update_min_repr`.
+
+      `queue` is a list which contains all atoms that are present as subterms of t and that are not already present in the data structure.
+      Therefore it contains either one or zero elements. *)
+  let rec insert (part, set, map, min_repr) t =
     (* should also update dmap *)
     if TSet.mem t set then
-      TUF.find part t, (part,set,map)
+      TUF.find part t, (part, set, map, min_repr),[]
     else let set = TSet.add t set in
       match t with
-      | Addr _ -> let part = TMap.add t (ref (t,Z.zero),1) part in
-        (t, Z.zero), (part, set, map)
-      | Deref (z,t') ->
-        let (v,r), (part,set,map) = insert (part,set,map) t' in
-        match TUF.map_find_opt (v,Z.(r+z)) map with
-        | Some v' -> TUF.find part v', (part,set,map)
-        | None -> let map = TUF.map_add (v,Z.(r+z)) t map in
+      | Addr a -> let part = TMap.add t (ref (t, Z.zero),1) part in
+        let min_repr = TMap.add t (t, Z.zero) min_repr in
+        (t, Z.zero), (part, set, map, min_repr), [Addr a]
+      | Deref (t', z) ->
+        let (v, r), (part, set, map, min_repr), queue = insert (part, set, map, min_repr) t' in
+        match TUF.map_find_opt (v, Z.(r + z)) map with
+        | Some v' -> TUF.find part v', (part, set, map, min_repr), queue
+        | None -> let map = TUF.map_add (v,Z.(r + z)) t map in
           let part = TMap.add t (ref (t,Z.zero),1) part in
-          (t, Z.zero), (part, set, map)
+          (t, Z.zero), (part, set, map, min_repr), queue
+
+  (** Add a term to the data structure
+
+        Returns (reference variable, offset), updated (part, set, map, min_repr) *)
+  let insert (part, set, map, min_repr) t =
+    let v, (part, set, map, min_repr), queue = insert (part, set, map, min_repr) t in
+    (* the queue has at most one element, so there is no need to sort it *)
+    let min_repr = update_min_repr (part, map) min_repr queue in
+    v, (part, set, map, min_repr)
 
   (**
      Returns true if t1 and t2 are equivalent
   *)
-  let eq_query (part,set,map) (t1,t2,r) =
-    let (v1,r1),(part,set,map) = insert (part,set,map) t1 in
-    let (v2,r2),(part,set,map) = insert (part,set,map) t2 in
-    (T.compare v1 v2 = 0 && r1 = Z.(r2 + r), (part, set, map))
+  let eq_query cc (t1,t2,r) =
+    let (v1,r1),cc = insert cc t1 in
+    let (v2,r2),cc = insert cc t2 in
+    (T.compare v1 v2 = 0 && r1 = Z.(r2 + r), cc)
 
   (**
      Returns true if t1 and t2 are not equivalent
   *)
-  let neq_query (part,set,map) conj (t1,t2,r) =
-    let (v1,r1),(part,set,map) = insert (part,set,map) t1 in
-    let (v2,r2),(part,set,map) = insert (part,set,map) t2 in
+  let neq_query cc _ (t1,t2,_) =
+    let (v1,r1),cc = insert cc t1 in
+    let (v2,r2),_ = insert cc t2 in
     if T.compare v1 v2 = 0 then
       if r1 = r2 then false
       else true
-    else false (* TODO *)
+    else false (* TODO disequalities *)
 
   (**
      Add proposition t1 = t2 + r to the data structure
   *)
-  let add_eq (part, set, map) (t1, t2, r) =
+  let add_eq cc (t1, t2, r) =
     (* should use ineq. for refuting equality *)
-    let (v1, r1), (part, set, map) = insert (part, set, map) t1 in
-    let (v2, r2), (part, set, map) = insert (part, set, map) t2 in
-    let part, map = closure (part, map) [v1, v2, Z.(r2 - r1 + r)] in
-    part, set, map
+    let (v1, r1), cc = insert cc t1 in
+    let (v2, r2), cc = insert cc t2 in
+    let cc = closure cc [v1, v2, Z.(r2 - r1 + r)] in
+    cc
 
 end
 
@@ -347,8 +506,6 @@ struct
   type initial_states = Var.t -> (state * Z.t) (** Maps each variable to its initial state. *)
 
   type transitions =  Z.t -> state -> (Z.t * state) option
-
-  type qfa = transitions
 
   (* let get_vars = List.filter_map (function
       | Addr var -> Some var
@@ -367,17 +524,21 @@ struct
       - Lookup Map
 
       - Z and State for which we want to know the next state *)
-  let transition_qfa map z state = TUF.map_find_opt (state, z) map
+  let transition_qfa (part, map) z state = match TUF.map_find_opt (state, z) map with
+    | Some term -> TUF.find_opt part term
+    | None -> None
 
-  (* Question: is this not the same as find_opt?? *)
-  (** Returns the state we get from the automata after it has read the term
+
+  (* Question: is this not the same as find_opt?? I think it is *)
+  (** Returns the state we get from the automata after it has read the term.
+
+      It's useless.
 
       Parameters: Union Find Map and term for which we want to know the final state *)
   let rec get_state (part, map) = function
     | Addr v -> get_initial_state part v
-    | Deref (z, t) -> match get_state (part, map) t with
+    | Deref (t, z) -> match get_state (part, map) t with
       | None -> None
       | Some (next_state, z1) -> transition_qfa map (Z.(z + z1)) next_state
-
 
 end
