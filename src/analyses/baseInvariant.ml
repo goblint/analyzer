@@ -115,7 +115,7 @@ struct
   let invariant_fallback ctx st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
-    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): [`Refine of lval * VD.t | `NotUnderstood] =
+    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): [> `Refine of lval * VD.t | `NotUnderstood] =
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
@@ -199,7 +199,7 @@ struct
       | TEnum({ekind=_;_},_)
       | _                         -> Int (ID.of_int (Cilfacade.get_ikind typ) Z.zero)
     in
-    let rec derived_invariant exp tv: [`Refine of lval * VD.t | `NotUnderstood] =
+    let rec derived_invariant exp tv: [`Refine of lval * VD.t | `NothingToRefine | `NotUnderstood] =
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
@@ -220,6 +220,9 @@ struct
          | _ -> `NotUnderstood)
       | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
+      | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
+        (* This is last such that we never reach here with rval being Lval (it is swapped around). *)
+        `NothingToRefine
       (* Cases like if (x) are treated like if (x != 0) *)
       | Lval x ->
         (* There are two correct ways of doing it: "if ((int)x != 0)" or "if (x != (typeof(x))0))"
@@ -233,6 +236,9 @@ struct
     match derived_invariant exp tv with
     | `Refine (lval, value) ->
       refine_lv_fallback ctx st lval value tv
+    | `NothingToRefine ->
+      if M.tracing then M.traceu "invariant" "Doing to refine.\n";
+      st
     | `NotUnderstood ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
