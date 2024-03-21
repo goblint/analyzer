@@ -252,13 +252,13 @@ struct
       | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
-        M.info_noloc ~category:Witness "cannot unassume entry of type %s" target_type
+        M.warn_noloc ~category:Witness "cannot unassume entry of type %s" target_type
     in
 
     List.iter (fun yaml_entry ->
         match YamlWitnessType.Entry.of_yaml yaml_entry with
         | Ok entry -> unassume_entry entry
-        | Error (`Msg e) -> M.info_noloc ~category:Witness "couldn't parse entry: %s" e
+        | Error (`Msg e) -> M.error_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
   let emit_unassume ctx =

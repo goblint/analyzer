@@ -141,6 +141,25 @@ struct
       };
     metadata = metadata ();
   }
+
+  let ghost_variable ~task ~variable ~type_ ~(initial): Entry.t = {
+    entry_type = GhostVariable {
+        variable;
+        scope = "global";
+        type_;
+        initial;
+      };
+    metadata = metadata ~task ();
+  }
+
+  let ghost_update ~task ~location ~variable ~(expression): Entry.t = {
+    entry_type = GhostUpdate {
+        variable;
+        expression;
+        location;
+      };
+    metadata = metadata ~task ();
+  }
 end
 
 let yaml_entries_to_file yaml_entries file =
@@ -330,6 +349,31 @@ struct
                       entry :: acc
                     ) acc invs
                 | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                  acc
+              end
+            | `Right _ -> (* contexts global *)
+              acc
+          ) gh entries
+      )
+      else
+        entries
+    in
+
+    (* Generate flow-insensitive invariants *)
+    let entries =
+      if true then (
+        GHT.fold (fun g v acc ->
+            match g with
+            | `Left g -> (* Spec global *)
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
+                | `Lifted _ as inv ->
+                  Queries.YS.fold (fun entry acc ->
+                      if BatList.mem_cmp YamlWitnessType.Entry.compare entry acc then (* TODO: be efficient *)
+                        acc
+                      else
+                        entry :: acc
+                    ) inv acc
+                | `Top ->
                   acc
               end
             | `Right _ -> (* contexts global *)
@@ -829,7 +873,7 @@ struct
         None
       | _ ->
         incr cnt_unsupported;
-        M.info_noloc ~category:Witness "cannot validate entry of type %s" target_type;
+        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type;
         None
     in
 
@@ -841,7 +885,7 @@ struct
           Option.to_list yaml_certificate_entry @ yaml_entry :: yaml_entries'
         | Error (`Msg e) ->
           incr cnt_error;
-          M.info_noloc ~category:Witness "couldn't parse entry: %s" e;
+          M.error_noloc ~category:Witness "couldn't parse entry: %s" e;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in

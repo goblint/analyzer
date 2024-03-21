@@ -42,7 +42,7 @@ sig
   val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
   val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseComponents (D).t -> BaseComponents (D).t
 
-  val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t
+  val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
   val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
 
   val init: unit -> unit
@@ -131,7 +131,7 @@ struct
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
-  let invariant_global getg g =
+  let invariant_global ask getg g =
     ValueDomain.invariant_global getg g
 
   let invariant_vars ask getg st = []
@@ -211,7 +211,7 @@ struct
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
-  let invariant_global getg = function
+  let invariant_global ask getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g'
     | _ -> (* mutex *)
@@ -294,6 +294,22 @@ module PerMutexMeetPrivBase =
 struct
   include PerMutexPrivBase
 
+  let invariant_global (ask: Q.ask) getg = function
+    | `Left m' as m -> (* mutex *)
+      let cpa = getg m in
+      let inv = CPA.fold (fun v _ acc ->
+          if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
+            let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
+            Invariant.(acc && inv)
+          else
+            acc
+        ) cpa Invariant.none
+      in
+      let var = WitnessGhost.to_varinfo (Locked m') in
+      Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+    | g -> (* global *)
+      invariant_global ask getg g
+
   let invariant_vars ask getg (st: _ BaseDomain.basecomponents_t) =
     (* Mutex-meet local states contain precisely the protected global variables,
        so we can do fewer queries than {!protected_vars}. *)
@@ -329,8 +345,11 @@ struct
     in
     if not invariant then (
       if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
-      sideg (V.global x) (CPA.singleton x v)
-      (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
+      let side_cpa = CPA.singleton x v in
+      sideg (V.global x) side_cpa;
+      if !earlyglobs && not (ThreadFlag.is_currently_multi ask) then
+        sideg V.mutex_inits side_cpa (* Also side to inits because with earlyglobs enter_multithreaded does not side everything to inits *)
+        (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
     );
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
@@ -621,7 +640,7 @@ struct
     let get_mutex_inits' = CPA.find x get_mutex_inits in
     VD.join get_mutex_global_x' get_mutex_inits'
 
-  let invariant_global getg = function
+  let invariant_global ask getg = function
     | `Middle  g -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g
     | `Left _
@@ -687,8 +706,8 @@ struct
     if not invariant then (
       if not (Param.handle_atomic && ask.f MustBeAtomic) then
         sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
-      if !earlyglobs then (* earlyglobs workaround for 13/60 *)
-        sideg (V.protected x) v
+      if !earlyglobs && not (ThreadFlag.is_currently_multi ask) then (* earlyglobs workaround for 13/60 *)
+        sideg (V.protected x) v (* Also side to protected because with earlyglobs enter_multithreaded does not side everything to protected *)
         (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
     );
     if Param.handle_atomic && ask.f MustBeAtomic then
@@ -777,12 +796,21 @@ struct
       vf (V.protected g);
     | _ -> ()
 
-  let invariant_global getg g =
+  let invariant_global (ask: Q.ask) getg g =
     match g with
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
-    | `Right g -> (* protected *)
-      Invariant.none
+    | `Right g' -> (* protected *)
+      let locks = ask.f (Q.MustProtectingLocks g') in
+      if Q.AD.is_top locks || Q.AD.is_empty locks then
+        Invariant.none
+      else (
+        let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
+        Q.AD.fold (fun m acc ->
+            let var = WitnessGhost.to_varinfo (Locked m) in
+            Invariant.(of_exp (Lval (GoblintCil.var var)) || acc) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          ) locks inv
+      )
 
   let invariant_vars ask getg st = protected_vars ask
 end
@@ -841,7 +869,7 @@ struct
 
   open Locksets
 
-  let invariant_global getg = function
+  let invariant_global ask getg = function
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (fun x ->
           GWeak.fold (fun s' tm acc ->
@@ -923,7 +951,7 @@ struct
   (* sync: M -> (2^M -> (G -> D)) *)
   include AbstractLockCenteredBase (ThreadMap) (LockCenteredBase.CPA)
 
-  let global_init_thread = RichVarinfo.single ~name:"global_init"
+  let global_init_thread = RichVarinfo.single ~name:"global_init" ~typ:GoblintCil.voidType
   let current_thread (ask: Q.ask): Thread.t =
     if !AnalysisState.global_initialization then
       ThreadIdDomain.Thread.threadinit (global_init_thread ()) ~multiple:false
@@ -1633,7 +1661,7 @@ struct
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
   let threadspawn ask get set st = time "threadspawn" (Priv.threadspawn ask get set) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
-  let invariant_global getg v = time "invariant_global" (Priv.invariant_global getg) v
+  let invariant_global ask getg v = time "invariant_global" (Priv.invariant_global ask getg) v
   let invariant_vars ask getg st = time "invariant_vars" (Priv.invariant_vars ask getg) st
 
   let thread_join ?(force=false) ask get e st = time "thread_join" (Priv.thread_join ~force ask get e) st
