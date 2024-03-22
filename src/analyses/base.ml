@@ -2276,19 +2276,19 @@ struct
     let params = params @ referenced_locals in
 
     let params = List.map (fun x -> (x, VD.top_value_typed_address_targets x.vtype)) params in
-    let params_targets = List.concat_map (fun (_, (_, ts)) -> ts) params |> VS.of_list in
+    (* let params_targets = List.concat_map (fun (_, (_, ts)) -> ts) params |> VS.of_list in *)
     let params = List.map (fun (x, (v, _)) -> (x, v)) params in
 
     let globals = global_variables () in
     (* TODO: All accesses to global x have to go through global_varinfo x *)
     let globals = List.map (fun x -> (ModularUtil.varinfo_to_canonical x, VD.top_value_typed_address_targets x.vtype)) (globals) in
-    let globals_targets = List.concat_map (fun (_, (_, ts)) -> ts) globals |> VS.of_list in
+    (* let globals_targets = List.concat_map (fun (_, (_, ts)) -> ts) globals |> VS.of_list in *)
     let globals = List.map (fun (x, (v, _)) -> (x, v)) globals in
 
-    let targets = VS.union params_targets globals_targets in
+    (* let targets = VS.union params_targets globals_targets in *)
     let cpa = CPA.add_list params (CPA.bot ()) in
     let cpa = CPA.add_list globals cpa in
-    let cpa = typed_pointer_closure cpa targets in
+    (* let cpa = typed_pointer_closure cpa targets in *)
     let startstate = startstate () in
     let startstate = { startstate with cpa = cpa } in
     if M.tracing then M.tracel "make_canonical_entry" "Canonical entry state for function %a: %a\n" CilType.Fundec.pretty f D.pretty startstate;
