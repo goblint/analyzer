@@ -10,6 +10,10 @@ let address_to_canonical a =
   let t = Addr.type_of a in
   type_to_varinfo t
 
+let mval_to_canonical m =
+  let address = Addr.of_mval ~is_modular:true m in
+  address_to_canonical address
+
 let is_canonical (v: varinfo) =
   let canonical = type_to_varinfo v.vtype in
   CilType.Varinfo.equal v canonical

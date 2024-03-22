@@ -453,18 +453,31 @@ struct
       CPA.find x st.cpa
     end
 
+  let adapt_mval_if_modular (a : Q.ask) (x, offs) =
+    (* For the modular mode, if the base object x is a heap cell, we, for now, look at the representative for the object type(x.offs). *)
+    let x_new, offs_new =
+      if a.f Q.IsModular && ModularUtil.is_canonical x then
+        let x = ModularUtil.mval_to_canonical (x, offs) in
+        x, `NoOffset
+      else
+        x, offs
+    in
+    if M.tracing then M.tracel "adapt_mval_if_modular" "x, offs: %a, %a\nx_new, offs_new: %a, %a\n" CilType.Varinfo.pretty x Offs.pretty offs CilType.Varinfo.pretty x_new Offs.pretty offs_new;
+    x_new, offs_new
+
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  let rec get ?(top=VD.top ()) ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
+  let rec get ?(top=VD.top ()) ?(full=false) (a: Q.ask) (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.type_of addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
-      let f_addr (x, offs) =
+      let get_mval (x, offs) =
         (* get hold of the variable value, either from local or global state *)
+        let x, offs = adapt_mval_if_modular a (x, offs) in
         let var = get_var a gs st x in
         let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.of_mval ~is_modular:(a.f IsModular) (x, offs)) VD.pretty v;
@@ -472,8 +485,8 @@ struct
           | Blob (c,s,_) -> c
           | x -> x
       in
-      let f = function
-        | Addr.Addr (x, o) -> f_addr (x, o)
+      let get_addr = function
+        | Addr.Addr (x, o) -> get_mval (x, o)
         | Addr.NullPtr ->
           begin match get_string "sem.null-pointer.dereference" with
             | "assume_none" -> VD.bot ()
@@ -488,7 +501,7 @@ struct
         | Int _ when Cil.isArithmeticType at -> VD.cast at x
         | _ -> x
       in
-      let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
+      let f x a = VD.join (c @@ get_addr x) a in      (* Finally we join over all the addresses in the set. *)
       AD.fold f addrs (VD.bot ())
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
@@ -969,6 +982,8 @@ struct
     (*| Lval (Mem e, ofs) -> get a gs st (eval_lv a gs st (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+      let t0 = Cilfacade.typeOfLval (Mem e, ofs) in
+      let ofs = convert_offset a gs st ofs in
       let rec contains_vla (t:typ) = match t with
         | TPtr (t, _) -> contains_vla t
         | TArray(t, None, args) -> true
@@ -1007,7 +1022,8 @@ struct
         | _ -> false
       in
       (** Lookup value at base address [addr] with given offset [ofs]. *)
-      let lookup_with_offs addr =
+
+      let lookup_with_offs_base addr =
         let v = (* abstract base value *)
           if cast_ok addr then
             get ~top:(VD.top_value t) a gs st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
@@ -1016,8 +1032,21 @@ struct
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' ofs (Some exp) None t in (* handle offset *)
         v'
+      in
+      let no_cast x =
+        CilType.Typ.equal x.vtype t
+      in
+      let lookup_with_offs addr =
+        match Addr.to_mval addr with
+        | Some (x, o) ->
+          if no_cast x then
+            get ~top:(VD.top_value t0) a gs st (AD.of_mval ~is_modular:(a.f Q.IsModular) (x, ofs)) (Some exp) (* downcasts are safe *)
+          else
+            lookup_with_offs_base addr
+        | None ->
+          lookup_with_offs_base addr
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
 
@@ -1724,7 +1753,13 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) (st: store): store =
+
+      (* If in modular mode, e.g. replace global by canonical abstraction*)
       let x = ModularUtil.varinfo_or_canonical ~is_modular:(a.f IsModular) x in
+
+      (* If in modular mode, and x is canonical, replace it with representative of typeof(x, offs) *)
+      let x, offs = adapt_mval_if_modular a (x, offs) in
+
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
@@ -1788,6 +1823,7 @@ struct
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
+        (* TODO: For the modular mode, for now, if we want to change some x.o, where x is some object on the heap, we instead set the object for typeof(x.o). This way, it suffices to read from this object later, for a crude overapproximation. *)
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let new_value = update_offset (CPA.find x st.cpa) in
