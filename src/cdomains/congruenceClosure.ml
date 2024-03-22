@@ -91,7 +91,9 @@ module UnionFind (Val: Val)  = struct
     | exception (InvalidUnionFind _) -> None
     | res -> Some res
 
-  let repr_compare = Tuple2.compare ~cmp1:Val.compare ~cmp2:Z.compare
+  let compare_repr = Tuple2.compare ~cmp1:Val.compare ~cmp2:Z.compare
+
+  let compare_repr_v (v1, _) (v2, _)= Val.compare v1 v2
 
   (**
      Parameters: part v1 v2 r
@@ -125,6 +127,13 @@ module UnionFind (Val: Val)  = struct
       | None, _ -> raise (UnknownValue v1)
       | _, _ -> raise (UnknownValue v2)
 
+  let get_eq_classes uf = List.group (fun (el1,_) (el2,_) -> compare_repr_v (find uf el1) (find uf el2)) (ValMap.bindings uf)
+
+  let show_uf uf = List.fold_left (fun s eq_class ->
+      s ^ List.fold_left (fun s (v, _) ->
+          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "\n") "" eq_class
+      ^ "\n") "" (get_eq_classes uf) ^ "\n"
+
   let clone map =
     ValMap.bindings map |>
     List.fold_left (fun map (v,node) -> ValMap.add v node map) (ValMap.empty)
@@ -139,6 +148,7 @@ module UnionFind (Val: Val)  = struct
   let map_add (v,r) v' map = match ValMap.find_opt v map with
     | None -> ValMap.add v (ZMap.add r v' ZMap.empty) map
     | Some zmap -> ValMap.add v (ZMap.add r v' zmap) map
+
   let show_map map =
     List.fold_left
       (fun s (v, zmap) ->
@@ -150,6 +160,9 @@ module UnionFind (Val: Val)  = struct
       "" (ValMap.bindings map)
 
   let print_map = print_string % show_map
+
+  let show_set set = ValSet.fold (fun v s ->
+      s ^ "\t" ^ Val.show v ^ "\n") set "" ^ "\n"
 end
 
 exception Unsat
@@ -159,7 +172,7 @@ type 'v prop = Eq of 'v term * 'v term * Z.t | Neq of 'v term * 'v term * Z.t [@
 
 module Term (Var:Val) = struct
   type t = Var.t term [@@deriving eq, ord, hash]
-  let compare = compare
+
   let rec show = function
     | Addr v -> "&" ^ Var.show v
     | Deref (Addr v, z) when Z.equal z Z.zero -> Var.show v
@@ -279,7 +292,7 @@ module CongruenceClosure (Var:Val) = struct
     let atoms = get_atoms set in
     (* process all atoms in increasing order *)
     let atoms =
-      List.sort (fun el1 el2 -> TUF.repr_compare (TUF.find part el1) (TUF.find part el2)) atoms in
+      List.sort (fun el1 el2 -> TUF.compare_repr (TUF.find part el1) (TUF.find part el2)) atoms in
     let add_atom_to_map (min_representatives, queue) a =
       let (rep, offs) = TUF.find part a in
       if not (TMap.mem rep min_representatives) then
@@ -407,9 +420,9 @@ module CongruenceClosure (Var:Val) = struct
   let closure cc conjs =
     let (part, map, queue, min_repr) = closure (cc.part, cc.map, cc.min_repr) [] conjs in
     (* sort queue by representative size *)
-    let queue = List.sort (fun el1 el2 -> let cmp_repr = TUF.repr_compare (TUF.find part el1) (TUF.find part el2) in if cmp_repr = 0 then compare_term Var.compare el1 el2 else cmp_repr) queue in
+    let queue = List.sort (fun el1 el2 -> let cmp_repr = TUF.compare_repr (TUF.find part el1) (TUF.find part el2) in if cmp_repr = 0 then compare_term Var.compare el1 el2 else cmp_repr) queue in
     let min_repr = update_min_repr (part, map) min_repr queue in
-    (part, cc.set, map, min_repr)
+    {part = part;set = cc.set; map = map;min_repr = min_repr}
 
   let fold_left2 f acc l1 l2 =
     List.fold_left (
