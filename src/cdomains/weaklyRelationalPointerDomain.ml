@@ -49,11 +49,19 @@ module D : Lattice.S = struct
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.part
 
-  let leq x y = true
+  let leq x y = false
 
   let join a b = a
   let widen = join
-  let meet a b = a
+  let meet a b = match a,b with (*TODO merge environments *)
+    | None, b -> b
+    | a, None -> a
+    | Some a, Some b ->
+      let a_conj = get_normal_form a in
+      match (closure b (fst (split a_conj))) with
+      | res -> Some res
+      | exception Unsat -> None
+
   let narrow = meet
 
   let pretty_diff () (x,y) = Pretty.dprintf ""

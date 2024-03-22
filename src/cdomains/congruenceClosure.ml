@@ -39,14 +39,21 @@ module UnionFind (Val: Val)  = struct
   let init : Val.t list -> t =
     List.fold_left (fun map v -> ValMap.add v (ref (v, Z.zero), 1) map) (ValMap.empty)
 
+    (** Returns true if v is the representative value of its equivalence class
+
+      Throws "Unknown value" if v is not present in the data structure. *)
   let is_root cc v = match ValMap.find_opt v cc with
     | None -> raise (UnknownValue v)
     | Some (refv, _)  -> Val.compare v (fst !refv) = 0
 
+  (** Returns true if each equivalence class in the data structure contains only one element,
+      i.e. every node is a root. *)
   let is_empty uf = List.for_all (fun (v, (refv, _)) -> Val.compare v (fst !refv) = 0) (ValMap.bindings uf)
 
   (**
-     For a variable t it returns the reference variable v and the offset r
+     For a variable t it returns the reference variable v and the offset r.
+
+     Throws "Unknown value" if t is not present in the data structure.
   *)
   let find cc v = match ValMap.find_opt v cc with
     | None -> raise (UnknownValue v)
@@ -129,6 +136,7 @@ module UnionFind (Val: Val)  = struct
 
   let get_eq_classes uf = List.group (fun (el1,_) (el2,_) -> compare_repr_v (find uf el1) (find uf el2)) (ValMap.bindings uf)
 
+  (** Throws "Unknown value" if v is not present in the data structure. *)
   let show_uf uf = List.fold_left (fun s eq_class ->
       s ^ List.fold_left (fun s (v, _) ->
           s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "\n") "" eq_class
@@ -172,6 +180,7 @@ type 'v prop = Eq of 'v term * 'v term * Z.t | Neq of 'v term * 'v term * Z.t [@
 
 module Term (Var:Val) = struct
   type t = Var.t term [@@deriving eq, ord, hash]
+  type v_prop = Var.t prop [@@deriving eq, ord, hash]
 
   let rec show = function
     | Addr v -> "&" ^ Var.show v
@@ -362,7 +371,9 @@ module CongruenceClosure (Var:Val) = struct
      map maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z)
 
      queue is a list of equivalence classes (represented by their representative) that have a new representative after the execution of this function.
-     It can be given as a parameter to `update_min_repr` in order to update the representatives in the representative map
+     It can be given as a parameter to `update_min_repr` in order to update the representatives in the representative map.
+
+     Throws "Unsat" if a contradiction is found.
   *)
   let rec closure (part, map, min_repr) queue = function
     | [] -> (part, map, queue, min_repr)
