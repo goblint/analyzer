@@ -9,7 +9,7 @@ struct
 
   let name () = "vla"
   module D = BoolDomain.MayBool
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   let context _ _ = ()
 

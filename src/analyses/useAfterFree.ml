@@ -20,7 +20,7 @@ struct
   let name () = "useAfterFree"
 
   module D = StackAndHeapVars
-  module C = Lattice.Unit
+  module C = Printable.Unit
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
 

@@ -15,7 +15,7 @@ struct
   (* Map of (local int) variables to flat integers *)
   module D = MapDomain.MapBot (Basetype.Variables) (I)
   (* No contexts*)
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   include Analyses.IdentitySpec
   let context _ _ = ()

@@ -10,7 +10,7 @@ struct
   let name () = "modifiedSinceSetjmp"
   module D = JmpBufDomain.LocallyModifiedMap
   module VS = D.VarSet
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   let context _ _ = ()
 

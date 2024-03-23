@@ -14,7 +14,7 @@ struct
 
   let name () = "taintPartialContexts"
   module D = AD
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =

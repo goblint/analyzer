@@ -14,7 +14,7 @@ struct
   let name () = "access"
 
   module D = Lattice.Unit
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   module V =
   struct

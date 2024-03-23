@@ -11,7 +11,7 @@ struct
 
   (* The first component are the longjmp targets, the second are the longjmp callers *)
   module D = JmpBufDomain.ActiveLongjmps
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   let context _ _ = ()
 

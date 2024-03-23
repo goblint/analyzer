@@ -11,7 +11,7 @@ struct
 
   let name () = "poisonVariables"
   module D = VS
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   let context _ _ = ()
 
