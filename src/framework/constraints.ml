@@ -819,6 +819,7 @@ struct
       Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
+    Logs.debug "Node %a loop head: %a" Node.pretty u (Pretty.docOpt (CilType.Stmt.pretty ())) (CfgTools.is_loop_head u);
     M.current_context := Some (Obj.magic c); (* magic is fine because Spec is top-level Control Spec *)
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
