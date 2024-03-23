@@ -544,6 +544,8 @@ struct
   let assign_var_parallel t vv's = timing_wrap "var_parallel" (assign_var_parallel t) vv's
 
   let assign_var_parallel_with t vv's =
+    (* TODO: If we are angling for more performance, this might be a good place ot try. `assign_var_parallel_with` is used whenever a function is entered (body),
+       in unlock, at sync edges, and when entering multi-threaded mode. *)
     let t' = assign_var_parallel t vv's in
     t.d <- t'.d;
     t.env <- t'.env
