@@ -558,12 +558,12 @@ struct
     res
 
   let assert_constraint ask d e negate no_ov =
-    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b" d_exp e (Lazy.force no_ov);
+    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
     match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
     | tcons1 -> meet_tcons ask d tcons1 e
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_constraint ask d e negate no_ov = timing_wrap "assert_cons" (assert_constraint ask d e negate) no_ov
+  let assert_constraint ask d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
 
   let relift t = t
 
