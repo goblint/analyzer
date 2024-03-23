@@ -9,19 +9,16 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "tmpSpecial"
   module ML = LibraryDesc.MathLifted
   module Deps = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
   module MLDeps = Lattice.Prod (ML) (Deps)
   module D = MapDomain.MapBot (Mval.Exp) (MLDeps)
-  module C = Printable.Unit
 
   let invalidate ask exp_w st =
     D.filter (fun _ (ml, deps) -> (Deps.for_all (fun arg -> not (VarEq.may_change ask exp_w arg)) deps)) st
-
-  let context _ _ = ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

@@ -6,14 +6,11 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
   module VS = SetDomain.ToppedSet(CilType.Varinfo) (struct let topname = "All vars" end)
 
   let name () = "poisonVariables"
   module D = VS
-  module C = Printable.Unit
-
-  let context _ _ = ()
 
   let check_mval tainted (addr: Queries.AD.elt) =
     match addr with

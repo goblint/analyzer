@@ -10,18 +10,14 @@ module AD = ValueDomain.AD
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "taintPartialContexts"
   module D = AD
-  module C = Printable.Unit
 
   (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =
     D.union (ctx.ask (Queries.MayPointTo (AddrOf lval))) ctx.local
-
-  (* this analysis is context insensitive*)
-  let context _ _ = ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

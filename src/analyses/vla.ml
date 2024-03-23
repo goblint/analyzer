@@ -5,13 +5,10 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "vla"
   module D = BoolDomain.MayBool
-  module C = Printable.Unit
-
-  let context _ _ = ()
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, false]
