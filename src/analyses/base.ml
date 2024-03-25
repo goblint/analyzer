@@ -1243,7 +1243,7 @@ struct
       (* TODO: account for single-threaded values without earlyglobs. *)
       match g with
       | `Left g' -> (* priv *)
-        Priv.invariant_global (priv_getg ctx.global) g'
+        Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g'
       | `Right _ -> (* thread return *)
         Invariant.none
     )
