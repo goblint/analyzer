@@ -209,11 +209,7 @@ struct
   let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
     match current, other with
     | `Lifted current, `Lifted other ->
-      if TID.is_unique current && TID.equal current other then
-        (* workaround `definitely_not_started` answers false when passing the same argument twice, TID.is_must_parent [main] [main] says true  *)
-        false
-      else
-        MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other
+      MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other
     | _ -> false
 end
 
