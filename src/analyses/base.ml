@@ -1105,7 +1105,7 @@ struct
       | Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       | Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
-      | exception (IntDomain.ArithmeticOnIntegerBot _) when not !AnalysisState.should_warn -> Queries.ID.top () (* for some privatizations, values can intermediately be bot because side-effects have not happened yet *)
+      | exception (IntDomain.ArithmeticOnIntegerBot _)  when not !AnalysisState.should_warn -> Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
     r
@@ -1249,6 +1249,103 @@ struct
     )
     else
       Invariant.none
+
+  (**
+      This query returns false if the expression [exp] will definitely not result in an overflow.
+
+     Each subexpression is analyzed to see if an overflow happened.
+     For each operator in the expression, we use the query EvalInt to approximate the bounds of each
+     operand and we compute if in the worst case there could be an overflow.
+
+      For now we return true if the expression contains a shift left.
+  *)
+  (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
+  let rec exp_may_signed_overflow ctx exp =
+    let res = match Cilfacade.get_ikind_exp exp with
+      | exception _ -> BoolDomain.MayBool.top ()
+      | ik ->
+        let checkBinop e1 e2 binop =
+          match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
+          | `Bot, _ -> false
+          | _, `Bot -> false
+          | `Lifted i1, `Lifted i2 ->
+            ( let (min_ik, max_ik) = IntDomain.Size.range ik in
+              let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
+              let (min_i2, max_i2) = (IntDomain.IntDomTuple.minimal i2, IntDomain.IntDomTuple.maximal i2) in
+              let possible_combinations = [binop min_i1 min_i2; binop  min_i1 max_i2; binop max_i1 min_i2; binop max_i1 max_i2] in
+              let min_exp = List.min possible_combinations in
+              let max_exp = List.max possible_combinations in
+              match min_exp, max_exp with
+              | Some min, Some max when min >= min_ik && max <= max_ik -> false
+              | _ -> true)
+          | _   -> true in
+        let checkPredicate e pred =
+          match ctx.ask (EvalInt e) with
+          | `Bot -> false
+          | `Lifted i ->
+            (let (min_ik, _) = IntDomain.Size.range ik in
+             let (min_i, max_i) = (IntDomain.IntDomTuple.minimal i, IntDomain.IntDomTuple.maximal i) in
+             match min_i with
+             | Some min when pred min min_ik -> false
+             | _ -> true)
+          | _   -> true
+        in
+        match exp with
+        | Const _
+        | SizeOf _
+        | SizeOfStr _
+        | AlignOf _
+        | AddrOfLabel _ -> false
+        | Real e
+        | Imag e
+        | SizeOfE e
+        | AlignOfE e
+        | CastE (_, e) -> exp_may_signed_overflow ctx e
+        | UnOp (unop, e, _) ->
+          (* check if the current operation causes a signed overflow *)
+          begin match unop with
+            | Neg -> (* an overflow happens when the lower bound of the interval is less than MIN_INT *)
+              Cil.isSigned ik && checkPredicate e (Z.gt)
+            (* operations that do not result in overflow in C: *)
+            | BNot|LNot -> false
+          end
+          (* look for overflow in subexpression *)
+          || exp_may_signed_overflow ctx e
+        | BinOp (binop, e1, e2, _) ->
+          (* check if the current operation causes a signed overflow *)
+          (Cil.isSigned ik && begin match binop with
+              | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.map2 Z.(+))
+              | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.map2 Z.(-))
+              | Mult -> checkBinop e1 e2 (GobOption.map2 Z.mul)
+              | Div -> checkBinop e1 e2 (GobOption.map2 Z.div)
+              | Mod -> (* an overflow happens when the second operand is negative *)
+                checkPredicate e2 (fun interval_bound _ -> Z.gt interval_bound Z.zero)
+              (* operations that do not result in overflow in C: *)
+              | Eq|Shiftrt|BAnd|BOr|BXor|Lt|Gt|Le|Ge|Ne|LAnd|LOr -> false
+              (* Shiftlt can cause overflow and also undefined behaviour in case the second operand is non-positive*)
+              | Shiftlt -> true end)
+          (* look for overflow in subexpression *)
+          || exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2
+        | Question (e1, e2, e3, _) ->
+          (* does not result in overflow in C *)
+          exp_may_signed_overflow ctx e1 || exp_may_signed_overflow ctx e2 || exp_may_signed_overflow ctx e3
+        | Lval lval
+        | AddrOf lval
+        | StartOf lval -> lval_may_signed_overflow ctx lval
+    in
+    if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b\n" d_plainexp exp res; res
+  and lval_may_signed_overflow ctx (lval : lval) =
+    let (host, offset) = lval in
+    let host_may_signed_overflow = function
+      | Var v -> false
+      | Mem e -> exp_may_signed_overflow ctx e
+    in
+    let rec offset_may_signed_overflow = function
+      | NoOffset -> false
+      | Index (e, o) -> exp_may_signed_overflow ctx e || offset_may_signed_overflow o
+      | Field (f, o) -> offset_may_signed_overflow o
+    in
+    host_may_signed_overflow host || offset_may_signed_overflow offset
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
@@ -1415,6 +1512,9 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global ctx g
+    | Q.MaySignedOverflow e -> (let res = exp_may_signed_overflow ctx e in
+                                if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b\n" d_plainexp e res; res
+                               )
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

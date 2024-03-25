@@ -177,7 +177,7 @@ struct
 
   let no_overflow (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument _ -> false (* TODO: why this? *)
+    | exception Invalid_argument _ -> false (* is thrown by get_ikind_exp when the type of the expression is not an integer type *)
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
       if IntDomain.should_wrap ik then
@@ -185,14 +185,13 @@ struct
       else if IntDomain.should_ignore_overflow ik then
         true
       else
-        not (Queries.ID.is_top_of ik (ask.f (EvalInt exp)))
+        not (ask.f (MaySignedOverflow exp))
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in
     if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a\n" res d_exp exp;
     res
   )
-
 
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
@@ -202,8 +201,9 @@ struct
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
       let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik type_min), intType) in
-      let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
-      let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
+      (* TODO: do not duplicate no_overflow defined via ask: https://github.com/goblint/analyzer/pull/1297#discussion_r1477281950 *)
+      let rel = RD.assert_inv ask rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
+      let rel = RD.assert_inv ask rel e2 false (no_overflow ask e2) in
       rel
     | exception Invalid_argument _ ->
       rel
@@ -243,7 +243,6 @@ struct
     inner e
 
   (* Basic transfer functions. *)
-
   let assign ctx (lv:lval) e =
     let st = ctx.local in
     if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
@@ -256,7 +255,7 @@ struct
           assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
               if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)\n" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
               if M.tracing then M.trace "relation" "st: %a\n" RD.pretty apr';
-              let r = RD.assign_exp apr' (RV.local v) e' (no_overflow ask simplified_e) in
+              let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
               if M.tracing then M.traceu "relation" "-> %a\n" RD.pretty r;
               r
             )
@@ -271,7 +270,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let res = assign_from_globals_wrapper ask ctx.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
-        RD.assert_inv rel' e' (not b) (no_overflow ask e)
+        RD.assert_inv ask rel' e' (not b) (no_overflow ask e)
       )
     in
     if RD.is_bot_env res then raise Deadcode;
@@ -322,7 +321,7 @@ struct
         let ask = Analyses.ask_of_ctx ctx in
         List.fold_left (fun new_rel (var, e) ->
             assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
-                RD.assign_exp rel' var e' (no_overflow ask e)
+                RD.assign_exp ask rel' var e' (no_overflow ask e)
               )
           ) new_rel arg_assigns
     in
@@ -365,7 +364,7 @@ struct
         match e with
         | Some e ->
           assign_from_globals_wrapper ask ctx.global {st with rel = rel'} e (fun rel' e' ->
-              RD.assign_exp rel' RV.return e' (no_overflow ask e)
+              RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
             )
         | None ->
           rel' (* leaves V.return unconstrained *)
@@ -413,7 +412,9 @@ struct
     let new_fun_rel = List.fold_left (fun new_fun_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_fun_rel} e (fun rel' e' ->
             (* not an assign, but still works? *)
-            RD.substitute_exp rel' var e' (no_overflow ask e)
+            (* substitute is the backwards semantics of assignment *)
+            (* https://antoinemine.github.io/Apron/doc/papers/expose_CEA_2007.pdf *)
+            RD.substitute_exp ask rel' var e' (no_overflow ask e)
           )
       ) new_fun_rel arg_substitutes
     in
@@ -506,7 +507,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let res = assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
           (* not an assign, but must remove g#in-s still *)
-          RD.assert_inv apr' e' false (no_overflow ask e)
+          RD.assert_inv ask apr' e' false (no_overflow ask e)
         )
       in
       if RD.is_bot_env res then raise Deadcode;
@@ -634,8 +635,6 @@ struct
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let no_overflow ctx' exp' =
-      IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in (* TODO: separate no_overflow? *)
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
@@ -643,13 +642,13 @@ struct
       read_from_globals_wrapper
         (Analyses.ask_of_ctx ctx)
         ctx.global st esimple
-        (fun rel' e' -> RD.eval_int rel' e' no_ov)
+        (fun rel' e' -> RD.eval_int (Analyses.ask_of_ctx ctx) rel' e' no_ov)
     in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)\n" d_exp e d_plainexp e;
       if M.tracing then M.trace "evalint" "relation st: %a\n" D.pretty ctx.local;
-      let r = eval_int e (lazy(no_overflow ctx e)) in
+      let r = eval_int e (no_overflow (Analyses.ask_of_ctx ctx) e) in
       if M.tracing then M.traceu "evalint" "relation query %a -> %a\n" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->
@@ -708,7 +707,29 @@ struct
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
       let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
       let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
-      let rel = RD.assert_inv rel e false (no_overflow ask e_orig) in (* assume *)
+      let rec dummyask =
+        (* assert_inv calls texpr1_expr_of_cil_exp, which simplifies the constraint based on the pre-state of the transition;
+           this does not reflect the state after RD.forget_vars rel .... has been performed; to prevent this aggressive
+           simplification, we restrict read_int queries to a local dummy ask, that only dispatches to rel instead of the
+           full state *)
+        let f (type a) (q : a Queries.t) : a =
+          let eval_int e no_ov =
+            let esimple = replace_deref_exps dummyask.f e in
+            read_from_globals_wrapper
+              (dummyask)
+              ctx.global { st with rel } esimple
+              (fun rel' e' -> RD.eval_int (dummyask) rel' e' no_ov)
+          in
+          match q with
+          | EvalInt e ->
+            if M.tracing then M.traceli "relation" "evalint query %a (%a), ctx %a\n" d_exp e d_plainexp e D.pretty ctx.local;
+            let r = eval_int e (no_overflow (dummyask) e) in
+            if M.tracing then M.trace "relation" "evalint response %a -> %a\n" d_exp e ValueDomainQueries.ID.pretty r;
+            r
+          |_ -> Queries.Result.top q
+        in
+        ({ f } : Queries.ask) in
+      let rel = RD.assert_inv dummyask rel e false (no_overflow ask e_orig) in (* assume *)
       let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
 
       (* TODO: parallel write_global? *)
