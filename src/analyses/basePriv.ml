@@ -662,17 +662,15 @@ end
 module type ProtectionBasedWrapper =
 sig
   module G: Lattice.S
-  module V: module type of (ProtectionBasedV.V)
 
-  val getg: Q.ask -> (V.t -> G.t)  -> V.t -> VD.t
-  val sideg: Q.ask -> (V.t -> G.t -> unit) -> V.t -> VD.t -> unit
+  val getg: Q.ask -> (ProtectionBasedV.V.t -> G.t) -> ProtectionBasedV.V.t -> VD.t
+  val sideg: Q.ask -> (ProtectionBasedV.V.t -> G.t -> unit) -> ProtectionBasedV.V.t -> VD.t -> unit
 end
 
 
 module NoWrapper: ProtectionBasedWrapper =
 struct
   module G = VD
-  module V = ProtectionBasedV.V
 
   let getg _ getg = getg
   let sideg _ sideg = sideg
@@ -680,7 +678,6 @@ end
 
 module DigestWrapper(Digest: Digest): ProtectionBasedWrapper = struct
   module G = MapDomain.MapBot_LiftTop (Digest) (VD)
-  module V = ProtectionBasedV.V
 
   let getg ask getg x =
     let vs = getg x in
