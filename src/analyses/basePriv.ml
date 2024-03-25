@@ -1842,6 +1842,7 @@ let priv_module: (module S) Lazy.t =
         | "protection-tid" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-atomic" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
         | "protection-read" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
+        | "protection-read-tid" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-read-atomic" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
