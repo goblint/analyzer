@@ -1027,9 +1027,10 @@ struct
         let v = (* abstract base value *)
           if cast_ok addr then
             get ~top:(VD.top_value t) a gs st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
-          else
+          else begin
+            if M.tracing then M.tracel "eval_rv_base_lval" "cast_not ok for address %a to type: %a\n" Addr.pretty addr CilType.Typ.pretty t;
             VD.top () (* upcasts not! *)
-        in
+          end in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
         let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' ofs (Some exp) None t in (* handle offset *)
@@ -1041,9 +1042,10 @@ struct
       let lookup_with_offs addr =
         match Addr.to_mval addr with
         | Some (x, o) ->
-          if no_cast x then
-            get ~top:(VD.top_value t0) a gs st (AD.of_mval ~is_modular:(a.f Q.IsModular) (x, ofs)) (Some exp) (* downcasts are safe *)
-          else
+          if no_cast x then begin
+            let addr = AD.singleton (Addr.add_offset addr ofs) in
+            get ~top:(VD.top_value t0) a gs st addr (Some exp)
+          end else
             lookup_with_offs_base addr
         | None ->
           lookup_with_offs_base addr
