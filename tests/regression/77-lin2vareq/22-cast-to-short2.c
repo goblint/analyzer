@@ -21,7 +21,7 @@ int main() {
   }
   if (allbits == 4294967295 && signedallbits == -1 && unsignedtosigned == -1 &&
     unsignedtounsigned == 65535) {
-    __goblint_check(1); // reachable
+    __goblint_check(0); // NOWARN (unreachable)
     return (-1);
   }
 
