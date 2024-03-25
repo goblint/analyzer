@@ -639,21 +639,7 @@ sig
 end
 
 (** Protection-Based Reading. *)
-module ProtectionBasedPriv (Param: PerGlobalPrivParam): S =
-struct
-  include NoFinalize
-  include ConfCheck.RequireMutexActivatedInit
-  open Protection
-
-  module P =
-  struct
-    include MustVars
-    let name () = "P"
-  end
-  (* W is implicitly represented by CPA domain *)
-  module D = P
-
-  module G = VD
+module ProtectionBasedV = struct
   module VUnprot =
   struct
     include VarinfoV (* [g]' *)
@@ -670,10 +656,67 @@ struct
     let unprotected x = `Left x
     let protected x = `Right x
   end
+end
+
+(** Protection-Based Reading. *)
+module type ProtectionBasedWrapper =
+sig
+  module G: Lattice.S
+  module V: module type of (ProtectionBasedV.V)
+
+  val getg: Q.ask -> (V.t -> G.t)  -> V.t -> VD.t
+  val sideg: Q.ask -> (V.t -> G.t -> unit) -> V.t -> VD.t -> unit
+end
+
+
+module NoWrapper: ProtectionBasedWrapper =
+struct
+  module G = VD
+  module V = ProtectionBasedV.V
+
+  let getg _ getg = getg
+  let sideg _ sideg = sideg
+end
+
+module DigestWrapper(Digest: Digest): ProtectionBasedWrapper = struct
+  module G = MapDomain.MapBot_LiftTop (Digest) (VD)
+  module V = ProtectionBasedV.V
+
+  let getg ask getg x =
+    let vs = getg x in
+    G.fold (fun d v acc ->
+        if not (Digest.accounted_for ask ~current:(Digest.current ask) ~other:d) then
+          VD.join v acc
+        else
+          acc) vs (VD.bot ())
+
+  let sideg ask sideg x v =
+    let sidev = G.singleton (Digest.current ask) v in
+    sideg x sidev
+end
+
+module ProtectionBasedPrivWrapper (Param: PerGlobalPrivParam)(Wrapper:ProtectionBasedWrapper): S =
+struct
+  include NoFinalize
+  include ConfCheck.RequireMutexActivatedInit
+  open Protection
+
+  module P =
+  struct
+    include MustVars
+    let name () = "P"
+  end
+
+  (* W is implicitly represented by CPA domain *)
+  module D = P
+
+  module G = Wrapper.G
+  module V = ProtectionBasedV.V
 
   let startstate () = P.empty ()
 
   let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
+    let getg = Wrapper.getg ask getg in
     if P.mem x st.priv then
       CPA.find x st.cpa
     else if Param.handle_atomic && ask.f MustBeAtomic then
@@ -684,6 +727,7 @@ struct
       VD.join (CPA.find x st.cpa) (getg (V.protected x))
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
+    let sideg = Wrapper.sideg ask sideg in
     if not invariant then (
       if not (Param.handle_atomic && ask.f MustBeAtomic) then
         sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
@@ -701,6 +745,7 @@ struct
   let lock ask getg st m = st
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    let sideg = Wrapper.sideg ask sideg in
     let atomic = Param.handle_atomic && LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
@@ -723,6 +768,7 @@ struct
       ) st.cpa st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
+    let sideg = Wrapper.sideg ask sideg in
     match reason with
     | `Join -> (* required for branched thread creation *)
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
@@ -741,6 +787,7 @@ struct
       st
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    let sideg = Wrapper.sideg ask sideg in
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
           sideg (V.unprotected x) v;
@@ -754,6 +801,7 @@ struct
     {st with cpa = cpa'}
 
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    let sideg = Wrapper.sideg ask sideg in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
           sideg (V.unprotected x) v;
@@ -777,168 +825,15 @@ struct
       vf (V.protected g);
     | _ -> ()
 
-  let invariant_global getg g =
-    match g with
-    | `Left g' -> (* unprotected *)
-      ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
-    | `Right g -> (* protected *)
-      Invariant.none
-
-  let invariant_vars ask getg st = protected_vars ask
-end
-
-module ProtectionBasedTIDPriv (Digest: Digest): S =
-struct
-  include NoFinalize
-  include ConfCheck.RequireMutexActivatedInit
-  open Protection
-
-  module P =
-  struct
-    include MustVars
-    let name () = "P"
-  end
-  (* W is implicitly represented by CPA domain *)
-  module D = P
-
-  module G =  MapDomain.MapBot_LiftTop (Digest) (VD)
-  module VUnprot =
-  struct
-    include VarinfoV (* [g]' *)
-    let name () = "unprotected"
-  end
-  module VProt =
-  struct
-    include VarinfoV (* [g] *)
-    let name () = "protected"
-  end
-  module V =
-  struct
-    include Printable.Either (VUnprot) (VProt)
-    let unprotected x = `Left x
-    let protected x = `Right x
-  end
-
-  let get_possibles ask x =
-    G.fold (fun d v acc ->
-        if not (Digest.accounted_for ask ~current:(Digest.current ask) ~other:d) then
-          VD.join v acc
-        else
-          acc) x (VD.bot ())
-
-  let sideg_lift ask sideg x v =
-    let sidev = G.singleton (Digest.current ask) v in
-    sideg x sidev
-
-  let startstate () = P.empty ()
-
-  let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
-    if P.mem x st.priv then
-      CPA.find x st.cpa
-    else if is_unprotected ask x then
-      get_possibles ask @@ getg (V.unprotected x) (* CPA unnecessary because all values in GUnprot anyway *)
-    else
-      VD.join (CPA.find x st.cpa) (get_possibles ask (getg (V.protected x)))
-
-  let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
-    let sideg = sideg_lift ask sideg in
-    if not invariant then (
-      sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
-      if !earlyglobs then (* earlyglobs workaround for 13/60 *)
-        sideg (V.protected x) v
-        (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
-    );
-    if is_unprotected ask x then
-      st
-    else
-      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
-
-  let lock ask getg st m = st
-
-  let unlock ask getg sideg (st: BaseComponents (D).t) m =
-    let sideg = sideg_lift ask sideg in
-    (* TODO: what about G_m globals in cpa that weren't actually written? *)
-    CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if is_protected_by ask m x then ( (* is_in_Gm *)
-          (* Extra precision in implementation to pass tests:
-             If global is read-protected by multiple locks,
-             then inner unlock shouldn't yet publish. *)
-          if is_unprotected_without ask ~write:false x m then
-            sideg (V.protected x) v;
-
-          if is_unprotected_without ask x m then (* is_in_V' *)
-            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
-          else
-            st
-        )
-        else
-          st
-      ) st.cpa st
-
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    let sideg = sideg_lift ask sideg in
-    match reason with
-    | `Join -> (* required for branched thread creation *)
-      CPA.fold (fun x v (st: BaseComponents (D).t) ->
-          if is_global ask x && is_unprotected ask x then (
-            sideg (V.unprotected x) v;
-            sideg (V.protected x) v; (* must be like enter_multithreaded *)
-            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
-          )
-          else
-            st
-        ) st.cpa st
-    | `Return
-    | `Normal
-    | `Init
-    | `Thread ->
-      st
-
-  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let sideg = sideg_lift ask sideg in
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped then (
-          sideg (V.unprotected x) v;
-          sideg (V.protected x) v;
-          CPA.remove x acc
-        )
-        else
-          acc
-      ) st.cpa st.cpa
-    in
-    {st with cpa = cpa'}
-
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
-    let sideg = sideg_lift ask sideg in
-    CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if is_global ask x then (
-          sideg (V.unprotected x) v;
-          sideg (V.protected x) v;
-          {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
-        )
-        else
-          st
-      ) st.cpa st
-
-  let threadenter = startstate_threadenter startstate
-  let threadspawn ask get set st = st
-
-  let thread_join ?(force=false) ask get e st = st
-  let thread_return ask get set tid st = st
-
-  let iter_sys_vars getg vq vf =
-    match vq with
-    | VarQuery.Global g ->
-      vf (V.unprotected g);
-      vf (V.protected g);
-    | _ -> ()
-
-  (* Unsupported *)
   let invariant_global getg g = Invariant.none
+  (* match g with
+     | `Left g' -> (* unprotected *)
+     ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
+     | `Right g -> (* protected *)
+     Invariant.none *)
 
   let invariant_vars ask getg st = protected_vars ask
 end
-
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
 struct
@@ -1942,11 +1837,11 @@ let priv_module: (module S) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
-        | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = false end))
-        | "protection-tid" -> (module ProtectionBasedTIDPriv (ThreadNotStartedDigest))
-        | "protection-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = true end)) (* experimental *)
-        | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = false end))
-        | "protection-read-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = true end)) (* experimental *)
+        | "protection" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
+        | "protection-tid" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
+        | "protection-atomic" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
+        | "protection-read" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
+        | "protection-read-atomic" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
