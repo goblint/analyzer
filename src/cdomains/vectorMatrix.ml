@@ -207,8 +207,7 @@ module ArrayVector: AbstractVector =
   struct
     include ConvenienceOps (A)
     include Array
-    type t = A.t array [@@deriving eq, ord]
-    let hash = Array.fold_left (fun acc a -> 31 * acc + A.hash a) 0 (* TODO: array in ppx_deriving_hash *)
+    type t = A.t array [@@deriving eq, ord, hash]
 
     let show t =
       let t = Array.to_list t in
@@ -286,9 +285,7 @@ module ArrayMatrix: AbstractMatrix =
     include ConvenienceOps(A)
     module V = V(A)
 
-    type t = A.t array array [@@deriving eq, ord]
-
-    let hash = Array.fold_left (Array.fold_left (fun acc a -> 31 * acc + A.hash a)) 0
+    type t = A.t array array [@@deriving eq, ord, hash]
 
     let show x =
       Array.fold_left (^) "" (Array.map (fun v -> V.show @@ V.of_array v) x)

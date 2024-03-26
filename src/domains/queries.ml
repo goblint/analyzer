@@ -52,11 +52,10 @@ type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protecti
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
-type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} [@@deriving ord, hash]
 type access =
-  | Memory of memory_access (** Memory location access (race). *)
+  | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
-[@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
+[@@deriving ord, hash]
 type invariant_context = Invariant.context = {
   path: int option;
   lvals: Lval.Set.t;
