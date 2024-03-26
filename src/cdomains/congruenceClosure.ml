@@ -528,11 +528,11 @@ module CongruenceClosure (Var:Val) = struct
   (** Add all terms in a specific set to the data structure
 
       Returns updated (part, set, map, min_repr) *)
-  let insert_set cc t_set = TSet.fold (fun t cc -> snd (insert cc t)) t_set cc
-  (*let cc, queue = TSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
+  let insert_set cc t_set = (* SAFE VERSION but less efficient: TSet.fold (fun t cc -> snd (insert cc t)) t_set cc*)
+    let cc, queue = TSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
+    (* update min_repr at the end for more efficiency *)
     let min_repr = update_min_repr (cc.part, cc.map) cc.min_repr queue in
-
-    {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr}*)
+    {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr}
 
 
   (**
