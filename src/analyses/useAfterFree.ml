@@ -15,17 +15,13 @@ module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "useAfterFree"
 
   module D = StackAndHeapVars
-  module C = Lattice.Unit
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
-
-  let context _ _ = ()
-
 
   (* HELPER FUNCTIONS *)
 

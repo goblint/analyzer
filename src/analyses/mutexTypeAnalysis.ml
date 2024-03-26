@@ -6,13 +6,11 @@ open Analyses
 module MAttr = ValueDomain.MutexAttr
 module LF = LibraryFunctions
 
-module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
+module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Printable.Unit =
 struct
-  include Analyses.IdentitySpec
+  include UnitAnalysis.Spec
 
   let name () = "pthreadMutexType"
-  module D = Lattice.Unit
-  module C = Lattice.Unit
 
   (* Removing indexes here avoids complicated lookups and allows to have the LVals as vars here, at the price that different types of mutexes in arrays are not dinstinguished *)
   module O = Offset.Unit
@@ -63,11 +61,6 @@ struct
         ) mutexes;
       ctx.local
     | _ -> ctx.local
-
-  let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.top ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
-  let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
