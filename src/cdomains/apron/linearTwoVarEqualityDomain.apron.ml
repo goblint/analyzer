@@ -188,17 +188,17 @@ struct
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials and a constant *)
   let simplified_monomials_from_texp (t: t) texp =
     BatOption.bind (monomials_from_texp t texp)
-    (fun monomiallist ->
-      let d = Option.get t.d in
-      let expr = Array.make (Environment.size t.env) Z.zero in
-      let accumulate_constants a (c, v) = match v with
-        | None -> Z.(a + c)
-        | Some idx -> let (term,con) = d.(idx) in
-          (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
-           Z.(a + c * con))
-      in
-      let constant = List.fold_left accumulate_constants Z.zero monomiallist in (* abstract simplification of the guard wrt. reference variables *)
-      Some (Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr, constant) )
+      (fun monomiallist ->
+         let d = Option.get t.d in
+         let expr = Array.make (Environment.size t.env) Z.zero in
+         let accumulate_constants a (c, v) = match v with
+           | None -> Z.(a + c)
+           | Some idx -> let (term,con) = d.(idx) in
+             (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
+              Z.(a + c * con))
+         in
+         let constant = List.fold_left accumulate_constants Z.zero monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+         Some (Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr, constant) )
 
   let simplify_to_ref_and_offset (t: t) texp =
     BatOption.bind (simplified_monomials_from_texp t texp )
@@ -415,19 +415,19 @@ struct
       List.iter iterate new_components; Some ad
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
-      match a.d, b.d with
-      | None, _ -> b
-      | _, None -> a
-      | Some x, Some y when is_top a || is_top b ->
-        let new_env = Environment.lce a.env b.env in
-        top_of new_env
-      | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
-        let sup_env = Environment.lce a.env b.env in
-        let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-        let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-        {d = join_d mod_x mod_y; env = sup_env}
-      | Some x, Some y when EArray.equal x y -> {d = Some x; env = a.env}
-      | Some x, Some y  -> {d = join_d x y; env = a.env}
+    match a.d, b.d with
+    | None, _ -> b
+    | _, None -> a
+    | Some x, Some y when is_top a || is_top b ->
+      let new_env = Environment.lce a.env b.env in
+      top_of new_env
+    | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
+      let sup_env = Environment.lce a.env b.env in
+      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+      {d = join_d mod_x mod_y; env = sup_env}
+    | Some x, Some y when EArray.equal x y -> {d = Some x; env = a.env}
+    | Some x, Some y  -> {d = join_d x y; env = a.env}
 
   let join a b = timing_wrap "join" (join a) b
 
@@ -473,7 +473,7 @@ struct
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
 
   (** implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
-     This makes a copy of the data structure, it doesn't change it in-place. *)
+      This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     match t.d with
     | Some d ->
@@ -522,7 +522,7 @@ struct
 
   (** Parallel assignment of variables.
       First apply the assignments to temporary variables x' and y' to keep the old dependencies of x and y
-     and in a second round assign x' to x and y' to y
+      and in a second round assign x' to x and y' to y
   *)
   let assign_var_parallel t vv's =
     let assigned_vars = List.map fst vv's in
@@ -583,10 +583,10 @@ struct
       and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow
 
       meet_tcons -> meet with guard in if statement
-     texpr -> tree expr (right hand side of equality)
-     -> expression used to derive tcons -> used to check for overflow
-     tcons -> tree constraint (expression < 0)
-     -> does not have types (overflow is type dependent)
+      texpr -> tree expr (right hand side of equality)
+      -> expression used to derive tcons -> used to check for overflow
+      tcons -> tree constraint (expression < 0)
+      -> does not have types (overflow is type dependent)
   *)
   let meet_tcons ask t tcons original_expr no_ov =
     match t.d with
@@ -630,13 +630,13 @@ struct
 
   (** Assert a constraint expression. Defined in apronDomain.apron.ml
 
-     If the constraint is never fulfilled, then return bottom.
-     Else the domain can be modified with the new information given by the constraint.
+      If the constraint is never fulfilled, then return bottom.
+      Else the domain can be modified with the new information given by the constraint.
 
-     It basically just calls the function meet_tcons.
+      It basically just calls the function meet_tcons.
 
-     It is called by eval (defined in sharedFunctions), but also when a guard in
-     e.g. an if statement is encountered in the C code.
+      It is called by eval (defined in sharedFunctions), but also when a guard in
+      e.g. an if statement is encountered in the C code.
 
   *)
   let assert_constraint ask d e negate (no_ov: bool Lazy.t) =
@@ -651,9 +651,9 @@ struct
 
   (** representation as C expression
 
-     This function returns all the equalities that are saved in our datastructure t.
+      This function returns all the equalities that are saved in our datastructure t.
 
-     Lincons -> linear constraint *)
+      Lincons -> linear constraint *)
   let invariant t =
     let of_coeff xi coeffs o =
       let typ = (Option.get @@ V.to_cil_varinfo xi).vtype in
