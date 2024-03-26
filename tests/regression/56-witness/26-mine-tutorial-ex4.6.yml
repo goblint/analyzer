@@ -4,10 +4,8 @@
     uuid: 0e84a9de-b9f6-44dd-ab8d-ebdeca941482
     creation_time: 2022-10-07T09:14:31Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-g1e981de3d-dirty
-      command_line: '''../../../goblint'' ''--enable'' ''ana.int.interval'' ''26-mine-tutorial-ex4.6.c''
-        ''--html'' ''--set'' ''exp.g2html_path'' ''../../..'' ''--enable'' ''witness.yaml.enabled'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 26-mine-tutorial-ex4.6.c

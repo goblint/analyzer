@@ -80,7 +80,10 @@ struct
       if ThreadIdSet.is_empty threads then
         false
       else begin
-        let possibly_started current = function
+        let other_possibly_started current = function
+          | `Lifted tid when (ThreadId.Thread.equal current tid && ThreadId.Thread.is_unique current) ->
+            (* if our own (unique) thread is started here, that is not a problem *)
+            false
           | `Lifted tid ->
             let threads = ctx.ask Queries.CreatedThreads in
             let not_started = MHP.definitely_not_started (current, threads) tid in
@@ -97,14 +100,14 @@ struct
         in
         match ctx.ask Queries.CurrentThreadId with
         | `Lifted current ->
-          let possibly_started = ThreadIdSet.exists (possibly_started current) threads in
+          let possibly_started = ThreadIdSet.exists (other_possibly_started current) threads in
           if possibly_started then
             true
           else
             let current_is_unique = ThreadId.Thread.is_unique current in
             let any_equal_current threads = ThreadIdSet.exists (equal_current current) threads in
             if not current_is_unique && any_equal_current threads then
-              (* Another instance of the non-unqiue current thread may have escaped the variable *)
+              (* Another instance of the non-unique current thread may have escaped the variable *)
               true
             else
               (* Check whether current unique thread has escaped the variable *)

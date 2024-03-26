@@ -1,5 +1,4 @@
-// PARAM: --set kernel true --set mainfun[+] "'test_init'" --set ana.thread.domain plain
-// TODO: make unknown function spawns non-unique with history thread domain for data1 self-race
+// PARAM: --set kernel true --set mainfun[+] "'test_init'"
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/init.h>

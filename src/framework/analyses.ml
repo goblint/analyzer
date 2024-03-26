@@ -416,6 +416,12 @@ struct
   let threadspawn ctx ~multiple lval f args fctx = ctx.local
 end
 
+module IdentityUnitContextsSpec = struct
+  include IdentitySpec
+  module C = Printable.Unit
+
+  let context _ _ = ()
+end
 
 module type SpecSys =
 sig
