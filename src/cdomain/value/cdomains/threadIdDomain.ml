@@ -141,9 +141,9 @@ struct
     S.is_empty s
 
   let is_must_parent (p,s) (p',s') =
-    if (not (S.is_empty s)) then
+    if not (S.is_empty s) then
       false
-    else if (P.equal p' p && S.equal s s') then
+    else if P.equal p' p && S.is_empty s' then (* s is already empty *)
       (* We do not consider a thread its own parent *)
       false
     else
