@@ -51,7 +51,7 @@ module D : Lattice.S = struct
 
   let empty () = Some {part = TMap.empty; set = TSet.empty; map = TMap.empty; min_repr = TMap.empty}
 
-  let init () = congruence []
+  let init () = init_congruence []
 
   (** let hash = Hashtbl.hash *)
   let hash x = 1 (* TODO *)
@@ -66,13 +66,12 @@ module D : Lattice.S = struct
   let join a b = a
   let widen = join
 
-  let meet a b = match a,b with(*TODO put in different file *)
+  let meet a b = match a,b with (*TODO put in different file *)
     | None, _ -> None
     | _, None -> None
     | Some a, Some b ->
       let a_conj = get_normal_form a in
-      let b = insert_set b (fst (subterms_of_conj a_conj)) in
-      match (closure b (fst (split a_conj))) with
+      match meet_conjs b a_conj with
       | res -> Some res
       | exception Unsat -> None
 

@@ -458,7 +458,7 @@ module CongruenceClosure (Var:Val) = struct
 
   (**
      Throws Unsat if the congruence is unsatisfiable.*)
-  let congruence conj =
+  let init_congruence conj =
     let cc = init_cc conj in
     let pos, _ = split conj in
     (* propagating equalities through derefs *)
@@ -466,7 +466,7 @@ module CongruenceClosure (Var:Val) = struct
 
   (**
       Returns None if the congruence is unsatisfiable.*)
-  let congruence_opt conj =
+  let init_congruence_opt conj =
     let cc = init_cc conj in
     let pos, _ = split conj in
     (* propagating equalities through derefs *)
@@ -534,6 +534,13 @@ module CongruenceClosure (Var:Val) = struct
     let min_repr = update_min_repr (cc.part, cc.map) cc.min_repr queue in
     {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr}
 
+
+  (**
+     Throws "Unsat" if a contradiction is found.
+  *)
+  let meet_conjs cc conjs =
+    let cc = insert_set cc (fst (subterms_of_conj conjs)) in
+    closure cc (fst (split conjs))
 
   (**
      Returns true if t1 and t2 are equivalent
