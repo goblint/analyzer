@@ -39,7 +39,7 @@ module UnionFind (Val: Val)  = struct
   let init : Val.t list -> t =
     List.fold_left (fun map v -> ValMap.add v (ref (v, Z.zero), 1) map) (ValMap.empty)
 
-    (** Returns true if v is the representative value of its equivalence class
+  (** Returns true if v is the representative value of its equivalence class
 
       Throws "Unknown value" if v is not present in the data structure. *)
   let is_root cc v = match ValMap.find_opt v cc with
@@ -252,20 +252,6 @@ module CongruenceClosure (Var:Val) = struct
 
   let print_min_rep = print_string % show_min_rep
 
-
-  (** Uses dijkstra algorithm to update the minimal representatives of
-      all edges in the queue and if necessary also updates the minimal representatives of
-      the successor nodes of the automata
-
-      parameters:
-
-      `(part, map)` represent the union find data tructure and the corresponding lookup map
-
-      `min_representatives` maps each representative of the union find data structure to the minimal representative of the equivalence class
-
-      `queue` contains the states that need to be processed.
-      The states of the automata are the equivalence classes and each state of the automata is represented by the representative term.
-      Therefore the queue is a list of representative terms. *)
   let rec update_min_repr (part, map) min_representatives = function
     | [] -> min_representatives
     | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
@@ -281,12 +267,34 @@ module CongruenceClosure (Var:Val) = struct
           with
           | None ->
             (TMap.add next_state next_min min_representatives, queue @ [next_state])
-          | Some current_min when next_min < current_min ->
-            (TMap.add next_state next_min min_representatives, queue @ [next_state])
+          (* | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
+             (TMap.add next_state next_min min_representatives, queue @ [next_state])*)
           | _ -> (min_representatives, queue)
         in
         let (min_representatives, queue) = List.fold_left process_edge (min_representatives, queue) edges
         in update_min_repr (part, map) min_representatives queue
+
+  (** Uses dijkstra algorithm to update the minimal representatives of
+        all edges in the queue and if necessary also updates the minimal representatives of
+        the successor nodes of the automata.
+        The states in the queu must already have an updated min_repr.
+        This function visits only the successor nodes of the nodes in queue, not the nodes themselves.
+        Before visiting the nodes, it sorts the queue by the size of the current min representative.
+
+        parameters:
+
+        `(part, map)` represent the union find data tructure and the corresponding lookup map
+
+        `min_representatives` maps each representative of the union find data structure to the minimal representative of the equivalence class
+
+        `queue` contains the states that need to be processed.
+        The states of the automata are the equivalence classes and each state of the automata is represented by the representative term.
+        Therefore the queue is a list of representative terms. *)
+  let  update_min_repr (part, map) min_representatives queue =
+    (* order queue by size of the current min representative *)
+    let queue =
+      List.sort (fun el1 el2 -> TUF.compare_repr (TMap.find el1 min_representatives) (TMap.find el2 min_representatives)) queue
+    in update_min_repr (part, map) min_representatives queue
 
   let get_atoms set =
     (* elements set returns a sorted list of the elements. The atoms are always smaller that pther terms,
@@ -313,13 +321,13 @@ module CongruenceClosure (Var:Val) = struct
     in update_min_repr (part, map) min_representatives queue
 
   (**
-      Computes the initial map if minimal representatives.
+      Computes the initial map of minimal representatives.
         It maps each element `e` in the set to `(e, 0)`. *)
   let initial_minimal_representatives set =
-    List.fold_left (fun map element -> TMap.add element (element, Z.zero) map) TMap.empty  (TSet.elements set)
+    List.fold_left (fun map element -> TMap.add element (element, Z.zero) map) TMap.empty (TSet.elements set)
 
   let get_transitions (part, map) =
-    List.flatten @@ List.map (fun (t, imap) -> List.map (fun (edge_z, res_t) -> (edge_z, t, TUF.find part res_t)) @@ ZMap.bindings imap) (TMap.bindings map)
+    List.flatten @@ List.filter_map (fun (t, imap) -> if TUF.is_root part t then Some (List.map (fun (edge_z, res_t) -> (edge_z, t, TUF.find part res_t)) @@ ZMap.bindings imap) else None) (TMap.bindings map)
 
   (* Runtime = O(nrr. of atoms) + O(nr. transitions in the automata) *)
   let get_normal_form cc =
@@ -359,7 +367,7 @@ module CongruenceClosure (Var:Val) = struct
     let part = TSet.elements set |>
                TUF.init in
     let min_repr = initial_minimal_representatives set in
-    {part = part; set = set; map = map; min_repr = min_repr}
+    {part = part; set = set; map = map ; min_repr = min_repr}
 
   (**
        parameters: (part, map) equalities
@@ -411,7 +419,7 @@ module CongruenceClosure (Var:Val) = struct
             (* update min_repr *)
             let min_repr =
               let min_v1, min_v2 = TMap.find v1 min_repr, TMap.find v2 min_repr in
-              let new_min = if min_v1 <= min_v2 then fst min_v1 else fst min_v1 in
+              let new_min = if min_v1 <= min_v2 then fst min_v1 else fst min_v2 in
               TMap.add v (new_min, snd (TUF.find part new_min)) min_repr in
             closure (part, map, min_repr) (v :: queue) rest
       )
@@ -430,10 +438,8 @@ module CongruenceClosure (Var:Val) = struct
   *)
   let closure cc conjs =
     let (part, map, queue, min_repr) = closure (cc.part, cc.map, cc.min_repr) [] conjs in
-    (* sort queue by representative size *)
-    let queue = List.sort (fun el1 el2 -> let cmp_repr = TUF.compare_repr (TUF.find part el1) (TUF.find part el2) in if cmp_repr = 0 then compare_term Var.compare el1 el2 else cmp_repr) queue in
     let min_repr = update_min_repr (part, map) min_repr queue in
-    {part = part;set = cc.set; map = map;min_repr = min_repr}
+    {part = part; set = cc.set; map = map; min_repr = min_repr}
 
   let fold_left2 f acc l1 l2 =
     List.fold_left (
@@ -450,11 +456,23 @@ module CongruenceClosure (Var:Val) = struct
       | Eq (t1,t2,r) -> ((t1,t2,r)::pos,neg)
       | Neq(t1,t2,r) -> (pos,(t1,t2,r)::neg)) ([],[]) conj
 
+  (**
+     Throws Unsat if the congruence is unsatisfiable.*)
   let congruence conj =
     let cc = init_cc conj in
     let pos, _ = split conj in
     (* propagating equalities through derefs *)
     closure cc pos
+
+  (**
+      Returns None if the congruence is unsatisfiable.*)
+  let congruence_opt conj =
+    let cc = init_cc conj in
+    let pos, _ = split conj in
+    (* propagating equalities through derefs *)
+    match closure cc pos with
+    | exception Unsat -> None
+    | x -> Some x
 
   let print_eq cmap =
     let clist = TMap.bindings cmap in
@@ -480,7 +498,7 @@ module CongruenceClosure (Var:Val) = struct
 
       `queue` is a list which contains all atoms that are present as subterms of t and that are not already present in the data structure.
       Therefore it contains either one or zero elements. *)
-  let rec insert cc t =
+  let rec insert_no_min_repr cc t =
     if TSet.mem t cc.set then
       TUF.find cc.part t, cc,[]
     else let set = TSet.add t cc.set in
@@ -489,7 +507,7 @@ module CongruenceClosure (Var:Val) = struct
         let min_repr = TMap.add t (t, Z.zero) cc.min_repr in
         (t, Z.zero), {part = part; set = set; map = cc.map; min_repr = min_repr}, [Addr a]
       | Deref (t', z) ->
-        let (v, r), cc, queue = insert cc t' in
+        let (v, r), cc, queue = insert_no_min_repr cc t' in
         match TUF.map_find_opt (v, Z.(r + z)) cc.map with
         | Some v' -> TUF.find cc.part v', cc, queue
         (* TODO don't we need a union here? *)
@@ -502,10 +520,20 @@ module CongruenceClosure (Var:Val) = struct
 
         Returns (reference variable, offset), updated (part, set, map, min_repr) *)
   let insert cc t =
-    let v, cc, queue = insert cc t in
+    let v, cc, queue = insert_no_min_repr cc t in
     (* the queue has at most one element, so there is no need to sort it *)
     let min_repr = update_min_repr (cc.part, cc.map) cc.min_repr queue in
     v, {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr}
+
+  (** Add all terms in a specific set to the data structure
+
+      Returns updated (part, set, map, min_repr) *)
+  let insert_set cc t_set = TSet.fold (fun t cc -> snd (insert cc t)) t_set cc
+  (*let cc, queue = TSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
+    let min_repr = update_min_repr (cc.part, cc.map) cc.min_repr queue in
+
+    {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr}*)
+
 
   (**
      Returns true if t1 and t2 are equivalent
