@@ -97,7 +97,7 @@ struct
         | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 ->
           ()
         | min_opt, max_opt ->
-          if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
+          if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
           raise (Unsupported_CilExp Overflow)
       )
 
@@ -109,7 +109,7 @@ struct
           | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
-        if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/query: %a -> %a\n" d_plainexp e IntDomain.IntDomTuple.pretty res;
+        if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
         res
       in
       (* recurse without env and ask arguments *)
@@ -141,7 +141,7 @@ struct
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
-                if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a\n" d_plainexp e IntDomain.IntDomTuple.pretty simp;
+                if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
                 BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
               in
               let texpr1 e = texpr1_expr_of_cil_exp (simplify e) in
@@ -189,7 +189,7 @@ struct
     in
     let exp = Cil.constFold false exp in
     let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)\n" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
+    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
     res
 
   let texpr1_of_cil_exp ask d env e no_ov =
@@ -493,7 +493,7 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B\n" d_plainexp e (exp_is_constraint e);
+      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (exp_is_constraint e);
       if exp_is_constraint e then
         match check_assert ask d e no_ov with
         | `True -> ID.of_bool ik true

@@ -273,7 +273,7 @@ let get_val_type e: acc_typ =
 (** Add access to {!Memo} after distributing. *)
 let add_one ~side memo: unit =
   let ignorable = is_ignorable_memo memo in
-  if M.tracing then M.trace "access" "add_one %a (ignorable = %B)\n" Memo.pretty memo ignorable;
+  if M.tracing then M.trace "access" "add_one %a (ignorable = %B)" Memo.pretty memo ignorable;
   if not ignorable then
     side memo
 
@@ -281,7 +281,7 @@ let add_one ~side memo: unit =
     Empty access sets are needed for prefix-type_suffix race checking. *)
 let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
   let memo = (`Type ts, o) in
-  if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
+  if M.tracing then M.tracei "access" "add_distribute_outer %a" Memo.pretty memo;
   add_one ~side memo; (* Add actual access for non-recursive call, or empty access for recursive call when side is side_empty. *)
 
   (* distribute to variables of the type *)
@@ -298,17 +298,17 @@ let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
       add_distribute_outer ~side:side_empty ~side_empty (TSComp (f.fcomp.cstruct, f.fcomp.cname, [])) (`Field (f, o)) (* Switch to side_empty. *)
     ) fields;
 
-  if M.tracing then M.traceu "access" "add_distribute_outer\n"
+  if M.tracing then M.traceu "access" "add_distribute_outer"
 
 (** Add access to known variable with offsets or unknown variable from expression. *)
 let add ~side ~side_empty e voffs =
   begin match voffs with
     | Some (v, o) -> (* known variable *)
-      if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
+      if M.tracing then M.traceli "access" "add var %a%a" CilType.Varinfo.pretty v CilType.Offset.pretty o;
       let memo = (`Var v, Offset.Unit.of_cil o) in
       add_one ~side memo
     | None -> (* unknown variable *)
-      if M.tracing then M.traceli "access" "add type %a\n" CilType.Exp.pretty e;
+      if M.tracing then M.traceli "access" "add type %a" CilType.Exp.pretty e;
       let ty = get_val_type e in (* extract old acc_typ from expression *)
       let (t, o) = match ty with (* convert acc_typ to type-based Memo (components) *)
         | `Struct (c, o) -> (TComp (c, []), o)
@@ -318,7 +318,7 @@ let add ~side ~side_empty e voffs =
       | `NoOffset when not !collect_direct_arithmetic && isArithmeticType t -> ()
       | _ -> add_distribute_outer ~side ~side_empty (Cil.typeSig t) o (* distribute to variables and outer offsets *)
   end;
-  if M.tracing then M.traceu "access" "add\n"
+  if M.tracing then M.traceu "access" "add"
 
 
 (** Distribute to {!AddrOf} of all read lvals in subexpressions. *)
@@ -482,7 +482,7 @@ struct
 end
 
 let group_may_race (warn_accs:WarnAccs.t) =
-  if M.tracing then M.tracei "access" "group_may_race %a\n" WarnAccs.pretty warn_accs;
+  if M.tracing then M.tracei "access" "group_may_race %a" WarnAccs.pretty warn_accs;
   (* BFS to traverse one component with may_race edges *)
   let rec bfs' warn_accs ~todo ~visited =
     let todo_all = WarnAccs.union_all todo in
@@ -539,7 +539,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     )
   in
   let (comps, warn_accs) = components [] warn_accs in
-  if M.tracing then M.trace "access" "components %a\n" WarnAccs.pretty warn_accs;
+  if M.tracing then M.trace "access" "components %a" WarnAccs.pretty warn_accs;
   (* repeat BFS to find all prefix-type_suffix-only components starting from prefix accesses (symmetric) *)
   let rec components_cross comps ~prefix ~type_suffix =
     if AS.is_empty prefix then
@@ -547,7 +547,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     else (
       let prefix_acc = AS.choose prefix in
       let (warn_accs', comp) = bfs {(WarnAccs.empty ()) with prefix; type_suffix} {(WarnAccs.empty ()) with prefix=AS.singleton prefix_acc} in
-      if M.tracing then M.trace "access" "components_cross %a\n" WarnAccs.pretty warn_accs';
+      if M.tracing then M.trace "access" "components_cross %a" WarnAccs.pretty warn_accs';
       let comps' =
         if AS.cardinal comp > 1 then
           comp :: comps
@@ -558,7 +558,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     )
   in
   let components_cross = components_cross comps ~prefix:warn_accs.prefix ~type_suffix:warn_accs.type_suffix in
-  if M.tracing then M.traceu "access" "group_may_race\n";
+  if M.tracing then M.traceu "access" "group_may_race";
   components_cross
 
 let race_conf accs =

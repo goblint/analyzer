@@ -362,7 +362,7 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s \n" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s" (show t1) (show t2) (show res) ;
     res
 
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
@@ -386,7 +386,7 @@ struct
 
   let leq t1 t2 =
     let res = leq t1 t2 in
-    if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show t1) (show t2) res ;
+    if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
     res
 
   let join a b =
@@ -433,7 +433,7 @@ struct
 
   let join a b =
     let res = join a b in
-    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
   let widen a b =
@@ -441,14 +441,14 @@ struct
 
   let widen a b =
     let res = widen a b in
-    if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
   let narrow a b = meet a b
 
   let narrow a b =
     let res = narrow a b in
-    if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
   let pretty_diff () (x, y) =
@@ -467,7 +467,7 @@ struct
 
   let forget_vars t vars =
     let res = forget_vars t vars in
-    if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
+    if M.tracing then M.tracel "ops" "forget_vars %s -> %s" (show t) (show res);
     res
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
@@ -507,7 +507,7 @@ struct
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s"
         (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
 
@@ -517,7 +517,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
 
   (** Parallel assignment of variables.
@@ -538,7 +538,7 @@ struct
 
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
-    if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s \n" (show t) (show res);
+    if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s" (show t) (show res);
     res
 
   let assign_var_parallel t vv's = timing_wrap "var_parallel" (assign_var_parallel t) vv's
@@ -551,7 +551,7 @@ struct
     t.env <- t'.env
 
   let assign_var_parallel_with t vv's =
-    if M.tracing then M.tracel "var_parallel" "assign_var parallel'\n";
+    if M.tracing then M.tracel "var_parallel" "assign_var parallel'";
     assign_var_parallel_with t vv's
 
   let assign_var_parallel' t vs1 vs2 =
@@ -560,7 +560,7 @@ struct
 
   let assign_var_parallel' t vv's =
     let res = assign_var_parallel' t vv's in
-    if M.tracing then M.tracel "ops" "assign_var parallel'\n";
+    if M.tracing then M.tracel "ops" "assign_var parallel'";
     res
 
   let substitute_exp ask t var exp no_ov =
@@ -570,7 +570,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
@@ -625,7 +625,7 @@ struct
 
   let unify a b =
     let res = unify a b  in
-    if M.tracing then M.tracel "ops" "unify: %s %s -> %s\n" (show a) (show b) (show res);
+    if M.tracing then M.tracel "ops" "unify: %s %s -> %s" (show a) (show b) (show res);
     res
 
   (** Assert a constraint expression. Defined in apronDomain.apron.ml
@@ -640,7 +640,7 @@ struct
 
   *)
   let assert_constraint ask d e negate (no_ov: bool Lazy.t) =
-    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b\n" d_exp e (Lazy.force no_ov);
+    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
     match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
     | tcons1 -> meet_tcons ask d tcons1 e no_ov
     | exception Convert.Unsupported_CilExp _ -> d

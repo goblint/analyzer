@@ -374,9 +374,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | NaN, _ | _, NaN -> (0,0) (* comparisons involving NaN always return false *)
       | Top, _ | _, Top -> (0,1) (* comparisons with Top yield top *)
       (* neither of the arguments below is Top/Bot/NaN *)
-      | v1, v2 when v1 = min -> 
-        (* v1 is the minimal element w.r.t. the order *)  
-        if v2 <> min || reflexive then 
+      | v1, v2 when v1 = min ->
+        (* v1 is the minimal element w.r.t. the order *)
+        if v2 <> min || reflexive then
           (* v2 is different, i.e., greater or the relation is reflexive *)
           (1,1)
         else
@@ -389,7 +389,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
         if v2 = max && reflexive then
           (* v2 is also maximal and the relation is reflexive *)
           (1,1)
-        else 
+        else
           (0,0)
       | _, v2 when v2 = max -> (1,1) (* first argument cannot be max *)
       | _ -> (0, 1)
@@ -652,7 +652,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   (** returns the min of the given mfun once computed with rounding mode Up and once with rounding mode down*)
   let safe_mathfun_down mfun f = min (mfun Down f) (mfun Up f)
 
-  (** This function does two things: 
+  (** This function does two things:
    ** 1. projects l and h onto the interval [0, k*pi] (for k = 2 this is the phase length of sin/cos, for k = 1 it is the phase length of tan)
    ** 2. compresses/transforms the interval [0, k*pi] to the interval [0, 1] to ease further computations
    ** i.e. the function computes dist = distance, l'' = (l/(k*pi)) - floor(l/(k*pi)), h'' = (h/(k*pi)) - floor(h/(k*pi))*)
@@ -684,7 +684,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_cos_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 2. in
-    if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
+    if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if (dist <= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) && (l'' <= h'') then
       (* case: monotonic decreasing interval*)
       Interval (safe_mathfun_down Float_t.cos h, safe_mathfun_up Float_t.cos l)
@@ -707,7 +707,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_tan_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 1. in
-    if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %s; l'' %s; h'' %s\n" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
+    if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %s; l'' %s; h'' %s" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
     if (dist <= Float_t.of_float Down 1.) && (Bool.not ((l'' <= Float_t.of_float Up 0.5) && (h'' >= Float_t.of_float Up 0.5))) then
       (* case: monotonic increasing interval*)
       Interval (safe_mathfun_down Float_t.tan l, safe_mathfun_up Float_t.tan h)

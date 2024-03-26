@@ -112,7 +112,7 @@ struct
               (* Exclude accumulated prevs, which were pruned *)
               if NHT.mem vars prev_lvar then (
                 let lvar' = (fst lvar, snd lvar, i) in
-                if M.tracing then M.trace "witness" "%s -( %a )-> %s\n" (Node.to_string prev_lvar) MyARG.pretty_inline_edge edge (Node.to_string lvar');
+                if M.tracing then M.trace "witness" "%s -( %a )-> %s" (Node.to_string prev_lvar) MyARG.pretty_inline_edge edge (Node.to_string lvar');
                 NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
                 NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
               )
