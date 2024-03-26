@@ -66,10 +66,10 @@ struct
     if tracing then trace "sol" "New %a" Var.pretty_trace x
 
   let get_var_event x =
-    if full_trace then trace "sol" "Querying %a" Var.pretty_trace x
+    if tracing && full_trace then trace "sol" "Querying %a" Var.pretty_trace x
 
   let eval_rhs_event x =
-    if full_trace then trace "sol" "(Re-)evaluating %a" Var.pretty_trace x;
+    if tracing && full_trace then trace "sol" "(Re-)evaluating %a" Var.pretty_trace x;
     incr SolverStats.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; Logs.debug "%d" !stack_d)
 
@@ -295,7 +295,7 @@ module SoundBoxSolverImpl =
           (* remove old influences of [x] -- they will be re-generated if still needed *)
           H.remove infl x;
           H.replace infl x [x];
-          if full_trace
+          if Messages.tracing && full_trace
           then Messages.trace "sol" "Need to review %d deps." (List.length deps); (* nosemgrep: trace-not-in-tracing *)
           (* solve all dependencies *)
           solve_all deps
