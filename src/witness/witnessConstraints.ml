@@ -230,7 +230,7 @@ struct
               if M.tracing then M.tracec "witness" "j = %a" Spec.D.pretty j;
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r;
-          if M.tracing then M.traceu "witness" ""
+          if M.tracing then M.traceu "witness" "" (* unindent! *)
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
