@@ -105,10 +105,10 @@ struct
     let conv exp  =
       let query e ik =
         let res =
-        match ask.f (EvalInt e) with
-        | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
-        | `Top -> IntDomain.IntDomTuple.top_of ik
-        | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
+          match ask.f (EvalInt e) with
+          | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
+          | `Top -> IntDomain.IntDomTuple.top_of ik
+          | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
         if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
         res
       in
