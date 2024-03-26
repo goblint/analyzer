@@ -174,7 +174,7 @@ sig
   val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
 
-(** Digest to be be used for analyses that account for all join-local contributions in some locally tracked datastructure, akin to the L component from the analyses in
+(** Digest to be used for analyses that account for all join-local contributions in some locally tracked datastructure, akin to the L component from the analyses in
     @see <https://doi.org/10.1007/978-3-031-30044-8_2> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces.
 *)
 module ThreadDigest: Digest =
