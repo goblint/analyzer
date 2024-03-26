@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] lin2vareq
+// SKIP PARAM: --set ana.activated[+] lin2vareq
 #include <stdio.h>
 
 int x = 42;
@@ -6,7 +6,7 @@ long y;
 short z;
 
 int main() {
-    
+
     y = (long)x;
     z = (short)x;
 

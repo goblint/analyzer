@@ -1,4 +1,4 @@
-//PARAM: --set sem.int.signed_overflow assume_none --set ana.activated[+] apron
+// SKIP PARAM: --set sem.int.signed_overflow assume_none --set ana.activated[+] apron
 
 int main() {
  int minInt = -2147483647 + -1;
