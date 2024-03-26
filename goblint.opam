@@ -24,7 +24,7 @@ depends: [
   "ocaml" {>= "4.10"}
   "goblint-cil" {>= "2.0.3"}
   "batteries" {>= "3.5.1"}
-  "zarith" {>= "1.8"}
+  "zarith" {>= "1.10"}
   "yojson" {>= "2.0.0"}
   "qcheck-core" {>= "0.19"}
   "ppx_deriving"
