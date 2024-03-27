@@ -176,7 +176,8 @@ module UnionFind (Val: Val)  = struct
   (** Throws "Unknown value" if v is not present in the data structure. *)
   let show_uf uf = List.fold_left (fun s eq_class ->
       s ^ List.fold_left (fun s (v, _) ->
-          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "\n") "" eq_class
+          let (refv, size) = ValMap.find v uf in
+          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "; Parent: " ^ Val.show (fst !refv) ^ "; offset: " ^ Z.to_string (snd !refv) ^ "; size: " ^ string_of_int size ^"\n") "" eq_class
       ^ "\n") "" (get_eq_classes uf) ^ "\n"
 
   let clone map =
@@ -202,6 +203,16 @@ module UnionFind (Val: Val)  = struct
            (fun s (r, v) ->
               s ^ "\t" ^ Z.to_string r ^ ": " ^ Val.show v ^ "; ")
            "" (ZMap.bindings zmap) ^ "\n")
+      "" (ValMap.bindings map)
+
+  let show_children map =
+    List.fold_left
+      (fun s (v, set) ->
+         s ^ "Children of " ^ Val.show v ^ ":\n" ^
+         List.fold_left
+           (fun s v ->
+              s ^ Val.show v ^ "; ")
+           "" (ValSet.elements set) ^ "\n")
       "" (ValMap.bindings map)
 
   let print_map = print_string % show_map
@@ -291,25 +302,25 @@ module CongruenceClosure (Var:Val) = struct
   let print_min_rep = print_string % show_min_rep
 
   let rec update_min_repr (part, map, children) min_representatives = function
-    | [] -> min_representatives
+    | [] -> min_representatives, children
     | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
       match ZMap.bindings (TMap.find state map) with
       | exception Not_found -> (* no outgoing edges *)
         update_min_repr (part, map, children) min_representatives queue
       | edges ->
-        let process_edge (min_representatives, queue) (edge_z, next_term) =
+        let process_edge (min_representatives, queue, children) (edge_z, next_term) =
           let (next_state, next_z, children) = TUF.find (part, children) next_term in
           let (min_term, min_z) = TMap.find state min_representatives in
           let next_min = (Deref (min_term, Z.(edge_z - min_z)), next_z) in
           match TMap.find_opt next_state min_representatives
           with
           | None ->
-            (TMap.add next_state next_min min_representatives, queue @ [next_state])
+            (TMap.add next_state next_min min_representatives, queue @ [next_state], children)
           (* | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
              (TMap.add next_state next_min min_representatives, queue @ [next_state])*)
-          | _ -> (min_representatives, queue)
+          | _ -> (min_representatives, queue, children)
         in
-        let (min_representatives, queue) = List.fold_left process_edge (min_representatives, queue) edges
+        let (min_representatives, queue, children) = List.fold_left process_edge (min_representatives, queue, children) edges
         in update_min_repr (part, map, children) min_representatives queue
 
   (** Uses dijkstra algorithm to update the minimal representatives of
@@ -348,13 +359,13 @@ module CongruenceClosure (Var:Val) = struct
     (* process all atoms in increasing order *)
     let atoms =
       List.sort (fun el1 el2 -> TUF.compare_repr (TUF.find_no_pc part el1) (TUF.find_no_pc part el2)) atoms in
-    let add_atom_to_map (min_representatives, queue) a =
+    let add_atom_to_map (min_representatives, queue, children) a =
       let (rep, offs, children) = TUF.find (part, children) a in
       if not (TMap.mem rep min_representatives) then
-        (TMap.add rep (a, offs) min_representatives, queue @ [rep])
-      else (min_representatives, queue)
+        (TMap.add rep (a, offs) min_representatives, queue @ [rep], children)
+      else (min_representatives, queue, children)
     in
-    let (min_representatives, queue) = List.fold_left add_atom_to_map (TMap.empty, []) atoms
+    let (min_representatives, queue, children) = List.fold_left add_atom_to_map (TMap.empty, [], children) atoms
     (* compute the minimal representative of all remaining edges *)
     in update_min_repr (part, map, children) min_representatives queue
 
@@ -478,7 +489,7 @@ module CongruenceClosure (Var:Val) = struct
   *)
   let closure cc conjs =
     let (part, map, queue, min_repr, children) = closure (cc.part, cc.map, cc.min_repr, cc.children) [] conjs in
-    let min_repr = update_min_repr (part, map, children) min_repr queue in
+    let min_repr, children = update_min_repr (part, map, children) min_repr queue in
     {part = part; set = cc.set; map = map; min_repr = min_repr; children=children}
 
   let fold_left2 f acc l1 l2 =
@@ -564,8 +575,8 @@ module CongruenceClosure (Var:Val) = struct
   let insert cc t =
     let v, cc, queue = insert_no_min_repr cc t in
     (* the queue has at most one element, so there is no need to sort it *)
-    let min_repr = update_min_repr (cc.part, cc.map, cc.children) cc.min_repr queue in
-    v, {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr; children = cc.children}
+    let min_repr, children = update_min_repr (cc.part, cc.map, cc.children) cc.min_repr queue in
+    v, {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr; children = children}
 
   (** Add all terms in a specific set to the data structure
 
@@ -573,8 +584,8 @@ module CongruenceClosure (Var:Val) = struct
   let insert_set cc t_set = (* SAFE VERSION but less efficient: TSet.fold (fun t cc -> snd (insert cc t)) t_set cc*)
     let cc, queue = TSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
     (* update min_repr at the end for more efficiency *)
-    let min_repr = update_min_repr (cc.part, cc.map, cc.children) cc.min_repr queue in
-    {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr; children = cc.children}
+    let min_repr, children = update_min_repr (cc.part, cc.map, cc.children) cc.min_repr queue in
+    {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr; children = children}
 
 
   (**
@@ -634,7 +645,7 @@ struct
   (** Returns the initial state of the QFA for a certain variable
 
       Parameters: Union Find Map and variable for which we want to know the initial state *)
-  let get_initial_state part var = TUF.find_opt part (Addr var)
+  let get_initial_state (part, children) var = TUF.find_opt (part, children) (Addr var)
 
   (* pag. 8 before proposition 1 *)
   (** Returns the transition of the QFA for a certain Z, starting from a certain state
@@ -644,8 +655,8 @@ struct
       - Lookup Map
 
       - Z and State for which we want to know the next state *)
-  let transition_qfa (part, map) z state = match TUF.map_find_opt (state, z) map with
-    | Some term -> TUF.find_opt part term
+  let transition_qfa (part, map, children) z state = match TUF.map_find_opt (state, z) map with
+    | Some term -> TUF.find_opt (part, children) term
     | None -> None
 
 
@@ -656,9 +667,9 @@ struct
 
       Parameters: Union Find Map and term for which we want to know the final state *)
   let rec get_state (part, map, children) = function
-    | Addr v -> get_initial_state part v
+    | Addr v -> get_initial_state (part, children) v
     | Deref (t, z) -> match get_state (part, map, children) t with
       | None -> None
-      | Some (next_state, z1, children) -> transition_qfa map (Z.(z + z1)) next_state
+      | Some (next_state, z1, children) -> transition_qfa (part, map, children) (Z.(z + z1)) next_state
 
 end
