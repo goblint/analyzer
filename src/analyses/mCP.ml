@@ -36,6 +36,7 @@ struct
   let name () = "MCP2"
 
   let path_sens = ref []
+  let cont_sens = ref []
   let cont_inse = ref []
   let base_id   = ref (-1)
 
@@ -65,7 +66,6 @@ struct
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
-
   type marshal = Obj.t list
   let init marshal =
     let map' f =
@@ -80,10 +80,17 @@ struct
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
     path_sens := map' find_id @@ get_string_list "ana.path_sens";
-    cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
     check_deps !activated;
     activated := topo_sort_an !activated;
-    activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
+    begin
+      match get_string_list "ana.ctx_sens" with 
+      | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
+        cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
+        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;      
+      | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
+        cont_sens := map' find_id @@ sens;
+        activated_ctx_sens := List.filter (fun (n, _) -> List.mem n !cont_sens) !activated;
+    end;
     activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
@@ -108,7 +115,7 @@ struct
   let context fd x =
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
-        if mem n !cont_inse then
+        if (mem n !cont_inse) || not @@ (List.is_empty !cont_sens || mem n !cont_sens) then (* TODO: do I need to check if it is contained in activated ana?*)
           None
         else
           Some (n, repr @@ S.context fd (obj d))
@@ -180,13 +187,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-        { ctx with
+         { ctx with
           local = local';
           ask = ask
-        }
-      and ask q = query ctx' q
-      in
-      ctx' *)
+         }
+         and ask q = query ctx' q
+         in
+         ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function
