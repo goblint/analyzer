@@ -52,16 +52,17 @@ module UnionFind (Val: Val)  = struct
 
   (**
      For a variable t it returns the reference variable v and the offset r.
+     This find performs path compression.
 
      Throws "Unknown value" if t is not present in the data structure.
   *)
-  let find cc v = match ValMap.find_opt v cc with
+  let find uf v = match ValMap.find_opt v uf with
     | None -> raise (UnknownValue v)
     | Some (refv,_)  -> let (v',r') = !refv in
       if Val.compare v' v = 0 then
         if Z.equal r' Z.zero then (v',r')
         else raise (InvalidUnionFind "non-zero self-distance!")
-      else if is_root cc v' then
+      else if is_root uf v' then
         (*
                 let _ = print_string (Val.show v)  in
                 let _ = print_string " = "      in
@@ -72,10 +73,10 @@ module UnionFind (Val: Val)  = struct
         *)
         (v',r')
       else
-        let rec search v list = match ValMap.find_opt v cc with
+        let rec search v list = match ValMap.find_opt v uf with
           | None -> raise (UnknownValue v)
           | Some (refv,_)  -> let (v',r') = !refv in
-            if is_root cc v' then
+            if is_root uf v' then
               let _ = List.fold_left (fun r0 refv ->
                   let (_,r'') = !refv in
                   let _ = refv := (v,Z.(r0+r''))
@@ -93,7 +94,8 @@ module UnionFind (Val: Val)  = struct
                 let _ = print_string "\n" in
         *)
         v1,r
-  let find_opt cc v = match find cc v with
+
+  let find_opt uf v = match find uf v with
     | exception (UnknownValue _)
     | exception (InvalidUnionFind _) -> None
     | res -> Some res
@@ -116,20 +118,20 @@ module UnionFind (Val: Val)  = struct
      - `b` is true iff v = find v1
 
   *)
-  let union cc v'1 v'2 r = let v1,r1 = find cc v'1 in
-    let v2,r2 = find cc v'2 in
+  let union uf v'1 v'2 r = let v1,r1 = find uf v'1 in
+    let v2,r2 = find uf v'2 in
     if Val.compare v1 v2 = 0 then
-      if r1 = Z.(r2 + r) then v1, cc, true
+      if r1 = Z.(r2 + r) then v1, uf, true
       else raise (Failure "incomparable union")
-    else match ValMap.find_opt v1 cc, ValMap.find_opt v2 cc  with
+    else match ValMap.find_opt v1 uf, ValMap.find_opt v2 uf with
       | Some (refv1,s1),
         Some (refv2,s2) ->
         if s1 <= s2 then (
           refv1 := (v2, Z.(r2 - r1 + r));
-          v2, ValMap.add v2 (refv2,s1+s2) cc, false
+          v2, ValMap.add v2 (refv2,s1+s2) uf, false
         ) else (
           refv2 := (v1, Z.(r1 - r2 - r));
-          v1, ValMap.add v1 (refv1,s1+s2) cc, true
+          v1, ValMap.add v1 (refv1,s1+s2) uf, true
         )
       | None, _ -> raise (UnknownValue v1)
       | _, _ -> raise (UnknownValue v2)
@@ -139,7 +141,8 @@ module UnionFind (Val: Val)  = struct
   (** Throws "Unknown value" if v is not present in the data structure. *)
   let show_uf uf = List.fold_left (fun s eq_class ->
       s ^ List.fold_left (fun s (v, _) ->
-          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "\n") "" eq_class
+          let (refv, size) = ValMap.find v uf in
+          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "; Parent: " ^ Val.show (fst !refv) ^ "; offset: " ^ Z.to_string (snd !refv) ^ "; size: " ^ string_of_int size ^"\n") "" eq_class
       ^ "\n") "" (get_eq_classes uf) ^ "\n"
 
   let clone map =
@@ -267,8 +270,8 @@ module CongruenceClosure (Var:Val) = struct
           with
           | None ->
             (TMap.add next_state next_min min_representatives, queue @ [next_state])
-          (* | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
-             (TMap.add next_state next_min min_representatives, queue @ [next_state])*)
+          | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
+            (TMap.add next_state next_min min_representatives, queue @ [next_state])
           | _ -> (min_representatives, queue)
         in
         let (min_representatives, queue) = List.fold_left process_edge (min_representatives, queue) edges
@@ -293,7 +296,7 @@ module CongruenceClosure (Var:Val) = struct
   let  update_min_repr (part, map) min_representatives queue =
     (* order queue by size of the current min representative *)
     let queue =
-      List.sort (fun el1 el2 -> TUF.compare_repr (TMap.find el1 min_representatives) (TMap.find el2 min_representatives)) queue
+      List.sort_unique (fun el1 el2 -> TUF.compare_repr (TMap.find el1 min_representatives) (TMap.find el2 min_representatives)) queue
     in update_min_repr (part, map) min_representatives queue
 
   let get_atoms set =
@@ -417,11 +420,13 @@ module CongruenceClosure (Var:Val) = struct
                 TMap.add v zmap map, rest
             in
             (* update min_repr *)
-            let min_repr =
-              let min_v1, min_v2 = TMap.find v1 min_repr, TMap.find v2 min_repr in
-              let new_min = if min_v1 <= min_v2 then fst min_v1 else fst min_v2 in
-              TMap.add v (new_min, snd (TUF.find part new_min)) min_repr in
-            closure (part, map, min_repr) (v :: queue) rest
+            let min_v1, min_v2 = TMap.find v1 min_repr, TMap.find v2 min_repr in
+            (* 'changed' is true if the new_min is different thatn the old min *)
+            let new_min, changed = if fst min_v1 < fst min_v2 then (fst min_v1, not b) else (fst min_v2, b) in
+            let (_, rep_v) = TUF.find part new_min in
+            let min_repr = if changed then TMap.add v (new_min, rep_v) min_repr else min_repr in
+            let queue = if changed then (v :: queue) else queue in
+            closure (part, map, min_repr) queue rest
       )
 
   (**
