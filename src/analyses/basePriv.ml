@@ -64,6 +64,43 @@ let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
 let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
   {st with cpa = CPA.bot (); priv = startstate ()}
 
+
+(** Wrappers. *)
+module type PrivatizationWrapper = functor(GBase:Lattice.S) ->
+sig
+  module G: Lattice.S
+
+  val getg: Q.ask -> ('a -> G.t) -> 'a -> GBase.t
+  val sideg: Q.ask -> ('a -> G.t -> unit) -> 'a -> GBase.t -> unit
+end
+
+
+module NoWrapper:PrivatizationWrapper = functor (GBase:Lattice.S) ->
+  (struct
+    module G = GBase
+
+    let getg _ getg = getg
+    let sideg _ sideg = sideg
+  end)
+
+module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Lattice.S) ->
+  (struct
+    module G = MapDomain.MapBot_LiftTop (Digest) (GBase)
+
+    let getg ask getg x =
+      let vs = getg x in
+      G.fold (fun d v acc ->
+          if not (Digest.accounted_for ask ~current:(Digest.current ask) ~other:d) then
+            GBase.join v acc
+          else
+            acc) vs (GBase.bot ())
+
+    let sideg ask sideg x v =
+      let sidev = G.singleton (Digest.current ask) v in
+      sideg x sidev
+  end)
+
+
 (* No Privatization *)
 module NonePriv: S =
 struct
@@ -659,40 +696,7 @@ module ProtectionBasedV = struct
 end
 
 (** Protection-Based Reading. *)
-module type ProtectionBasedWrapper =
-sig
-  module G: Lattice.S
-
-  val getg: Q.ask -> (ProtectionBasedV.V.t -> G.t) -> ProtectionBasedV.V.t -> VD.t
-  val sideg: Q.ask -> (ProtectionBasedV.V.t -> G.t -> unit) -> ProtectionBasedV.V.t -> VD.t -> unit
-end
-
-
-module NoWrapper: ProtectionBasedWrapper =
-struct
-  module G = VD
-
-  let getg _ getg = getg
-  let sideg _ sideg = sideg
-end
-
-module DigestWrapper(Digest: Digest): ProtectionBasedWrapper = struct
-  module G = MapDomain.MapBot_LiftTop (Digest) (VD)
-
-  let getg ask getg x =
-    let vs = getg x in
-    G.fold (fun d v acc ->
-        if not (Digest.accounted_for ask ~current:(Digest.current ask) ~other:d) then
-          VD.join v acc
-        else
-          acc) vs (VD.bot ())
-
-  let sideg ask sideg x v =
-    let sidev = G.singleton (Digest.current ask) v in
-    sideg x sidev
-end
-
-module ProtectionBasedPrivWrapper (Param: PerGlobalPrivParam)(Wrapper:ProtectionBasedWrapper): S =
+module ProtectionBasedPrivWrapper (Param: PerGlobalPrivParam)(Wrapper:PrivatizationWrapper): S =
 struct
   include NoFinalize
   include ConfCheck.RequireMutexActivatedInit
@@ -707,6 +711,7 @@ struct
   (* W is implicitly represented by CPA domain *)
   module D = P
 
+  module Wrapper = Wrapper (VD)
   module G = Wrapper.G
   module V = ProtectionBasedV.V
 
