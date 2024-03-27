@@ -1327,6 +1327,167 @@ struct
   let threadenter = startstate_threadenter startstate
 end
 
+(** Lock-Centered Reading. *)
+module LockCenteredTIDPriv: S =
+struct
+  include MinePrivBase
+  include LockCenteredBase
+  open Locksets
+
+  open LockCenteredD
+  module D = Lattice.Prod (DV) (L)
+
+  (** start BS *)
+  module Digest = ThreadDigest
+  module OldG = G
+  module G = MapDomain.MapBot_LiftTop(ThreadDigest)(G)
+
+  let invariant_global _ _ _ = Invariant.none
+  let invariant_vars _ _ _ = []
+
+  let getgw ask getg x =
+    let vs = getg x in
+    G.fold (fun d v acc ->
+        if not (Digest.accounted_for ask ~current:(Digest.current ask) ~other:d) then
+          OldG.join v acc
+        else
+          acc) vs (OldG.bot ())
+
+  let sidegw ask sideg x v =
+    let sidev = G.singleton (Digest.current ask) v in
+    sideg x sidev
+
+  (** end *)
+
+  let startstate () = (DV.bot (), L.bot ())
+
+  let lockset_init = Lockset.top ()
+
+  let distr_init ask getg x v =
+    if get_bool "exp.priv-distr-init" then
+      let v_init = GWeak.find lockset_init (OldG.weak (getg (V.global x))) in
+      VD.join v v_init
+    else
+      v
+
+  let read_global ask getg (st: BaseComponents (D).t) x =
+    let getg = getgw ask getg in
+    let s = current_lockset ask in
+    let (vv, l) = st.priv in
+    let d_cpa = CPA.find x st.cpa in
+    let d_sync = L.fold (fun m bs acc ->
+        if not (MustVars.mem x (DV.find m vv)) then
+          let syncs = OldG.sync (getg (V.mutex m)) in
+          MinLocksets.fold (fun b acc ->
+              GSync.fold (fun s' cpa' acc ->
+                  if Lockset.disjoint b s' then
+                    let v = CPA.find x cpa' in
+                    VD.join v acc
+                  else
+                    acc
+                ) syncs acc
+            ) bs acc
+        else
+          acc
+      ) l (VD.bot ())
+    in
+    let weaks = OldG.weak (getg (V.global x)) in
+    let d_weak = GWeak.fold (fun s' v acc ->
+        if Lockset.disjoint s s' then
+          VD.join v acc
+        else
+          acc
+      ) weaks (VD.bot ())
+    in
+    let d_init =
+      if DV.exists (fun m cached -> MustVars.mem x cached) vv then
+        VD.bot ()
+      else
+        GWeak.find lockset_init weaks
+    in
+    if M.tracing then M.trace "priv" "d_cpa: %a" VD.pretty d_cpa;
+    if M.tracing then M.trace "priv" "d_sync: %a" VD.pretty d_sync;
+    if M.tracing then M.trace "priv" "d_weak: %a" VD.pretty d_weak;
+    if M.tracing then M.trace "priv" "d_init: %a" VD.pretty d_init;
+    let d_weak = VD.join d_weak d_init in
+    let d = VD.join d_cpa (VD.join d_sync d_weak) in
+    d
+
+  let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
+    let sideg = sidegw ask sideg in
+    let getg = getgw ask getg in
+    let s = current_lockset ask in
+    let (vv, l) = st.priv in
+    let v' = L.fold (fun m _ acc ->
+        DV.add m (MustVars.add x (DV.find m acc)) acc
+      ) l vv
+    in
+    let cpa' = CPA.add x v st.cpa in
+    if not invariant && not (!earlyglobs && is_excluded_from_earlyglobs x) then (
+      let v = distr_init ask getg x v in
+      sideg (V.global x) (OldG.create_weak (GWeak.singleton s v))
+      (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
+    );
+    {st with cpa = cpa'; priv = (v', l)}
+
+  let lock ask getg (st: BaseComponents (D).t) m =
+    let s = current_lockset ask in
+    let (v, l) = st.priv in
+    let v' = DV.add m (MustVars.empty ()) v in
+    let l' = L.add m (MinLocksets.singleton s) l in
+    {st with priv = (v', l')}
+
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    let sideg = sidegw ask sideg in
+    let getg = getgw ask getg in
+    let s = Lockset.remove m (current_lockset ask) in
+    let is_in_G x _ = is_global ask x in
+    let side_cpa = CPA.filter is_in_G st.cpa in
+    let side_cpa = CPA.mapi (fun x v ->
+        let v = distr_init ask getg x v in
+        v
+      ) side_cpa
+    in
+    sideg (V.mutex m) (OldG.create_sync (GSync.singleton s side_cpa));
+    (* m stays in v, l *)
+    st
+
+  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+    match reason with
+    | `Return
+    | `Normal
+    | `Join (* TODO: no problem with branched thread creation here? *)
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    let sideg = sidegw ask sideg in
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped then (
+          sideg (V.global x) (OldG.create_weak (GWeak.singleton lockset_init v));
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    let sideg = sidegw ask sideg in
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+        if is_global ask x then (
+          sideg (V.global x) (OldG.create_weak (GWeak.singleton lockset_init v));
+          {st with cpa = CPA.remove x st.cpa}
+        )
+        else
+          st
+      ) st.cpa st
+
+  let threadenter = startstate_threadenter startstate
+end
+
 module WriteCenteredBase =
 struct
   open Locksets
