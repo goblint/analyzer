@@ -1526,7 +1526,7 @@ struct
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
-module WriteAndLockCenteredPriv: S =
+module WriteAndLockCenteredPriv(Wrapper:PrivatizationWrapper): S =
 struct
   include MinePrivBase
   include WriteCenteredBase
@@ -1536,25 +1536,33 @@ struct
   open WriteCenteredD
   module D = Lattice.Prod (Lattice.Prod (W) (P)) (Lattice.Prod (DV) (L))
 
+  module Wrapper = Wrapper(G)
+  module UnwrappedG = G
+  module G = Wrapper.G
+
+  let invariant_global ask getg = invariant_global ask (Wrapper.getg ask getg)
+  let invariant_vars ask getg = invariant_vars ask (Wrapper.getg ask getg)
+
   let startstate () = ((W.bot (), P.top ()), (DV.bot (), L.bot ()))
 
   let lockset_init = Lockset.top ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
-      let v_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) (G.weak (getg (V.global x)))) in
+      let v_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) (UnwrappedG.weak (getg (V.global x)))) in
       VD.join v v_init
     else
       v
 
   let read_global ask getg (st: BaseComponents (D).t) x =
+    let getg = Wrapper.getg ask getg in
     let s = current_lockset ask in
     let ((w, p), (vv, l)) = st.priv in
     let p_x = P.find x p in
     let d_cpa = CPA.find x st.cpa in
     let d_m_sync = L.fold (fun m bs acc ->
         if not (MustVars.mem x (DV.find m vv)) then
-          let syncs = G.sync (getg (V.mutex m)) in
+          let syncs = UnwrappedG.sync (getg (V.mutex m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' gsyncw' acc ->
                   if Lockset.disjoint b s' then
@@ -1573,7 +1581,7 @@ struct
           acc
       ) l (VD.bot ())
     in
-    let weaks = G.weak (getg (V.global x)) in
+    let weaks = UnwrappedG.weak (getg (V.global x)) in
     let d_m_weak = GWeak.fold (fun s' gweakw' acc ->
         if Lockset.disjoint s s' then
           GWeakW.fold (fun w' v acc ->
@@ -1589,7 +1597,7 @@ struct
     let d_m = VD.join d_m_sync d_m_weak in
     let d_g_sync = Lockset.fold (fun m acc ->
         if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
-          let syncs = G.sync (getg (V.mutex m)) in
+          let syncs = UnwrappedG.sync (getg (V.mutex m)) in
           GSync.fold (fun s' gsyncw' acc ->
               if Lockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
@@ -1612,6 +1620,8 @@ struct
     d
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
+    let getg = Wrapper.getg ask getg in
+    let sideg = Wrapper.sideg ask sideg in
     let s = current_lockset ask in
     let ((w, p), (vv, l)) = st.priv in
     let w' = if not invariant then
@@ -1628,7 +1638,7 @@ struct
     let cpa' = CPA.add x v st.cpa in
     if not invariant && not (!earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
-      sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
+      sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );
     (* TODO: publish all g under M_g? *)
     {st with cpa = cpa'; priv = ((w', p'), (v', l))}
@@ -1641,6 +1651,8 @@ struct
     {st with priv = (wp, (v', l'))}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    let getg = Wrapper.getg ask getg in
+    let sideg = Wrapper.sideg ask sideg in
     let s = Lockset.remove m (current_lockset ask) in
     let ((w, p), vl) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
@@ -1654,7 +1666,7 @@ struct
           acc
       ) st.cpa (GSyncW.bot ())
     in
-    sideg (V.mutex m) (G.create_sync (GSync.singleton s side_gsyncw));
+    sideg (V.mutex m) (UnwrappedG.create_sync (GSync.singleton s side_gsyncw));
     (* m stays in v, l *)
     {st with priv = ((w, p'), vl)}
 
@@ -1668,12 +1680,13 @@ struct
       st
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    let sideg = Wrapper.sideg ask sideg in
     let s = current_lockset ask in
     CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
           let ((w, p), (vv, l)) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
-          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa; priv = ((w, p'), (vv, l))}
         )
         else
@@ -1681,9 +1694,10 @@ struct
       ) st.cpa st
 
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    let sideg = Wrapper.sideg ask sideg in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa}
         )
         else
@@ -1882,7 +1896,8 @@ let priv_module: (module S) Lazy.t =
         | "lock-tid" -> (module LockCenteredPriv (DigestWrapper(ThreadNotStartedDigest)))
         | "write" -> (module WriteCenteredPriv (NoWrapper))
         | "write-tid" -> (module WriteCenteredPriv (DigestWrapper(ThreadNotStartedDigest)))
-        | "write+lock" -> (module WriteAndLockCenteredPriv)
+        | "write+lock" -> (module WriteAndLockCenteredPriv (NoWrapper))
+        | "write+lock-tid" -> (module WriteAndLockCenteredPriv (DigestWrapper(ThreadNotStartedDigest)))
         | _ -> failwith "ana.base.privatization: illegal value"
       )
     in
