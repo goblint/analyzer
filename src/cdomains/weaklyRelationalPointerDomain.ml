@@ -23,7 +23,7 @@ module D : Lattice.S = struct
   (** Convert to string *)
   let show x = match x with
     | None -> "⊥"
-    | Some x -> SSet.show_conj (get_normal_form x)
+    | Some x -> show_conj (get_normal_form x)
 
 
   let show_all = function
