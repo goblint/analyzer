@@ -696,7 +696,7 @@ module ProtectionBasedV = struct
 end
 
 (** Protection-Based Reading. *)
-module ProtectionBasedPrivWrapper (Param: PerGlobalPrivParam)(Wrapper:PrivatizationWrapper): S =
+module ProtectionBasedPriv (Param: PerGlobalPrivParam)(Wrapper:PrivatizationWrapper): S =
 struct
   include NoFinalize
   include ConfCheck.RequireMutexActivatedInit
@@ -1854,12 +1854,12 @@ let priv_module: (module S) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
-        | "protection" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
-        | "protection-tid" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
-        | "protection-atomic" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
-        | "protection-read" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
-        | "protection-read-tid" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
-        | "protection-read-atomic" -> (module ProtectionBasedPrivWrapper (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)
+        | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
+        | "protection-tid" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
+        | "protection-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
+        | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
+        | "protection-read-tid" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
+        | "protection-read-atomic" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
