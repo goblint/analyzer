@@ -23,7 +23,7 @@ module D : Lattice.S = struct
   (** Convert to string *)
   let show x = match x with
     | None -> "⊥"
-    | Some x -> show_conj (get_normal_form x)
+    | Some x -> SSet.show_conj (get_normal_form x)
 
 
   let show_all = function
@@ -31,11 +31,11 @@ module D : Lattice.S = struct
     | Some x ->  "Union Find partition:\n" ^
                  (TUF.show_uf x.part)
                  ^ "\nSubterm set:\n"
-                 ^ (TUF.show_set x.set)
+                 ^ (SSet.show_set x.set)
                  ^ "\nLookup map/transitions:\n"
-                 ^ (TUF.show_map x.map)
+                 ^ (LMap.show_map x.map)
                  ^ "\nMinimal representatives:\n"
-                 ^ (show_min_rep x.min_repr)
+                 ^ (MRMap.show_min_rep x.min_repr)
 
   include Printable.SimpleShow(struct type t = domain let show = show end)
 
@@ -49,7 +49,7 @@ module D : Lattice.S = struct
 
   let compare x y = 0 (* How to compare if there is no total order? *)
 
-  let empty () = Some {part = TMap.empty; set = TSet.empty; map = TMap.empty; min_repr = TMap.empty}
+  let empty () = Some {part = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty}
 
   let init () = init_congruence []
 
