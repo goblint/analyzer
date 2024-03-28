@@ -8,6 +8,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/goblint/analyzer/badge.svg?branch=master)](https://coveralls.io/github/goblint/analyzer?branch=master)
 [![docker workflow status](https://github.com/goblint/analyzer/actions/workflows/docker.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/docker.yml)
 [![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
+[![project chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://goblint.zulipchat.com)
 
 Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
 
@@ -56,3 +57,9 @@ docker run -it --rm -v $(pwd):/data goblint /data/tests/regression/04-mutex/01-s
 If pulled from GitHub Container Registry, use the container name `ghcr.io/goblint/analyzer:latest` (or `:nightly`) instead.
 
 For further information, see [documentation](https://goblint.readthedocs.io/en/latest/user-guide/running/).
+
+## Acknowledgements
+
+Work on Goblint was supported in part by Deutsche Forschungsgemeinschaft (DFG) (47140942/1480 [PUMA](https://gepris.dfg.de/gepris/projekt/4714094), 378803395/2428 [ConVeY](http://convey.in.tum.de)), ARTEMIS Joint Undertaking (269335 [MBAT](http://www.mbat-artemis.eu/home/)), ITEA3 project 14014 [ASSUME](http://assume-project.eu/), and the Estonian Research Council ([IUT2-1](https://www.etis.ee/Portal/Projects/Display/561b7b1d-d1dd-43a2-90e5-0661de823823?lang=ENG), [PSG61](https://www.etis.ee/Portal/Projects/Display/743243bb-15c2-47b3-9c10-e7d86a9a276d?lang=ENG)).
+
+We also thank [Zulip](https://zulip.com) for providing free Zulip Cloud Standard hosting for the Goblint project. Zulip is an open-source modern team chat app designed to keep both live and asynchronous conversations organized.
