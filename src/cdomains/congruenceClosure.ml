@@ -233,17 +233,6 @@ module CongruenceClosure (Var : Val) = struct
     let show_set set = TSet.fold (fun v s ->
         s ^ "\t" ^ T.show v ^ "\n") set "" ^ "\n"
 
-    let string_of_prop = function
-      | Eq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
-      | Eq (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
-      | Neq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " != " ^ T.show t2
-      | Neq (t1,t2,r) -> T.show t1 ^ " != " ^ Z.to_string r ^ "+" ^ T.show t2
-
-    let show_conj list = List.fold_left
-        (fun s d -> s ^ "\t" ^ string_of_prop d ^ "\n") "" list
-
-    let print_conj = print_string % show_conj
-
     let rec subterms_of_term (set,map) t = match t with
       | Addr _ -> (TSet.add t set, map)
       | Deref (t',z) ->
@@ -367,6 +356,17 @@ module CongruenceClosure (Var : Val) = struct
             map: LMap.t;
             min_repr: MRMap.t}
   [@@deriving eq, ord, hash]
+
+  let string_of_prop = function
+    | Eq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
+    | Eq (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
+    | Neq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " != " ^ T.show t2
+    | Neq (t1,t2,r) -> T.show t1 ^ " != " ^ Z.to_string r ^ "+" ^ T.show t2
+
+  let show_conj list = List.fold_left
+      (fun s d -> s ^ "\t" ^ string_of_prop d ^ "\n") "" list
+
+  let print_conj = print_string % show_conj
 
   let get_transitions (part, map) =
     List.flatten @@ List.filter_map (fun (t, imap) -> if TUF.is_root part t then Some (List.map (fun (edge_z, res_t) -> (edge_z, t, TUF.find part res_t)) @@ LMap.zmap_bindings imap) else None) (LMap.bindings map)
