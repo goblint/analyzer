@@ -15,7 +15,6 @@ module ValMap(Val:Val) = struct
   let hash x y = 3
 end
 
-
 (** Quantitative union find *)
 module UnionFind (Val: Val)  = struct
   module ValMap = ValMap(Val)
@@ -60,6 +59,14 @@ module UnionFind (Val: Val)  = struct
         if Z.equal r' Z.zero then (v',r')
         else raise (InvalidUnionFind "non-zero self-distance!")
       else if is_root uf v' then
+        (*
+                let _ = print_string (Val.show v)  in
+                let _ = print_string " = "      in
+                let _ = print_string (string_of_int r')  in
+                let _ = print_string "+"        in
+                let _ = print_string (Val.show v') in
+                let _ = print_string "\n" in
+        *)
         (v',r')
       else
         let rec search v list = match ValMap.find_opt v uf with
@@ -74,14 +81,16 @@ module UnionFind (Val: Val)  = struct
             else search v' (refv :: list)
         in
         let v1,r = search v' [refv] in
+        (*
+                let _ = print_string (Val.show v)  in
+                let _ = print_string " = "      in
+                let _ = print_string (string_of_int r)  in
+                let _ = print_string "+"        in
+                let _ = print_string (Val.show v1) in
+                let _ = print_string "\n" in
+        *)
         v1,r
 
-  (**
-     For a variable t it returns the reference variable v and the offset r.
-     This find performs path compression.
-
-     Returns "None" if t is not present in the data structure.
-  *)
   let find_opt uf v = match find uf v with
     | exception (UnknownValue _)
     | exception (InvalidUnionFind _) -> None
@@ -133,7 +142,6 @@ module UnionFind (Val: Val)  = struct
       ^ "\n") "" (get_eq_classes uf) ^ "\n"
 end
 
-
 module LookupMap (T: Val) = struct
   module TMap = ValMap(T)
 
@@ -146,6 +154,7 @@ module LookupMap (T: Val) = struct
 
   let bindings = TMap.bindings
   let add = TMap.add
+  let remove = TMap.remove
   let empty = TMap.empty
   let find_opt = TMap.find_opt
   let find = TMap.find
@@ -154,16 +163,16 @@ module LookupMap (T: Val) = struct
   let zmap_add = ZMap.add
   let zmap_find_opt = ZMap.find_opt
 
-  let map_find_opt (v,r) map = match TMap.find_opt v map with
+  let map_find_opt (v,r) map = match find_opt v map with
     | None -> None
-    | Some zmap -> (match ZMap.find_opt r zmap with
+    | Some zmap -> (match zmap_find_opt r zmap with
         | None -> None
         | Some v -> Some v
       )
 
-  let map_add (v,r) v' map = match TMap.find_opt v map with
-    | None -> TMap.add v (ZMap.add r v' ZMap.empty) map
-    | Some zmap -> TMap.add v (ZMap.add r v' zmap) map
+  let map_add (v,r) v' map = match find_opt v map with
+    | None -> add v (zmap_add r v' ZMap.empty) map
+    | Some zmap -> add v (zmap_add r v' zmap) map
 
   let show_map map =
     List.fold_left
@@ -172,44 +181,47 @@ module LookupMap (T: Val) = struct
          List.fold_left
            (fun s (r, v) ->
               s ^ "\t" ^ Z.to_string r ^ ": " ^ T.show v ^ "; ")
-           "" (ZMap.bindings zmap) ^ "\n")
-      "" (TMap.bindings map)
+           "" (zmap_bindings zmap) ^ "\n")
+      "" (bindings map)
 
   let print_map = print_string % show_map
 
   let clone map =
-    TMap.bindings map |>
-    List.fold_left (fun map (v,node) -> TMap.add v node map) (TMap.empty)
+    bindings map |>
+    List.fold_left (fun map (v,node) -> add v node map) (empty)
 
-  let shift v r v' map = (* value at v' is shifted by r and then added for v *)
-    match TMap.find_opt v' map with
+  (** The value at v' is shifted by r and then added for v.
+      The old entry for v' is removed. *)
+  let shift v r v' map =
+    match find_opt v' map with
     | None -> map
-    | Some zmap -> let infl = ZMap.bindings zmap in
+    | Some zmap -> let infl = zmap_bindings zmap in
       let zmap = List.fold_left (fun zmap (r', v') ->
-          ZMap.add Z.(r' + r) v' zmap) ZMap.empty infl in
-      TMap.add v zmap map
+          zmap_add Z.(r' + r) v' zmap) ZMap.empty infl in
+      remove v' (add v zmap map)
+end
+
+exception Unsat
+
+type 'v term = Addr of 'v | Deref of 'v term * Z.t [@@deriving eq, ord, hash]
+type 'v prop = Eq of 'v term * 'v term * Z.t | Neq of 'v term * 'v term * Z.t [@@deriving eq, ord, hash]
+
+module Term(Var:Val) = struct
+  type t = Var.t term [@@deriving eq, ord, hash]
+  type v_prop = Var.t prop [@@deriving eq, ord, hash]
+
+  let rec show = function
+    | Addr v -> "&" ^ Var.show v
+    | Deref (Addr v, z) when Z.equal z Z.zero -> Var.show v
+    | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
+    | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
 end
 
 (** Quantitative congruence closure on terms *)
 module CongruenceClosure (Var : Val) = struct
 
-  exception Unsat
 
-  type 'v term = Addr of 'v | Deref of 'v term * Z.t [@@deriving eq, ord, hash]
-  type 'v prop = Eq of 'v term * 'v term * Z.t | Neq of 'v term * 'v term * Z.t [@@deriving eq, ord, hash]
-
-  module Term = struct
-    type t = Var.t term [@@deriving eq, ord, hash]
-    type v_prop = Var.t prop [@@deriving eq, ord, hash]
-
-    let rec show = function
-      | Addr v -> "&" ^ Var.show v
-      | Deref (Addr v, z) when Z.equal z Z.zero -> Var.show v
-      | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
-      | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
-  end
-
-  module T = Term
+  module T = Term(Var)
 
   module TUF = UnionFind (T)
   module LMap = LookupMap (T)
@@ -261,13 +273,10 @@ module CongruenceClosure (Var : Val) = struct
     type t = (T.t * Z.t) TMap.t [@@deriving eq, ord, hash]
 
     let bindings = TMap.bindings
-
     let find = TMap.find
-
     let add = TMap.add
-
+    let remove = TMap.remove
     let mem = TMap.mem
-
     let empty = TMap.empty
 
     let show_min_rep min_representatives =
@@ -448,7 +457,7 @@ module CongruenceClosure (Var : Val) = struct
                     match LMap.zmap_find_opt r' zmap with
                     | None -> (LMap.zmap_add r' v' zmap, rest)
                     | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap1,rest) infl2 in
-                LMap.add v zmap map, rest
+                LMap.remove v2 (LMap.add v zmap map), rest
               | Some imap1, Some imap2, false -> (* v2 is new root *)
                 let r0 = Z.(r1-r2-r) in
                 let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap1) in
@@ -456,14 +465,15 @@ module CongruenceClosure (Var : Val) = struct
                     match LMap.zmap_find_opt r' zmap with
                     | None -> (LMap.zmap_add r' v' zmap, rest)
                     | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap2, rest) infl1 in
-                LMap.add v zmap map, rest
+                    LMap.remove v1 (LMap.add v zmap map), rest
             in
             (* update min_repr *)
             let min_v1, min_v2 = LMap.find v1 min_repr, LMap.find v2 min_repr in
             (* 'changed' is true if the new_min is different thatn the old min *)
             let new_min, changed = if fst min_v1 < fst min_v2 then (fst min_v1, not b) else (fst min_v2, b) in
             let (_, rep_v) = TUF.find part new_min in
-            let min_repr = if changed then LMap.add v (new_min, rep_v) min_repr else min_repr in
+            let removed_v = if b then v2 else v1 in
+            let min_repr = MRMap.remove removed_v (if changed then MRMap.add v (new_min, rep_v) min_repr else min_repr) in
             let queue = if changed then (v :: queue) else queue in
             closure (part, map, min_repr) queue rest
       )
