@@ -2016,6 +2016,7 @@ let priv_module: (module S) Lazy.t =
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
         | "mine-W-noinit" -> (module MineWPriv (struct let side_effect_global_init = false end))
         | "lock" -> (module LockCenteredPriv(NoWrapper))
+        | "lock-tid" -> (module LockCenteredPriv(DigestWrapper(ThreadNotStartedDigest)))
         | "write" -> (module WriteCenteredPriv)
         | "write+lock" -> (module WriteAndLockCenteredPriv)
         | _ -> failwith "ana.base.privatization: illegal value"
