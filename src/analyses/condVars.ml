@@ -108,7 +108,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Mval.Exp.pretty clval d_exp expr;
+        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a" Mval.Exp.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in

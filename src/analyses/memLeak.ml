@@ -169,7 +169,7 @@ struct
       let allocated_and_unreachable_mem = D.diff allocated_mem reachable_mem in
       if not (D.is_empty allocated_and_unreachable_mem) then (
         set_mem_safety_flag InvalidMemTrack;
-        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "There is unreachable allocated heap memory at program exit. A memory leak might occur for the alloc vars %a\n" (Pretty.d_list ", " CilType.Varinfo.pretty) (D.elements allocated_and_unreachable_mem)
+        M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "There is unreachable allocated heap memory at program exit. A memory leak might occur for the alloc vars %a" (Pretty.d_list ", " CilType.Varinfo.pretty) (D.elements allocated_and_unreachable_mem)
       );
       (* Check and warn if some of the allocated memory is not deallocated at program exit *)
       match assert_exp_imprecise, exp with

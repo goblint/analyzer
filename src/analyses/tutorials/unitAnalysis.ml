@@ -3,7 +3,7 @@
 open GoblintCil
 open Analyses
 
-(* module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit and type marshal = unit = *)
+(* module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Printable.Unit and type marshal = unit = *)
 (* No signature so others can override module G *)
 module Spec =
 struct
@@ -11,7 +11,7 @@ struct
 
   let name () = "unit"
   module D = Lattice.Unit
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
