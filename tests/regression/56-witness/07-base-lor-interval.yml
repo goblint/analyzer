@@ -22,7 +22,7 @@
     file_name: 07-base-lor-interval.c
     file_hash: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
     line: 8
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: r || 2 <= x
@@ -52,7 +52,7 @@
     file_name: 07-base-lor-interval.c
     file_hash: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
     line: 9
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 2 <= x || r

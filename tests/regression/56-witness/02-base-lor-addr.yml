@@ -20,7 +20,7 @@
     file_name: 02-base-lor-addr.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 17
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: (x == &a || x == &b) || x == &c
@@ -48,7 +48,7 @@
     file_name: 02-base-lor-addr.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 18
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: (x == &a || x == &b) || x == &d
@@ -76,7 +76,7 @@
     file_name: 02-base-lor-addr.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 29
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: y == &e || y == x
@@ -104,7 +104,7 @@
     file_name: 02-base-lor-addr.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 30
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: (y == &a || y == &b) || y == &c || y == &e
@@ -132,7 +132,7 @@
     file_name: 02-base-lor-addr.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 31
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: y == &d || y == x

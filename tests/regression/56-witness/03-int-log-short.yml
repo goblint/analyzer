@@ -21,7 +21,7 @@
     file_name: 03-int-log-short.c
     file_hash: 055e8b0b611a6bbe2b072f5c92f094e63fa339ac53190660ac3e54f2fd40d379
     line: 8
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: r || x
@@ -50,7 +50,7 @@
     file_name: 03-int-log-short.c
     file_hash: 055e8b0b611a6bbe2b072f5c92f094e63fa339ac53190660ac3e54f2fd40d379
     line: 9
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: '!(r && y)'

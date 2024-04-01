@@ -21,7 +21,7 @@
     file_name: 25-apron-unassume-strengthening.c
     file_hash: b2a50e3b423ade600ec2de58fa8ace6ec9a08b85fdc016cbdb7fbe9a3ba80d83
     line: 8
-    column: 4
+    column: 5
     function: main
   location_invariant:
     string: x >= 0

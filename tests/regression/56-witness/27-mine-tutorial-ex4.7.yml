@@ -21,7 +21,7 @@
     file_name: 27-mine-tutorial-ex4.7.c
     file_hash: 4d06e38718d405171bd503e630f6c7a247bb3b0d3c1c6c951466e4989883b43c
     line: 6
-    column: 2
+    column: 3
     function: main
   loop_invariant:
     string: 0 <= x && x <= 40

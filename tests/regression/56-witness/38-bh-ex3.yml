@@ -21,7 +21,7 @@
     file_name: 38-bh-ex3.c
     file_hash: 9d2cb05c2decf8564defade7194c336478ec5ae4be1ee79202269ff09830dada
     line: 7
-    column: 2
+    column: 3
     function: main
   loop_invariant:
     string: 0 <= m && m <= 60 && 0 <= n && n <= 60

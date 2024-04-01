@@ -21,7 +21,7 @@
     file_name: 33-base-unassume-lor-enums.c
     file_hash: 5014d96b45984600f1ce8a4f6f208ab856539c33e7124a71e41836a1a2cbdd40
     line: 7
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: i == 0 || i == 1 || i == 2

@@ -20,7 +20,7 @@
     file_name: 16-base-unassume-dependent.c
     file_hash: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
     line: 8
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 0 <= i
@@ -48,7 +48,7 @@
     file_name: 16-base-unassume-dependent.c
     file_hash: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
     line: 8
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: i <= j
@@ -76,7 +76,7 @@
     file_name: 16-base-unassume-dependent.c
     file_hash: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
     line: 8
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: j <= 42
