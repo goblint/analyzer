@@ -291,13 +291,11 @@ struct
               let inv = List.fold_left (fun acc n ->
                   begin match n with
                     | Node.Statement s ->
-                      (* TODO: need to recursively follow copies in case of nested unrolled loops? kind of like union-find *)
-                      begin match LoopUnrolling.CopyOfHashTable.find_opt LoopUnrolling.copyof s with
-                        | Some s' ->
-                          Logs.debug "%a is copy of %a" Node.pretty n CilType.Stmt.pretty s'
-                        | None ->
-                          Logs.debug "%a is not a copy" Node.pretty n
-                      end
+                      let s' = LoopUnrolling.find_original s in
+                      if s != s' then
+                        Logs.debug "%a is copy of %a" Node.pretty n CilType.Stmt.pretty s'
+                      else
+                        Logs.debug "%a is not a copy" Node.pretty n
                     | _ -> ()
                   end;
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in

@@ -395,6 +395,12 @@ module CopyOfHashTable = Hashtbl.Make(struct
   end)
 let copyof = CopyOfHashTable.create 113
 
+let rec find_original s =
+  (* TODO: actually need to recursively follow copies in case of nested unrolled loops? kind of like union-find *)
+  match CopyOfHashTable.find_opt copyof s with
+  | None -> s
+  | Some s' -> (find_original [@tailcall]) s'
+
 (*
   Makes a copy, replacing top-level breaks with goto loopEnd and top-level continues with
   goto currentIterationEnd
