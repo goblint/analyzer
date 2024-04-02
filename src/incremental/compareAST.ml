@@ -339,8 +339,8 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   let eq_block' = fun x y ~(rename_mapping:rename_mapping) -> if cfg_comp then true, rename_mapping else eq_block (x, af) (y, bf) ~rename_mapping in
   match a, b with
   | Instr is1, Instr is2 -> forward_list_equal eq_instr is1 is2 ~rename_mapping
-  | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2 ~rename_mapping
-  | Return (None, _l1), Return (None, _l2) -> true, rename_mapping
+  | Return (Some exp1, _l1, _el1), Return (Some exp2, _l2, _el2) -> eq_exp exp1 exp2 ~rename_mapping
+  | Return (None, _l1, _el1), Return (None, _l2, _el2) -> true, rename_mapping
   | Return _, Return _ -> false, rename_mapping
   | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf), rename_mapping
   | Break _, Break _ -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else true, rename_mapping

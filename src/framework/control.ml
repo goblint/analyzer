@@ -54,7 +54,7 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ 
 let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
-module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
+module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
 struct
 
   module SpecSys: SpecSys with module Spec = Spec =
@@ -230,7 +230,7 @@ struct
     res
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) skippedByEdge =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) =
     let module FileCfg: FileCfg =
     struct
       let file = file
@@ -625,13 +625,16 @@ struct
            let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
            let hashtbl_size = if fast_count node_values then count node_values else 123 in
            let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
-           node_values |> iter (fun (node, v) ->
-               let loc = Node.location node in
-               (* join values once for the same location and once for the same node *)
-               let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
-               Hashtbl.modify_opt loc join by_loc;
-               NodeH.modify_opt node join by_node;
-             );
+           iter (fun (node, v) ->
+              let loc = match node with
+                | Statement s -> Cil.get_stmtLoc s.skind (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
+                | FunctionEntry _ | Function _ -> Node.location node
+              in
+              (* join values once for the same location and once for the same node *)
+              let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
+              Hashtbl.modify_opt loc join by_loc;
+              NodeH.modify_opt node join by_node;
+            ) node_values;
            by_loc, by_node
         in
 
@@ -656,7 +659,10 @@ struct
         let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
 
         let skipped_statements from_node edge to_node =
-          CfgTools.CfgEdgeH.find_default skippedByEdge (from_node, edge, to_node) []
+          try
+            Cfg.skippedByEdge from_node edge to_node
+          with Not_found ->
+            []
         in
 
         Transform.run_transformations file active_transformations
@@ -793,22 +799,22 @@ end
    [analyze_loop] cannot reside in it anymore since each invocation of
    [get_spec] in the loop might/should return a different module, and we
    cannot swap the functor parameter from inside [AnalyzeCFG]. *)
-let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge =
+let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
   try
     let (module Spec) = get_spec () in
     let module A = AnalyzeCFG (CFG) (Spec) (struct let increment = change_info end) in
-    GobConfig.with_immutable_conf (fun () -> A.analyze file fs skippedByEdge)
+    GobConfig.with_immutable_conf (fun () -> A.analyze file fs)
   with Refinement.RestartAnalysis ->
     (* Tail-recursively restart the analysis again, when requested.
         All solving starts from scratch.
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
-    analyze_loop (module CFG) file fs change_info skippedByEdge
+    analyze_loop (module CFG) file fs change_info
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
   Logs.debug "Generating the control flow graph.";
-  let (module CFG), skippedByEdge = CfgTools.compute_cfg_skips file in
+  let (module CFG) = CfgTools.compute_cfg file in
   MyCFG.current_cfg := (module CFG);
-  analyze_loop (module CFG) file fs change_info skippedByEdge
+  analyze_loop (module CFG) file fs change_info

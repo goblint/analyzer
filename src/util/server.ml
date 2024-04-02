@@ -121,6 +121,10 @@ let serve serv =
   |> Seq.map Packet.t_of_yojson
   |> Seq.iter (handle_packet serv)
 
+let is_server_node cfgnode =
+  let loc = UpdateCil.getLoc cfgnode in
+  not loc.synthetic
+
 let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
       let module Arg = (val (Option.get_exn !ArgTools.current_arg Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or arg disabled" ())))) in
@@ -133,7 +137,7 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
       Arg.iter_nodes (fun n ->
           let cfgnode = Arg.Node.cfgnode n in
           let loc = UpdateCil.getLoc cfgnode in
-          if not loc.synthetic then
+          if is_server_node cfgnode then
             Locator.add locator loc n;
           StringH.replace ids (Arg.Node.to_string n) n;
           StringH.add cfg_nodes (Node.show_id cfgnode) n (* add for find_all *)
@@ -248,7 +252,7 @@ let node_locator: Locator.t ResettableLazy.t =
         if not (NH.mem reachable node) then begin
           NH.replace reachable node ();
           let loc = UpdateCil.getLoc node in
-          if not loc.synthetic then
+          if is_server_node node then
             Locator.add locator loc node;
           List.iter (fun (_, prev_node) ->
               iter_node prev_node
@@ -486,7 +490,7 @@ let () =
     let process { fname } serv =
       let fundec = Cilfacade.find_name_fundec fname in
       let live _ = true in (* TODO: fix this *)
-      let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
+      let cfg = CfgTools.sprint_fundec_html_dot (module (val !MyCFG.current_cfg: MyCFG.CfgBidirSkip): MyCFG.CfgBidir) live fundec in
       { cfg }
   end);
 
