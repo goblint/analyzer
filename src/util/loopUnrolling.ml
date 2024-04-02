@@ -1,5 +1,3 @@
-(** Syntactic loop unrolling. *)
-
 open GobConfig
 open GoblintCil
 
