@@ -291,6 +291,7 @@ struct
               let inv = List.fold_left (fun acc n ->
                   begin match n with
                     | Node.Statement s ->
+                      (* TODO: need to recursively follow copies in case of nested unrolled loops? kind of like union-find *)
                       begin match LoopUnrolling.StatementHashTable.find_opt LoopUnrolling.copyof s with
                         | Some s' ->
                           Logs.debug "%a is copy of %a" Node.pretty n CilType.Stmt.pretty s'
