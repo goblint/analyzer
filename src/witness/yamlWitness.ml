@@ -293,7 +293,7 @@ struct
                     | Node.Statement s ->
                       let s' = LoopUnrolling.find_original s in
                       if s != s' then
-                        Logs.debug "%a is copy of %a" Node.pretty n CilType.Stmt.pretty s'
+                        Logs.debug "%a is copy of %a (%d)" Node.pretty n CilType.Stmt.pretty s' s'.sid
                       else
                         Logs.debug "%a is not a copy" Node.pretty n
                     | _ -> ()

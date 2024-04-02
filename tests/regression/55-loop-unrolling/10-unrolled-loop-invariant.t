@@ -124,19 +124,19 @@
   [Debug] node 31 "i < 10" is not a copy
   [Debug] node 23 "i < 10" is copy of if (! (i < 10)) {
                                 goto while_break;
-  }
+  } (31)
   [Debug] node 18 "i < 10" is copy of if (! (i < 10)) {
                                 goto while_break;
-  }
+  } (31)
   [Debug] node 13 "i < 10" is copy of if (! (i < 10)) {
                                 goto while_break;
-  }
+  } (31)
   [Debug] node 8 "i < 10" is copy of if (! (i < 10)) {
                                goto while_break;
-  }
+  } (31)
   [Debug] node 3 "i < 10" is copy of if (! (i < 10)) {
                                goto while_break;
-  }
+  } (31)
   [Info][Witness] witness generation summary:
     total generation entries: 4
 
