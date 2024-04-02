@@ -384,6 +384,8 @@ class patchLabelsGotosVisitor(newtarget) = object
     | _ -> DoChildren
 end
 
+let copyof = StatementHashTable.create 113
+
 (*
   Makes a copy, replacing top-level breaks with goto loopEnd and top-level continues with
   goto currentIterationEnd
@@ -401,6 +403,8 @@ class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos) = object
       let new_labels = List.map (function Label(str,loc,b) -> Label (Cil.freshLabel str,loc,b) | x -> x) sn.labels in
       (* this makes new physical copy*)
       let new_s = {sn with labels = new_labels} in
+      StatementHashTable.replace copyof new_s s;
+      Logs.debug "Marking %a as copy of %a" CilType.Stmt.pretty new_s CilType.Stmt.pretty s;
       if new_s.labels <> [] then
         (* Use original s, ns might be temporay e.g. if the type of statement changed *)
         (* record that goto s; appearing in the current fragment should later be patched to goto new_s *)
