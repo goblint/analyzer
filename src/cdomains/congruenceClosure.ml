@@ -44,9 +44,29 @@ module UnionFind (Val: Val)  = struct
     | None -> raise (UnknownValue v)
     | Some (refv, _)  -> Val.compare v (fst !refv) = 0
 
+  let parent uf v =
+    let (refv, _) = ValMap.find v uf in
+    !refv
+
+  let parent_offset uf v =
+    snd (parent uf v)
+
+  let subtree_size uf v = snd (ValMap.find v uf)
+
+  let modify_parent uf v (t, offset) =
+    let (refv, _) = ValMap.find v uf in
+    refv := (t, offset)
+
   (** Returns true if each equivalence class in the data structure contains only one element,
       i.e. every node is a root. *)
   let is_empty uf = List.for_all (fun (v, (refv, _)) -> Val.compare v (fst !refv) = 0) (ValMap.bindings uf)
+
+  (** Throws "Unknown value" if v is not present in the data structure. *)
+  let show_uf_ugly uf =
+    List.fold_left (fun s (v, (refv, size)) ->
+        s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^
+        "; Parent: " ^ Val.show (fst !refv) ^ "; offset: " ^ Z.to_string (snd !refv) ^ "; size: " ^ string_of_int size ^ "\n")
+      "" (ValMap.bindings uf) ^ "\n"
 
   (**
      For a variable t it returns the reference variable v and the offset r.
@@ -80,6 +100,22 @@ module UnionFind (Val: Val)  = struct
     | exception (UnknownValue _)
     | exception (InvalidUnionFind _) -> None
     | res -> Some res
+
+
+  (**
+     For a variable t it returns the reference variable v and the offset r.
+     This find DOES NOT perform path compression.
+
+     Throws "Unknown value" if t is not present in the data structure.
+  *)
+  let rec find_no_pc uf v =
+    match ValMap.find_opt v uf with
+    | None -> raise (UnknownValue v)
+    | Some (refv,_)  -> let (v',r') = !refv in
+      if Val.compare v' v = 0 then
+        if Z.equal r' Z.zero then (v',r')
+        else raise (InvalidUnionFind "non-zero self-distance!")
+      else find_no_pc uf v'
 
   let compare_repr = Tuple2.compare ~cmp1:Val.compare ~cmp2:Z.compare
 
@@ -124,6 +160,17 @@ module UnionFind (Val: Val)  = struct
       s ^ List.fold_left (fun s (v, (refv, size)) ->
           s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "; Parent: " ^ Val.show (fst !refv) ^ "; offset: " ^ Z.to_string (snd !refv) ^ "; size: " ^ string_of_int size ^"\n") "" eq_class
       ^ "\n") "" (get_eq_classes uf) ^ "\n"
+
+  (** Modifies the size of the equivalence class for the current element and
+      for the while path to the root of this element.
+
+      `modification` is the function to apply to the sizes. *)
+  let rec change_size t part modification =
+    let (ref_r, old_size) = ValMap.find t part in
+    let part = ValMap.add t (ref_r, modification old_size) part in
+    let parent = fst(!ref_r) in
+    if parent = t then part else change_size parent part modification
+
 end
 
 
@@ -261,15 +308,17 @@ module CongruenceClosure (Var : Val) = struct
          according to our comparison function. Therefore take_while is enough.*)
       BatList.take_while (function Addr _ -> true | _ -> false) (elements set)
 
+
+    let add_to_map_of_children value map term =
+      if T.equal term value then map else
+        match TUF.ValMap.find_opt term map with
+        | None -> TUF.ValMap.add term [value] map
+        | Some list -> TUF.ValMap.add term (value::list) map
+
     (* remove varibales *)
-    (** Returns  new_set, removed_terms_set, map_of_children, map_of_predecessors *)
+    (** Returns  new_set, new_map, removed_terms_set, map_of_children, map_of_predecessors *)
     let remove_terms_containing_variable (part, set, map) var =
       (** Adds `value` to the set that is in the `map` with key `term` *)
-      let add_to_map_of_children value map term =
-        if T.equal term value then map else
-          match TUF.ValMap.find_opt term map with
-          | None -> TUF.ValMap.add term [value] map
-          | Some list -> TUF.ValMap.add term (value::list) map in
       let add_to_map_of_predecessors value map (z, term) =
         match TUF.ValMap.find_opt term map with
         | None -> TUF.ValMap.add term [(z, value)] map
@@ -279,7 +328,7 @@ module CongruenceClosure (Var : Val) = struct
         let (uf_parent_ref, _) = TUF.ValMap.find el part in
         let map_of_children = add_to_map_of_children el map_of_children (fst !uf_parent_ref) in
         let successors = LMap.successors el map in
-        let map_of_predecessors = List.fold_left (add_to_map_of_predecessors el) map_of_predecessors successors in
+        let map_of_predecessors = List.fold_left (add_to_map_of_predecessors el) map_of_predecessors successors in (*instead of this just remove from rhs*)
         (new_set, removed_terms_set, map_of_children, map_of_predecessors) in
       TSet.fold add_to_result set (TSet.empty, TSet.empty, TUF.ValMap.empty, TUF.ValMap.empty)
 
@@ -302,6 +351,65 @@ module CongruenceClosure (Var : Val) = struct
              "\t" list ^ "\n")
         "" (TUF.ValMap.bindings map_of_predecessors)
 
+
+
+    (* remove variables from union find *)
+    (** Returns part, new_parents_map, new_map_of_children *)
+    let remove_terms_containing_variable_from_uf part removed_terms_set map_of_children =
+      let find_not_removed_element set = match List.find (fun el -> not (TSet.mem el removed_terms_set)) set with
+        | exception Not_found -> List.first set
+        | t -> t
+      in
+      let remove_term t (part, new_parents_map, map_of_children) =
+        match LMap.find_opt t map_of_children with
+        | None ->
+          (* t has no childrem, so we can safely delete the element from the data structure *)
+          (* we just need to update the size on the whole path from here to the root *)
+          (* we know that after a find operation the parent of t is a root, because of path compression. *)
+          let new_parents_map = if TUF.is_root part t then new_parents_map else LMap.add t (fst(TUF.parent part t)) new_parents_map in
+          (TUF.ValMap.remove t (TUF.change_size t part ((-) 1)), new_parents_map, map_of_children)
+        | Some children ->
+          let map_of_children = LMap.remove t map_of_children in
+          if TUF.is_root part t then
+            (* t is a root and it has some children:
+               1. choose new root.
+               The new_root is in any case one of the children of the old root.
+               If possible, we choose one of the children that is not going to be deleted.  *)
+            let new_root = find_not_removed_element children in
+            let remaining_children = List.remove children new_root in
+            let offset_new_root = TUF.parent_offset part new_root in
+            (* We set the parent of all the other children to the new root and adjust the offset accodingly. *)
+            let new_size, map_of_children = List.fold
+                (fun (total_size, map_of_children) child ->
+                   (* update parent and offset *)
+                   let _ = TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t - offset_new_root)) in
+                   total_size + TUF.subtree_size part child, add_to_map_of_children child map_of_children new_root
+                ) (0, map_of_children) remaining_children in
+            (* Update new root -> set itself as new parent. *)
+            let _ = TUF.modify_parent part new_root (new_root, Z.zero) in
+            (* update size of equivalence class *)
+            let part = TUF.change_size new_root part ((+) new_size) in
+            (TUF.ValMap.remove t part, LMap.add t new_root new_parents_map, map_of_children)
+          else
+            (* t is NOT a root -> the old parent of t becomes the new parent of the children of t. *)
+            let (new_root, new_offset) = TUF.parent part t in
+            let remaining_children = List.remove children new_root in
+            (* update all parents of the children of t *)
+            let map_of_children = List.fold
+                (fun map_of_children child ->
+                   (* update parent and offset *)
+                   TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t + new_offset));
+                   add_to_map_of_children child map_of_children new_root
+                ) map_of_children remaining_children in
+            (* update size of equivalence class *)
+            let part = TUF.change_size new_root part ((-) 1) in
+            (TUF.ValMap.remove t part, LMap.add t new_root new_parents_map, map_of_children)
+      in TSet.fold remove_term removed_terms_set (part, LMap.empty, map_of_children)
+
+    let show_new_parents_map new_parents_map = List.fold_left
+        (fun s (v1, v2) ->
+           s ^ T.show v1 ^ "\t: " ^ T.show v2 ^ "\n")
+        "" (LMap.bindings new_parents_map)
 
   end
 
@@ -656,7 +764,8 @@ module CongruenceClosure (Var : Val) = struct
       let remove_terms_containing_variable cc var =
       (* first find all terms that need to be removed *)
       let new_set, removed_terms_set, map_of_children, map_of_predecessors =
-      SSet.remove_terms_containing_variable (cc.part, cc.set, cc.map)
+      SSet.remove_terms_containing_variable (cc.part, cc.set, cc.map) var
+      in let part, new_parents_map, map_of_children = TUF.remove_terms_containing_variable cc.part removed_terms_set map_of_children var
       in ()
   *)
 end
