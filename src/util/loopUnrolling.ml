@@ -384,7 +384,16 @@ class patchLabelsGotosVisitor(newtarget) = object
     | _ -> DoChildren
 end
 
-let copyof = StatementHashTable.create 113
+module CopyOfHashTable = Hashtbl.Make(struct
+    type t = stmt
+    (* Identity by physical equality. *)
+    let equal = (==)
+    (* Hash only labels and skind (statement itself) because they should remain unchanged between now
+       and lookup after analysis.
+       CFG construction modifies sid, succs, preds and fallthrough, which are empty here.*)
+    let hash (s: stmt) = Hashtbl.hash (s.skind, s.labels)
+  end)
+let copyof = CopyOfHashTable.create 113
 
 (*
   Makes a copy, replacing top-level breaks with goto loopEnd and top-level continues with
@@ -403,7 +412,7 @@ class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos) = object
       let new_labels = List.map (function Label(str,loc,b) -> Label (Cil.freshLabel str,loc,b) | x -> x) sn.labels in
       (* this makes new physical copy*)
       let new_s = {sn with labels = new_labels} in
-      StatementHashTable.replace copyof new_s s;
+      CopyOfHashTable.replace copyof new_s s;
       Logs.debug "Marking %a as copy of %a" CilType.Stmt.pretty new_s CilType.Stmt.pretty s;
       if new_s.labels <> [] then
         (* Use original s, ns might be temporay e.g. if the type of statement changed *)

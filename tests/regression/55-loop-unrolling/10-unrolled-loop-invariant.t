@@ -1,5 +1,4 @@
-  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled 10-unrolled-loop-invariant.c --set dbg.level debug
-  [Debug] 2024-04-02 15:10:01
+  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled 10-unrolled-loop-invariant.c --set dbg.level debug 2>&1 | tail -n +2
   [Debug] 'goblint' '--set' 'lib.activated' '[]' '--set' 'exp.unrolling-factor' '5' '--enable' 'ana.int.interval' '--enable' 'witness.yaml.enabled' '10-unrolled-loop-invariant.c' '--set' 'dbg.level' 'debug'
   [Debug] Custom include dirs:
   [Debug]   1. /home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/stub/include (exists=true)
@@ -123,11 +122,21 @@
   [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:3:10-3:16)
   [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:3:10-3:16)
   [Debug] node 31 "i < 10" is not a copy
-  [Debug] node 23 "i < 10" is not a copy
-  [Debug] node 18 "i < 10" is not a copy
-  [Debug] node 13 "i < 10" is not a copy
-  [Debug] node 8 "i < 10" is not a copy
-  [Debug] node 3 "i < 10" is not a copy
+  [Debug] node 23 "i < 10" is copy of if (! (i < 10)) {
+                                goto while_break;
+  }
+  [Debug] node 18 "i < 10" is copy of if (! (i < 10)) {
+                                goto while_break;
+  }
+  [Debug] node 13 "i < 10" is copy of if (! (i < 10)) {
+                                goto while_break;
+  }
+  [Debug] node 8 "i < 10" is copy of if (! (i < 10)) {
+                               goto while_break;
+  }
+  [Debug] node 3 "i < 10" is copy of if (! (i < 10)) {
+                               goto while_break;
+  }
   [Info][Witness] witness generation summary:
     total generation entries: 4
 
