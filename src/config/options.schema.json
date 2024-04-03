@@ -1984,6 +1984,12 @@
               "description": "Add loop SCC clusters to CFG .dot output.",
               "type": "boolean",
               "default": false
+            },
+            "loop-unrolling": {
+              "title": "dbg.cfg.loop-unrolling",
+              "description": "Add dotted loop unrolling copy-of edges to CFG .dot output.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
