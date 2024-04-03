@@ -174,6 +174,9 @@ sig
   val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
 
+(** Digest to be used for analyses that account for all join-local contributions in some locally tracked datastructure, akin to the L component from the analyses in
+    @see <https://doi.org/10.1007/978-3-031-30044-8_2> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces.
+*)
 module ThreadDigest: Digest =
 struct
   include ThreadIdDomain.ThreadLifted
@@ -194,6 +197,25 @@ struct
         true (* accounted for in local information *)
       else
         false
+    | _ -> false
+end
+
+(** Ego-Lane Derived digest based on whether given threads have been started yet, can be used to refine any analysis
+    @see PhD thesis of M. Schwarz once it is published ;)
+*)
+module ThreadNotStartedDigest:Digest =
+struct
+  include ThreadIdDomain.ThreadLifted
+
+  module TID = ThreadIdDomain.Thread
+
+  let current (ask: Q.ask) =
+    ThreadId.get_current ask
+
+  let accounted_for (ask: Q.ask) ~(current: t) ~(other: t) =
+    match current, other with
+    | `Lifted current, `Lifted other ->
+      MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other
     | _ -> false
 end
 

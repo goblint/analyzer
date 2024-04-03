@@ -373,32 +373,32 @@ struct
     let rec adjust_offs v o d =
       let ta = try Addr.Offs.type_of ~base:v.vtype o with Offset.Type_of_error (t,s) -> raise (CastError s) in
       let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
-      M.tracel "casta" "%s\n" info;
+      if M.tracing then M.tracel "casta" "%s" info; (* TODO: inline info? *)
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
       | 0 ->
-        M.tracel "casta" "same size\n";
+        if M.tracing then M.tracel "casta" "same size";
         if not (typ_eq t ta) then err "Cast to different type of same size."
-        else (M.tracel "casta" "SUCCESS!\n"; o)
+        else (if M.tracing then M.tracel "casta" "SUCCESS!"; o)
       | c when c > 0 -> (* cast to bigger/outer type *)
-        M.tracel "casta" "cast to bigger size\n";
+        if M.tracing then M.tracel "casta" "cast to bigger size";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
         else if Addr.Offs.cmp_zero_offset o = `MustZero then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
-        M.tracel "casta" "cast to smaller size\n";
+        if M.tracing then M.tracel "casta" "cast to smaller size";
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
           begin match ta, t with
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
-              M.tracel "casta" "cast struct to its first field\n";
+              if M.tracing then M.tracel "casta" "cast struct to its first field";
               adjust_offs v (Addr.Offs.add_offset o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
             | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
             (* array to its first element *)
             | TArray _, _ ->
-              M.tracel "casta" "cast array to its first element\n";
+              if M.tracing then M.tracel "casta" "cast array to its first element";
               adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset))) (Some false)
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
@@ -415,7 +415,7 @@ struct
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
             with
             | CastError s -> (* don't know how to handle this cast :( *)
-              M.tracel "caste" "%s\n" s;
+              if M.tracing then M.tracel "caste" "%s" s;
               a (* probably garbage, but this is deref's problem *)
             (*raise (CastError s)*)
             | SizeOfError (s,t) ->
@@ -425,7 +425,8 @@ struct
         | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
-    M.tracel "cast" "cast_addr %a to %a is %a!\n" AD.pretty a d_type t AD.pretty a'; a'
+    if M.tracing then M.tracel "cast" "cast_addr %a to %a is %a!" AD.pretty a d_type t AD.pretty a';
+    a'
 
   (* this is called for:
    * 1. normal casts
@@ -441,7 +442,7 @@ struct
     | JmpBuf _ ->
       v
     | _ ->
-      let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
+      let log_top (_,l,_,_) = if Messages.tracing then Messages.tracel "cast" "log_top at %d: %a to %a is top!" l pretty v d_type t in
       let t = unrollType t in
       let v' = match t with
         | TInt (ik,_) ->
@@ -519,7 +520,8 @@ struct
         | _ -> log_top __POS__; assert false
       in
       let s_torg = match torg with Some t -> CilType.Typ.show t | None -> "?" in
-      Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
+      if Messages.tracing then Messages.tracel "cast" "cast %a from %s to %a is %a!" pretty v s_torg d_type t pretty v';
+      v'
 
 
   let warn_type op x y =
@@ -857,7 +859,7 @@ struct
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
-      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
+      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
       let r =
         match x, offs with
         | Blob((va, _, orig) as c), `Index (_, ox) ->
@@ -922,7 +924,7 @@ struct
               | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
             end
       in
-      if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a\n" pretty r;
+      if M.tracing then M.traceu "eval_offset" "do_eval_offset -> %a" pretty r;
       r
     in
     let l, o = match exp with
@@ -933,7 +935,7 @@ struct
 
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
       let r =
         match x, offs with
@@ -1108,7 +1110,7 @@ struct
               end
           in mu result
       in
-      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a\n" pretty r;
+      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a" pretty r;
       r
     in
     let l, o = match exp with

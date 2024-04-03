@@ -4,6 +4,8 @@ open GoblintCil
 
 exception ArithmeticOnFloatBot of string
 
+val reset_lazy: unit -> unit
+
 module type FloatArith = sig
   type t
 

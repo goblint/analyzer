@@ -4,13 +4,8 @@
     uuid: 640889a9-5b82-4fc0-9365-7d4a21f11a45
     creation_time: 2022-07-01T11:30:04Z
     producer:
-      name: Goblint
-      version: heads/apron-ikind-11-gb9a9ada69-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''04-base-priv-sync-prune.c''
-        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
-        ''witness.yaml.path'' ''04-base-priv-sync-prune.yml'' ''--set'' ''dbg.debug''
-        ''true'' ''--set'' ''printstats'' ''true''
-        ''--set'' ''goblint-dir'' ''.goblint-56-03'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 04-base-priv-sync-prune.c

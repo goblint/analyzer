@@ -66,8 +66,9 @@ let parse fileName =
     E.s (E.error "There were parsing errors in %s" fileName_str);
   file
 
-class cleanCilPrinterClass =
-object
+(** Version of {!defaultCilPrinterClass} which excludes line directives and builtin signatures (in comments).
+    Used for [dbg.justcil-printer]. *)
+class cleanCilPrinterClass = object
   inherit defaultCilPrinterClass as super
 
   method! pLineDirective ?(forcefile=false) l =

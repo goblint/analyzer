@@ -7,7 +7,7 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (modules :standard \ goblint privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint.build-info goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs
+  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
@@ -34,6 +34,14 @@
     (select affineEqualityDomain.ml from
       (apron -> affineEqualityDomain.apron.ml)
       (-> affineEqualityDomain.no-apron.ml)
+    )
+    (select linearTwoVarEqualityAnalysis.ml from
+      (apron -> linearTwoVarEqualityAnalysis.apron.ml)
+      (-> linearTwoVarEqualityAnalysis.no-apron.ml)
+    )
+    (select linearTwoVarEqualityDomain.ml from
+      (apron -> linearTwoVarEqualityDomain.apron.ml)
+      (-> linearTwoVarEqualityDomain.no-apron.ml)
     )
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
@@ -107,12 +115,6 @@
   (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
-)
-
-(rule
-  (alias runtest)
-  (deps ../goblint ../scripts/update_suite.rb ../Makefile ../make.sh (source_tree ../tests/regression) (source_tree ../includes) (source_tree ../linux-headers))
-  (action (chdir .. (run ./make.sh test)))
 )
 
 (env

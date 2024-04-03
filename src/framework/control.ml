@@ -282,7 +282,7 @@ struct
     let gh = GHT.create 13 in
     let getg v = GHT.find_default gh v (EQSys.G.bot ()) in
     let sideg v d =
-      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" EQSys.GVar.pretty v EQSys.G.pretty d;
+      if M.tracing then M.trace "global_inits" "sideg %a = %a" EQSys.GVar.pretty v EQSys.G.pretty d;
       GHT.replace gh v (EQSys.G.join (getg v) d)
     in
     (* Old-style global function for context.
@@ -311,16 +311,16 @@ struct
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
-        if M.tracing then M.trace "con" "Initializer %a\n" CilType.Location.pretty loc;
+        if M.tracing then M.trace "con" "Initializer %a" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
         Goblint_tracing.current_loc := loc;
         match edge with
         | MyCFG.Entry func        ->
-          if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
+          if M.tracing then M.trace "global_inits" "Entry %a" d_lval (var func.svar);
           Spec.body {ctx with local = st} func
         | MyCFG.Assign (lval,exp) ->
-          if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
+          if M.tracing then M.trace "global_inits" "Assign %a = %a" d_lval lval d_exp exp;
           (match lval, exp with
             | (Var v,o), (AddrOf (Var f,NoOffset))
               when v.vstorage <> Static && isFunctionType f.vtype ->
@@ -330,7 +330,7 @@ struct
           let res = Spec.assign {ctx with local = st} lval exp in
           (* Needed for privatizations (e.g. None) that do not side immediately *)
           let res' = Spec.sync {ctx with local = res} `Normal in
-          if M.tracing then M.trace "global_inits" "\t\t -> state:%a\n" Spec.D.pretty res;
+          if M.tracing then M.trace "global_inits" "\t\t -> state:%a" Spec.D.pretty res;
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
@@ -339,7 +339,7 @@ struct
       let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
       Goblint_tracing.current_loc := old_loc;
-      if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
+      if M.tracing then M.trace "global_inits" "startstate: %a" Spec.D.pretty result;
       result, !funs
     in
 
@@ -806,15 +806,9 @@ let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge =
     (* TODO: do some more incremental refinement and reuse parts of solution *)
     analyze_loop (module CFG) file fs change_info skippedByEdge
 
-let compute_cfg_skips file =
-  let cfgF, cfgB, skippedByEdge = CfgTools.getCFG file in
-  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
-
-let compute_cfg = fst % compute_cfg_skips
-
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
   Logs.debug "Generating the control flow graph.";
-  let (module CFG), skippedByEdge = compute_cfg_skips file in
+  let (module CFG), skippedByEdge = CfgTools.compute_cfg_skips file in
   MyCFG.current_cfg := (module CFG);
   analyze_loop (module CFG) file fs change_info skippedByEdge

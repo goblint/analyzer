@@ -4,6 +4,7 @@
 
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
+module GobArray = GobArray
 module GobGc = GobGc
 module GobHashtbl = GobHashtbl
 module GobList = GobList

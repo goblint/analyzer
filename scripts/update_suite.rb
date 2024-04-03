@@ -36,7 +36,11 @@ class Array
 end
 # clear the current line
 def clearline
-  print "\r\e[K"
+  if $stdout.isatty
+    print "\r\e[K"
+  else
+    print "\n"
+  end
 end
 
 $goblint = File.join(Dir.getwd,"goblint")
@@ -86,6 +90,11 @@ else
 end
 
 $testresults = File.expand_path("tests/suite_result")
+begin
+  Dir.mkdir($testresults)
+rescue
+  # exited or was created in parallel
+end
 testfiles    = if incremental then
                  File.expand_path("tests/incremental")
                else

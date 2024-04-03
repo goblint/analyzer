@@ -13,9 +13,6 @@ struct
   include Printable.StdLeaf
 end
 
-let hash_float = Hashtbl.hash (* TODO: float hash in ppx_deriving_hash *)
-let hash_ref hash r = hash !r (* TODO: ref in ppx_deriving_hash *)
-
 
 module Location:
 sig

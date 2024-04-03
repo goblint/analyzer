@@ -4,12 +4,8 @@
     uuid: e1da1c44-5406-4bce-ab4a-3597a2b36e24
     creation_time: 2022-10-07T11:52:13Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''34-base-unassume-inc-dec-traces.c''
-        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
-        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
-        ''.goblint-56-30'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 34-base-unassume-inc-dec-traces.c
@@ -33,12 +29,8 @@
     uuid: 16a70fb8-6f51-4a2c-a2e0-a68a4baf1575
     creation_time: 2022-10-07T11:52:13Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''34-base-unassume-inc-dec-traces.c''
-        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
-        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
-        ''.goblint-56-30'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 34-base-unassume-inc-dec-traces.c

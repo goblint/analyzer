@@ -79,7 +79,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
             dfs_inner prev_node scc
           else if not (NH.mem scc.nodes prev_node) then (
             (* prev_node has been visited, but not in current SCC, therefore is backwards edge to predecessor scc *)
-            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id prev_node) (Node.show_id node);
+            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s" (Node.show_id prev_node) (Node.show_id node);
             NH.modify_def [] node (List.cons (edges, prev_node)) scc.prev;
             NH.modify_def [] prev_node (List.cons (edges, node)) (NH.find node_scc prev_node).next;
           )
@@ -107,9 +107,9 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   if Messages.tracing then (
     List.iter (fun scc ->
         let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
-        Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
+        Messages.trace "cfg" "SCC: %a" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
         NH.iter (fun node _ ->
-            Messages.trace "cfg" "SCC entry: %s\n" (Node.show_id node)
+            Messages.trace "cfg" "SCC entry: %s" (Node.show_id node)
           ) scc.prev
       ) sccs
   );
@@ -148,7 +148,7 @@ let createCFG (file: file) =
      which do not otherwise appear in the control flow graph. *)
   let skippedByEdge = CfgEdgeH.create 113 in
 
-  if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
+  if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.";
 
   let fd_nodes = NH.create 113 in
 
@@ -163,7 +163,7 @@ let createCFG (file: file) =
     H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
     H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
     CfgEdgeH.replace skippedByEdge (fromNode, edges, toNode) skippedStatements;
-    if Messages.tracing then Messages.trace "cfg" "done\n\n"
+    if Messages.tracing then Messages.trace "cfg" "done"
   in
   let addEdge ?skippedStatements fromNode edge toNode =
     addEdges ?skippedStatements fromNode [edge] toNode
@@ -181,10 +181,10 @@ let createCFG (file: file) =
      If not_found is true, then a stmt without succs will raise Not_found
      instead of returning that stmt. *)
   let find_real_stmt ?parent ?(not_found=false) stmt =
-    if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
+    if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d" not_found stmt.sid;
     let rec find visited_stmts stmt =
       if Messages.tracing then
-        Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n"
+        Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a"
           (d_list "; " (fun () x -> Pretty.text (string_of_int x)))
           (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
       if
@@ -227,10 +227,10 @@ let createCFG (file: file) =
     try
       (* rev_path is the stack of all visited statements, excluding the final statement *)
       let final_stmt, rev_path = find [] stmt in
-      if Messages.tracing then Messages.traceu "cfg" "-> %d\n" final_stmt.sid;
+      if Messages.tracing then Messages.traceu "cfg" "-> %d" final_stmt.sid;
       final_stmt, List.rev rev_path
     with Not_found ->
-      if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
+      if Messages.tracing then Messages.traceu "cfg" "-> Not_found";
       raise Not_found
   in
   addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
@@ -238,7 +238,7 @@ let createCFG (file: file) =
   iterGlobals file (fun glob ->
       match glob with
       | GFun (fd, fd_loc) ->
-        if Messages.tracing then Messages.trace "cfg" "Looking at the function %s.\n" fd.svar.vname;
+        if Messages.tracing then Messages.trace "cfg" "Looking at the function %s." fd.svar.vname;
 
         if get_bool "dbg.cilcfgdot" then
           Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
@@ -252,7 +252,7 @@ let createCFG (file: file) =
         (* Return node to be used for infinite loop connection to end of function
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
-          if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s.\n" fd.svar.vname;
+          if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s." fd.svar.vname;
           let fd_end_loc = {fd_loc with line = fd_loc.endLine; byte = fd_loc.endByte; column = fd_loc.endColumn} in
           let newst = mkStmt (Return (None, fd_end_loc)) in
           newst.sid <- Cilfacade.get_pseudo_return_id fd;
@@ -266,7 +266,7 @@ let createCFG (file: file) =
         let loop_head_neg1 = NH.create 3 in
         (* So for each statement in the function body, we do the following: *)
         let handle stmt =
-          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (Cilfacade.get_stmtLoc stmt);
+          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a." stmt.sid d_loc (Cilfacade.get_stmtLoc stmt);
 
           let real_succs () = List.map (find_real_stmt ~parent:stmt) stmt.succs in
 
@@ -321,7 +321,7 @@ let createCFG (file: file) =
             (* CIL eliminates the constant true If corresponding to constant true Loop.
                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
                An extra Neg(1) edge is added in such case. *)
-            if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
+            if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d" stmt.sid cont.sid brk.sid;
             begin match find_real_stmt ~not_found:true brk with (* don't specify stmt as parent because if find_real_stmt finds cycle, it should not return the Loop statement *)
               | break_stmt, _ ->
                 (* break statement is what follows the (constant true) Loop *)
@@ -384,7 +384,7 @@ let createCFG (file: file) =
         in
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "handle" (List.iter handle) fd.sallstmts;
 
-        if Messages.tracing then Messages.trace "cfg" "Over\n";
+        if Messages.tracing then Messages.trace "cfg" "Over";
 
         (* Connect remaining infinite loops (e.g made using goto) to end of function
          * via pseudo return node for demand driven solvers *)
@@ -468,7 +468,7 @@ let createCFG (file: file) =
           raise (Not_connect fd)
       | _ -> ()
     );
-  if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
+  if Messages.tracing then Messages.trace "cfg" "CFG building finished.";
   Logs.debug "cfgF (%a), cfgB (%a)" GobHashtbl.pretty_statistics (NH.stats cfgF) GobHashtbl.pretty_statistics (NH.stats cfgB);
   cfgF, cfgB, skippedByEdge
 
@@ -627,6 +627,12 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
+
+let compute_cfg_skips file =
+  let cfgF, cfgB, skippedByEdge = getCFG file in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
+
+let compute_cfg file = fst (compute_cfg_skips file)
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =

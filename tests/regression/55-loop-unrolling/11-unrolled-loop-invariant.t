@@ -1,18 +1,18 @@
-  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled 10-unrolled-loop-invariant.c --set dbg.level debug 2>&1 | tail -n +2
-  [Debug] 'goblint' '--set' 'lib.activated' '[]' '--set' 'exp.unrolling-factor' '5' '--enable' 'ana.int.interval' '--enable' 'witness.yaml.enabled' '10-unrolled-loop-invariant.c' '--set' 'dbg.level' 'debug'
+  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled 11-unrolled-loop-invariant.c --set dbg.level debug 2>&1 | tail -n +2
+  [Debug] 'goblint' '--set' 'lib.activated' '[]' '--set' 'exp.unrolling-factor' '5' '--enable' 'ana.int.interval' '--enable' 'witness.yaml.enabled' '11-unrolled-loop-invariant.c' '--set' 'dbg.level' 'debug'
   [Debug] Custom include dirs:
   [Debug]   1. /home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/stub/include (exists=true)
   [Debug]   2. /home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/runtime/include (exists=true)
   [Debug]   3. /home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/stub/src (exists=true)
   [Debug] Preprocessing files.
   [Debug] Preprocessor cpp: is_bad=false
-  [Debug] 'cpp' '-I' '/home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/stub/include' '-I' '/home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/runtime/include' '-I' '/home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/stub/src' '10-unrolled-loop-invariant.c' '-o' '.goblint/preprocessed/10-unrolled-loop-invariant.i'
+  [Debug] 'cpp' '-I' '/home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/stub/include' '-I' '/home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/runtime/include' '-I' '/home/simmo/dev/goblint/sv-comp/goblint/_build/install/default/share/goblint/lib/stub/src' '11-unrolled-loop-invariant.c' '-o' '.goblint/preprocessed/11-unrolled-loop-invariant.i'
   [Debug] Parsing files.
-  Frontc is parsing .goblint/preprocessed/10-unrolled-loop-invariant.i
+  Frontc is parsing .goblint/preprocessed/11-unrolled-loop-invariant.i
   Converting CABS->CIL
   [Debug] Constructors: 
   [Debug] Adding constructors to: main
-  [Info] unrolling loop at 10-unrolled-loop-invariant.c:3:3-4:8 with factor 5
+  [Info] unrolling loop at 11-unrolled-loop-invariant.c:3:3-4:8 with factor 5
   [Debug] Marking if (! (i < 10)) {
             break;
   } as copy of if (! (i < 10)) {
@@ -73,7 +73,7 @@
                i ++;
   }
   [Debug] Marking i ++; as copy of i ++;
-  [Info] unrolling loop at 10-unrolled-loop-invariant.c:8:5-9:10 with factor 5
+  [Info] unrolling loop at 11-unrolled-loop-invariant.c:8:5-9:10 with factor 5
   [Debug] Marking if (! (k < 100)) {
             break;
   } as copy of if (! (k < 100)) {
@@ -134,7 +134,7 @@
                k ++;
   }
   [Debug] Marking k ++; as copy of k ++;
-  [Info] unrolling loop at 10-unrolled-loop-invariant.c:7:3-11:3 with factor 5
+  [Info] unrolling loop at 11-unrolled-loop-invariant.c:7:3-11:3 with factor 5
   [Debug] Marking if (! (j < 10)) {
             break;
   } as copy of if (! (j < 10)) {
@@ -1068,7 +1068,7 @@
   [Debug] Solving the constraint system with td3. Solver statistics are shown every 10s or by signal sigusr1.
   
   [Debug] Unstable solver start vars in 1. phase:
-  [Debug] 	L:call of main (297) on 10-unrolled-loop-invariant.c:1:1-13:1
+  [Debug] 	L:call of main (297) on 11-unrolled-loop-invariant.c:1:1-13:1
   
   [Debug] Data after solve completed:
   [Debug] |rho|=126
@@ -1098,26 +1098,42 @@
     live: 10
     dead: 0
     total lines: 10
-  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:7:10-7:16)
-  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:7:10-7:16)
-  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:3:10-3:16)
-  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:3:10-3:16)
-  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:3:10-3:16)
-  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:3:10-3:16)
-  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:3:10-3:16)
-  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:7:10-7:16)
-  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:7:10-7:16)
-  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:8:12-8:19)
-  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (10-unrolled-loop-invariant.c:7:10-7:16)
+  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:7:10-7:16)
+  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:7:10-7:16)
+  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:3:10-3:16)
+  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:3:10-3:16)
+  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:3:10-3:16)
+  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:3:10-3:16)
+  [Warning][Deadcode][CWE-571] condition 'i < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:3:10-3:16)
+  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:7:10-7:16)
+  [Warning][Deadcode][CWE-570] condition 'k < 100' (possibly inserted by CIL) is always false (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:7:10-7:16)
+  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:8:12-8:19)
+  [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:7:10-7:16)
+  [Debug] node 31 "i < 10" is not a copy
+  [Debug] node 23 "i < 10" is copy of if (! (i < 10)) {
+                                goto while_break;
+  } (31)
+  [Debug] node 18 "i < 10" is copy of if (! (i < 10)) {
+                                goto while_break;
+  } (31)
+  [Debug] node 13 "i < 10" is copy of if (! (i < 10)) {
+                                goto while_break;
+  } (31)
+  [Debug] node 8 "i < 10" is copy of if (! (i < 10)) {
+                               goto while_break;
+  } (31)
+  [Debug] node 3 "i < 10" is copy of if (! (i < 10)) {
+                               goto while_break;
+  } (31)
   [Debug] node 124 "k < 100" is copy of if (! (k < 100)) {
                                   goto while_break___6;
   } (275)
@@ -1224,22 +1240,6 @@
   [Debug] node 257 "k < 100" is copy of if (! (k < 100)) {
                                   goto while_break___6;
   } (275)
-  [Debug] node 31 "i < 10" is not a copy
-  [Debug] node 23 "i < 10" is copy of if (! (i < 10)) {
-                                goto while_break;
-  } (31)
-  [Debug] node 18 "i < 10" is copy of if (! (i < 10)) {
-                                goto while_break;
-  } (31)
-  [Debug] node 13 "i < 10" is copy of if (! (i < 10)) {
-                                goto while_break;
-  } (31)
-  [Debug] node 8 "i < 10" is copy of if (! (i < 10)) {
-                               goto while_break;
-  } (31)
-  [Debug] node 3 "i < 10" is copy of if (! (i < 10)) {
-                               goto while_break;
-  } (31)
   [Debug] node 121 "j < 10" is copy of if (! (j < 10)) {
                                  goto while_break___5;
   } (244)
@@ -1263,12 +1263,6 @@
         value: i == 10
         format: c_expression
   --
-        value: j == 0
-        format: c_expression
-  --
-        value: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
-          k == 0
-  --
         value: i == 10
         format: c_expression
   --
@@ -1276,15 +1270,6 @@
         format: c_expression
   --
         value: k == 100
-        format: c_expression
-  --
-        value: (((((5 <= i && i <= 9) || i == 4) || i == 3) || i == 2) || i == 1) ||
-          i == 0
-  --
-        value: i == 10
-        format: c_expression
-  --
-        value: j == 0
         format: c_expression
   --
         value: i == 10
@@ -1296,17 +1281,32 @@
         value: ((((j == 1 || j == 4) || j == 0) || j == 3) || j == 2) || (5 <= j &&
           j <= 9)
   --
+        value: (((((5 <= i && i <= 9) || i == 4) || i == 3) || i == 2) || i == 1) ||
+          i == 0
+  --
         value: i == 10
         format: c_expression
+  --
+        value: j == 0
+        format: c_expression
+  --
+        value: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
+          k == 0
+  --
+        value: i == 10
+        format: c_expression
+  --
+        value: j == 0
+        format: c_expression
+  --
+        value: (((((5 <= i && i <= 10) || i == 4) || i == 3) || i == 2) || i == 1) ||
+          i == 0
   --
         value: i == 10
         format: c_expression
   --
         value: (((((((k == 100 && (((j == 2 || (5 <= j && j <= 9)) || j == 1) || j ==
           4)) || ((5 <= k && k <= 100) && j == 0)) || (j == 0 && k == 4)) || (j == 0
-  --
-        value: (((((5 <= i && i <= 10) || i == 4) || i == 3) || i == 2) || i == 1) ||
-          i == 0
   --
         value: i == 10
         format: c_expression

@@ -3,7 +3,7 @@
   [Info] unrolling loop at 07-nested-unroll.c:6:5-10:5 with factor 5
   [Info] unrolling loop at 07-nested-unroll.c:13:9-15:9 with factor 5
   [Info] unrolling loop at 07-nested-unroll.c:12:5-16:5 with factor 5
-  extern void __goblint_check(int exp )  __attribute__((__goblint_array_domain__("unroll"))) ;
+  extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;
   extern void __goblint_assert(int exp ) ;
   extern void __goblint_assume_join() ;
@@ -14,10 +14,10 @@
   int main(void) 
   { 
     int arr[10][10]  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int j  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int i___0  __attribute__((__goblint_array_domain__("unroll"))) ;
-    int j___0  __attribute__((__goblint_array_domain__("unroll"))) ;
+    int i ;
+    int j ;
+    int i___0 ;
+    int j___0 ;
   
     {
     i = 0;
