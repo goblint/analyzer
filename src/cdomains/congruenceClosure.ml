@@ -15,6 +15,11 @@ module ValMap(Val:Val) = struct
   let hash x y = 3
 end
 
+module ValSet(Val:Val) = struct
+  include Set.Make(Val)
+  let hash x = 3
+end
+
 (** Quantitative union find *)
 module UnionFind (Val: Val)  = struct
   module ValMap = ValMap(Val)
@@ -40,7 +45,7 @@ module UnionFind (Val: Val)  = struct
   (** Returns true if v is the representative value of its equivalence class
 
       Throws "Unknown value" if v is not present in the data structure. *)
-  let is_root cc v = match ValMap.find_opt v cc with
+  let is_root uf v = match ValMap.find_opt v uf with
     | None -> raise (UnknownValue v)
     | Some (refv, _)  -> Val.compare v (fst !refv) = 0
 
@@ -173,18 +178,16 @@ module UnionFind (Val: Val)  = struct
 
 end
 
-
-
-
 module LookupMap (T: Val) = struct
   module TMap = ValMap(T)
+  module TSet = ValSet(T)
 
   module ZMap = struct
     include Map.Make(Z)
     let hash x y = 3
   end
 
-  type t = T.t ZMap.t TMap.t [@@deriving eq, ord, hash]
+  type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash]
 
   let bindings = TMap.bindings
   let add = TMap.add
@@ -194,19 +197,27 @@ module LookupMap (T: Val) = struct
   let find = TMap.find
 
   let zmap_bindings = ZMap.bindings
-  let zmap_add = ZMap.add
+  let zmap_bindings_one_successor zmap = List.map (Tuple2.map2 TSet.any) (zmap_bindings zmap)
+
   let zmap_find_opt = ZMap.find_opt
+
+  let set_any = TSet.any
+
+  let zmap_add x y m = match zmap_find_opt x m with
+    | None -> ZMap.add x y m
+    | Some set -> ZMap.add x (TSet.union y set) m
 
   let map_find_opt (v,r) map = match find_opt v map with
     | None -> None
     | Some zmap -> (match zmap_find_opt r zmap with
         | None -> None
-        | Some v -> Some v
+        | Some v -> Some (TSet.any v)
       )
 
-  let map_add (v,r) v' map = match find_opt v map with
-    | None -> add v (zmap_add r v' ZMap.empty) map
-    | Some zmap -> add v (zmap_add r v' zmap) map
+  let map_add (v,r) v' map = let zmap =match find_opt v map with
+      | None -> ZMap.empty
+      | Some zmap ->zmap
+    in add v (zmap_add r (TSet.singleton v') zmap) map
 
   let show_map map =
     List.fold_left
@@ -214,7 +225,9 @@ module LookupMap (T: Val) = struct
          s ^ T.show v ^ "\t:\n" ^
          List.fold_left
            (fun s (r, v) ->
-              s ^ "\t" ^ Z.to_string r ^ ": " ^ T.show v ^ "; ")
+              s ^ "\t" ^ Z.to_string r ^ ": " ^ List.fold_left
+                (fun s k -> s ^ T.show k ^ ";")
+                "" (TSet.elements v) ^ "; ")
            "" (zmap_bindings zmap) ^ "\n")
       "" (bindings map)
 
@@ -237,7 +250,19 @@ module LookupMap (T: Val) = struct
   let successors v map =
     match find_opt v map with
     | None -> []
-    | Some zmap -> zmap_bindings zmap
+    | Some zmap -> zmap_bindings_one_successor zmap
+
+  let outgoing_transitions state map =
+    match find_opt state map with
+    | None -> []
+    | Some zmap -> zmap_bindings_one_successor zmap
+
+  let filter_if map p =
+    TMap.filter_map (fun _ zmap ->
+        let zmap = ZMap.filter_map
+            (fun _ t_set -> let filtered_set = TSet.filter p t_set in
+              if TSet.is_empty filtered_set then None else Some filtered_set) zmap
+        in if ZMap.is_empty zmap then None else Some zmap) map
 end
 
 exception Unsat
@@ -267,12 +292,7 @@ module CongruenceClosure (Var : Val) = struct
 
   (** Set of subterms which are present in the current data structure *)
   module SSet = struct
-
-    module TSet = struct
-      include Set.Make(T)
-      let hash x = 3
-    end
-
+    module TSet = ValSet(T)
     type t = TSet.t [@@deriving eq, ord, hash]
 
     let elements = TSet.elements
@@ -294,7 +314,6 @@ module CongruenceClosure (Var : Val) = struct
       | Deref (t',z) ->
         let set = add t set in
         let map = LMap.map_add (t',z) t map in
-        (* let arg = TUF.map_set_add (t,z) t' arg in *)
         subterms_of_term (set, map) t'
 
     let subterms_of_prop (set,map) = function
@@ -316,21 +335,15 @@ module CongruenceClosure (Var : Val) = struct
         | Some list -> TUF.ValMap.add term (value::list) map
 
     (* remove varibales *)
-    (** Returns  new_set, new_map, removed_terms_set, map_of_children, map_of_predecessors *)
-    let remove_terms_containing_variable (part, set, map) var =
+    (** Returns  new_set, removed_terms_set, map_of_children *)
+    let remove_terms_containing_variable (part, set) var =
       (** Adds `value` to the set that is in the `map` with key `term` *)
-      let add_to_map_of_predecessors value map (z, term) =
-        match TUF.ValMap.find_opt term map with
-        | None -> TUF.ValMap.add term [(z, value)] map
-        | Some list -> TUF.ValMap.add term ((z, value)::list) map in
-      let add_to_result el (new_set, removed_terms_set, map_of_children, map_of_predecessors) =
+      let add_to_result el (new_set, removed_terms_set, map_of_children) =
         let new_set, removed_terms_set = if is_subterm var el then new_set, add el removed_terms_set else add el new_set, removed_terms_set in
         let (uf_parent_ref, _) = TUF.ValMap.find el part in
         let map_of_children = add_to_map_of_children el map_of_children (fst !uf_parent_ref) in
-        let successors = LMap.successors el map in
-        let map_of_predecessors = List.fold_left (add_to_map_of_predecessors el) map_of_predecessors successors in (*instead of this just remove from rhs*)
-        (new_set, removed_terms_set, map_of_children, map_of_predecessors) in
-      TSet.fold add_to_result set (TSet.empty, TSet.empty, TUF.ValMap.empty, TUF.ValMap.empty)
+        (new_set, removed_terms_set, map_of_children) in
+      TSet.fold add_to_result set (TSet.empty, TSet.empty, TUF.ValMap.empty)
 
     let show_map_of_children map_of_children =
       List.fold_left
@@ -363,10 +376,9 @@ module CongruenceClosure (Var : Val) = struct
       let remove_term t (part, new_parents_map, map_of_children) =
         match LMap.find_opt t map_of_children with
         | None ->
-          (* t has no childrem, so we can safely delete the element from the data structure *)
+          (* t has no children, so we can safely delete the element from the data structure *)
           (* we just need to update the size on the whole path from here to the root *)
-          (* we know that after a find operation the parent of t is a root, because of path compression. *)
-          let new_parents_map = if TUF.is_root part t then new_parents_map else LMap.add t (fst(TUF.parent part t)) new_parents_map in
+          let new_parents_map = if TUF.is_root part t then new_parents_map else LMap.add t (TUF.parent part t) new_parents_map in
           (TUF.ValMap.remove t (TUF.change_size t part ((-) 1)), new_parents_map, map_of_children)
         | Some children ->
           let map_of_children = LMap.remove t map_of_children in
@@ -389,7 +401,7 @@ module CongruenceClosure (Var : Val) = struct
             let _ = TUF.modify_parent part new_root (new_root, Z.zero) in
             (* update size of equivalence class *)
             let part = TUF.change_size new_root part ((+) new_size) in
-            (TUF.ValMap.remove t part, LMap.add t new_root new_parents_map, map_of_children)
+            (TUF.ValMap.remove t part, LMap.add t (new_root, Z.(-offset_new_root)) new_parents_map, map_of_children)
           else
             (* t is NOT a root -> the old parent of t becomes the new parent of the children of t. *)
             let (new_root, new_offset) = TUF.parent part t in
@@ -403,15 +415,38 @@ module CongruenceClosure (Var : Val) = struct
                 ) map_of_children remaining_children in
             (* update size of equivalence class *)
             let part = TUF.change_size new_root part ((-) 1) in
-            (TUF.ValMap.remove t part, LMap.add t new_root new_parents_map, map_of_children)
+            (TUF.ValMap.remove t part, LMap.add t (new_root, new_offset) new_parents_map, map_of_children)
       in TSet.fold remove_term removed_terms_set (part, LMap.empty, map_of_children)
 
     let show_new_parents_map new_parents_map = List.fold_left
-        (fun s (v1, v2) ->
-           s ^ T.show v1 ^ "\t: " ^ T.show v2 ^ "\n")
+        (fun s (v1, (v2, o2)) ->
+           s ^ T.show v1 ^ "\t: " ^ T.show v2 ^ ", " ^ Z.to_string o2 ^"\n")
         "" (LMap.bindings new_parents_map)
 
+    let rec find_new_root new_parents_map part v =
+      match LMap.find_opt v new_parents_map with
+      | None -> TUF.find_opt part v
+      | Some (new_parent, new_offset) ->
+        match find_new_root new_parents_map part new_parent with
+        | None -> None
+        | Some (r,o) -> Some (r, Z.(o + new_offset))
+
+    (** Removes all terms from the mapped values of this map,
+        if they contain `var` as a subterm. *)
+    let remove_subterms_from_mapped_values map var =
+      LMap.filter_if map (not % is_subterm var)
+
+    (** For all the elements in the removed terms set, it moves the mapped value to the new root. *)
+    let remove_terms_containing_variable_from_map (part, map) removed_terms_set new_parents_map =
+      let remove_from_map map term = match LMap.find_opt term map with
+        | None -> map
+        | Some _ -> (* move this entry in the map to the new representative of the equivalence class where term was before. If it still exists. *)
+          match find_new_root new_parents_map part term with
+          | None -> LMap.remove term map
+          | Some (new_root, new_offset) -> LMap.shift new_root new_offset term map
+      in List.fold_left remove_from_map map (elements removed_terms_set)
   end
+
 
   (** TODO add comment.
       Minimal representatives map. *)
@@ -439,14 +474,12 @@ module CongruenceClosure (Var : Val) = struct
     let rec update_min_repr (part, map) min_representatives = function
       | [] -> min_representatives
       | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
-        match LMap.zmap_bindings (find state map) with
-        | exception Not_found -> (* no outgoing edges *)
-          update_min_repr (part, map) min_representatives queue
+        match LMap.outgoing_transitions state map with
         | edges ->
           let process_edge (min_representatives, queue) (edge_z, next_term) =
             let (next_state, next_z) = TUF.find part next_term in
             let (min_term, min_z) = find state min_representatives in
-            let next_min = (Deref (min_term, Z.(edge_z - min_z)), next_z) in (**TODO Why next_z. Is next term really exactly equl to nextx min? Probably?*)
+            let next_min = (Deref (min_term, Z.(edge_z - min_z)), next_z) in (**TODO WTF next_z. Is next term really exactly equl to nextx min? Probably?*)
             match TMap.find_opt next_state min_representatives
             with
             | None ->
@@ -476,6 +509,7 @@ module CongruenceClosure (Var : Val) = struct
           Therefore the queue is a list of representative terms. *)
     let update_min_repr (part, map) min_representatives queue =
       (* order queue by size of the current min representative *)
+      (* print_string @@ List.fold_left (fun s term -> s ^ T.show term ^ "\n") "" queue ; *)
       let queue =
         List.sort_unique (fun el1 el2 -> print_string (T.show el2); print_string (T.show (fst (find el2 min_representatives))); TUF.compare_repr (find el1 min_representatives) (find el2 min_representatives)) (List.filter (TUF.is_root part) queue)
       in update_min_repr (part, map) min_representatives queue
@@ -512,7 +546,8 @@ module CongruenceClosure (Var : Val) = struct
             set: SSet.t;
             map: LMap.t;
             min_repr: MRMap.t}
-  [@@deriving eq, ord, hash]
+  [@@deriving eq, ord]
+
 
   let string_of_prop = function
     | Eq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
@@ -526,7 +561,13 @@ module CongruenceClosure (Var : Val) = struct
   let print_conj = print_string % show_conj
 
   let get_transitions (part, map) =
-    List.flatten @@ List.filter_map (fun (t, imap) -> if TUF.is_root part t then Some (List.map (fun (edge_z, res_t) -> (edge_z, t, TUF.find part res_t)) @@ LMap.zmap_bindings imap) else None) (LMap.bindings map)
+    List.flatten @@ List.filter_map
+      (fun (t, imap) -> if TUF.is_root part t then Some
+            (List.map
+               (fun (edge_z, res_t) ->
+                  (edge_z, t, TUF.find part (LMap.set_any res_t))) @@
+             (LMap.zmap_bindings imap)) else None)
+      (LMap.bindings map)
 
   (* Runtime = O(nrr. of atoms) + O(nr. transitions in the automata) *)
   let get_normal_form cc =
@@ -584,7 +625,7 @@ module CongruenceClosure (Var : Val) = struct
   *)
   let rec closure (part, map, min_repr) queue = function
     | [] -> (part, map, queue, min_repr)
-    | (t1, t2, r)::rest ->
+    | (t1, t2, r)::rest -> (*print_string "\nt1: "; print_string (T.show t1); print_string "\nt2: "; print_string (T.show t2);print_string "\n"; *)
       (match TUF.find part t1, TUF.find part t2 with
        | (v1,r1), (v2,r2) ->
          if T.compare v1 v2 = 0 then
@@ -601,19 +642,23 @@ module CongruenceClosure (Var : Val) = struct
              | Some imap1, Some imap2, true -> (* v1 is new root *)
                (* zmap describes args of Deref *)
                let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
-               let infl2 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap2) in
+               let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings imap2) in
                let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                   match LMap.zmap_find_opt r' zmap with
-                   | None -> (LMap.zmap_add r' v' zmap, rest)
-                   | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap1,rest) infl2 in
+                   let rest = match LMap.zmap_find_opt r' zmap with
+                     | None -> rest
+                     | Some v'' -> (LMap.set_any v', LMap.set_any v'',Z.zero)::rest
+                   in LMap.zmap_add r' v' zmap, rest)
+                   (imap1,rest) infl2 in
                LMap.remove v2 (LMap.add v zmap map), rest
              | Some imap1, Some imap2, false -> (* v2 is new root *)
                let r0 = Z.(r1-r2-r) in
                let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap1) in
                let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                   match LMap.zmap_find_opt r' zmap with
-                   | None -> (LMap.zmap_add r' v' zmap, rest)
-                   | Some v'' -> (zmap, (v',v'',Z.zero)::rest)) (imap2, rest) infl1 in
+                   let rest =
+                     match LMap.zmap_find_opt r' zmap with
+                     | None -> rest
+                     | Some v'' -> (LMap.set_any v',LMap.set_any v'',Z.zero)::rest
+                   in LMap.zmap_add r' v' zmap, rest) (imap2, rest) infl1 in
                LMap.remove v1 (LMap.add v zmap map), rest
            in
            (* update min_repr *)
@@ -760,12 +805,17 @@ module CongruenceClosure (Var : Val) = struct
 
   (** Remove terms from the data structure.
       It removes all terms for which "var" is a subterm from the data structure,
-      while maintaining all equalities about variables that are not being removed.
-      let remove_terms_containing_variable cc var =
-      (* first find all terms that need to be removed *)
-      let new_set, removed_terms_set, map_of_children, map_of_predecessors =
-      SSet.remove_terms_containing_variable (cc.part, cc.set, cc.map) var
-      in let part, new_parents_map, map_of_children = TUF.remove_terms_containing_variable cc.part removed_terms_set map_of_children var
-      in ()
-  *)
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms_containing_variable cc var =
+    (* first find all terms that need to be removed *)
+    let new_set, removed_terms_set, map_of_children =
+      SSet.remove_terms_containing_variable (cc.part, cc.set) var
+    in let part, new_parents_map, _ =
+         SSet.remove_terms_containing_variable_from_uf cc.part removed_terms_set map_of_children
+    in let new_map =
+         SSet.remove_subterms_from_mapped_values cc.map var
+    in let new_map =
+         SSet.remove_terms_containing_variable_from_map (part, new_map) removed_terms_set new_parents_map
+    in {part = part; set = new_set; map = new_map; min_repr = cc.min_repr (* TODO *)}
+
 end
