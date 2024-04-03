@@ -562,11 +562,12 @@ struct
     Format.fprintf out ("\t%a [%s];\n") p_node n styles;
     match n with
     | Statement s when get_bool "dbg.cfg.loop-unrolling" ->
-      let s' = LoopUnrolling0.find_original s in
-      if s != s' then (
-        let n' = Statement s' in
-        Format.fprintf out "\t%a -> %a [style=dotted];\n" p_node n p_node n'
-      )
+      begin match LoopUnrolling0.find_copyof s with
+        | Some s' ->
+          let n' = Statement s' in
+          Format.fprintf out "\t%a -> %a [style=dotted];\n" p_node n p_node n'
+        | None -> ()
+      end
     | _ -> ()
 end
 
