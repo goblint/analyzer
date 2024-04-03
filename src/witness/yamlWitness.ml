@@ -289,15 +289,6 @@ struct
         LH.fold (fun loc ns acc ->
             if WitnessInvariant.emit_loop_head && List.exists is_loop_head_node ns then (
               let inv = List.fold_left (fun acc n ->
-                  begin match n with
-                    | Node.Statement s ->
-                      let s' = LoopUnrolling.find_original s in
-                      if s != s' then
-                        Logs.debug "%a is copy of %a (%d)" Node.pretty n CilType.Stmt.pretty s' s'.sid
-                      else
-                        Logs.debug "%a is not a copy" Node.pretty n
-                    | _ -> ()
-                  end;
                   let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
                   Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                 ) (Invariant.bot ()) ns
