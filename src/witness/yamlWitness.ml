@@ -387,7 +387,6 @@ struct
               let query = Queries.Invariant Invariant.default_context in
               begin match R.ask_local pre_lvar query with
                 | `Lifted c_inv ->
-                  let loc = Node.location n in
                   (* Find unknowns for which the preceding start state satisfies the precondtion *)
                   let xs = find_matching_states lvar in
 

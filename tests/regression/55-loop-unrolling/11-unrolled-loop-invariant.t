@@ -182,7 +182,7 @@
                                                      ▲                                                      Neg(k < 100)                                                                                                              │
                                                      └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled 11-unrolled-loop-invariant.c
+  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant", "loop_invariant"]' 11-unrolled-loop-invariant.c
   [Info] unrolling loop at 11-unrolled-loop-invariant.c:3:3-4:8 with factor 5
   [Info] unrolling loop at 11-unrolled-loop-invariant.c:8:5-9:10 with factor 5
   [Info] unrolling loop at 11-unrolled-loop-invariant.c:7:3-11:3 with factor 5
@@ -211,58 +211,190 @@
   [Warning][Deadcode][CWE-571] condition 'k < 100' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:8:12-8:19)
   [Warning][Deadcode][CWE-571] condition 'j < 10' (possibly inserted by CIL) is always true (11-unrolled-loop-invariant.c:7:10-7:16)
   [Info][Witness] witness generation summary:
-    total generation entries: 17
+    total generation entries: 16
 
-TODO: use yamlWitnessStrip for this
-
-
-  $ cat witness.yml | grep -A 1 'value:'
-        value: i == 10
-        format: c_expression
-  --
-        value: j == 10
-        format: c_expression
-  --
-        value: k == 100
-        format: c_expression
-  --
-        value: i == 10
-        format: c_expression
-  --
-        value: k == 100
-        format: c_expression
-  --
-        value: ((((j == 1 || j == 4) || j == 0) || j == 3) || j == 2) || (5 <= j &&
-          j <= 9)
-  --
-        value: (((((5 <= i && i <= 9) || i == 4) || i == 3) || i == 2) || i == 1) ||
-          i == 0
-  --
-        value: i == 10
-        format: c_expression
-  --
-        value: j == 0
-        format: c_expression
-  --
-        value: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
-          k == 0
-  --
-        value: i == 10
-        format: c_expression
-  --
-        value: i == 10
-        format: c_expression
-  --
-        value: (((((((k == 100 && (((j == 2 || (5 <= j && j <= 9)) || j == 1) || j ==
-          4)) || ((5 <= k && k <= 100) && j == 0)) || (j == 0 && k == 4)) || (j == 0
-  --
-        value: (((((5 <= i && i <= 10) || i == 4) || i == 3) || i == 2) || i == 1) ||
-          i == 0
-  --
-        value: i == 10
-        format: c_expression
-  --
-        value: ((k == 100 && (((j == 2 || (5 <= j && j <= 10)) || j == 1) || j == 4))
-          || (j == 0 && k == 0)) || (j == 3 && k == 100)
-
-
+  $ yamlWitnessStrip < witness.yml
+  - entry_type: loop_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 8
+      column: 4
+      function: main
+    loop_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 8
+      column: 4
+      function: main
+    loop_invariant:
+      string: (((((((k == 100 && (((j == 2 || (5 <= j && j <= 9)) || j == 1) || j ==
+        4)) || ((5 <= k && k <= 100) && j == 0)) || (j == 0 && k == 4)) || (j == 0 &&
+        k == 3)) || (j == 0 && k == 2)) || (j == 0 && k == 1)) || (j == 0 && k == 0))
+        || (j == 3 && k == 100)
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 7
+      column: 2
+      function: main
+    loop_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 7
+      column: 2
+      function: main
+    loop_invariant:
+      string: ((k == 100 && (((j == 2 || (5 <= j && j <= 10)) || j == 1) || j == 4))
+        || (j == 0 && k == 0)) || (j == 3 && k == 100)
+      type: assertion
+      format: C
+  - entry_type: loop_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 3
+      column: 2
+      function: main
+    loop_invariant:
+      string: (((((5 <= i && i <= 10) || i == 4) || i == 3) || i == 2) || i == 1) ||
+        i == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 12
+      column: 2
+      function: main
+    location_invariant:
+      string: k == 100
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 12
+      column: 2
+      function: main
+    location_invariant:
+      string: j == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 12
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 10
+      column: 4
+      function: main
+    location_invariant:
+      string: k == 100
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 10
+      column: 4
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 10
+      column: 4
+      function: main
+    location_invariant:
+      string: ((((j == 1 || j == 4) || j == 0) || j == 3) || j == 2) || (5 <= j && j
+        <= 9)
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 6
+      function: main
+    location_invariant:
+      string: j == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 6
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 6
+      function: main
+    location_invariant:
+      string: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
+        k == 0
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 6
+      column: 2
+      function: main
+    location_invariant:
+      string: i == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 11-unrolled-loop-invariant.c
+      file_hash: $FILE_HASH
+      line: 4
+      column: 4
+      function: main
+    location_invariant:
+      string: (((((5 <= i && i <= 9) || i == 4) || i == 3) || i == 2) || i == 1) ||
+        i == 0
+      type: assertion
+      format: C

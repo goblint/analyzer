@@ -30,8 +30,13 @@ int main() {
     __goblint_check(1);
   }
 
+  // for loop with declaration initializer
+  for (int j = 0; j < 10; j++) {
+    __goblint_check(1);
+  }
+
   // for loop with two initializers
-  for (int j = (i = 0); i < 10; i++) {
+  for (int k = (i = 0); i < 10; i++) {
     __goblint_check(1);
   }
 
