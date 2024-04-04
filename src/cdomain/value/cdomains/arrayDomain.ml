@@ -1012,9 +1012,9 @@ struct
   let (+.) = Z.add
 
   (* (Must Null Set, May Null Set, Array Size) *)
-  include Lattice.Prod (Nulls) (Idx)
+  include Lattice.Prod (Nulls) (struct include Idx let name () = "length" end)
 
-  let name () = "arrays containing null bytes"
+  let name () = "ArrayNullBytes"
   type idx = Idx.t
   type value = Val.t
 
