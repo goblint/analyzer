@@ -15,17 +15,13 @@ module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "useAfterFree"
 
   module D = StackAndHeapVars
-  module C = Lattice.Unit
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
-
-  let context _ _ = ()
-
 
   (* HELPER FUNCTIONS *)
 
@@ -40,8 +36,11 @@ struct
     (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
     if ctx.ask (Queries.MustBeSingleThreaded { since_start = true }) || G.is_empty freeing_threads then ()
     else begin
-      let possibly_started current tid joined_threads =
+      let other_possibly_started current tid joined_threads =
         match tid with
+        | `Lifted tid when (ThreadId.Thread.equal current tid && ThreadId.Thread.is_unique current) ->
+          (* if our own (unique) thread is started here, that is not a problem *)
+          false
         | `Lifted tid ->
           let created_threads = ctx.ask Queries.CreatedThreads in
           let not_started = MHP.definitely_not_started (current, created_threads) tid in
@@ -62,7 +61,7 @@ struct
       let bug_name = if is_double_free then "Double Free" else "Use After Free" in
       match get_current_threadid ctx with
       | `Lifted current ->
-        let possibly_started = G.exists (possibly_started current) freeing_threads in
+        let possibly_started = G.exists (other_possibly_started current) freeing_threads in
         if possibly_started then begin
           if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. %s might occur" CilType.Varinfo.pretty heap_var bug_name

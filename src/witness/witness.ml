@@ -229,7 +229,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       NH.add itered_nodes node ();
       write_node node;
       let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
-      if M.tracing then M.tracei "witness" "iter_node %s\n" (N.to_string node);
+      if M.tracing then M.tracei "witness" "iter_node %s" (N.to_string node);
       if not is_sink then begin
         let edge_to_nodes =
           Arg.next node
@@ -250,17 +250,17 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           |> BatList.unique_cmp ~cmp:[%ord: MyARG.inline_edge * N.t]
         in
         List.iter (fun (edge, to_node) ->
-            if M.tracing then M.tracec "witness" "edge %a to_node %s\n" MyARG.pretty_inline_edge edge (N.to_string to_node);
+            if M.tracing then M.tracec "witness" "edge %a to_node %s" MyARG.pretty_inline_edge edge (N.to_string to_node);
             write_node to_node;
             write_edge node edge to_node
           ) edge_to_nodes;
-        if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
+        if M.tracing then M.traceu "witness" "iter_node %s" (N.to_string node);
         List.iter (fun (edge, to_node) ->
             iter_node to_node
           ) edge_to_nodes
       end
       else
-      if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
+      if M.tracing then M.traceu "witness" "iter_node %s" (N.to_string node);
     end
   in
 

@@ -427,7 +427,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
-    if M.tracing then M.trace "int" "is_cast_injective %a (%a, %a) -> %a (%a, %a)\n" CilType.Typ.pretty from_type GobZ.pretty from_min GobZ.pretty from_max CilType.Typ.pretty to_type GobZ.pretty to_min GobZ.pretty to_max;
+    if M.tracing then M.trace "int" "is_cast_injective %a (%a, %a) -> %a (%a, %a)" CilType.Typ.pretty from_type GobZ.pretty from_min GobZ.pretty from_max CilType.Typ.pretty to_type GobZ.pretty to_min GobZ.pretty to_max;
     Z.compare to_min from_min <= 0 && Z.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
@@ -442,7 +442,7 @@ module Size = struct (* size in bits as int, range as int64 *)
         else if Z.lt y a then Z.add y c
         else y
       in
-      if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)\n" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
+      if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
   let min_range_sign_agnostic x =
@@ -683,7 +683,7 @@ struct
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a" pretty x pretty y pretty r;
     assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
@@ -950,7 +950,7 @@ struct
 
   let refine_with_congruence ik x y =
     let refn = refine_with_congruence ik x y in
-    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pretty x pretty y pretty refn;
+    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn;
     refn
 
   let refine_with_interval ik a b = meet ik a b
@@ -2822,7 +2822,7 @@ struct
 
   let leq x y =
     let res = leq x y in
-    if M.tracing then M.trace "congruence" "leq %a %a -> %a \n" pretty x pretty y pretty (Some (Z.of_int (Bool.to_int res), Z.zero)) ;
+    if M.tracing then M.trace "congruence" "leq %a %a -> %a " pretty x pretty y pretty (Some (Z.of_int (Bool.to_int res), Z.zero)) ;
     res
 
   let join ik (x:t) y =
@@ -2834,7 +2834,7 @@ struct
 
   let join ik (x:t) y =
     let res = join ik x y in
-    if M.tracing then M.trace "congruence" "join %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "join %a %a -> %a" pretty x pretty y pretty res;
     res
 
 
@@ -2861,7 +2861,7 @@ struct
 
   let meet ik x y =
     let res = meet ik x y in
-    if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "meet %a %a -> %a" pretty x pretty y pretty res;
     res
 
   let to_int = function Some (c, m) when m =: Z.zero -> Some c | _ -> None
@@ -2919,14 +2919,14 @@ struct
   let cast_to ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
     let res = cast_to ?torg ?no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 
   let widen = join
 
   let widen ik x y =
     let res = widen ik x y in
-    if M.tracing then M.trace "congruence" "widen %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "widen %a %a -> %a" pretty x pretty y pretty res;
     res
 
   let narrow = meet
@@ -2958,7 +2958,7 @@ struct
 
   let shift_right ik x y =
     let res = shift_right ik x y in
-    if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a " pretty x pretty y pretty res;
     res
 
   let shift_left ik x y =
@@ -2989,7 +2989,7 @@ struct
 
   let shift_left ik x y =
     let res = shift_left ik x y in
-    if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a " pretty x pretty y pretty res;
     res
 
   (* Handle unsigned overflows.
@@ -3030,7 +3030,7 @@ struct
 
   let mul ?no_ov ik x y =
     let res = mul ?no_ov ik x y in
-    if M.tracing then  M.trace "congruence" "mul : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "mul : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let neg ?(no_ov=false) ik x =
@@ -3059,7 +3059,7 @@ struct
   let add ?no_ov ik x y =
     let res = add ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "add : %a %a -> %a \n" pretty x pretty y
+      M.trace "congruence" "add : %a %a -> %a" pretty x pretty y
         pretty res ;
     res
 
@@ -3069,7 +3069,7 @@ struct
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "sub : %a %a -> %a \n" pretty x pretty y
+      M.trace "congruence" "sub : %a %a -> %a" pretty x pretty y
         pretty res ;
     res
 
@@ -3124,7 +3124,7 @@ struct
         normalize ik (Some (c1, Z.gcd m1 (Z.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
-    if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "rem : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let div ?(no_ov=false) ik x y =
@@ -3141,7 +3141,7 @@ struct
   let div ?no_ov ik x y =
     let res = div ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "div : %a %a -> %a \n" pretty x pretty y pretty
+      M.trace "congruence" "div : %a %a -> %a" pretty x pretty y pretty
         res ;
     res
 
@@ -3166,14 +3166,14 @@ struct
 
   let ge ik x y =
     let res = ge ik x y in
-    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let le ik x y = comparison ik (<=:) x y
 
   let le ik x y =
     let res = le ik x y in
-    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let gt ik x y = comparison ik (>:) x y
@@ -3181,14 +3181,14 @@ struct
 
   let gt ik x y =
     let res = gt ik x y in
-    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let lt ik x y = comparison ik (<:) x y
 
   let lt ik x y =
     let res = lt ik x y in
-    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let invariant_ikind e ik x =
@@ -3232,7 +3232,7 @@ struct
       | Some (l, u) -> Pretty.dprintf "[%a,%a]" GobZ.pretty l GobZ.pretty u
       | _ -> Pretty.text ("Display Error") in
     let refn = refine_with_interval ik cong intv in
-    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
+    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a" pretty cong pretty_intv intv pretty refn;
     refn
 
   let refine_with_congruence ik a b = meet ik a b
@@ -3533,7 +3533,7 @@ module IntDomTupleImpl = struct
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
          quit_loop := equal old_dt !dt;
          if is_bot !dt then dt := bot_of ik; quit_loop := true;
-         if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
+         if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a" pretty old_dt pretty !dt;
        done;
      | _ -> ()
     ); !dt

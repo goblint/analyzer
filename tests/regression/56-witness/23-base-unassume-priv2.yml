@@ -4,12 +4,8 @@
     uuid: 85b0932e-717e-47ea-b7a0-6ed5ca294047
     creation_time: 2022-09-14T09:58:32Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-apron-0-gbb3e9f109-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''23-base-unassume-priv2.c''
-        ''--set'' ''ana.activated[+]'' ''apron'' ''--enable'' ''witness.yaml.enabled''
-        ''--set'' ''dbg.debug'' ''true'' ''--set'' ''printstats'' ''true'' ''--set''
-        ''goblint-dir'' ''.goblint-56-21'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 23-base-unassume-priv2.c

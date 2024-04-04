@@ -299,7 +299,7 @@ struct
     try
       let st = String.trim st in
       let x = get_value !json_conf (parse_path st) in
-      if Goblint_tracing.tracing then Goblint_tracing.trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
+      if Goblint_tracing.tracing then Goblint_tracing.trace "conf-reads" "Reading '%s', it is %a." st GobYojson.pretty x;
       try f x
       with Yojson.Safe.Util.Type_error (s, _) ->
         Logs.error "The value for '%s' has the wrong type: %s" st s;
@@ -331,7 +331,7 @@ struct
 
   let wrap_get f x =
     (* self-observe options, which Spec construction depends on *)
-    if !building_spec && Goblint_tracing.tracing then Goblint_tracing.trace "config" "get during building_spec: %s\n" x;
+    if !building_spec && Goblint_tracing.tracing then Goblint_tracing.trace "config" "get during building_spec: %s" x;
     (* TODO: blacklist such building_spec option from server mode modification since it will have no effect (spec is already built) *)
     f x
 
@@ -351,7 +351,7 @@ struct
 
   (** Helper function for writing values. Handles the tracing. *)
   let set_path_string st v =
-    if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
+    if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Setting '%s' to %a." st GobYojson.pretty v;
     set_value v json_conf (parse_path st)
 
   let set_json st j =
@@ -401,7 +401,7 @@ struct
     | Some fn ->
       let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
       merge v;
-      if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
+      if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pretty fn GobYojson.pretty !json_conf
     | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
 end
 

@@ -74,7 +74,7 @@ struct
     | Queries.MustTermAllLoops ->
       let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
       if multithreaded then (
-        M.warn ~category:Termination "The program might not terminate! (Multithreaded)\n";
+        M.warn ~category:Termination "The program might not terminate! (Multithreaded)";
         false)
       else
         G.for_all (fun _ term_info -> term_info) (ctx.global ())

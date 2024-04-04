@@ -1,7 +1,5 @@
-type t = Fpath.t [@@deriving show]
+type t = Fpath.t [@@deriving eq, ord, show]
 
-let equal = Fpath.equal
-let compare = Fpath.compare
 let hash p = Hashtbl.hash (Fpath.to_string p)
 
 let pretty () p = GoblintCil.Pretty.text (Fpath.to_string p)

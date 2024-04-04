@@ -463,6 +463,13 @@
                 "Use FloatDomain: (float * float) option.",
               "type": "boolean",
               "default": false
+            },
+            "evaluate_math_functions": {
+              "title": "ana.float.evaluate_math_functions",
+              "description":
+                "Allow a more precise evaluation of some functions from math.h. Evaluation of functions may differ depending on the implementation of math.h. Caution: For some implementations of functions it is not guaranteed that they behave monotonic where they mathematically should, thus possibly leading to unsoundness.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -747,7 +754,7 @@
               "description":
                 "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-atomic", "protection-read", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
@@ -1982,6 +1989,12 @@
             "loop-clusters": {
               "title": "dbg.cfg.loop-clusters",
               "description": "Add loop SCC clusters to CFG .dot output.",
+              "type": "boolean",
+              "default": false
+            },
+            "loop-unrolling": {
+              "title": "dbg.cfg.loop-unrolling",
+              "description": "Add dotted loop unrolling copy-of edges to CFG .dot output.",
               "type": "boolean",
               "default": false
             }

@@ -141,9 +141,9 @@ module MallocWrapper : MCPSpec = struct
         if not (GobConfig.get_bool "dbg.full-output") && ThreadLifted.is_top t then
           Format.dprintf ""
         else
-          Format.dprintf "@tid:%s%t" (ThreadLifted.show t) uniq_count
+          Format.dprintf "@tid:%s" (ThreadLifted.show t)
       in
-      Format.asprintf "(alloc@sid:%s%t)" (Node.show_id node) tid
+      Format.asprintf "(alloc@sid:%s%t%t)" (Node.show_id node) tid uniq_count
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)

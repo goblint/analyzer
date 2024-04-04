@@ -109,20 +109,20 @@ sig
   val keep_filter : t -> (var -> bool) -> t
   val forget_vars : t -> var list -> t
 
-  (** Lazy bool ov parameter has been added to functions where functions of the Convert module are used.
+  (** Lazy bool no_ov parameter has been added to functions where functions of the Convert module are used.
       This is to also to make used of the improved overflow handling. *)
 
-  val assign_exp : t -> var -> exp -> bool Lazy.t -> t
+  val assign_exp : Queries.ask -> t -> var -> exp -> bool Lazy.t -> t
   val assign_var : t -> var -> var -> t
   val assign_var_parallel_with : t -> (var * var) list -> unit
   val assign_var_parallel' : t -> var list -> var list -> t
-  val substitute_exp : t -> var -> exp -> bool Lazy.t -> t
+  val substitute_exp : Queries.ask -> t -> var -> exp -> bool Lazy.t -> t
   val unify: t -> t -> t
   val marshal: t -> marshal
   val unmarshal: marshal -> t
   val mem_var: t -> var -> bool
-  val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
-  val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
+  val assert_inv : Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
+  val eval_int : Queries.ask -> t -> exp -> bool Lazy.t -> Queries.ID.t
 end
 
 module type S3 =

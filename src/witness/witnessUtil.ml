@@ -80,16 +80,19 @@ struct
     else
       emit_other
 
-  let find_syntactic_loop_head n =
-    let prevs = Cfg.prev n in
-    List.find_map (fun (edges, prev) ->
-        let stmts = Cfg.skippedByEdge prev edges n in
-        List.find_map (fun s ->
-            match s.GoblintCil.skind with
-            | Loop (_, loc, _, _, _) -> Some loc
-            | _ -> None
-          ) stmts
-      ) prevs
+  let find_syntactic_loop_head = function
+    | Statement s ->
+      let n' = Statement (LoopUnrolling.find_original s) in
+      let prevs = Cfg.prev n' in
+      List.find_map (fun (edges, prev) ->
+          let stmts = Cfg.skippedByEdge prev edges n' in
+          List.find_map (fun s' ->
+              match s'.GoblintCil.skind with
+              | Loop (_, loc, _, _, _) -> Some loc
+              | _ -> None
+            ) stmts
+        ) prevs
+    | FunctionEntry _ | Function _ -> None
 end
 
 module YamlInvariant (FileCfg: MyCFG.FileCfg) =

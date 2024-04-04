@@ -290,6 +290,7 @@ let analyze ?(reset=false) (s: t) =
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
+  FloatDomain.reset_lazy ();
   StringDomain.reset_lazy ();
   PrecisionUtil.reset_lazy ();
   ApronDomain.reset_lazy ();

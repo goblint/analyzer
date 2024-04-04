@@ -150,7 +150,7 @@ struct
   let create = hs_create
 
   let replace s field value =
-    if Messages.tracing then Messages.tracel "simplesets" "Normalize top Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value;
+    if Messages.tracing then Messages.tracel "simplesets" "Normalize top Replace - s:\n%a\nfield:%a\nvalue: %a\n---------" HS.pretty s Basetype.CilField.pretty field Val.pretty value;
     HS.map (fun s -> SS.replace s field value) s
 
   let get = hs_get
@@ -209,7 +209,7 @@ struct
 
   let join_with_fct f x y =
     let appended = List.append (HS.elements x) (HS.elements y) in
-    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct start!\nx: %a\ny: %a\n" pretty x pretty y;
+    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct start!\nx: %a\ny: %a" pretty x pretty y;
     let reduce_list_with_fct join_f xs s =
       let rec aux unique remaining =
         match remaining with
@@ -218,14 +218,14 @@ struct
           let (overlapping, rem_uniq) = List.partition (fun ss -> SS.leq h ss || SS.leq ss h ) unique in
           let joined = List.fold_left (fun el acc ->
               let res = join_f acc el in
-              if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a\n" SS.pretty acc SS.pretty el SS.pretty res;
+              if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a" SS.pretty acc SS.pretty el SS.pretty res;
               res
             ) h overlapping in
           aux (joined::rem_uniq) t
       in aux [] xs
     in
     let res = reduce_list_with_fct (SS.join_with_fct f) appended x in
-    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" pretty x pretty y pretty (HS.of_list appended) pretty res;
+    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a" pretty x pretty y pretty (HS.of_list appended) pretty res;
     res
 
   let join = join_with_fct Val.join
@@ -313,14 +313,14 @@ struct
             aux (joined::rem_uniq) t
         in
         let res = aux [] (HS.elements s) in
-        if Messages.tracing then Messages.tracel "reduce-key" "Reduced - s:\n%a\nto:\n%a\n---------\n" HS.pretty s HS.pretty res;
+        if Messages.tracing then Messages.tracel "reduce-key" "Reduced - s:\n%a\nto:\n%a\n---------" HS.pretty s HS.pretty res;
         (res, Some key)
 
   let reduce_key (x: t): t = reduce_key_with_fct (SS.join) x
 
   let replace (s,k) field value : t =
     let join_set s =if HS.is_bot s then s else HS.singleton (join_ss s) in
-    if Messages.tracing then Messages.tracel "keyedsets" "Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value ;
+    if Messages.tracing then Messages.tracel "keyedsets" "Replace - s:\n%a\nfield:%a\nvalue: %a\n---------" HS.pretty s Basetype.CilField.pretty field Val.pretty value ;
     let replaced = HS.map (fun s -> SS.replace s field value) s in
     let result_key =
       match find_key_field (s,k) with
@@ -412,7 +412,7 @@ struct
 
   let join_with_fct f (x, k) (y, _) =
     let appended = List.append (HS.elements x) (HS.elements y) in
-    if Messages.tracing then Messages.tracel "bettersets" "Join-fct start!\nx: %a\ny: %a\n" HS.pretty x HS.pretty y;
+    if Messages.tracing then Messages.tracel "bettersets" "Join-fct start!\nx: %a\ny: %a" HS.pretty x HS.pretty y;
     let reduce_list_key_with_fct join_f (xs: variant list) (x: t) =
       match find_key_field x with
       | None -> x
@@ -428,14 +428,14 @@ struct
               ) unique in
             let joined = List.fold_left (fun el acc ->
                 let res = join_f acc el in
-                if Messages.tracing then Messages.tracel "bettersets" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a\n" SS.pretty acc SS.pretty el SS.pretty res;
+                if Messages.tracing then Messages.tracel "bettersets" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a" SS.pretty acc SS.pretty el SS.pretty res;
                 res
               ) h overlapping in
             aux (joined::rem_uniq) t
         in (aux [] xs, Some key)
     in
     let res = reduce_list_key_with_fct (SS.join_with_fct f) appended (x,k) in
-    if Messages.tracing then Messages.tracel "bettersets" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" HS.pretty x HS.pretty y HS.pretty (HS.of_list appended) pretty res;
+    if Messages.tracing then Messages.tracel "bettersets" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a" HS.pretty x HS.pretty y HS.pretty (HS.of_list appended) pretty res;
     res
 
   let join = join_with_fct Val.join

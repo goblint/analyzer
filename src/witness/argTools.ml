@@ -62,19 +62,7 @@ struct
 
   module Node =
   struct
-    type t = MyCFG.node * Spec.C.t * int
-
-    let equal (n1, c1, i1) (n2, c2, i2) =
-      EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
-
-    let compare (n1, c1, i1) (n2, c2, i2) =
-      let r = EQSys.LVar.compare (n1, c1) (n2, c2) in
-      if r <> 0 then
-        r
-      else
-        Int.compare i1 i2
-
-    let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
+    type t = Node.t * Spec.C.t * int [@@deriving eq, ord, hash]
 
     let cfgnode (n, c, i) = n
     let context_id (n, c, i) = Spec.C.tag c
@@ -124,7 +112,7 @@ struct
               (* Exclude accumulated prevs, which were pruned *)
               if NHT.mem vars prev_lvar then (
                 let lvar' = (fst lvar, snd lvar, i) in
-                if M.tracing then M.trace "witness" "%s -( %a )-> %s\n" (Node.to_string prev_lvar) MyARG.pretty_inline_edge edge (Node.to_string lvar');
+                if M.tracing then M.trace "witness" "%s -( %a )-> %s" (Node.to_string prev_lvar) MyARG.pretty_inline_edge edge (Node.to_string lvar');
                 NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
                 NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
               )
