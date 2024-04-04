@@ -190,7 +190,7 @@ struct
 
     let reachable = PS.init_reachable ~vh in
     let rec one_var x =
-      if M.tracing then M.trace "postsolver" "one_var %a reachable=%B system=%B\n" S.Var.pretty_trace x (VH.mem reachable x) (Option.is_some (S.system x));
+      if M.tracing then M.trace "postsolver" "one_var %a reachable=%B system=%B" S.Var.pretty_trace x (VH.mem reachable x) (Option.is_some (S.system x));
       if not (VH.mem reachable x) then (
         VH.replace reachable x ();
         Option.may (one_constraint x) (S.system x)
@@ -201,13 +201,13 @@ struct
         try VH.find vh y with Not_found -> S.Dom.bot ()
       in
       let set y d =
-        if M.tracing then M.trace "postsolver" "one_side %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d;
+        if M.tracing then M.trace "postsolver" "one_side %a %a %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d;
         PS.one_side ~vh ~x ~y ~d;
         (* check before recursing *)
         one_var y
       in
       let rhs = f get set in
-      if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
+      if M.tracing then M.trace "postsolver" "one_constraint %a %a" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
     (Timing.wrap "postsolver_iter" (List.iter one_var)) vs;

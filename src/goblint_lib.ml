@@ -76,6 +76,7 @@ module Base = Base
 module RelationAnalysis = RelationAnalysis
 module ApronAnalysis = ApronAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
+module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
@@ -241,6 +242,7 @@ module ValueDomainQueries = ValueDomainQueries
 module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
+module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
 
 (** {3 Concurrency} *)
 

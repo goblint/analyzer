@@ -134,7 +134,7 @@ jobs:
       - name: Downgrade dependencies
         # must specify ocaml-base-compiler again to prevent it from being downgraded
         # prevent num downgrade to avoid dune/jbuilder error: https://github.com/ocaml/dune/issues/5280
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda num.1.4)
+        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda num.1.5)
 
       - name: Build
         run: ./make.sh nat

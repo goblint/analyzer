@@ -12,18 +12,15 @@ module EH = Hashtbl.Make (CilType.Exp)
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  (* TODO: Should be context-sensitive? Some spurious widening in knot_comb fails self-validation after self-unassume. *)
+  include Analyses.IdentityUnitContextsSpec
   let name () = "unassume"
 
-  (* TODO: Should be context-sensitive? Some spurious widening in knot_comb fails self-validation after self-unassume. *)
-  module C = Printable.Unit
   module D = SetDomain.Make (CilType.Exp)
 
   let startstate _ = D.empty ()
   let morphstate _ _ = D.empty ()
   let exitstate _ = D.empty ()
-
-  let context _ _ = ()
 
   module Locator = WitnessUtil.Locator (Node)
 

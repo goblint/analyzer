@@ -409,7 +409,7 @@ struct
       if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
         let v_old = M.find f.svar m in (* S.D.bot () if not found *)
         let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-        Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
+        Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s" f.svar.vname);
         v_new, M.add f.svar v_new m
       )
       else
@@ -652,8 +652,8 @@ struct
 
   let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
-      if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
-      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
+      if M.tracing then M.traceli "combine" "local: %a" S.D.pretty cd;
+      if M.tracing then M.trace "combine" "function: %a" S.D.pretty fd;
       let rec cd_ctx =
         { ctx with
           ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
@@ -700,7 +700,7 @@ struct
           S.D.join acc (S.combine_assign combine_assign_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx))
         ) (S.D.bot ()) (S.paths_as_set fd_ctx)
       in
-      if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
+      if M.tracing then M.traceu "combine" "combined local: %a" S.D.pretty r;
       r
     in
     let paths = S.enter ctx lv f args in
@@ -710,10 +710,10 @@ struct
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in
-    if M.tracing then M.traceli "combine" "combining\n";
+    if M.tracing then M.traceli "combine" "combining";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
+    if M.tracing then M.traceu "combine" "combined: %a" S.D.pretty r;
     r
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
@@ -1135,13 +1135,13 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
-      if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
+      if M.tracing then M.traceli "combine" "function: %a" Spec.D.pretty x;
       try
         let r = Spec.combine_env (conv ctx cd) l fe f a fc x f_ask in
-        if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
+        if M.tracing then M.traceu "combine" "combined function: %a" Spec.D.pretty r;
         D.add r y
       with Deadcode ->
-        if M.tracing then M.traceu "combine" "combined function: dead\n";
+        if M.tracing then M.traceu "combine" "combined function: dead";
         y
     in
     let d = D.fold k d (D.bot ()) in
@@ -1151,13 +1151,13 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
-      if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
+      if M.tracing then M.traceli "combine" "function: %a" Spec.D.pretty x;
       try
         let r = Spec.combine_assign (conv ctx cd) l fe f a fc x f_ask in
-        if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
+        if M.tracing then M.traceu "combine" "combined function: %a" Spec.D.pretty r;
         D.add r y
       with Deadcode ->
-        if M.tracing then M.traceu "combine" "combined function: dead\n";
+        if M.tracing then M.traceu "combine" "combined function: dead";
         y
     in
     let d = D.fold k d (D.bot ()) in
@@ -1452,7 +1452,7 @@ struct
         | Target (target_node, target_context) ->
           let target_fundec = Node.find_fundec target_node in
           if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
-            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %a\n" Node.pretty target_node;
+            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %a" Node.pretty target_node;
             ctx.sideg (V.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force combined))
             (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
           )
@@ -1466,9 +1466,9 @@ struct
       in
       JmpBufDomain.JmpBufSet.iter handle_target active_targets
     in
-    if M.tracing then M.tracel "longjmp" "longfd getg %a\n" CilType.Fundec.pretty f;
+    if M.tracing then M.tracel "longjmp" "longfd getg %a" CilType.Fundec.pretty f;
     let longfd = G.local (ctx.global (V.longjmpret (f, Option.get fc))) in
-    if M.tracing then M.tracel "longjmp" "longfd %a\n" D.pretty longfd;
+    if M.tracing then M.tracel "longjmp" "longfd %a" D.pretty longfd;
     if not (D.is_bot longfd) then
       handle_longjmp (ctx.local, fc, longfd);
     S.combine_env (conv_ctx) lv e f args fc fd f_ask
@@ -1521,7 +1521,7 @@ struct
         (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
         let targets = path_ctx.ask (EvalJumpBuf env) in
         let valid_targets = path_ctx.ask ValidLongJmp in
-        if M.tracing then Messages.tracel "longjmp" "Jumping to %a\n" JmpBufDomain.JmpBufSet.pretty targets;
+        if M.tracing then Messages.tracel "longjmp" "Jumping to %a" JmpBufDomain.JmpBufSet.pretty targets;
         let handle_target target = match target with
           | JmpBufDomain.BufferEntryOrTop.AllTargets ->
             M.warn ~category:Imprecise "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env;
@@ -1529,11 +1529,11 @@ struct
           | Target (target_node, target_context) ->
             let target_fundec = Node.find_fundec target_node in
             if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
-              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %a\n" Node.pretty target_node;
+              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %a" Node.pretty target_node;
               ctx.sideg (V.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force specialed))
             )
             else if JmpBufDomain.JmpBufSet.mem target valid_targets then (
-              if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
+              if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i" (S.C.hash (ctx.context ()));
               ctx.sideg (V.longjmpret (current_fundec, ctx.context ())) (G.create_local (Lazy.force returned))
             )
             else

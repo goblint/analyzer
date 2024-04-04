@@ -62,8 +62,8 @@ module SLR3 =
           let old = HM.find rho x in
           let tmp = eq x (eval x) (side x) in
           let tmp = S.Dom.join tmp (sides x) in
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
+          if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           let tmp =
             if wpx then
               if HM.mem globals x then S.Dom.widen old tmp
@@ -72,7 +72,7 @@ module SLR3 =
           in
           if not (S.Dom.equal old tmp) then begin
             update_var_event x old tmp;
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
+            if tracing then trace "sol" "New Value:%a" S.Dom.pretty tmp;
             HM.replace rho x tmp;
             let w = try HM.find infl x with Not_found -> VS.empty in
             let w = if wpx then VS.add x w else w in
@@ -401,11 +401,11 @@ module Make0 =
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
           let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "solvers.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
+          if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           let tmp = if use_box then box old tmp else tmp in
           if not (D.eq tmp old) then begin
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
+            if tracing then trace "sol" "New Value:%a" S.Dom.pretty tmp;
             let _ = X.set_value x tmp in
             if V.ver>3 && restart_mode_x mod 2 = 1 && not (D.leq tmp old) then
               HM.replace restart_mode x (restart_mode_x - 1);

@@ -35,6 +35,14 @@
       (apron -> affineEqualityDomain.apron.ml)
       (-> affineEqualityDomain.no-apron.ml)
     )
+    (select linearTwoVarEqualityAnalysis.ml from
+      (apron -> linearTwoVarEqualityAnalysis.apron.ml)
+      (-> linearTwoVarEqualityAnalysis.no-apron.ml)
+    )
+    (select linearTwoVarEqualityDomain.ml from
+      (apron -> linearTwoVarEqualityDomain.apron.ml)
+      (-> linearTwoVarEqualityDomain.no-apron.ml)
+    )
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
       (-> relationAnalysis.no-apron.ml)
@@ -119,7 +127,7 @@
     (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
   (trace
-    (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -opaque -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )
 

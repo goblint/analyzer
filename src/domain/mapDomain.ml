@@ -110,8 +110,7 @@ struct
 
   module Group =
   struct
-    type t = D.group
-    let compare = D.compare_group
+    type t = D.group [@@deriving ord]
   end
 
   module GroupMap = Map.Make (Group)

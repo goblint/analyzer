@@ -52,11 +52,10 @@ type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protecti
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
-type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} [@@deriving ord, hash]
 type access =
-  | Memory of memory_access (** Memory location access (race). *)
+  | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
-[@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
+[@@deriving ord, hash]
 type invariant_context = Invariant.context = {
   path: int option;
   lvals: Lval.Set.t;
@@ -129,6 +128,7 @@ type _ t =
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | MaySignedOverflow: exp -> MayBool.t t
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t
 
 type 'a result = 'a
@@ -200,6 +200,7 @@ struct
     | MustTermAllLoops -> (module MustBool)
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
+    | MaySignedOverflow  _ -> (module MayBool)
     | YamlEntryGlobal _ -> (module YS)
 
   (** Get bottom result for query. *)
@@ -270,6 +271,7 @@ struct
     | MustTermAllLoops -> MustBool.top ()
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
+    | MaySignedOverflow _ -> MayBool.top ()
     | YamlEntryGlobal _ -> YS.top ()
 end
 
@@ -336,8 +338,9 @@ struct
     | Any IsEverMultiThreaded -> 55
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
-    | Any (YamlEntryGlobal _) -> 58
-    | Any (MustProtectingLocks _) -> 59
+    | Any (MaySignedOverflow _) -> 58
+    | Any (YamlEntryGlobal _) -> 59
+    | Any (MustProtectingLocks _) -> 60
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -393,6 +396,7 @@ struct
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
+      | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -436,6 +440,7 @@ struct
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
+    | Any (MaySignedOverflow e) -> CilType.Exp.hash e
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -500,6 +505,7 @@ struct
     | Any MustTermAllLoops -> Pretty.dprintf "MustTermAllLoops"
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
+    | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
 end
 
 let to_value_domain_ask (ask: ask) =

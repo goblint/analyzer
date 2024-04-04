@@ -54,6 +54,8 @@ module type CfgBidirSkip =
 sig
   include CfgBidir
   val skippedByEdge: node -> edges -> node -> stmt list
+  (** [skippedByEdge from edges to] returns the list of {{!GoblintCil.stmt} AST statements} skipped over by [find_real_stmt] in {!CfgTools.createCfg}.
+      This consists of statements which do not correspond to CFG nodes, but some surrounding AST constructions. *)
 end
 
 
