@@ -5,15 +5,12 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "activeLongjmp"
 
   (* The first component are the longjmp targets, the second are the longjmp callers *)
   module D = JmpBufDomain.ActiveLongjmps
-  module C = Lattice.Unit
-
-  let context _ _ = ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in

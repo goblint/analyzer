@@ -121,6 +121,8 @@ let serve serv =
   |> Seq.map Packet.t_of_yojson
   |> Seq.iter (handle_packet serv)
 
+(** Is node valid for lookup by location?
+    Used for abstract debugging breakpoints. *)
 let is_server_node cfgnode =
   let loc = UpdateCil.getLoc cfgnode in
   not loc.synthetic
@@ -288,6 +290,7 @@ let analyze ?(reset=false) (s: t) =
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
+  FloatDomain.reset_lazy ();
   StringDomain.reset_lazy ();
   PrecisionUtil.reset_lazy ();
   ApronDomain.reset_lazy ();

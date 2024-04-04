@@ -11,7 +11,7 @@ struct
 
   let name () = "abortUnless"
   module D = BoolDomain.MustBool
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   let context _ _ = ()
 

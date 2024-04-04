@@ -1,3 +1,4 @@
+#define _GNU_SOURCE // necessary for M_PI to be defined
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
@@ -54,6 +55,18 @@ static void change_round_mode(int mode)
 
 UNARY_OP(sqrt, double, sqrt);
 UNARY_OP(sqrt, float, sqrtf);
+UNARY_OP(acos, double, acos);
+UNARY_OP(acos, float, acosf);
+UNARY_OP(asin, double, asin);
+UNARY_OP(asin, float, asinf);
+UNARY_OP(atan, double, atan);
+UNARY_OP(atan, float, atanf);
+UNARY_OP(cos, double, cos);
+UNARY_OP(cos, float, cosf);
+UNARY_OP(sin, double, sin);
+UNARY_OP(sin, float, sinf);
+UNARY_OP(tan, double, tan);
+UNARY_OP(tan, float, tanf);
 
 #define BINARY_OP(name, type, op)                                \
     CAMLprim value name##_##type(value mode, value x, value y)   \
@@ -109,6 +122,8 @@ CAMLprim value atof_float(value mode, value str)
     // No need to use CAMLreturn because we don't use CAMLparam.
 }
 
+// These are only given for floats as these operations involve no rounding and their OCaml implementation (Float module) can be used
+
 CAMLprim value max_float(value unit)
 {
     // No need to use CAMLparam to keep unit as GC root,
@@ -123,4 +138,9 @@ CAMLprim value smallest_float(value unit)
     // because we don't use it.
     return caml_copy_double(FLT_MIN);
     // No need to use CAMLreturn because we don't use CAMLparam.
+}
+
+CAMLprim value pi_float(value unit)
+{
+    return caml_copy_double(M_PI);
 }

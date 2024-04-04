@@ -13,17 +13,27 @@ module M = Messages
 open GobApron
 open VectorMatrix
 
-module Mpqf = struct
-  include Mpqf
-  let compare = cmp
-  let zero = of_int 0
-  let one = of_int 1
-  let mone = of_int (-1)
+module Mpqf = SharedFunctions.Mpqf
 
-  let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
+module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
+struct
+  include Mx(Mpqf) (Vec)
+  let dim_add (ch: Apron.Dim.change) m =
+    Array.modifyi (+) ch.dim;
+    add_empty_columns m ch.dim
 
-  let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
-  let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
+  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
+
+
+  let dim_remove (ch: Apron.Dim.change) m ~del =
+    if Array.length ch.dim = 0 || is_empty m then
+      m
+    else (
+      Array.modifyi (+) ch.dim;
+      let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim else m in
+      remove_zero_rows @@ del_cols m' ch.dim)
+
+  let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
 end
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
@@ -31,111 +41,11 @@ end
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
   module Vector = Vec (Mpqf)
-  module Matrix = Mx(Mpqf) (Vec)
+  module Matrix = AffineEqualityMatrix (Vec) (Mx)
 
-  type t = {
-    mutable d :  Matrix.t option;
-    mutable env : Environment.t
-  }
-  [@@deriving eq, ord, hash]
+  let dim_add = Matrix.dim_add
 
-  let empty_env = Environment.make [||] [||]
-
-  let bot () =
-    {d = Some (Matrix.empty ()); env = empty_env}
-
-  let bot_env = {d = None; env = empty_env}
-
-  let is_bot_env t = t.d = None
-
-  let copy t = {t with d = Option.map Matrix.copy t.d}
-
-  let dim_add (ch: Apron.Dim.change) m =
-    Array.modifyi (fun i x -> x + i) ch.dim; (* could be written Array.modifyi (+) ch.dim; but that's too smart *)
-    Matrix.add_empty_columns m ch.dim
-
-  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
-
-  let dim_remove (ch: Apron.Dim.change) m del =
-    if Array.length ch.dim = 0 || Matrix.is_empty m then
-      m
-    else (
-      Array.modifyi (fun i x -> x + i) ch.dim;
-      let m' = if not del then let m = Matrix.copy m in Array.fold_left (fun y x -> Matrix.reduce_col_with y x; y) m ch.dim else m in
-      Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
-
-  let dim_remove ch m del = timing_wrap "dim remove" (dim_remove ch m) del
-
-  let change_d t new_env add del =
-    if Environment.equal t.env new_env then
-      t
-    else
-      match t.d with
-      | None -> bot_env
-      | Some m ->
-        let dim_change =
-          if add then
-            Environment.dimchange t.env new_env
-          else
-            Environment.dimchange new_env t.env
-        in
-        {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
-
-  let change_d t new_env add del = timing_wrap "dimension change" (change_d t new_env add) del
-
-  let vars x = Environment.ivars_only x.env
-
-  let add_vars t vars =
-    let t = copy t in
-    let env' = Environment.add_vars t.env vars in
-    change_d t env' true false
-
-  let add_vars t vars = timing_wrap "add_vars" (add_vars t) vars
-
-  let drop_vars t vars del =
-    let t = copy t in
-    let env' = Environment.remove_vars t.env vars in
-    change_d t env' false del
-
-  let drop_vars t vars = timing_wrap "drop_vars" (drop_vars t) vars
-
-  let remove_vars t vars = drop_vars t vars false
-
-  let remove_vars t vars = timing_wrap "remove_vars" (remove_vars t) vars
-
-  let remove_vars_with t vars =
-    let t' = remove_vars t vars in
-    t.d <- t'.d;
-    t.env <- t'.env
-
-  let remove_filter t f =
-    let env' = Environment.remove_filter t.env f in
-    change_d t env' false false
-
-  let remove_filter t f = timing_wrap "remove_filter" (remove_filter t) f
-
-  let remove_filter_with t f =
-    let t' = remove_filter t f in
-    t.d <- t'.d;
-    t.env <- t'.env
-
-  let keep_filter t f =
-    let t = copy t in
-    let env' = Environment.keep_filter t.env f in
-    change_d t env' false false
-
-  let keep_filter t f = timing_wrap "keep_filter" (keep_filter t) f
-
-  let keep_vars t vs =
-    let t = copy t in
-    let env' = Environment.keep_vars t.env vs in
-    change_d t env' false false
-
-  let keep_vars t vs = timing_wrap "keep_vars" (keep_vars t) vs
-
-
-  let mem_var t var = Environment.mem_var t.env var
-
+  include SharedFunctions.VarManagementOps(AffineEqualityMatrix (Vec) (Mx))
   include ConvenienceOps(Mpqf)
 
   (** Get the constant from the vector if it is a constant *)
@@ -239,7 +149,11 @@ struct
 
   module Bounds = ExpressionBounds (Vc) (Mx)
   module V = RelationDomain.V
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
+  module Arg = struct
+    let allow_global = true
+  end
+  module Convert = SharedFunctions.Convert (V) (Bounds) (Arg) (SharedFunctions.Tracked)
+
 
   type var = V.t
 
@@ -294,6 +208,8 @@ struct
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
 
+  let eval_interval ask = Bounds.bound_texpr
+
   let name () = "affeq"
 
   let to_yojson _ = failwith "ToDo Implement in future"
@@ -305,19 +221,21 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let top () = failwith "D.top ()"
+  let top () = {d = Some (Matrix.empty ()); env = Environment.make [||] [||]}
 
-  let is_top _ = false
+  let is_top t = Environment.equal empty_env t.env && GobOption.exists Matrix.is_empty t.d
 
   let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists Matrix.is_empty t.d
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1, t2 = change_d t1 sup_env true false, change_d t2 sup_env true false in
+
+    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
     if is_bot t1 || is_bot t2 then
       bot ()
     else
-      (* TODO: Why can I be sure that m1 && m2 are all Some here? *)
+      (* TODO: Why can I be sure that m1 && m2 are all Some here?
+         Answer: because is_bot checks if t1.d is None and we checked is_bot before. *)
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       if is_top_env t1 then
         {d = Some (dim_add (Environment.dimchange t2.env sup_env) m2); env = sup_env}
@@ -333,7 +251,7 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s \n" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s " (show t1) (show t2) (show res) ;
     res
 
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
@@ -359,7 +277,7 @@ struct
 
   let leq t1 t2 =
     let res = leq t1 t2 in
-    if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show t1) (show t2) res ;
+    if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b " (show t1) (show t2) res ;
     res
 
   let join a b =
@@ -428,7 +346,7 @@ struct
 
   let join a b =
     let res = join a b in
-    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s " (show a) (show b) (show res) ;
     res
 
   let widen a b =
@@ -461,7 +379,7 @@ struct
 
   let forget_vars t vars =
     let res = forget_vars t vars in
-    if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
+    if M.tracing then M.tracel "ops" "forget_vars %s -> %s" (show t) (show res);
     res
 
   let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
@@ -502,17 +420,17 @@ struct
 
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
-  let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
+  let assign_exp ask (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     (* TODO: Do we need to do a constant folding here? It happens for texpr1_of_cil_exp *)
-    match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
+    match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
       if is_bot t then t else forget_vars t [var]
 
-  let assign_exp t var exp no_ov =
-    let res = assign_exp t var exp no_ov in
-    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
+  let assign_exp ask t var exp no_ov =
+    let res = assign_exp ask t var exp no_ov in
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s"
         (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
 
@@ -523,7 +441,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
 
   let assign_var_parallel t vv's =
@@ -541,7 +459,7 @@ struct
       in
       let m_cp = Matrix.copy m in
       let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
-      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
+      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars ~del:true in
       let x = Option.get res.d in
       if Matrix.normalize_with x then
         {d = Some x; env = res.env}
@@ -551,7 +469,7 @@ struct
 
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
-    if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s \n" (show t) (show res);
+    if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s " (show t) (show res);
     res
 
   let assign_var_parallel t vv's = timing_wrap "var_parallel" (assign_var_parallel t) vv's
@@ -562,7 +480,7 @@ struct
     t.env <- t'.env
 
   let assign_var_parallel_with t vv's =
-    if M.tracing then M.tracel "var_parallel" "assign_var parallel'\n";
+    if M.tracing then M.tracel "var_parallel" "assign_var parallel'";
     assign_var_parallel_with t vv's
 
   let assign_var_parallel' t vs1 vs2 =
@@ -571,89 +489,63 @@ struct
 
   let assign_var_parallel' t vv's =
     let res = assign_var_parallel' t vv's in
-    if M.tracing then M.tracel "ops" "assign_var parallel'\n";
+    if M.tracing then M.tracel "ops" "assign_var parallel'";
     res
 
-  let substitute_exp t var exp no_ov =
+  let substitute_exp ask t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    let res = assign_exp t var exp no_ov in
+    let res = assign_exp ask t var exp no_ov in
     forget_vars res [var]
 
-  let substitute_exp t var exp ov =
-    let res = substitute_exp t var exp ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
+  let substitute_exp ask t var exp no_ov =
+    let res = substitute_exp ask t var exp no_ov in
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
-  let substitute_exp t var exp ov = timing_wrap "substitution" (substitute_exp t var exp) ov
+  let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
   (** Assert a constraint expression.
 
-      Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
-      We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
+      The overflow is completely handled by the flag "no_ov",
+      which is set in relationAnalysis.ml via the function no_overflow.
+      In case of a potential overflow, "no_ov" is set to false
+      and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow *)
 
-  exception NotRefinable
-
-  let meet_tcons_one_var_eq res expr =
-    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
-    match Convert.find_one_var expr with
-    | None -> overflow_res res
-    | Some v ->
-      let ik = Cilfacade.get_ikind v.vtype in
-      if not (Cil.isSigned ik) then
-        raise NotRefinable
-      else
-        match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
-        | Some min, Some max ->
-          assert (Z.equal min max); (* other bounds impossible in affeq *)
-          let (min_ik, max_ik) = IntDomain.Size.range ik in
-          if Z.lt min min_ik || Z.gt max max_ik then
-            if IntDomain.should_ignore_overflow ik then
-              bot ()
-            else
-              raise NotRefinable
-          else res
-        | exception Convert.Unsupported_CilExp _
-        | _ -> overflow_res res
-
-  let meet_tcons t tcons expr =
+  let meet_tcons ask t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
     let meet_vec e =
       (* Flip the sign of the const. val in coeff vec *)
       let coeff = Vector.nth e (Vector.length e - 1) in
       Vector.set_val_with e (Vector.length e - 1) (Mpqf.neg coeff);
-      let res =
-        if is_bot t then
-          bot ()
-        else
-          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e in
-          if Option.is_none opt_m then bot () else {d = opt_m; env = t.env}
-      in
-      meet_tcons_one_var_eq res expr
+      if is_bot t then
+        bot ()
+      else
+        let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e in
+        if Option.is_none opt_m then bot () else {d = opt_m; env = t.env}
+
     in
-    try
-      match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-      | Some v ->
-        begin match to_constant_opt v, Tcons1.get_typ tcons with
-          | Some c, DISEQ -> check_const (=:) c
-          | Some c, SUP -> check_const (<=:) c
-          | Some c, EQ -> check_const (<>:) c
-          | Some c, SUPEQ -> check_const (<:) c
-          | None, DISEQ
-          | None, SUP ->
-            if equal (meet_vec v) t then
-              bot_env
-            else
-              t
-          | None, EQ ->
-            let res = meet_vec v in
-            if is_bot res then
-              bot_env
-            else
-              res
-          | _ -> t
-        end
-      | None -> t
-    with NotRefinable -> t
+    match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+    | Some v ->
+      begin match to_constant_opt v, Tcons1.get_typ tcons with
+        | Some c, DISEQ -> check_const (=:) c
+        | Some c, SUP -> check_const (<=:) c
+        | Some c, EQ -> check_const (<>:) c
+        | Some c, SUPEQ -> check_const (<:) c
+        | None, DISEQ
+        | None, SUP ->
+          if equal (meet_vec v) t then
+            bot_env
+          else
+            t
+        | None, EQ ->
+          let res = meet_vec v in
+          if is_bot res then
+            bot_env
+          else
+            res
+        | _ -> t
+      end
+    | None -> t
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
@@ -662,17 +554,16 @@ struct
 
   let unify a b =
     let res = unify a b  in
-    if M.tracing then M.tracel "ops" "unify: %s %s -> %s\n" (show a) (show b) (show res);
+    if M.tracing then M.tracel "ops" "unify: %s %s -> %s" (show a) (show b) (show res);
     res
 
-  let assert_cons d e negate no_ov =
-    let no_ov = Lazy.force no_ov in
-    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b" d_exp e no_ov;
-    match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1 e
+  let assert_constraint ask d e negate no_ov =
+    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
+    match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
+    | tcons1 -> meet_tcons ask d tcons1 e
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_cons d e negate no_ov = timing_wrap "assert_cons" (assert_cons d e negate) no_ov
+  let assert_constraint ask d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
 
   let relift t = t
 
@@ -692,9 +583,9 @@ struct
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
-  let env (t: Bounds.t) = t.env
+  let env t = t.env
 
-  type marshal = Bounds.t
+  type marshal = t
 
   let marshal t = t
 
@@ -704,6 +595,9 @@ end
 module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.RD with type var = Var.t =
 struct
   module D =  D (Vc) (Mx)
-  include SharedFunctions.AssertionModule (D.V) (D)
+  module ConvArg = struct
+    let allow_global = false
+  end
+  include SharedFunctions.AssertionModule (D.V) (D) (ConvArg)
   include D
 end

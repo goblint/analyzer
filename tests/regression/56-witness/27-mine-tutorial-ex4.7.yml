@@ -4,12 +4,8 @@
     uuid: e17f9860-95af-4213-a767-ab4876ead27e
     creation_time: 2022-10-07T10:33:01Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''27-mine-tutorial-ex4.7.c''
-        ''--enable'' ''ana.int.interval'' ''--enable'' ''ana.sv-comp.functions'' ''--enable''
-        ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled''
-        ''--set'' ''goblint-dir'' ''.goblint-56-27'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 27-mine-tutorial-ex4.7.c
