@@ -25,8 +25,6 @@ module D : Lattice.S = struct
     | None -> "⊥"
     | Some x -> show_conj (get_normal_form x)
 
-
-
   let show_all = function
     | None -> "⊥\n"
     | Some x ->  "Union Find partition:\n" ^

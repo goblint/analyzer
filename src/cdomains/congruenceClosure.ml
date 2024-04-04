@@ -735,7 +735,7 @@ module CongruenceClosure (Var : Val) = struct
         (* t has no children, so we can safely delete the element from the data structure *)
         (* we just need to update the size on the whole path from here to the root *)
         let new_parents_map = if TUF.is_root part t then new_parents_map else LMap.add t (TUF.parent part t) new_parents_map in
-        (TUF.ValMap.remove t (TUF.change_size t part ((-) 1)), new_parents_map, map_of_children)
+        (TUF.ValMap.remove t (TUF.change_size t part pred), new_parents_map, map_of_children)
       | Some children ->
         let map_of_children = LMap.remove t map_of_children in
         if TUF.is_root part t then
@@ -770,7 +770,7 @@ module CongruenceClosure (Var : Val) = struct
                  SSet.add_to_map_of_children child map_of_children new_root
               ) map_of_children remaining_children in
           (* update size of equivalence class *)
-          let part = TUF.change_size new_root part ((-) 1) in
+          let part = TUF.change_size new_root part pred in
           (TUF.ValMap.remove t part, LMap.add t (new_root, new_offset) new_parents_map, map_of_children)
     in SSet.fold remove_term removed_terms_set (part, LMap.empty, map_of_children)
 
