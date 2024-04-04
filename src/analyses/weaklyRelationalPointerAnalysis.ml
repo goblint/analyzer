@@ -16,7 +16,7 @@ struct
   module D = D
   module C = D
 
-  let name () = "weakly rlational pointer analysis"
+  let name () = "wrpointer"
 
   let startstate v = D.top()
 
