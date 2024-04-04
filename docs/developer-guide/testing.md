@@ -153,7 +153,7 @@ The comparison input and the metadata in the patch headers are not necessary and
 ## Unit tests
 
 ### Running
-The unit tests can be run with `dune runtest unittest`.
+The unit tests can be run with `dune runtest tests/unit`.
 Use `--watch` for automatic rebuilding and retesting.
 
 ## Domain tests
