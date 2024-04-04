@@ -27,7 +27,7 @@ module UnionFind (Val: Val)  = struct
   let hash_ref x y = 3
 
   (** (value * offset) ref * size of equivalence class *)
-  type 'v node = ('v * Z.t) ref * int [@@deriving eq, ord, hash]
+  type 'v node = ('v * Z.t) * int [@@deriving eq, ord, hash]
 
   (** Maps each value to its children in the union find data structure.
       Necessary in order to be able to delete values. *)
@@ -40,13 +40,13 @@ module UnionFind (Val: Val)  = struct
 
   (** create empty union find map *)
   let init : Val.t list -> t =
-    List.fold_left (fun map v -> ValMap.add v (ref (v, Z.zero), 1) map) (ValMap.empty)
+    List.fold_left (fun map v -> ValMap.add v ((v, Z.zero), 1) map) (ValMap.empty)
 
   (** `parent uf v` returns (p, z) where p is the parent element of
       v in the union find tree and z is the offset. *)
   let parent uf v =
     let (refv, _) = ValMap.find v uf in
-    !refv
+    refv
 
   (** `parent_opt uf v` returns Some (p, z) where p is the parent element of
       v in the union find tree and z is the offset.
@@ -61,13 +61,23 @@ module UnionFind (Val: Val)  = struct
 
   let subtree_size uf v = snd (ValMap.find v uf)
 
+  (** Modifies the size of the equivalence class for the current element and
+      for the whole path to the root of this element.
+
+      The third parameter `modification` is the function to apply to the sizes. *)
+  let rec change_size t part modification =
+    let (ref_r, old_size) = ValMap.find t part in
+    let part = ValMap.add t (ref_r, modification old_size) part in
+    let parent = fst(ref_r) in
+    if parent = t then part else change_size parent part modification
+
   let modify_parent uf v (t, offset) =
-    let (refv, _) = ValMap.find v uf in
-    refv := (t, offset)
+    let (_, size) = ValMap.find v uf in
+    ValMap.add v ((t, offset), size) uf
 
   (** Returns true if each equivalence class in the data structure contains only one element,
       i.e. every node is a root. *)
-  let is_empty uf = List.for_all (fun (v, (refv, _)) -> Val.compare v (fst !refv) = 0) (ValMap.bindings uf)
+  let is_empty uf = List.for_all (fun (v, (refv, _)) -> Val.compare v (fst refv) = 0) (ValMap.bindings uf)
 
   (** Returns true if v is the representative value of its equivalence class
 
@@ -83,12 +93,13 @@ module UnionFind (Val: Val)  = struct
   let show_uf_ugly uf =
     List.fold_left (fun s (v, (refv, size)) ->
         s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^
-        "; Parent: " ^ Val.show (fst !refv) ^ "; offset: " ^ Z.to_string (snd !refv) ^ "; size: " ^ string_of_int size ^ "\n")
+        "; Parent: " ^ Val.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^ "\n")
       "" (ValMap.bindings uf) ^ "\n"
 
   (**
      For a variable t it returns the reference variable v and the offset r.
      This find performs path compression.
+     It returns als the updated union-find tree after the path compression.
 
      Throws "Unknown value" if t is not present in the data structure.
       Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
@@ -96,22 +107,25 @@ module UnionFind (Val: Val)  = struct
   let find uf v =
     match ValMap.find_opt v uf with
     | None -> raise (UnknownValue v)
-    | Some (refv,_)  -> let (v',r') = !refv in
+    | Some (refv,_)  -> let (v',r') = refv in
       if Val.compare v' v = 0 then
-        if Z.equal r' Z.zero then (v',r')
+        if Z.equal r' Z.zero then v',r', uf
         else raise (InvalidUnionFind "non-zero self-distance!")
       else if is_root uf v' then
-        (v',r')
+        v',r', uf
       else
         let rec search v list = match ValMap.find_opt v uf with
           | None -> raise (UnknownValue v)
-          | Some (refv,_)  -> let (v',r') = !refv in
+          | Some (refv,_)  -> let (v',r') = refv in
             if is_root uf v' then
-              let _ = List.fold_left (fun r0 v ->
-                  let r'' = parent_offset uf v in
-                  let _ = modify_parent uf v (v',Z.(r0+r''))
-                  in Z.(r0+r'')) Z.zero (v::list)
-              in (v',r')
+              let (_,uf) = List.fold_left (fun (r0,part) v ->
+                  let (parent_v, r'') = parent part v in
+                  let size_v = subtree_size part v in
+                  let part = modify_parent part v (v',Z.(r0+r'')) in
+                  let part = change_size parent_v part (fun s -> s - size_v) in
+                  let part = change_size v' part ((+) size_v)
+                  in Z.(r0+r''),part) (Z.zero,uf) (v::list)
+              in v',r',uf
             else search v' (v :: list)
         in search v' [v]
 
@@ -132,7 +146,7 @@ module UnionFind (Val: Val)  = struct
   let rec find_no_pc uf v =
     match ValMap.find_opt v uf with
     | None -> raise (UnknownValue v)
-    | Some (refv,_)  -> let (v',r') = !refv in
+    | Some ((v',r'),_)  ->
       if Val.compare v' v = 0 then
         if Z.equal r' Z.zero then (v',r')
         else raise (InvalidUnionFind "non-zero self-distance!")
@@ -158,42 +172,30 @@ module UnionFind (Val: Val)  = struct
      - `b` is true iff v = find v1
 
   *)
-  let union uf v'1 v'2 r = let v1,r1 = find uf v'1 in
-    let v2,r2 = find uf v'2 in
+  let union uf v'1 v'2 r = let v1,r1,uf = find uf v'1 in
+    let v2,r2,uf = find uf v'2 in
     if Val.compare v1 v2 = 0 then
       if r1 = Z.(r2 + r) then v1, uf, true
       else raise (Failure "incomparable union")
     else match ValMap.find_opt v1 uf, ValMap.find_opt v2 uf with
-      | Some (refv1,s1),
-        Some (refv2,s2) ->
+      | Some (_,s1),
+        Some (_,s2) ->
         if s1 <= s2 then (
-          modify_parent uf v1 (v2, Z.(r2 - r1 + r));
-          v2, ValMap.add v2 (refv2, s1+s2) uf, false
+          v2, change_size v2 (modify_parent uf v1 (v2, Z.(r2 - r1 + r))) ((+) s1), false
         ) else (
-          modify_parent uf v2 (v1, Z.(r1 - r2 - r));
-          v1, ValMap.add v1 (refv1, s1+s2) uf, true
+          v1, change_size v1 (modify_parent uf v2 (v1, Z.(r1 - r2 - r))) ((+) s2), true
         )
       | None, _ -> raise (UnknownValue v1)
       | _, _ -> raise (UnknownValue v2)
 
   (** Returns a list of equivalence classes. *)
-  let get_eq_classes uf = List.group (fun (el1,_) (el2,_) -> compare_repr_v (find uf el1) (find uf el2)) (ValMap.bindings uf)
+  let get_eq_classes uf = List.group (fun (el1,_) (el2,_) -> compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)) (ValMap.bindings uf)
 
   (** Throws "Unknown value" if v is not present in the data structure. *)
   let show_uf uf = List.fold_left (fun s eq_class ->
       s ^ List.fold_left (fun s (v, (refv, size)) ->
-          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "; Parent: " ^ Val.show (fst !refv) ^ "; offset: " ^ Z.to_string (snd !refv) ^ "; size: " ^ string_of_int size ^"\n") "" eq_class
+          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "; Parent: " ^ Val.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^"\n") "" eq_class
       ^ "\n") "" (get_eq_classes uf) ^ "\n"
-
-  (** Modifies the size of the equivalence class for the current element and
-      for the whole path to the root of this element.
-
-      The third parameter `modification` is the function to apply to the sizes. *)
-  let rec change_size t part modification =
-    let (ref_r, old_size) = ValMap.find t part in
-    let part = ValMap.add t (ref_r, modification old_size) part in
-    let parent = fst(!ref_r) in
-    if parent = t then part else change_size parent part modification
 
 end
 
@@ -367,7 +369,7 @@ module CongruenceClosure (Var : Val) = struct
       let add_to_result el (new_set, removed_terms_set, map_of_children) =
         let new_set, removed_terms_set = if is_subterm var el then new_set, add el removed_terms_set else add el new_set, removed_terms_set in
         let (uf_parent_ref, _) = TMap.find el part in
-        let map_of_children = add_to_map_of_children el map_of_children (fst !uf_parent_ref) in
+        let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent_ref) in
         (new_set, removed_terms_set, map_of_children) in
       TSet.fold add_to_result set (TSet.empty, TSet.empty, TMap.empty)
 
@@ -406,23 +408,23 @@ module CongruenceClosure (Var : Val) = struct
     let print_min_rep = print_string % show_min_rep
 
     let rec update_min_repr (part, map) min_representatives = function
-      | [] -> min_representatives
+      | [] -> min_representatives, part
       | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
         match LMap.successors state map with
         | edges ->
-          let process_edge (min_representatives, queue) (edge_z, next_term) =
-            let (next_state, next_z) = TUF.find part next_term in
+          let process_edge (min_representatives, queue, part) (edge_z, next_term) =
+            let next_state, next_z, part = TUF.find part next_term in
             let (min_term, min_z) = find state min_representatives in
             let next_min = (Deref (min_term, Z.(edge_z - min_z)), next_z) in
             match TMap.find_opt next_state min_representatives
             with
             | None ->
-              (add next_state next_min min_representatives, queue @ [next_state])
+              (add next_state next_min min_representatives, queue @ [next_state], part)
             | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
-              (add next_state next_min min_representatives, queue @ [next_state])
-            | _ -> (min_representatives, queue)
+              (add next_state next_min min_representatives, queue @ [next_state], part)
+            | _ -> (min_representatives, queue, part)
           in
-          let (min_representatives, queue) = List.fold_left process_edge (min_representatives, queue) edges
+          let (min_representatives, queue, part) = List.fold_left process_edge (min_representatives, queue, part) edges
           in update_min_repr (part, map) min_representatives queue
 
     (** Uses dijkstra algorithm to update the minimal representatives of
@@ -435,12 +437,14 @@ module CongruenceClosure (Var : Val) = struct
           parameters:
 
         - `(part, map)` represent the union find data structure and the corresponding lookup map.
-
         - `min_representatives` maps each representative of the union find data structure to the minimal representative of the equivalence class.
-
         - `queue` contains the states that need to be processed.
           The states of the automata are the equivalence classes and each state of the automata is represented by the representative term.
-          Therefore the queue is a list of representative terms. *)
+          Therefore the queue is a list of representative terms.
+
+        Returns:
+        - The map with the minimal representatives
+        - The union find tree. This might have changed because of path compression. *)
     let update_min_repr (part, map) min_representatives queue =
       (* order queue by size of the current min representative *)
       let queue =
@@ -450,19 +454,27 @@ module CongruenceClosure (Var : Val) = struct
     (**
        Computes a map that maps each representative of an equivalence class to the minimal representative of the equivalence class.
        It's used for now when removing elements, then the min_repr map gets recomputed.
-    *)
+       Returns:
+       - The map with the minimal representatives
+       - The union find tree. This might have changed because of path compression. *)
     let compute_minimal_representatives (part, set, map) =
       let atoms = SSet.get_atoms set in
       (* process all atoms in increasing order *)
+      let part_ref = ref part in
       let atoms =
-        List.sort (fun el1 el2 -> TUF.compare_repr (TUF.find part el1) (TUF.find part el2)) atoms in
-      let add_atom_to_map (min_representatives, queue) a =
-        let (rep, offs) = TUF.find part a in
+        List.sort (fun el1 el2 ->
+            let v1, z1, new_part = TUF.find !part_ref el1 in
+            part_ref := new_part;
+            let v2, z2, new_part = TUF.find !part_ref el2 in
+            part_ref := new_part;
+            TUF.compare_repr (v1, z1) (v2, z2)) atoms in
+      let add_atom_to_map (min_representatives, queue, part) a =
+        let (rep, offs, part) = TUF.find part a in
         if not (mem rep min_representatives) then
-          (add rep (a, offs) min_representatives, queue @ [rep])
-        else (min_representatives, queue)
+          (add rep (a, offs) min_representatives, queue @ [rep], part)
+        else (min_representatives, queue, part)
       in
-      let (min_representatives, queue) = List.fold_left add_atom_to_map (empty, []) atoms
+      let (min_representatives, queue, part) = List.fold_left add_atom_to_map (empty, [], part) atoms
       (* compute the minimal representative of all remaining edges *)
       in update_min_repr (part, map) min_representatives queue
 
@@ -495,7 +507,7 @@ module CongruenceClosure (Var : Val) = struct
       (fun (t, imap) -> if TUF.is_root part t then Some
             (List.map
                (fun (edge_z, res_t) ->
-                  (edge_z, t, TUF.find part (LMap.set_any res_t))) @@
+                  (edge_z, t, TUF.find_no_pc part (LMap.set_any res_t))) @@
              (LMap.zmap_bindings imap)) else None)
       (LMap.bindings map)
 
@@ -508,7 +520,7 @@ module CongruenceClosure (Var : Val) = struct
     let conjunctions_of_atoms =
       let atoms = SSet.get_atoms cc.set in
       List.filter_map (fun atom ->
-          let (rep_state, rep_z) = TUF.find cc.part atom in
+          let (rep_state, rep_z) = TUF.find_no_pc cc.part atom in
           let (min_state, min_z) = MRMap.find rep_state cc.min_repr in
           normalize_equality (atom, min_state, Z.(rep_z - min_z))
         ) atoms
@@ -557,50 +569,50 @@ module CongruenceClosure (Var : Val) = struct
   let rec closure (part, map, min_repr) queue = function
     | [] -> (part, map, queue, min_repr)
     | (t1, t2, r)::rest ->
-      (match TUF.find part t1, TUF.find part t2 with
-       | (v1,r1), (v2,r2) ->
-         if T.compare v1 v2 = 0 then
-           (* t1 and t2 are in the same equivalence class *)
-           if r1 = Z.(r2 + r) then closure (part, map, min_repr) queue rest
-           else raise Unsat
-         else let v, part, b = TUF.union part v1 v2 Z.(r2 - r1 + r) in (* union *)
-           (* update map *)
-           let map, rest = match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
-             | None, _, false -> map, rest
-             | None, Some _, true -> LMap.shift v1 Z.(r1-r2-r) v2 map, rest
-             | Some _, None,false -> LMap.shift v2 Z.(r2-r1+r) v1 map, rest
-             | _,None,true -> map, rest (* either v1 or v2 does not occur inside Deref *)
-             | Some imap1, Some imap2, true -> (* v1 is new root *)
-               (* zmap describes args of Deref *)
-               let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
-               let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings imap2) in
-               let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                   let rest = match LMap.zmap_find_opt r' zmap with
-                     | None -> rest
-                     | Some v'' -> (LMap.set_any v', LMap.set_any v'',Z.zero)::rest
-                   in LMap.zmap_add r' v' zmap, rest)
-                   (imap1,rest) infl2 in
-               LMap.remove v2 (LMap.add v zmap map), rest
-             | Some imap1, Some imap2, false -> (* v2 is new root *)
-               let r0 = Z.(r1-r2-r) in
-               let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap1) in
-               let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                   let rest =
-                     match LMap.zmap_find_opt r' zmap with
-                     | None -> rest
-                     | Some v'' -> (LMap.set_any v',LMap.set_any v'',Z.zero)::rest
-                   in LMap.zmap_add r' v' zmap, rest) (imap2, rest) infl1 in
-               LMap.remove v1 (LMap.add v zmap map), rest
-           in
-           (* update min_repr *)
-           let min_v1, min_v2 = LMap.find v1 min_repr, LMap.find v2 min_repr in
-           (* 'changed' is true if the new_min is different than the old min *)
-           let new_min, changed = if fst min_v1 < fst min_v2 then (fst min_v1, not b) else (fst min_v2, b) in
-           let (_, rep_v) = TUF.find part new_min in
-           let removed_v = if b then v2 else v1 in
-           let min_repr = MRMap.remove removed_v (if changed then MRMap.add v (new_min, rep_v) min_repr else min_repr) in
-           let queue = if changed then (v :: queue) else queue in
-           closure (part, map, min_repr) queue rest
+      (let v1, r1, part = TUF.find part t1 in
+       let v2, r2, part = TUF.find part t2 in
+       if T.compare v1 v2 = 0 then
+         (* t1 and t2 are in the same equivalence class *)
+         if r1 = Z.(r2 + r) then closure (part, map, min_repr) queue rest
+         else raise Unsat
+       else let v, part, b = TUF.union part v1 v2 Z.(r2 - r1 + r) in (* union *)
+         (* update map *)
+         let map, rest = match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
+           | None, _, false -> map, rest
+           | None, Some _, true -> LMap.shift v1 Z.(r1-r2-r) v2 map, rest
+           | Some _, None,false -> LMap.shift v2 Z.(r2-r1+r) v1 map, rest
+           | _,None,true -> map, rest (* either v1 or v2 does not occur inside Deref *)
+           | Some imap1, Some imap2, true -> (* v1 is new root *)
+             (* zmap describes args of Deref *)
+             let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
+             let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings imap2) in
+             let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
+                 let rest = match LMap.zmap_find_opt r' zmap with
+                   | None -> rest
+                   | Some v'' -> (LMap.set_any v', LMap.set_any v'',Z.zero)::rest
+                 in LMap.zmap_add r' v' zmap, rest)
+                 (imap1,rest) infl2 in
+             LMap.remove v2 (LMap.add v zmap map), rest
+           | Some imap1, Some imap2, false -> (* v2 is new root *)
+             let r0 = Z.(r1-r2-r) in
+             let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap1) in
+             let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
+                 let rest =
+                   match LMap.zmap_find_opt r' zmap with
+                   | None -> rest
+                   | Some v'' -> (LMap.set_any v',LMap.set_any v'',Z.zero)::rest
+                 in LMap.zmap_add r' v' zmap, rest) (imap2, rest) infl1 in
+             LMap.remove v1 (LMap.add v zmap map), rest
+         in
+         (* update min_repr *)
+         let min_v1, min_v2 = LMap.find v1 min_repr, LMap.find v2 min_repr in
+         (* 'changed' is true if the new_min is different than the old min *)
+         let new_min, changed = if fst min_v1 < fst min_v2 then (fst min_v1, not b) else (fst min_v2, b) in
+         let (_, rep_v, part) = TUF.find part new_min in
+         let removed_v = if b then v2 else v1 in
+         let min_repr = MRMap.remove removed_v (if changed then MRMap.add v (new_min, rep_v) min_repr else min_repr) in
+         let queue = if changed then (v :: queue) else queue in
+         closure (part, map, min_repr) queue rest
       )
 
   (**
@@ -617,7 +629,7 @@ module CongruenceClosure (Var : Val) = struct
   *)
   let closure cc conjs =
     let (part, map, queue, min_repr) = closure (cc.part, cc.map, cc.min_repr) [] conjs in
-    let min_repr = MRMap.update_min_repr (part, map) min_repr queue in
+    let min_repr, part = MRMap.update_min_repr (part, map) min_repr queue in
     {part = part; set = cc.set; map = map; min_repr = min_repr}
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
@@ -651,19 +663,21 @@ module CongruenceClosure (Var : Val) = struct
       Therefore it contains either one or zero elements. *)
   let rec insert_no_min_repr cc t =
     if SSet.mem t cc.set then
-      TUF.find cc.part t, cc,[]
+      let v,z,part = TUF.find cc.part t in
+      (v,z), {part = part; set = cc.set; map = cc.map; min_repr = cc.min_repr}, []
     else let set = SSet.add t cc.set in
       match t with
-      | Addr a -> let part = LMap.add t (ref (t, Z.zero),1) cc.part in
+      | Addr a -> let part = LMap.add t ((t, Z.zero),1) cc.part in
         let min_repr = LMap.add t (t, Z.zero) cc.min_repr in
         (t, Z.zero), {part = part; set = set; map = cc.map; min_repr = min_repr}, [Addr a]
       | Deref (t', z) ->
         let (v, r), cc, queue = insert_no_min_repr cc t' in
         match LMap.map_find_opt (v, Z.(r + z)) cc.map with
-        | Some v' -> TUF.find cc.part v', cc, queue (*TODO do we need thi find? I think this is the reason that the dpth is always 1?*)
+        | Some v' -> let v,z,part = TUF.find cc.part v' in
+          (v,z), {part = part; set = cc.set; map = cc.map; min_repr = cc.min_repr}, queue
         (* TODO don't we need a union here? *)
         | None -> let map = LMap.map_add (v, Z.(r + z)) t cc.map in
-          let part = LMap.add t (ref (t, Z.zero),1) cc.part in
+          let part = LMap.add t ((t, Z.zero),1) cc.part in
           let min_repr = LMap.add t (t, Z.zero) cc.min_repr in
           (t, Z.zero), {part = part; set = set; map = map; min_repr = min_repr}, queue
 
@@ -673,8 +687,8 @@ module CongruenceClosure (Var : Val) = struct
   let insert cc t =
     let v, cc, queue = insert_no_min_repr cc t in
     (* the queue has at most one element, so there is no need to sort it *)
-    let min_repr = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
-    v, {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr}
+    let min_repr, part = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
+    v, {part = part; set = cc.set; map = cc.map; min_repr = min_repr}
 
   (** Add all terms in a specific set to the data structure.
 
@@ -682,9 +696,8 @@ module CongruenceClosure (Var : Val) = struct
   let insert_set cc t_set = (* SAFE VERSION but less efficient: SSet.fold (fun t cc -> snd (insert cc t)) t_set cc*)
     let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
     (* update min_repr at the end for more efficiency *)
-    let min_repr = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
-    {part = cc.part; set = cc.set; map = cc.map; min_repr = min_repr}
-
+    let min_repr, part = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
+    {part = part; set = cc.set; map = cc.map; min_repr = min_repr}
 
   (**
      Throws "Unsat" if a contradiction is found.
@@ -768,12 +781,12 @@ module CongruenceClosure (Var : Val) = struct
           let (new_root, new_offset) = TUF.parent part t in
           let remaining_children = List.remove children new_root in
           (* update all parents of the children of t *)
-          let map_of_children = List.fold
-              (fun map_of_children child ->
+          let map_of_children, part = List.fold
+              (fun (map_of_children, part) child ->
                  (* update parent and offset *)
-                 TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t + new_offset));
-                 SSet.add_to_map_of_children child map_of_children new_root
-              ) map_of_children remaining_children in
+                 SSet.add_to_map_of_children child map_of_children new_root,
+                 TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t + new_offset))
+              ) (map_of_children, part) remaining_children in
           (* update size of equivalence class *)
           let part = TUF.change_size new_root part pred in
           (TUF.ValMap.remove t part, LMap.add t (new_root, new_offset) new_parents_map, map_of_children)
@@ -793,23 +806,24 @@ module CongruenceClosure (Var : Val) = struct
     | Some (new_parent, new_offset) ->
       match find_new_root new_parents_map part new_parent with
       | None -> None
-      | Some (r,o) -> Some (r, Z.(o + new_offset))
+      | Some (r, o, part) -> Some (r, Z.(o + new_offset), part)
 
   (** Removes all terms from the mapped values of this map,
       if they contain `var` as a subterm. *)
   let remove_subterms_from_mapped_values map var =
     LMap.filter_if map (not % SSet.is_subterm var)
 
-  (** For all the elements in the removed terms set, it moves the mapped value to the new root. *)
+  (** For all the elements in the removed terms set, it moves the mapped value to the new root.
+      Returns new map and new union-find*)
   let remove_terms_containing_variable_from_map (part, map) removed_terms_set new_parents_map =
-    let remove_from_map term map =
+    let remove_from_map term (map, part) =
       match LMap.find_opt term map with
-      | None -> map
+      | None -> map, part
       | Some _ -> (* move this entry in the map to the new representative of the equivalence class where term was before. If it still exists. *)
         match find_new_root new_parents_map part term with
-        | None -> LMap.remove term map
-        | Some (new_root, new_offset) -> LMap.shift new_root new_offset term map
-    in SSet.fold remove_from_map removed_terms_set map
+        | None -> LMap.remove term map, part
+        | Some (new_root, new_offset, part) -> LMap.shift new_root new_offset term map, part
+    in SSet.fold remove_from_map removed_terms_set (map, part)
 
   (** Remove terms from the data structure.
       It removes all terms for which "var" is a subterm,
@@ -822,9 +836,9 @@ module CongruenceClosure (Var : Val) = struct
          remove_terms_containing_variable_from_uf cc.part removed_terms_set map_of_children
     in let new_map =
          remove_subterms_from_mapped_values cc.map var
-    in let new_map =
+    in let new_map, new_part =
          remove_terms_containing_variable_from_map (new_part, new_map) removed_terms_set new_parents_map
-    in let min_repr = MRMap.compute_minimal_representatives (new_part, new_set, new_map)
+    in let min_repr, new_part = MRMap.compute_minimal_representatives (new_part, new_set, new_map)
     in {part = new_part; set = new_set; map = new_map; min_repr = min_repr}
 
 end
