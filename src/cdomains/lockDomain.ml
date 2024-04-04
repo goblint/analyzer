@@ -40,15 +40,17 @@ struct
   let name () = "lockset"
 
   let add ((addr, _) as lock) set =
-    if Addr.is_definite addr then
+    match addr with
+    | Addr.Addr mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
       add lock set
-    else
+    | _ ->
       set
 
   let remove ((addr, _) as lock) set =
-    if Addr.is_definite addr then
+    match addr with
+    | Addr.Addr mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
       remove lock set
-    else
+    | _ ->
       filter (fun (addr', _) ->
           Addr.semantic_equal addr addr' = Some false
         ) set
