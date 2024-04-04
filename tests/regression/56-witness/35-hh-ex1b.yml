@@ -1,4 +1,4 @@
-- entry_type: location_invariant
+- entry_type: loop_invariant
   metadata:
     format_version: "0.1"
     uuid: 1a354f1e-76e8-40e9-808a-8d5efbe35496
@@ -17,9 +17,9 @@
     file_name: 35-hh-ex1b.c
     file_hash: 9fe07d5f950140350848bae4342d9d1b7c6c9f625f6985746089a36a37243600
     line: 7
-    column: 2
+    column: 4
     function: main
-  location_invariant:
+  loop_invariant:
     string: 0 <= i && i <= 99
     type: assertion
     format: C
