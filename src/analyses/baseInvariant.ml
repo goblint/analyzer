@@ -208,16 +208,17 @@ struct
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
-        (match eval_rv ~ctx st (Lval x) with
-         | Int v ->
-           (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
-             * If there is one domain that knows this to be true and the other does not, we
-             * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
-           if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
-             derived_invariant (BinOp (op, Lval x, rval, typ)) tv
-           else
-            `NotUnderstood
-         | _ -> `NotUnderstood)
+        begin match eval_rv ~ctx st (Lval x) with
+          | Int v ->
+            (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
+               If there is one domain that knows this to be true and the other does not, we
+               should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
+            if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
+              derived_invariant (BinOp (op, Lval x, rval, typ)) tv
+            else
+              `NotUnderstood
+          | _ -> `NotUnderstood
+        end
       | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
