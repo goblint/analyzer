@@ -786,8 +786,14 @@ struct
         | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
           (match eval e st with
            | Int i ->
-             if ID.leq i (ID.cast_to ik i) then
-               match unrollType (Cilfacade.typeOf e) with
+             let cinterval = ID.cast_to ik i in
+             let cl, cu = ID.minimal cinterval, ID.maximal cinterval in
+             let l, u = ID.minimal i, ID.maximal i in
+             (match cl,cu,l,u with
+              | Some cl, Some cu, Some l, Some u when Z.leq cl l && Z.leq u cu ->
+                (* Checking that the maximal and minimal values still fit instead of checking leq which may fail if one domain is *)
+                (* imprecise, e.g., DefExc *)
+                (match unrollType (Cilfacade.typeOf e) with
                | TInt(ik_e, _)
                | TEnum ({ekind = ik_e; _ }, _) ->
                  (* let c' = ID.cast_to ik_e c in *)
@@ -796,9 +802,9 @@ struct
                  let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
                  if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                  inv_exp (Int c') e st
-               | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
-             else
-               fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+               | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
+              | _ ->
+                fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st)
            | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
         | e, _ -> fallback (fun () -> Pretty.dprintf "%a not implemented" d_plainexp e) st
     in
