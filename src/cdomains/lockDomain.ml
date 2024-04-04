@@ -39,11 +39,9 @@ struct
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
-  let may_be_same_offset of1 of2 =
+  let may_be_same_offset mv1 mv2 =
     (* Only reached with definite of2 and indefinite of1. *)
-    (* TODO: Currently useless, because MayPointTo query doesn't return index offset ranges, so not enough information to ever return false. *)
-    (* TODO: Use Addr.Offs.semantic_equal. *)
-    true
+    Addr.Mval.semantic_equal mv1 mv2 <> Some false
 
   let add (addr,rw) set =
     match (Addr.to_mval addr) with
@@ -53,7 +51,7 @@ struct
   let remove (addr,rw) set =
     let collect_diff_varinfo_with (vi,os) (addr,rw) =
       match (Addr.to_mval addr) with
-      | Some (v,o) when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
+      | Some (v,o) when CilType.Varinfo.equal vi v -> not (may_be_same_offset (v,o) (vi,os))
       | Some (v,o) -> true
       | None -> false
     in
