@@ -559,7 +559,16 @@ struct
       | FunctionEntry _ -> ["shape=box"]
     in
     let styles = String.concat "," (label @ shape @ extraNodeStyles n) in
-    Format.fprintf out ("\t%a [%s];\n") p_node n styles
+    Format.fprintf out ("\t%a [%s];\n") p_node n styles;
+    match n with
+    | Statement s when get_bool "dbg.cfg.loop-unrolling" ->
+      begin match LoopUnrolling0.find_copyof s with
+        | Some s' ->
+          let n' = Statement s' in
+          Format.fprintf out "\t%a -> %a [style=dotted];\n" p_node n p_node n'
+        | None -> ()
+      end
+    | _ -> ()
 end
 
 let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =

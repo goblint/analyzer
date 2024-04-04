@@ -1,12 +1,31 @@
+open Goblint_lib
+
+let usage_msg = "cfgDot [--unroll <n>] <file>"
+
+let files = ref []
+let unroll = ref 0
+
+let anon_fun filename =
+  files := filename :: !files
+
+let speclist = [
+  ("--unroll", Arg.Set_int unroll, "Unroll loops");
+]
+
 let main () =
   Goblint_logs.Logs.Level.current := Info;
   Cilfacade.init ();
+  GobConfig.set_bool "dbg.cfg.loop-unrolling" true;
+  GobConfig.set_int "exp.unrolling-factor" !unroll;
 
-  let ast = Cilfacade.getAST (Fpath.v Sys.argv.(1)) in
+  assert (List.length !files = 1);
+  let ast = Cilfacade.getAST (Fpath.v (List.hd !files)) in
   CilCfg0.end_basic_blocks ast;
   (* Part of CilCfg.createCFG *)
   GoblintCil.iterGlobals ast (function
       | GFun (fd, _) ->
+        if !unroll > 0 then
+          LoopUnrolling.unroll_loops fd (-1);
         GoblintCil.prepareCFG fd;
         GoblintCil.computeCFGInfo fd true
       | _ -> ()
@@ -52,4 +71,6 @@ let main () =
       | _ -> ()
     )
 
-let () = main ()
+let () =
+  Arg.parse speclist anon_fun usage_msg;
+  main ()
