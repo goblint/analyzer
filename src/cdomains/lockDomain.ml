@@ -39,26 +39,19 @@ struct
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
-  let may_be_same_offset mv1 mv2 =
-    (* Only reached with definite of2 and indefinite of1. *)
-    Addr.Mval.semantic_equal mv1 mv2 <> Some false
+  let add ((addr, _) as lock) set =
+    if Addr.is_definite addr then
+      add lock set
+    else
+      set
 
-  let add (addr,rw) set =
-    match (Addr.to_mval addr) with
-    | Some (_,x) when Offs.is_definite x -> add (addr,rw) set
-    | _ -> set
-
-  let remove (addr,rw) set =
-    let collect_diff_varinfo_with (vi,os) (addr,rw) =
-      match (Addr.to_mval addr) with
-      | Some (v,o) when CilType.Varinfo.equal vi v -> not (may_be_same_offset (v,o) (vi,os))
-      | Some (v,o) -> true
-      | None -> false
-    in
-    match (Addr.to_mval addr) with
-    | Some (_,x) when Offs.is_definite x -> remove (addr,rw) set
-    | Some x -> filter (collect_diff_varinfo_with x) set
-    | _   -> top ()
+  let remove ((addr, _) as lock) set =
+    if Addr.is_definite addr then
+      remove lock set
+    else
+      filter (fun (addr', _) ->
+          Addr.semantic_equal addr addr' = Some false
+        ) set
 
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in
