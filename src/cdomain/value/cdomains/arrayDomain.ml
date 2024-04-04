@@ -1817,7 +1817,7 @@ struct
 
   let delegate_if_no_nullbytes (a, n) ffull fa =
     if get_bool "ana.base.arrays.nullbytes" then
-      ffull (a,n)
+      ffull (a, n)
     else
       fa a
 
