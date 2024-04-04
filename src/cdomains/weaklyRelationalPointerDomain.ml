@@ -60,8 +60,6 @@ module D : Lattice.S = struct
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.part
 
-  let leq x y = false
-
   let join a b = a
   let widen = join
 
@@ -74,6 +72,7 @@ module D : Lattice.S = struct
       | res -> Some res
       | exception Unsat -> None
 
+  let leq x y = equal (meet x y) x
 
   let narrow = meet
 
