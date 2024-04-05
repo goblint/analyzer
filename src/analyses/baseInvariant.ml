@@ -210,10 +210,7 @@ struct
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
         begin match eval_rv ~ctx st (Lval x) with
           | Int v ->
-            (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
-               If there is one domain that knows this to be true and the other does not, we
-               should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
-            if VD.is_statically_safe_cast t1 (Cilfacade.typeOfLval x) then
+            if VD.is_dynamically_safe_cast t1 (Cilfacade.typeOfLval x) (Int v) then
               derived_invariant (BinOp (op, Lval x, rval, typ)) tv
             else
               `NotUnderstood
