@@ -75,18 +75,22 @@ let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThres
 type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
-  let signed = Cil.isSigned ik in
-  if !AnalysisState.postsolving && signed && not cast then
-    AnalysisState.svcomp_may_overflow := true;
-  let sign = if signed then "Signed" else "Unsigned" in
-  match underflow, overflow with
-  | true, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-  | true, false ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
-  | false, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-  | false, false -> assert false
+  if !AnalysisState.executing_speculative_computations then
+    (* Do not produce warnings when the operations are not actually happening in code *)
+    ()
+  else
+    let signed = Cil.isSigned ik in
+    if !AnalysisState.postsolving && signed && not cast then
+      AnalysisState.svcomp_may_overflow := true;
+    let sign = if signed then "Signed" else "Unsigned" in
+    match underflow, overflow with
+    | true, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
+    | true, false ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+    | false, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
+    | false, false -> assert false
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
