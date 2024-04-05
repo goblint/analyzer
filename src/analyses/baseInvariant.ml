@@ -263,8 +263,6 @@ struct
       let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
       let meet_com oi = (* commutative *)
         try
-          M.tracel "invvvho" "start inv op:%a c:%a b:%a a:%a (oi c b): %a" d_binop op ID.pretty c ID.pretty b ID.pretty a ID.pretty (oi c b);
-          M.tracel "invvvho" "meet_com: %a %a\n" ID.pretty (oi c b) ID.pretty (oi c a);
           meet_bin (oi c b) (oi c a)
         with
           IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode in
