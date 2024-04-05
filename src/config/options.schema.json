@@ -752,9 +752,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
@@ -2487,6 +2487,12 @@
               "description": "Emit non-standard Goblint-specific invariants. Currently array invariants with all_index offsets.",
               "type": "boolean",
               "default": false
+            },
+            "typedefs": {
+              "title": "witness.invariant.typedefs",
+              "description": "Emit invariants with typedef-ed types (e.g. in casts). Our validator cannot parse these.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false

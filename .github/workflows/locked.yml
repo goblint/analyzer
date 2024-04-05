@@ -62,7 +62,7 @@ jobs:
         if: always()
         with:
           name: suite_result-${{ matrix.os }}
-          path: tests/suite_result/
+          path: _build/default/tests/suite_result/
 
   extraction:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
