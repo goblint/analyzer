@@ -24,8 +24,6 @@ end
 module UnionFind (Val: Val)  = struct
   module ValMap = ValMap(Val)
 
-  let hash_ref x y = 3
-
   (** (value * offset) ref * size of equivalence class *)
   type 'v node = ('v * Z.t) * int [@@deriving eq, ord, hash]
 
@@ -196,6 +194,7 @@ module UnionFind (Val: Val)  = struct
       s ^ List.fold_left (fun s (v, (refv, size)) ->
           s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "; Parent: " ^ Val.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^"\n") "" eq_class
       ^ "\n") "" (get_eq_classes uf) ^ "\n"
+
 
 end
 
@@ -511,7 +510,8 @@ module CongruenceClosure (Var : Val) = struct
              (LMap.zmap_bindings imap)) else None)
       (LMap.bindings map)
 
-  (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata) *)
+  (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
+     Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
   (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
   let get_normal_form cc =
     let normalize_equality (t1, t2, z) =
@@ -666,20 +666,19 @@ module CongruenceClosure (Var : Val) = struct
       let v,z,part = TUF.find cc.part t in
       (v,z), {part = part; set = cc.set; map = cc.map; min_repr = cc.min_repr}, []
     else let set = SSet.add t cc.set in
+      let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
       match t with
-      | Addr a -> let part = LMap.add t ((t, Z.zero),1) cc.part in
-        let min_repr = LMap.add t (t, Z.zero) cc.min_repr in
+      | Addr a -> let part = TUF.ValMap.add t ((t, Z.zero),1) cc.part in
         (t, Z.zero), {part = part; set = set; map = cc.map; min_repr = min_repr}, [Addr a]
       | Deref (t', z) ->
         let (v, r), cc, queue = insert_no_min_repr cc t' in
         match LMap.map_find_opt (v, Z.(r + z)) cc.map with
-        | Some v' -> let v,z,part = TUF.find cc.part v' in
-          (v,z), {part = part; set = cc.set; map = cc.map; min_repr = cc.min_repr}, queue
-        (* TODO don't we need a union here? *)
+        | Some v' -> let v2,z2,part = TUF.find cc.part v' in
+          let part = LMap.add t ((t, Z.zero),1) part in
+          (v2,z2), closure {part = part; set = set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr = min_repr} [(t, v', Z.zero)], v::queue
         | None -> let map = LMap.map_add (v, Z.(r + z)) t cc.map in
           let part = LMap.add t ((t, Z.zero),1) cc.part in
-          let min_repr = LMap.add t (t, Z.zero) cc.min_repr in
-          (t, Z.zero), {part = part; set = set; map = map; min_repr = min_repr}, queue
+          (t, Z.zero), {part = part; set = set; map = map; min_repr = min_repr}, v::queue
 
   (** Add a term to the data structure.
 
