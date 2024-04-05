@@ -360,7 +360,7 @@ struct
       true
     else
       match t2, t1, v with
-      | TInt (ik2,_), TInt (ik1,_), Int v ->
+      | (TInt (ik2,_) | TEnum ({ekind=ik2; _},_)) , (TInt (ik1,_) | TEnum ({ekind=ik1; _},_)), Int v ->
         let cinterval = ID.cast_to ik2 v in
         let cl, cu = ID.minimal cinterval, ID.maximal cinterval in
         let l, u = ID.minimal v, ID.maximal v in
