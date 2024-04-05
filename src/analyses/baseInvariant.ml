@@ -205,7 +205,7 @@ struct
       (* Since we handle not only equalities, the order is important *)
       | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~ctx st rval)) tv
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
-      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2)
+      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
         (match eval_rv ~ctx st (Lval x) with
@@ -213,7 +213,7 @@ struct
            (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
              * If there is one domain that knows this to be true and the other does not, we
              * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
-           if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
+           if VD.is_statically_safe_cast t1 (Cilfacade.typeOfLval x) then
              derived_invariant (BinOp (op, Lval x, rval, typ)) tv
            else
              None
@@ -256,6 +256,8 @@ struct
       let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
       let meet_com oi = (* commutative *)
         try
+          M.tracel "invvvho" "start inv op:%a c:%a b:%a a:%a (oi c b): %a" d_binop op ID.pretty c ID.pretty b ID.pretty a ID.pretty (oi c b);
+          M.tracel "invvvho" "meet_com: %a %a\n" ID.pretty (oi c b) ID.pretty (oi c a);
           meet_bin (oi c b) (oi c a)
         with
           IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode in
@@ -584,8 +586,8 @@ struct
           )
         | UnOp (Neg, e, _), Float c -> inv_exp (unop_FD Neg c) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
-        (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)
-        | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
+        (* no equivalent for Float, as VD.is_statically_safe_cast fails for all float types anyways *)
+        | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) ->
           inv_exp (Int c) (BinOp (op, e1, e2, t)) st
         | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
           (* copied & modified from eval_rv_base... *)
@@ -593,7 +595,7 @@ struct
           (* split nested LOr Eqs to equality pairs, if possible *)
           let rec split = function
             (* copied from above to support pointer equalities with implicit casts inserted *)
-            | BinOp (Eq, CastE (t1, e1), CastE (t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
+            | BinOp (Eq, CastE (t1, e1), CastE (t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
               Some [(e1, e2)]
             | BinOp (Eq, arg1, arg2, _) ->
               Some [(arg1, arg2)]
@@ -786,25 +788,19 @@ struct
         | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
           (match eval e st with
            | Int i ->
-             let cinterval = ID.cast_to ik i in
-             let cl, cu = ID.minimal cinterval, ID.maximal cinterval in
-             let l, u = ID.minimal i, ID.maximal i in
-             (match cl,cu,l,u with
-              | Some cl, Some cu, Some l, Some u when Z.leq cl l && Z.leq u cu ->
-                (* Checking that the maximal and minimal values still fit instead of checking leq which may fail if one domain is *)
-                (* imprecise, e.g., DefExc *)
-                (match unrollType (Cilfacade.typeOf e) with
-               | TInt(ik_e, _)
-               | TEnum ({ekind = ik_e; _ }, _) ->
-                 (* let c' = ID.cast_to ik_e c in *)
-                 (* Suppressing overflow warnings as this is not a computation that comes from the program *)
-                 let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
-                 let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
-                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-                 inv_exp (Int c') e st
-               | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
-              | _ ->
-                fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st)
+             (match unrollType (Cilfacade.typeOf e) with
+              | (TInt(ik_e, _) as t')
+              | (TEnum ({ekind = ik_e; _ }, _) as t') ->
+                if VD.is_dynamically_safe_cast t t' (Int i) then
+                  (* let c' = ID.cast_to ik_e c in *)
+                  (* Suppressing overflow warnings as this is not a computation that comes from the program *)
+                  let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
+                  let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                  if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                  inv_exp (Int c') e st
+                else
+                  fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+              | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
            | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
         | e, _ -> fallback (fun () -> Pretty.dprintf "%a not implemented" d_plainexp e) st
     in
