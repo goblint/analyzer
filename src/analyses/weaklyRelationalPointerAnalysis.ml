@@ -18,7 +18,7 @@ struct
    | Some t ->
     match D.T.from_lval lval, D.T.from_cil expr with
     | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
-      D.meet_conjs_opt t [Equal (lterm, term, offset)]
+      D.meet_conjs_opt (D.insert_set (D.remove_terms_containing_variable t lterm) (D.SSet.TSet.of_list [lterm; term])) [Equal (lterm, term, offset)]
     | _ -> Some t
 
 end

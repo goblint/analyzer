@@ -733,12 +733,13 @@ module CongruenceClosure (Var : Val) = struct
       let v,z,part = TUF.find cc.part t in
       (v,z), {part = part; set = cc.set; map = cc.map; min_repr = cc.min_repr}, []
     else let set = SSet.add t cc.set in
-      let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
       match t with
       | Addr a -> let part = TUF.ValMap.add t ((t, Z.zero),1) cc.part in
+        let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         (t, Z.zero), {part = part; set = set; map = cc.map; min_repr = min_repr}, [Addr a]
       | Deref (t', z) ->
         let (v, r), cc, queue = insert_no_min_repr cc t' in
+        let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         match LMap.map_find_opt (v, Z.(r + z)) cc.map with
         | Some v' -> let v2,z2,part = TUF.find cc.part v' in
           let part = LMap.add t ((t, Z.zero),1) part in
