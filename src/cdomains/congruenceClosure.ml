@@ -1,6 +1,7 @@
 (** OCaml implementation of a quantitative congruence closure. *)
 
 open Batteries
+open GoblintCil
 
 module type Val = sig
   type t
@@ -286,7 +287,7 @@ end
 exception Unsat
 
 type 'v term = Addr of 'v | Deref of 'v term * Z.t [@@deriving eq, ord, hash]
-type 'v prop = Eq of 'v term * 'v term * Z.t | Neq of 'v term * 'v term * Z.t [@@deriving eq, ord, hash]
+type 'v prop = Equal of 'v term * 'v term * Z.t | Nequal of 'v term * 'v term * Z.t [@@deriving eq, ord, hash]
 
 module Term(Var:Val) = struct
   type t = Var.t term [@@deriving eq, ord, hash]
@@ -297,12 +298,77 @@ module Term(Var:Val) = struct
     | Deref (Addr v, z) when Z.equal z Z.zero -> Var.show v
     | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
     | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
+
+  (**Returns an integer from a cil expression and None if the expression is not an integer. *)
+  let rec z_from_exp = function
+    | Const (CInt (i, _, _)) -> Some i
+    | UnOp _
+    | BinOp _-> (*because we performed constant folding*)None
+    | _ -> None
+
+  (**Returns an integer from a cil offset and None if the offset is not an integer. *)
+  let rec from_offset = function
+    | NoOffset -> Some Z.zero
+    | Field (fieldinfo, offset) -> (*TODO... ?*)None
+    | Index (exp, offset) -> match z_from_exp exp, from_offset offset with
+      | Some c1, Some c2 -> Some Z.(c1 + c2)
+      | _ -> None
+
+  (**Returns Some term, Some offset or None, None if the expression can't be described with our analysis.*)
+  let rec from_cil = function
+    | Const c -> None, z_from_exp (Const c)
+    | Lval lval -> from_lval lval
+    | AlignOf _
+    | AlignOfE _
+    | StartOf _ -> (*no idea*) None, None
+    | AddrOf (Var var, NoOffset) -> Some (Addr var), Some Z.zero
+    | AddrOf (Mem exp, NoOffset) -> from_cil exp
+    | UnOp (op,exp,typ)-> begin match op with
+        | Neg -> begin  match from_cil exp with
+            | None, Some off -> None, Some Z.(-off)
+            | _ -> None, None
+          end
+        | _ -> None, None
+      end
+    | BinOp (binop, exp1, exp2, typ)-> begin match binop with
+        | PlusA
+        | PlusPI
+        | IndexPI -> begin match from_cil exp1, from_cil exp2 with
+            | (None, Some off1), (Some term, Some off2)
+            | (Some term, Some off1), (None, Some off2) -> Some term, Some Z.(off1 + off2)
+            | _ -> None, None
+          end
+        | MinusA
+        | MinusPI
+        | MinusPP  -> begin match from_cil exp1, from_cil exp2 with
+            | (Some term, Some off1), (None, Some off2) -> Some term, Some Z.(off1 - off2)
+            | _ -> None, None
+          end
+        | Eq -> None, None
+        | Ne -> None, None
+        | _ -> None, None
+      end
+    | CastE (typ, exp)-> (*TODO*)None, None
+    | AddrOf lval -> (*TODO*)None, None
+    | _ -> None, None
+  and from_lval = function
+    | (Var var, offset) -> begin match from_offset offset with
+        | None -> None, None
+        | Some off -> Some (Deref (Addr var, Z.zero)), Some off
+      end
+    | (Mem exp, offset) ->
+      begin match from_cil exp, from_offset offset with
+        | (Some term, Some offset), Some z_offset -> Some (Deref (term, offset)), Some z_offset
+        | _ -> None, None
+      end
+
+  let from_cil = from_cil % Cil.constFold false
+
+
 end
 
 (** Quantitative congruence closure on terms *)
 module CongruenceClosure (Var : Val) = struct
-
-
   module T = Term(Var)
 
   module TUF = UnionFind (T)
@@ -336,8 +402,8 @@ module CongruenceClosure (Var : Val) = struct
         subterms_of_term (set, map) t'
 
     let subterms_of_prop (set,map) = function
-      | Eq (t1,t2,_)
-      | Neq (t1,t2,_) -> subterms_of_term (subterms_of_term (set,map) t1) t2
+      | Equal (t1,t2,_)
+      | Nequal (t1,t2,_) -> subterms_of_term (subterms_of_term (set,map) t1) t2
 
     let subterms_of_conj list = List.fold_left subterms_of_prop (TSet.empty, LMap.empty) list
 
@@ -490,10 +556,10 @@ module CongruenceClosure (Var : Val) = struct
   [@@deriving eq, ord]
 
   let string_of_prop = function
-    | Eq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
-    | Eq (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
-    | Neq (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " != " ^ T.show t2
-    | Neq (t1,t2,r) -> T.show t1 ^ " != " ^ Z.to_string r ^ "+" ^ T.show t2
+    | Equal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
+    | Equal (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
+    | Nequal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " != " ^ T.show t2
+    | Nequal (t1,t2,r) -> T.show t1 ^ " != " ^ Z.to_string r ^ "+" ^ T.show t2
 
   let show_conj list = List.fold_left
       (fun s d -> s ^ "\t" ^ string_of_prop d ^ "\n") "" list
@@ -516,7 +582,7 @@ module CongruenceClosure (Var : Val) = struct
   let get_normal_form cc =
     let normalize_equality (t1, t2, z) =
       if t1 = t2 && Z.(compare z zero) = 0 then None else
-        Some (Eq (t1, t2, z)) in
+        Some (Equal (t1, t2, z)) in
     let conjunctions_of_atoms =
       let atoms = SSet.get_atoms cc.set in
       List.filter_map (fun atom ->
@@ -626,6 +692,7 @@ module CongruenceClosure (Var : Val) = struct
 
      - `min_repr` maps each equivalence class to its minimal representative.
 
+      Throws "Unsat" if a contradiction is found.
   *)
   let closure cc conjs =
     let (part, map, queue, min_repr) = closure (cc.part, cc.map, cc.min_repr) [] conjs in
@@ -635,8 +702,8 @@ module CongruenceClosure (Var : Val) = struct
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
       and the second one contains all inequality propositions.  *)
   let split conj = List.fold_left (fun (pos,neg) -> function
-      | Eq (t1,t2,r) -> ((t1,t2,r)::pos,neg)
-      | Neq(t1,t2,r) -> (pos,(t1,t2,r)::neg)) ([],[]) conj
+      | Equal (t1,t2,r) -> ((t1,t2,r)::pos,neg)
+      | Nequal(t1,t2,r) -> (pos,(t1,t2,r)::neg)) ([],[]) conj
 
   (** Throws Unsat if the congruence is unsatisfiable.*)
   let init_congruence conj =
@@ -704,6 +771,11 @@ module CongruenceClosure (Var : Val) = struct
   let meet_conjs cc conjs =
     let cc = insert_set cc (fst (SSet.subterms_of_conj conjs)) in
     closure cc (fst (split conjs))
+
+  let meet_conjs_opt cc conjs =
+    match meet_conjs cc conjs with
+    | exception Unsat -> None
+    | t -> Some t
 
   (**
      Returns true if t1 and t2 are equivalent.

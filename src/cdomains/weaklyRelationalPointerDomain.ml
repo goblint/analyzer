@@ -3,16 +3,18 @@
 open Batteries
 open GoblintCil
 open CongruenceClosure
+module Var = CilType.Varinfo
 
+(*
 module Var: Val = struct
   type t = varinfo
   let compare = compare (* TODO *)
   let show v = v.vname (* TODO *)
   let hash x = 3 (* TODO *)
   let equal x y = (x = y) (* TODO *)
-end
+end *)
 
-module D : Lattice.S = struct
+module D = struct
 
   include Printable.StdLeaf
   include CongruenceClosure(Var)

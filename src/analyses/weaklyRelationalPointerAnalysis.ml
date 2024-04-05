@@ -1,4 +1,4 @@
-(** A Weakly-Relational Pointer Analysis.. *)
+(** A Weakly-Relational Pointer Analysis..([wrpointer])*)
 
 (** TODO description *)
 
@@ -8,20 +8,36 @@
 open Analyses
 open WeaklyRelationalPointerDomain
 
+module Operations =
+struct
+  include CongruenceClosure
+  module D = D
+  let assign (t:D.domain) lval expr =
+   match t with
+   | None -> None
+   | Some t ->
+    match D.T.from_lval lval, D.T.from_cil expr with
+    | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
+      D.meet_conjs_opt t [Equal (lterm, term, offset)]
+    | _ -> Some t
+
+end
+
 (* module M = Messages
    module VS = SetDomain.Make (CilType.Varinfo) *)
-module Spec : Spec =
+module Spec : MCPSpec =
 struct
   include DefaultSpec
-  module D = D
+  include Operations
   module C = D
 
   let name () = "wrpointer"
-
   let startstate v = D.top()
-
   let exitstate v = D.top()
-  let assign ctx var expr = D.top()
+
+  let assign ctx var expr =
+    assign ctx.local var expr
+
   let branch ctx expr neg = D.top()
 
   let body ctx f = D.top()
