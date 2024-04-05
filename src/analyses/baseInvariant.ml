@@ -115,7 +115,7 @@ struct
   let invariant_fallback ctx st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
-    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): (lval * VD.t) option =
+    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): [> `Refine of lval * VD.t | `NotUnderstood] =
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
@@ -123,8 +123,8 @@ struct
         (match value with
          | Int n ->
            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-           Some (x, Int (ID.cast_to ikind n))
-         | _ -> Some(x, value))
+           `Refine (x, Int (ID.cast_to ikind n))
+         | _ -> `Refine (x, value))
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
           match value with
@@ -134,26 +134,26 @@ struct
                 (* When x != n, we can return a singleton exclusion set *)
                 if M.tracing then M.tracec "invariant" "Yes, %a is not %a" d_lval x GobZ.pretty n;
                 let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-                Some (x, Int (ID.of_excl_list ikind [n]))
-              | None -> None
+                `Refine (x, Int (ID.of_excl_list ikind [n]))
+              | None -> `NotUnderstood
             end
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a" d_lval x AD.pretty n;
               match eval_rv_address ~ctx st (Lval x) with
               | Address a when AD.is_definite n ->
-                Some (x, Address (AD.diff a n))
+                `Refine (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
-                Some (x, Address AD.not_null)
+                `Refine (x, Address AD.not_null)
               | v ->
                 if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a" VD.pretty v AD.pretty n;
-                None
+                `NotUnderstood
             end
-          (* | Address a -> Some (x, value) *)
+          (* | Address a -> `Refine (x, value) *)
           | _ ->
             (* We can't say anything else, exclusion sets are finite, so not
              * being in one means an infinite number of values *)
             if M.tracing then M.tracec "invariant" "Failed! (not a definite value)";
-            None
+            `NotUnderstood
         end
       | Ne, x, value, _ -> helper Eq x value (not tv)
       | Lt, x, value, _ -> begin
@@ -166,10 +166,10 @@ struct
               match limit_from n with
               | Some n ->
                 if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a" d_lval x GobZ.pretty n;
-                Some (x, Int (range_from n))
-              | None -> None
+                `Refine (x, Int (range_from n))
+              | None -> `NotUnderstood
             end
-          | _ -> None
+          | _ -> `NotUnderstood
         end
       | Le, x, value, _ -> begin
           match value with
@@ -181,16 +181,16 @@ struct
               match limit_from n with
               | Some n ->
                 if M.tracing then M.tracec "invariant" "Yes, success! %a is not %a" d_lval x GobZ.pretty n;
-                Some (x, Int (range_from n))
-              | None -> None
+                `Refine (x, Int (range_from n))
+              | None -> `NotUnderstood
             end
-          | _ -> None
+          | _ -> `NotUnderstood
         end
       | Gt, x, value, _ -> helper Le x value (not tv)
       | Ge, x, value, _ -> helper Lt x value (not tv)
       | _ ->
         if M.tracing then M.trace "invariant" "Failed! (operation not supported)";
-        None
+        `NotUnderstood
     in
     if M.tracing then M.traceli "invariant" "assume expression %a is %B" d_exp exp tv;
     let null_val (typ:typ):VD.t =
@@ -199,7 +199,7 @@ struct
       | TEnum({ekind=_;_},_)
       | _                         -> Int (ID.of_int (Cilfacade.get_ikind typ) Z.zero)
     in
-    let rec derived_invariant exp tv =
+    let rec derived_invariant exp tv: [`Refine of lval * VD.t | `NothingToRefine | `NotUnderstood] =
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
@@ -208,18 +208,22 @@ struct
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
-        (match eval_rv ~ctx st (Lval x) with
-         | Int v ->
-           (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
-             * If there is one domain that knows this to be true and the other does not, we
-             * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
-           if VD.is_statically_safe_cast t1 (Cilfacade.typeOfLval x) then
-             derived_invariant (BinOp (op, Lval x, rval, typ)) tv
-           else
-             None
-         | _ -> None)
+        begin match eval_rv ~ctx st (Lval x) with
+          | Int v ->
+            (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
+               If there is one domain that knows this to be true and the other does not, we
+               should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
+            if VD.is_statically_safe_cast t1 (Cilfacade.typeOfLval x) then
+              derived_invariant (BinOp (op, Lval x, rval, typ)) tv
+            else
+              `NotUnderstood
+          | _ -> `NotUnderstood
+        end
       | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
+      | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
+        (* This is last such that we never reach here with rval being Lval (it is swapped around). *)
+        `NothingToRefine
       (* Cases like if (x) are treated like if (x != 0) *)
       | Lval x ->
         (* There are two correct ways of doing it: "if ((int)x != 0)" or "if (x != (typeof(x))0))"
@@ -228,12 +232,15 @@ struct
       | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
       | _ ->
         if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)" d_plainexp exp;
-        None
+        `NotUnderstood
     in
     match derived_invariant exp tv with
-    | Some (lval, value) ->
+    | `Refine (lval, value) ->
       refine_lv_fallback ctx st lval value tv
-    | None ->
+    | `NothingToRefine ->
+      if M.tracing then M.traceu "invariant" "Nothing to refine.";
+      st
+    | `NotUnderstood ->
       if M.tracing then M.traceu "invariant" "Doing nothing.";
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st

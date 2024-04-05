@@ -132,13 +132,7 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
-(** Type of CFG "edges": keyed by 'from' and 'to' nodes,
-    along with the list of connecting instructions. *)
-module CfgEdge = struct
-  type t = Node.t * MyCFG.edges * Node.t [@@deriving eq, hash]
-end
 
-module CfgEdgeH = BatHashtbl.Make (CfgEdge)
 
 let createCFG (file: file) =
   let cfgF = H.create 113 in
@@ -254,7 +248,7 @@ let createCFG (file: file) =
         let pseudo_return = lazy (
           if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s." fd.svar.vname;
           let fd_end_loc = {fd_loc with line = fd_loc.endLine; byte = fd_loc.endByte; column = fd_loc.endColumn} in
-          let newst = mkStmt (Return (None, fd_end_loc)) in
+          let newst = mkStmt (Return (None, fd_end_loc, locUnknown)) in
           newst.sid <- Cilfacade.get_pseudo_return_id fd;
           Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
           Cilfacade.IntH.replace Cilfacade.pseudo_return_stmt_sids newst.sid newst;
@@ -340,8 +334,8 @@ let createCFG (file: file) =
             (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
             failwith "MyCFG.createCFG: unprepared Loop"
 
-          | Return (exp, loc) ->
-            addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
+          | Return (exp, loc, eloc) ->
+            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Ret (exp, fd)) (Function fd)
 
           | Goto (_, loc) ->
             (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
@@ -617,7 +611,7 @@ let fprint_hash_dot cfg  =
   close_out out
 
 
-let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
+let getCFG (file: file) : cfg * cfg * _ =
   let cfgF, cfgB, skippedByEdge = createCFG file in
   let cfgF, cfgB, skippedByEdge =
     if get_bool "exp.mincfg" then
@@ -626,13 +620,11 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
       (cfgF, cfgB, skippedByEdge)
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
-  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
+  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), (fun u e v -> CfgEdgeH.find skippedByEdge (u, e, v))
 
-let compute_cfg_skips file =
+let compute_cfg file =
   let cfgF, cfgB, skippedByEdge = getCFG file in
-  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
-
-let compute_cfg file = fst (compute_cfg_skips file)
+  (module struct let prev = cfgB let next = cfgF let skippedByEdge = skippedByEdge end : CfgBidirSkip)
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =

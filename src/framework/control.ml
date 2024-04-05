@@ -20,26 +20,28 @@ let spec_module: (module Spec) Lazy.t = lazy (
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
-  let module S1 = (val
-            (module MCP.MCP2 : Spec)
-            |> lift true (module WidenContextLifterSide) (* option checked in functor *)
-            (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-            |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
-            |> lift arg_enabled (module HashconsLifter)
-            |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
-            |> lift (not arg_enabled) (module PathSensitive2)
-            |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
-            |> lift true (module DeadCodeLifter)
-            |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-            |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
-            |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
-            |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
-            (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
-               Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
-            |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
-            |> lift true (module LongjmpLifter)
-            |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
-          ) in
+  let module S1 =
+    (val
+      (module MCP.MCP2 : Spec)
+      |> lift true (module WidenContextLifterSide) (* option checked in functor *)
+      (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
+      |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+      |> lift arg_enabled (module HashconsLifter)
+      |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
+      |> lift (not arg_enabled) (module PathSensitive2)
+      |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
+      |> lift true (module DeadCodeLifter)
+      |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
+      |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
+      |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
+      |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
+      (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
+         Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
+      |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
+      |> lift true (module LongjmpLifter)
+      |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
+    )
+  in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
   (module S1)
@@ -54,7 +56,7 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ 
 let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
-module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
+module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
 struct
 
   module SpecSys: SpecSys with module Spec = Spec =
@@ -230,7 +232,7 @@ struct
     res
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) skippedByEdge =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) =
     let module FileCfg: FileCfg =
     struct
       let file = file
@@ -321,12 +323,12 @@ struct
           Spec.body {ctx with local = st} func
         | MyCFG.Assign (lval,exp) ->
           if M.tracing then M.trace "global_inits" "Assign %a = %a" d_lval lval d_exp exp;
-          (match lval, exp with
+          begin match lval, exp with
             | (Var v,o), (AddrOf (Var f,NoOffset))
               when v.vstorage <> Static && isFunctionType f.vtype ->
               (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
-          );
+          end;
           let res = Spec.assign {ctx with local = st} lval exp in
           (* Needed for privatizations (e.g. None) that do not side immediately *)
           let res' = Spec.sync {ctx with local = res} `Normal in
@@ -546,9 +548,9 @@ struct
             GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
             let module Meta = struct
-                type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GobSys.command_line; version = Goblint_build_info.version; timestamp = Unix.time (); localtime = GobUnix.localtime () }
-              end
+              type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
+              let json = to_yojson { command = GobSys.command_line; version = Goblint_build_info.version; timestamp = Unix.time (); localtime = GobUnix.localtime () }
+            end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
             Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
@@ -598,10 +600,10 @@ struct
       in
       let print_and_calculate_uncalled = function
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-            let cnt = Cilfacade.countLoc fn in
-            uncalled_dead := !uncalled_dead + cnt;
-            if get_bool "ana.dead-code.functions" then
-              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function '%a' is uncalled: %d LLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
+          let cnt = Cilfacade.countLoc fn in
+          uncalled_dead := !uncalled_dead + cnt;
+          if get_bool "ana.dead-code.functions" then
+            M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function '%a' is uncalled: %d LLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
@@ -616,23 +618,26 @@ struct
 
       (* run activated transformations with the analysis result *)
       let active_transformations = get_string_list "trans.activated" in
-      (if active_transformations <> [] then
+      if active_transformations <> [] then (
 
-         (* Most transformations use the locations of statements, since they run using Cil visitors.
-            Join abstract values once per location and once per node. *)
-         let joined_by_loc, joined_by_node =
-           let open Enum in
-           let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
-           let hashtbl_size = if fast_count node_values then count node_values else 123 in
-           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
-           node_values |> iter (fun (node, v) ->
-               let loc = Node.location node in
-               (* join values once for the same location and once for the same node *)
-               let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
-               Hashtbl.modify_opt loc join by_loc;
-               NodeH.modify_opt node join by_node;
-             );
-           by_loc, by_node
+        (* Most transformations use the locations of statements, since they run using Cil visitors.
+           Join abstract values once per location and once per node. *)
+        let joined_by_loc, joined_by_node =
+          let open Enum in
+          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+          let hashtbl_size = if fast_count node_values then count node_values else 123 in
+          let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
+          iter (fun (node, v) ->
+              let loc = match node with
+                | Statement s -> Cil.get_stmtLoc s.skind (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
+                | FunctionEntry _ | Function _ -> Node.location node
+              in
+              (* join values once for the same location and once for the same node *)
+              let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
+              Hashtbl.modify_opt loc join by_loc;
+              NodeH.modify_opt node join by_node;
+            ) node_values;
+          by_loc, by_node
         in
 
         let ask ?(node = MyCFG.dummy_node) loc =
@@ -656,7 +661,10 @@ struct
         let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
 
         let skipped_statements from_node edge to_node =
-          CfgTools.CfgEdgeH.find_default skippedByEdge (from_node, edge, to_node) []
+          try
+            Cfg.skippedByEdge from_node edge to_node
+          with Not_found ->
+            []
         in
 
         Transform.run_transformations file active_transformations
@@ -793,22 +801,22 @@ end
    [analyze_loop] cannot reside in it anymore since each invocation of
    [get_spec] in the loop might/should return a different module, and we
    cannot swap the functor parameter from inside [AnalyzeCFG]. *)
-let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge =
+let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
   try
     let (module Spec) = get_spec () in
     let module A = AnalyzeCFG (CFG) (Spec) (struct let increment = change_info end) in
-    GobConfig.with_immutable_conf (fun () -> A.analyze file fs skippedByEdge)
+    GobConfig.with_immutable_conf (fun () -> A.analyze file fs)
   with Refinement.RestartAnalysis ->
     (* Tail-recursively restart the analysis again, when requested.
         All solving starts from scratch.
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
-    analyze_loop (module CFG) file fs change_info skippedByEdge
+    analyze_loop (module CFG) file fs change_info
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
   Logs.debug "Generating the control flow graph.";
-  let (module CFG), skippedByEdge = CfgTools.compute_cfg_skips file in
+  let (module CFG) = CfgTools.compute_cfg file in
   MyCFG.current_cfg := (module CFG);
-  analyze_loop (module CFG) file fs change_info skippedByEdge
+  analyze_loop (module CFG) file fs change_info
