@@ -834,8 +834,6 @@ struct
   let invariant ctx st exp tv =
     (* The computations that happen here are not computations that happen in the programs *)
     (* Any overflow during the forward evaluation will already have been flagged here *)
-    AnalysisState.executing_speculative_computations := true;
-    let res = invariant ctx st exp tv in
-    AnalysisState.executing_speculative_computations := false;
-    res
+    GobRef.wrap AnalysisState.executing_speculative_computations true
+    @@ fun () -> invariant ctx st exp tv
 end
