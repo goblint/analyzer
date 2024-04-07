@@ -36,8 +36,7 @@ struct
   let name () = "MCP2"
 
   let path_sens = ref []
-  let cont_sens = ref []
-  let cont_inse = ref []
+  let cont_sens_ids = ref Set.empty
   let base_id   = ref (-1)
 
 
@@ -85,12 +84,13 @@ struct
     begin
       match get_string_list "ana.ctx_sens" with 
       | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
-        cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
-        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;      
+        let cont_inse = map' find_id @@ get_string_list "ana.ctx_insens" in
+        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n cont_inse)) !activated;      
       | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
-        cont_sens := map' find_id @@ sens;
-        activated_ctx_sens := List.filter (fun (n, _) -> List.mem n !cont_sens) !activated;
+        let cont_sens = map' find_id @@ sens in
+        activated_ctx_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
     end;
+    cont_sens_ids := Set.of_list (List.map (fun (n,p) -> n) !activated_ctx_sens);
     activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
@@ -115,7 +115,7 @@ struct
   let context fd x =
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
-        if (mem n !cont_inse) || not @@ (List.is_empty !cont_sens || mem n !cont_sens) then (* TODO: do I need to check if it is contained in activated ana?*)
+        if Set.is_empty !cont_sens_ids || not (Set.mem n !cont_sens_ids) then (*n is insensitive*)
           None
         else
           Some (n, repr @@ S.context fd (obj d))
