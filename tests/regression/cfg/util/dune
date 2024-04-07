@@ -4,6 +4,7 @@
    goblint-cil
    goblint_logs
    goblint_common
+   goblint_lib ; TODO: avoid: extract LoopUnrolling and WitnessUtil node predicates from goblint_lib
    fpath
    goblint.sites.dune
    goblint.build-info.dune)

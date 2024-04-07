@@ -33,7 +33,7 @@ struct
   let getLocation (n,d) = Node.location n
 
   let pretty_trace () ((n,c) as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
     (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) *)
     else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 
@@ -416,6 +416,12 @@ struct
   let threadspawn ctx ~multiple lval f args fctx = ctx.local
 end
 
+module IdentityUnitContextsSpec = struct
+  include IdentitySpec
+  module C = Printable.Unit
+
+  let context _ _ = ()
+end
 
 module type SpecSys =
 sig

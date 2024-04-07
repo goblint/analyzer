@@ -1,4 +1,4 @@
-- entry_type: location_invariant
+- entry_type: loop_invariant
   metadata:
     format_version: "0.1"
     uuid: 71b761c6-4f85-405e-8ee6-9a3a8f743513
@@ -19,7 +19,7 @@
     line: 5
     column: 2
     function: main
-  location_invariant:
+  loop_invariant:
     string: 0 <= i && i <= 9
     type: assertion
     format: C

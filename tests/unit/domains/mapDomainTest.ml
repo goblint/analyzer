@@ -241,9 +241,10 @@ let test_Mtop_join_meet _ =
   assert_eq m21   (Mtop.meet m21   mtwo);
   ()
 
-let test () = "mapDomainTest" >:::
-              [ "MapBot"         >::: Tbot.test ();
-                "MapTop"         >::: Ttop.test ();
-                "test_Mbot_join" >::  test_Mbot_join_meet ;
-                "test_Mtop_join" >::  test_Mtop_join_meet ;
-              ]
+let test () =
+  "mapDomainTest" >::: [
+    "MapBot"         >::: Tbot.test ();
+    "MapTop"         >::: Ttop.test ();
+    "test_Mbot_join" >::  test_Mbot_join_meet ;
+    "test_Mtop_join" >::  test_Mtop_join_meet ;
+  ]

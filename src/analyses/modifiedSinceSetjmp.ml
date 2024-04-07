@@ -5,14 +5,11 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "modifiedSinceSetjmp"
   module D = JmpBufDomain.LocallyModifiedMap
   module VS = D.VarSet
-  module C = Lattice.Unit
-
-  let context _ _ = ()
 
   let add_to_all_defined vs d =
     D.map (fun vs' -> VS.union vs vs') d

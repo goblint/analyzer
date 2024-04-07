@@ -179,7 +179,7 @@ sig
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
 
-  val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
+  val cast_to: ?suppress_ovwarn:bool -> ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet. TODO: Should be ported to S in the future. *)
@@ -208,7 +208,7 @@ sig
   val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
 
   val join: Cil.ikind -> t -> t -> t
   val meet: Cil.ikind -> t -> t -> t
@@ -247,7 +247,7 @@ sig
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 
@@ -375,7 +375,7 @@ struct
   let c_logand = lift2 I.c_logand
   let c_logor = lift2 I.c_logor
 
-  let cast_to ?torg ikind x = {v = I.cast_to ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
+  let cast_to ?(suppress_ovwarn=false) ?torg ikind x = {v = I.cast_to  ~suppress_ovwarn ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
@@ -427,7 +427,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
-    if M.tracing then M.trace "int" "is_cast_injective %a (%a, %a) -> %a (%a, %a)\n" CilType.Typ.pretty from_type GobZ.pretty from_min GobZ.pretty from_max CilType.Typ.pretty to_type GobZ.pretty to_min GobZ.pretty to_max;
+    if M.tracing then M.trace "int" "is_cast_injective %a (%a, %a) -> %a (%a, %a)" CilType.Typ.pretty from_type GobZ.pretty from_min GobZ.pretty from_max CilType.Typ.pretty to_type GobZ.pretty to_min GobZ.pretty to_max;
     Z.compare to_min from_min <= 0 && Z.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
@@ -442,7 +442,7 @@ module Size = struct (* size in bits as int, range as int64 *)
         else if Z.lt y a then Z.add y c
         else y
       in
-      if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)\n" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
+      if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
   let min_range_sign_agnostic x =
@@ -656,7 +656,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
     match x, y with
@@ -683,7 +683,7 @@ struct
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a" pretty x pretty y pretty r;
     assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
@@ -950,7 +950,7 @@ struct
 
   let refine_with_congruence ik x y =
     let refn = refine_with_congruence ik x y in
-    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pretty x pretty y pretty refn;
+    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn;
     refn
 
   let refine_with_interval ik a b = meet ik a b
@@ -1358,7 +1358,7 @@ struct
     in
     binop x y interval_rem
 
-  let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
 
   (*
       narrows down the extremeties of xs if they are equal to boundary values of the ikind with (possibly) narrower values from ys
@@ -1542,7 +1542,7 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
 
   let of_int ik x = fst @@ D.of_int ik x
 
@@ -1612,7 +1612,7 @@ struct
   let c_lognot n1    = of_bool (not (to_bool' n1))
   let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
+  let cast_to ?(suppress_ovwarn=false) ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
 end
@@ -1642,7 +1642,7 @@ struct
 
 
   let name () = "flat integers"
-  let cast_to ?torg t = function
+  let cast_to ?(suppress_ovwarn=false) ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -1722,7 +1722,7 @@ struct
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"
-  let cast_to ?torg t = function
+  let cast_to ?(suppress_ovwarn=false) ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -1907,7 +1907,7 @@ struct
     | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
   let top_of ik = `Excluded (S.empty (), size ik)
-  let cast_to ?torg ?no_ov ik = function
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
@@ -2347,7 +2347,7 @@ struct
   let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
-  let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
+  let cast_to ?(suppress_ovwarn=false) ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
 
   let leq x y = not x || y
   let join = (||)
@@ -2471,7 +2471,7 @@ module Enums : S with type int_t = Z.t = struct
       if BISet.mem i x then `Neq
       else `Top
 
-  let cast_to ?torg ?no_ov ik v = norm ik @@ match v with
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik v = norm ik @@ match v with
     | Exc (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
@@ -2822,7 +2822,7 @@ struct
 
   let leq x y =
     let res = leq x y in
-    if M.tracing then M.trace "congruence" "leq %a %a -> %a \n" pretty x pretty y pretty (Some (Z.of_int (Bool.to_int res), Z.zero)) ;
+    if M.tracing then M.trace "congruence" "leq %a %a -> %a " pretty x pretty y pretty (Some (Z.of_int (Bool.to_int res), Z.zero)) ;
     res
 
   let join ik (x:t) y =
@@ -2834,7 +2834,7 @@ struct
 
   let join ik (x:t) y =
     let res = join ik x y in
-    if M.tracing then M.trace "congruence" "join %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "join %a %a -> %a" pretty x pretty y pretty res;
     res
 
 
@@ -2861,7 +2861,7 @@ struct
 
   let meet ik x y =
     let res = meet ik x y in
-    if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "meet %a %a -> %a" pretty x pretty y pretty res;
     res
 
   let to_int = function Some (c, m) when m =: Z.zero -> Some c | _ -> None
@@ -2892,7 +2892,7 @@ struct
     | _ -> None
 
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
-  let cast_to ?torg ?(no_ov=false) t x =
+  let cast_to ?(suppress_ovwarn=false) ?torg ?(no_ov=false) t x =
     match x with
     | None -> None
     | Some (c, m) when m =: Z.zero ->
@@ -2916,17 +2916,17 @@ struct
       | _ -> top ()
 
 
-  let cast_to ?torg ?no_ov (t : Cil.ikind) x =
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
     let res = cast_to ?torg ?no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 
   let widen = join
 
   let widen ik x y =
     let res = widen ik x y in
-    if M.tracing then M.trace "congruence" "widen %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "widen %a %a -> %a" pretty x pretty y pretty res;
     res
 
   let narrow = meet
@@ -2958,7 +2958,7 @@ struct
 
   let shift_right ik x y =
     let res = shift_right ik x y in
-    if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a " pretty x pretty y pretty res;
     res
 
   let shift_left ik x y =
@@ -2989,7 +2989,7 @@ struct
 
   let shift_left ik x y =
     let res = shift_left ik x y in
-    if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a " pretty x pretty y pretty res;
     res
 
   (* Handle unsigned overflows.
@@ -3030,7 +3030,7 @@ struct
 
   let mul ?no_ov ik x y =
     let res = mul ?no_ov ik x y in
-    if M.tracing then  M.trace "congruence" "mul : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "mul : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let neg ?(no_ov=false) ik x =
@@ -3059,7 +3059,7 @@ struct
   let add ?no_ov ik x y =
     let res = add ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "add : %a %a -> %a \n" pretty x pretty y
+      M.trace "congruence" "add : %a %a -> %a" pretty x pretty y
         pretty res ;
     res
 
@@ -3069,7 +3069,7 @@ struct
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "sub : %a %a -> %a \n" pretty x pretty y
+      M.trace "congruence" "sub : %a %a -> %a" pretty x pretty y
         pretty res ;
     res
 
@@ -3124,7 +3124,7 @@ struct
         normalize ik (Some (c1, Z.gcd m1 (Z.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
-    if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "rem : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let div ?(no_ov=false) ik x y =
@@ -3141,7 +3141,7 @@ struct
   let div ?no_ov ik x y =
     let res = div ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "div : %a %a -> %a \n" pretty x pretty y pretty
+      M.trace "congruence" "div : %a %a -> %a" pretty x pretty y pretty
         res ;
     res
 
@@ -3166,14 +3166,14 @@ struct
 
   let ge ik x y =
     let res = ge ik x y in
-    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let le ik x y = comparison ik (<=:) x y
 
   let le ik x y =
     let res = le ik x y in
-    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let gt ik x y = comparison ik (>:) x y
@@ -3181,14 +3181,14 @@ struct
 
   let gt ik x y =
     let res = gt ik x y in
-    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let lt ik x y = comparison ik (<:) x y
 
   let lt ik x y =
     let res = lt ik x y in
-    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a " pretty x pretty y pretty res;
     res
 
   let invariant_ikind e ik x =
@@ -3232,7 +3232,7 @@ struct
       | Some (l, u) -> Pretty.dprintf "[%a,%a]" GobZ.pretty l GobZ.pretty u
       | _ -> Pretty.text ("Display Error") in
     let refn = refine_with_interval ik cong intv in
-    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
+    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a" pretty cong pretty_intv intv pretty refn;
     refn
 
   let refine_with_congruence ik a b = meet ik a b
@@ -3258,7 +3258,7 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?torg ?no_ov ik x = lift @@ D.cast_to ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = lift @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 
@@ -3329,9 +3329,9 @@ module IntDomTupleImpl = struct
     | Some(_, {underflow; overflow}) -> not (underflow || overflow)
     | _ -> false
 
-  let check_ov ~cast ik intv intv_set =
+  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
-    if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
+    if not no_ov && not suppress_ovwarn && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
       let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
@@ -3533,18 +3533,18 @@ module IntDomTupleImpl = struct
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
          quit_loop := equal old_dt !dt;
          if is_bot !dt then dt := bot_of ik; quit_loop := true;
-         if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
+         if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a" pretty old_dt pretty !dt;
        done;
      | _ -> ()
     ); !dt
 
 
   (* map with overflow check *)
-  let mapovc ?(cast=false) ik r (a, b, c, d, e) =
+  let mapovc ?(suppress_ovwarn=false) ?(cast=false) ik r (a, b, c, d, e) =
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1_ovc (module I2)) b in
     let intv_set = map (r.f1_ovc (module I5)) e in
-    let no_ov = check_ov ~cast ik intv intv_set in
+    let no_ov = check_ov ~suppress_ovwarn ~cast ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> fst) a
@@ -3596,8 +3596,8 @@ module IntDomTupleImpl = struct
   let c_lognot ik =
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_lognot ik)}
 
-  let cast_to ?torg ?no_ov t =
-    mapovc ~cast:true t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t =
+    mapovc ~suppress_ovwarn ~cast:true t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
 
   (* fp: projections *)
   let equal_to i x =

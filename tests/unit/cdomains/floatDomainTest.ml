@@ -345,8 +345,7 @@ module FloatIntervalTest32 = FloatInterval(CFloat)(FloatDomain.F32Interval)
 module FloatIntervalTest64 = FloatInterval(CDouble)(FloatDomain.F64Interval)
 
 let test () =
-  "floatDomainTest" >:::
-  [
+  "floatDomainTest" >::: [
     "float_interval32" >::: FloatIntervalTest32.test ();
     "float_interval_qcheck32" >::: FloatIntervalTest32.test_qcheck ();
     "float_interval64" >::: FloatIntervalTest64.test ();

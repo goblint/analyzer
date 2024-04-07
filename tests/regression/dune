@@ -1,6 +1,8 @@
 (env
  (_
-  (binaries ./cfg/util/cfgDot.exe)))
+  (binaries
+    ./cfg/util/cfgDot.exe
+    ../util/yamlWitnessStrip.exe)))
 
 (rule
  (alias runtest)
@@ -20,4 +22,6 @@
 (cram
  (applies_to :whole_subtree)
  (alias runcramtest)
- (deps (package goblint)))
+ (deps
+   (package goblint)
+   %{bin:yamlWitnessStrip}))

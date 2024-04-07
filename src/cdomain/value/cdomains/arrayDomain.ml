@@ -532,7 +532,7 @@ struct
   let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
 
   let set_with_length length (ask:VDQ.t) x (i,_) a =
-    if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
     match i with
     | Some ie when CilType.Exp.equal ie (Lazy.force Offset.Index.Exp.all) ->
       (* TODO: Doesn't seem to work for unassume. *)
@@ -1012,9 +1012,9 @@ struct
   let (+.) = Z.add
 
   (* (Must Null Set, May Null Set, Array Size) *)
-  include Lattice.Prod (Nulls) (Idx)
+  include Lattice.Prod (Nulls) (struct include Idx let name () = "length" end)
 
-  let name () = "arrays containing null bytes"
+  let name () = "ArrayNullBytes"
   type idx = Idx.t
   type value = Val.t
 
@@ -1814,6 +1814,17 @@ struct
       | _ -> f_get
     else
       f_get
+
+  let delegate_if_no_nullbytes (a, n) ffull fa =
+    if get_bool "ana.base.arrays.nullbytes" then
+      ffull (a, n)
+    else
+      fa a
+
+  let show x = delegate_if_no_nullbytes x show A.show
+  let printXml f x = delegate_if_no_nullbytes x (printXml f) (A.printXml f)
+  let to_yojson x = delegate_if_no_nullbytes x to_yojson A.to_yojson
+  let pretty () x = delegate_if_no_nullbytes x (pretty ()) (A.pretty ())
 
   let construct a n =
     if get_bool "ana.base.arrays.nullbytes" then

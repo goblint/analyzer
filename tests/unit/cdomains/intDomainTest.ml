@@ -281,15 +281,16 @@ struct
     ]
 end
 
-let test () = "intDomainTest" >:::
-              [ "int_Integers"  >::: A.test ();
-                "int_Flattened" >::: B.test ();
-                "int_DefExc"     >::: C.test ();
-                "test_bot"      >::  test_bot;
-                "test_join"     >::  test_join;
-                "test_meet"     >::  test_meet;
-                "test_excl_list">::  test_ex_set;
-                "interval" >::: Interval.test ();
-                "congruence" >::: Congruence.test ();
-                "intDomTuple" >::: IntDomTuple.test ();
-              ]
+let test () =
+  "intDomainTest" >::: [
+    "int_Integers"  >::: A.test ();
+    "int_Flattened" >::: B.test ();
+    "int_DefExc"     >::: C.test ();
+    "test_bot"      >::  test_bot;
+    "test_join"     >::  test_join;
+    "test_meet"     >::  test_meet;
+    "test_excl_list">::  test_ex_set;
+    "interval" >::: Interval.test ();
+    "congruence" >::: Congruence.test ();
+    "intDomTuple" >::: IntDomTuple.test ();
+  ]

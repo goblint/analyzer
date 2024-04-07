@@ -1,4 +1,4 @@
-// PARAM: --set ana.int.interval_set true
+// PARAM: --set ana.int.interval_set true --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
 #include<pthread.h>
