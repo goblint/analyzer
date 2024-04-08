@@ -299,6 +299,11 @@ module Term(Var:Val) = struct
     | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
     | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
 
+  (** Returns true if the first parameter is a subterm of the second one. *)
+  let rec is_subterm st term = equal st term || match term with
+    | Deref (t, _) -> is_subterm st t
+    | _ -> false
+
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_from_exp = function
     | Const (CInt (i, _, _)) -> Some i
@@ -389,11 +394,6 @@ module CongruenceClosure (Var : Val) = struct
     let show_set set = TSet.fold (fun v s ->
         s ^ "\t" ^ T.show v ^ "\n") set "" ^ "\n"
 
-    (** Returns true if the first parameter is a subterm of the second one. *)
-    let rec is_subterm st term = T.equal st term || match term with
-      | Deref (t, _) -> is_subterm st t
-      | _ -> false
-
     let rec subterms_of_term (set,map) t = match t with
       | Addr _ -> (add t set, map)
       | Deref (t',z) ->
@@ -422,17 +422,17 @@ module CongruenceClosure (Var : Val) = struct
 
     (** Parameters:
         - `(part, set)`: union find tree and set of subterms that are present in the union find data structure.
-        - `var`: variable that needs to be removed from the data structure.
+        - `predicate`: predicate that returns true for terms which need to be removed from the data structure.
 
         Returns:
-        - `new_set`: subset of `set` which contains the terms that do not have var as a subterm.
-        - `removed_terms_set`: subset of `set` which contains the terms that have var as a subterm.
+        - `new_set`: subset of `set` which contains the terms that do not have to be removed.
+        - `removed_terms_set`: subset of `set` which contains the terms that have to be removed.
         - `map_of_children`: maps each element of union find to its children in the union find tree. It is used in order to later remove these elements from the union find data structure.
     *)
-    let remove_terms_containing_variable (part, set) var =
+    let remove_terms (part, set) predicate =
       (* Adds `value` to the set that is in the `map` with key `term` *)
       let add_to_result el (new_set, removed_terms_set, map_of_children) =
-        let new_set, removed_terms_set = if is_subterm var el then new_set, add el removed_terms_set else add el new_set, removed_terms_set in
+        let new_set, removed_terms_set = if predicate el then new_set, add el removed_terms_set else add el new_set, removed_terms_set in
         let (uf_parent_ref, _) = TMap.find el part in
         let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent_ref) in
         (new_set, removed_terms_set, map_of_children) in
@@ -809,12 +809,12 @@ module CongruenceClosure (Var : Val) = struct
 
   (* remove variables *)
 
-  (** Removes all terms containing a variable from the union find data structure.
+  (** Removes all terms in "removed_terms_set" from the union find data structure.
 
       Returns:
       - `part`: the updated union find tree
       - `new_parents_map`: maps each removed term t to another term which was in the same equivalence class as t at the time when t was deleted. *)
-  let remove_terms_containing_variable_from_uf part removed_terms_set map_of_children =
+  let remove_terms_from_uf part removed_terms_set map_of_children =
     let find_not_removed_element set = match List.find (fun el -> not (SSet.mem el removed_terms_set)) set with
       | exception Not_found -> List.first set
       | t -> t
@@ -881,13 +881,13 @@ module CongruenceClosure (Var : Val) = struct
       | Some (r, o, part) -> Some (r, Z.(o + new_offset), part)
 
   (** Removes all terms from the mapped values of this map,
-      if they contain `var` as a subterm. *)
-  let remove_subterms_from_mapped_values map var =
-    LMap.filter_if map (not % SSet.is_subterm var)
+      for which "predicate" is false. *)
+  let remove_terms_from_mapped_values map predicate =
+    LMap.filter_if map (not % predicate)
 
   (** For all the elements in the removed terms set, it moves the mapped value to the new root.
       Returns new map and new union-find*)
-  let remove_terms_containing_variable_from_map (part, map) removed_terms_set new_parents_map =
+  let remove_terms_from_map (part, map) removed_terms_set new_parents_map =
     let remove_from_map term (map, part) =
       match LMap.find_opt term map with
       | None -> map, part
@@ -898,19 +898,25 @@ module CongruenceClosure (Var : Val) = struct
     in SSet.fold remove_from_map removed_terms_set (map, part)
 
   (** Remove terms from the data structure.
+      It removes all terms for which "predicate" is false,
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms cc predicate =
+    (* first find all terms that need to be removed *)
+    let new_set, removed_terms_set, map_of_children =
+      SSet.remove_terms (cc.part, cc.set) predicate
+    in let new_part, new_parents_map =
+         remove_terms_from_uf cc.part removed_terms_set map_of_children
+    in let new_map =
+         remove_terms_from_mapped_values cc.map predicate
+    in let new_map, new_part =
+         remove_terms_from_map (new_part, new_map) removed_terms_set new_parents_map
+    in let min_repr, new_part = MRMap.compute_minimal_representatives (new_part, new_set, new_map)
+    in {part = new_part; set = new_set; map = new_map; min_repr = min_repr}
+
+  (** Remove terms from the data structure.
       It removes all terms for which "var" is a subterm,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variable cc var =
-    (* first find all terms that need to be removed *)
-    let new_set, removed_terms_set, map_of_children =
-      SSet.remove_terms_containing_variable (cc.part, cc.set) var
-    in let new_part, new_parents_map =
-         remove_terms_containing_variable_from_uf cc.part removed_terms_set map_of_children
-    in let new_map =
-         remove_subterms_from_mapped_values cc.map var
-    in let new_map, new_part =
-         remove_terms_containing_variable_from_map (new_part, new_map) removed_terms_set new_parents_map
-    in let min_repr, new_part = MRMap.compute_minimal_representatives (new_part, new_set, new_map)
-    in {part = new_part; set = new_set; map = new_map; min_repr = min_repr}
+    remove_terms cc (T.is_subterm var)
 
 end
