@@ -300,7 +300,7 @@ module Term(Var:Val) = struct
     | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
 
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
-  let rec z_from_exp = function
+  let z_from_exp = function
     | Const (CInt (i, _, _)) -> Some i
     | UnOp _
     | BinOp _-> (*because we performed constant folding*)None
@@ -562,7 +562,7 @@ module CongruenceClosure (Var : Val) = struct
     | Nequal (t1,t2,r) -> T.show t1 ^ " != " ^ Z.to_string r ^ "+" ^ T.show t2
 
   let show_conj list = List.fold_left
-      (fun s d -> s ^ "\t" ^ string_of_prop d ^ "\n") "" list
+      (fun s d -> s ^ "\t" ^ string_of_prop d ^ ";\n") "" list
 
   let print_conj = print_string % show_conj
 
