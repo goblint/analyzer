@@ -304,6 +304,8 @@ module Term(Var:Val) = struct
     | Deref (t, _) -> is_subterm st t
     | _ -> false
 
+  let may_be_equal t1 t2 = true
+
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_from_exp = function
     | Const (CInt (i, _, _)) -> Some i
@@ -368,7 +370,6 @@ module Term(Var:Val) = struct
       end
 
   let from_cil = from_cil % Cil.constFold false
-
 
 end
 
@@ -840,11 +841,11 @@ module CongruenceClosure (Var : Val) = struct
           let new_size, map_of_children = List.fold
               (fun (total_size, map_of_children) child ->
                  (* update parent and offset *)
-                 let _ = TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t - offset_new_root)) in
+                 let part = TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t - offset_new_root)) in
                  total_size + TUF.subtree_size part child, SSet.add_to_map_of_children child map_of_children new_root
               ) (0, map_of_children) remaining_children in
           (* Update new root -> set itself as new parent. *)
-          let _ = TUF.modify_parent part new_root (new_root, Z.zero) in
+          let part = TUF.modify_parent part new_root (new_root, Z.zero) in
           (* update size of equivalence class *)
           let part = TUF.change_size new_root part ((+) new_size) in
           (TUF.ValMap.remove t part, LMap.add t (new_root, Z.(-offset_new_root)) new_parents_map, map_of_children)
@@ -918,5 +919,8 @@ module CongruenceClosure (Var : Val) = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variable cc var =
     remove_terms cc (T.is_subterm var)
+
+  let remove_may_equal_terms cc term =
+    remove_terms cc (T.may_be_equal term)
 
 end

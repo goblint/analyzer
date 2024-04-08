@@ -80,4 +80,15 @@ module D = struct
 
   let pretty_diff () (x,y) = Pretty.dprintf ""
 
+  let printXml f x = match x with
+    | Some x ->
+      BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\nmin. repr\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
+        (XmlUtil.escape (Format.asprintf "%s" (show (Some x))))
+        (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.part)))
+        (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
+        (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
+        (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep x.min_repr)))
+    | None ->  BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\ntrue</value>\n</map>\n</value>\n"
+
+
 end

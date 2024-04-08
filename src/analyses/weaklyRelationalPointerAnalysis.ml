@@ -16,13 +16,16 @@ struct
     | None -> (* The domain is bottom *)None
     | Some t ->
       match D.T.from_lval lval, D.T.from_cil expr with
-      (* Indefinite assignments *)
-      | (Some lterm, Some loffset), (None, _) -> Some (D.remove_terms_containing_variable t lterm)
-
+      (* Indefinite assignment *)
+      | (Some lterm, Some loffset), (None, _) -> Some (D.remove_may_equal_terms t lterm)
+      (* Definite assignment *)
       | (Some (Addr x), Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
         (* This is not even possible *)
         D.meet_conjs_opt (D.insert_set (D.remove_terms_containing_variable t (Addr x)) (D.SSet.TSet.of_list [Addr x; term])) [Equal (Addr x, term, offset)]
-      | _ -> Some t (* TOD what if lhs is None? Just ignore? -> Not a good idea *)
+      | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
+        D.meet_conjs_opt (D.insert_set (D.remove_may_equal_terms t lterm) (D.SSet.TSet.of_list [lterm; term])) [Equal (lterm, term, offset)]
+        (* invertibe assignement *)
+      | _ -> Some t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
 
 end
 
