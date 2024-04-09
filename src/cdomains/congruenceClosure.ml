@@ -2,6 +2,7 @@
 
 open Batteries
 open GoblintCil
+module M = Messages
 
 module type Val = sig
   type t
@@ -304,11 +305,15 @@ module Term(Var:Val) = struct
     | Deref (t, _) -> is_subterm st t
     | _ -> false
 
-  let rec to_cil = function
-    | Addr v -> AddrOf (Var v, NoOffset)
-    | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset)
-    | Deref (t, z) when Z.equal z Z.zero -> Lval (Mem (to_cil t), NoOffset)
-    | Deref (t, z) -> Lval (Mem (to_cil t), Index (Const (CInt (z, ILongLong, None)), NoOffset))
+  let to_cil_offset z = if Z.equal z Z.zero then NoOffset
+    else Index (Const (CInt (z, ILongLong, None)), NoOffset)
+
+  let rec to_cil off t =
+    let cil_off = to_cil_offset off in
+    match t with
+    | Addr v -> AddrOf (Var v, cil_off)
+    | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, cil_off)
+    | Deref (t, z) -> Lval (Mem (to_cil z t), cil_off)
 
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_from_exp = function
@@ -564,6 +569,15 @@ module CongruenceClosure (Var : Val) = struct
             min_repr: MRMap.t}
   [@@deriving eq, ord]
 
+  let show_all x = "Union Find partition:\n" ^
+                   (TUF.show_uf x.part)
+                   ^ "\nSubterm set:\n"
+                   ^ (SSet.show_set x.set)
+                   ^ "\nLookup map/transitions:\n"
+                   ^ (LMap.show_map x.map)
+                   ^ "\nMinimal representatives:\n"
+                   ^ (MRMap.show_min_rep x.min_repr)
+
   let string_of_prop = function
     | Equal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
     | Equal (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
@@ -741,14 +755,16 @@ module CongruenceClosure (Var : Val) = struct
     if SSet.mem t cc.set then
       let v,z,part = TUF.find cc.part t in
       (v,z), {part = part; set = cc.set; map = cc.map; min_repr = cc.min_repr}, []
-    else let set = SSet.add t cc.set in
+    else
       match t with
       | Addr a -> let part = TUF.ValMap.add t ((t, Z.zero),1) cc.part in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
+        let set = SSet.add t cc.set in
         (t, Z.zero), {part = part; set = set; map = cc.map; min_repr = min_repr}, [Addr a]
       | Deref (t', z) ->
         let (v, r), cc, queue = insert_no_min_repr cc t' in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
+        let set = SSet.add t cc.set in
         match LMap.map_find_opt (v, Z.(r + z)) cc.map with
         | Some v' -> let v2,z2,part = TUF.find cc.part v' in
           let part = LMap.add t ((t, Z.zero),1) part in
@@ -762,7 +778,6 @@ module CongruenceClosure (Var : Val) = struct
         Returns (reference variable, offset), updated (part, set, map, min_repr) *)
   let insert cc t =
     let v, cc, queue = insert_no_min_repr cc t in
-    (* the queue has at most one element, so there is no need to sort it *)
     let min_repr, part = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
     v, {part = part; set = cc.set; map = cc.map; min_repr = min_repr}
 
