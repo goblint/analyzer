@@ -305,15 +305,20 @@ module Term(Var:Val) = struct
     | Deref (t, _) -> is_subterm st t
     | _ -> false
 
-  let to_cil_offset z = if Z.equal z Z.zero then NoOffset
-    else Index (Const (CInt (z, ILongLong, None)), NoOffset)
+  let rec term_depth = function
+    | Addr _ -> 0
+    | Deref (t, _) -> 1 + term_depth t
+
+  let default_int_type = IInt
+  let rec default_pointer_type n = if n = 0 then TInt (default_int_type, []) else TPtr (default_pointer_type (n-1), [])
+  let to_cil_constant z = Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
   let rec to_cil off t =
-    let cil_off = to_cil_offset off in
-    match t with
-    | Addr v -> AddrOf (Var v, cil_off)
-    | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, cil_off)
-    | Deref (t, z) -> Lval (Mem (to_cil z t), cil_off)
+    let cil_t = match t with
+      | Addr v -> AddrOf (Var v, NoOffset)
+      | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset)
+      | Deref (t, z) -> Lval (Mem (to_cil z t), NoOffset)
+    in if Z.(equal zero off) then cil_t else BinOp (PlusPI, cil_t, to_cil_constant off, default_pointer_type (term_depth t))
 
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_from_exp = function
