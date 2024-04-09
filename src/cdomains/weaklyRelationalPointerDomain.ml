@@ -2,29 +2,38 @@
 
 open Batteries
 open GoblintCil
-open CongruenceClosure
 module Var = CilType.Varinfo
+module CC = CongruenceClosure
+open CC.CongruenceClosure(Var)
+module M = Messages
 
-(*
-module Var: Val = struct
-  type t = varinfo
-  let compare = compare (* TODO *)
-  let show v = v.vname (* TODO *)
-  let hash x = 3 (* TODO *)
-  let equal x y = (x = y) (* TODO *)
-end *)
+(**Find out if two addresses are not equal by using the MayPointTo query*)
+module Disequalities = struct
+
+  module AD = AddressDomain.AddressSet (PreValueDomain.Mval) (ValueDomain.ID)
+
+  let query_neq (ask:Queries.ask) t1 t2 =
+    let exp1 = T.to_cil t1 in
+    let exp2 = T.to_cil t2 in
+    let mpt1 = ask.f (MayPointTo exp1) in
+    let mpt2 = ask.f (MayPointTo exp2) in
+    AD.is_bot (AD.meet mpt1 mpt2)
+
+  (**Find out if two addresses may be equal by using the MayPointTo query*)
+  let may_be_equal ask t1 t2 = not (query_neq ask t1 t2)
+
+end
 
 module D = struct
 
   include Printable.StdLeaf
-  include CongruenceClosure(Var)
 
   type domain = t option
   type t = domain
 
   (** Convert to string *)
   let show x = match x with
-    | None -> "⊥"
+    | None -> "⊥\n"
     | Some x -> show_conj (get_normal_form x)
 
   let show_all = function
@@ -72,7 +81,7 @@ module D = struct
       let a_conj = get_normal_form a in
       match meet_conjs b a_conj with
       | res -> Some res
-      | exception Unsat -> None
+      | exception CC.Unsat -> None
 
   let leq x y = equal (meet x y) x
 
@@ -90,5 +99,13 @@ module D = struct
         (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep x.min_repr)))
     | None ->  BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\ntrue</value>\n</map>\n</value>\n"
 
+  (** Remove terms from the data structure.
+      It removes all terms for which "var" is a subterm,
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms_containing_variable cc var =
+    remove_terms cc (T.is_subterm var)
+
+  let remove_may_equal_terms cc ask term =
+    remove_terms cc (Disequalities.may_be_equal ask term)
 
 end

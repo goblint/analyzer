@@ -304,7 +304,11 @@ module Term(Var:Val) = struct
     | Deref (t, _) -> is_subterm st t
     | _ -> false
 
-  let may_be_equal t1 t2 = true
+  let rec to_cil = function
+    | Addr v -> AddrOf (Var v, NoOffset)
+    | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset)
+    | Deref (t, z) when Z.equal z Z.zero -> Lval (Mem (to_cil t), NoOffset)
+    | Deref (t, z) -> Lval (Mem (to_cil t), Index (Const (CInt (z, ILongLong, None)), NoOffset))
 
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_from_exp = function
@@ -419,8 +423,12 @@ module CongruenceClosure (Var : Val) = struct
         | None -> TMap.add term [value] map
         | Some list -> TMap.add term (value::list) map
 
-    (* remove variables *)
+    let remove_from_map_of_children parent child map =
+      match List.remove (TMap.find parent map) child with
+      | [] -> TMap.remove parent map
+      | new_children -> TMap.add parent new_children map
 
+    (* remove variables *)
     (** Parameters:
         - `(part, set)`: union find tree and set of subterms that are present in the union find data structure.
         - `predicate`: predicate that returns true for terms which need to be removed from the data structure.
@@ -788,17 +796,6 @@ module CongruenceClosure (Var : Val) = struct
     (T.compare v1 v2 = 0 && r1 = Z.(r2 + r), cc)
 
   (**
-     Returns true if t1 and t2 are not equivalent.
-  *)
-  let neq_query cc _ (t1,t2,_) =
-    let (v1,r1),cc = insert cc t1 in
-    let (v2,r2),_ = insert cc t2 in
-    if T.compare v1 v2 = 0 then
-      if r1 = r2 then false
-      else true
-    else false (* TODO disequalities *)
-
-  (**
      Add proposition t1 = t2 + r to the data structure.
   *)
   let add_eq cc (t1, t2, r) =
@@ -826,6 +823,8 @@ module CongruenceClosure (Var : Val) = struct
         (* t has no children, so we can safely delete the element from the data structure *)
         (* we just need to update the size on the whole path from here to the root *)
         let new_parents_map = if TUF.is_root part t then new_parents_map else LMap.add t (TUF.parent part t) new_parents_map in
+        let parent = fst (TUF.parent part t) in
+        let map_of_children = if TUF.is_root part t then map_of_children else SSet.remove_from_map_of_children parent t map_of_children in
         (TUF.ValMap.remove t (TUF.change_size t part pred), new_parents_map, map_of_children)
       | Some children ->
         let map_of_children = LMap.remove t map_of_children in
@@ -913,14 +912,5 @@ module CongruenceClosure (Var : Val) = struct
          remove_terms_from_map (new_part, new_map) removed_terms_set new_parents_map
     in let min_repr, new_part = MRMap.compute_minimal_representatives (new_part, new_set, new_map)
     in {part = new_part; set = new_set; map = new_map; min_repr = min_repr}
-
-  (** Remove terms from the data structure.
-      It removes all terms for which "var" is a subterm,
-      while maintaining all equalities about variables that are not being removed.*)
-  let remove_terms_containing_variable cc var =
-    remove_terms cc (T.is_subterm var)
-
-  let remove_may_equal_terms cc term =
-    remove_terms cc (T.may_be_equal term)
 
 end
