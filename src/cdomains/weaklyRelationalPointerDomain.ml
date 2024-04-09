@@ -4,7 +4,7 @@ open Batteries
 open GoblintCil
 module Var = CilType.Varinfo
 module CC = CongruenceClosure
-open CC.CongruenceClosure(Var)
+include CC.CongruenceClosure(Var)
 module M = Messages
 
 (**Find out if two addresses are not equal by using the MayPointTo query*)
@@ -12,16 +12,33 @@ module Disequalities = struct
 
   module AD = AddressDomain.AddressSet (PreValueDomain.Mval) (ValueDomain.ID)
 
-  let query_neq (ask:Queries.ask) t1 t2 =
-    let exp1 = T.to_cil t1 in
-    let exp2 = T.to_cil t2 in
+  (**Find out if two addresses are definitely not equal by using the MayPointTo query*)
+  let query_neq (ask:Queries.ask) t1 t2 off =
+    let exp1 = T.to_cil Z.zero t1 in
+    let exp2 = T.to_cil off t2 in
     let mpt1 = ask.f (MayPointTo exp1) in
     let mpt2 = ask.f (MayPointTo exp2) in
     AD.is_bot (AD.meet mpt1 mpt2)
 
-  (**Find out if two addresses may be equal by using the MayPointTo query*)
-  let may_be_equal ask t1 t2 = not (query_neq ask t1 t2)
+  (**Returns true iff by assigning to t1, the value of t2 doesn't change. *)
+  let rec may_be_equal ask part t1 t2 =
+    match t1, t2 with
+    | CC.Deref (t, z), CC.Deref (v, z') -> print_string "- ";
+      let (q', z1') = TUF.find_no_pc part v in
+      let (q, z1) = TUF.find_no_pc part t in
+      (* If they are in the same equivalence class but with a different offset, then they are not equal *)
+      (
+        not (T.equal q' q && not(Z.(equal z (z' + z1 - z1'))))
+        (* or if we know that they are not equal according to the query MayPointTo*)
+        &&
+        not (query_neq ask q q' Z.(z' - z + z1 - z1'))
+      )
+      || (may_be_equal ask part t1 v)
+    | CC.Deref _, _ -> print_string "-- ";false (*The value of addresses never change when we overwrite the memory*)
+    | CC.Addr _ , _ -> print_string "--- ";T.is_subterm t1 t2
 
+  let may_be_equal ask part t1 t2 = print_string "may_be_equal "; print_string (T.show t1); print_string " ";print_string (T.show t2);
+    let res = (may_be_equal ask part t1 t2) in print_string ": "; print_string (string_of_bool res); print_endline "";res
 end
 
 module D = struct
@@ -38,20 +55,14 @@ module D = struct
 
   let show_all = function
     | None -> "⊥\n"
-    | Some x ->  "Union Find partition:\n" ^
-                 (TUF.show_uf x.part)
-                 ^ "\nSubterm set:\n"
-                 ^ (SSet.show_set x.set)
-                 ^ "\nLookup map/transitions:\n"
-                 ^ (LMap.show_map x.map)
-                 ^ "\nMinimal representatives:\n"
-                 ^ (MRMap.show_min_rep x.min_repr)
+    | Some x ->  show_all x
 
   include Printable.SimpleShow(struct type t = domain let show = show end)
 
   let name () = "wrpointer"
 
-  let equal x y = match x, y with
+  let equal x y = if M.tracing then M.trace "wrpointer" "equal.\nx=\n%s\ny=\n%s" (show_all x) (show_all y);
+    match x, y with
     | Some x, Some y ->
       (get_normal_form x = get_normal_form y)
     | None, None -> true
@@ -71,7 +82,7 @@ module D = struct
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.part
 
-  let join a b = a
+  let join a b = if M.tracing then M.trace "wrpointer" "JOIN";a
   let widen = join
 
   let meet a b = match a,b with (*TODO put in different file *)
@@ -106,6 +117,7 @@ module D = struct
     remove_terms cc (T.is_subterm var)
 
   let remove_may_equal_terms cc ask term =
-    remove_terms cc (Disequalities.may_be_equal ask term)
+    let cc = (snd(insert cc term)) in
+    remove_terms cc (Disequalities.may_be_equal ask cc.part term)
 
 end
