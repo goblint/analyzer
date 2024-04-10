@@ -812,20 +812,20 @@ struct
 
   let lock_get_m oct local_m get_m =
     let joined = LRD.join local_m get_m in
-    if M.tracing then M.traceli "relationpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LRD.pretty get_m LRD.pretty joined;
+    if M.tracing then M.traceli "relationpriv" "lock_get_m:\n  get=%a\n  joined=%a" LRD.pretty get_m LRD.pretty joined;
     let r = LRD.fold (fun _ -> RD.meet) joined (RD.top ()) in
-    if M.tracing then M.trace "relationpriv" "meet=%a\n" RD.pretty r;
+    if M.tracing then M.trace "relationpriv" "meet=%a" RD.pretty r;
     let r = RD.meet oct r in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RD.pretty r;
     r
 
   let lock oct local_m get_m =
-    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a\n" LRD.pretty local_m;
+    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a" LRD.pretty local_m;
     let r = lock_get_m oct local_m get_m in
     (* is_bot check commented out because it's unnecessarily expensive *)
     (* if RD.is_bot_env r then
        failwith "DownwardClosedCluster.lock: not downward closed?"; *)
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RD.pretty r;
     r
 
   let unlock w oct_side =
@@ -903,7 +903,7 @@ struct
     (lad, lad_weak)
 
   let lock oct (local_m, _) (get_m, get_m') =
-    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a\n" LRD1.pretty local_m;
+    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a" LRD1.pretty local_m;
     let r =
       let locked = DCCluster.lock_get_m oct local_m get_m in
       if RD.is_bot_env locked then (
@@ -916,7 +916,7 @@ struct
       else
         locked
     in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RD.pretty r;
     r
 
   let unlock w oct_side =
@@ -954,17 +954,17 @@ struct
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
-    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LRD.pretty get_m;
+    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a" LockDomain.Addr.pretty m LRD.pretty get_m;
     let r =
       if not inits then
         get_m
       else
         let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
         let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
-        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
+        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
         LRD.join get_m get_mutex_inits'
     in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" LRD.pretty r;
     r
 
   let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
@@ -979,17 +979,17 @@ struct
       else
         get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g)
     in
-    if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
+    if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
       if not inits then
         get_mutex_global_g
       else
         let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
         let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
-        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
+        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
         LRD.join get_mutex_global_g get_mutex_inits'
     in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" LRD.pretty r;
     r
 
   let get_mutex_global_g_with_mutex_inits_atomic inits ask getg =
@@ -1253,147 +1253,147 @@ struct
   module RelComponents = RelationDomain.RelComponents (RD) (D)
 
   let read_global ask getg st g x =
-    if M.tracing then M.traceli "relationpriv" "read_global %a %a\n" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "read_global %a %a" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let r = Priv.read_global ask getg st g x in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RD.pretty r;
     r
 
   let write_global ?invariant ask getg sideg st g x =
-    if M.tracing then M.traceli "relationpriv" "write_global %a %a\n" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "write_global %a %a" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "relationpriv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = write_global ?invariant ask getg sideg st g x in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let lock ask getg st m =
-    if M.tracing then M.traceli "relationpriv" "lock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "lock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let r = lock ask getg st m in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let unlock ask getg sideg st m =
-    if M.tracing then M.traceli "relationpriv" "unlock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "unlock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "relationpriv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = unlock ask getg sideg st m in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let enter_multithreaded ask getg sideg st =
-    if M.tracing then M.traceli "relationpriv" "enter_multithreaded\n";
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "enter_multithreaded";
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "relationpriv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = enter_multithreaded ask getg sideg st in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let threadenter ask getg st =
-    if M.tracing then M.traceli "relationpriv" "threadenter\n";
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "threadenter";
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let r = threadenter ask getg st in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let sync ask getg sideg st reason =
-    if M.tracing then M.traceli "relationpriv" "sync\n";
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "sync";
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "relationpriv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = sync ask getg sideg st reason in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let escape node ask getg sideg st vs =
-    if M.tracing then M.traceli "relationpriv" "escape\n";
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "escape";
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "relationpriv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = escape node ask getg sideg st vs in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let thread_join ?force ask getg e st =
-    if M.tracing then M.traceli "relationpriv" "thread_join\n";
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "thread_join";
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let r = thread_join ?force ask getg e st in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 
   let thread_return ask getg sideg tid st =
-    if M.tracing then M.traceli "relationpriv" "thread_return\n";
-    if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
+    if M.tracing then M.traceli "relationpriv" "thread_return";
+    if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "relationpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "relationpriv" "getg %a -> %a" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "relationpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "relationpriv" "sideg %a %a" V.pretty x G.pretty v;
       sideg x v
     in
     let r = thread_return ask getg sideg tid st in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" RelComponents.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a" RelComponents.pretty r;
     r
 end
 

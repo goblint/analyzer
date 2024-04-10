@@ -13,25 +13,25 @@ Goblint extensively uses [CIL's `Pretty`](https://people.eecs.berkeley.edu/~necu
 * Logging CIL values (e.g. an expression `exp`) using the corresponding pretty-printer `d_exp` from `Cil` module:
 
 ```ocaml
-Logs.debug "A CIL exp: %a\n" d_exp exp;
+Logs.debug "A CIL exp: %a" d_exp exp;
 ```
 
 * Logging Goblint's `Printable` values (e.g. a domain `D` element `d`) using the corresponding pretty-printer `D.pretty`:
 
 ```ocaml
-Logs.debug "A domain element: %a\n" D.pretty d;
+Logs.debug "A domain element: %a" D.pretty d;
 ```
 
 * Logging primitives (e.g. OCaml ints, strings, etc) using the standard [OCaml `Printf`](https://ocaml.org/api/Printf.html) specifiers:
 
 ```ocaml
-Logs.debug "An int and a string: %d %s\n" 42 "magic";
+Logs.debug "An int and a string: %d %s" 42 "magic";
 ```
 
 * Logging lists of pretty-printables (e.g. expressions list `exps`) using `d_list`:
 
 ```ocaml
-Logs.debug "Some expressions: %a\n" (d_list ", " d_exp) exps;
+Logs.debug "Some expressions: %a" (d_list ", " d_exp) exps;
 ```
 
 
@@ -42,7 +42,7 @@ Recompile with tracing enabled: `./scripts/trace_on.sh`.
 
 Instead of logging use a tracing function from the `Messages` module, which is often aliased to just `M` (and pick a relevant name instead of `mything`):
 ```ocaml
-if M.tracing then M.trace "mything" "A domain element: %a\n" D.pretty d;
+if M.tracing then M.trace "mything" "A domain element: %a" D.pretty d;
 ```
 
 Then run Goblint with the additional argument `--trace mything`.

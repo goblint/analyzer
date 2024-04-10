@@ -55,7 +55,7 @@ struct
             (struct let name = "no index" end)))
         (struct let name = "no node" end))
 
-  let show (f, ni_opt) = 
+  let show (f, ni_opt) =
     let vname = f.vname in
     match ni_opt with
     | None -> vname
@@ -142,6 +142,9 @@ struct
 
   let is_must_parent (p,s) (p',s') =
     if not (S.is_empty s) then
+      false
+    else if P.equal p' p && S.is_empty s' then (* s is already empty *)
+      (* We do not consider a thread its own parent *)
       false
     else
       let cdef_ancestor = P.common_suffix p p' in

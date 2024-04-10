@@ -4,6 +4,8 @@ module MustSet = struct
   module M = SetDomain.Reverse (SetDomain.ToppedSet (IntOps.BigIntOps) (struct let topname = "All Null" end))
   include M
 
+  let name () = "MustNullBytes"
+
   let compute_set len =
     List.init (Z.to_int len) Z.of_int
     |> of_list
@@ -47,6 +49,8 @@ end
 module MaySet = struct
   module M = SetDomain.ToppedSet (IntOps.BigIntOps) (struct let topname = "All Null" end)
   include M
+
+  let name () = "MayNullBytes"
 
   let elements ?max_size may_nulls_set =
     if M.is_top may_nulls_set then

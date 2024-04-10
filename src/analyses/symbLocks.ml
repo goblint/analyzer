@@ -65,11 +65,11 @@ struct
       | a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
       | _ -> Queries.ES.singleton e
     in
-    if M.tracing then M.tracel "symb_locks" "get_all_locks exps %a = %a\n" d_plainexp e Queries.ES.pretty exps;
-    if M.tracing then M.tracel "symb_locks" "get_all_locks st = %a\n" D.pretty st;
+    if M.tracing then M.tracel "symb_locks" "get_all_locks exps %a = %a" d_plainexp e Queries.ES.pretty exps;
+    if M.tracing then M.tracel "symb_locks" "get_all_locks st = %a" D.pretty st;
     let add_locks x xs = PS.union (get_locks x st) xs in
     let r = Queries.ES.fold add_locks exps (PS.empty ()) in
-    if M.tracing then M.tracel "symb_locks" "get_all_locks %a = %a\n" d_plainexp e PS.pretty r;
+    if M.tracing then M.tracel "symb_locks" "get_all_locks %a = %a" d_plainexp e PS.pretty r;
     r
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
@@ -138,7 +138,7 @@ struct
     *)
     let one_perelem (e,a,l) xs =
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
-      if M.tracing then M.tracel "symb_locks" "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l;
+      if M.tracing then M.tracel "symb_locks" "one_perelem (%a,%a,%a)" Exp.pretty e Exp.pretty a Exp.pretty l;
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
       | Some (v, o) ->
         (* ignore (printf "adding lock %s\n" l); *)

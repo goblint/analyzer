@@ -137,8 +137,6 @@ sig
 
   val show: t -> string
 
-  val add_empty_column: t -> int -> t
-
   val add_empty_columns: t -> int array -> t
 
   val append_row: t -> vec -> t
@@ -209,8 +207,7 @@ module ArrayVector: AbstractVector =
   struct
     include ConvenienceOps (A)
     include Array
-    type t = A.t array [@@deriving eq, ord]
-    let hash = Array.fold_left (fun acc a -> 31 * acc + A.hash a) 0 (* TODO: array in ppx_deriving_hash *)
+    type t = A.t array [@@deriving eq, ord, hash]
 
     let show t =
       let t = Array.to_list t in
@@ -288,9 +285,7 @@ module ArrayMatrix: AbstractMatrix =
     include ConvenienceOps(A)
     module V = V(A)
 
-    type t = A.t array array [@@deriving eq, ord]
-
-    let hash = Array.fold_left (Array.fold_left (fun acc a -> 31 * acc + A.hash a)) 0
+    type t = A.t array array [@@deriving eq, ord, hash]
 
     let show x =
       Array.fold_left (^) "" (Array.map (fun v -> V.show @@ V.of_array v) x)
@@ -312,15 +307,6 @@ module ArrayMatrix: AbstractMatrix =
       Array.iteri (fun i x -> Array.blit x 0 cp.(i) 0 (num_cols m)) m; cp
 
     let copy m = timing_wrap "copy" (copy) m
-
-    let add_empty_column m n =
-      if is_empty m then m else
-        let nc = Array.length m.(0) in
-        if n > nc then failwith "n too large" else
-          let new_matrix = make_matrix (Array.length m) (Array.length m.(0) + 1) A.zero in
-          Array.iteri (fun i r -> if n = 0 then Array.blit r 0 new_matrix.(i) 1 (nc - 1) else
-                          Array.blit r 0 new_matrix.(i) 0 n; if n <> nc then Array.blit r n new_matrix.(i) (n + 1) (nc - n)) m;
-          new_matrix
 
     let add_empty_columns m cols =
       let nnc = Array.length cols in

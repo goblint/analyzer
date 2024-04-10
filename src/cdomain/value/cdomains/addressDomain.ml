@@ -194,19 +194,19 @@ struct
   let equal x y = x == y || equal x y
 
   let widen x y =
-    if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "ad" "widen %a %a" pretty x pretty y;
     let r = widen x y in
-    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    if M.tracing then M.traceu "ad" "-> %a" pretty r;
     r
   let join x y =
-    if M.tracing then M.traceli "ad" "join %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "ad" "join %a %a" pretty x pretty y;
     let r = join x y in
-    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    if M.tracing then M.traceu "ad" "-> %a" pretty r;
     r
   let leq x y =
-    if M.tracing then M.traceli "ad" "leq %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "ad" "leq %a %a" pretty x pretty y;
     let r = x == y || leq x y in (* short-circuit with physical equality, not benchmarked *)
-    if M.tracing then M.traceu "ad" "-> %B\n" r;
+    if M.tracing then M.traceu "ad" "-> %B" r;
     r
 
   let null_ptr       = singleton Addr.NullPtr
@@ -383,15 +383,15 @@ struct
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
 
   let meet x y =
-    if M.tracing then M.traceli "ad" "meet %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "ad" "meet %a %a" pretty x pretty y;
     let r = meet x y in
-    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    if M.tracing then M.traceu "ad" "-> %a" pretty r;
     r
 
   let narrow x y =
-    if M.tracing then M.traceli "ad" "narrow %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "ad" "narrow %a %a" pretty x pretty y;
     let r = narrow x y in
-    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    if M.tracing then M.traceu "ad" "-> %a" pretty r;
     r
 
   let filter f ad = fold (fun addr ad -> if f addr then add addr ad else ad) ad (empty ())

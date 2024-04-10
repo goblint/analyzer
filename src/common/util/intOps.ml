@@ -83,7 +83,7 @@ end
  * -------------------------------------------------------------- *)
 module NIntOpsBase : IntOpsBase with type t = int =
 struct
-  type t = int [@@deriving hash]
+  type t = int [@@deriving eq, ord, hash]
   let name () = "int"
   let zero = 0
   let one = 1
@@ -108,9 +108,6 @@ struct
   let logxor = (lxor)
   let lognot = (lnot)
 
-
-  let compare = compare
-  let equal = Int.equal
   let top_range a b = (a = min_int) && (b = max_int)
   let max = Int.max
   let min = Int.min
@@ -129,7 +126,7 @@ end
 
 module Int32OpsBase : IntOpsBase with type t = int32 =
 struct
-  type t = int32 [@@deriving hash]
+  type t = int32 [@@deriving eq, ord, hash]
   let name () = "int32"
   let zero = 0l
   let one = 1l
@@ -155,9 +152,6 @@ struct
 
   let lognot = Int32.lognot (* Int32 calls bitwise operations 'log' *)
 
-  let compare = Int32.compare
-  let equal = Int32.equal
-
   let top_range a b =
     (0 = compare a Int32.min_int) && (0 = compare b Int32.max_int)
   let max = Int32.max
@@ -177,7 +171,7 @@ end
 
 module Int64OpsBase : IntOpsBase with type t = int64 =
 struct
-  type t = int64 [@@deriving hash]
+  type t = int64 [@@deriving eq, ord, hash]
   let name () = "int64"
   let zero = 0L
   let one = 1L
@@ -203,9 +197,6 @@ struct
 
   let lognot = Int64.lognot (* Int64 calls bitwise operations 'log' *)
 
-  let compare = Int64.compare
-  let equal = Int64.equal
-
   let top_range a b =
     (0 = compare a Int64.min_int) && (0 = compare b Int64.max_int)
   let max = Int64.max
@@ -225,7 +216,7 @@ end
 
 module BigIntOpsBase : IntOpsBase with type t = Z.t =
 struct
-  type t = Z.t
+  type t = Z.t [@@deriving eq, ord, hash]
   let name () = "Z"
   let zero = Z.zero
   let one = Z.one
@@ -241,9 +232,6 @@ struct
   let rem = Z.rem
 
   let gcd = Z.gcd
-  let compare = Z.compare
-  let equal = Z.equal
-  let hash = Z.hash
 
   let top_range _ _ = false
 

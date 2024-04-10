@@ -217,7 +217,7 @@ struct
   let semantic_equal ~typ1 xoffs ~typ2 yoffs =
     let x_index = to_index ~typ:typ1 xoffs in
     let y_index = to_index ~typ:typ2 yoffs in
-    if M.tracing then M.tracel "addr" "xoffs=%a typ1=%a xindex=%a yoffs=%a typ2=%a yindex=%a\n" pretty xoffs d_plaintype typ1 Idx.pretty x_index pretty yoffs d_plaintype typ2 Idx.pretty y_index;
+    if M.tracing then M.tracel "addr" "xoffs=%a typ1=%a xindex=%a yoffs=%a typ2=%a yindex=%a" pretty xoffs d_plaintype typ1 Idx.pretty x_index pretty yoffs d_plaintype typ2 Idx.pretty y_index;
     Idx.to_bool (Idx.eq x_index y_index)
 
   include Lattice.NoBotTop

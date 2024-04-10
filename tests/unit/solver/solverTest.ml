@@ -68,5 +68,7 @@ let test1 _ =
   assert_equal ~printer:id "8"  (Int.show (LH.find sol "z"));
   assert_equal ~printer:id "Unknown int([-63,63])" (Int.show (LH.find sol "w"))
 
-let test () = "solverTest" >:::
-  [ "system1" >:: test1 ]
+let test () =
+  "solverTest" >::: [
+    "system1" >:: test1
+  ]

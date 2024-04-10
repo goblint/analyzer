@@ -25,7 +25,7 @@ struct
 
   let name () = "taint"
   module D = Lattice.Unit (* TODO: Change such that you have a fitting local domain *)
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   (* We are context insensitive in this analysis *)
   let context _ _ = ()

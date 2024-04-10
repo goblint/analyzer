@@ -36,7 +36,7 @@ struct
       Queries.AD.fold to_extra ad (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | ad ->
-      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.AD.pretty ad;
+      if M.tracing then M.tracel "escape" "reachable %a: %a" d_exp e Queries.AD.pretty ad;
       D.empty ()
 
   let mpt (ask: Queries.ask) e: D.t =
@@ -50,7 +50,7 @@ struct
       AD.fold to_extra (AD.remove UnknownPtr ad) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | ad ->
-      if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e AD.pretty ad;
+      if M.tracing then M.tracel "escape" "mpt %a: %a" d_exp e AD.pretty ad;
       D.empty ()
 
   let thread_id ctx =
@@ -80,7 +80,10 @@ struct
       if ThreadIdSet.is_empty threads then
         false
       else begin
-        let possibly_started current = function
+        let other_possibly_started current = function
+          | `Lifted tid when (ThreadId.Thread.equal current tid && ThreadId.Thread.is_unique current) ->
+            (* if our own (unique) thread is started here, that is not a problem *)
+            false
           | `Lifted tid ->
             let threads = ctx.ask Queries.CreatedThreads in
             let not_started = MHP.definitely_not_started (current, threads) tid in
@@ -97,14 +100,14 @@ struct
         in
         match ctx.ask Queries.CurrentThreadId with
         | `Lifted current ->
-          let possibly_started = ThreadIdSet.exists (possibly_started current) threads in
+          let possibly_started = ThreadIdSet.exists (other_possibly_started current) threads in
           if possibly_started then
             true
           else
             let current_is_unique = ThreadId.Thread.is_unique current in
             let any_equal_current threads = ThreadIdSet.exists (equal_current current) threads in
             if not current_is_unique && any_equal_current threads then
-              (* Another instance of the non-unqiue current thread may have escaped the variable *)
+              (* Another instance of the non-unique current thread may have escaped the variable *)
               true
             else
               (* Check whether current unique thread has escaped the variable *)
@@ -171,7 +174,7 @@ struct
       (* not reusing fctx.local to avoid unnecessarily early join of extra *)
       let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
-      if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
+      if M.tracing then M.tracel "escape" "%a: %a" d_exp ptc_arg D.pretty escaped;
       let thread_id = thread_id ctx in
       emit_escape_event ctx escaped;
       side_effect_escape ctx escaped thread_id;
