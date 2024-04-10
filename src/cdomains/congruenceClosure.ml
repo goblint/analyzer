@@ -150,7 +150,7 @@ module UnionFind (Val: Val)  = struct
       if Val.compare v' v = 0 then
         if Z.equal r' Z.zero then (v',r')
         else raise (InvalidUnionFind "non-zero self-distance!")
-      else find_no_pc uf v'
+      else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
 
   let compare_repr = Tuple2.compare ~cmp1:Val.compare ~cmp2:Z.compare
 
@@ -321,31 +321,31 @@ module Term(Var:Val) = struct
     in if Z.(equal zero off) then cil_t else BinOp (PlusPI, cil_t, to_cil_constant off, default_pointer_type (term_depth t + 1))
 
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
-  let z_from_exp = function
+  let z_of_exp = function
     | Const (CInt (i, _, _)) -> Some i
     | UnOp _
     | BinOp _-> (*because we performed constant folding*)None
     | _ -> None
 
   (**Returns an integer from a cil offset and None if the offset is not an integer. *)
-  let rec from_offset = function
+  let rec of_offset = function
     | NoOffset -> Some Z.zero
     | Field (fieldinfo, offset) -> (*TODO... ?*)None
-    | Index (exp, offset) -> match z_from_exp exp, from_offset offset with
+    | Index (exp, offset) -> match z_of_exp exp, of_offset offset with
       | Some c1, Some c2 -> Some Z.(c1 + c2)
       | _ -> None
 
   (**Returns Some term, Some offset or None, None if the expression can't be described with our analysis.*)
-  let rec from_cil = function
-    | Const c -> None, z_from_exp (Const c)
-    | Lval lval -> from_lval lval
+  let rec of_cil = function
+    | Const c -> None, z_of_exp (Const c)
+    | Lval lval -> of_lval lval
     | AlignOf _
     | AlignOfE _
     | StartOf _ -> (*no idea*) None, None
     | AddrOf (Var var, NoOffset) -> Some (Addr var), Some Z.zero
-    | AddrOf (Mem exp, NoOffset) -> from_cil exp
+    | AddrOf (Mem exp, NoOffset) -> of_cil exp
     | UnOp (op,exp,typ)-> begin match op with
-        | Neg -> begin  match from_cil exp with
+        | Neg -> begin  match of_cil exp with
             | None, Some off -> None, Some Z.(-off)
             | _ -> None, None
           end
@@ -354,14 +354,14 @@ module Term(Var:Val) = struct
     | BinOp (binop, exp1, exp2, typ)-> begin match binop with
         | PlusA
         | PlusPI
-        | IndexPI -> begin match from_cil exp1, from_cil exp2 with
+        | IndexPI -> begin match of_cil exp1, of_cil exp2 with
             | (None, Some off1), (Some term, Some off2)
             | (Some term, Some off1), (None, Some off2) -> Some term, Some Z.(off1 + off2)
             | _ -> None, None
           end
         | MinusA
         | MinusPI
-        | MinusPP  -> begin match from_cil exp1, from_cil exp2 with
+        | MinusPP  -> begin match of_cil exp1, of_cil exp2 with
             | (Some term, Some off1), (None, Some off2) -> Some term, Some Z.(off1 - off2)
             | _ -> None, None
           end
@@ -369,21 +369,74 @@ module Term(Var:Val) = struct
         | Ne -> None, None
         | _ -> None, None
       end
-    | CastE (typ, exp)-> (*TODO*)None, None
+    | CastE (typ, exp)-> of_cil exp
     | AddrOf lval -> (*TODO*)None, None
     | _ -> None, None
-  and from_lval = function
-    | (Var var, offset) -> begin match from_offset offset with
+  and of_lval = function
+    | (Var var, offset) -> begin match of_offset offset with
         | None -> None, None
         | Some off -> Some (Deref (Addr var, Z.zero)), Some off
       end
     | (Mem exp, offset) ->
-      begin match from_cil exp, from_offset offset with
+      begin match of_cil exp, of_offset offset with
         | (Some term, Some offset), Some z_offset -> Some (Deref (term, offset)), Some z_offset
         | _ -> None, None
       end
 
-  let from_cil = from_cil % Cil.constFold false
+  let of_cil = of_cil % Cil.constFold false
+
+  let rec of_cil_neg neg e = match e with
+    | UnOp (op,exp,typ)->
+      begin match op with
+        | Neg -> of_cil_neg (not neg) exp
+        | _ -> if neg then None, None else of_cil e
+      end
+    | _ -> if neg then None, None else of_cil e
+
+  let map_z_opt op z = Tuple2.map2 (Option.map (op z))
+  let rec two_terms_of_cil neg e =
+    let pos_t, neg_t = match e with
+      | UnOp (op,exp,typ)-> begin match op with
+          | Neg -> two_terms_of_cil (not neg) exp
+          | _ -> of_cil e, (None, Some Z.zero)
+        end
+      | BinOp (binop, exp1, exp2, typ)-> begin match binop with
+          | PlusA
+          | PlusPI
+          | IndexPI -> begin match of_cil exp1 with
+              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil true exp2 in
+                map_z_opt Z.(+) off1 pos_t, neg_t
+              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg true exp2
+              | _ -> (None, None), (None, None)
+            end
+          | MinusA
+          | MinusPI
+          | MinusPP -> begin match of_cil exp1 with
+              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil false exp2 in
+                map_z_opt Z.(+) off1 pos_t, neg_t
+              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg false exp2
+              | _ -> of_cil e, (None, Some Z.zero)
+            end
+          | _ -> of_cil e, (None, Some Z.zero)
+        end
+      | _ -> of_cil e, (None, Some Z.zero)
+    in if neg then neg_t, pos_t else pos_t, neg_t
+
+  let rec prop_of_cil e negate =
+    let e = Cil.constFold false e in
+    match e with
+    | BinOp (r, e1, e2, _) ->
+      begin  match two_terms_of_cil false (BinOp (MinusPI, e1, e2, TVoid [])) with
+        | ((Some t1, Some z1), (Some t2, Some z2)) ->
+          begin match r with
+            | Eq -> if negate then  [Nequal (t1, t2, Z.(z2-z1))] else [Equal (t1, t2, Z.(z2-z1))]
+            | Ne -> if negate then [Equal (t1, t2, Z.(z2-z1))] else [Nequal (t1, t2, Z.(z2-z1))]
+            | _ -> []
+          end
+        | _,_ -> []
+      end
+    | UnOp (Neg, e1, _) -> prop_of_cil e1 (not negate)
+    | _ -> []
 
 end
 
