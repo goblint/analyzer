@@ -318,7 +318,7 @@ module Term(Var:Val) = struct
       | Addr v -> AddrOf (Var v, NoOffset)
       | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset)
       | Deref (t, z) -> Lval (Mem (to_cil z t), NoOffset)
-    in if Z.(equal zero off) then cil_t else BinOp (PlusPI, cil_t, to_cil_constant off, default_pointer_type (term_depth t))
+    in if Z.(equal zero off) then cil_t else BinOp (PlusPI, cil_t, to_cil_constant off, default_pointer_type (term_depth t + 1))
 
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_from_exp = function
@@ -931,6 +931,8 @@ module CongruenceClosure (Var : Val) = struct
     in let new_map, new_part =
          remove_terms_from_map (new_part, new_map) removed_terms_set new_parents_map
     in let min_repr, new_part = MRMap.compute_minimal_representatives (new_part, new_set, new_map)
-    in {part = new_part; set = new_set; map = new_map; min_repr = min_repr}
+    in
+    if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n" (SSet.fold (fun t s -> s ^"; "^T.show t) removed_terms_set "");
+    {part = new_part; set = new_set; map = new_map; min_repr = min_repr}
 
 end
