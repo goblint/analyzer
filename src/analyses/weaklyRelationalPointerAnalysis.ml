@@ -13,28 +13,11 @@ open CC.CongruenceClosure(Var)
 
 module Operations =
 struct
-  let from_cil a = let res = T.from_cil a in
-    let string_res = match res with
-      | None,None -> "None, None"
-      | Some res,None -> (T.show res) ^", None"
-      | None, Some z -> "None, " ^Z.to_string z
-      | Some res, Some z -> (T.show res) ^", "^Z.to_string z in
-    if M.tracing then M.trace "wrpointer" "Converting rhs: <%a>. Plain expression: <%a>. Result: <%s>\n" d_exp a d_plainexp a string_res;res
-
-
-  let from_lval a = let res = T.from_lval a in
-    let string_res = match res with
-      | None,None -> "None, None"
-      | Some res,None -> (T.show res) ^", None"
-      | None, Some z -> "None, " ^Z.to_string z
-      | Some res, Some z -> (T.show res) ^", "^Z.to_string z in
-    if M.tracing then M.trace "wrpointer" "Converting lhs: <%a>. Plain lval: <%a>. Result: <%s>\n" d_lval a d_plainlval a string_res;res
-
   let assign_lval (t:D.domain) ask lval expr =
     match t with
     | None -> (* The domain is bottom *)None
     | Some t ->
-      match from_lval lval, from_cil expr with
+      match T.from_lval lval, T.from_cil expr with
       (* Indefinite assignment *)
       | (Some lterm, Some loffset), (None, _) -> Some (D.remove_may_equal_terms t ask lterm)
       (* Definite assignment *)
