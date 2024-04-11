@@ -12,8 +12,12 @@ void main(void) {
   if (j != &k) {
     f = i;
     printf("branch1");
+    __goblint_check(0); // NOWARN (unreachable)
   } else {
     f = k;
     printf("branch2");
+    __goblint_check(1); // reachable
   }
+
+  __goblint_check(f == k);
 }

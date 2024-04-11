@@ -28,6 +28,10 @@ int main(void) {
   printf("*k = %d\n", *k);                 // 3
   printf("\n");
 
+  __goblint_check(*j23 == j33);
+  __goblint_check(*j2 == j3);
+  __goblint_check(*i == *k);
+
   i = **(j + 3);
 
   // j --> *j=j2 --> **j=j3 --> ***j=|4|
@@ -40,6 +44,10 @@ int main(void) {
   printf("*k = %d\n", *k);                 // 3
   printf("\n");
 
+  __goblint_check(*j23 == j33);
+  __goblint_check(*j2 == j3);
+  __goblint_check(*i == *j33);
+
   *j = &k;
 
   // j2 --> j3 --> |4|
@@ -51,6 +59,10 @@ int main(void) {
   printf("*i = %d\n", *i);                 // 5
   printf("*k = %d\n", *k);                 // 3
   printf("**j2 = %d\n", **j2);             // 4
+
+  __goblint_check(*j23 == j33);
+  __goblint_check(*j2 == j3);
+  __goblint_check(**j == k);
 
   // not assignable: &k = *j;
 
