@@ -2079,7 +2079,7 @@ struct
       of_int ik x
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-      let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval range_ikind b) in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
 
