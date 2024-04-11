@@ -2080,7 +2080,7 @@ struct
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
       let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
-      let ex = if Z.geq x Z.zero || Z.leq y Z.zero then S.singleton Z.zero else S.empty () in
+      let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       (`Excluded (ex, r))
 
   let starting ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero > 0 then not_zero ikind else top_of ikind
