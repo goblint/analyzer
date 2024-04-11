@@ -23,15 +23,15 @@ struct
       (* invertibe assignment *)
       | _ -> Some t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
 
-  let branch_fn ctx e neg =
+  let branch_fn ctx e pos =
     match ctx.local with
     | None -> None
     | Some st ->
-      let props = T.prop_of_cil e neg in
+      let props = T.prop_of_cil e pos in
       let res = meet_conjs_opt st props in
       if D.is_bot res then raise Deadcode;
-      if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; neg: %b; prop_list: %s\n"
-          d_exp e neg (show_conj props);
+      if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; pos: %b; prop_list: %s\n"
+          d_exp e pos (show_conj props);
       res
 
   let assert_fn ctx e refine =
@@ -47,7 +47,7 @@ struct
     match t with
       None -> Some false
     | Some t ->
-      let prop_list = T.prop_of_cil e false in
+      let prop_list = T.prop_of_cil e true in
       let res = match split prop_list with
         | [], [] -> None
         | x::xs, _ -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
@@ -86,7 +86,7 @@ struct
     let res = assign_lval ctx.local (ask_of_ctx ctx) var expr in
     if M.tracing then M.trace "wrpointer-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval var d_exp expr (D.show res) (Option.fold ~none:"" ~some:(fun r -> TUF.show_uf r.part) res); res
 
-  let branch ctx expr b = branch_fn ctx expr (not b)
+  let branch ctx expr b = branch_fn ctx expr b
 
   let body ctx f = ctx.local (*DONE*)
 

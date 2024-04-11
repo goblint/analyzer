@@ -420,23 +420,23 @@ module Term(Var:Val) = struct
       | _ -> of_cil e, (None, Some Z.zero)
     in if neg then neg_t, pos_t else pos_t, neg_t
 
-  (** `prop_of_cil e negate` parses the expression `e` (or `not e` if `neg = true`) and
-      returns a list of length 1 wiith the parsed expresion or an empty list if
+  (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
+      returns a list of length 1 with the parsed expresion or an empty list if
         the expression can't be expressed with the data type `term`. *)
-  let rec prop_of_cil e negate =
+  let rec prop_of_cil e pos =
     let e = Cil.constFold false e in
     match e with
     | BinOp (r, e1, e2, _) ->
       begin  match two_terms_of_cil false (BinOp (MinusPI, e1, e2, TInt (Cilfacade.get_ikind_exp e,[]))) with
         | ((Some t1, Some z1), (Some t2, Some z2)) ->
           begin match r with
-            | Eq -> if negate then  [Nequal (t1, t2, Z.(z2-z1))] else [Equal (t1, t2, Z.(z2-z1))]
-            | Ne -> if negate then [Equal (t1, t2, Z.(z2-z1))] else [Nequal (t1, t2, Z.(z2-z1))]
+            | Eq -> if pos then [Equal (t1, t2, Z.(z2-z1))] else [Nequal (t1, t2, Z.(z2-z1))]
+            | Ne -> if pos then [Nequal (t1, t2, Z.(z2-z1))] else [Equal (t1, t2, Z.(z2-z1))]
             | _ -> []
           end
         | _,_ -> []
       end
-    | UnOp (LNot, e1, _) -> prop_of_cil e1 (not negate)
+    | UnOp (LNot, e1, _) -> prop_of_cil e1 (not pos)
     | _ -> []
 
 end
