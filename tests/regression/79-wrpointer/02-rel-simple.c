@@ -22,11 +22,11 @@ int main(void) {
   // (j+3) --> j23 --> j33 --> |5|
   // k=i --> |3|
 
-  printf("***j = %d\n", ***j);             // 4
-  printf("***(j + 3) = %d\n", ***(j + 3)); // 5
-  printf("*i = %d\n", *i);                 // 3
-  printf("*k = %d\n", *k);                 // 3
-  printf("\n");
+  // printf("***j = %d\n", ***j);             // 4
+  // printf("***(j + 3) = %d\n", ***(j + 3)); // 5
+  // printf("*i = %d\n", *i);                 // 3
+  // printf("*k = %d\n", *k);                 // 3
+  // printf("\n");
 
   __goblint_check(*j23 == j33);
   __goblint_check(*j2 == j3);
@@ -38,11 +38,11 @@ int main(void) {
   // (j+3) --> j23 --> j33=i --> |5|
   // k --> |3|
 
-  printf("***j = %d\n", ***j);             // 4
-  printf("***(j + 3) = %d\n", ***(j + 3)); // 5
-  printf("*i = %d\n", *i);                 // 5
-  printf("*k = %d\n", *k);                 // 3
-  printf("\n");
+  // printf("***j = %d\n", ***j);             // 4
+  // printf("***(j + 3) = %d\n", ***(j + 3)); // 5
+  // printf("*i = %d\n", *i);                 // 5
+  // printf("*k = %d\n", *k);                 // 3
+  // printf("\n");
 
   __goblint_check(*j23 == j33);
   __goblint_check(*j2 == j3);
@@ -54,11 +54,11 @@ int main(void) {
   // (j+3) --> j23 --> j33=i --> |5|
   // j --> *j --> k --> |3|
 
-  printf("***j = %d\n", ***j);             // 3
-  printf("***(j + 3) = %d\n", ***(j + 3)); // 5
-  printf("*i = %d\n", *i);                 // 5
-  printf("*k = %d\n", *k);                 // 3
-  printf("**j2 = %d\n", **j2);             // 4
+  // printf("***j = %d\n", ***j);             // 3
+  // printf("***(j + 3) = %d\n", ***(j + 3)); // 5
+  // printf("*i = %d\n", *i);                 // 5
+  // printf("*k = %d\n", *k);                 // 3
+  // printf("**j2 = %d\n", **j2);             // 4
 
   __goblint_check(*j23 == j33);
   __goblint_check(*j2 == j3);
