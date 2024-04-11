@@ -468,8 +468,7 @@ module CongruenceClosure (Var : Val) = struct
         subterms_of_term (set, map) t'
 
     let subterms_of_prop (set,map) = function
-      | Equal (t1,t2,_)
-      | Nequal (t1,t2,_) -> subterms_of_term (subterms_of_term (set,map) t1) t2
+      |  (t1,t2,_) -> subterms_of_term (subterms_of_term (set,map) t1) t2
 
     let subterms_of_conj list = List.fold_left subterms_of_prop (TSet.empty, LMap.empty) list
 
@@ -787,16 +786,14 @@ module CongruenceClosure (Var : Val) = struct
   (** Throws Unsat if the congruence is unsatisfiable.*)
   let init_congruence conj =
     let cc = init_cc conj in
-    let pos, _ = split conj in
     (* propagating equalities through derefs *)
-    closure cc pos
+    closure cc conj
 
   (** Returns None if the congruence is unsatisfiable.*)
   let init_congruence_opt conj =
     let cc = init_cc conj in
-    let pos, _ = split conj in
     (* propagating equalities through derefs *)
-    match closure cc pos with
+    match closure cc conj with
     | exception Unsat -> None
     | x -> Some x
 
@@ -846,17 +843,6 @@ module CongruenceClosure (Var : Val) = struct
     let min_repr, part = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
     {part = part; set = cc.set; map = cc.map; min_repr = min_repr}
 
-  (**
-     Throws "Unsat" if a contradiction is found.
-  *)
-  let meet_conjs cc conjs =
-    let cc = insert_set cc (fst (SSet.subterms_of_conj conjs)) in
-    closure cc (fst (split conjs))
-
-  let meet_conjs_opt cc conjs =
-    match meet_conjs cc conjs with
-    | exception Unsat -> None
-    | t -> Some t
 
   (**
      Returns true if t1 and t2 are equivalent.
@@ -876,6 +862,21 @@ module CongruenceClosure (Var : Val) = struct
       if r1 = r2 then false
       else true
     else false
+
+
+  (**
+     Throws "Unsat" if a contradiction is found.
+  *)
+  let meet_conjs cc pos_conjs =
+    let cc = insert_set cc (fst (SSet.subterms_of_conj pos_conjs)) in
+    closure cc pos_conjs
+
+  let meet_conjs_opt cc conjs =
+    let pos_conjs, neg_conjs = split conjs in
+    if List.exists (fun c-> fst (eq_query cc c)) neg_conjs then None else
+      match meet_conjs cc pos_conjs with
+      | exception Unsat -> None
+      | t -> Some t
 
   (**
      Add proposition t1 = t2 + r to the data structure.

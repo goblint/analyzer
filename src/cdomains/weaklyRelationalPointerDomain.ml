@@ -95,9 +95,7 @@ module D = struct
     | _, None -> None
     | Some a, Some b ->
       let a_conj = get_normal_form a in
-      match meet_conjs b a_conj with
-      | res -> Some res
-      | exception CC.Unsat -> None
+      meet_conjs_opt b a_conj
 
   let leq x y = equal (meet x y) x
 
