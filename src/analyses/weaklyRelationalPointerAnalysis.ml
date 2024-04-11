@@ -29,7 +29,6 @@ struct
       (* invertibe assignment *)
       | _ -> Some t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
 
-
   let branch_fn ctx e neg =
     match ctx.local with
     | None -> None
@@ -57,8 +56,8 @@ struct
         | [], [] -> false
         | x::xs, _ -> fst (eq_query t x)
         | _, y::ys -> neq_query t y
-      in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s\n"
-          d_exp e (show_conj prop_list); res
+      in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %b\n"
+          d_exp e (show_conj prop_list) res; res
 
 end
 
@@ -93,12 +92,11 @@ struct
     let res = assign_lval ctx.local (ask_of_ctx ctx) var expr in
     if M.tracing then M.trace "wrpointer-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval var d_exp expr (D.show res) (Option.fold ~none:"" ~some:(fun r -> TUF.show_uf r.part) res); res
 
-  let branch ctx expr neg = branch_fn ctx expr neg
+  let branch ctx expr b = branch_fn ctx expr (not b)
 
   let body ctx f = ctx.local (*DONE*)
 
   let return ctx exp_opt f = ctx.local
-
 
   let special ctx var_opt v exprs  =
     let desc = LibraryFunctions.find v in
