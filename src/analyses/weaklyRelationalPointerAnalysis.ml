@@ -2,9 +2,6 @@
 
 (** TODO description *)
 
-(* open Batteries
-   open GoblintCil
-   open Pretty *)
 open Analyses
 open GoblintCil
 open WeaklyRelationalPointerDomain
@@ -15,15 +12,12 @@ module Operations =
 struct
   let assign_lval (t:D.domain) ask lval expr =
     match t with
-    | None -> (* The domain is bottom *)None
+    | None -> None
     | Some t ->
       match T.of_lval lval, T.of_cil expr with
       (* Indefinite assignment *)
       | (Some lterm, Some loffset), (None, _) -> Some (D.remove_may_equal_terms t ask lterm)
       (* Definite assignment *)
-      | (Some (Addr x), Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
-        (* This is not even possible *)
-        meet_conjs_opt (insert_set (D.remove_terms_containing_variable t (Addr x)) (SSet.TSet.of_list [Addr x; term])) [Equal (Addr x, term, offset)]
       | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
         meet_conjs_opt (insert_set (D.remove_may_equal_terms t ask lterm) (SSet.TSet.of_list [lterm; term])) [Equal (lterm, term, offset)]
       (* invertibe assignment *)
@@ -33,11 +27,11 @@ struct
     match ctx.local with
     | None -> None
     | Some st ->
-      let prop_list = T.prop_of_cil e neg in
-      let res = meet_conjs_opt st prop_list in
+      let props = T.prop_of_cil e neg in
+      let res = meet_conjs_opt st props in
       if D.is_bot res then raise Deadcode;
       if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; neg: %b; prop_list: %s\n"
-          d_exp e neg (show_conj prop_list);
+          d_exp e neg (show_conj props);
       res
 
   let assert_fn ctx e refine =
@@ -46,23 +40,23 @@ struct
     else
       branch_fn ctx e false
 
-  (* Returns true if we know for sure that it is true, and false if we don't know anyhing. *)
+  (* Returns Some true if we know for sure that it is true,
+     and Some false if we know for sure that it is false,
+     and None if we don't know anyhing. *)
   let eval_guard t e =
     match t with
-      None -> false
+      None -> Some false
     | Some t ->
       let prop_list = T.prop_of_cil e false in
       let res = match split prop_list with
-        | [], [] -> false
-        | x::xs, _ -> fst (eq_query t x)
-        | _, y::ys -> neq_query t y
-      in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %b\n"
-          d_exp e (show_conj prop_list) res; res
+        | [], [] -> None
+        | x::xs, _ -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
+        | _, y::ys ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
+      in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
+          d_exp e (show_conj prop_list) (Option.fold ~none:"None" ~some:string_of_bool res); res
 
 end
 
-(* module M = Messages
-   module VS = SetDomain.Make (CilType.Varinfo) *)
 module Spec : MCPSpec =
 struct
   include DefaultSpec
@@ -78,12 +72,12 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
-    | EvalInt e when eval_guard ctx.local e ->
-      let ik = Cilfacade.get_ikind_exp e in
-      ID.of_bool ik true
-    | EvalInt e when eval_guard ctx.local (UnOp (LNot, e, TInt (Cilfacade.get_ikind_exp e,[]))) ->
-      let ik = Cilfacade.get_ikind_exp e in
-      ID.of_bool ik false
+    | EvalInt e -> begin match eval_guard ctx.local e with
+        | None -> Result.top q
+        | Some res ->
+          let ik = Cilfacade.get_ikind_exp e in
+          ID.of_bool ik res
+      end
     (* TODO what is type a
        | Queries.Invariant context -> get_normal_form context*)
     | _ -> Result.top q

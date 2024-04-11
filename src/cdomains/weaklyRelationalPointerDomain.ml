@@ -13,17 +13,16 @@ module Disequalities = struct
   module AD = AddressDomain.AddressSet (PreValueDomain.Mval) (ValueDomain.ID)
 
   (**Find out if two addresses are definitely not equal by using the MayPointTo query*)
-  let query_neq (ask:Queries.ask) t1 t2 off =
+  let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
     let exp1 = T.to_cil Z.zero t1 in
     let exp2 = T.to_cil off t2 in
     let mpt1 = ask.f (MayPointTo exp1) in
     let mpt2 = ask.f (MayPointTo exp2) in
-    let res = AD.is_bot (AD.meet mpt1 mpt2) in
+    let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
     if M.tracing then M.tracel "wrpointer" "QUERY MayPointTo. \nt1: %s; res: %a\nt2: %s; res: %a\nresult: %s\n"
         (T.show t1) AD.pretty mpt1 (T.show t2) AD.pretty mpt2 (string_of_bool res); res
 
-
-  (**Returns true iff by assigning to t1, the value of t2 doesn't change. *)
+  (**Returns true iff by assigning to t1, the value of t2 could change. *)
   let rec may_be_equal ask part t1 t2 =
     match t1, t2 with
     | CC.Deref (t, z), CC.Deref (v, z') ->
@@ -31,10 +30,10 @@ module Disequalities = struct
       let (q, z1) = TUF.find_no_pc part t in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
       (
-        not (T.equal q' q && not(Z.(equal z (z' + z1 - z1'))))
+        (not (T.equal q' q) || Z.(equal z (z' + z1 - z1')))
         (* or if we know that they are not equal according to the query MayPointTo*)
         &&
-        not (query_neq ask q q' Z.(z' - z + z1 - z1'))
+        (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))
       )
       || (may_be_equal ask part t1 v)
     | CC.Deref _, _ -> false (*The value of addresses never change when we overwrite the memory*)
@@ -50,8 +49,8 @@ module D = struct
 
   include Printable.StdLeaf
 
-  type domain = t option
-  type t = domain
+  type domain = t option [@@deriving ord, hash]
+  type t = domain [@@deriving ord, hash]
 
   (** Convert to string *)
   let show x = match x with
@@ -73,24 +72,20 @@ module D = struct
     | None, None -> true
     | _ -> false
 
-  let compare x y = 0 (* How to compare if there is no total order? *)
-
   let empty () = Some {part = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty}
 
   let init () = init_congruence []
 
-  (** let hash = Hashtbl.hash *)
-  let hash x = 1 (* TODO *)
   let bot () = None
   let is_bot x = x = None
   let top () = empty ()
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.part
 
-  let join a b = if M.tracing then M.trace "wrpointer" "JOIN\n";a
+  let join a b = if M.tracing then M.trace "wrpointer" "JOIN\n";a (*TODO implement join*)
   let widen = join
 
-  let meet a b = match a,b with (*TODO put in different file *)
+  let meet a b = match a,b with
     | None, _ -> None
     | _, None -> None
     | Some a, Some b ->
@@ -119,6 +114,8 @@ module D = struct
   let remove_terms_containing_variable cc var =
     remove_terms cc (T.is_subterm var)
 
+  (** Remove terms from the data structure.
+      It removes all terms that may be changed after an assignment to "term".*)
   let remove_may_equal_terms cc ask term =
     let cc = (snd(insert cc term)) in
     remove_terms cc (Disequalities.may_be_equal ask cc.part term)

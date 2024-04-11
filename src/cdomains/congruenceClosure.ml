@@ -420,6 +420,9 @@ module Term(Var:Val) = struct
       | _ -> of_cil e, (None, Some Z.zero)
     in if neg then neg_t, pos_t else pos_t, neg_t
 
+  (** `prop_of_cil e negate` parses the expression `e` (or `not e` if `neg = true`) and
+      returns a list of length 1 wiith the parsed expresion or an empty list if
+        the expression can't be expressed with the data type `term`. *)
   let rec prop_of_cil e negate =
     let e = Cil.constFold false e in
     match e with
@@ -521,9 +524,9 @@ module CongruenceClosure (Var : Val) = struct
   (** Minimal representatives map.
       It maps each representative term of an equivalence class to the minimal term of this representative class. *)
   module MRMap = struct
-    module TMap = Map.Make(T)
+    module TMap = ValMap (T)
 
-    type t = (T.t * Z.t) TMap.t [@@deriving eq, ord]
+    type t = (T.t * Z.t) TMap.t [@@deriving eq, ord, hash]
 
     let bindings = TMap.bindings
     let find = TMap.find
@@ -622,7 +625,7 @@ module CongruenceClosure (Var : Val) = struct
             set: SSet.t;
             map: LMap.t;
             min_repr: MRMap.t}
-  [@@deriving eq, ord]
+  [@@deriving eq, ord, hash]
 
   let show_all x = "Union Find partition:\n" ^
                    (TUF.show_uf x.part)
