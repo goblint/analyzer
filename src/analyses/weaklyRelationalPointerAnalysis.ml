@@ -37,8 +37,8 @@ struct
       let prop_list = T.prop_of_cil e neg in
       let res = meet_conjs_opt st prop_list in
       if D.is_bot res then raise Deadcode;
-      if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; neg: %s; prop_list: %s\n"
-        d_exp e (string_of_bool neg) (show_conj prop_list);
+      if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; neg: %b; prop_list: %s\n"
+          d_exp e neg (show_conj prop_list);
       res
 
   let assert_fn ctx e refine =
@@ -46,6 +46,19 @@ struct
       ctx.local
     else
       branch_fn ctx e false
+
+  (* Returns true if we know for sure that it is true, and false if we don't know anyhing. *)
+  let eval_guard t e =
+    match t with
+      None -> false
+    | Some t ->
+      let prop_list = T.prop_of_cil e false in
+      let res = match split prop_list with
+        | [], [] -> false
+        | x::xs, _ -> fst (eq_query t x)
+        | _, y::ys -> neq_query t y
+      in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s\n"
+          d_exp e (show_conj prop_list); res
 
 end
 
@@ -63,11 +76,22 @@ struct
   let startstate v = D.empty()
   let exitstate v = D.empty()
 
-  let query _ (type a) (q: a Queries.t) = Queries.Result.top q
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    let open Queries in
+    match q with
+    | EvalInt e when eval_guard ctx.local e ->
+      let ik = Cilfacade.get_ikind_exp e in
+      ID.of_bool ik true
+    | EvalInt e when eval_guard ctx.local (UnOp (LNot, e, TInt (Cilfacade.get_ikind_exp e,[]))) ->
+      let ik = Cilfacade.get_ikind_exp e in
+      ID.of_bool ik false
+    (* TODO what is type a
+       | Queries.Invariant context -> get_normal_form context*)
+    | _ -> Result.top q
 
   let assign ctx var expr =
     let res = assign_lval ctx.local (ask_of_ctx ctx) var expr in
-    if M.tracing then M.trace "wrpointer" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval var d_exp expr (D.show res) (Option.fold ~none:"" ~some:(fun r -> TUF.show_uf r.part) res); res
+    if M.tracing then M.trace "wrpointer-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval var d_exp expr (D.show res) (Option.fold ~none:"" ~some:(fun r -> TUF.show_uf r.part) res); res
 
   let branch ctx expr neg = branch_fn ctx expr neg
 

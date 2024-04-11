@@ -194,8 +194,9 @@ module UnionFind (Val: Val)  = struct
   (** Throws "Unknown value" if v is not present in the data structure. *)
   let show_uf uf = List.fold_left (fun s eq_class ->
       s ^ List.fold_left (fun s (v, (refv, size)) ->
-          s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^ "; Parent: " ^ Val.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^"\n") "" eq_class
-      ^ "\n") "" (get_eq_classes uf) ^ "\n"
+          s ^ "\t" ^ (if is_root uf v then "R: " else "") ^ "("^Val.show v ^ "; P: " ^ Val.show (fst refv) ^ "; o: " ^ Z.to_string (snd refv) ^ "; s: " ^ string_of_int size ^")\n") "" eq_class
+      ^ "----\n") "" (get_eq_classes uf) ^ "\n"
+
 
 
 end
@@ -250,7 +251,7 @@ module LookupMap (T: Val) = struct
            (fun s (r, v) ->
               s ^ "\t" ^ Z.to_string r ^ ": " ^ List.fold_left
                 (fun s k -> s ^ T.show k ^ ";")
-                "" (TSet.elements v) ^ "; ")
+                "" (TSet.elements v) ^ ";; ")
            "" (zmap_bindings zmap) ^ "\n")
       "" (bindings map)
 
@@ -396,10 +397,7 @@ module Term(Var:Val) = struct
   let map_z_opt op z = Tuple2.map2 (Option.map (op z))
   let rec two_terms_of_cil neg e =
     let pos_t, neg_t = match e with
-      | UnOp (op,exp,typ)-> begin match op with
-          | Neg -> two_terms_of_cil (not neg) exp
-          | _ -> of_cil e, (None, Some Z.zero)
-        end
+      | UnOp (Neg,exp,typ) -> two_terms_of_cil (not neg) exp
       | BinOp (binop, exp1, exp2, typ)-> begin match binop with
           | PlusA
           | PlusPI
@@ -426,7 +424,7 @@ module Term(Var:Val) = struct
     let e = Cil.constFold false e in
     match e with
     | BinOp (r, e1, e2, _) ->
-      begin  match two_terms_of_cil false (BinOp (MinusPI, e1, e2, TVoid [])) with
+      begin  match two_terms_of_cil false (BinOp (MinusPI, e1, e2, TInt (Cilfacade.get_ikind_exp e,[]))) with
         | ((Some t1, Some z1), (Some t2, Some z2)) ->
           begin match r with
             | Eq -> if negate then  [Nequal (t1, t2, Z.(z2-z1))] else [Equal (t1, t2, Z.(z2-z1))]
@@ -435,7 +433,7 @@ module Term(Var:Val) = struct
           end
         | _,_ -> []
       end
-    | UnOp (Neg, e1, _) -> prop_of_cil e1 (not negate)
+    | UnOp (LNot, e1, _) -> prop_of_cil e1 (not negate)
     | _ -> []
 
 end
@@ -460,7 +458,7 @@ module CongruenceClosure (Var : Val) = struct
     let empty = TSet.empty
 
     let show_set set = TSet.fold (fun v s ->
-        s ^ "\t" ^ T.show v ^ "\n") set "" ^ "\n"
+        s ^ "\t" ^ T.show v ^ ";\n") set "" ^ "\n"
 
     let rec subterms_of_term (set,map) t = match t with
       | Addr _ -> (add t set, map)
@@ -537,8 +535,8 @@ module CongruenceClosure (Var : Val) = struct
 
     let show_min_rep min_representatives =
       let show_one_rep s (state, (rep, z)) =
-        s ^ "\tState rep: " ^ T.show state ^
-        "\n\tMin. Representative: (" ^ T.show rep ^ ", " ^ Z.to_string z ^ ")\n\n"
+        s ^ "\tState: " ^ T.show state ^
+        "\n\tMin: (" ^ T.show rep ^ ", " ^ Z.to_string z ^ ")--\n\n"
       in
       List.fold_left show_one_rep "" (bindings min_representatives)
 
@@ -867,6 +865,17 @@ module CongruenceClosure (Var : Val) = struct
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
     (T.compare v1 v2 = 0 && r1 = Z.(r2 + r), cc)
+
+  (**
+     returns true if t1 and t2 are not equivalent
+  *)
+  let neq_query cc (t1,t2,r) =
+    let (v1,r1),cc = insert cc t1 in
+    let (v2,r2),cc = insert cc t2 in
+    if T.compare v1 v2 = 0 then
+      if r1 = r2 then false
+      else true
+    else false
 
   (**
      Add proposition t1 = t2 + r to the data structure.

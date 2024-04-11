@@ -18,12 +18,15 @@ module Disequalities = struct
     let exp2 = T.to_cil off t2 in
     let mpt1 = ask.f (MayPointTo exp1) in
     let mpt2 = ask.f (MayPointTo exp2) in
-    AD.is_bot (AD.meet mpt1 mpt2)
+    let res = AD.is_bot (AD.meet mpt1 mpt2) in
+    if M.tracing then M.tracel "wrpointer" "QUERY MayPointTo. \nt1: %s; res: %a\nt2: %s; res: %a\nresult: %s\n"
+        (T.show t1) AD.pretty mpt1 (T.show t2) AD.pretty mpt2 (string_of_bool res); res
+
 
   (**Returns true iff by assigning to t1, the value of t2 doesn't change. *)
   let rec may_be_equal ask part t1 t2 =
     match t1, t2 with
-    | CC.Deref (t, z), CC.Deref (v, z') -> print_string "- ";
+    | CC.Deref (t, z), CC.Deref (v, z') ->
       let (q', z1') = TUF.find_no_pc part v in
       let (q, z1) = TUF.find_no_pc part t in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
@@ -34,11 +37,13 @@ module Disequalities = struct
         not (query_neq ask q q' Z.(z' - z + z1 - z1'))
       )
       || (may_be_equal ask part t1 v)
-    | CC.Deref _, _ -> print_string "-- ";false (*The value of addresses never change when we overwrite the memory*)
-    | CC.Addr _ , _ -> print_string "--- ";T.is_subterm t1 t2
+    | CC.Deref _, _ -> false (*The value of addresses never change when we overwrite the memory*)
+    | CC.Addr _ , _ -> T.is_subterm t1 t2
 
-  let may_be_equal ask part t1 t2 = print_string "may_be_equal "; print_string (T.show t1); print_string " ";print_string (T.show t2);
-    let res = (may_be_equal ask part t1 t2) in print_string ": "; print_string (string_of_bool res); print_endline "";res
+  let may_be_equal ask part t1 t2 =
+    let res = (may_be_equal ask part t1 t2) in
+    if M.tracing then M.trace "wrpointer" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
+    res
 end
 
 module D = struct
@@ -61,7 +66,7 @@ module D = struct
 
   let name () = "wrpointer"
 
-  let equal x y = if M.tracing then M.trace "wrpointer" "equal.\nx=\n%s\ny=\n%s" (show_all x) (show_all y);
+  let equal x y = if M.tracing then M.trace "wrpointer-equal" "equal.\nx=\n%s\ny=\n%s" (show x) (show y);
     match x, y with
     | Some x, Some y ->
       (get_normal_form x = get_normal_form y)
@@ -82,7 +87,7 @@ module D = struct
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.part
 
-  let join a b = if M.tracing then M.trace "wrpointer" "JOIN";a
+  let join a b = if M.tracing then M.trace "wrpointer" "JOIN\n";a
   let widen = join
 
   let meet a b = match a,b with (*TODO put in different file *)
