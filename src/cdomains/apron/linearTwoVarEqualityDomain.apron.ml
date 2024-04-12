@@ -16,7 +16,7 @@ open VectorMatrix
 
 module Mpqf = SharedFunctions.Mpqf
 
-module Equality = struct
+module Rhs = struct
   (* (Some i, k) represents a sum of a variable with index i and the number k.
      (None, k) represents the number k. *)
   type t = (int option * (Z.t [@printer Z.pp_print])) [@@deriving eq, ord, hash, show]
@@ -25,24 +25,45 @@ module Equality = struct
   let to_int x = Z.to_int @@ snd x
 end
 
-module EqualitiesArray = struct
-  include Array
-  type t = Equality.t Array.t [@@deriving eq, ord]
+module EqualitiesConjunction = struct
+  module IntHash = struct
+    type t = int
+    let equal = (=)
+    let hash i = i land max_int
+  end
+  module IntHashtbl = struct 
+    include BatHashtbl.Make(IntHash)
+    let equal i j = true (* TODO *)
+    let compare i j = 0 (* TODO *)
+  end
 
-  let show m =
-    Array.fold_right (fun k result -> Equality.show k ^ "\n" ^ result) m ""
+  type t = int * Rhs.t IntHashtbl.t[@equal IntHashtbl.equal][@compare IntHashtbl.compare] [@@deriving eq, ord]
 
-  let hash : t -> int = Array.fold_left (fun acc a -> 31 * acc + Equality.hash a) 0 (* TODO: derive *)
+  let hash : t -> int = fun x -> IntHashtbl.fold (fun k value acc -> 31 * 31 * acc + 31 * k + Rhs.hash value) (snd x) 0 (* TODO: derive *)
 
-  let empty () = [||]
+  let empty () = (0, IntHashtbl.create 0)
 
-  let make_empty_array len = Array.init len (fun i -> (Some i, Z.zero))
+  let make_empty_conj len = (len, IntHashtbl.create len)
+
+  let get_dim econ = fst econ
+
+  (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
+  let get_rhs econ lhs = IntHashtbl.find_default (snd econ) lhs (Rhs.var_zero lhs)
+
+  (** inplace update on the EqualitiesConjunction, repling the rhs for lhs with a new one if meaningful, otherwise just drop the entry*)
+  let set_rhs_with econ lhs rhs = 
+    if Rhs.equal rhs Rhs.(var_zero lhs) then 
+      IntHashtbl.remove (snd econ) lhs
+    else
+      IntHashtbl.replace (snd econ) lhs rhs
+
+  let copy  econ = (fst econ,IntHashtbl.copy (snd econ))
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
   let add_variables_to_domain m indexes =
-    if length indexes = 0 then m else
-      let offset_map = Array.make (Array.length m) 0 (* maps each variable to the number of variables that are added before this variable *)
+    if Array.length indexes = 0 then m else
+      let offset_map = Array.make (get_dim m) 0 (* maps each variable to the number of variables that are added before this variable *)
       in
       let _ =
         let rec shift (offset, list) index = (* bumps offset & pops list, if/while index is heading the list *)
@@ -64,48 +85,50 @@ module EqualitiesArray = struct
       in
       let add_offset_to_array_entry (var, offs) = (* uses offset_map to obtain a new var_index, that is consistent with the new reference indices *)
         Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
-      let m' = make_empty_array (length m + length indexes)
-      in Array.iteri (fun j eq -> m'.(j + offset_map.(j)) <- add_offset_to_array_entry eq) m;
+      let m' = make_empty_conj (get_dim m + Array.length indexes) in
+      IntHashtbl.iter (fun k v -> IntHashtbl.replace (snd m') (k + offset_map.(k)) (add_offset_to_array_entry v)) (snd m);
       m'(* produces a consistent new conj. of equalities *)
 
   let remove_variables_from_domain m indexes =
-    let nr_removed_colums = length indexes in
-    if nr_removed_colums = 0 || length m = 0 then m
+    let nr_removed_colums = Array.length indexes in
+    if nr_removed_colums = 0 || get_dim m = 0 then m
     else
-    if length m = nr_removed_colums then [||] else
-      let offset_map = Array.make (Array.length m) 0
+    if get_dim m = nr_removed_colums then empty () else
+      let offset_map = Array.make (get_dim m) 0
       (* maps each variable to the number of variables that are removed before this variable *)
       in let _ = Array.fold_lefti
              (fun offset index _ ->
                 if offset < nr_removed_colums && indexes.(offset) = index then offset + 1
                 else (offset_map.(index) <- offset; offset))
              0 offset_map in
-      let remove_offset_from_array_entry (var, offs) =
+      let remove_offset_from_rhs (var, offs) =
         Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-      Array.(filteri (fun i _ -> not @@ Array.mem i indexes) m (* filter out removed variables*)
-             |> map remove_offset_from_array_entry) (* adjust variable indexes *)
+      (fst m - nr_removed_colums,IntHashtbl.filteri (fun i _ -> not @@ Array.mem i indexes) (snd m)  (* we get rid of the old variable spot *)
+                                 |> IntHashtbl.map (fun _ -> remove_offset_from_rhs)) (* we normalize their rhs variable ids to the new shifted ids, ignoring the index *) (* TODO: don't we have to shift the actual indices too?*)
 
   let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
 
-  let is_empty m = length m = 0
+  let is_empty m = get_dim m = 0
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
 
+  let is_top_con econ = IntHashtbl.is_empty (snd econ)
+
   (* Forget information about variable var in-place. *)
   let forget_variable_with d var =
-    (let ref_var_opt = fst d.(var) in
+    (let ref_var_opt = fst (get_rhs d var) in
      match ref_var_opt with
      | Some ref_var when ref_var = var ->
        (* var is the reference variable of its connected component *)
-       (let cluster = List.tl @@ fold_righti
-            (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) d [] in
+       (let cluster = List.tl @@ IntHashtbl.fold
+            (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
         (* obtain cluster with common reference variable ref_var*)
         match cluster with (* new ref_var is taken from head of the cluster *)
-        | head :: tail -> let headconst = snd d.(head) in (* take offset between old and new reference variable *)
-          List.iter (fun i -> d.(i) <- Z.(Some head, snd d.(i) - headconst)) cluster (* shift offset to match new reference variable *)
+        | head :: tail -> let headconst = snd (get_rhs d head) in (* take offset between old and new reference variable *)
+          List.iter (fun i -> set_rhs_with d i Z.(Some head, snd (get_rhs d i) - headconst)) cluster (* shift offset to match new reference variable *)
         | _ -> ()) (* empty cluster means no work for us *)
      | _ -> ()) (* variable is either a constant or expressed by another refvar *)
-  ; d.(var) <- Equality.var_zero var (* set d(var) to unknown, finally *)
+  ; IntHashtbl.remove (snd d) var (* set d(var) to unknown, finally *)
 
   (* Forget information about variable i but not in-place *)
   let forget_variable m j =
@@ -135,11 +158,11 @@ end
     Furthermore, it provides the function [simplified_monomials_from_texp] that converts an apron expression into a list of monomials of reference variables and a constant offset *)
 module VarManagement =
 struct
-  module EArray = EqualitiesArray
-  include SharedFunctions.VarManagementOps (EArray)
+  module EConj = EqualitiesConjunction
+  include SharedFunctions.VarManagementOps (EConj)
 
-  let dim_add = EArray.dim_add
-  let size t = BatOption.map_default (fun d -> EArray.length d) 0 t.d
+  let dim_add = EConj.dim_add
+  let size t = BatOption.map_default (fun d -> EConj.get_dim d) 0 t.d
 
   (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
   let monomials_from_texp (t: t) texp =
@@ -169,7 +192,7 @@ struct
           begin match t.d with
             | None -> [(Z.one, Some var_dim)]
             | Some d ->
-              (match d.(var_dim) with
+              (match (EConj.get_rhs d var_dim) with
                | (Some i, k) -> [(Z.one, Some i); (k, None)]
                | (None, k) ->   [(k, None)])
           end
@@ -193,7 +216,7 @@ struct
          let expr = Array.make (Environment.size t.env) Z.zero in
          let accumulate_constants a (c, v) = match v with
            | None -> Z.(a + c)
-           | Some idx -> let (term,con) = d.(idx) in
+           | Some idx -> let (term,con) = (EConj.get_rhs d idx) in
              (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
               Z.(a + c * con))
          in
@@ -214,28 +237,28 @@ struct
   let assign_const t var const = match t.d with
     | None -> t
     | Some t_d ->
-      let d = EArray.copy t_d in d.(var) <- (None, const);  {d = Some d; env = t.env}
+      let d = EConj.copy t_d in EConj.set_rhs_with d var (None, const);  {d = Some d; env = t.env}
 
   let subtract_const_from_var t var const =
     match t.d with
     | None -> t
     | Some t_d ->
-      let d = EArray.copy t_d in
+      let d = EConj.copy t_d in
       let subtract_const_from_var_for_single_equality index (eq_var_opt, off2) =
         if index <> var then
           begin match eq_var_opt with
             | Some eq_var when eq_var = var ->
-              d.(index) <- (eq_var_opt, Z.(off2 - const))
+              EConj.set_rhs_with d index (eq_var_opt, Z.(off2 - const))
             | _ -> ()
           end
       in
-      begin if d.(var) = (Some var, Z.zero)
+      begin if EConj.get_rhs d var = (Some var, Z.zero)
       (* var is a reference variable -> it can appear on the right-hand side of an equality *)
         then
-          EArray.iteri (subtract_const_from_var_for_single_equality) d
+          EConj.IntHashtbl.iter (subtract_const_from_var_for_single_equality) (snd d)
         else
           (* var never appears on the right hand side-> we only need to modify the array entry at index var *)
-          d.(var) <- Tuple2.map2 (Z.add const) d.(var)
+          EConj.set_rhs_with d  var (Tuple2.map2 (Z.add const) (EConj.get_rhs d var))
       end;
       {d = Some d; env = t.env}
 
@@ -279,13 +302,13 @@ struct
   let is_bot t = equal t (bot ())
 
   (** forall x_i in env, x_i:=X_i+0 *)
-  let top_of env = {d = Some (EArray.make_empty_array (Environment.size env)); env = env}
+  let top_of env = {d = Some (EConj.make_empty_conj (Environment.size env)); env = env}
 
   (** env = \emptyset, d = Some([||]) *)
-  let top () = {d = Some (EArray.empty()); env = empty_env}
+  let top () = {d = Some (EConj.empty()); env = empty_env}
 
   (** is_top returns true for top_of array and empty array; precondition: t.env and t.d are of same size *)
-  let is_top t = Environment.equal empty_env t.env && GobOption.exists EArray.is_top_array t.d
+  let is_top t = Environment.equal empty_env t.env && GobOption.exists EConj.is_top_con t.d
 
   (** prints the current variable equalities with resolved variable names *)
   let show varM =
@@ -299,12 +322,12 @@ struct
     in
     match varM.d with
     | None -> "⊥\n"
-    | Some arr when EArray.is_top_array arr -> "⊤\n"
+    | Some arr when EConj.is_top_con arr -> "⊤\n"
     | Some arr ->
       if is_bot varM then
         "Bot \n"
       else
-        Array.fold_lefti (fun acc i elem -> acc ^ show_var i elem) "" arr
+        EConj.IntHashtbl.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) (snd arr) ""
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -314,19 +337,19 @@ struct
 
   let meet_with_one_conj_with ts i (var, b) =
     let subst_var ts x (vart, bt) =
-      let adjust = function
+      let adjust _ = function
         | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
         | e -> e
       in
-      BatArray.modify adjust ts
+      EConj.IntHashtbl.map_inplace adjust (snd ts)
     in
-    let (var1, b1) = ts.(i) in
+    let (var1, b1) = EConj.get_rhs ts i in
     (match var, var1 with
      | None, None -> if not @@ Z.equal b b1 then raise Contradiction
      | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
      | Some j, None -> subst_var ts j (None, Z.(b1 - b))
      | Some j, Some h1 ->
-       (match ts.(j) with
+       (match (EConj.get_rhs ts j) with
         | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
         | (Some h2, b2) ->
           if h1 = h2 then
@@ -338,7 +361,7 @@ struct
     match t.d with
     | None -> t
     | Some d ->
-      let res_d = Array.copy d in
+      let res_d = EConj.copy d in
       try
         meet_with_one_conj_with res_d i e;
         {d = Some res_d; env = t.env}
@@ -352,8 +375,8 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' -> (
         try
-          let res_d = Array.copy d1' in
-          Array.iteri (meet_with_one_conj_with res_d) d2';
+          let res_d = EConj.copy d1' in
+          EConj.IntHashtbl.iter (meet_with_one_conj_with res_d) (snd d2');
           {d = Some res_d; env = sup_env}
         with Contradiction ->
           {d = None; env = sup_env}
@@ -372,15 +395,15 @@ struct
     let implies ts (var, b) i =
       let tuple_cmp = Tuple2.eq (Option.eq ~eq:Int.equal) (Z.equal) in
       match var with
-      | None -> tuple_cmp (var, b) ts.(i)
-      | Some j -> tuple_cmp ts.(i) @@ Tuple2.map2 (Z.add b) ts.(j)
+      | None -> tuple_cmp (var, b) (EConj.get_rhs ts i)
+      | Some j -> tuple_cmp (EConj.get_rhs ts i) @@ Tuple2.map2 (Z.add b) (EConj.get_rhs ts j)
     in
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true else
     if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      GobArray.for_alli (fun i t -> implies m1' t i) m2
+      EConj.IntHashtbl.for_all (fun i t -> implies m1' t i) (snd m2)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -392,9 +415,15 @@ struct
   let join a b =
     let join_d ad bd =
       (*use copy of ad because result is later saved in there*)
-      let ad = Array.copy ad in
+      let ad = EConj.copy ad in
       (*This is the table which is later grouped*)
-      let table = BatList.map2i (fun i (ai, aj) (bi,bj) -> (i, Z.(aj - bj), (ai, aj), (bi,bj))) (Array.to_list ad) (Array.to_list bd) in
+      let joinfunction = fun lhs rhs1 rhs2 -> match rhs1, rhs2 with 
+        | None, None                -> None
+        | None, Some (bi,bj)        -> Some (Z.neg bj   ,(Some lhs,Z.zero),(bi,bj))
+        | Some (ai,aj), None        -> Some (aj         ,(ai,aj),(Some lhs,Z.zero))
+        | Some (ai,aj),Some (bi,bj) -> Some (Z.(aj - bj),(ai,aj),(bi,bj)) 
+      in
+      let table = List.map (fun (a,(b1,b2,b3)) -> (a,b1,b2,b3)) @@ EConj.IntHashtbl.to_list @@ EConj.IntHashtbl.merge joinfunction (snd ad) (snd bd) in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in
@@ -405,7 +434,7 @@ struct
       (*Adjust the domain array to represent the new components*)
       let modify idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) =
         if opt1 = opt2 && Z.equal z1 z2 then ()
-        else ad.(idx) <- (Some idx_h, Z.(z1 - b_h))
+        else EConj.set_rhs_with ad (idx) (Some idx_h, Z.(z1 - b_h))
       in
       let iterate l =
         match l with
@@ -426,7 +455,7 @@ struct
       let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
       let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
       {d = join_d mod_x mod_y; env = sup_env}
-    | Some x, Some y when EArray.equal x y -> {d = Some x; env = a.env}
+    | Some x, Some y when EConj.equal x y -> {d = Some x; env = a.env}
     | Some x, Some y  -> {d = join_d x y; env = a.env}
 
   let join a b = timing_wrap "join" (join a) b
@@ -458,10 +487,10 @@ struct
     if is_bot_env t || is_top t || List.is_empty vars then
       t
     else
-      let m = EArray.copy @@ Option.get t.d in
+      let m = EConj.copy @@ Option.get t.d in
       List.iter
         (fun var ->
-           EArray.forget_variable_with m (Environment.dim_of_var t.env var))
+           EConj.forget_variable_with m (Environment.dim_of_var t.env var))
         vars;
       {d = Some m; env = t.env}
 
@@ -673,7 +702,7 @@ struct
         let ri = Environment.var_of_dim t.env r in
         of_coeff xi [(Coeff.s_of_int (-1), xi); (Coeff.s_of_int 1, ri)] o :: acc
     in
-    BatOption.map_default (Array.fold_lefti get_const []) [] t.d
+    BatOption.get t.d |> fun x -> EConj.IntHashtbl.fold (fun lhs rhs list -> get_const list lhs rhs) (snd @@ x) [] 
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
