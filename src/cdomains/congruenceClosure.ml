@@ -455,7 +455,6 @@ module CongruenceClosure (Var : Val) = struct
   (** Set of subterms which are present in the current data structure *)
   module SSet = struct
     module TSet = ValSet(T)
-    module TMap = ValMap(T)
     type t = TSet.t [@@deriving eq, ord, hash]
 
     let elements = TSet.elements
@@ -463,6 +462,7 @@ module CongruenceClosure (Var : Val) = struct
     let add = TSet.add
     let fold = TSet.fold
     let empty = TSet.empty
+    let to_list = TSet.to_list
 
     let show_set set = TSet.fold (fun v s ->
         s ^ "\t" ^ T.show v ^ ";\n") set "" ^ "\n"
@@ -484,45 +484,6 @@ module CongruenceClosure (Var : Val) = struct
          according to our comparison function. Therefore take_while is enough. *)
       BatList.take_while (function Addr _ -> true | _ -> false) (elements set)
 
-    let add_to_map_of_children value map term =
-      if T.equal term value then map else
-        match TMap.find_opt term map with
-        | None -> TMap.add term [value] map
-        | Some list -> TMap.add term (value::list) map
-
-    let remove_from_map_of_children parent child map =
-      match List.remove (TMap.find parent map) child with
-      | [] -> TMap.remove parent map
-      | new_children -> TMap.add parent new_children map
-
-    (* remove variables *)
-    (** Parameters:
-        - `(part, set)`: union find tree and set of subterms that are present in the union find data structure.
-        - `predicate`: predicate that returns true for terms which need to be removed from the data structure.
-
-        Returns:
-        - `new_set`: subset of `set` which contains the terms that do not have to be removed.
-        - `removed_terms_set`: subset of `set` which contains the terms that have to be removed.
-        - `map_of_children`: maps each element of union find to its children in the union find tree. It is used in order to later remove these elements from the union find data structure.
-    *)
-    let remove_terms (part, set) predicate =
-      (* Adds `value` to the set that is in the `map` with key `term` *)
-      let add_to_result el (new_set, removed_terms_set, map_of_children) =
-        let new_set, removed_terms_set = if predicate el then new_set, add el removed_terms_set else add el new_set, removed_terms_set in
-        let (uf_parent_ref, _) = TMap.find el part in
-        let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent_ref) in
-        (new_set, removed_terms_set, map_of_children) in
-      TSet.fold add_to_result set (TSet.empty, TSet.empty, TMap.empty)
-
-    let show_map_of_children map_of_children =
-      List.fold_left
-        (fun s (v, list) ->
-           s ^ T.show v ^ "\t:\n" ^
-           List.fold_left
-             (fun s v ->
-                s ^ T.show v ^ "; ")
-             "\t" list ^ "\n")
-        "" (TMap.bindings map_of_children)
   end
 
   (** Minimal representatives map.
@@ -630,6 +591,8 @@ module CongruenceClosure (Var : Val) = struct
             map: LMap.t;
             min_repr: MRMap.t}
   [@@deriving eq, ord, hash]
+
+  module TMap = ValMap(T)
 
   let show_all x = "Union Find partition:\n" ^
                    (TUF.show_uf x.part)
@@ -756,13 +719,12 @@ module CongruenceClosure (Var : Val) = struct
              LMap.remove v1 (LMap.add v zmap map), rest
          in
          (* update min_repr *)
-         let min_v1, min_v2 = LMap.find v1 min_repr, LMap.find v2 min_repr in
+         let min_v1, min_v2 = MRMap.find v1 min_repr, MRMap.find v2 min_repr in
          (* 'changed' is true if the new_min is different than the old min *)
-         let new_min, changed = if fst min_v1 < fst min_v2 then (fst min_v1, not b) else (fst min_v2, b) in
-         let (_, rep_v, part) = TUF.find part new_min in
+         let new_min, changed = if fst min_v1 < fst min_v2 then (min_v1, not b) else (min_v2, b) in
          let removed_v = if b then v2 else v1 in
-         let min_repr = MRMap.remove removed_v (if changed then MRMap.add v (new_min, rep_v) min_repr else min_repr) in
-         let queue = if changed then (v :: queue) else queue in
+         let min_repr = MRMap.remove removed_v (if changed then MRMap.add v new_min min_repr else min_repr) in
+         let queue = v :: queue in
          closure (part, map, min_repr) queue rest
       )
 
@@ -844,7 +806,7 @@ module CongruenceClosure (Var : Val) = struct
   (** Add all terms in a specific set to the data structure.
 
       Returns updated (part, set, map, min_repr). *)
-  let insert_set_opt cc t_set = (* SAFE VERSION but less efficient: SSet.fold (fun t cc -> snd (insert cc t)) t_set cc*)
+  let insert_set_opt cc t_set =
     match cc with
     | None -> None
     | Some cc ->
@@ -874,7 +836,7 @@ module CongruenceClosure (Var : Val) = struct
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
     if T.compare v1 v2 = 0 then
-      if r1 = r2 then false
+      if r1 = Z.(r2 + r) then false
       else true
     else false
 
@@ -905,24 +867,83 @@ module CongruenceClosure (Var : Val) = struct
 
   (* remove variables *)
 
-  (** Removes all terms in "removed_terms_set" from the union find data structure.
+
+
+  let add_to_map_of_children value map term =
+    if T.equal term value then map else
+      match TMap.find_opt term map with
+      | None -> TMap.add term [value] map
+      | Some list -> TMap.add term (value::list) map
+
+  let remove_from_map_of_children parent child map =
+    match List.remove (TMap.find parent map) child with
+    | [] -> TMap.remove parent map
+    | new_children -> TMap.add parent new_children map
+
+  let add_successor_terms cc t =
+    let add_one_successor (cc, successors) (edge_z, _) =
+      let _, uf_offset, part = TUF.find cc.part t in
+      let cc = {cc with part = part} in
+      let successor = Deref (t, Z.(edge_z - uf_offset)) in
+      let already_present = SSet.mem successor cc.set in
+      let _, cc, _ = if already_present then (t, Z.zero), cc, []
+        else insert_no_min_repr cc successor in
+      (cc, if already_present then successors else successor::successors) in
+    List.fold_left add_one_successor (cc, []) (LMap.successors t cc.map)
+
+  (* remove variables *)
+  (** Parameters:
+      - `cc`: congruence cloösure data structure
+      - `predicate`: predicate that returns true for terms which need to be removed from the data structure.
+
+      Returns:
+      - `new_set`: subset of `set` which contains the terms that do not have to be removed.
+      - `removed_terms`: list of all elements of `set` which contains the terms that have to be removed.
+      - `map_of_children`: maps each element of union find to its children in the union find tree. It is used in order to later remove these elements from the union find data structure.
+      - `cc`: updated congruence closure data structure.
+  *)
+  let remove_terms_from_set cc predicate =
+    let rec remove_terms_recursive (new_set, removed_terms, map_of_children, cc) = function
+      | [] -> (new_set, removed_terms, map_of_children, cc)
+      | el::rest ->
+        (* Adds `value` to the set that is in the `map` with key `term` *)
+        let new_set, removed_terms = if predicate el then new_set, el::removed_terms else SSet.add el new_set, removed_terms in
+        let uf_parent = TUF.parent cc.part el in
+        let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent) in
+        let cc, successors = add_successor_terms cc el in
+        remove_terms_recursive (new_set, removed_terms, map_of_children, cc) (rest @ successors)
+    in
+    remove_terms_recursive (SSet.empty, [], TMap.empty, cc) (SSet.to_list cc.set)
+
+  let show_map_of_children map_of_children =
+    List.fold_left
+      (fun s (v, list) ->
+         s ^ T.show v ^ "\t:\n" ^
+         List.fold_left
+           (fun s v ->
+              s ^ T.show v ^ "; ")
+           "\t" list ^ "\n")
+      "" (TMap.bindings map_of_children)
+
+  (** Removes all terms in "removed_terms" from the union find data structure.
 
       Returns:
       - `part`: the updated union find tree
-      - `new_parents_map`: maps each removed term t to another term which was in the same equivalence class as t at the time when t was deleted. *)
-  let remove_terms_from_uf part removed_terms_set map_of_children =
-    let find_not_removed_element set = match List.find (fun el -> not (SSet.mem el removed_terms_set)) set with
+      - `new_parents_map`: maps each removed term t to another term which was in the same equivalence class as t at the time when t was deleted.
+      - `map_of_children`: maps each term to its children in the updated union find tree *)
+  let remove_terms_from_uf part removed_terms map_of_children predicate =
+    let find_not_removed_element set = match List.find (fun el -> not (predicate el)) set with
       | exception Not_found -> List.first set
       | t -> t
     in
-    let remove_term t (part, new_parents_map, map_of_children) =
+    let remove_term (part, new_parents_map, map_of_children) t =
       match LMap.find_opt t map_of_children with
       | None ->
         (* t has no children, so we can safely delete the element from the data structure *)
         (* we just need to update the size on the whole path from here to the root *)
         let new_parents_map = if TUF.is_root part t then new_parents_map else LMap.add t (TUF.parent part t) new_parents_map in
         let parent = fst (TUF.parent part t) in
-        let map_of_children = if TUF.is_root part t then map_of_children else SSet.remove_from_map_of_children parent t map_of_children in
+        let map_of_children = if TUF.is_root part t then map_of_children else remove_from_map_of_children parent t map_of_children in
         (TUF.ValMap.remove t (TUF.change_size t part pred), new_parents_map, map_of_children)
       | Some children ->
         let map_of_children = LMap.remove t map_of_children in
@@ -939,7 +960,7 @@ module CongruenceClosure (Var : Val) = struct
               (fun (total_size, map_of_children) child ->
                  (* update parent and offset *)
                  let part = TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t - offset_new_root)) in
-                 total_size + TUF.subtree_size part child, SSet.add_to_map_of_children child map_of_children new_root
+                 total_size + TUF.subtree_size part child, add_to_map_of_children child map_of_children new_root
               ) (0, map_of_children) remaining_children in
           (* Update new root -> set itself as new parent. *)
           let part = TUF.modify_parent part new_root (new_root, Z.zero) in
@@ -954,14 +975,14 @@ module CongruenceClosure (Var : Val) = struct
           let map_of_children, part = List.fold
               (fun (map_of_children, part) child ->
                  (* update parent and offset *)
-                 SSet.add_to_map_of_children child map_of_children new_root,
+                 add_to_map_of_children child map_of_children new_root,
                  TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t + new_offset))
               ) (map_of_children, part) remaining_children in
           (* update size of equivalence class *)
           let part = TUF.change_size new_root part pred in
           (TUF.ValMap.remove t part, LMap.add t (new_root, new_offset) new_parents_map, map_of_children)
     in
-    Tuple3.get12 @@ SSet.fold remove_term removed_terms_set (part, LMap.empty, map_of_children)
+    Tuple3.get12 @@ List.fold_left remove_term (part, LMap.empty, map_of_children) removed_terms
 
   let show_new_parents_map new_parents_map = List.fold_left
       (fun s (v1, (v2, o2)) ->
@@ -985,32 +1006,33 @@ module CongruenceClosure (Var : Val) = struct
 
   (** For all the elements in the removed terms set, it moves the mapped value to the new root.
       Returns new map and new union-find*)
-  let remove_terms_from_map (part, map) removed_terms_set new_parents_map =
-    let remove_from_map term (map, part) =
+  let remove_terms_from_map (part, map) removed_terms new_parents_map =
+    let remove_from_map (map, part) term =
       match LMap.find_opt term map with
       | None -> map, part
       | Some _ -> (* move this entry in the map to the new representative of the equivalence class where term was before. If it still exists. *)
         match find_new_root new_parents_map part term with
         | None -> LMap.remove term map, part
         | Some (new_root, new_offset, part) -> LMap.shift new_root new_offset term map, part
-    in SSet.fold remove_from_map removed_terms_set (map, part)
+    in List.fold_left remove_from_map (map, part) removed_terms
 
   (** Remove terms from the data structure.
       It removes all terms for which "predicate" is false,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms predicate cc =
     (* first find all terms that need to be removed *)
-    let new_set, removed_terms_set, map_of_children =
-      SSet.remove_terms (cc.part, cc.set) predicate
-    in let new_part, new_parents_map =
-         remove_terms_from_uf cc.part removed_terms_set map_of_children
-    in let new_map =
+    let set, removed_terms, map_of_children, cc =
+      remove_terms_from_set cc predicate
+    in let part, new_parents_map =
+         remove_terms_from_uf cc.part removed_terms map_of_children predicate
+    in let map =
          remove_terms_from_mapped_values cc.map predicate
-    in let new_map, new_part =
-         remove_terms_from_map (new_part, new_map) removed_terms_set new_parents_map
-    in let min_repr, new_part = MRMap.compute_minimal_representatives (new_part, new_set, new_map)
+    in let map, part =
+         remove_terms_from_map (part, map) removed_terms new_parents_map
+    in if M.tracing then M.trace "wrpointer-remove" "REMOVE TERMS: %s\n RESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
+        (show_all {part; set; map; min_repr = cc.min_repr});
+    let min_repr, part = MRMap.compute_minimal_representatives (part, set, map)
     in
-    if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n" (SSet.fold (fun t s -> s ^"; "^T.show t) removed_terms_set "");
-    {part = new_part; set = new_set; map = new_map; min_repr = min_repr}
+    {part; set; map; min_repr}
 
 end
