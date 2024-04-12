@@ -813,7 +813,7 @@ module CongruenceClosure (Var : Val) = struct
       let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
       (* update min_repr at the end for more efficiency *)
       let min_repr, part = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
-      Some {part = part; set = cc.set; map = cc.map; min_repr = min_repr}
+      Some {part; set = cc.set; map = cc.map; min_repr}
 
 
   (**
@@ -930,7 +930,7 @@ module CongruenceClosure (Var : Val) = struct
       Returns:
       - `part`: the updated union find tree
       - `new_parents_map`: maps each removed term t to another term which was in the same equivalence class as t at the time when t was deleted.
-      - `map_of_children`: maps each term to its children in the updated union find tree *)
+  *)
   let remove_terms_from_uf part removed_terms map_of_children predicate =
     let find_not_removed_element set = match List.find (fun el -> not (predicate el)) set with
       | exception Not_found -> List.first set
@@ -956,12 +956,12 @@ module CongruenceClosure (Var : Val) = struct
           let remaining_children = List.remove children new_root in
           let offset_new_root = TUF.parent_offset part new_root in
           (* We set the parent of all the other children to the new root and adjust the offset accodingly. *)
-          let new_size, map_of_children = List.fold
-              (fun (total_size, map_of_children) child ->
+          let new_size, map_of_children, part = List.fold
+              (fun (total_size, map_of_children, part) child ->
                  (* update parent and offset *)
                  let part = TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t - offset_new_root)) in
-                 total_size + TUF.subtree_size part child, add_to_map_of_children child map_of_children new_root
-              ) (0, map_of_children) remaining_children in
+                 total_size + TUF.subtree_size part child, add_to_map_of_children child map_of_children new_root, part
+              ) (0, map_of_children, part) remaining_children in
           (* Update new root -> set itself as new parent. *)
           let part = TUF.modify_parent part new_root (new_root, Z.zero) in
           (* update size of equivalence class *)
