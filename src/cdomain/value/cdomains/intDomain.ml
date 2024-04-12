@@ -2083,8 +2083,13 @@ struct
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
 
-  let starting ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero > 0 then not_zero ikind else top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero < 0 then not_zero ikind else top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x =
+    let _,u_ik = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (x, u_ik)
+
+  let ending ?(suppress_ovwarn=false) ikind x =
+    let l_ik,_ = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (l_ik, x)
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
