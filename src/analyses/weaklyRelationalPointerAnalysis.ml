@@ -10,35 +10,21 @@ open CC.CongruenceClosure(Var)
 
 module Operations =
 struct
+  let assign_return t return_var expr =
+    (* the return value is not stroed on the heap, therefore we don't need to remove any terms *)
+    match T.of_cil expr with
+    | (Some term, Some offset) -> meet_conjs_opt (insert_set_opt t (SSet.TSet.of_list [return_var; term])) [Equal (return_var, term, offset)]
+    | _ -> t
+
   let assign_lval (t:D.domain) ask lval expr =
-    match t with
-    | None -> None
-    | Some t ->
-      match T.of_lval lval, T.of_cil expr with
-      (* Indefinite assignment *)
-      | (Some lterm, Some loffset), (None, _) -> Some (D.remove_may_equal_terms t ask lterm)
-      (* Definite assignment *)
-      | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
-        meet_conjs_opt (insert_set (D.remove_may_equal_terms t ask lterm) (SSet.TSet.of_list [lterm; term])) [Equal (lterm, term, offset)]
-      (* invertibe assignment *)
-      | _ -> Some t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
-
-  let branch_fn ctx e pos =
-    match ctx.local with
-    | None -> None
-    | Some st ->
-      let props = T.prop_of_cil e pos in
-      let res = meet_conjs_opt st props in
-      if D.is_bot res then raise Deadcode;
-      if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; pos: %b; prop_list: %s\n"
-          d_exp e pos (show_conj props);
-      res
-
-  let assert_fn ctx e refine =
-    if not refine then
-      ctx.local
-    else
-      branch_fn ctx e false
+    match T.of_lval lval, T.of_cil expr with
+    (* Indefinite assignment *)
+    | (Some lterm, Some loffset), (None, _) -> D.remove_may_equal_terms t ask lterm
+    (* Definite assignment *)
+    | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
+      meet_conjs_opt (insert_set_opt (D.remove_may_equal_terms t ask lterm) (SSet.TSet.of_list [lterm; term])) [Equal (lterm, term, offset)]
+    (* invertibe assignment *)
+    | _ -> t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
 
   (* Returns Some true if we know for sure that it is true,
      and Some false if we know for sure that it is false,
@@ -57,7 +43,7 @@ struct
 
 end
 
-module Spec : MCPSpec =
+module Spec =
 struct
   include DefaultSpec
   include Analyses.IdentitySpec
@@ -86,29 +72,59 @@ struct
     let res = assign_lval ctx.local (ask_of_ctx ctx) var expr in
     if M.tracing then M.trace "wrpointer-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval var d_exp expr (D.show res) (Option.fold ~none:"" ~some:(fun r -> TUF.show_uf r.part) res); res
 
-  let branch ctx expr b = branch_fn ctx expr b
+  let branch ctx e pos =
+    let props = T.prop_of_cil e pos in
+    let res = meet_conjs_opt ctx.local props in
+    if D.is_bot res then raise Deadcode;
+    if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; pos: %b; prop_list: %s\n"
+        d_exp e pos (show_conj props);
+    res
 
   let body ctx f = ctx.local (*DONE*)
 
-  let return ctx exp_opt f = ctx.local
+  let return_varinfo = dummyFunDec.svar
+  let return_var = CC.Deref (CC.Addr return_varinfo, Z.zero)
+
+  let return ctx exp_opt f =
+    let res = match exp_opt with
+      | Some e ->
+        assign_return ctx.local return_var e
+      | None -> ctx.local
+    in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (Lval(Var return_varinfo, NoOffset)) exp_opt) (D.show ctx.local) (D.show res);res
 
   let special ctx var_opt v exprs  =
     let desc = LibraryFunctions.find v in
     match desc.special exprs, v.vname with
-    | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
+    | Assert { exp; refine; _ }, _ -> if not refine then
+        ctx.local
+      else
+        branch ctx exp true
     | _, _ -> ctx.local
 
   let enter ctx var_opt f args =
-    let state = ctx.local in
     let arg_assigns =
       GobList.combine_short f.sformals args
     in
-    let new_state = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var var, NoOffset) exp) state arg_assigns in
-    if M.tracing then M.trace "wrpointer" "ENTER: result: %s\n" (D.show new_state);
+    let new_state = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var var, NoOffset) exp) ctx.local arg_assigns in
+    if M.tracing then M.trace "wrpointer-function" "ENTER: var_opt: %a; state: %s; result: %s\n" d_lval (BatOption.default (Var return_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show new_state);
     [ctx.local, new_state] (*TODO remove callee vars?*)
-  let combine_env ctx var_opt expr f exprs t_context_opt t ask = t
 
-  let combine_assign ctx var_opt expr f exprs t_context_opt t ask = ctx.local
+  let combine_env ctx var_opt expr f exprs t_context_opt t ask =
+    let local_vars = f.sformals @ f.slocals in
+    let res =
+      D.remove_terms_containing_variables t local_vars
+    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ENV: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var return_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
+
+
+
+  let combine_assign ctx var_opt expr f exprs t_context_opt t ask =
+    let t' = combine_env ctx var_opt expr f exprs t_context_opt t ask in
+    let t' = match var_opt with
+      | None -> t'
+      | Some var -> assign_lval t' ask var (Lval (Var return_varinfo, NoOffset))
+    in
+    let res = D.remove_terms_containing_variable t' (Addr return_varinfo)
+    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var return_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
 
   let threadenter ctx ~multiple var_opt v exprs = [ctx.local]
   let threadspawn ctx ~multiple var_opt v exprs ctx2 = ctx.local

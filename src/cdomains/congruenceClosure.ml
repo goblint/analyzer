@@ -306,6 +306,10 @@ module Term(Var:Val) = struct
     | Deref (t, _) -> is_subterm st t
     | _ -> false
 
+  let rec contains_variable variables term = match term with
+    | Deref (t, _) -> contains_variable variables t
+    | Addr v -> List.mem v variables
+
   let rec term_depth = function
     | Addr _ -> 0
     | Deref (t, _) -> 1 + term_depth t
@@ -840,11 +844,14 @@ module CongruenceClosure (Var : Val) = struct
   (** Add all terms in a specific set to the data structure.
 
       Returns updated (part, set, map, min_repr). *)
-  let insert_set cc t_set = (* SAFE VERSION but less efficient: SSet.fold (fun t cc -> snd (insert cc t)) t_set cc*)
-    let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
-    (* update min_repr at the end for more efficiency *)
-    let min_repr, part = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
-    {part = part; set = cc.set; map = cc.map; min_repr = min_repr}
+  let insert_set_opt cc t_set = (* SAFE VERSION but less efficient: SSet.fold (fun t cc -> snd (insert cc t)) t_set cc*)
+    match cc with
+    | None -> None
+    | Some cc ->
+      let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
+      (* update min_repr at the end for more efficiency *)
+      let min_repr, part = MRMap.update_min_repr (cc.part, cc.map) cc.min_repr queue in
+      Some {part = part; set = cc.set; map = cc.map; min_repr = min_repr}
 
 
   (**
@@ -854,6 +861,11 @@ module CongruenceClosure (Var : Val) = struct
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
     (T.compare v1 v2 = 0 && r1 = Z.(r2 + r), cc)
+
+  let eq_query_opt cc (t1,t2,r) =
+    match cc with
+    | None -> false
+    | Some cc -> fst (eq_query cc (t1,t2,r))
 
   (**
      returns true if t1 and t2 are not equivalent
@@ -871,15 +883,15 @@ module CongruenceClosure (Var : Val) = struct
      Throws "Unsat" if a contradiction is found.
   *)
   let meet_conjs cc pos_conjs =
-    let cc = insert_set cc (fst (SSet.subterms_of_conj pos_conjs)) in
-    closure cc pos_conjs
+    let cc = insert_set_opt cc (fst (SSet.subterms_of_conj pos_conjs)) in
+    Option.map (fun cc -> closure cc pos_conjs) cc
 
   let meet_conjs_opt cc conjs =
     let pos_conjs, neg_conjs = split conjs in
-    if List.exists (fun c-> fst (eq_query cc c)) neg_conjs then None else
+    if List.exists (fun c-> eq_query_opt cc c) neg_conjs then None else
       match meet_conjs cc pos_conjs with
       | exception Unsat -> None
-      | t -> Some t
+      | t -> t
 
   (**
      Add proposition t1 = t2 + r to the data structure.
@@ -986,7 +998,7 @@ module CongruenceClosure (Var : Val) = struct
   (** Remove terms from the data structure.
       It removes all terms for which "predicate" is false,
       while maintaining all equalities about variables that are not being removed.*)
-  let remove_terms cc predicate =
+  let remove_terms predicate cc =
     (* first find all terms that need to be removed *)
     let new_set, removed_terms_set, map_of_children =
       SSet.remove_terms (cc.part, cc.set) predicate
