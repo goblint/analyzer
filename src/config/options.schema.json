@@ -984,9 +984,9 @@
               "type": "integer",
               "default": -1
             },
-            "callStack_height": {
-              "title": "ana.context.callStack_height",
-              "description": "Height of the call stack that should be used as context for the call string analysis. In case the value is zero, the analysis is context-insensitive. For a negative value an infinite call stack is used!",
+            "callString_length": {
+              "title": "ana.context.callString_length",
+              "description": "Length of the call string that should be used as context for the Call String analysis. In case the value is zero, the analysis is context-insensitive. For a negative value an infinite call string is used!",
               "type": "integer",
               "default": 2
             }
