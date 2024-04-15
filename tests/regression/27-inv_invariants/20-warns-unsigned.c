@@ -19,4 +19,22 @@ int main() {
     __goblint_check(i <= 8);
     i = 8;
   }
+
+  length = 20;
+  unsigned int blub = 5;
+
+  if(top) {
+    blub = 10;
+  }
+
+  for (int i1 = 0; i1 < length; i1++) {
+    // Previously, we would warn as the inverse would make a substraction that becomes negative and is
+    // outside the range of unsigned int.
+    if (i1 < blub + 3) //NOWARN
+    {
+
+    }
+  }
+  return 0;
+
 }
