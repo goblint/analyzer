@@ -14,16 +14,19 @@ struct
   let assign_return t return_var expr =
     (* the return value is not stroed on the heap, therefore we don't need to remove any terms *)
     match T.of_cil expr with
-    | (Some term, Some offset) -> meet_conjs_opt (insert_set_opt t (SSet.TSet.of_list [return_var; term])) [Equal (return_var, term, offset)]
+    | (Some term, Some offset) -> meet_conjs_opt [Equal (return_var, term, offset)] (insert_set_opt t (SSet.TSet.of_list [return_var; term]))
     | _ -> t
 
   let assign_lval (t:D.domain) ask lval expr =
     match T.of_lval lval, T.of_cil expr with
     (* Indefinite assignment *)
-    | (Some lterm, Some loffset), (None, _) -> D.remove_may_equal_terms t ask lterm
+    | (Some lterm, Some loffset), (None, _) -> D.remove_may_equal_terms ask lterm t
     (* Definite assignment *)
     | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
-      meet_conjs_opt (insert_set_opt (D.remove_may_equal_terms t ask lterm) (SSet.TSet.of_list [lterm; term])) [Equal (lterm, term, offset)]
+      t |> meet_conjs_opt [Equal (Disequalities.dummy_var, term, offset)] |>
+      D.remove_may_equal_terms ask lterm |>
+      meet_conjs_opt [Equal (lterm, Disequalities.dummy_var, Z.zero)] |>
+      D.remove_terms_containing_variable Disequalities.dummy_var
     (* invertibe assignment *)
     | _ -> t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
 
@@ -75,7 +78,7 @@ struct
 
   let branch ctx e pos =
     let props = T.prop_of_cil e pos in
-    let res = meet_conjs_opt ctx.local props in
+    let res = meet_conjs_opt props ctx.local in
     if D.is_bot res then raise Deadcode;
     if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; pos: %b; prop_list: %s\n"
         d_exp e pos (show_conj props);
@@ -111,7 +114,7 @@ struct
     let local_vars = f.sformals @ f.slocals in
     let t = D.meet ctx.local t in
     let res =
-      D.remove_terms_containing_variables t local_vars
+      D.remove_terms_containing_variables local_vars t
     in if M.tracing then M.trace "wrpointer-function" "COMBINE_ENV: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
 
 
@@ -123,7 +126,7 @@ struct
       | None -> t'
       | Some var -> assign_lval t' ask var Disequalities.dummy_lval
     in
-    let res = D.remove_terms_containing_variable t' (Addr Disequalities.dummy_varinfo)
+    let res = D.remove_terms_containing_variable Disequalities.dummy_var t'
     in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
 
   let threadenter ctx ~multiple var_opt v exprs = [ctx.local]

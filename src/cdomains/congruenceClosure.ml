@@ -854,7 +854,7 @@ module CongruenceClosure (Var : Val) = struct
     let cc = insert_set_opt cc (fst (SSet.subterms_of_conj pos_conjs)) in
     Option.map (fun cc -> closure cc pos_conjs) cc
 
-  let meet_conjs_opt cc conjs =
+  let meet_conjs_opt conjs cc =
     let pos_conjs, neg_conjs = split conjs in
     if List.exists (fun c-> eq_query_opt cc c) neg_conjs then None else
       match meet_conjs cc pos_conjs with

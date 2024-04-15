@@ -1,16 +1,18 @@
 // PARAM: --set ana.activated[+] wrpointer
 #include <goblint.h>
+#include <stdlib.h>
 
 void main(void) {
   int *i;
   int **j;
+  j = (int**)malloc(sizeof(int*)+7);
+  *(j + 3) = (int *)malloc(sizeof(int));
   int *k;
   i = *(j + 3);
   *j = k;
 
   __goblint_check(**j == *k);
-  // j was not initialized, so it may by chance point to &i
-  __goblint_check(i == *(j + 3)); // UNKNOWN!
+  __goblint_check(i == *(j + 3));
 
   j = &k + 1;
 

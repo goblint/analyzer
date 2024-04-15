@@ -12,7 +12,8 @@ int *f(int **j) {
 
 int main(void) {
   int *i;
-  int **j;
+  int **j = (int**)malloc(sizeof(int*));
+  *j = (int *)malloc(sizeof(int));
   int *k = f(j);
 
   __goblint_check(k == *j);

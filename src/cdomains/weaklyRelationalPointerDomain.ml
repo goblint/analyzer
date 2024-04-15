@@ -13,8 +13,8 @@ module Disequalities = struct
   module AD = AddressDomain.AddressSet (PreValueDomain.Mval) (ValueDomain.ID)
 
   let dummy_varinfo = dummyFunDec.svar
-  let dummy_var = CC.Deref (CC.Addr dummy_varinfo, Z.zero)
-  let dummy_lval = Lval (Var dummy_varinfo, NoOffset)
+  let dummy_var = CC.Addr dummy_varinfo
+  let dummy_lval = AddrOf (Var dummy_varinfo, NoOffset)
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query*)
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
@@ -96,7 +96,7 @@ module D = struct
     | _, None -> None
     | Some a, b ->
       let a_conj = get_normal_form a in
-      meet_conjs_opt b a_conj
+      meet_conjs_opt a_conj b
 
   let leq x y = equal (meet x y) x
 
@@ -117,27 +117,27 @@ module D = struct
   (** Remove terms from the data structure.
       It removes all terms for which "var" is a subterm,
       while maintaining all equalities about variables that are not being removed.*)
-  let remove_terms_containing_variable cc var =
+  let remove_terms_containing_variable var cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show var);
     Option.map (remove_terms (T.is_subterm var)) cc
 
   (** Remove terms from the data structure.
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
-  let remove_terms_containing_variables cc vars =
+  let remove_terms_containing_variables vars cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
     Option.map (remove_terms (T.contains_variable vars)) cc
 
   (** Remove terms from the data structure.
       It removes all terms which do not contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
-  let remove_terms_not_containing_variables cc vars =
+  let remove_terms_not_containing_variables vars cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
     Option.map (remove_terms (not % T.contains_variable vars)) cc
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
-  let remove_may_equal_terms cc ask term =
+  let remove_may_equal_terms ask term cc =
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
     Option.map (fun cc -> remove_terms (Disequalities.may_be_equal ask cc.part term) cc) cc
