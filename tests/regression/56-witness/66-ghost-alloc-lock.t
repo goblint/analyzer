@@ -13,8 +13,6 @@
     unsafe: 0
     total memory locations: 4
 
-TODO: valid C names for alloc mutex ghosts
-
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_update
     variable: multithreaded
@@ -26,7 +24,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: (alloc@sid:14@tid:[main](#0))_locked
+    variable: alloc_m861095507_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -35,7 +33,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: (alloc@sid:14@tid:[main](#0))_locked
+    variable: alloc_m861095507_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -44,7 +42,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: (alloc@sid:14@tid:[main](#0))_locked
+    variable: alloc_m861095507_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -53,7 +51,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 10
       function: main
   - entry_type: ghost_update
-    variable: (alloc@sid:14@tid:[main](#0))_locked
+    variable: alloc_m861095507_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -62,7 +60,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 10
       function: t_fun
   - entry_type: ghost_update
-    variable: (alloc@sid:11@tid:[main](#0))_locked
+    variable: alloc_m559918035_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -71,7 +69,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: (alloc@sid:11@tid:[main](#0))_locked
+    variable: alloc_m559918035_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -80,7 +78,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: (alloc@sid:11@tid:[main](#0))_locked
+    variable: alloc_m559918035_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -89,7 +87,7 @@ TODO: valid C names for alloc mutex ghosts
       column: 10
       function: main
   - entry_type: ghost_update
-    variable: (alloc@sid:11@tid:[main](#0))_locked
+    variable: alloc_m559918035_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -103,15 +101,25 @@ TODO: valid C names for alloc mutex ghosts
     type: int
     initial: "0"
   - entry_type: ghost_variable
-    variable: (alloc@sid:14@tid:[main](#0))_locked
+    variable: alloc_m861095507_locked
     scope: global
     type: int
     initial: "0"
   - entry_type: ghost_variable
-    variable: (alloc@sid:11@tid:[main](#0))_locked
+    variable: alloc_m559918035_locked
     scope: global
     type: int
     initial: "0"
+  - entry_type: flow_insensitive_invariant
+    flow_insensitive_invariant:
+      string: '! multithreaded || (alloc_m861095507_locked || g2 == 0)'
+      type: assertion
+      format: C
+  - entry_type: flow_insensitive_invariant
+    flow_insensitive_invariant:
+      string: '! multithreaded || (alloc_m559918035_locked || g1 == 0)'
+      type: assertion
+      format: C
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (0 <= g2 && g2 <= 1)'
@@ -120,15 +128,5 @@ TODO: valid C names for alloc mutex ghosts
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (0 <= g1 && g1 <= 1)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || ((alloc@sid:14@tid:[main](#0))_locked || g2 == 0)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || ((alloc@sid:11@tid:[main](#0))_locked || g1 == 0)'
       type: assertion
       format: C

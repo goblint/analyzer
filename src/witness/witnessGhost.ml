@@ -8,7 +8,15 @@ struct
   [@@deriving eq, hash]
 
   let name_varinfo = function
-    | Locked l -> LockDomain.Addr.show l ^ "_locked" (* TODO: valid C name *)
+    | Locked (Addr (v, _) as l) ->
+      let name =
+        if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo v then
+          Printf.sprintf "alloc_%s%d" (if v.vid < 0 then "m" else "") (abs v.vid) (* turn minus into valid C name *)
+        else
+          LockDomain.Addr.show l (* TODO: valid names with interval offsets, etc *)
+      in
+      name ^ "_locked"
+    | Locked _ -> assert false
     | Multithreaded -> "multithreaded"
 
   let typ = function
