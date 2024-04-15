@@ -17,7 +17,7 @@
     file_name: 31-base-unassume-mem-ex.c
     file_hash: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
     line: 16
-    column: 6
+    column: 7
     function: main
   location_invariant:
     string: i >= 0 && j >= 0
@@ -42,7 +42,7 @@
     file_name: 31-base-unassume-mem-ex.c
     file_hash: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
     line: 23
-    column: 6
+    column: 7
     function: main
   location_invariant:
     string: (p == &i || p == &j) && *p >= 0
@@ -67,7 +67,7 @@
     file_name: 31-base-unassume-mem-ex.c
     file_hash: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
     line: 30
-    column: 6
+    column: 7
     function: main
   location_invariant:
     string: '*p >= 0'

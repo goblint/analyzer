@@ -101,7 +101,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 6
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: x <= 10
@@ -112,7 +112,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 6
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= x
@@ -123,7 +123,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 21
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 10
@@ -134,7 +134,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 21
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: k == 0
@@ -145,7 +145,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 21
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 0
@@ -156,7 +156,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 21
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: a.kaal == 2
@@ -167,7 +167,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 21
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: a.hind == 3
@@ -178,7 +178,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 20
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 10
@@ -189,7 +189,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 20
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: k == 0
@@ -200,7 +200,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 20
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 0
@@ -211,7 +211,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 10
@@ -222,7 +222,7 @@
       file_name: pr-758.c
       file_hash: $FILE_HASH
       line: 6
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
