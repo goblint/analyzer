@@ -1375,10 +1375,13 @@ struct
     | Q.EvalInt e ->
       query_evalint ~ctx ctx.local e
     | Q.EvalMutexAttr e -> begin
-        let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
-        match eval_rv ~ctx ctx.local e with
-        | MutexAttr a -> a
-        | v -> MutexAttrDomain.top ()
+        match eval_rv_address ~ctx ctx.local e with
+        | Address a ->
+          begin match get ~ctx ~top:(MutexAttr (MutexAttrDomain.top ())) ctx.local a None with (* ~top corresponds to default NULL *)
+            | MutexAttr a -> a
+            | _ -> MutexAttrDomain.top ()
+          end
+        | _ -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
         match eval_rv_address ~ctx ctx.local e with

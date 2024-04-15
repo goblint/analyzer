@@ -17,7 +17,7 @@
     file_name: 32-base-unassume-lor-addr.c
     file_hash: 36ab59c15763945f1d20bc6bc4240e220286b6c8e4cef83742733bf75bc397b0
     line: 8
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: p == &i || p == &j

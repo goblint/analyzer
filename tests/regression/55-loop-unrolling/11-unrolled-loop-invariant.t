@@ -219,7 +219,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 8
-      column: 4
+      column: 5
       function: main
     loop_invariant:
       string: i == 10
@@ -230,7 +230,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 8
-      column: 4
+      column: 5
       function: main
     loop_invariant:
       string: (((((((k == 100 && (((j == 2 || (5 <= j && j <= 9)) || j == 1) || j ==
@@ -244,7 +244,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 7
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i == 10
@@ -255,7 +255,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 7
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: ((k == 100 && (((j == 2 || (5 <= j && j <= 10)) || j == 1) || j == 4))
@@ -267,7 +267,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 3
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: (((((5 <= i && i <= 10) || i == 4) || i == 3) || i == 2) || i == 1) ||
@@ -279,7 +279,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: k == 100
@@ -290,7 +290,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: j == 10
@@ -301,7 +301,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -312,7 +312,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 10
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: k == 100
@@ -323,7 +323,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 10
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i == 10
@@ -334,7 +334,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 10
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: ((((j == 1 || j == 4) || j == 0) || j == 3) || j == 2) || (5 <= j && j
@@ -346,7 +346,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 9
-      column: 6
+      column: 7
       function: main
     location_invariant:
       string: j == 0
@@ -357,7 +357,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 9
-      column: 6
+      column: 7
       function: main
     location_invariant:
       string: i == 10
@@ -368,7 +368,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 9
-      column: 6
+      column: 7
       function: main
     location_invariant:
       string: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
@@ -380,7 +380,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 6
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -391,7 +391,7 @@
       file_name: 11-unrolled-loop-invariant.c
       file_hash: $FILE_HASH
       line: 4
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: (((((5 <= i && i <= 9) || i == 4) || i == 3) || i == 2) || i == 1) ||

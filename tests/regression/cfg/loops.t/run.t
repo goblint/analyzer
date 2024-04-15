@@ -227,7 +227,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 45
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: k == 0
@@ -238,7 +238,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 45
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: j == 10
@@ -249,7 +249,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 45
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i <= 9
@@ -260,7 +260,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 45
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= i
@@ -271,7 +271,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 39
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: k == 0
@@ -282,7 +282,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 39
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: j == 10
@@ -293,7 +293,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 39
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i <= 10
@@ -304,7 +304,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 39
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= i
@@ -315,7 +315,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 34
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: j <= 10
@@ -326,7 +326,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 34
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i == 10
@@ -337,7 +337,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 34
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= j
@@ -348,7 +348,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 29
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i <= 10
@@ -359,7 +359,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 29
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= i
@@ -370,7 +370,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 23
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i <= 10
@@ -381,7 +381,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 23
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= i
@@ -392,7 +392,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 18
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i <= 10
@@ -403,7 +403,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 18
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= i
@@ -414,7 +414,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i <= 10
@@ -425,7 +425,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= i
@@ -436,7 +436,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 8
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: i <= 10
@@ -447,7 +447,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 8
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 0 <= i
@@ -458,7 +458,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 49
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: k == 0
@@ -469,7 +469,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 49
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: j == 10
@@ -480,7 +480,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 49
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -491,7 +491,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 46
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: k == 0
@@ -502,7 +502,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 46
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: j == 10
@@ -513,7 +513,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 46
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i <= 9
@@ -524,7 +524,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 46
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= i
@@ -535,7 +535,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 44
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: k == 0
@@ -546,7 +546,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 44
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: j == 10
@@ -557,7 +557,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 44
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -568,7 +568,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 40
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: k == 0
@@ -579,7 +579,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 40
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: j == 10
@@ -590,7 +590,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 40
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i <= 9
@@ -601,7 +601,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 40
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= i
@@ -612,7 +612,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 39
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: j == 10
@@ -623,7 +623,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 39
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -634,7 +634,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 35
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: j <= 9
@@ -645,7 +645,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 35
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i == 10
@@ -656,7 +656,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 35
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= j
@@ -667,7 +667,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 34
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -678,7 +678,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 30
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i <= 9
@@ -689,7 +689,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 30
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= i
@@ -700,7 +700,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 28
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -711,7 +711,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 24
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i <= 9
@@ -722,7 +722,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 24
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= i
@@ -733,7 +733,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 23
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -744,7 +744,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 18
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -755,7 +755,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 14
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i <= 9
@@ -766,7 +766,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 14
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= i
@@ -777,7 +777,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: i == 10
@@ -788,7 +788,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 9
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: i <= 9
@@ -799,7 +799,7 @@
       file_name: loops.c
       file_hash: $FILE_HASH
       line: 9
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= i
