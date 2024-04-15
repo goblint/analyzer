@@ -21,7 +21,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 29
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m2_locked
@@ -30,7 +30,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 20
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -39,7 +39,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 17
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -48,7 +48,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 10
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -57,7 +57,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 22
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -66,7 +66,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 19
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -75,7 +75,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -84,7 +84,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 16
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -93,7 +93,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -102,7 +102,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 23
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -111,7 +111,7 @@ protection doesn't have precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_variable
     variable: multithreaded
@@ -172,7 +172,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 29
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m2_locked
@@ -181,7 +181,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 20
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -190,7 +190,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 17
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -199,7 +199,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 10
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -208,7 +208,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 22
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -217,7 +217,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 19
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -226,7 +226,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -235,7 +235,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 16
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -244,7 +244,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -253,7 +253,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 23
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -262,7 +262,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_variable
     variable: multithreaded
@@ -321,7 +321,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 29
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m2_locked
@@ -330,7 +330,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 20
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -339,7 +339,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 17
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -348,7 +348,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 10
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -357,7 +357,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 22
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -366,7 +366,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 19
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m2_locked
@@ -375,7 +375,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -384,7 +384,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 16
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -393,7 +393,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -402,7 +402,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 23
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_update
     variable: m1_locked
@@ -411,7 +411,7 @@ protection-read has precise protected invariant for g2.
       file_name: 64-ghost-multiple-protecting.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: t_fun
   - entry_type: ghost_variable
     variable: multithreaded

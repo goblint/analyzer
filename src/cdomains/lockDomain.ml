@@ -39,28 +39,21 @@ struct
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
-  let may_be_same_offset of1 of2 =
-    (* Only reached with definite of2 and indefinite of1. *)
-    (* TODO: Currently useless, because MayPointTo query doesn't return index offset ranges, so not enough information to ever return false. *)
-    (* TODO: Use Addr.Offs.semantic_equal. *)
-    true
+  let add ((addr, _) as lock) set =
+    match addr with
+    | Addr.Addr mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
+      add lock set
+    | _ ->
+      set
 
-  let add (addr,rw) set =
-    match (Addr.to_mval addr) with
-    | Some (_,x) when Offs.is_definite x -> add (addr,rw) set
-    | _ -> set
-
-  let remove (addr,rw) set =
-    let collect_diff_varinfo_with (vi,os) (addr,rw) =
-      match (Addr.to_mval addr) with
-      | Some (v,o) when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
-      | Some (v,o) -> true
-      | None -> false
-    in
-    match (Addr.to_mval addr) with
-    | Some (_,x) when Offs.is_definite x -> remove (addr,rw) set
-    | Some x -> filter (collect_diff_varinfo_with x) set
-    | _   -> top ()
+  let remove ((addr, _) as lock) set =
+    match addr with
+    | Addr.Addr mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
+      remove lock set
+    | _ ->
+      filter (fun (addr', _) ->
+          Addr.semantic_equal addr addr' = Some false
+        ) set
 
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in

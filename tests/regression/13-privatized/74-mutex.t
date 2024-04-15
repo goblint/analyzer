@@ -23,7 +23,7 @@
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 34
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m_locked
@@ -32,7 +32,7 @@
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m_locked
@@ -41,7 +41,7 @@
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 20
-      column: 4
+      column: 5
       function: producer
   - entry_type: ghost_update
     variable: m_locked
@@ -50,7 +50,7 @@
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 38
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m_locked
@@ -59,7 +59,7 @@
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 23
-      column: 4
+      column: 5
       function: producer
   - entry_type: ghost_variable
     variable: multithreaded
@@ -127,7 +127,7 @@ Same with mutex-meet.
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 34
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m_locked
@@ -136,7 +136,7 @@ Same with mutex-meet.
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m_locked
@@ -145,7 +145,7 @@ Same with mutex-meet.
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 20
-      column: 4
+      column: 5
       function: producer
   - entry_type: ghost_update
     variable: m_locked
@@ -154,7 +154,7 @@ Same with mutex-meet.
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 38
-      column: 2
+      column: 3
       function: main
   - entry_type: ghost_update
     variable: m_locked
@@ -163,7 +163,7 @@ Same with mutex-meet.
       file_name: 74-mutex.c
       file_hash: $FILE_HASH
       line: 23
-      column: 4
+      column: 5
       function: producer
   - entry_type: ghost_variable
     variable: multithreaded

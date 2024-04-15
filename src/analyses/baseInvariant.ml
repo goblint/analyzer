@@ -798,7 +798,9 @@ struct
                | TInt(ik_e, _)
                | TEnum ({ekind = ik_e; _ }, _) ->
                  (* let c' = ID.cast_to ik_e c in *)
-                 let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                 (* Suppressing overflow warnings as this is not a computation that comes from the program *)
+                 let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
+                 let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
                  if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                  inv_exp (Int c') e st
                | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st

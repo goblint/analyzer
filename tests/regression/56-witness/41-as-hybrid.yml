@@ -17,7 +17,7 @@
     file_name: 41-as-hybrid.c
     file_hash: 74adb6d33dd35bafe5415bc407a94fa277812ad9921726a7c1f5ee00d3a39af6
     line: 5
-    column: 2
+    column: 3
     function: main
   loop_invariant:
     string: 0 <= i && i <= 9
