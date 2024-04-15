@@ -178,9 +178,9 @@ module UnionFind (Val: Val)  = struct
       if r1 = Z.(r2 + r) then v1, uf, true
       else raise (Failure "incomparable union")
     else match ValMap.find_opt v1 uf, ValMap.find_opt v2 uf with
-      | Some (_,s1),
-        Some (_,s2) ->
-        if s1 <= s2 then (
+      | Some ((v1, _),s1),
+        Some ((v2, _),s2) ->
+        if Val.compare v2 v1 < 0(*s1 <= s2*) then (
           v2, change_size v2 (modify_parent uf v1 (v2, Z.(r2 - r1 + r))) ((+) s1), false
         ) else (
           v1, change_size v1 (modify_parent uf v2 (v1, Z.(r1 - r2 - r))) ((+) s2), true
@@ -314,16 +314,22 @@ module Term(Var:Val) = struct
     | Addr _ -> 0
     | Deref (t, _) -> 1 + term_depth t
 
+  let rec get_var = function
+    | Addr v -> v
+    | Deref (t, _) -> get_var t
+
   let default_int_type = IInt
-  let rec default_pointer_type n = if n = 0 then TInt (default_int_type, []) else TPtr (default_pointer_type (n-1), [])
   let to_cil_constant z = Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
   let rec to_cil off t =
-    let cil_t = match t with
-      | Addr v -> AddrOf (Var v, NoOffset)
-      | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset)
-      | Deref (t, z) -> Lval (Mem (to_cil z t), NoOffset)
-    in if Z.(equal zero off) then cil_t else BinOp (PlusPI, cil_t, to_cil_constant off, default_pointer_type (term_depth t + 1))
+    let cil_t, vtyp = match t with
+      | Addr v -> AddrOf (Var v, NoOffset), TPtr (v.vtype, [])
+      | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset), v.vtype
+      | Deref (t, z) -> let cil_t, vtyp = to_cil z t in Lval (Mem cil_t, NoOffset), TPtr (vtyp, [])
+    in if Z.(equal zero off) then cil_t, vtyp else
+      BinOp (PlusPI, cil_t, to_cil_constant off, vtyp), vtyp
+
+  let to_cil off t = fst (to_cil off t)
 
   (**Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_of_exp = function
@@ -889,7 +895,7 @@ module CongruenceClosure (Var : Val) = struct
       let _, cc, _ = if already_present then (t, Z.zero), cc, []
         else insert_no_min_repr cc successor in
       (cc, if already_present then successors else successor::successors) in
-    List.fold_left add_one_successor (cc, []) (LMap.successors t cc.map)
+    List.fold_left add_one_successor (cc, []) (LMap.successors (Tuple3.first (TUF.find cc.part t)) cc.map)
 
   (* remove variables *)
   (** Parameters:
@@ -1029,10 +1035,9 @@ module CongruenceClosure (Var : Val) = struct
          remove_terms_from_mapped_values cc.map predicate
     in let map, part =
          remove_terms_from_map (part, map) removed_terms new_parents_map
-    in if M.tracing then M.trace "wrpointer-remove" "REMOVE TERMS: %s\n RESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
-        (show_all {part; set; map; min_repr = cc.min_repr});
-    let min_repr, part = MRMap.compute_minimal_representatives (part, set, map)
-    in
+    in let min_repr, part = MRMap.compute_minimal_representatives (part, set, map)
+    in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n RESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
+        (show_all {part; set; map; min_repr = min_repr});
     {part; set; map; min_repr}
 
 end

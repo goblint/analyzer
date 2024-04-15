@@ -19,8 +19,8 @@ module Disequalities = struct
     let mpt1 = ask.f (MayPointTo exp1) in
     let mpt2 = ask.f (MayPointTo exp2) in
     let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-    if M.tracing then M.tracel "wrpointer" "QUERY MayPointTo. \nt1: %s; res: %a\nt2: %s; res: %a\nresult: %s\n"
-        (T.show t1) AD.pretty mpt1 (T.show t2) AD.pretty mpt2 (string_of_bool res); res
+    if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; res: %a; var1: %d;\nt2: %s; res: %a; var2: %d;\nresult: %s\n"
+        (T.show t1) AD.pretty mpt1 (T.get_var t1).vid (T.show t2) AD.pretty mpt2 (T.get_var t1).vid (string_of_bool res); res
 
   (**Returns true iff by assigning to t1, the value of t2 could change. *)
   let rec may_be_equal ask part t1 t2 =
@@ -41,7 +41,7 @@ module Disequalities = struct
 
   let may_be_equal ask part t1 t2 =
     let res = (may_be_equal ask part t1 t2) in
-    if M.tracing then M.trace "wrpointer" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
+    if M.tracing then M.trace "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 end
 
@@ -112,17 +112,20 @@ module D = struct
       It removes all terms for which "var" is a subterm,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variable cc var =
+    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show var);
     Option.map (remove_terms (T.is_subterm var)) cc
 
   (** Remove terms from the data structure.
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variables cc vars =
+    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
     Option.map (remove_terms (T.contains_variable vars)) cc
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
   let remove_may_equal_terms cc ask term =
+    if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
     Option.map (fun cc -> remove_terms (Disequalities.may_be_equal ask cc.part term) cc) cc
 
