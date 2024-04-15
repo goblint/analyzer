@@ -12,15 +12,21 @@ module Disequalities = struct
 
   module AD = AddressDomain.AddressSet (PreValueDomain.Mval) (ValueDomain.ID)
 
+  let dummy_varinfo = dummyFunDec.svar
+  let dummy_var = CC.Deref (CC.Addr dummy_varinfo, Z.zero)
+  let dummy_lval = Lval (Var dummy_varinfo, NoOffset)
+
   (**Find out if two addresses are definitely not equal by using the MayPointTo query*)
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
-    let exp1 = T.to_cil Z.zero t1 in
-    let exp2 = T.to_cil off t2 in
-    let mpt1 = ask.f (MayPointTo exp1) in
-    let mpt2 = ask.f (MayPointTo exp2) in
-    let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-    if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; res: %a; var1: %d;\nt2: %s; res: %a; var2: %d;\nresult: %s\n"
-        (T.show t1) AD.pretty mpt1 (T.get_var t1).vid (T.show t2) AD.pretty mpt2 (T.get_var t1).vid (string_of_bool res); res
+    if t1 = t2 then true else
+    if Var.equal dummy_varinfo (T.get_var t1) || Var.equal dummy_varinfo (T.get_var t2) then false else
+      let exp1 = T.to_cil Z.zero t1 in
+      let exp2 = T.to_cil off t2 in
+      let mpt1 = ask.f (MayPointTo exp1) in
+      let mpt2 = ask.f (MayPointTo exp2) in
+      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+      if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; res: %a; var1: %d;\nt2: %s; res: %a; var2: %d;\nresult: %s\n"
+          (T.show t1) AD.pretty mpt1 (T.get_var t1).vid (T.show t2) AD.pretty mpt2 (T.get_var t2).vid (string_of_bool res); res
 
   (**Returns true iff by assigning to t1, the value of t2 could change. *)
   let rec may_be_equal ask part t1 t2 =
@@ -106,7 +112,7 @@ module D = struct
         (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
         (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
         (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep x.min_repr)))
-    | None ->  BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\ntrue</value>\n</map>\n</value>\n"
+    | None ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 
   (** Remove terms from the data structure.
       It removes all terms for which "var" is a subterm,

@@ -82,15 +82,12 @@ struct
 
   let body ctx f = ctx.local (*DONE*)
 
-  let return_varinfo = dummyFunDec.svar
-  let return_var = CC.Deref (CC.Addr return_varinfo, Z.zero)
-
   let return ctx exp_opt f =
     let res = match exp_opt with
       | Some e ->
-        assign_return ctx.local return_var e
+        assign_return ctx.local Disequalities.dummy_var e
       | None -> ctx.local
-    in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (Lval(Var return_varinfo, NoOffset)) exp_opt) (D.show ctx.local) (D.show res);res
+    in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (Disequalities.dummy_lval) exp_opt) (D.show ctx.local) (D.show res);res
 
   let special ctx var_opt v exprs  =
     let desc = LibraryFunctions.find v in
@@ -106,14 +103,14 @@ struct
       GobList.combine_short f.sformals args
     in
     let new_state = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var var, NoOffset) exp) ctx.local arg_assigns in
-    if M.tracing then M.trace "wrpointer-function" "ENTER: var_opt: %a; state: %s; result: %s\n" d_lval (BatOption.default (Var return_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show new_state);
+    if M.tracing then M.trace "wrpointer-function" "ENTER: var_opt: %a; state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show new_state);
     [ctx.local, new_state] (*TODO remove callee vars?*)
 
   let combine_env ctx var_opt expr f exprs t_context_opt t ask =
     let local_vars = f.sformals @ f.slocals in
     let res =
       D.remove_terms_containing_variables t local_vars
-    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ENV: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var return_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
+    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ENV: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
 
 
 
@@ -121,10 +118,10 @@ struct
     let t' = combine_env ctx var_opt expr f exprs t_context_opt t ask in
     let t' = match var_opt with
       | None -> t'
-      | Some var -> assign_lval t' ask var (Lval (Var return_varinfo, NoOffset))
+      | Some var -> assign_lval t' ask var Disequalities.dummy_lval
     in
-    let res = D.remove_terms_containing_variable t' (Addr return_varinfo)
-    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var return_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
+    let res = D.remove_terms_containing_variable t' (Addr Disequalities.dummy_varinfo)
+    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
 
   let threadenter ctx ~multiple var_opt v exprs = [ctx.local]
   let threadspawn ctx ~multiple var_opt v exprs ctx2 = ctx.local
