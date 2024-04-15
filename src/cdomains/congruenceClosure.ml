@@ -178,9 +178,9 @@ module UnionFind (Val: Val)  = struct
       if r1 = Z.(r2 + r) then v1, uf, true
       else raise (Failure "incomparable union")
     else match ValMap.find_opt v1 uf, ValMap.find_opt v2 uf with
-      | Some ((v1, _),s1),
-        Some ((v2, _),s2) ->
-        if Val.compare v2 v1 < 0(*s1 <= s2*) then (
+      | Some (_,s1),
+        Some (_,s2) ->
+        if s1 <= s2 then (
           v2, change_size v2 (modify_parent uf v1 (v2, Z.(r2 - r1 + r))) ((+) s1), false
         ) else (
           v1, change_size v1 (modify_parent uf v2 (v1, Z.(r1 - r2 - r))) ((+) s2), true
