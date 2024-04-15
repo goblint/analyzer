@@ -31,14 +31,27 @@ module EqualitiesConjunction = struct
     let equal = (=)
     let hash i = i land max_int
   end
-  module IntHashtbl = struct 
-    include BatHashtbl.Make(IntHash)
-    let equal i j = true (* TODO *)
-    let compare i j = 0 (* TODO *)
-  end
+  module IntHashtbl = BatHashtbl.Make(IntHash)
 
-  type t = int * Rhs.t IntHashtbl.t[@equal IntHashtbl.equal][@compare IntHashtbl.compare] [@@deriving eq, ord]
+  let equal i j = (fst i) = (fst j) && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.find (snd j) lh = rh) (snd i) true
 
+  let compare i j = let c = compare (fst i) (fst j) in if c <> 0 then
+      c
+    else let merg = IntHashtbl.merge (fun k a b -> match a,b with
+        | Some a, Some b -> Some (a,b)
+        | Some v, None-> Some (v,Rhs.var_zero k)
+        | None, Some v -> Some (Rhs.var_zero k,v)
+        | None, None -> None) (snd i) (snd j) in
+      let lst= IntHashtbl.to_list merg  in
+      let lst= List.sort (fun (a,_) (b,_) -> compare a b) lst in
+      let rec compare_list li = match li with
+        | [] -> 0
+        | (_,(a,b))::rest -> let c = compare a b in
+          if c = 0 then compare_list rest
+          else c
+      in compare_list lst
+
+  type t = int * Rhs.t IntHashtbl.t
   let hash : t -> int = fun x -> IntHashtbl.fold (fun k value acc -> 31 * 31 * acc + 31 * k + Rhs.hash value) (snd x) 0 (* TODO: derive *)
 
   let empty () = (0, IntHashtbl.create 0)
@@ -120,7 +133,7 @@ module EqualitiesConjunction = struct
      match ref_var_opt with
      | Some ref_var when ref_var = var ->
        (* var is the reference variable of its connected component *)
-       (let cluster = List.tl @@ IntHashtbl.fold
+       (let cluster = IntHashtbl.fold
             (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
         (* obtain cluster with common reference variable ref_var*)
         match cluster with (* new ref_var is taken from head of the cluster *)
