@@ -1,5 +1,4 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
-// Basic example
 #include <stdio.h>
 
 int a = 20;

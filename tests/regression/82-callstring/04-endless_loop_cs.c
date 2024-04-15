@@ -1,5 +1,5 @@
-// PARAM: --set ana.context.callString_length 10 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']"  --enable ana.int.interval_set
-// Will result in an endless loop without context insensitive analysis
+// PARAM: --set ana.context.callString_length 10 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']" --enable ana.int.interval_set
+// Without context-insensitive analysis: endless loop
 
 int num_iterat = 2;
 

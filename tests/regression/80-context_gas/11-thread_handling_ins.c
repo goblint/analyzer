@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
+// Note: 11 function calls are possible and the analysis is still context-sensitive since the domain tracks the parameter value
 #include <pthread.h>
 #include <goblint.h>
 
@@ -12,6 +13,7 @@ int f(int i)
   {
     return f(i - 1);
   }
+  return 11;
 }
 
 int g(int i)
@@ -24,6 +26,7 @@ int g(int i)
   {
     return g(i - 1);
   }
+  return 12;
 }
 
 int h(int i)
@@ -36,6 +39,7 @@ int h(int i)
   {
     return g(i - 1);
   }
+  return 13;
 }
 
 int procedure(int num_iterat)
@@ -61,7 +65,6 @@ int main()
 {
   pthread_t id;
 
-  // Create the thread
   pthread_create(&id, NULL, t_insens, NULL);
   return 0;
 }

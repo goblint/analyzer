@@ -11,5 +11,6 @@ int f(int x, int y)
 
 int main()
 {
+    // is analyzed context-insensitive
     __goblint_check(f(1000, 1000) == 0); // UNKNOWN
 }

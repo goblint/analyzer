@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
-// Will result in an endless loop without context insensitive analysis
+// Without context-insensitive analysis: endless loop
 #include <stdio.h>
 
 int num_iterat = 2;

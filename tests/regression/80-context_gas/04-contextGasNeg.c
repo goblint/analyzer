@@ -11,5 +11,6 @@ int f(int x, int y)
 
 int main()
 {
-    __goblint_check(f(20, 20) == 0); // is analyzed fully context sensitive
+    // Context Gas lifter is disabled -> fully context-sensitive
+    __goblint_check(f(20, 20) == 0);
 }

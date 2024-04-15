@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" loopfree_callstring --set ana.ctx_sens "['loopfree_callstring']"  --enable ana.int.interval_set --set exp.unrolling-factor 3
+// PARAM: --set "ana.activated[+]" loopfree_callstring --set ana.ctx_sens "['loopfree_callstring']" --enable ana.int.interval_set --set exp.unrolling-factor 3
 
 #include <stdio.h>
 

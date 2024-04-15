@@ -504,7 +504,7 @@ struct
   let names x = Format.asprintf "%d" x
 end
 
-(** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively function calls in a call stack.
+(** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively analyzed function calls in a call stack.
     For every function call the gas is reduced. If the gas is zero, the remaining function calls are analyzed without context-information *)
 module ContextGasLifter (S:Spec)
   : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf)) 
@@ -520,7 +520,7 @@ struct
     let printXml f (x,y) =
       BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nContext Gas Value\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x Base2.printXml y
   end
-  module D = Context_Gas_Prod (S.D) (Lattice.Chain (IntConf)) (* Product of S.D and an integer tracking the context gas value *)
+  module D = Context_Gas_Prod (S.D) (Lattice.Chain (IntConf)) (* Product of S.D and an integer, tracking the context gas value *)
   module C = Printable.Option (S.C) (NoContext)
   module G = S.G
   module V = S.V
@@ -543,7 +543,7 @@ struct
   let morphstate v (d,i) = S.morphstate v d, i
 
   let context fd (d,i) = 
-    (* only keep context if the context gas is not zero *)
+    (* only keep context if the context gas is greater zero *)
     if i <= 0 then None else Some (S.context fd d)
 
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =

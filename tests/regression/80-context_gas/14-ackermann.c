@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
-// This code would result in a StackOverflow if it is analyses fully context sensitive
+// Without context-insensitive analysis: Stack Overflow
 #include <stdio.h>
 
 int ack(int n, int m)

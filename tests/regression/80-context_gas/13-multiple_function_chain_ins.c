@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
-// Tests multiple recursive function calls
+// Note: 11 function calls are possible and the analysis is still context-sensitive since the domain tracks the parameter value
 #include <stdio.h>
 
 int h(int i)
@@ -12,6 +12,7 @@ int h(int i)
     {
         return h(i - 1);
     }
+    return 13;
 }
 
 int g(int i)
@@ -24,6 +25,7 @@ int g(int i)
     {
         return h(i - 1);
     }
+    return 12;
 }
 
 int f(int i)
@@ -36,6 +38,7 @@ int f(int i)
     {
         return g(i - 1);
     }
+    return 11;
 }
 
 int main(void)

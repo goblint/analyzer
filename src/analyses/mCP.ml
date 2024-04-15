@@ -36,7 +36,7 @@ struct
   let name () = "MCP2"
 
   let path_sens = ref []
-  let cont_sens_ids = ref Set.empty
+  let act_cont_sens = ref Set.empty
   let base_id   = ref (-1)
 
 
@@ -65,6 +65,7 @@ struct
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
+
   type marshal = Obj.t list
   let init marshal =
     let map' f =
@@ -90,7 +91,7 @@ struct
         let cont_sens = map' find_id @@ sens in
         activated_ctx_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
     end;
-    cont_sens_ids := Set.of_list (List.map (fun (n,p) -> n) !activated_ctx_sens);
+    act_cont_sens := Set.of_list (List.map (fun (n,p) -> n) !activated_ctx_sens);
     activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
@@ -115,7 +116,7 @@ struct
   let context fd x =
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
-        if Set.is_empty !cont_sens_ids || not (Set.mem n !cont_sens_ids) then (*n is insensitive*)
+        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
           None
         else
           Some (n, repr @@ S.context fd (obj d))
@@ -187,13 +188,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-         { ctx with
+        { ctx with
           local = local';
           ask = ask
-         }
-         and ask q = query ctx' q
-         in
-         ctx' *)
+        }
+      and ask q = query ctx' q
+      in
+      ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function

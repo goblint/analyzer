@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callString_length 10 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']"  --enable ana.int.interval_set
+// PARAM: --set ana.context.callString_length 10 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']" --enable ana.int.interval_set
 
 int ack(int n, int m)
 {

@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" loopfree_callstring --set ana.ctx_sens "['loopfree_callstring']"   --enable ana.int.interval_set
+// PARAM: --set "ana.activated[+]" loopfree_callstring --set ana.ctx_sens "['loopfree_callstring']" --enable ana.int.interval_set
 #include <pthread.h>
 #include <stdio.h>
 #include <goblint.h>
@@ -65,7 +65,6 @@ int main()
 {
   pthread_t id;
 
-  // Create the thread
   pthread_create(&id, NULL, t_ins, NULL);
   return 0;
 }

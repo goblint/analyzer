@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set exp.unrolling-factor 3 --set ana.context.gas_value 10
-// TODO
+// Note: 11 function calls are possible and the analysis is still context-sensitive since the domain tracks the parameter value
 #include <stdio.h>
 
 int f(int i)

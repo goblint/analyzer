@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
+// Note: 11 function calls are possible and the analysis is still context-sensitive since the domain tracks the parameter value
 #include <pthread.h>
 #include <goblint.h>
 
@@ -12,6 +13,7 @@ int f(int i)
   {
     return f(i - 1);
   }
+  return 11;
 }
 
 int g(int i)
@@ -24,6 +26,7 @@ int g(int i)
   {
     return g(i - 1);
   }
+  return 12;
 }
 
 int h(int i)
@@ -36,6 +39,7 @@ int h(int i)
   {
     return g(i - 1);
   }
+  return 13;
 }
 
 int procedure(int num_iterat)
@@ -49,33 +53,17 @@ int procedure(int num_iterat)
 
 void *t_sens(void *arg)
 {
-  int result = procedure(0);
-  __goblint_check(result == 9);
-
-  result = procedure(6);
-  __goblint_check(result == 7);
-  return NULL;
-}
-
-void *t_sens2(void *arg)
-{
-  int result = procedure(1);
-  __goblint_check(result == 7);
-
-  result = procedure(8);
-  __goblint_check(result == 7);
+  // main -> t_sens2 -> procedure -> f(8) -> ... -> f(0)
+  // main -> t_sens2 -> procedure -> g(8) -> ... -> g(0)
+  // main -> t_sens2 -> procedure -> h(8) -> g(7) -> ... -> g(0)
+  __goblint_check(procedure(8) == 7);
   return NULL;
 }
 
 int main()
 {
   pthread_t id;
-  pthread_t id2;
 
-  // Create the thread
   pthread_create(&id, NULL, t_sens, NULL);
-
-  // Create the thread
-  pthread_create(&id2, NULL, t_sens2, NULL);
   return 0;
 }

@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set exp.unrolling-factor 3 --set ana.context.gas_value 10
-// TODO
+// Note: 11 function calls are possible and the analysis is still context-sensitive since the domain tracks the parameter value
 #include <stdio.h>
 
 int f(int i)
@@ -17,7 +17,6 @@ int f(int i)
 
 int main(void)
 {
-    // high number of iterations
     for (int i = 500; i > 0; i--)
     {
         __goblint_check(f(i) == 11); // UNKNOWN
