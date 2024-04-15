@@ -2508,7 +2508,7 @@ module Enums : S with type int_t = Z.t = struct
       of_int ik x
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval range_ikind b) in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
