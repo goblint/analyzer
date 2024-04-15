@@ -1,4 +1,4 @@
-//PARAM:
+//PARAM: --enable ana.int.def_exc --disable ana.int.interval
 #include <stdio.h>
 #include <stdlib.h>
 #include <goblint.h>
