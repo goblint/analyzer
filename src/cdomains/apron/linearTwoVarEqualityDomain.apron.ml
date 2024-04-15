@@ -349,12 +349,13 @@ struct
   exception Contradiction
 
   let meet_with_one_conj_with ts i (var, b) =
-    let subst_var ts x (vart, bt) =
+    let subst_var tsi x (vart, bt) =
       let adjust _ = function
         | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
         | e -> e
       in
-      EConj.IntHashtbl.map_inplace adjust (snd ts)
+      EConj.IntHashtbl.map_inplace adjust (snd tsi);
+      EConj.IntHashtbl.replace (snd tsi) x (vart, bt)
     in
     let (var1, b1) = EConj.get_rhs ts i in
     (match var, var1 with
@@ -532,6 +533,7 @@ struct
           subtract_const_from_var t var_i off
         | Some (Some exp_var, off) ->
           (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
+          if M.tracing then M.tracel "hashtab" "assign_texpr: var_%s = var_%s + %s" (string_of_int var_i) (string_of_int exp_var) (Z.to_string off);
           meet_with_one_conj (forget_vars t [var]) var_i (Some exp_var, off)
       end
     | None -> bot_env
