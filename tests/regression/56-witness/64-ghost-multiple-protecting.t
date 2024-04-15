@@ -313,8 +313,6 @@ protection-read has precise protected invariant for g2.
     unsafe: 0
     total memory locations: 2
 
-TODO: Are the mutex-meet invariants sound?
-
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_update
     variable: multithreaded
