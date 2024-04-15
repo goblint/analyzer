@@ -114,13 +114,11 @@ int main(void)
     __goblint_check(e(7) == 6); // UNKNOWN
 
     // Test 3:
-    /* main -> k(10) -> ... -> k(2) -> h(1) -> h(0) -> return 1
-       [main, k, k, k, k] and [k, k, k, k, k] (4 times) and [k, k, k, k, h] */
+    /* main -> k(10) -> ... -> k(2) -> h(1) -> h(0) -> return 1 */
     __goblint_check(k(10) == 2); // UNKNOWN
 
     // Test 4:
-    /* main -> o(6) -> o(5) -> ... o(0)
-       [main, o, o, o, o] and [o, o, o, o, o] (2 times) */
+    /* main -> o(6) -> o(5) -> ... o(0) */
     o(6);
     __goblint_check(m == 0); // UNKNOWN
 

@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
-// Note: 11 function calls are possible and the analysis is still context-sensitive since the domain tracks the parameter value
+// Note: 11 function calls are analyzed context-sensitively
+// -> tracked parameter in domain enables one additional context-sensitively analyzed call value
 #include <stdio.h>
 
 int num_iterat = 11;

@@ -4,7 +4,6 @@
 int num_iterat = 2;
 
 // main -> main -> ...
-// [main, main, ...]
 int main(void)
 {
     if (num_iterat > 0)

@@ -22,7 +22,6 @@ int ack(int n, int m)
 int main(void)
 {
     // main -> ack -> ack -> ...
-    // [main, ack, ...]
     ack(4, 1);
     __goblint_check(1); // reachable
 }

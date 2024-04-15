@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callString_length 10 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']" --enable ana.int.interval_set
+// PARAM: --set ana.context.callString_length 10 --set "ana.activated[+]" call_site --set ana.ctx_sens "['call_site']" --enable ana.int.interval_set
 #include <pthread.h>
 #include <stdio.h>
 #include <goblint.h>
@@ -54,9 +54,6 @@ int procedure(int num_iterat)
 void *t_ins(void *arg)
 {
   // main -> t_ins -> procedure -> f(13) -> ... -> f(0)
-  // [main, t_ins, procedure, f, f, f, f, f, f, f] and [t_ins, procedure, f, f, f, f, f, f, f, f] and
-  // [procedure, f, f, f, f, f, f, f, f, f] and [f, f, f, f, f, f, f, f, f, f] (4 times)
-
   // main -> t_ins -> procedure -> g(13) -> g(12) -> ... -> g(0)
   // main -> t_ins -> procedure -> h(13) -> g(12) -> ... -> g(0)
   __goblint_check(procedure(13) == 10); // UNKNOWN
@@ -67,7 +64,6 @@ int main()
 {
   pthread_t id;
 
-  // Create the thread
   pthread_create(&id, NULL, t_ins, NULL);
   return 0;
 }
