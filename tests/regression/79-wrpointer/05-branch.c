@@ -33,4 +33,14 @@ void main(void) {
   }
 
   __goblint_check(f == i);
+
+  if (**j + *k * 23 - 2 * *k == 0 && j != &k) {
+    f = k;
+    printf("branch1");
+    __goblint_check(0); // NOWARN (unreachable)
+  } else {
+    f = i;
+    printf("branch2");
+    __goblint_check(1); // reachable
+  }
 }

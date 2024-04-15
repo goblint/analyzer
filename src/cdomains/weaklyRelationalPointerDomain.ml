@@ -16,7 +16,7 @@ module Disequalities = struct
   let dummy_var = CC.Deref (CC.Addr dummy_varinfo, Z.zero)
   let dummy_lval = Lval (Var dummy_varinfo, NoOffset)
 
-  (**Find out if two addresses are definitely not equal by using the MayPointTo query*)
+  (**Find out if two addresses are possibly equal by using the MayPointTo query*)
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
     if t1 = t2 then true else
     if Var.equal dummy_varinfo (T.get_var t1) || Var.equal dummy_varinfo (T.get_var t2) then false else
@@ -127,6 +127,13 @@ module D = struct
   let remove_terms_containing_variables cc vars =
     if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
     Option.map (remove_terms (T.contains_variable vars)) cc
+
+  (** Remove terms from the data structure.
+      It removes all terms which do not contain one of the "vars",
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms_not_containing_variables cc vars =
+    if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
+    Option.map (remove_terms (not % T.contains_variable vars)) cc
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)

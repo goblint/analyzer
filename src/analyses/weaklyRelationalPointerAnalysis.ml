@@ -7,6 +7,7 @@ open GoblintCil
 open WeaklyRelationalPointerDomain
 module CC = CongruenceClosure
 open CC.CongruenceClosure(Var)
+open Batteries
 
 module Operations =
 struct
@@ -39,7 +40,7 @@ struct
         | x::xs, _ -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
         | _, y::ys ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
       in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
-          d_exp e (show_conj prop_list) (Option.fold ~none:"None" ~some:string_of_bool res); res
+          d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
 end
 
@@ -70,7 +71,7 @@ struct
 
   let assign ctx var expr =
     let res = assign_lval ctx.local (ask_of_ctx ctx) var expr in
-    if M.tracing then M.trace "wrpointer-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval var d_exp expr (D.show res) (Option.fold ~none:"" ~some:(fun r -> TUF.show_uf r.part) res); res
+    if M.tracing then M.trace "wrpointer-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval var d_exp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.part) "" res); res
 
   let branch ctx e pos =
     let props = T.prop_of_cil e pos in
@@ -99,15 +100,20 @@ struct
     | _, _ -> ctx.local
 
   let enter ctx var_opt f args =
-    let arg_assigns =
-      GobList.combine_short f.sformals args
-    in
+    (* assign function parameters *)
+    let arg_assigns = GobList.combine_short f.sformals args in
+    let arg_vars = List.map fst arg_assigns in
     let new_state = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var var, NoOffset) exp) ctx.local arg_assigns in
+    (* remove callee vars *)
+    let reachable_variables = arg_vars (**@ all globals bzw not_locals*)
+    in
+    let new_state = D.remove_terms_not_containing_variables new_state reachable_variables in
     if M.tracing then M.trace "wrpointer-function" "ENTER: var_opt: %a; state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show new_state);
-    [ctx.local, new_state] (*TODO remove callee vars?*)
+    [ctx.local, new_state]
 
   let combine_env ctx var_opt expr f exprs t_context_opt t ask =
     let local_vars = f.sformals @ f.slocals in
+    let t = D.meet ctx.local t in
     let res =
       D.remove_terms_containing_variables t local_vars
     in if M.tracing then M.trace "wrpointer-function" "COMBINE_ENV: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
