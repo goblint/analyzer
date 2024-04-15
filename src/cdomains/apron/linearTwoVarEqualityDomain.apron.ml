@@ -33,7 +33,7 @@ module EqualitiesConjunction = struct
   end
   module IntHashtbl = BatHashtbl.Make(IntHash)
 
-  let equal i j = (fst i) = (fst j) && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.find (snd j) lh = rh) (snd i) true
+  let equal i j = (fst i) = (fst j) && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem (snd j) lh && IntHashtbl.find (snd j) lh = rh) (snd i) true
 
   let compare i j = let c = compare (fst i) (fst j) in if c <> 0 then
       c
