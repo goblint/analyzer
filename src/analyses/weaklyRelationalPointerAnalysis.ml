@@ -102,12 +102,8 @@ struct
   let enter ctx var_opt f args =
     (* assign function parameters *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let arg_vars = List.map fst arg_assigns in
     let new_state = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var var, NoOffset) exp) ctx.local arg_assigns in
     (* remove callee vars *)
-    let reachable_variables = arg_vars (**@ all globals bzw not_locals*)
-    in
-    let new_state = D.remove_terms_not_containing_variables new_state reachable_variables in
     if M.tracing then M.trace "wrpointer-function" "ENTER: var_opt: %a; state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show new_state);
     [ctx.local, new_state]
 
@@ -121,6 +117,7 @@ struct
 
 
   let combine_assign ctx var_opt expr f exprs t_context_opt t ask =
+    let ask = (ask_of_ctx ctx) in
     let t' = combine_env ctx var_opt expr f exprs t_context_opt t ask in
     let t' = match var_opt with
       | None -> t'
