@@ -1,11 +1,11 @@
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
-    live: 14
+    live: 15
     dead: 1
-    total lines: 15
+    total lines: 16
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
     total generation entries: 9
@@ -90,9 +90,9 @@ Earlyglobs shouldn't cause protected writes in multithreaded mode from being imm
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
-    live: 14
+    live: 15
     dead: 1
-    total lines: 15
+    total lines: 16
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -102,14 +102,14 @@ Earlyglobs shouldn't cause protected writes in multithreaded mode from being imm
 
 Same with mutex-meet.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
-    live: 14
+    live: 15
     dead: 1
-    total lines: 15
+    total lines: 16
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
     total generation entries: 9
@@ -193,9 +193,9 @@ Should also work with earlyglobs.
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
-    live: 14
+    live: 15
     dead: 1
-    total lines: 15
+    total lines: 16
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Race] Memory locations race summary:
     safe: 1

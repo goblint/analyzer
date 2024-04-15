@@ -29,8 +29,8 @@ void* producer()
 int main()
 {
   pthread_t tid;
-
-  pthread_mutex_init(&m, 0);
+  pthread_mutexattr_t mutexattr; pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_NORMAL);
+  pthread_mutex_init(&m, &mutexattr);
   pthread_create(&tid, 0, producer, 0);
 
   pthread_mutex_lock(&m);
