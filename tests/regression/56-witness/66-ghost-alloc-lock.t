@@ -24,7 +24,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m861095507_locked
+    variable: alloc_m817990718_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -33,7 +33,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m861095507_locked
+    variable: alloc_m817990718_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -42,25 +42,25 @@
       column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: alloc_m861095507_locked
+    variable: alloc_m817990718_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
       file_hash: $FILE_HASH
-      line: 36
-      column: 10
+      line: 35
+      column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m861095507_locked
+    variable: alloc_m817990718_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
       file_hash: $FILE_HASH
-      line: 18
-      column: 10
+      line: 17
+      column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: alloc_m559918035_locked
+    variable: alloc_m334174073_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -69,7 +69,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m559918035_locked
+    variable: alloc_m334174073_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -78,22 +78,22 @@
       column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: alloc_m559918035_locked
+    variable: alloc_m334174073_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
       file_hash: $FILE_HASH
-      line: 36
-      column: 10
+      line: 32
+      column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m559918035_locked
+    variable: alloc_m334174073_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
       file_hash: $FILE_HASH
-      line: 18
-      column: 10
+      line: 13
+      column: 3
       function: t_fun
   - entry_type: ghost_variable
     variable: multithreaded
@@ -101,23 +101,23 @@
     type: int
     initial: "0"
   - entry_type: ghost_variable
-    variable: alloc_m861095507_locked
+    variable: alloc_m817990718_locked
     scope: global
     type: int
     initial: "0"
   - entry_type: ghost_variable
-    variable: alloc_m559918035_locked
+    variable: alloc_m334174073_locked
     scope: global
     type: int
     initial: "0"
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (alloc_m861095507_locked || g2 == 0)'
+      string: '! multithreaded || (alloc_m817990718_locked || g2 == 0)'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (alloc_m559918035_locked || g1 == 0)'
+      string: '! multithreaded || (alloc_m334174073_locked || g1 == 0)'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant

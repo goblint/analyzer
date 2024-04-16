@@ -18,11 +18,11 @@ void *t_fun(void *arg) {
   return NULL;
 }
 
-int main() {
+int main() { pthread_mutexattr_t attr; pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL); // https://github.com/goblint/analyzer/pull/1414
   m1 = malloc(sizeof(pthread_mutex_t));
-  pthread_mutex_init(m1, NULL);
+  pthread_mutex_init(m1, &attr);
   m2 = malloc(sizeof(pthread_mutex_t));
-  pthread_mutex_init(m2, NULL);
+  pthread_mutex_init(m2, &attr);
 
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
