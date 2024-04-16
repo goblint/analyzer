@@ -24,8 +24,8 @@ void* f2(void* ptr) {
     pthread_mutex_lock(mut);
     pthread_mutex_unlock(mut);
 
-    // default mutex type may be mapped to recursive, so cannot be removed
-    return NULL; // WARN
+    // default mutex type may be mapped to recursive, so shouldn't be removed, but Goblint assumes it to be non-recursive
+    return NULL; // NOWARN (assumption)
 }
 
 
