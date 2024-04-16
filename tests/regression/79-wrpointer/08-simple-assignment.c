@@ -1,0 +1,15 @@
+// PARAM: --set ana.activated[+] wrpointer
+// example of the paper "2-Pointer Logic" by Seidl et al., pag. 21
+#include <goblint.h>
+
+void main(void) {
+    int x;
+    int *z = -1 + &x;
+
+    __goblint_check(z == -1 + &x);
+
+    z = (int*) *(1 + z);
+
+    __goblint_check(x == (long)z);
+
+}
