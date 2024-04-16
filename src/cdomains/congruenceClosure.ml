@@ -75,6 +75,10 @@ module UnionFind (Val: Val)  = struct
     let (_, size) = ValMap.find v uf in
     ValMap.add v ((t, offset), size) uf
 
+  let modify_offset uf v modification =
+    let ((t, offset), size) = ValMap.find v uf in
+    ValMap.add v ((t, modification offset), size) uf
+
   (** Returns true if each equivalence class in the data structure contains only one element,
       i.e. every node is a root. *)
   let is_empty uf = List.for_all (fun (v, (refv, _)) -> Val.compare v (fst refv) = 0) (ValMap.bindings uf)
@@ -231,12 +235,14 @@ module LookupMap (T: Val) = struct
     | None -> ZMap.add x y m
     | Some set -> ZMap.add x (TSet.union y set) m
 
-  let map_find_opt (v,r) map = match find_opt v map with
+  let map_find_opt_set (v,r) map = match find_opt v map with
     | None -> None
     | Some zmap -> (match zmap_find_opt r zmap with
         | None -> None
-        | Some v -> Some (TSet.any v)
+        | Some v -> Some v
       )
+
+  let map_find_opt (v,r) map = Option.map TSet.any (map_find_opt_set (v,r) map)
 
   let map_add (v,r) v' map = let zmap =match find_opt v map with
       | None -> ZMap.empty
@@ -284,6 +290,11 @@ module LookupMap (T: Val) = struct
             (fun _ t_set -> let filtered_set = TSet.filter p t_set in
               if TSet.is_empty filtered_set then None else Some filtered_set) zmap
         in if ZMap.is_empty zmap then None else Some zmap) map
+
+  (** Maps elements from the mapped values by applying the function f to them. *)
+  let map_values map f =
+    TMap.map (fun zmap ->
+        ZMap.map (fun t_set -> TSet.map f t_set) zmap) map
 end
 
 exception Unsat
@@ -988,7 +999,7 @@ module CongruenceClosure (Var : Val) = struct
           let part = TUF.change_size new_root part pred in
           (TUF.ValMap.remove t part, LMap.add t (new_root, new_offset) new_parents_map, map_of_children)
     in
-    Tuple3.get12 @@ List.fold_left remove_term (part, LMap.empty, map_of_children) removed_terms
+    List.fold_left remove_term (part, LMap.empty, map_of_children) removed_terms
 
   let show_new_parents_map new_parents_map = List.fold_left
       (fun s (v1, (v2, o2)) ->
@@ -1026,18 +1037,86 @@ module CongruenceClosure (Var : Val) = struct
       It removes all terms for which "predicate" is false,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms predicate cc =
+    let old_cc = cc in
     (* first find all terms that need to be removed *)
     let set, removed_terms, map_of_children, cc =
       remove_terms_from_set cc predicate
-    in let part, new_parents_map =
+    in let part, new_parents_map, _ =
          remove_terms_from_uf cc.part removed_terms map_of_children predicate
     in let map =
          remove_terms_from_mapped_values cc.map predicate
     in let map, part =
          remove_terms_from_map (part, map) removed_terms new_parents_map
     in let min_repr, part = MRMap.compute_minimal_representatives (part, set, map)
-    in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n RESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
-        (show_all {part; set; map; min_repr = min_repr});
+    in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\nRESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms) (show_all old_cc)
+        (show_all {part; set; map; min_repr});
+    {part; set; map; min_repr}
+
+
+  (* invertible assignments *)
+
+  let shift_uf part map t z off map_of_children =
+    let t', k1, part = TUF.find part t in
+    match LMap.map_find_opt_set (t', Z.(z-k1)) map with
+    | None -> part
+    | Some to_be_shifted ->
+      let shift_element el part =
+        (* modify parent offset *)
+        let part = if TUF.is_root part el then part else
+            TUF.modify_offset part el (fun o -> Z.(o - off)) in
+        (* modify children offset *)
+        let children = TMap.find el map_of_children in
+        List.fold_left (fun part child -> TUF.modify_offset part child (Z.(+) off)) part children
+      in
+      SSet.fold	shift_element to_be_shifted part
+
+  let shift_subterm part map set t z off map_of_children =
+    let t', k1, part = TUF.find part t in
+    match LMap.map_find_opt_set (t', Z.(z-k1)) map with
+    | None -> part, set, map
+    | Some to_be_shifted ->
+      let rec modify_subterm v = match v with
+        | Addr _ -> v
+        | Deref (v', z) -> let z' = if SSet.mem v' to_be_shifted then Z.(z + off) else z in
+          Deref (modify_subterm v', z') in
+      let shift_element el (part, set, map) =
+        let new_el = modify_subterm el in
+        (* modify mapping in union find *)
+        let parent = TUF.ValMap.find el part in
+        let part = TUF.ValMap.add new_el parent (TUF.ValMap.remove el part) in
+        (* modify children *)
+        let children = TMap.find el map_of_children in
+        let part = List.fold_left (fun part child -> TUF.modify_parent part child (new_el, TUF.parent_offset part child)) part children in
+        (* modify map *)
+        let map = match LMap.find_opt el map with
+          | None -> map
+          | Some entry -> LMap.add new_el entry (LMap.remove el map)
+        in  (part, SSet.add new_el set, map)
+      in
+      let part, set, map = SSet.fold shift_element to_be_shifted (part, set, map)
+      in part, set, LMap.map_values map modify_subterm
+
+
+  (** Remove terms from the data structure.
+      It removes all terms for which "predicate" is false,
+      while maintaining all equalities about variables that are not being removed.
+      Then it shifts all occurences of subterms ∗(z′ + v) where z' + v = z + t
+      and replaces it with the subterm off+∗(z′+v). *)
+  let remove_terms_and_shift predicate cc t z off =
+    (* first find all terms that need to be removed *)
+    let set, removed_terms, map_of_children, cc =
+      remove_terms_from_set cc predicate
+    in let part, new_parents_map, map_of_children =
+         remove_terms_from_uf cc.part removed_terms map_of_children predicate
+    in let map =
+         remove_terms_from_mapped_values cc.map predicate
+    in let map, part =
+         remove_terms_from_map (part, map) removed_terms new_parents_map
+    in let part = shift_uf part cc.map t z off map_of_children
+    in let part,set,map = shift_subterm part cc.map set t z off map_of_children
+    in let min_repr, part = MRMap.compute_minimal_representatives (part, set, map)
+    in if M.tracing then M.trace "wrpointer" "REMOVE TERMS AND SHIFT: %s\n RESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
+        (show_all {part; set; map; min_repr});
     {part; set; map; min_repr}
 
 end

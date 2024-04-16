@@ -47,8 +47,26 @@ module Disequalities = struct
 
   let may_be_equal ask part t1 t2 =
     let res = (may_be_equal ask part t1 t2) in
-    if M.tracing then M.trace "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
+    if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
+
+  (**Returns true iff by assigning to t1, the value of t2 could change.
+      But if we know that t1 and t2 are definitely equal, then it returns false. *)
+  let rec may_be_equal_but_not_definitely_equal ask part t1 t2 =
+    match t1, t2 with
+    | CC.Deref (t, z), CC.Deref (v, z') ->
+      let (q', z1') = TUF.find_no_pc part v in
+      let (q, z1) = TUF.find_no_pc part t in
+      (* If they are in the same equivalence class, then we return false *)
+      (
+        (not (T.equal q' q))
+        (* or if we know that they are not equal according to the query MayPointTo*)
+        &&
+        (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))
+      )
+      || (may_be_equal ask part t1 v)
+    | CC.Deref _, _ -> false (*The value of addresses never change when we overwrite the memory*)
+    | CC.Addr _ , _ -> T.is_subterm t1 t2
 end
 
 module D = struct
@@ -141,5 +159,14 @@ module D = struct
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
     Option.map (fun cc -> remove_terms (Disequalities.may_be_equal ask cc.part term) cc) cc
+
+  (** Remove terms from the data structure and shifts other terms.
+      It removes all terms that may be changed after an assignment to "term".
+      It shifts all elements that were modified by the asignmnt to "term". *)
+      let remove_and_shift_may_equal_terms ask cc t z off =
+        let term = CC.Deref (t, z) in
+        if M.tracing then M.trace "wrpointer" "remove_and_shift_may_equal_terms: %s. Off: %s\n" (T.show term) (Z.to_string off);
+        let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
+        Option.map (fun cc -> remove_terms_and_shift (Disequalities.may_be_equal_but_not_definitely_equal ask cc.part term) cc t z off) cc
 
 end
