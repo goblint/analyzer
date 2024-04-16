@@ -19,10 +19,11 @@ module Mpqf = SharedFunctions.Mpqf
 module Rhs = struct
   (* (Some i, k) represents a sum of a variable with index i and the number k.
      (None, k) represents the number k. *)
-  type t = (int option * (Z.t [@printer Z.pp_print])) [@@deriving eq, ord, hash, show]
+  type t = (int option * (Z.t [@printer Z.pp_print])) [@@deriving eq, ord, hash]
   let zero = (None, Z.zero)
   let var_zero i = (Some i, Z.zero)
   let to_int x = Z.to_int @@ snd x
+  let show (v, o) = Option.map_default (fun i -> "var_" ^ string_of_int i^ " + ") "" v  ^ Z.to_string o
 end
 
 module EqualitiesConjunction = struct
@@ -50,6 +51,9 @@ module EqualitiesConjunction = struct
           if c = 0 then compare_list rest
           else c
       in compare_list lst
+
+  let show econ = let show_rhs i (v, o) = Printf.sprintf "var_%d=%s " i (Rhs.show (v, o)) in
+    IntHashtbl.fold (fun lhs rhs acc -> acc ^ show_rhs lhs rhs) econ ""
 
   type t = int * Rhs.t IntHashtbl.t
   let hash : t -> int = fun x -> IntHashtbl.fold (fun k value acc -> 31 * 31 * acc + 31 * k + Rhs.hash value) (snd x) 0 (* TODO: derive *)
@@ -103,7 +107,6 @@ module EqualitiesConjunction = struct
         Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
       let m' = make_empty_conj (get_dim m + Array.length indexes) in
       IntHashtbl.iter (fun k v -> IntHashtbl.replace (snd m') (k + offset_map.(k)) (add_offset_to_array_entry v)) (snd m);
-      M.trace "varadd" "produced a new conj with %d vars and maxentry %s \n" (fst m') (string_of_int @@ maxentry m');
       m'(* produces a consistent new conj. of equalities *)
 
   let remove_variables_from_domain m indexes =
@@ -120,7 +123,7 @@ module EqualitiesConjunction = struct
              0 offset_map in
       let remove_offset_from_rhs (var, offs) =
         Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-      (fst m - nr_removed_colums,IntHashtbl.of_list @@ List.map (fun (lhs,rhs) -> (offset_map.(lhs),remove_offset_from_rhs rhs)) (IntHashtbl.to_list @@ snd m)) 
+      (fst m - nr_removed_colums,IntHashtbl.of_list @@ List.map (fun (lhs,rhs) -> (lhs-offset_map.(lhs),remove_offset_from_rhs rhs)) (IntHashtbl.to_list @@ snd m))
 
   let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
 
@@ -420,7 +423,7 @@ struct
     if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      EConj.IntHashtbl.for_all (fun i t -> implies m1' t i) (snd m2)
+      EConj.IntHashtbl.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) (snd m2) true
 
   let leq a b = timing_wrap "leq" (leq a) b
 
