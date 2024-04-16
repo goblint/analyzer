@@ -47,8 +47,11 @@ struct
   open Arg
 
   let sync ctx reason =
-    if !AnalysisState.postsolving then
-      ctx.sideg ctx.prev_node (ctx.local, MultiThread.bot ());
+    if !AnalysisState.postsolving then (
+      match reason with
+      | `Return -> ctx.sideg ctx.node (ctx.local, MultiThread.bot ())
+      | _ -> ctx.sideg ctx.prev_node (ctx.local, MultiThread.bot ())
+    );
     ctx.local
 
   let event ctx e octx =
@@ -64,12 +67,16 @@ struct
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
       let module Cfg = (val !MyCFG.current_cfg) in
-      let next_lockset = List.fold_left (fun acc (_, next_node) ->
-          let (locked, _) = ctx.global next_node in
-          D.join acc locked
-        ) (D.bot ()) (Cfg.next g)
-      in
       let (lockset, multithread) = ctx.global g in
+      let next_lockset =
+        match Cfg.next g with
+        | [] -> lockset (* HACK for return nodes *)
+        | nexts ->
+          List.fold_left (fun acc (_, next_node) ->
+              let (locked, _) = ctx.global next_node in
+              D.join acc locked
+            ) (D.bot ()) nexts
+      in
       let unlocked = D.diff lockset next_lockset in
       let locked = D.diff next_lockset lockset in
       let entries =
