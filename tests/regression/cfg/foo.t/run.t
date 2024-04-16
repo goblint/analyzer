@@ -75,7 +75,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 3
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: b <= 1
@@ -86,7 +86,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 3
-      column: 2
+      column: 3
       function: main
     loop_invariant:
       string: 1 <= a
@@ -97,7 +97,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 7
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: b == 0
@@ -108,7 +108,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 7
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: a != 0
@@ -119,7 +119,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 7
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: 1 <= a
@@ -130,7 +130,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 7
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: 0 <= a
@@ -141,7 +141,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 5
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: b <= 1
@@ -152,7 +152,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 5
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: b != 0
@@ -163,7 +163,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 5
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: a != 1
@@ -174,7 +174,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 5
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 2 <= a
@@ -185,7 +185,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 4
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: b <= 1
@@ -196,7 +196,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 4
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: b != 0
@@ -207,7 +207,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 4
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: a != 0
@@ -218,7 +218,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 4
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 1 <= a
@@ -229,7 +229,7 @@
       file_name: foo.c
       file_hash: $FILE_HASH
       line: 4
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: 0 <= a

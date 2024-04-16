@@ -12,7 +12,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
@@ -23,7 +23,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: q == (void *)(& a)
@@ -34,7 +34,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: p == (void *)(& x)
@@ -45,7 +45,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: a.f == 43
@@ -56,7 +56,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: '*((int *)p) == 42'
@@ -67,7 +67,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
@@ -78,7 +78,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: p == (void *)(& x)
@@ -89,7 +89,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: a.f == 43
@@ -100,7 +100,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: '*((int *)p) == 42'
@@ -111,7 +111,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
@@ -122,7 +122,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: p == (void *)(& x)
@@ -133,7 +133,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: '*((int *)p) == 42'
@@ -144,7 +144,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
@@ -165,7 +165,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
@@ -176,7 +176,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: q == (void *)(& a)
@@ -187,7 +187,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: p == (void *)(& x)
@@ -198,7 +198,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: a.f == 43
@@ -209,7 +209,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: '*((myint *)p) == 42'
@@ -220,7 +220,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 14
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: ((s *)q)->f == 43
@@ -231,7 +231,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
@@ -242,7 +242,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: p == (void *)(& x)
@@ -253,7 +253,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: a.f == 43
@@ -264,7 +264,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 13
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: '*((myint *)p) == 42'
@@ -275,7 +275,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42
@@ -286,7 +286,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: p == (void *)(& x)
@@ -297,7 +297,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 12
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: '*((myint *)p) == 42'
@@ -308,7 +308,7 @@
       file_name: typedef.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 42

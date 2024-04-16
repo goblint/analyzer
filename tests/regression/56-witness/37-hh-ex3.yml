@@ -17,7 +17,7 @@
     file_name: 37-hh-ex3.c
     file_hash: 9c984e89a790b595d2b37ca8a05e5967a15130592cb2567fac2fae4aff668a4f
     line: 6
-    column: 4
+    column: 5
     function: main
   location_invariant:
     string: 0 <= i && i <= 3

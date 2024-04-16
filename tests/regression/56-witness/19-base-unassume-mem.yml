@@ -17,7 +17,7 @@
     file_name: 19-base-unassume-mem.c
     file_hash: d71d7065e36b8e0a2c42c96e5f6ea057d28065adae2d85b516989b8d43e77c91
     line: 14
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: '*p >= 0'
@@ -42,7 +42,7 @@
     file_name: 19-base-unassume-mem.c
     file_hash: d71d7065e36b8e0a2c42c96e5f6ea057d28065adae2d85b516989b8d43e77c91
     line: 14
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: '*p <= 10'

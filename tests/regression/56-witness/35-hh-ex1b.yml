@@ -17,7 +17,7 @@
     file_name: 35-hh-ex1b.c
     file_hash: 9fe07d5f950140350848bae4342d9d1b7c6c9f625f6985746089a36a37243600
     line: 7
-    column: 4
+    column: 5
     function: main
   loop_invariant:
     string: 0 <= i && i <= 99
