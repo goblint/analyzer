@@ -80,8 +80,7 @@ module EqualitiesConjunction = struct
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
-  let add_variables_to_domain m indexes =
-    M.trace "varadd" "varadd called with #%d new vars on a conj with %d vars and maxentry %s \n" (Array.length indexes) (fst m) (string_of_int @@ maxentry m); 
+  let add_variables_to_domain m indexes = 
     if Array.length indexes = 0 then m else
       let offset_map = Array.make (get_dim m) 0 (* maps each variable to the number of variables that are added before this variable *)
       in
