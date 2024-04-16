@@ -33,10 +33,11 @@ struct
     let remove ctx l =
       match D.Addr.to_mval l with
       | Some (v,o) ->
-        (let mtype = ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
-        match mtype with
-        | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
-        | _ -> ctx.local (* we cannot remove them here *))
+        let mtype = ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
+        begin match mtype with
+          | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
+          | _ -> ctx.local (* we cannot remove them here *)
+        end
       | None -> ctx.local (* we cannot remove them here *)
   end
 
