@@ -70,11 +70,14 @@ module EqualitiesConjunction = struct
     else
       IntHashtbl.replace (snd econ) lhs rhs
 
+  let maxentry econ = IntHashtbl.fold (fun lhs (_,_) acc -> max acc lhs) (snd econ) 0
+
   let copy  econ = (fst econ,IntHashtbl.copy (snd econ))
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
   let add_variables_to_domain m indexes =
+    M.trace "varadd" "varadd called with #%d new vars on a conj with %d vars and maxentry %s \n" (Array.length indexes) (fst m) (string_of_int @@ maxentry m); 
     if Array.length indexes = 0 then m else
       let offset_map = Array.make (get_dim m) 0 (* maps each variable to the number of variables that are added before this variable *)
       in
@@ -100,6 +103,7 @@ module EqualitiesConjunction = struct
         Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
       let m' = make_empty_conj (get_dim m + Array.length indexes) in
       IntHashtbl.iter (fun k v -> IntHashtbl.replace (snd m') (k + offset_map.(k)) (add_offset_to_array_entry v)) (snd m);
+      M.trace "varadd" "produced a new conj with %d vars and maxentry %s \n" (fst m') (string_of_int @@ maxentry m');
       m'(* produces a consistent new conj. of equalities *)
 
   let remove_variables_from_domain m indexes =
@@ -116,8 +120,7 @@ module EqualitiesConjunction = struct
              0 offset_map in
       let remove_offset_from_rhs (var, offs) =
         Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-      (fst m - nr_removed_colums,IntHashtbl.filteri (fun i _ -> not @@ Array.mem i indexes) (snd m)  (* we get rid of the old variable spot *)
-                                 |> IntHashtbl.map (fun _ -> remove_offset_from_rhs)) (* we normalize their rhs variable ids to the new shifted ids, ignoring the index *) (* TODO: don't we have to shift the actual indices too?*)
+      (fst m - nr_removed_colums,IntHashtbl.of_list @@ List.map (fun (lhs,rhs) -> (offset_map.(lhs),remove_offset_from_rhs rhs)) (IntHashtbl.to_list @@ snd m)) 
 
   let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
 
@@ -340,7 +343,7 @@ struct
       if is_bot varM then
         "Bot \n"
       else
-        EConj.IntHashtbl.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) (snd arr) ""
+        EConj.IntHashtbl.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) (snd arr) "" ^ (" with dimension " ^ (string_of_int @@ fst arr))
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
