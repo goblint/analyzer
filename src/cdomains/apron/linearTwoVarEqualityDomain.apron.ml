@@ -64,6 +64,8 @@ module EqualitiesConjunction = struct
 
   let get_dim econ = fst econ
 
+  let nontrivial econ lhs = IntHashtbl.mem (snd econ) lhs
+
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
   let get_rhs econ lhs = IntHashtbl.find_default (snd econ) lhs (Rhs.var_zero lhs)
 
@@ -270,7 +272,7 @@ struct
             | _ -> ()
           end
       in
-      begin if EConj.get_rhs d var = (Some var, Z.zero)
+      begin if not @@ EConj.nontrivial d var
       (* var is a reference variable -> it can appear on the right-hand side of an equality *)
         then
           EConj.IntHashtbl.iter (subtract_const_from_var_for_single_equality) (snd d)
@@ -360,7 +362,7 @@ struct
         | e -> e
       in
       EConj.IntHashtbl.map_inplace adjust (snd tsi);
-      EConj.IntHashtbl.replace (snd tsi) x (vart, bt)
+      EConj.IntHashtbl.replace (snd tsi) x (vart, bt) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
     in
     let (var1, b1) = EConj.get_rhs ts i in
     (match var, var1 with
@@ -395,7 +397,7 @@ struct
     | Some d1', Some d2' -> (
         try
           let res_d = EConj.copy d1' in
-          EConj.IntHashtbl.iter (meet_with_one_conj_with res_d) (snd d2');
+          EConj.IntHashtbl.iter (meet_with_one_conj_with res_d) (snd d2'); (* even on sparse d2, this will chose the relevant conjs to meet with*)
           {d = Some res_d; env = sup_env}
         with Contradiction ->
           {d = None; env = sup_env}
@@ -422,7 +424,7 @@ struct
     if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      EConj.IntHashtbl.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) (snd m2) true
+      EConj.IntHashtbl.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) (snd m2) true (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -433,16 +435,16 @@ struct
 
   let join a b =
     let join_d ad bd =
-      (*use copy of ad because result is later saved in there*)
-      let ad = EConj.copy ad in
       (*This is the table which is later grouped*)
       let joinfunction = fun lhs rhs1 rhs2 -> match rhs1, rhs2 with 
-        | None, None                -> None
-        | None, Some (bi,bj)        -> Some (Z.neg bj   ,(Some lhs,Z.zero),(bi,bj))
-        | Some (ai,aj), None        -> Some (aj         ,(ai,aj),(Some lhs,Z.zero))
-        | Some (ai,aj),Some (bi,bj) -> Some (Z.(aj - bj),(ai,aj),(bi,bj)) 
+        | Some (ai,aj),Some (bi,bj) -> Some (Z.(aj - bj),(ai,aj),(bi,bj))
+        | None, Some (bi,bj)        -> Some (Z.neg bj   ,Rhs.var_zero lhs,(bi,bj))
+        | Some (ai,aj), None        -> Some (aj         ,(ai,aj),Rhs.var_zero lhs)
+        | _,_                       -> None
       in
       let table = List.map (fun (a,(b1,b2,b3)) -> (a,b1,b2,b3)) @@ EConj.IntHashtbl.to_list @@ EConj.IntHashtbl.merge joinfunction (snd ad) (snd bd) in
+      (*gather result in res *)
+      let res = EConj.make_empty_conj @@ fst ad in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in
@@ -451,16 +453,16 @@ struct
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
       (*Adjust the domain array to represent the new components*)
-      let modify idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) =
-        if opt1 = opt2 && Z.equal z1 z2 then ()
-        else EConj.set_rhs_with ad (idx) (Some idx_h, Z.(z1 - b_h))
+      let modify idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) = EConj.set_rhs_with res (idx)
+          (if opt1 = opt2 && Z.equal z1 z2 then  (opt1, z1)
+           else (Some idx_h, Z.(z1 - b_h)))
       in
       let iterate l =
         match l with
         | (idx_h, _, (_, b_h), _) :: t ->  List.iter (modify idx_h b_h) l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
-      List.iter iterate new_components; Some ad
+      List.iter iterate new_components; Some res
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     match a.d, b.d with
@@ -538,7 +540,6 @@ struct
           subtract_const_from_var t var_i off
         | Some (Some exp_var, off) ->
           (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
-          if M.tracing then M.tracel "hashtab" "assign_texpr: var_%s = var_%s + %s" (string_of_int var_i) (string_of_int exp_var) (Z.to_string off);
           meet_with_one_conj (forget_vars t [var]) var_i (Some exp_var, off)
       end
     | None -> bot_env
