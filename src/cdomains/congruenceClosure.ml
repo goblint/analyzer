@@ -965,7 +965,7 @@ module CongruenceClosure (Var : Val) = struct
           let new_size, map_of_children, part = List.fold
               (fun (total_size, map_of_children, part) child ->
                  (* update parent and offset *)
-                 let part = TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part t - offset_new_root)) in
+                 let part = TUF.modify_parent part child (new_root, Z.(TUF.parent_offset part child - offset_new_root)) in
                  total_size + TUF.subtree_size part child, add_to_map_of_children child map_of_children new_root, part
               ) (0, map_of_children, part) remaining_children in
           (* Update new root -> set itself as new parent. *)
