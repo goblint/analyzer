@@ -362,8 +362,8 @@ module Term(Var:Val) = struct
     | Const c -> None, z_of_exp (Const c)
     | Lval lval -> of_lval lval
     | AlignOf _
-    | AlignOfE _
-    | StartOf _ -> (*no idea*) None, None
+    | AlignOfE _ -> (*no idea*) None, None
+    | StartOf lval  -> of_lval lval
     | AddrOf (Var var, NoOffset) -> Some (Addr var), Some Z.zero
     | AddrOf (Mem exp, NoOffset) -> of_cil exp
     | UnOp (op,exp,typ)-> begin match op with
@@ -395,10 +395,12 @@ module Term(Var:Val) = struct
     | AddrOf lval -> (*TODO*)None, None
     | _ -> None, None
   and of_lval = function
-    | (Var var, offset) -> begin match of_offset offset with
-        | None -> None, None
-        | Some off -> Some (Deref (Addr var, Z.zero)), Some off
+    | (Var var, NoOffset) -> Some (Deref (Addr var, Z.zero)), Some Z.zero
+    | (Var var, Index (exp, NoOffset)) -> begin match of_cil exp with
+        | None, Some off -> Some (Deref ((Deref (Addr var, Z.zero)), off)), Some Z.zero
+        | _ -> None, None
       end
+    | (Var var, _) -> None, None (*TODO: Index with Offset, and Field*)
     | (Mem exp, offset) ->
       begin match of_cil exp, of_offset offset with
         | (Some term, Some offset), Some z_offset -> Some (Deref (term, offset)), Some z_offset
@@ -924,7 +926,7 @@ module CongruenceClosure (Var : Val) = struct
       | [] -> (new_set, removed_terms, map_of_children, cc)
       | el::rest ->
         (* Adds `value` to the set that is in the `map` with key `term` *)
-        let new_set, removed_terms = if predicate el then new_set, el::removed_terms else SSet.add el new_set, removed_terms in
+        let new_set, removed_terms = if predicate cc.part el then new_set, el::removed_terms else SSet.add el new_set, removed_terms in
         let uf_parent = TUF.parent cc.part el in
         let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent) in
         let cc, successors = add_successor_terms cc el in
@@ -949,7 +951,7 @@ module CongruenceClosure (Var : Val) = struct
       - `new_parents_map`: maps each removed term t to another term which was in the same equivalence class as t at the time when t was deleted.
   *)
   let remove_terms_from_uf part removed_terms map_of_children predicate =
-    let find_not_removed_element set = match List.find (fun el -> not (predicate el)) set with
+    let find_not_removed_element set = match List.find (fun el -> not (predicate part el)) set with
       | exception Not_found -> List.first set
       | t -> t
     in
@@ -1044,7 +1046,7 @@ module CongruenceClosure (Var : Val) = struct
     in let part, new_parents_map, _ =
          remove_terms_from_uf cc.part removed_terms map_of_children predicate
     in let map =
-         remove_terms_from_mapped_values cc.map predicate
+         remove_terms_from_mapped_values cc.map (predicate cc.part)
     in let map, part =
          remove_terms_from_map (part, map) removed_terms new_parents_map
     in let min_repr, part = MRMap.compute_minimal_representatives (part, set, map)
@@ -1109,7 +1111,7 @@ module CongruenceClosure (Var : Val) = struct
     in let part, new_parents_map, map_of_children =
          remove_terms_from_uf cc.part removed_terms map_of_children predicate
     in let map =
-         remove_terms_from_mapped_values cc.map predicate
+         remove_terms_from_mapped_values cc.map (predicate cc.part)
     in let map, part =
          remove_terms_from_map (part, map) removed_terms new_parents_map
     in let part = shift_uf part cc.map t z off map_of_children

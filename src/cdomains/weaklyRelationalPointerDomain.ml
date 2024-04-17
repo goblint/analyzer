@@ -137,36 +137,36 @@ module D = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variable var cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show var);
-    Option.map (remove_terms (T.is_subterm var)) cc
+    Option.map (remove_terms (fun _ -> T.is_subterm var)) cc
 
   (** Remove terms from the data structure.
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variables vars cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-    Option.map (remove_terms (T.contains_variable vars)) cc
+    Option.map (remove_terms (fun _ -> T.contains_variable vars)) cc
 
   (** Remove terms from the data structure.
       It removes all terms which do not contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-    Option.map (remove_terms (not % T.contains_variable vars)) cc
+    Option.map (remove_terms (fun _ -> not % T.contains_variable vars)) cc
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
   let remove_may_equal_terms ask term cc =
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
-    Option.map (fun cc -> remove_terms (Disequalities.may_be_equal ask cc.part term) cc) cc
+    Option.map (remove_terms (fun part -> Disequalities.may_be_equal ask part term)) cc
 
   (** Remove terms from the data structure and shifts other terms.
       It removes all terms that may be changed after an assignment to "term".
       It shifts all elements that were modified by the asignmnt to "term". *)
-      let remove_and_shift_may_equal_terms ask cc t z off =
-        let term = CC.Deref (t, z) in
-        if M.tracing then M.trace "wrpointer" "remove_and_shift_may_equal_terms: %s. Off: %s\n" (T.show term) (Z.to_string off);
-        let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
-        Option.map (fun cc -> remove_terms_and_shift (Disequalities.may_be_equal_but_not_definitely_equal ask cc.part term) cc t z off) cc
+  let remove_and_shift_may_equal_terms ask cc t z off =
+    let term = CC.Deref (t, z) in
+    if M.tracing then M.trace "wrpointer" "remove_and_shift_may_equal_terms: %s. Off: %s\n" (T.show term) (Z.to_string off);
+    let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
+    Option.map (fun cc -> remove_terms_and_shift (fun part -> Disequalities.may_be_equal_but_not_definitely_equal ask part term) cc t z off) cc
 
 end
