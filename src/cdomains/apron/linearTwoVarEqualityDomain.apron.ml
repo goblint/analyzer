@@ -27,9 +27,9 @@ module Rhs = struct
 end
 
 module EqualitiesConjunction = struct
-  module IntHash = struct type t = int [@@deriving eq, hash]  end
+  module IntHash = struct type t = int [@@deriving eq, hash] end
   module IntHashtbl = BatHashtbl.Make(IntHash)
-  
+
   type t = int * Rhs.t IntHashtbl.t
 
   let equal (idim,imap) (jdim,jmap) = idim = jdim && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem jmap lh && IntHashtbl.find jmap lh = rh) imap true
