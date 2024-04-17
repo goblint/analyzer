@@ -22,19 +22,17 @@ module Rhs = struct
   type t = (int option * (Z.t [@printer Z.pp_print])) [@@deriving eq, ord, hash]
   let zero = (None, Z.zero)
   let var_zero i = (Some i, Z.zero)
-  let to_int x = Z.to_int @@ snd x
+  let to_int (_,x) = Z.to_int x
   let show (v, o) = Option.map_default (fun i -> "var_" ^ string_of_int i^ " + ") "" v  ^ Z.to_string o
 end
 
 module EqualitiesConjunction = struct
-  module IntHash = struct
-    type t = int
-    let equal = (=)
-    let hash i = i land max_int
-  end
+  module IntHash = struct type t = int [@@deriving eq, hash]  end
   module IntHashtbl = BatHashtbl.Make(IntHash)
+  
+  type t = int * Rhs.t IntHashtbl.t
 
-  let equal i j = (fst i) = (fst j) && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem (snd j) lh && IntHashtbl.find (snd j) lh = rh) (snd i) true
+  let equal (idim,imap) (jdim,jmap) = idim = jdim && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem jmap lh && IntHashtbl.find jmap lh = rh) imap true
 
   let compare i j = let c = compare (fst i) (fst j) in if c <> 0 then
       c
@@ -55,30 +53,29 @@ module EqualitiesConjunction = struct
   let show econ = let show_rhs i (v, o) = Printf.sprintf "var_%d=%s " i (Rhs.show (v, o)) in
     IntHashtbl.fold (fun lhs rhs acc -> acc ^ show_rhs lhs rhs) econ ""
 
-  type t = int * Rhs.t IntHashtbl.t
-  let hash : t -> int = fun x -> IntHashtbl.fold (fun k value acc -> 31 * 31 * acc + 31 * k + Rhs.hash value) (snd x) 0 (* TODO: derive *)
+  let hash : t -> int = fun (_,x) -> IntHashtbl.fold (fun k value acc -> 31 * 31 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
 
   let empty () = (0, IntHashtbl.create 0)
 
   let make_empty_conj len = (len, IntHashtbl.create len)
 
-  let get_dim econ = fst econ
+  let get_dim (dim,_) = dim
 
-  let nontrivial econ lhs = IntHashtbl.mem (snd econ) lhs
+  let nontrivial (_,econmap) lhs = IntHashtbl.mem econmap lhs
 
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
-  let get_rhs econ lhs = IntHashtbl.find_default (snd econ) lhs (Rhs.var_zero lhs)
+  let get_rhs (_,econmap) lhs = IntHashtbl.find_default econmap lhs (Rhs.var_zero lhs)
 
-  (** inplace update on the EqualitiesConjunction, repling the rhs for lhs with a new one if meaningful, otherwise just drop the entry*)
-  let set_rhs_with econ lhs rhs = 
+  (** inplace update on the EqualitiesConjunction, replacing the rhs for lhs with a new one if meaningful, otherwise just drop the entry*)
+  let set_rhs_with (dim,map) lhs rhs = 
     if Rhs.equal rhs Rhs.(var_zero lhs) then 
-      IntHashtbl.remove (snd econ) lhs
+      IntHashtbl.remove map lhs
     else
-      IntHashtbl.replace (snd econ) lhs rhs
+      IntHashtbl.replace map lhs rhs
 
-  let maxentry econ = IntHashtbl.fold (fun lhs (_,_) acc -> max acc lhs) (snd econ) 0
+  let maxentry (_,map) = IntHashtbl.fold (fun lhs (_,_) acc -> max acc lhs) map 0
 
-  let copy  econ = (fst econ,IntHashtbl.copy (snd econ))
+  let copy (dim,map) = (dim,IntHashtbl.copy map)
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
@@ -132,7 +129,7 @@ module EqualitiesConjunction = struct
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
 
-  let is_top_con econ = IntHashtbl.is_empty (snd econ)
+  let is_top_con (_,map) = IntHashtbl.is_empty map
 
   (* Forget information about variable var in-place. *)
   let forget_variable_with d var =
@@ -436,13 +433,14 @@ struct
   let join a b =
     let join_d ad bd =
       (*This is the table which is later grouped*)
-      let joinfunction = fun lhs rhs1 rhs2 -> match rhs1, rhs2 with 
+      let joinfunction lhs rhs1 rhs2 = match rhs1, rhs2 with 
         | Some (ai,aj),Some (bi,bj) -> Some (Z.(aj - bj),(ai,aj),(bi,bj))
         | None, Some (bi,bj)        -> Some (Z.neg bj   ,Rhs.var_zero lhs,(bi,bj))
         | Some (ai,aj), None        -> Some (aj         ,(ai,aj),Rhs.var_zero lhs)
         | _,_                       -> None
       in
-      let table = List.map (fun (a,(b1,b2,b3)) -> (a,b1,b2,b3)) @@ EConj.IntHashtbl.to_list @@ EConj.IntHashtbl.merge joinfunction (snd ad) (snd bd) in
+      let flatten (a,(b1,b2,b3)) = (a,b1,b2,b3) in
+      let table = List.map (flatten) @@ EConj.IntHashtbl.to_list @@ EConj.IntHashtbl.merge joinfunction (snd ad) (snd bd) in
       (*gather result in res *)
       let res = EConj.make_empty_conj @@ fst ad in
       (*compare two variables for grouping depending on delta function and reference index*)
@@ -723,7 +721,7 @@ struct
         let ri = Environment.var_of_dim t.env r in
         of_coeff xi [(Coeff.s_of_int (-1), xi); (Coeff.s_of_int 1, ri)] o :: acc
     in
-    BatOption.get t.d |> fun x -> EConj.IntHashtbl.fold (fun lhs rhs list -> get_const list lhs rhs) (snd @@ x) [] 
+    BatOption.get t.d |> fun (_,map) -> EConj.IntHashtbl.fold (fun lhs rhs list -> get_const list lhs rhs) map [] 
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
