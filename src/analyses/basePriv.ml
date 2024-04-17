@@ -1762,7 +1762,7 @@ struct
     (* LVH.iter (fun (l, x) v ->
         Logs.debug "%a %a = %a" CilType.Location.pretty l CilType.Varinfo.pretty x VD.pretty v
       ) lvh; *)
-    Marshal.output f ({name = get_string "ana.base.privatization"; results = lvh}: result);
+    Marshal.output f ({name = get_string "ana.base.privatization" ^ get_string "exp.priv-prec-dump-suffix"; results = lvh}: result);
     close_out_noerr f
 
   let finalize () =
