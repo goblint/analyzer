@@ -15,18 +15,18 @@ sig
   module V: Analyses.SpecSysVar
   module G: Lattice.S
 
-  val eval_rv: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
-  val eval_rv_address: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
-  val eval_lv: Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
-  val convert_offset: Queries.ask -> (V.t -> G.t) -> D.t -> offset -> ID.t Offset.t
+  val eval_rv: BaseDomainEvents.t -> Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
+  val eval_rv_address: BaseDomainEvents.t -> Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
+  val eval_lv: BaseDomainEvents.t -> Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
+  val convert_offset: BaseDomainEvents.t -> Queries.ask -> (V.t -> G.t) -> D.t -> offset -> ID.t Offset.t
 
-  val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
-  val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
-  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
+  val get_var: BaseDomainEvents.t -> Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
+  val get: BaseDomainEvents.t -> Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
+  val set: Queries.ask -> ctx:(D.t, G.t, D.t, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
   val refine_entire_var: bool
   val map_oldval: VD.t -> typ -> VD.t
-  val eval_rv_lval_refine: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> lval -> VD.t
+  val eval_rv_lval_refine: BaseDomainEvents.t  -> Queries.ask -> (V.t -> G.t) -> D.t -> exp -> lval -> VD.t
 
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
@@ -63,11 +63,12 @@ struct
     with Lattice.Uncomparable -> old_val
 
   let refine_lv_fallback ctx a gs st lval value tv =
+    let emit = Events.to_base_domain_events ctx.Analyses.emit in
     if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-    let addr = eval_lv a gs st lval in
+    let addr = eval_lv emit a gs st lval in
     if (AD.is_top addr) then st
     else
-      let old_val = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+      let old_val = get emit a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
       let t_lval = Cilfacade.typeOfLval lval in
       let old_val = map_oldval old_val t_lval in
       let old_val =
@@ -79,7 +80,7 @@ struct
           old_val
       in
       let state_with_excluded = set a gs st addr t_lval value ~ctx in
-      let value =  get a gs state_with_excluded addr None in
+      let value = get (Events.to_base_domain_events ctx.emit) a gs state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -92,13 +93,13 @@ struct
       else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let refine_lv ctx a gs st c x c' pretty exp =
-    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+    let set' lval v st = set a gs st (eval_lv (Events.to_base_domain_events ctx.emit) a gs st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-      let old_val = get_var a gs st var in
+      let old_val = get_var (Events.to_base_domain_events ctx.emit) a gs st var in
       let old_val = map_oldval old_val var.vtype in
-      let offs = convert_offset a gs st o in
+      let offs = convert_offset (Events.to_base_domain_events ctx.emit) a gs st o in
       let new_val = VD.update_offset (Queries.to_value_domain_ask a) old_val offs c' (Some exp) x (var.vtype) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
@@ -111,7 +112,7 @@ struct
     | Var _, _
     | Mem _, _ ->
       (* For accesses via pointers, not yet *)
-      let old_val = eval_rv_lval_refine a gs st exp x in
+      let old_val = eval_rv_lval_refine (Events.to_base_domain_events ctx.emit) a gs st exp x in
       let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
       let v = apply_invariant ~old_val ~new_val:c' in
       if is_some_bot v then contra st
@@ -147,7 +148,7 @@ struct
             end
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
-              match eval_rv_address a gs st (Lval x) with
+              match eval_rv_address (Events.to_base_domain_events ctx.Analyses.emit) a gs st (Lval x) with
               | Address a when AD.is_definite n ->
                 Some (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
@@ -211,12 +212,12 @@ struct
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv a gs st rval)) tv
+      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv (Events.to_base_domain_events ctx.emit) a gs st rval)) tv
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
-        (match eval_rv a gs st (Lval x) with
+        (match eval_rv (Events.to_base_domain_events ctx.emit) a gs st (Lval x) with
          | Int v ->
            (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
              * If there is one domain that knows this to be true and the other does not, we
@@ -555,7 +556,7 @@ struct
           a, b
       with FloatDomain.ArithmeticOnFloatBot _ -> raise Analyses.Deadcode
     in
-    let eval e st = eval_rv a gs st e in
+    let eval e st = eval_rv (Events.to_base_domain_events ctx.emit) a gs st e in
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
     let unroll_fk_of_exp e =
       match unrollType (Cilfacade.typeOf e) with

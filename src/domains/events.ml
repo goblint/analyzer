@@ -16,6 +16,7 @@ type t =
   | Assert of exp
   | Unassume of {exp: CilType.Exp.t; uuids: string list}
   | Longjmped of {lval: CilType.Lval.t option}
+  | GenerateObject of CilType.Varinfo.t
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
 let emit_on_deadcode = function
@@ -33,6 +34,7 @@ let emit_on_deadcode = function
   | Assert _ (* Pointless to refine dead. *)
   | Longjmped _ ->
     false
+  | GenerateObject _ -> true
 
 let pretty () = function
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
@@ -47,3 +49,10 @@ let pretty () = function
   | Assert exp -> dprintf "Assert %a" d_exp exp
   | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval
+  | GenerateObject v -> dprintf "GenerateOjbect %a" CilType.Varinfo.pretty v
+
+open BaseDomainEvents
+let to_base_domain_events emit =
+  {
+    generate_object = (fun x -> emit (GenerateObject x))
+  }

@@ -231,6 +231,7 @@ module JmpBufDomain = JmpBufDomain
 module BaseDomain = BaseDomain
 module ValueDomain = ValueDomain
 module ValueDomainQueries = ValueDomainQueries
+module BaseDomainEvents = BaseDomainEvents
 
 (** {4 Relational}
 
