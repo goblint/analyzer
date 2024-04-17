@@ -1,4 +1,4 @@
-(** Precison comparison. *)
+(** Precision comparison. *)
 
 open Batteries
 module Pretty = GoblintCil.Pretty
