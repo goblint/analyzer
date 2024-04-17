@@ -1851,7 +1851,18 @@ struct
         (* TODO: For the modular mode, for now, if we want to change some x.o, where x is some object on the heap, we instead set the object for typeof(x.o). This way, it suffices to read from this object later, for a crude overapproximation. *)
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        let new_value = update_offset (CPA.find x st.cpa) in
+        let old_value, st =
+          if a.f Q.IsModular && ModularUtil.is_canonical x then
+            match CPA.find_opt x st.cpa with
+            | Some v -> v, st
+            | None ->
+              let v, _ = VD.top_value_typed_address_targets x.vtype in
+              let cpa = CPA.add x v st.cpa in
+              v, { st with cpa }
+          else
+            CPA.find x st.cpa, st
+        in
+        let new_value = update_offset old_value in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
