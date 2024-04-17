@@ -17,3 +17,10 @@ _NB! This list is likely incomplete._
 
     See [PR #1414](https://github.com/goblint/analyzer/pull/1414).
 
+2. Implementation-defined behavior usually follows GCC.
+
+    For example, for the behavior on integers, Goblint assumes the compiler behaves as documented by [GCC](https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html). This is also in line with the behavior of Clang in this case.
+
+    > > The result of, or the signal raised by, converting an integer to a signed integer type when the value cannot be represented in an object of that type (C90 6.2.1.2, C99 and C11 6.3.1.3).
+    >
+    > For conversion to a type of width N, the value is reduced modulo 2^N to be within range of the type; no signal is raised.
