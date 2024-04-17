@@ -29,11 +29,11 @@ module Disequalities = struct
           (T.show t1) AD.pretty mpt1 (T.get_var t1).vid (T.show t2) AD.pretty mpt2 (T.get_var t2).vid (string_of_bool res); res
 
   (**Returns true iff by assigning to t1, the value of t2 could change. *)
-  let rec may_be_equal ask part t1 t2 =
+  let rec may_be_equal ask uf t1 t2 =
     match t1, t2 with
     | CC.Deref (t, z), CC.Deref (v, z') ->
-      let (q', z1') = TUF.find_no_pc part v in
-      let (q, z1) = TUF.find_no_pc part t in
+      let (q', z1') = TUF.find_no_pc uf v in
+      let (q, z1) = TUF.find_no_pc uf t in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
       (
         (not (T.equal q' q) || Z.(equal z (z' + z1 - z1')))
@@ -41,22 +41,22 @@ module Disequalities = struct
         &&
         (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))
       )
-      || (may_be_equal ask part t1 v)
+      || (may_be_equal ask uf t1 v)
     | CC.Deref _, _ -> false (*The value of addresses never change when we overwrite the memory*)
     | CC.Addr _ , _ -> T.is_subterm t1 t2
 
-  let may_be_equal ask part t1 t2 =
-    let res = (may_be_equal ask part t1 t2) in
+  let may_be_equal ask uf t1 t2 =
+    let res = (may_be_equal ask uf t1 t2) in
     if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 
   (**Returns true iff by assigning to t1, the value of t2 could change.
       But if we know that t1 and t2 are definitely equal, then it returns false. *)
-  let rec may_be_equal_but_not_definitely_equal ask part t1 t2 =
+  let rec may_be_equal_but_not_definitely_equal ask uf t1 t2 =
     match t1, t2 with
     | CC.Deref (t, z), CC.Deref (v, z') ->
-      let (q', z1') = TUF.find_no_pc part v in
-      let (q, z1) = TUF.find_no_pc part t in
+      let (q', z1') = TUF.find_no_pc uf v in
+      let (q, z1) = TUF.find_no_pc uf t in
       (* If they are in the same equivalence class, then we return false *)
       (
         (not (T.equal q' q))
@@ -64,7 +64,7 @@ module Disequalities = struct
         &&
         (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))
       )
-      || (may_be_equal ask part t1 v)
+      || (may_be_equal ask uf t1 v)
     | CC.Deref _, _ -> false (*The value of addresses never change when we overwrite the memory*)
     | CC.Addr _ , _ -> T.is_subterm t1 t2
 end
@@ -96,7 +96,7 @@ module D = struct
     | None, None -> true
     | _ -> false
 
-  let empty () = Some {part = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty}
+  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty}
 
   let init () = init_congruence []
 
@@ -104,7 +104,7 @@ module D = struct
   let is_bot x = x = None
   let top () = empty ()
   let is_top = function None -> false
-                      | Some cc -> TUF.is_empty cc.part
+                      | Some cc -> TUF.is_empty cc.uf
 
   let join a b = if M.tracing then M.trace "wrpointer" "JOIN\n";a (*TODO implement join*)
   let widen = join
@@ -126,7 +126,7 @@ module D = struct
     | Some x ->
       BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\nmin. repr\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
         (XmlUtil.escape (Format.asprintf "%s" (show (Some x))))
-        (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.part)))
+        (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
         (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
         (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
         (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep x.min_repr)))
@@ -158,7 +158,7 @@ module D = struct
   let remove_may_equal_terms ask term cc =
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
-    Option.map (remove_terms (fun part -> Disequalities.may_be_equal ask part term)) cc
+    Option.map (remove_terms (fun uf -> Disequalities.may_be_equal ask uf term)) cc
 
   (** Remove terms from the data structure and shifts other terms.
       It removes all terms that may be changed after an assignment to "term".
@@ -167,6 +167,6 @@ module D = struct
     let term = CC.Deref (t, z) in
     if M.tracing then M.trace "wrpointer" "remove_and_shift_may_equal_terms: %s. Off: %s\n" (T.show term) (Z.to_string off);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
-    Option.map (fun cc -> remove_terms_and_shift (fun part -> Disequalities.may_be_equal_but_not_definitely_equal ask part term) cc t z off) cc
+    Option.map (fun cc -> remove_terms_and_shift (fun uf -> Disequalities.may_be_equal_but_not_definitely_equal ask uf term) cc t z off) cc
 
 end
