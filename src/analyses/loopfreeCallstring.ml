@@ -1,7 +1,7 @@
 (** 
    Loopfree Callstring analysis [loopfree_callstring] that reduces the call string length of the classical Call String approach for recursions
    The idea is to improve the Call String analysis by representing all detected call cycle of the call string in a set 
-   In case no call cycle apprears, the call string is identical to the call string of the Call String approach
+   In case no call cycles appears, the call string is identical to the call string of the Call String approach
    For example: 
    - call string [main, a, b, c, a] is represented as [main, {a, b, c}]
    - call string [main, a, a, b, b, b] is represented as [main, {a}, {b}]

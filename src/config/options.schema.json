@@ -986,7 +986,7 @@
             },
             "callString_length": {
               "title": "ana.context.callString_length",
-              "description": "Length of the call string that should be used as context for the Call String analysis. In case the value is zero, the analysis is context-insensitive. For a negative value an infinite call string is used!",
+              "description": "Length of the call string that should be used as context for the call_string and/or call_site analyses. In case the value is zero, the analysis is context-insensitive. For a negative value, an infinite call string is used! For this option to be effective, one analysis of the `callstring.ml` file must be activated.",
               "type": "integer",
               "default": 2
             }
