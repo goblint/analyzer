@@ -14,12 +14,12 @@ end
 
 module ValMap(Val:Val) = struct
   include Map.Make(Val)
-  let hash x y = 3
+  let hash node_hash y = fold (fun x node acc -> acc + Val.hash x + node_hash node) y 0
 end
 
 module ValSet(Val:Val) = struct
   include Set.Make(Val)
-  let hash x = 3
+  let hash x = fold (fun x y -> y + Val.hash x) x 0
 end
 
 (** Quantitative union find *)
@@ -211,7 +211,7 @@ module LookupMap (T: Val) = struct
 
   module ZMap = struct
     include Map.Make(Z)
-    let hash x y = 3
+    let hash node_hash y = fold (fun x node acc -> acc + Z.hash x + node_hash node) y 0
   end
 
   type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash]
