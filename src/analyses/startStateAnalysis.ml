@@ -6,7 +6,10 @@ struct
   include UnitAnalysis.Spec
   module D = Lattice.Unit
   module C = Lattice.Unit
-  module G = BaseDomain.CPA
+  module G = struct
+    include BaseDomain.CPA
+    let widen = join
+  end
   module V = struct
     include CilType.Fundec
     let is_write_only _ = false
