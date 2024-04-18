@@ -29,3 +29,5 @@ module PostSolver = PostSolver
 module LocalFixpoint = LocalFixpoint
 module SolverStats = SolverStats
 module SolverBox = SolverBox
+
+module SideWPointSelect = SideWPointSelect
