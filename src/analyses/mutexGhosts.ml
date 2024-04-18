@@ -10,8 +10,12 @@ struct
 
   module V =
   struct
-    include Node
-    let is_write_only _ = true
+    include Printable.Either (Node) (LockDomain.Addr)
+    let node x = `Left x
+    let lock x = `Right x
+    let is_write_only = function
+      | `Left _ -> false
+      | `Right _ -> true
   end
 
   module Locked =
@@ -29,16 +33,29 @@ struct
     include BoolDomain.MayBool
     let name () = "multithread"
   end
-  module G = Lattice.Prod3 (Locked) (Unlocked) (MultiThread)
+  module G =
+  struct
+    include Lattice.Lift2 (Lattice.Prod3 (Locked) (Unlocked) (MultiThread)) (Lattice.Unit)
+    let node = function
+      | `Bot -> (Locked.bot (), Unlocked.bot (), MultiThread.bot ())
+      | `Lifted1 x -> x
+      | _ -> failwith "MutexGhosts.node"
+    let lock = function
+      | `Bot -> Lattice.Unit.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "MutexGhosts.lock"
+    let create_node node = `Lifted1 node
+    let create_lock lock = `Lifted2 lock
+  end
 
   let event ctx e octx =
     begin match e with
       | Events.Lock (l, _) ->
-        ctx.sideg ctx.prev_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ())
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()))
       | Events.Unlock l ->
-        ctx.sideg ctx.prev_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ())
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()))
       | Events.EnterMultiThreaded ->
-        ctx.sideg ctx.prev_node (Locked.bot (), Unlocked.bot (), true)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.bot (), true))
       | _ -> ()
     end;
     ctx.local
@@ -47,36 +64,41 @@ struct
     match q with
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
-      let (locked, unlocked, multithread) = ctx.global g in
-      let entries =
-        (* TODO: do variable_entry-s only once *)
-        Locked.fold (fun l acc ->
-            let entry = WitnessGhost.variable_entry ~task (Locked l) in
-            Queries.YS.add entry acc
-          ) (Locked.union locked unlocked) (Queries.YS.empty ())
-      in
-      let entries =
-        Locked.fold (fun l acc ->
-            let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.one in
-            Queries.YS.add entry acc
-          ) locked entries
-      in
-      let entries =
-        Unlocked.fold (fun l acc ->
-            let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.zero in
-            Queries.YS.add entry acc
-          ) unlocked entries
-      in
-      let entries =
-        if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
-          let entry = WitnessGhost.variable_entry ~task Multithreaded in
-          let entry' = WitnessGhost.update_entry ~task ~node:g Multithreaded GoblintCil.one in
-          Queries.YS.add entry (Queries.YS.add entry' entries)
-        )
-        else
+      begin match g with
+        | `Left g' ->
+          let (locked, unlocked, multithread) = G.node (ctx.global g) in
+          let g = g' in
+          let entries =
+            (* TODO: do variable_entry-s only once *)
+            Locked.fold (fun l acc ->
+                let entry = WitnessGhost.variable_entry ~task (Locked l) in
+                Queries.YS.add entry acc
+              ) (Locked.union locked unlocked) (Queries.YS.empty ())
+          in
+          let entries =
+            Locked.fold (fun l acc ->
+                let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.one in
+                Queries.YS.add entry acc
+              ) locked entries
+          in
+          let entries =
+            Unlocked.fold (fun l acc ->
+                let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.zero in
+                Queries.YS.add entry acc
+              ) unlocked entries
+          in
+          let entries =
+            if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
+              let entry = WitnessGhost.variable_entry ~task Multithreaded in
+              let entry' = WitnessGhost.update_entry ~task ~node:g Multithreaded GoblintCil.one in
+              Queries.YS.add entry (Queries.YS.add entry' entries)
+            )
+            else
+              entries
+          in
           entries
-      in
-      entries
+        | `Right _ -> assert false
+      end
     | _ -> Queries.Result.top q
 end
 
