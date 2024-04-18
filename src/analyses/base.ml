@@ -1317,7 +1317,7 @@ struct
               | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.map2 Z.(+))
               | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.map2 Z.(-))
               | Mult -> checkBinop e1 e2 (GobOption.map2 Z.mul)
-              | Div -> checkBinop e1 e2 (GobOption.map2 Z.div)
+              | Div -> (try checkBinop e1 e2 (GobOption.map2 Z.div) with Division_by_zero -> true)
               | Mod -> (* an overflow happens when the second operand is negative *)
                 checkPredicate e2 (fun interval_bound _ -> Z.gt interval_bound Z.zero)
               (* operations that do not result in overflow in C: *)
