@@ -12,6 +12,11 @@ struct
     let is_write_only _ = false
   end
 
+  module VD = BaseDomain.VD
+
+  let current_function ctx =
+    Node.find_fundec ctx.node
+
   let body ctx f =
     let ask = Analyses.ask_of_ctx ctx in
     let cpa = ask.f Queries.BaseCPA in
@@ -22,6 +27,18 @@ struct
   let name () = "startstate"
 
   let modular_support () = Modular
+
+  let event ctx e octx = match e with
+    | Events.GenerateObject x ->
+      if M.tracing then M.tracel "generate_object" "Generating object: %a\n" CilType.Varinfo.pretty x;
+      let v, _ = VD.top_value_typed_address_targets x.vtype in
+      let cpa_bot = G.bot () in
+      let cpa_with_x = G.add x v cpa_bot in
+      let current_function = current_function ctx in
+      ctx.sideg current_function cpa_with_x;
+      ctx.local
+    | _ ->
+      ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with

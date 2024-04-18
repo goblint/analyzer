@@ -3435,6 +3435,7 @@ struct
         | None -> ctx.local
       end
     | Events.GenerateObject x ->
+      if M.tracing then M.tracel "generate_object" "Generating object: %a\n" CilType.Varinfo.pretty x;
       let v, _ = VD.top_value_typed_address_targets x.vtype in
       let cpa = CPA.add x v ctx.local.cpa in
       { ctx.local with cpa }
