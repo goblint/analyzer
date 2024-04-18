@@ -6,7 +6,8 @@
    - call string [main, a, b, c, a] is represented as [main, {a, b, c}]
    - call string [main, a, a, b, b, b] is represented as [main, {a}, {b}]
 
-   This approach is inspired by @see <https://arxiv.org/abs/2301.06439> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces. Appendix F. 
+   This approach is inspired by
+   @see <https://arxiv.org/abs/2301.06439> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces. Appendix F. 
 *)
 open Analyses
 
