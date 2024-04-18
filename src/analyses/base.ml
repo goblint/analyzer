@@ -1236,7 +1236,7 @@ struct
     | _ -> None
 
   let eval_funvar ctx fval: Queries.AD.t =
-    let fp = eval_fv (Events.to_base_domain_events ctx.emit) (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
+    let fp = eval_fv BaseDomainEvents.dummy (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
     if AD.is_top fp then (
       if AD.cardinal fp = 1 then
         M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval
@@ -1273,7 +1273,7 @@ struct
     struct
       let context = context
       let scope = Node.find_fundec ctx.node
-      let find v = get_var (Events.to_base_domain_events ctx.emit) ask ctx.global ctx.local v
+      let find v = get_var BaseDomainEvents.dummy ask ctx.global ctx.local v
     end
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
