@@ -19,6 +19,8 @@ struct
     | Locked _ -> assert false
     | Multithreaded -> "multithreaded"
 
+  let describe_varinfo _ _ = ""
+
   let typ = function
     | Locked _ -> GoblintCil.intType
     | Multithreaded -> GoblintCil.intType
@@ -30,7 +32,7 @@ end
 
 include Var
 
-module Map = RichVarinfo.Make (Var)
+module Map = RichVarinfo.BiVarinfoMap.Make (Var)
 
 include Map
 

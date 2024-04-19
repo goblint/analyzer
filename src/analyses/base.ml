@@ -1248,7 +1248,10 @@ struct
           inv
         else (
           let var = WitnessGhost.to_varinfo Multithreaded in
-          Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          if ctx.ask (GhostVarAvailable var) then
+            Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          else
+            Invariant.none
         )
       | `Right _ -> (* thread return *)
         Invariant.none

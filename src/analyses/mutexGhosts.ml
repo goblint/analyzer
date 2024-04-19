@@ -41,7 +41,7 @@ struct
       | `Lifted1 x -> x
       | _ -> failwith "MutexGhosts.node"
     let lock = function
-      | `Bot -> Lattice.Unit.bot ()
+      | `Bot -> BoolDomain.MayBool.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "MutexGhosts.lock"
     let create_node node = `Lifted1 node
@@ -76,8 +76,14 @@ struct
     end;
     ctx.local
 
+  let ghost_var_available ctx = function
+    | WitnessGhost.Var.Locked lock -> not (G.lock (ctx.global (V.lock lock)): bool)
+    | Multithreaded -> true
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
+    | GhostVarAvailable vi ->
+      GobOption.exists (ghost_var_available ctx) (WitnessGhost.from_varinfo vi)
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
       begin match g with
@@ -87,27 +93,43 @@ struct
           let entries =
             (* TODO: do variable_entry-s only once *)
             Locked.fold (fun l acc ->
-                let entry = WitnessGhost.variable_entry ~task (Locked l) in
-                Queries.YS.add entry acc
+                if ghost_var_available ctx (Locked l) then (
+                  let entry = WitnessGhost.variable_entry ~task (Locked l) in
+                  Queries.YS.add entry acc
+                )
+                else
+                  acc
               ) (Locked.union locked unlocked) (Queries.YS.empty ())
           in
           let entries =
             Locked.fold (fun l acc ->
-                let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.one in
-                Queries.YS.add entry acc
+                if ghost_var_available ctx (Locked l) then (
+                  let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.one in
+                  Queries.YS.add entry acc
+                )
+                else
+                  acc
               ) locked entries
           in
           let entries =
             Unlocked.fold (fun l acc ->
-                let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.zero in
-                Queries.YS.add entry acc
+                if ghost_var_available ctx (Locked l) then (
+                  let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.zero in
+                  Queries.YS.add entry acc
+                )
+                else
+                  acc
               ) unlocked entries
           in
           let entries =
             if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
-              let entry = WitnessGhost.variable_entry ~task Multithreaded in
-              let entry' = WitnessGhost.update_entry ~task ~node:g Multithreaded GoblintCil.one in
-              Queries.YS.add entry (Queries.YS.add entry' entries)
+              if ghost_var_available ctx Multithreaded then (
+                let entry = WitnessGhost.variable_entry ~task Multithreaded in
+                let entry' = WitnessGhost.update_entry ~task ~node:g Multithreaded GoblintCil.one in
+                Queries.YS.add entry (Queries.YS.add entry' entries)
+              )
+              else
+                entries
             )
             else
               entries

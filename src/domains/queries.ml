@@ -130,6 +130,7 @@ type _ t =
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t
+  | GhostVarAvailable: varinfo -> MustBool.t t
 
 type 'a result = 'a
 
@@ -202,6 +203,7 @@ struct
     | TmpSpecial _ -> (module ML)
     | MaySignedOverflow  _ -> (module MayBool)
     | YamlEntryGlobal _ -> (module YS)
+    | GhostVarAvailable _ -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -273,6 +275,7 @@ struct
     | TmpSpecial _ -> ML.top ()
     | MaySignedOverflow _ -> MayBool.top ()
     | YamlEntryGlobal _ -> YS.top ()
+    | GhostVarAvailable _ -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -341,6 +344,7 @@ struct
     | Any (MaySignedOverflow _) -> 58
     | Any (YamlEntryGlobal _) -> 59
     | Any (MustProtectingLocks _) -> 60
+    | Any (GhostVarAvailable _) -> 61
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -397,6 +401,7 @@ struct
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
+      | Any (GhostVarAvailable vi1), Any (GhostVarAvailable vi2) -> CilType.Varinfo.compare vi1 vi2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -441,6 +446,7 @@ struct
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MaySignedOverflow e) -> CilType.Exp.hash e
+    | Any (GhostVarAvailable vi) -> CilType.Varinfo.hash vi
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -506,6 +512,7 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
+    | Any (GhostVarAvailable vi) -> Pretty.dprintf "GhostVarAvailable %a" CilType.Varinfo.pretty vi
 end
 
 let to_value_domain_ask (ask: ask) =
