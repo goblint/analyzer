@@ -82,8 +82,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | GhostVarAvailable vi ->
-      GobOption.exists (ghost_var_available ctx) (WitnessGhost.from_varinfo vi)
+    | GhostVarAvailable v -> ghost_var_available ctx v
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
       begin match g with

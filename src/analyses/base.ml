@@ -1247,9 +1247,10 @@ struct
         if get_bool "exp.earlyglobs" then
           inv
         else (
-          let var = WitnessGhost.to_varinfo Multithreaded in
-          if ctx.ask (GhostVarAvailable var) then
+          if ctx.ask (GhostVarAvailable Multithreaded) then (
+            let var = WitnessGhost.to_varinfo Multithreaded in
             Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          )
           else
             Invariant.none
         )
