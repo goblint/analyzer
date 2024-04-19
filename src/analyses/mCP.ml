@@ -599,7 +599,10 @@ struct
 
   let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
 
-  let global_query _ _ _ = failwith "TODO"
+  let global_query getg (type a) ((n, g): V.t) (q: a Queries.t): a Queries.result =
+    (* TODO: cache? *)
+    let module S: MCPSpec = (val spec n: MCPSpec) in
+    S.global_query (fun v -> getg (v_of n v) |> g_to n |> obj) (Obj.obj g) q
 
   (* Just to satisfy signature *)
   let paths_as_set ctx = [ctx.local]
