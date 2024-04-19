@@ -246,18 +246,21 @@ struct
         ) protected (Queries.VS.empty ())
     | Queries.IterSysVars (Global g, f) ->
       f (Obj.repr (V.protecting g)) (* TODO: something about V.protected? *)
-    | WarnGlobal g ->
-      let g: V.t = Obj.obj g in
+    | _ -> Queries.Result.top q
+
+  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal _ ->
       begin match g with
         | `Left g' -> (* protecting *)
           if GobConfig.get_bool "dbg.print_protection" then (
-            let protecting = GProtecting.get ~write:false Strong (G.protecting (ctx.global g)) in (* readwrite protecting *)
+            let protecting = GProtecting.get ~write:false Strong (G.protecting (getg g)) in (* readwrite protecting *)
             let s = Mutexes.cardinal protecting in
             M.info_noloc ~category:Race "Variable %a read-write protected by %d mutex(es): %a" CilType.Varinfo.pretty g' s Mutexes.pretty protecting
           )
         | `Right m -> (* protected *)
           if GobConfig.get_bool "dbg.print_protection" then (
-            let protected = GProtected.get ~write:false Strong (G.protected (ctx.global g)) in (* readwrite protected *)
+            let protected = GProtected.get ~write:false Strong (G.protected (getg g)) in (* readwrite protected *)
             let s = VarSet.cardinal protected in
             max_protected := max !max_protected s;
             sum_protected := !sum_protected + s;
