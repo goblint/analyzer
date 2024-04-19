@@ -35,7 +35,7 @@ struct
   end
   module G =
   struct
-    include Lattice.Lift2 (Lattice.Prod3 (Locked) (Unlocked) (MultiThread)) (Lattice.Unit)
+    include Lattice.Lift2 (Lattice.Prod3 (Locked) (Unlocked) (MultiThread)) (BoolDomain.MayBool)
     let node = function
       | `Bot -> (Locked.bot (), Unlocked.bot (), MultiThread.bot ())
       | `Lifted1 x -> x
@@ -51,9 +51,25 @@ struct
   let event ctx e octx =
     begin match e with
       | Events.Lock (l, _) ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()))
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()));
+        if !AnalysisState.postsolving then (
+          let (locked, _, _) = G.node (ctx.global (V.node ctx.prev_node)) in
+          if Locked.cardinal locked > 1 then (
+            Locked.iter (fun lock ->
+                ctx.sideg (V.lock lock) (G.create_lock true)
+              ) locked
+          );
+        )
       | Events.Unlock l ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()))
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()));
+        if !AnalysisState.postsolving then (
+          let (_, unlocked, _) = G.node (ctx.global (V.node ctx.prev_node)) in
+          if Locked.cardinal unlocked > 1 then (
+            Locked.iter (fun lock ->
+                ctx.sideg (V.lock lock) (G.create_lock true)
+              ) unlocked
+          );
+        )
       | Events.EnterMultiThreaded ->
         ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.bot (), true))
       | _ -> ()
@@ -97,7 +113,7 @@ struct
               entries
           in
           entries
-        | `Right _ -> assert false
+        | `Right _ -> Queries.Result.top q
       end
     | _ -> Queries.Result.top q
 end
