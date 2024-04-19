@@ -63,6 +63,8 @@ struct
       }
     in
     Spec.query ctx
+
+  let ask_global' (gh: EQSys.G.t GHT.t) (type a) g (q: a Queries.t): a Queries.result = Spec.global_query (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) g q (* TODO: how can be missing? *)
 end
 
 
@@ -81,6 +83,7 @@ sig
   val ask_local: EQSys.LVar.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
   val ask_local_node: Node.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
   val ask_global: 'a Queries.t -> 'a Queries.result
+  val ask_global': Spec.V.t -> 'a Queries.t -> 'a Queries.result
 end
 
 module Make (FileCfg: MyCFG.FileCfg) (SpecSysSol: SpecSysSol): SpecSysSol2 with module SpecSys = SpecSysSol.SpecSys =
@@ -113,4 +116,5 @@ struct
     in
     Query.ask_local_node gh node local q
   let ask_global q = Query.ask_global gh q
+  let ask_global' v q = Query.ask_global' gh v q
 end
