@@ -64,7 +64,13 @@ struct
     in
     Spec.query ctx
 
-  let ask_global' (gh: EQSys.G.t GHT.t) (type a) g (q: a Queries.t): a Queries.result = Spec.global_query (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) g q (* TODO: how can be missing? *)
+  let ask_global' (gh: EQSys.G.t GHT.t) g =
+    let rec gctx = {
+      var = Some g;
+      global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) (* TODO: how can be missing? *)
+    }
+    in
+    Spec.global_query gctx
 end
 
 

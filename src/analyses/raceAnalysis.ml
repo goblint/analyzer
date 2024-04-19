@@ -263,13 +263,14 @@ struct
     | Some type_suffix_memo -> find_type_suffix' getg type_suffix_memo
     | None -> Access.AS.empty ()
 
-  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal _ ->
+      let g = Option.get gctx.var in
       begin match g with
         | `Left g' -> (* accesses *)
           (* Logs.debug "WarnGlobal %a" Access.MemoRoot.pretty g'; *)
-          let trie = G.access (getg g) in
+          let trie = G.access (gctx.global g) in
           (** Distribute access to contained fields. *)
           let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =
             let accs =
@@ -277,7 +278,7 @@ struct
               | `Lifted accs -> accs
               | `Bot -> Access.AS.empty ()
             in
-            let type_suffix = find_type_suffix getg (g', offset) in
+            let type_suffix = find_type_suffix gctx.global (g', offset) in
             if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in

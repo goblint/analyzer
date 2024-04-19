@@ -84,6 +84,10 @@ struct
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true
+
+  let get_spec = function
+    | `Left x -> x
+    | `Right _ -> failwith "GVarFC.get_spec"
 end
 
 module GVarG (G: Lattice.S) (C: Printable.S) =
@@ -143,6 +147,11 @@ struct
     | `Lifted x -> LD.printXml f x
 end
 
+
+type ('v, 'g) gctx = {
+  var: 'v option;
+  global: 'v -> 'g;
+}
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
@@ -210,7 +219,7 @@ sig
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
-  val global_query : (V.t -> G.t) -> V.t -> 'a Queries.t -> 'a Queries.result
+  val global_query : (V.t, G.t) gctx -> 'a Queries.t -> 'a Queries.result
 
   (** A transfer function which handles the assignment of a rval to a lval, i.e.,
       it handles program points of the form "lval = rval;" *)
@@ -368,7 +377,7 @@ struct
   let query _ (type a) (q: a Queries.t) = Queries.Result.top q
   (* Don't know anything --- most will want to redefine this. *)
 
-  let global_query _ _ (type a) (q: a Queries.t) = Queries.Result.top q
+  let global_query _ (type a) (q: a Queries.t) = Queries.Result.top q
   (* Don't know anything --- most will want to redefine this. *)
 
   let event ctx _ _ = ctx.local

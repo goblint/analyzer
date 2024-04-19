@@ -47,9 +47,10 @@ struct
 
   module G = Arg.G (* help type checker using explicit constraint *)
 
-  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal _ ->
+      let g = Option.get gctx.var in
       let module LH = Hashtbl.Make (Lock) in
       let module LS = Set.Make (Lock) in
       (* TODO: find all cycles/SCCs *)
@@ -103,7 +104,7 @@ struct
                   let new_path_visited_lock_event_pairs' = lock_event_pair :: path_visited_lock_event_pairs in
                   iter_lock new_path_visited_locks new_path_visited_lock_event_pairs' to_lock
                 ) lock_event_pairs
-            ) (getg lock)
+            ) (gctx.global lock)
         end
       in
 

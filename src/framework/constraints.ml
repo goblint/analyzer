@@ -1192,6 +1192,10 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | `Right _ -> true
+
+    let get_s = function
+      | `Left x -> x
+      | `Right _ -> failwith "DeadBranchLifter.get_s"
   end
 
   module EM =
@@ -1228,15 +1232,21 @@ struct
       sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
     }
 
+  let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
+    {
+      var = Option.map V.get_s gctx.var;
+      global = (fun v -> G.s (gctx.global (V.s v)));
+    }
 
-  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
-    match g with
-    | `Left g ->
-      S.global_query (fun v -> G.s (getg (V.s v))) g q
-    | `Right g ->
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    match gctx.var with
+    | None
+    | Some (`Left _) ->
+      S.global_query (global_conv gctx) q
+    | Some (`Right g) ->
       match q with
       | WarnGlobal _ ->
-        let em = G.node (getg (V.node g)) in
+        let em = G.node (gctx.global (V.node g)) in
         EM.iter (fun exp tv ->
             match tv with
             | `Lifted tv ->
@@ -1329,6 +1339,10 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | _ -> false
+
+    let get_s = function
+      | `Left x -> x
+      | _ -> failwith "LongjmpLifter.get_s"
   end
 
   module G =
@@ -1358,6 +1372,12 @@ struct
       sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
     }
 
+  let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
+    {
+      var = Option.map V.get_s gctx.var;
+      global = (fun v -> G.s (gctx.global (V.s v)));
+    }
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
@@ -1384,11 +1404,12 @@ struct
     | _ ->
       S.query (conv ctx) q
 
-  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
-    match g with
-    | `Left g ->
-      S.global_query (fun v -> G.s (getg (V.s v))) g q
-    | _ ->
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    match gctx.var with
+    | None
+    | Some (`Left _) ->
+      S.global_query (global_conv gctx) q
+    | Some (`Middle _ | `Right _) ->
       Queries.Result.top q
 
   let branch ctx = S.branch (conv ctx)
@@ -1622,7 +1643,13 @@ struct
       sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_spec g));
     }
 
-  let cycleDetection ctx call =
+  let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
+    {
+      var = Option.map V.get_spec gctx.var;
+      global = (fun v -> G.spec (gctx.global (V.spec v)));
+    }
+
+  let cycleDetection (ctx: _ ctx) call =
     let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
@@ -1669,11 +1696,12 @@ struct
       end
     | _ -> S.query (conv ctx) q
 
-  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
-    match g with
-    | `Left g ->
-      S.global_query (fun v -> G.spec (getg (V.spec v))) g q
-    | `Right g ->
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    match gctx.var with
+    | None
+    | Some (`Left _) ->
+      S.global_query (global_conv gctx) q
+    | Some (`Right g) ->
       Queries.Result.top q
 
   let branch ctx = S.branch (conv ctx)
