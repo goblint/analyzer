@@ -1,4 +1,4 @@
-(** {!BasePriv} precison comparison. *)
+(** {!BasePriv} precision comparison. *)
 
 open GoblintCil
 open PrecCompareUtil
