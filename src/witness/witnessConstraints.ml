@@ -261,6 +261,8 @@ struct
       let module Result = (val Queries.Result.lattice q) in
       fold' ctx Spec.query identity (fun x _ f -> Result.join x (f q)) (Result.bot ())
 
+  let global_query = Spec.global_query
+
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
     not (Svcomp.is_special_function f) || Svcomp.is_error_function f *)

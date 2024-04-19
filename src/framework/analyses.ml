@@ -210,6 +210,7 @@ sig
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
+  val global_query : (V.t -> G.t) -> V.t -> 'a Queries.t -> 'a Queries.result
 
   (** A transfer function which handles the assignment of a rval to a lval, i.e.,
       it handles program points of the form "lval = rval;" *)
@@ -365,6 +366,9 @@ struct
   let skip x = x.local (* Just ignore. *)
 
   let query _ (type a) (q: a Queries.t) = Queries.Result.top q
+  (* Don't know anything --- most will want to redefine this. *)
+
+  let global_query _ _ (type a) (q: a Queries.t) = Queries.Result.top q
   (* Don't know anything --- most will want to redefine this. *)
 
   let event ctx _ _ = ctx.local

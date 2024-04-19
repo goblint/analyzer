@@ -56,6 +56,8 @@ struct
   let query ctx =
     S.query (conv ctx)
 
+  let global_query = S.global_query
+
   let assign ctx lv e =
     D.lift @@ S.assign (conv ctx) lv e
 
@@ -139,6 +141,8 @@ struct
       let g i (n, c, j) e = f i (n, Obj.repr (C.lift (Obj.obj c)), j) e in
       S.query (conv ctx) (Queries.IterPrevVars g)
     | _ -> S.query (conv ctx) q
+
+  let global_query = S.global_query
 
   let assign ctx lv e =
     S.assign (conv ctx) lv e
@@ -244,6 +248,7 @@ struct
   let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
   let query' ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity   S.query  (fun x -> x q)
+  let global_query = S.global_query
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
@@ -389,6 +394,7 @@ struct
 
   let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
+  let global_query = S.global_query
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
@@ -480,6 +486,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
+  let global_query = S.global_query
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
@@ -1122,6 +1129,8 @@ struct
     let module Result = (val Queries.Result.lattice q) in
     fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
 
+  let global_query = Spec.global_query
+
   let enter ctx l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
     fold' ctx Spec.enter (fun h -> h l f a) g []
@@ -1265,6 +1274,12 @@ struct
     | _ ->
       S.query (conv ctx) q
 
+  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
+    match g with
+    | `Left g ->
+      S.global_query (fun v -> G.s (getg (V.s v))) g q
+    | `Right g ->
+      Queries.Result.top q
 
   let branch ctx = S.branch (conv ctx)
 
@@ -1373,6 +1388,12 @@ struct
     | _ ->
       S.query (conv ctx) q
 
+  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
+    match g with
+    | `Left g ->
+      S.global_query (fun v -> G.s (getg (V.s v))) g q
+    | _ ->
+      Queries.Result.top q
 
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
@@ -1651,6 +1672,13 @@ struct
           Queries.Result.top q
       end
     | _ -> S.query (conv ctx) q
+
+  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
+    match g with
+    | `Left g ->
+      S.global_query (fun v -> G.spec (getg (V.spec v))) g q
+    | `Right g ->
+      Queries.Result.top q
 
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)

@@ -599,6 +599,8 @@ struct
 
   let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
 
+  let global_query _ _ _ = failwith "TODO"
+
   (* Just to satisfy signature *)
   let paths_as_set ctx = [ctx.local]
 end

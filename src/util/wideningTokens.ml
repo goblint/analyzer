@@ -168,6 +168,8 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx Fun.const S.query (fun (x) -> x q)
+  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
+    S.global_query (fun g -> G.unlift (getg g)) g q
   let assign ctx lv e = lift_fun ctx lift'   S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx lift'   S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx lift'   S.branch ((|>) tv % (|>) e)
