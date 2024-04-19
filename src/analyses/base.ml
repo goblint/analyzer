@@ -1270,7 +1270,7 @@ struct
           | `Bot, _ -> false
           | _, `Bot -> false
           | `Lifted i1, `Lifted i2 ->
-            ( let divisor_contains_zero = (ID.meet i2 (ID.of_int ik Z.zero) = ID.of_int ik Z.zero)  in
+            ( let divisor_contains_zero = (ID.is_bot @@ ID.meet i2 (ID.of_int ik Z.zero))  in
               if divisor_contains_zero then true else 
                 ( let (min_ik, max_ik) = IntDomain.Size.range ik in
                   let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
