@@ -23,8 +23,8 @@ struct
 
   exception Top
 
-  module D = LockDomain.Symbolic
-  module C = LockDomain.Symbolic
+  module D = SymbLocksDomain.Symbolic
+  module C = SymbLocksDomain.Symbolic
 
   let name () = "symb_locks"
 
