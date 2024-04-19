@@ -979,41 +979,45 @@ struct
     (* Evaluate structurally using base at first. *)
     let a1 = eval_rv ~ctx st e1 in
     let a2 = eval_rv ~ctx st e2 in
-    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
-    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
-    let r = evalbinop_base ~ctx op t1 a1 t2 a2 t in
-    if Cil.isIntegralType t then (
-      match r with
-      | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
-      | _ ->
-        (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
-        let must_be_equal () =
-          let r = Q.must_be_equal (Analyses.ask_of_ctx ctx) e1 e2 in
-          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b" d_exp e1 d_exp e2 r;
-          r
-        in
-        match op with
-        | MinusA when must_be_equal () ->
-          let ik = Cilfacade.get_ikind t in
-          Int (ID.of_int ik Z.zero)
-        | MinusPI (* TODO: untested *)
-        | MinusPP when must_be_equal () ->
-          let ik = Cilfacade.ptrdiff_ikind () in
-          Int (ID.of_int ik Z.zero)
-        (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
-        | Le
-        | Ge when must_be_equal () ->
-          let ik = Cilfacade.get_ikind t in
-          Int (ID.of_bool ik true)
-        | Ne
-        | Lt
-        | Gt when must_be_equal () ->
-          let ik = Cilfacade.get_ikind t in
-          Int (ID.of_bool ik false)
-        | _ -> r (* Fallback didn't help. *)
-    )
-    else
-      r (* Avoid fallback, above cases are for ints only. *)
+    try
+      let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
+      let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
+      let r = evalbinop_base ~ctx op t1 a1 t2 a2 t in
+      if Cil.isIntegralType t then (
+        match r with
+        | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
+        | _ ->
+          (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
+          let must_be_equal () =
+            let r = Q.must_be_equal (Analyses.ask_of_ctx ctx) e1 e2 in
+            if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b" d_exp e1 d_exp e2 r;
+            r
+          in
+          match op with
+          | MinusA when must_be_equal () ->
+            let ik = Cilfacade.get_ikind t in
+            Int (ID.of_int ik Z.zero)
+          | MinusPI (* TODO: untested *)
+          | MinusPP when must_be_equal () ->
+            let ik = Cilfacade.ptrdiff_ikind () in
+            Int (ID.of_int ik Z.zero)
+          (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
+          | Le
+          | Ge when must_be_equal () ->
+            let ik = Cilfacade.get_ikind t in
+            Int (ID.of_bool ik true)
+          | Ne
+          | Lt
+          | Gt when must_be_equal () ->
+            let ik = Cilfacade.get_ikind t in
+            Int (ID.of_bool ik false)
+          | _ -> r (* Fallback didn't help. *)
+      )
+      else
+        r (* Avoid fallback, above cases are for ints only. *)
+    with Cilfacade.TypeOfError _ ->
+      (* Emit top value of corresponding type when there are issues *)
+      VD.top_value t
 
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
