@@ -1,6 +1,6 @@
+// PARAM: --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType
 #include <pthread.h>
 #include <goblint.h>
-
 int g1, g2;
 pthread_mutex_t m1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t m2 = PTHREAD_MUTEX_INITIALIZER;
