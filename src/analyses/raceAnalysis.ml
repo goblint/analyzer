@@ -247,30 +247,29 @@ struct
     | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset') (* (int[])[*] -> int *)
     | _, `Index ((), offset') -> None (* TODO: why indexing on non-array? *)
 
-  let rec find_type_suffix' ctx ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
-    let trie = G.access (ctx.global (V.access root)) in
+  let rec find_type_suffix' getg ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
+    let trie = G.access (getg (V.access root)) in
     let accs =
       match OffsetTrie.find offset trie with
       | `Lifted accs -> accs
       | `Bot -> Access.AS.empty ()
     in
-    let type_suffix = find_type_suffix ctx memo in
+    let type_suffix = find_type_suffix getg memo in
     Access.AS.union accs type_suffix
 
   (** Find accesses from all type_suffixes transitively. *)
-  and find_type_suffix ctx (memo : Access.Memo.t) : Access.AS.t =
+  and find_type_suffix getg (memo : Access.Memo.t) : Access.AS.t =
     match type_suffix_memo memo with
-    | Some type_suffix_memo -> find_type_suffix' ctx type_suffix_memo
+    | Some type_suffix_memo -> find_type_suffix' getg type_suffix_memo
     | None -> Access.AS.empty ()
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let global_query getg (type a) g (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal g ->
-      let g: V.t = Obj.obj g in
+    | WarnGlobal _ ->
       begin match g with
         | `Left g' -> (* accesses *)
           (* Logs.debug "WarnGlobal %a" Access.MemoRoot.pretty g'; *)
-          let trie = G.access (ctx.global g) in
+          let trie = G.access (getg g) in
           (** Distribute access to contained fields. *)
           let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =
             let accs =
@@ -278,7 +277,7 @@ struct
               | `Lifted accs -> accs
               | `Bot -> Access.AS.empty ()
             in
-            let type_suffix = find_type_suffix ctx (g', offset) in
+            let type_suffix = find_type_suffix getg (g', offset) in
             if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
@@ -296,6 +295,10 @@ struct
         | `Right _ -> (* vars *)
           ()
       end
+    | _ -> Queries.Result.top q
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
     | IterSysVars (Global g, vf) ->
       MemoSet.iter (fun v ->
           vf (Obj.repr (V.access v))
