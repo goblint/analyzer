@@ -10,7 +10,7 @@ _NB! This list is likely incomplete._
 
     > An implementation may map this mutex to one of the other mutex types.
 
-    including `PTHREAD_MUTEX_RECURSIVE`, on Linux it seems to be mapped to `PTHREAD_MUTEX_NORMAL`.
+    including `PTHREAD_MUTEX_RECURSIVE`, on Linux and OSX it seems to be mapped to `PTHREAD_MUTEX_NORMAL`.
     Goblint assumes this to be the case.
 
     This affects the `maylocks` analysis.
