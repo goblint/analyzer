@@ -2342,7 +2342,9 @@ struct
           | Addr.Addr (v, o) -> Addr.Addr (v, lo o)
           | other -> other in
         AD.map rmLastOffset a
-      | _ -> raise (Failure "String function: not an address")
+      | _ ->
+        M.debug ~category:Analyzer "Argument to string function did not evaluate to an address!";
+        AD.top ()
     in
     let string_manipulation s1 s2 lv all op_addr op_array =
       let s1_v = eval_rv ~ctx st s1 in
