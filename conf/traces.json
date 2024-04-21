@@ -39,6 +39,7 @@
     }
   },
   "exp": {
-    "priv-distr-init": false
+    "priv-distr-init": false,
+    "priv-prec-dump-proj" : true
   }
 }
