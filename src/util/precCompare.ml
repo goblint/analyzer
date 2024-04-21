@@ -120,6 +120,8 @@ struct
 
   let main () =
     Util.init ();
+    (* Do not colorize stderr output *)
+    AnsiColors.stderr := false;
     let filenames = List.tl (Array.to_list Sys.argv) in
     let dumps = List.map load filenames in
     let (locations_count, location_vars_count) = count_locations dumps in
