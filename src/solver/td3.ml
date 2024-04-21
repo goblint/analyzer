@@ -55,6 +55,7 @@ module Base =
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       infl: VS.t HM.t;
       sides: VS.t HM.t;
+      divided_side_effects: (S.Dom.t HM.t) HM.t;
       rho: S.Dom.t HM.t;
       wpoint: unit HM.t;
       stable: unit HM.t;
@@ -71,6 +72,7 @@ module Base =
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
+      divided_side_effects = HM.create (if GobConfig.get_bool "solvers.td3.divided-narrow" then 10 else 0);
       rho = HM.create 10;
       wpoint = HM.create 10;
       stable = HM.create 10;
@@ -119,6 +121,7 @@ module Base =
         wpoint = HM.copy data.wpoint;
         infl = HM.copy data.infl;
         sides = HM.copy data.sides;
+        divided_side_effects = HM.copy data.divided_side_effects;
         side_infl = HM.copy data.side_infl;
         side_dep = HM.copy data.side_dep;
         st = data.st; (* data.st is immutable *)
@@ -164,6 +167,12 @@ module Base =
       HM.iter (fun k v ->
           HM.replace sides (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.sides;
+      let divided_side_effects = HM.create (HM.length data.divided_side_effects) in
+      HM.iter (fun k v ->
+          let inner_copy = HM.create (HM.length v) in
+          HM.iter (fun k v -> HM.replace inner_copy (S.Var.relift k) (S.Dom.relift v)) v;
+          HM.replace divided_side_effects (S.Var.relift k) inner_copy
+        ) data.divided_side_effects;
       let side_infl = HM.create (HM.length data.side_infl) in
       HM.iter (fun k v ->
           HM.replace side_infl (S.Var.relift k) (VS.map S.Var.relift v)
@@ -189,7 +198,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; divided_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -224,6 +233,7 @@ module Base =
 
       let infl = data.infl in
       let sides = data.sides in
+      let divided_side_effects = data.divided_side_effects in
       let rho = data.rho in
       let wpoint = data.wpoint in
       let stable = data.stable in
@@ -1047,7 +1057,7 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; divided_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 (** TD3 with no hooks. *)
