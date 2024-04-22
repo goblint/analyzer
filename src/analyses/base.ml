@@ -1264,6 +1264,26 @@ struct
     let res = match Cilfacade.get_ikind_exp exp with
       | exception _ -> BoolDomain.MayBool.top ()
       | ik ->
+        let checkDiv e1 e2 =
+          let binop = (GobOption.map2 Z.div )in
+          match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
+          | `Bot, _ -> false
+          | _, `Bot -> false
+          | `Lifted i1, `Lifted i2 ->
+            ( let divisor_contains_zero = (ID.is_bot @@ ID.meet i2 (ID.of_int ik Z.zero))  in
+              if divisor_contains_zero then true else 
+                ( let (min_ik, max_ik) = IntDomain.Size.range ik in
+                  let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
+                  let (min_i2, max_i2) = (IntDomain.IntDomTuple.minimal i2, IntDomain.IntDomTuple.maximal i2) in
+                  let (min_i2, max_i2) = (Option.map (fun x -> if (Z.zero=x) then Z.one else x) min_i2,
+                                          Option.map (fun x -> if (Z.zero=x) then Z.neg Z.one else x) max_i2) in
+                  let possible_combinations = [binop min_i1 min_i2; binop  min_i1 max_i2; binop max_i1 min_i2; binop max_i1 max_i2] in
+                  let min_exp = List.min possible_combinations in
+                  let max_exp = List.max possible_combinations in
+                  match min_exp, max_exp with
+                  | Some min, Some max when min >= min_ik && max <= max_ik -> false
+                  | _ -> true ))
+          | _   -> true in
         let checkBinop e1 e2 binop =
           match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
           | `Bot, _ -> false
@@ -1317,7 +1337,7 @@ struct
               | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.map2 Z.(+))
               | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.map2 Z.(-))
               | Mult -> checkBinop e1 e2 (GobOption.map2 Z.mul)
-              | Div -> checkBinop e1 e2 (GobOption.map2 Z.div)
+              | Div -> checkDiv e1 e2
               | Mod -> (* an overflow happens when the second operand is negative *)
                 checkPredicate e2 (fun interval_bound _ -> Z.gt interval_bound Z.zero)
               (* operations that do not result in overflow in C: *)
