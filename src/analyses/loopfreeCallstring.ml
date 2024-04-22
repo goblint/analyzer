@@ -20,7 +20,7 @@ struct
   module FundecSet = SetDomain.Make (CilType.Fundec)
   module Either =  Printable.Either (CilType.Fundec) (FundecSet) 
 
-  module D = Lattice.Flat (Printable.Liszt (Either)) (* should be a List containing Sets of Fundecs and Fundecs. Lattice.Flat is used to fulfill the type *) 
+  module D = Lattice.Flat (Printable.Liszt (Either)) (* A domain element is a list containing fundecs and sets of fundecs.*) 
   module C = D
   module V = EmptyV
   module G = Lattice.Unit

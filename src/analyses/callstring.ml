@@ -35,7 +35,7 @@ struct
         if get_int "ana.context.callString_length" < 0
         then new_callstr (* infinite call string *)
         else (* maximum of k elements *)
-          match (BatDeque.size new_callstr - (get_int "ana.context.callString_length")) with
+          match BatDeque.size new_callstr - (get_int "ana.context.callString_length") with
           | 1 -> fst @@ Option.get (BatDeque.rear new_callstr)
           | x when x <= 0 -> new_callstr
           | _ -> failwith "CallString Error: It shouldn't happen that more than one element must be deleted to maintain the correct height!"
@@ -67,7 +67,7 @@ struct
 end
 
 (* implementations of CallstringTypes*)
-module Callstring:CallstringType = struct
+module Callstring: CallstringType = struct
   include CilType.Fundec
   let ana_name = "string"
   let new_ele f ctx = 
@@ -77,7 +77,7 @@ module Callstring:CallstringType = struct
     else Some f'
 end
 
-module Callsite:CallstringType = struct
+module Callsite: CallstringType = struct
   include CilType.Stmt
   let ana_name = "site"
   let new_ele f ctx = 
