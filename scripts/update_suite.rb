@@ -612,6 +612,7 @@ doproject = lambda do |p|
   clearline unless quiet
   id = "#{p.id} #{p.group}/#{p.name}"
   print "Testing #{id}" unless quiet
+  print "." if quiet
   begin
     Dir.mkdir(File.join($testresults, p.group)) unless Dir.exist?(File.join($testresults, p.group))
   rescue
@@ -636,7 +637,7 @@ else
   end
 end
 $alliswell = projects.map{|p| p.testset.ok}.all?
-clearline unless quiet
+clearline
 
 #Outputting
 header = <<END
