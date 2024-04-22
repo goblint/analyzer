@@ -697,7 +697,8 @@ module CongruenceClosure (Var : Val) = struct
          (* t1 and t2 are in the same equivalence class *)
          if r1 = Z.(r2 + r) then closure (uf, map, min_repr) queue rest
          else raise Unsat
-       else let v, uf, b = TUF.union uf v1 v2 Z.(r2 - r1 + r) in (* union *)
+       else let diff_r = Z.(r2 - r1 + r) in
+         let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
          (* update map *)
          let map, rest = match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
            | None, _, false -> map, rest
@@ -730,6 +731,7 @@ module CongruenceClosure (Var : Val) = struct
          let min_v1, min_v2 = MRMap.find v1 min_repr, MRMap.find v2 min_repr in
          (* 'changed' is true if the new_min is different than the old min *)
          let new_min, changed = if fst min_v1 < fst min_v2 then (min_v1, not b) else (min_v2, b) in
+         let new_min = (fst new_min, if b then Z.(snd new_min - diff_r) else Z.(snd new_min + diff_r)) in
          let removed_v = if b then v2 else v1 in
          let min_repr = MRMap.remove removed_v (if changed then MRMap.add v new_min min_repr else min_repr) in
          let queue = v :: queue in
