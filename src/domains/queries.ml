@@ -115,7 +115,7 @@ type _ t =
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | Invariant: invariant_context -> Invariant.t t
-  | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
+  | InvariantGlobal: Invariant.t t
   | WarnGlobal: Unit.t t
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
@@ -183,7 +183,7 @@ struct
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
     | Invariant _ -> (module Invariant)
-    | InvariantGlobal _ -> (module Invariant)
+    | InvariantGlobal -> (module Invariant)
     | WarnGlobal -> (module Unit)
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
@@ -250,7 +250,7 @@ struct
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
     | Invariant _ -> Invariant.top ()
-    | InvariantGlobal _ -> Invariant.top ()
+    | InvariantGlobal -> Invariant.top ()
     | WarnGlobal -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
@@ -304,7 +304,7 @@ struct
     | Any WarnGlobal -> 35
     | Any (Invariant _) -> 36
     | Any (IterSysVars _) -> 37
-    | Any (InvariantGlobal _) -> 38
+    | Any InvariantGlobal -> 38
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
     | Any MayBeTainted -> 41
@@ -367,7 +367,6 @@ struct
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
-      | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
@@ -409,7 +408,6 @@ struct
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (Invariant i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
-    | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
@@ -466,7 +464,7 @@ struct
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
     | Any WarnGlobal -> Pretty.dprintf "WarnGlobal"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
-    | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
+    | Any InvariantGlobal -> Pretty.dprintf "InvariantGlobal"
     | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"
     | Any (EvalMutexAttr a) ->  Pretty.dprintf "EvalMutexAttr _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"

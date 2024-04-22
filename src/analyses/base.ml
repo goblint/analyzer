@@ -1521,7 +1521,7 @@ struct
 
   let global_query gctx (type a) (q: a Q.t): a Q.result =
     match gctx.var, q with
-    | Some g, Q.InvariantGlobal _ ->
+    | Some g, Q.InvariantGlobal ->
       query_invariant_global gctx g
     | _, _ ->
       Q.Result.top q

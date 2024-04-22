@@ -309,7 +309,7 @@ struct
         GHT.fold (fun g v acc ->
             match g with
             | `Left g -> (* Spec global *)
-              begin match R.ask_global' (Some g) (InvariantGlobal (Obj.repr g)) with
+              begin match R.ask_global' (Some g) InvariantGlobal with
                 | `Lifted inv ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   List.fold_left (fun acc inv ->
