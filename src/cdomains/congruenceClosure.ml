@@ -879,15 +879,26 @@ module CongruenceClosure (Var : Val) = struct
     | [] -> TMap.remove parent map
     | new_children -> TMap.add parent new_children map
 
+  (* Returns true if any (strict) subterm of t1 is already present in
+     the same equivalence class as t2. *)
+  let rec detect_cyclic_dependencies t1 t2 cc =
+    match t1 with
+    | Addr v -> false
+    | Deref (t, _) ->
+      let v1, o1 = TUF.find_no_pc cc.uf t1 in
+      let v2, o2 = TUF.find_no_pc cc.uf t2 in
+      if v1 = v2 then true else
+        detect_cyclic_dependencies t t2 cc
+
   let add_successor_terms cc t =
     let add_one_successor (cc, successors) (edge_z, _) =
       let _, uf_offset, uf = TUF.find cc.uf t in
       let cc = {cc with uf = uf} in
       let successor = Deref (t, Z.(edge_z - uf_offset)) in
-      let already_present = SSet.mem successor cc.set in
-      let _, cc, _ = if already_present then (t, Z.zero), cc, []
+      let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
+      let _, cc, _ = if subterm_already_present then (t, Z.zero), cc, []
         else insert_no_min_repr cc successor in
-      (cc, if already_present then successors else successor::successors) in
+      (cc, if subterm_already_present then successors else successor::successors) in
     List.fold_left add_one_successor (cc, []) (LMap.successors (Tuple3.first (TUF.find cc.uf t)) cc.map)
 
   (** Parameters:
