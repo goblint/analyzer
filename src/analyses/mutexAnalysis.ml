@@ -250,24 +250,17 @@ struct
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
     match gctx.var, q with
-    | Some g, WarnGlobal ->
-      begin match g with
-        | `Left g' -> (* protecting *)
-          if GobConfig.get_bool "dbg.print_protection" then (
-            let protecting = GProtecting.get ~write:false Strong (G.protecting (gctx.global g)) in (* readwrite protecting *)
-            let s = Mutexes.cardinal protecting in
-            M.info_noloc ~category:Race "Variable %a read-write protected by %d mutex(es): %a" CilType.Varinfo.pretty g' s Mutexes.pretty protecting
-          )
-        | `Right m -> (* protected *)
-          if GobConfig.get_bool "dbg.print_protection" then (
-            let protected = GProtected.get ~write:false Strong (G.protected (gctx.global g)) in (* readwrite protected *)
-            let s = VarSet.cardinal protected in
-            max_protected := max !max_protected s;
-            sum_protected := !sum_protected + s;
-            incr num_mutexes;
-            M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" ValueDomain.Addr.pretty m s VarSet.pretty protected
-          )
-      end
+    | Some (`Left g' as g), WarnGlobal when GobConfig.get_bool "dbg.print_protection" -> (* protecting *)
+      let protecting = GProtecting.get ~write:false Strong (G.protecting (gctx.global g)) in (* readwrite protecting *)
+      let s = Mutexes.cardinal protecting in
+      M.info_noloc ~category:Race "Variable %a read-write protected by %d mutex(es): %a" CilType.Varinfo.pretty g' s Mutexes.pretty protecting
+    | Some (`Right m as g), WarnGlobal when GobConfig.get_bool "dbg.print_protection" -> (* protected *)
+      let protected = GProtected.get ~write:false Strong (G.protected (gctx.global g)) in (* readwrite protected *)
+      let s = VarSet.cardinal protected in
+      max_protected := max !max_protected s;
+      sum_protected := !sum_protected + s;
+      incr num_mutexes;
+      M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" ValueDomain.Addr.pretty m s VarSet.pretty protected
     | _, _ -> Queries.Result.top q
 
   module A =

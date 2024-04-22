@@ -265,36 +265,31 @@ struct
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
     match gctx.var, q with
-    | Some g, WarnGlobal ->
-      begin match g with
-        | `Left g' -> (* accesses *)
-          (* Logs.debug "WarnGlobal %a" Access.MemoRoot.pretty g'; *)
-          let trie = G.access (gctx.global g) in
-          (** Distribute access to contained fields. *)
-          let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =
-            let accs =
-              match accs with
-              | `Lifted accs -> accs
-              | `Bot -> Access.AS.empty ()
-            in
-            let type_suffix = find_type_suffix gctx.global (g', offset) in
-            if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
-              let memo = (g', offset) in
-              let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {node=accs; prefix; type_suffix; type_suffix_prefix}) memo
-            );
+    | Some (`Left g' as g), WarnGlobal -> (* accesses *)
+      (* Logs.debug "WarnGlobal %a" Access.MemoRoot.pretty g'; *)
+      let trie = G.access (gctx.global g) in
+      (** Distribute access to contained fields. *)
+      let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =
+        let accs =
+          match accs with
+          | `Lifted accs -> accs
+          | `Bot -> Access.AS.empty ()
+        in
+        let type_suffix = find_type_suffix gctx.global (g', offset) in
+        if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
+          let memo = (g', offset) in
+          let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
+          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe {node=accs; prefix; type_suffix; type_suffix_prefix}) memo
+        );
 
-            (* Recurse to children. *)
-            let prefix' = Access.AS.union prefix accs in
-            let type_suffix_prefix' = Access.AS.union type_suffix_prefix type_suffix in
-            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
-                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ~prefix:prefix' ~type_suffix_prefix:type_suffix_prefix'
-              ) children;
-          in
-          distribute_inner `NoOffset trie ~prefix:(Access.AS.empty ()) ~type_suffix_prefix:(Access.AS.empty ())
-        | `Right _ -> (* vars *)
-          ()
-      end
+        (* Recurse to children. *)
+        let prefix' = Access.AS.union prefix accs in
+        let type_suffix_prefix' = Access.AS.union type_suffix_prefix type_suffix in
+        OffsetTrie.ChildMap.iter (fun child_key child_trie ->
+            distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ~prefix:prefix' ~type_suffix_prefix:type_suffix_prefix'
+          ) children;
+      in
+      distribute_inner `NoOffset trie ~prefix:(Access.AS.empty ()) ~type_suffix_prefix:(Access.AS.empty ())
     | _, _ -> Queries.Result.top q
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

@@ -1239,28 +1239,27 @@ struct
     }
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
-    match gctx.var with
-    | None
-    | Some (`Left _) ->
+    match gctx.var, q with
+    | None, _
+    | Some (`Left _), _ ->
       S.global_query (global_conv gctx) q
-    | Some (`Right g) ->
-      match q with
-      | WarnGlobal ->
-        let em = G.node (gctx.global (V.node g)) in
-        EM.iter (fun exp tv ->
-            match tv with
-            | `Lifted tv ->
-              let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
-              let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
-              M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
-            | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
-              M.msg_final Error ~category:Analyzer ~tags:[Category Unsound] "Both branches dead";
-              M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
-            | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
-            | `Top -> (* may be both true and false *)
-              ()
-          ) em
-      | _ -> Queries.Result.top q
+    | Some (`Right g), WarnGlobal ->
+      let em = G.node (gctx.global (V.node g)) in
+      EM.iter (fun exp tv ->
+          match tv with
+          | `Lifted tv ->
+            let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
+            let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
+            M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
+          | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+            M.msg_final Error ~category:Analyzer ~tags:[Category Unsound] "Both branches dead";
+            M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+          | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
+          | `Top -> (* may be both true and false *)
+            ()
+        ) em
+    | Some (`Right g), _ ->
+      Queries.Result.top q
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -1667,15 +1666,14 @@ struct
     iter_call LS.empty call
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
-    match gctx.var with
-    | None
-    | Some (`Left _) ->
+    match gctx.var, q with
+    | None, _
+    | Some (`Left _), _ ->
       S.global_query (global_conv gctx) q
-    | Some (`Right call) ->
-      match q with
-      | WarnGlobal ->
-        cycleDetection gctx.global call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
-      | _ -> Queries.Result.top q
+    | Some (`Right call), WarnGlobal ->
+      cycleDetection gctx.global call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
+    | Some (`Right call), _ ->
+      Queries.Result.top q
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
