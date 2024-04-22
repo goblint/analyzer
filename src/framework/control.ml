@@ -738,7 +738,6 @@ struct
       (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
       match g with
       | `Left g -> (* Spec global *)
-        R.ask_global (WarnGlobal (Obj.repr g));
         R.ask_global' g (WarnGlobal (Obj.repr g))
       | `Right _ -> (* contexts global *)
         ()

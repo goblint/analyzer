@@ -1264,14 +1264,6 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal g -> (* TODO: remove *)
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | `Right g ->
-          Queries.Result.top q
-      end
     | InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
@@ -1388,14 +1380,6 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | _ ->
-          Queries.Result.top q
-      end
     | InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
@@ -1698,16 +1682,6 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal v -> (* TODO: remove *)
-      (* check result of loop analysis *)
-      if not (ctx.ask Queries.MustTermAllLoops) then
-        AnalysisState.svcomp_may_not_terminate := true;
-      let v: V.t = Obj.obj v in
-      begin match v with
-        | `Left v' ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right call -> cycleDetection ctx.global call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
-      end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in
       begin match v with
