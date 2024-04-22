@@ -147,14 +147,16 @@ struct
     | `Lifted x -> LD.printXml f x
 end
 
-
+(** Execution context for global transfer function.
+    @param 'v type of global unknowns
+    @param 'g type of global invariants *)
 type ('v, 'g) gctx = {
-  var: 'v option;
-  global: 'v -> 'g;
-  ask: 'a. 'a Queries.t -> 'a Queries.result; (* Inlined Queries.ask *) (* TODO: add optional var argument? *)
+  var: 'v option; (** Current global unknown *)
+  global: 'v -> 'g; (** Global unknown evaluation *)
+  ask: 'a. 'a Queries.t -> 'a Queries.result; (** Inlined {!Queries.ask} *)
 }
 
-(** Convert [gctx] to [Queries.ask]. *)
+(** Convert {!gctx} to {!Queries.ask}. *)
 let ask_of_gctx gctx: Queries.ask = { Queries.f = gctx.ask }
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
