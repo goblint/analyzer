@@ -598,9 +598,8 @@ struct
         ADOffsetMap.singleton offset ad
       | Union u ->
         (match offset with
-          | `NoOffset
-          | `Index _ ->
-            ValueDomain.Unions.fold handle_comp_offset_option u empty
+          | `NoOffset -> ValueDomain.Unions.fold handle_comp_offset_option u empty
+          | `Index _ -> empty
           | `Field (f, offset) ->
             let value = ValueDomain.Unions.get f u in
             reachable_from_value_offset ask gs st value t description offset
