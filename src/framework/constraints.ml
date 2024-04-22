@@ -1657,7 +1657,7 @@ struct
       global = (fun v -> G.spec (gctx.global (V.spec v)));
     }
 
-  let cycleDetection (ctx: _ ctx) call =
+  let cycleDetection getg call =
     let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
@@ -1674,7 +1674,7 @@ struct
         LH.replace global_visited_calls call ();
         let new_path_visited_calls = LS.add call path_visited_calls in
         let gvar = V.call call in
-        let callers = G.callers (ctx.global gvar) in
+        let callers = G.callers (getg gvar) in
         CallerSet.iter (fun to_call ->
             iter_call new_path_visited_calls to_call
           ) callers;
@@ -1682,9 +1682,23 @@ struct
     in
     iter_call LS.empty call
 
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    match gctx.var with
+    | None
+    | Some (`Left _) ->
+      S.global_query (global_conv gctx) q
+    | Some (`Right call) ->
+      match q with
+      | WarnGlobal v ->
+        (* check result of loop analysis *)
+        if not (gctx.ask Queries.MustTermAllLoops) then
+          AnalysisState.svcomp_may_not_terminate := true;
+        cycleDetection gctx.global call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
+      | _ -> Queries.Result.top q
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal v ->
+    | WarnGlobal v -> (* TODO: remove *)
       (* check result of loop analysis *)
       if not (ctx.ask Queries.MustTermAllLoops) then
         AnalysisState.svcomp_may_not_terminate := true;
@@ -1692,7 +1706,7 @@ struct
       begin match v with
         | `Left v' ->
           S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right call -> cycleDetection ctx call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
+        | `Right call -> cycleDetection ctx.global call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
       end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in
@@ -1704,13 +1718,6 @@ struct
       end
     | _ -> S.query (conv ctx) q
 
-  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
-    match gctx.var with
-    | None
-    | Some (`Left _) ->
-      S.global_query (global_conv gctx) q
-    | Some (`Right g) ->
-      Queries.Result.top q
 
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
