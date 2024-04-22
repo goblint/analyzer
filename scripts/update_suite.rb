@@ -97,6 +97,12 @@ else
   end
 end
 
+if cfg then
+  descr = " incremental cfg"
+elsif incremental then
+  descr = " incremental ast"
+end
+
 print "update_suite#{descr}: ".bold
 
 $testresults = File.expand_path("tests/suite_result")
