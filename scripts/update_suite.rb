@@ -29,6 +29,7 @@ class String
   def cyan; colorize(36) end
   def white; colorize(37) end
   def bg_black; colorize(40) end # gray for me
+  def bold; colorize(1) end
   def gray; colorize("38;5;240") end
 end
 class Array
@@ -86,9 +87,17 @@ elsif only == "group" then
   future = thegroup.start_with?"-"
   future = !future # why does negation above fail?
   only = nil
+  descr = "group #{thegroup}"
 else
   future = false
+  if only.nil? then
+    descr = ""
+  else
+    descr = only
+  end
 end
+
+print "update_suite #{descr}: ".bold
 
 $testresults = File.expand_path("tests/suite_result")
 begin
