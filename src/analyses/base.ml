@@ -597,7 +597,14 @@ struct
         (* Unions are easy, I just ingore the type info. *)
         ADOffsetMap.singleton offset ad
       | Union u ->
-        ValueDomain.Unions.fold handle_comp_offset_option u empty
+        (match offset with
+          | `NoOffset
+          | `Index _ ->
+            ValueDomain.Unions.fold handle_comp_offset_option u empty
+          | `Field (f, offset) ->
+            let value = ValueDomain.Unions.get f u in
+            reachable_from_value_offset ask gs st value t description offset
+        )
       (* For arrays, we ask to read from an unknown index, this will cause it
        * join all its values. *)
       | Array a -> reachable_from_value_offset ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description (`Index ((), `NoOffset))
