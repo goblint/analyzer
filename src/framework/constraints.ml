@@ -1263,14 +1263,6 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | InvariantGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | `Right g ->
-          Queries.Result.top q
-      end
     | IterSysVars (vq, vf) ->
       (* vars for S *)
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
@@ -1379,14 +1371,6 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | InvariantGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | _ ->
-          Queries.Result.top q
-      end
     | IterSysVars (vq, vf) ->
       (* vars for S *)
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
@@ -1676,17 +1660,7 @@ struct
       Queries.Result.top q
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | InvariantGlobal v ->
-      let v: V.t = Obj.obj v in
-      begin match v with
-        | `Left v ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr v))
-        | `Right v ->
-          Queries.Result.top q
-      end
-    | _ -> S.query (conv ctx) q
-
+    S.query (conv ctx) q
 
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
