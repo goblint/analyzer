@@ -63,6 +63,7 @@ has_linux_headers = File.exist? "linux-headers" # skip kernel tests if make head
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
+quiet = ARGV.last == "-q" && ARGV.pop
 $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
@@ -608,9 +609,9 @@ doproject = lambda do |p|
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  clearline
+  clearline unless quiet
   id = "#{p.id} #{p.group}/#{p.name}"
-  print "Testing #{id}"
+  print "Testing #{id}" unless quiet
   begin
     Dir.mkdir(File.join($testresults, p.group)) unless Dir.exist?(File.join($testresults, p.group))
   rescue
@@ -635,7 +636,7 @@ else
   end
 end
 $alliswell = projects.map{|p| p.testset.ok}.all?
-clearline
+clearline unless quiet
 
 #Outputting
 header = <<END
@@ -688,7 +689,7 @@ if report then
   puts ("Results: " + theresultfile)
 end
 if $alliswell then
-  puts "No errors :)".green
+  puts "No errors :)".green unless quiet
 else
   puts "#{$failed.length} test(s) failed: #{$failed}".red
 end
