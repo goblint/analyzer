@@ -46,7 +46,9 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun2, NULL);
   pthread_mutex_lock(&mutex);
-  __goblint_check(x==y); //TODO
+  __goblint_check(x==y);
+  __goblint_check(0 <= x);
+  __goblint_check(x <= 10); // TODO
   pthread_mutex_unlock(&mutex);
   return 0;
 }
