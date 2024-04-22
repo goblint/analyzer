@@ -53,7 +53,7 @@ module EqualitiesConjunction = struct
   let show econ = let show_rhs i (v, o) = Printf.sprintf "var_%d=%s " i (Rhs.show (v, o)) in
     IntHashtbl.fold (fun lhs rhs acc -> acc ^ show_rhs lhs rhs) econ ""
 
-  let hash : t -> int = fun (_,x) -> IntHashtbl.fold (fun k value acc -> 31 * 31 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
+  let hash : t -> int = fun (dim,x) ->  dim + 13* IntHashtbl.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
 
   let empty () = (0, IntHashtbl.create 0)
 
