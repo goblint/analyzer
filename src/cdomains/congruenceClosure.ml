@@ -64,7 +64,7 @@ module UnionFind (Val: Val)  = struct
     let (p, old_size) = ValMap.find t uf in
     let uf = ValMap.add t (p, modification old_size) uf in
     let parent = fst p in
-    if parent = t then uf else modify_size parent uf modification
+    if Val.equal parent t then uf else modify_size parent uf modification
 
   let modify_parent uf v (t, offset) =
     let (_, size) = ValMap.find v uf in
@@ -141,7 +141,7 @@ module UnionFind (Val: Val)  = struct
   *)
   let rec find_no_pc uf v =
     let (v',r') = parent uf v in
-    if Val.compare v' v = 0 then
+    if Val.equal v' v then
       if Z.equal r' Z.zero then (v',r')
       else raise (InvalidUnionFind "non-zero self-distance!")
     else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
@@ -170,7 +170,7 @@ module UnionFind (Val: Val)  = struct
     let v1,r1,uf = find uf v'1 in
     let v2,r2,uf = find uf v'2 in
     if Val.equal v1 v2 then
-      if r1 = Z.(r2 + r) then v1, uf, true
+      if Z.(equal r1 (r2 + r)) then v1, uf, true
       else raise (Failure "incomparable union")
     else let (_,s1), (_,s2) = ValMap.find v1 uf, ValMap.find v2 uf in
       if s1 <= s2 then (
@@ -291,6 +291,8 @@ type 'v prop = Equal of 'v term * 'v term * Z.t | Nequal of 'v term * 'v term * 
 module Term(Var:Val) = struct
   type t = Var.t term [@@deriving eq, ord, hash]
   type v_prop = Var.t prop [@@deriving eq, ord, hash]
+
+  let props_equal = List.equal equal_v_prop
 
   let rec show = function
     | Addr v -> "&" ^ Var.show v
@@ -637,7 +639,7 @@ module CongruenceClosure (Var : Val) = struct
   (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
   let get_normal_form cc =
     let normalize_equality (t1, t2, z) =
-      if t1 = t2 && Z.(compare z zero) = 0 then None else
+      if T.equal t1 t2 && Z.(equal z zero) then None else
         Some (Equal (t1, t2, z)) in
     let conjunctions_of_atoms =
       let atoms = SSet.get_atoms cc.set in
@@ -693,9 +695,9 @@ module CongruenceClosure (Var : Val) = struct
     | (t1, t2, r)::rest ->
       (let v1, r1, uf = TUF.find uf t1 in
        let v2, r2, uf = TUF.find uf t2 in
-       if T.compare v1 v2 = 0 then
+       if T.equal v1 v2 then
          (* t1 and t2 are in the same equivalence class *)
-         if r1 = Z.(r2 + r) then closure (uf, map, min_repr) queue rest
+         if Z.equal r1 Z.(r2 + r) then closure (uf, map, min_repr) queue rest
          else raise Unsat
        else let diff_r = Z.(r2 - r1 + r) in
          let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
@@ -830,7 +832,7 @@ module CongruenceClosure (Var : Val) = struct
   let eq_query cc (t1,t2,r) =
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
-    (T.compare v1 v2 = 0 && r1 = Z.(r2 + r), cc)
+    (T.equal v1 v2 && Z.equal r1 Z.(r2 + r), cc)
 
   let eq_query_opt cc (t1,t2,r) =
     match cc with
@@ -841,8 +843,8 @@ module CongruenceClosure (Var : Val) = struct
   let neq_query cc (t1,t2,r) =
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
-    if T.compare v1 v2 = 0 then
-      if r1 = Z.(r2 + r) then false
+    if T.equal v1 v2 then
+      if Z.(equal r1 (r2 + r)) then false
       else true
     else false
 
@@ -887,7 +889,7 @@ module CongruenceClosure (Var : Val) = struct
     | Deref (t, _) ->
       let v1, o1 = TUF.find_no_pc cc.uf t1 in
       let v2, o2 = TUF.find_no_pc cc.uf t2 in
-      if v1 = v2 then true else
+      if T.equal v1 v2 then true else
         detect_cyclic_dependencies t t2 cc
 
   let add_successor_terms cc t =

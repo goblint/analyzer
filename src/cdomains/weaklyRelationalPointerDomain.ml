@@ -18,7 +18,7 @@ module Disequalities = struct
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query*)
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
-    if t1 = t2 then true else
+    if T.equal t1 t2 then true else
     if Var.equal dummy_varinfo (T.get_var t1) || Var.equal dummy_varinfo (T.get_var t2) then false else
       let exp1 = T.to_cil Z.zero t1 in
       let exp2 = T.to_cil off t2 in
@@ -92,7 +92,7 @@ module D = struct
   let equal x y = if M.tracing then M.trace "wrpointer-equal" "equal.\nx=\n%s\ny=\n%s" (show x) (show y);
     match x, y with
     | Some x, Some y ->
-      (get_normal_form x = get_normal_form y)
+      (T.props_equal (get_normal_form x) (get_normal_form y))
     | None, None -> true
     | _ -> false
 
@@ -101,7 +101,7 @@ module D = struct
   let init () = init_congruence []
 
   let bot () = None
-  let is_bot x = x = None
+  let is_bot x = Option.is_none x
   let top () = empty ()
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.uf

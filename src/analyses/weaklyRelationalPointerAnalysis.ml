@@ -53,7 +53,7 @@ struct
     (* Indefinite assignment *)
     | (Some lterm, Some loffset), (None, _) -> D.remove_may_equal_terms ask lterm t
     (* Definite assignment *)
-    | (Some lterm, Some loffset), (Some term, Some offset) when Z.compare loffset Z.zero = 0 ->
+    | (Some lterm, Some loffset), (Some term, Some offset) when Z.equal loffset Z.zero ->
       if M.tracing then M.trace "wrpointer-assign" "assigning: var: %s + %s; expr: %s + %s\n" (T.show lterm) (Z.to_string loffset) (T.show term) (Z.to_string offset);
       t |> meet_conjs_opt [Equal (Disequalities.dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask lterm |>
