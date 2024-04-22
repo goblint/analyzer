@@ -1,6 +1,6 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --set ana.relation.privatization mutex-meet
 extern int __VERIFIER_nondet_int();
-
+// TODO: rename? this doesn't require clusters
 #include <pthread.h>
 #include <goblint.h>
 
@@ -45,7 +45,7 @@ void *t3_fun(void *arg) {
   y = h;
   pthread_mutex_unlock(&A);
   pthread_mutex_unlock(&B);
-  __goblint_check(y == x); // TODO (mutex-meet succeeds, protection unknown)
+  __goblint_check(y == x); // mutex-meet succeeds, protection unknown
   return NULL;
 }
 
@@ -63,9 +63,9 @@ int main(void) {
   x = g;
   y = h;
   pthread_mutex_lock(&B);
-  __goblint_check(y == x); // TODO (mutex-meet succeeds, protection unknown)
+  __goblint_check(y == x); // mutex-meet succeeds, protection unknown
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
-  __goblint_check(y == x); // TODO (mutex-meet succeeds, protection unknown)
+  __goblint_check(y == x); // mutex-meet succeeds, protection unknown
   return 0;
 }
