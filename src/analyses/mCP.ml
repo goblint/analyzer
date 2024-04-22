@@ -599,18 +599,20 @@ struct
 
   let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
 
-  let global_query (gctx: _ gctx) (type a) (q: a Queries.t): a Queries.result =
+  let rec global_query: type a. (V.t, G.t) gctx -> a Queries.t -> a Queries.result = fun gctx q ->
     match gctx.var with
     | Some (n, g) ->
       (* TODO: cache? *)
       let module S: MCPSpec = (val spec n: MCPSpec) in
-      let gctx = {
+      let gctx' = {
         var = Some (Obj.obj g);
         global = (fun v -> gctx.global (v_of n v) |> g_to n |> obj);
+        ask = (fun (type b) (q: b Queries.t) -> global_query gctx q);
       }
       in
-      S.global_query gctx q
+      S.global_query gctx' q
     | None ->
+      (* TODO: meet over all analyses? *)
       Queries.Result.top q
 
   (* Just to satisfy signature *)

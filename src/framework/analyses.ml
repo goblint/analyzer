@@ -151,6 +151,7 @@ end
 type ('v, 'g) gctx = {
   var: 'v option;
   global: 'v -> 'g;
+  ask: 'a. 'a Queries.t -> 'a Queries.result; (* Inlined Queries.ask *) (* TODO: add optional var argument? *)
 }
 
 (* Experiment to reduce the number of arguments on transfer functions and allow

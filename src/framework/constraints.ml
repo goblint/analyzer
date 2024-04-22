@@ -1233,7 +1233,7 @@ struct
     }
 
   let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
-    {
+    { gctx with
       var = Option.map V.get_s gctx.var;
       global = (fun v -> G.s (gctx.global (V.s v)));
     }
@@ -1381,7 +1381,7 @@ struct
     }
 
   let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
-    {
+    { gctx with
       var = Option.map V.get_s gctx.var;
       global = (fun v -> G.s (gctx.global (V.s v)));
     }
@@ -1652,7 +1652,7 @@ struct
     }
 
   let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
-    {
+    { gctx with
       var = Option.map V.get_spec gctx.var;
       global = (fun v -> G.spec (gctx.global (V.spec v)));
     }
