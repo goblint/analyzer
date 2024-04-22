@@ -738,11 +738,12 @@ struct
       (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
       match g with
       | `Left g -> (* Spec global *)
-        R.ask_global' g WarnGlobal
+        R.ask_global' (Some g) WarnGlobal
       | `Right _ -> (* contexts global *)
         ()
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;
+    Timing.wrap "warn_global" (R.ask_global' None) WarnGlobal;
 
     if get_bool "exp.arg" then (
       let module ArgTool = ArgTools.Make (R) in

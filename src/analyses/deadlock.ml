@@ -48,9 +48,8 @@ struct
   module G = Arg.G (* help type checker using explicit constraint *)
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | WarnGlobal ->
-      let g = Option.get gctx.var in
+    match gctx.var, q with
+    | Some g, WarnGlobal ->
       let module LH = Hashtbl.Make (Lock) in
       let module LS = Set.Make (Lock) in
       (* TODO: find all cycles/SCCs *)
@@ -109,7 +108,7 @@ struct
       in
 
       Timing.wrap ~args:[("lock", `String (Lock.show g))] "deadlock" (iter_lock LS.empty []) g
-    | _ -> Queries.Result.top q
+    | _, _ -> Queries.Result.top q
 end
 
 let _ =

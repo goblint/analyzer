@@ -264,9 +264,8 @@ struct
     | None -> Access.AS.empty ()
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | WarnGlobal ->
-      let g = Option.get gctx.var in
+    match gctx.var, q with
+    | Some g, WarnGlobal ->
       begin match g with
         | `Left g' -> (* accesses *)
           (* Logs.debug "WarnGlobal %a" Access.MemoRoot.pretty g'; *)
@@ -296,7 +295,7 @@ struct
         | `Right _ -> (* vars *)
           ()
       end
-    | _ -> Queries.Result.top q
+    | _, _ -> Queries.Result.top q
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with

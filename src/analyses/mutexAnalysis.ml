@@ -249,9 +249,8 @@ struct
     | _ -> Queries.Result.top q
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | WarnGlobal ->
-      let g = Option.get gctx.var in
+    match gctx.var, q with
+    | Some g, WarnGlobal ->
       begin match g with
         | `Left g' -> (* protecting *)
           if GobConfig.get_bool "dbg.print_protection" then (
@@ -269,7 +268,7 @@ struct
             M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" ValueDomain.Addr.pretty m s VarSet.pretty protected
           )
       end
-    | _ -> Queries.Result.top q
+    | _, _ -> Queries.Result.top q
 
   module A =
   struct
