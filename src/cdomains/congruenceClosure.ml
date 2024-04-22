@@ -877,7 +877,7 @@ module CongruenceClosure (Var : Val) = struct
       | Some list -> TMap.add term (value::list) map
 
   let remove_from_map_of_children parent child map =
-    match List.remove (TMap.find parent map) child with
+    match List.remove_if (T.equal child) (TMap.find parent map) with
     | [] -> TMap.remove parent map
     | new_children -> TMap.add parent new_children map
 
@@ -965,7 +965,7 @@ module CongruenceClosure (Var : Val) = struct
              The new_root is in any case one of the children of the old root.
              If possible, we choose one of the children that is not going to be deleted.  *)
           let new_root = find_not_removed_element children in
-          let remaining_children = List.remove children new_root in
+          let remaining_children = List.remove_if (T.equal new_root) children in
           let offset_new_root = TUF.parent_offset uf new_root in
           (* We set the parent of all the other children to the new root and adjust the offset accodingly. *)
           let new_size, map_of_children, uf = List.fold
@@ -982,7 +982,7 @@ module CongruenceClosure (Var : Val) = struct
         else
           (* t is NOT a root -> the old parent of t becomes the new parent of the children of t. *)
           let (new_root, new_offset) = TUF.parent uf t in
-          let remaining_children = List.remove children new_root in
+          let remaining_children = List.remove_if (T.equal new_root) children in
           (* update all parents of the children of t *)
           let map_of_children, uf = List.fold
               (fun (map_of_children, uf) child ->
