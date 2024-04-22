@@ -16,11 +16,6 @@ let check_bounded ctx varinfo =
   | `Lifted v -> not (is_top_of (ikind v) v)
   | `Bot -> failwith "Loop counter variable is Bot."
 
-(** We want to record termination information of loops and use the loop
- * statements for that. We use this lifting because we need to have a
- * lattice. *)
-module Statements = Lattice.Flat (CilType.Stmt)
-
 (** The termination analysis considering loops and gotos *)
 module Spec : Analyses.MCPSpec =
 struct
@@ -35,7 +30,7 @@ struct
     include UnitV
     let is_write_only _ = true
   end
-  module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
+  module G = BoolDomain.MustBool
 
   let startstate _ = ()
   let exitstate = startstate
@@ -52,7 +47,7 @@ struct
         (try
            let loop_statement = find_loop ~loop_counter in
            let is_bounded = check_bounded ctx loop_counter in
-           ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+           ctx.sideg () is_bounded;
            (* In case the loop is not bounded, a warning is created. *)
            if not (is_bounded) then (
              M.warn ~loc:(M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement)) ~category:Termination "The program might not terminate! (Loop analysis)"
@@ -72,7 +67,7 @@ struct
           M.warn ~category:Termination "The program might not terminate! (Multithreaded)";
           false)
         else
-          G.for_all (fun _ term_info -> term_info) (gctx.global ())
+          gctx.global ()
       in
       if not must_term_all_loops then
         AnalysisState.svcomp_may_not_terminate := true;
