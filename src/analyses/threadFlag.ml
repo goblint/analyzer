@@ -42,6 +42,11 @@ struct
     | _ ->
       ctx.local
 
+  let global_query (gctx: _ gctx) (type a) (x: a Queries.t): a Queries.result =
+    match x with
+    | Queries.IsEverMultiThreaded -> (gctx.global () : bool) (* requires annotation to compile *)
+    | _ -> Queries.Result.top x
+
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.MustBeSingleThreaded _ -> not (Flag.is_multi ctx.local) (* If this analysis can tell, it is the case since the start *)
