@@ -6,7 +6,6 @@
 #include <assert.h>
 
 int g;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* f1(void* ptr) {
     pthread_mutex_t* mut = (pthread_mutex_t*) ptr;
@@ -34,7 +33,7 @@ int main(int argc, char const *argv[])
 {
     pthread_t t1;
     pthread_t t2;
-    pthread_mutex_t mut = &mutex;
+    pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
     pthread_create(&t1,NULL,f1,&mut);
 
