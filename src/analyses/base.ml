@@ -638,7 +638,9 @@ struct
   let reachable_from_address_offset emit (ask: Q.ask) (gs:glob_fun) st (adr: address): ADOffsetMap.t =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
     let value_domain_ask = Queries.to_value_domain_ask ask in
-    let res = reachable_from_value_offset value_domain_ask gs st (get emit ask gs st adr None) (AD.type_of adr) (AD.show adr) in
+    let value = get emit ask gs st adr None in
+    let res = reachable_from_value_offset value_domain_ask gs st value  (AD.type_of adr) (AD.show adr) in
+    if M.tracing then M.tracel "collect_targets_with_graph" "Reachable from value %a are\n%a \n" VD.pretty value ADOffsetMap.pretty res;
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" ADOffsetMap.pretty res;
     res
 
