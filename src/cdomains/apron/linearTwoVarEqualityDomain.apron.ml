@@ -32,7 +32,9 @@ module EqualitiesConjunction = struct
 
   type t = int * Rhs.t IntHashtbl.t
 
-  let equal (idim,imap) (jdim,jmap) = idim = jdim && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem jmap lh && IntHashtbl.find jmap lh = rh) imap true
+  let equal (idim,imap) (jdim,jmap) = idim = jdim (* compare the dimensions i.e. max indices *)
+                                      && IntHashtbl.length imap = IntHashtbl.length jmap  (* compare the actual number of bindings *)
+                                      && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem jmap lh && IntHashtbl.find jmap lh = rh) imap true (* check all bindings *)
 
   let compare i j = let c = compare (fst i) (fst j) in if c <> 0 then
       c
