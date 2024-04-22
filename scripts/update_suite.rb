@@ -87,17 +87,17 @@ elsif only == "group" then
   future = thegroup.start_with?"-"
   future = !future # why does negation above fail?
   only = nil
-  descr = "group #{thegroup}"
+  descr = " group #{thegroup}"
 else
   future = false
   if only.nil? then
     descr = ""
   else
-    descr = only
+    descr = " #{only}"
   end
 end
 
-print "update_suite #{descr}: ".bold
+print "update_suite#{descr}: ".bold
 
 $testresults = File.expand_path("tests/suite_result")
 begin
