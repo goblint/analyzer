@@ -608,7 +608,14 @@ struct
        * join all its values. *)
       | Array a -> reachable_from_value_offset ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description (`Index ((), `NoOffset))
       | Blob (e,_,_) -> reachable_from_value_offset ask gs st e t description offset
-      | Struct s -> ValueDomain.Structs.fold handle_comp_offset s empty
+      | Struct s ->
+        (match offset with
+          | `NoOffset -> ValueDomain.Structs.fold handle_comp_offset s empty
+          | `Index _ -> empty
+          | `Field (f, offset) ->
+            let value = ValueDomain.Structs.get s f in
+            reachable_from_value_offset ask gs st value t description offset
+        )
       | Int _ -> empty
       | Float _ -> empty
       | MutexAttr _ -> empty
