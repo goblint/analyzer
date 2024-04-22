@@ -361,11 +361,10 @@ struct
     else
       match t2, t1, v with
       | (TInt (ik2,_) | TEnum ({ekind=ik2; _},_)) , (TInt (ik1,_) | TEnum ({ekind=ik1; _},_)), Int v ->
-        let cinterval = ID.cast_to ik2 v in
-        let cl, cu = ID.minimal cinterval, ID.maximal cinterval in
+        let cl, cu = IntDomain.Size.range ik2 in
         let l, u = ID.minimal v, ID.maximal v in
-        (match cl,cu,l,u with
-         | Some cl, Some cu, Some l, Some u when Z.leq cl l && Z.leq u cu -> true
+        (match l, u with
+         | Some l, Some u when Z.leq cl l && Z.leq u cu -> true
          | _ -> false)
       | _ -> false
 
