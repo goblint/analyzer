@@ -1264,6 +1264,14 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
+    | WarnGlobal g -> (* TODO: remove *)
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (WarnGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
+      end
     | InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
