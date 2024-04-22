@@ -17,7 +17,7 @@
     file_name: 15-base-unassume-query.c
     file_hash: 8bad487944a1627a53420a3ea2c079197fc5313416ed1f3e77e9d4c68f236bdd
     line: 16
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: i == 2
@@ -42,7 +42,7 @@
     file_name: 15-base-unassume-query.c
     file_hash: 8bad487944a1627a53420a3ea2c079197fc5313416ed1f3e77e9d4c68f236bdd
     line: 16
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: j == 3

@@ -20,7 +20,7 @@ The sound invariant is `result == 1 || result == 0`.
       file_name: 05-prec-problem.c
       file_hash: $FILE_HASH
       line: 13
-      column: 4
+      column: 5
       function: foo
     loop_invariant:
       string: result == 1 || result == 0
@@ -35,7 +35,7 @@ The sound invariant is `result == 1 || result == 0`.
       file_name: 05-prec-problem.c
       file_hash: $FILE_HASH
       line: 13
-      column: 4
+      column: 5
       function: foo
     loop_invariant:
       string: '*ptr2 == 5'
@@ -50,7 +50,7 @@ The sound invariant is `result == 1 || result == 0`.
       file_name: 05-prec-problem.c
       file_hash: $FILE_HASH
       line: 13
-      column: 4
+      column: 5
       function: foo
     loop_invariant:
       string: '*ptr1 == 5'

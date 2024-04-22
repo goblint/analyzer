@@ -12,7 +12,7 @@
       file_name: 08-witness-all-locals.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: y == 10
@@ -23,7 +23,7 @@
       file_name: 08-witness-all-locals.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 5
@@ -34,7 +34,7 @@
       file_name: 08-witness-all-locals.c
       file_hash: $FILE_HASH
       line: 7
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: x == 5
@@ -58,7 +58,7 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
       file_name: 08-witness-all-locals.c
       file_hash: $FILE_HASH
       line: 9
-      column: 2
+      column: 3
       function: main
     location_invariant:
       string: x == 5
@@ -69,7 +69,7 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
       file_name: 08-witness-all-locals.c
       file_hash: $FILE_HASH
       line: 7
-      column: 4
+      column: 5
       function: main
     location_invariant:
       string: x == 5

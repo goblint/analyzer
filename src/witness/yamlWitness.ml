@@ -47,7 +47,7 @@ struct
     file_name = loc.file;
     file_hash = sha256_file loc.file;
     line = loc.line;
-    column = loc.column - 1;
+    column = loc.column;
     function_ = location_function;
   }
 
@@ -556,7 +556,7 @@ struct
   let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
     file = location.file_name;
     line = location.line;
-    column = location.column + 1;
+    column = location.column;
     byte = -1;
     endLine = -1;
     endColumn = -1;

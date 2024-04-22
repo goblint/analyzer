@@ -2078,10 +2078,22 @@ struct
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if Z.compare x y = 0 then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) =
+    if Z.compare x y = 0 then
+      of_int ik x
+    else
+      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
+      norm ik @@ (`Excluded (ex, r))
 
-  let starting ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero > 0 then not_zero ikind else top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero < 0 then not_zero ikind else top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x =
+    let _,u_ik = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (x, u_ik)
+
+  let ending ?(suppress_ovwarn=false) ikind x =
+    let l_ik,_ = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (l_ik, x)
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
@@ -2495,7 +2507,14 @@ module Enums : S with type int_t = Z.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if x = y then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x, y) =
+    if Z.compare x y = 0 then
+      of_int ik x
+    else
+      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
+      norm ik @@ (Exc (ex, r))
 
   let join ik = curry @@ function
     | Inc x, Inc y -> Inc (BISet.union x y)
@@ -2630,8 +2649,13 @@ module Enums : S with type int_t = Z.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
-  let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x =
+    let _,u_ik = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (x, u_ik)
+
+  let ending ?(suppress_ovwarn=false) ikind x =
+    let l_ik,_ = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (l_ik, x)
 
   let c_lognot ik x =
     if is_bot x
