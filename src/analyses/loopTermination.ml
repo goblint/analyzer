@@ -63,23 +63,22 @@ struct
       | _ -> ()
     else ()
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let global_query (gctx: _ gctx) (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustTermLoop loop_statement ->
-      let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
+      let multithreaded = gctx.ask Queries.IsEverMultiThreaded in
       (not multithreaded)
-      && (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
+      && (match G.find_opt (`Lifted loop_statement) (gctx.global ()) with
             Some b -> b
           | None -> false)
     | Queries.MustTermAllLoops ->
-      let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
+      let multithreaded = gctx.ask Queries.IsEverMultiThreaded in
       if multithreaded then (
         M.warn ~category:Termination "The program might not terminate! (Multithreaded)";
         false)
       else
-        G.for_all (fun _ term_info -> term_info) (ctx.global ())
+        G.for_all (fun _ term_info -> term_info) (gctx.global ())
     | _ -> Queries.Result.top q
-
 end
 
 let () =
