@@ -1387,8 +1387,10 @@ struct
     | Q.EvalMutexAttr e -> begin
         match eval_rv_address ~ctx ctx.local e with
         | Address a ->
-          begin match get ~ctx ~top:(MutexAttr (MutexAttrDomain.top ())) ctx.local a None with (* ~top corresponds to default NULL *)
+          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in (* Goblint assumption *)
+          begin match get ~ctx ~top:(MutexAttr default) ctx.local a None with (* ~top corresponds to default NULL with assume_top *)
             | MutexAttr a -> a
+            | Bot -> default (* corresponds to default NULL with assume_none *)
             | _ -> MutexAttrDomain.top ()
           end
         | _ -> MutexAttrDomain.top ()
