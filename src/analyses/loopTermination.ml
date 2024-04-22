@@ -78,6 +78,10 @@ struct
         false)
       else
         G.for_all (fun _ term_info -> term_info) (gctx.global ())
+    | WarnGlobal ->
+      (* check result of loop analysis *)
+      if not (gctx.ask Queries.MustTermAllLoops) then
+        AnalysisState.svcomp_may_not_terminate := true;
     | _ -> Queries.Result.top q
 end
 
