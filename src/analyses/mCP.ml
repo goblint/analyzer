@@ -607,13 +607,23 @@ struct
       let gctx' = {
         var = Some (Obj.obj g);
         global = (fun v -> gctx.global (v_of n v) |> g_to n |> obj);
-        ask = (fun (type b) (q: b Queries.t) -> global_query gctx q);
+        ask = (fun (type b) (q: b Queries.t) -> global_query {gctx with var = None} q);
       }
       in
       S.global_query gctx' q
     | None ->
-      (* TODO: meet over all analyses? *)
-      Queries.Result.top q
+      let module Result = (val Queries.Result.lattice q) in
+      let f acc (n, spec_modules) =
+        let module S: MCPSpec = (val spec_modules.spec: MCPSpec) in
+        let gctx' = {
+          var = None;
+          global = (fun v -> gctx.global (v_of n v) |> g_to n |> obj);
+          ask = (fun (type b) (q: b Queries.t) -> global_query {gctx with var = None} q);
+        }
+        in
+        Result.meet acc (S.global_query gctx' q)
+      in
+      fold_left f (Result.top ()) (!activated)
 
   (* Just to satisfy signature *)
   let paths_as_set ctx = [ctx.local]
