@@ -1261,11 +1261,11 @@ struct
   *)
   (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
   let rec exp_may_signed_overflow ctx exp =
-    let binop = (GobOption.map2 Z.div )in
     let res = match Cilfacade.get_ikind_exp exp with
       | exception _ -> BoolDomain.MayBool.top ()
       | ik ->
         let checkDiv e1 e2 =
+          let binop = (GobOption.map2 Z.div )in
           match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
           | `Bot, _ -> false
           | _, `Bot -> false
