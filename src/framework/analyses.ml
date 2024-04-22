@@ -154,6 +154,9 @@ type ('v, 'g) gctx = {
   ask: 'a. 'a Queries.t -> 'a Queries.result; (* Inlined Queries.ask *) (* TODO: add optional var argument? *)
 }
 
+(** Convert [gctx] to [Queries.ask]. *)
+let ask_of_gctx gctx: Queries.ask = { Queries.f = gctx.ask }
+
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
    the same order as written in the dependencies list (in MCP).

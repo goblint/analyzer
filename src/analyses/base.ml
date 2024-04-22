@@ -1236,14 +1236,14 @@ struct
     else
       Invariant.none
 
-  let query_invariant_global ctx g =
+  let query_invariant_global (gctx: _ gctx) g =
     if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
       (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
          Otherwise, the values of globals in single-threaded mode are not accounted for. *)
       (* TODO: account for single-threaded values without earlyglobs. *)
       match g with
       | `Left g' -> (* priv *)
-        Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g'
+        Priv.invariant_global (Analyses.ask_of_gctx gctx) (priv_getg gctx.global) g'
       | `Right _ -> (* thread return *)
         Invariant.none
     )
@@ -1514,13 +1514,17 @@ struct
       let vf' x = vf (Obj.repr (V.priv x)) in
       Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
     | Q.Invariant context -> query_invariant ctx context
-    | Q.InvariantGlobal g ->
-      let g: V.t = Obj.obj g in
-      query_invariant_global ctx g
     | Q.MaySignedOverflow e -> (let res = exp_may_signed_overflow ctx e in
                                 if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b" d_plainexp e res; res
                                )
     | _ -> Q.Result.top q
+
+  let global_query gctx (type a) (q: a Q.t): a Q.result =
+    match gctx.var, q with
+    | Some g, Q.InvariantGlobal _ ->
+      query_invariant_global gctx g
+    | _, _ ->
+      Q.Result.top q
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
