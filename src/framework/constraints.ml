@@ -1640,7 +1640,7 @@ struct
       global = (fun v -> G.spec (gctx.global (V.spec v)));
     }
 
-  let cycleDetection getg call =
+  let cycleDetection (gctx: _ gctx) call =
     let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
@@ -1657,7 +1657,7 @@ struct
         LH.replace global_visited_calls call ();
         let new_path_visited_calls = LS.add call path_visited_calls in
         let gvar = V.call call in
-        let callers = G.callers (getg gvar) in
+        let callers = G.callers (gctx.global gvar) in
         CallerSet.iter (fun to_call ->
             iter_call new_path_visited_calls to_call
           ) callers;
@@ -1671,7 +1671,7 @@ struct
     | Some (`Left _), _ ->
       S.global_query (global_conv gctx) q
     | Some (`Right call), WarnGlobal ->
-      cycleDetection gctx.global call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
+      cycleDetection gctx call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
     | Some (`Right call), _ ->
       Queries.Result.top q
 

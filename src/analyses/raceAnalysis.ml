@@ -247,20 +247,20 @@ struct
     | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset') (* (int[])[*] -> int *)
     | _, `Index ((), offset') -> None (* TODO: why indexing on non-array? *)
 
-  let rec find_type_suffix' getg ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
-    let trie = G.access (getg (V.access root)) in
+  let rec find_type_suffix' (gctx: _ gctx) ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
+    let trie = G.access (gctx.global (V.access root)) in
     let accs =
       match OffsetTrie.find offset trie with
       | `Lifted accs -> accs
       | `Bot -> Access.AS.empty ()
     in
-    let type_suffix = find_type_suffix getg memo in
+    let type_suffix = find_type_suffix gctx memo in
     Access.AS.union accs type_suffix
 
   (** Find accesses from all type_suffixes transitively. *)
-  and find_type_suffix getg (memo : Access.Memo.t) : Access.AS.t =
+  and find_type_suffix gctx (memo : Access.Memo.t) : Access.AS.t =
     match type_suffix_memo memo with
-    | Some type_suffix_memo -> find_type_suffix' getg type_suffix_memo
+    | Some type_suffix_memo -> find_type_suffix' gctx type_suffix_memo
     | None -> Access.AS.empty ()
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
@@ -275,7 +275,7 @@ struct
           | `Lifted accs -> accs
           | `Bot -> Access.AS.empty ()
         in
-        let type_suffix = find_type_suffix gctx.global (g', offset) in
+        let type_suffix = find_type_suffix gctx (g', offset) in
         if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
           let memo = (g', offset) in
           let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
