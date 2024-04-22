@@ -5,9 +5,10 @@ CONF="--disable ana.opt.hashcons  --set dbg.timeout 900 --sem.unknown_function.s
 INPUT="cp_comb.c"
 STRING=".buf[def_exc:Unknown int([-63,63])].buf[def_exc:Unknown int([-63,63])]"
 
+echo 0 > out.txt
 timeout 30 $GOBLINTDIR/goblint $CONF $INPUT -v &> out.txt
 # if [ $? -eq 3 ]; then
-grep  $STRING out.txt -F -q >/dev/null 2>&1
+grep  $STRING out.txt -F -q
 # else
 #     exit 5
 # fi
