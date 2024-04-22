@@ -49,7 +49,7 @@ struct
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal _ ->
+    | WarnGlobal ->
       let g = Option.get gctx.var in
       let module LH = Hashtbl.Make (Lock) in
       let module LS = Set.Make (Lock) in

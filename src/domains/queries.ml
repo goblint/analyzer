@@ -116,7 +116,7 @@ type _ t =
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
-  | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
+  | WarnGlobal: Unit.t t
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: AD.t t
@@ -186,7 +186,7 @@ struct
     | MustProtectedVars _ -> (module VS)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
-    | WarnGlobal _ -> (module Unit)
+    | WarnGlobal -> (module Unit)
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module AD)
@@ -255,7 +255,7 @@ struct
     | MustProtectedVars _ -> VS.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
-    | WarnGlobal _ -> Unit.top ()
+    | WarnGlobal -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> AD.top ()
@@ -307,7 +307,7 @@ struct
     | Any (EvalThread _) -> 32
     | Any CreatedThreads -> 33
     | Any MustJoinedThreads -> 34
-    | Any (WarnGlobal _) -> 35
+    | Any WarnGlobal -> 35
     | Any (Invariant _) -> 36
     | Any (IterSysVars _) -> 37
     | Any (InvariantGlobal _) -> 38
@@ -375,7 +375,6 @@ struct
       | Any (MustTermLoop s1), Any (MustTermLoop s2) -> CilType.Stmt.compare s1 s2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
-      | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
@@ -418,7 +417,6 @@ struct
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
-    | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
@@ -476,7 +474,7 @@ struct
     | Any ThreadsJoinedCleanly -> Pretty.dprintf "ThreadsJoinedCleanly"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
-    | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
+    | Any WarnGlobal -> Pretty.dprintf "WarnGlobal"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"

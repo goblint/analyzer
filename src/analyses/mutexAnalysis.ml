@@ -250,7 +250,7 @@ struct
 
   let global_query gctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal _ ->
+    | WarnGlobal ->
       let g = Option.get gctx.var in
       begin match g with
         | `Left g' -> (* protecting *)

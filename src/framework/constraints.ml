@@ -1245,7 +1245,7 @@ struct
       S.global_query (global_conv gctx) q
     | Some (`Right g) ->
       match q with
-      | WarnGlobal _ ->
+      | WarnGlobal ->
         let em = G.node (gctx.global (V.node g)) in
         EM.iter (fun exp tv ->
             match tv with
@@ -1673,7 +1673,7 @@ struct
       S.global_query (global_conv gctx) q
     | Some (`Right call) ->
       match q with
-      | WarnGlobal v ->
+      | WarnGlobal ->
         (* check result of loop analysis *)
         if not (gctx.ask Queries.MustTermAllLoops) then
           AnalysisState.svcomp_may_not_terminate := true;
