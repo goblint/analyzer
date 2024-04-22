@@ -22,6 +22,7 @@ nav:
     - ▶️ Running: user-guide/running.md
     - 🔧 Configuring: user-guide/configuring.md
     - 🗂️ Options reference: jsfh/options.schema.html
+    - ⚠️ Assumptions: user-guide/assumptions.md
     - 🔍 Inspecting: user-guide/inspecting.md
     - 📝 Annotating: user-guide/annotating.md
     - 🐎 Benchmarking: user-guide/benchmarking.md

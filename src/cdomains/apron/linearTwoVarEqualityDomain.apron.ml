@@ -19,7 +19,7 @@ module Mpqf = SharedFunctions.Mpqf
 module Rhs = struct
   (* (Some i, k) represents a sum of a variable with index i and the number k.
      (None, k) represents the number k. *)
-  type t = (int option * (Z.t [@printer Z.pp_print])) [@@deriving eq, ord, hash]
+  type t = (int option * GobZ.t) [@@deriving eq, ord, hash, show]
   let zero = (None, Z.zero)
   let var_zero i = (Some i, Z.zero)
   let to_int (_,x) = Z.to_int x
