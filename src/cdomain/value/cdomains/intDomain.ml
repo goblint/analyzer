@@ -2067,7 +2067,6 @@ struct
     | _ -> None
 
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
-  let not_zero ikind = from_excl ikind (S.singleton Z.zero)
 
   let of_bool_cmp ik x = of_int ik (if x then Z.one else Z.zero)
   let of_bool = of_bool_cmp
