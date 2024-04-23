@@ -7,8 +7,4 @@ STRING=".buf[def_exc:Unknown int([-63,63])].buf[def_exc:Unknown int([-63,63])]"
 
 echo 0 > out.txt
 timeout 30 $GOBLINTDIR/goblint $CONF $INPUT -v &> out.txt
-# if [ $? -eq 3 ]; then
-grep  $STRING out.txt -F -q
-# else
-#     exit 5
-# fi
+grep  "$STRING" out.txt -F -q
