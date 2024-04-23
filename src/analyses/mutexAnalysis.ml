@@ -2,6 +2,7 @@
 
 module M = Messages
 module Addr = ValueDomain.Addr
+module Lock = LockDomain.Lock
 module Lockset = LockDomain.Lockset
 module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
@@ -146,26 +147,30 @@ struct
       let create_protected protected = `Lifted2 protected
     end
 
-    let add ctx (l:Mutexes.elt*bool): D.t =
-      let s,m = ctx.local in
-      match Addr.to_mval (fst l) with
-      | Some mval when MutexTypeAnalysis.must_be_recursive ctx mval ->
-        let s' = Lockset.add (mval, snd l) s in
-        (s', Multiplicity.increment (fst l) m)
-      | Some mval ->
-        let s' = Lockset.add (mval, snd l) s in
-        (s', m)
-      | _ -> (s, m)
-
-    let remove' ctx ~warn l: D.t =
-      match Addr.to_mval l with
+    let add ctx ((addr, rw): Lock.t): D.t =
+      match Addr.to_mval addr with
+      | Some mv ->
+        let (s, m) = ctx.local in
+        let s' = Lockset.add (mv, rw) s in
+        let m' =
+          if MutexTypeAnalysis.must_be_recursive ctx mv then
+            Multiplicity.increment addr m
+          else
+            m
+        in
+        (s', m')
       | None -> ctx.local
-      | Some l ->
-        let s, m = ctx.local in
-        let rm s = Lockset.remove (l, true) (Lockset.remove (l, false) s) in
-        if warn &&  (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex (%a) which may not be held" LockDomain.Mval.pretty l;
-        if MutexTypeAnalysis.must_be_recursive ctx l then (
-          let m',rmed = Multiplicity.decrement (Addr l) m in
+
+    let remove' ctx ~warn (addr: Addr.t): D.t =
+      match Addr.to_mval addr with
+      | None -> ctx.local
+      | Some mv ->
+        let (s, m) = ctx.local in
+        if warn && (not (Lockset.mem (mv, true) s || Lockset.mem (mv, false) s)) then
+          M.warn "unlocking mutex (%a) which may not be held" LockDomain.Mval.pretty mv;
+        let rm s = Lockset.remove (mv, true) (Lockset.remove (mv, false) s) in
+        if MutexTypeAnalysis.must_be_recursive ctx mv then (
+          let (m', rmed) = Multiplicity.decrement (Addr mv) m in
           if rmed then
             (rm s, m')
           else
@@ -182,7 +187,7 @@ struct
          ) (D.export_locks ctx.local); *)
       (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
       M.warn "unlocking unknown mutex which may not be held";
-      (Lockset.empty (), Multiplicity.empty ())
+      D.empty ()
   end
   include LocksetAnalysis.MakeMust (Arg)
   let name () = "mutex"
