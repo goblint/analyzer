@@ -20,11 +20,13 @@ end
     With the CT argument it is possible to specify the type of the call string elements *)
 module Spec (CT:CallstringType) : MCPSpec =
 struct
-  include Analyses.IdentitySpec
+  include UnitAnalysis.Spec
 
   (* simulates a call string (with or without limitation)*)
   module CallString = struct
     include Printable.PQueue (CT)
+
+    let (empty:t) = BatDeque.empty
 
     (* pushes "elem" to the call string, guarantees a depth of k if limitation is specified with "ana.context.callString_length" *)
     let push callstr elem =
@@ -41,29 +43,18 @@ struct
           | _ -> failwith "CallString Error: It shouldn't happen that more than one element must be deleted to maintain the correct height!"
   end
 
-  module D = Lattice.Flat (CallString) (* should be the CallString (C=D). Since a Lattice is required, Lattice.Flat is used to fulfill the type *)
   module C = CallString
-  module V = EmptyV
-  module G = Lattice.Unit
 
   let name () = "call_"^ CT.ana_name
-  let startstate v = `Lifted (BatDeque.empty)
-  let exitstate v =  `Lifted (BatDeque.empty)
 
-  let context ctx fd x = match x with
-    | `Lifted x -> x
-    | _ -> failwith "CallString: Context error! The context cannot be derived from Top or Bottom!"
-
-  let callee_state ctx f =
-    let elem = CT.new_ele f ctx in (* receive element that should be added to call string *)
-    let new_callstr = CallString.push (context ctx f ctx.local) elem in
-    `Lifted new_callstr
-
-  let enter ctx r f args = [ctx.local, callee_state ctx f]
-
-  let combine_env ctx lval fexp f args fc au f_ask = ctx.local
-
-  let threadenter ctx ~multiple lval v args = [callee_state ctx (Cilfacade.find_varinfo_fundec v)]
+  let context ctx fd _ =
+    let curr_ctx =
+      try
+        ctx.context ()
+      with Enter_func_has_no_context -> CallString.empty
+    in
+    let elem = CT.new_ele fd ctx in (* receive element that should be added to call string *)
+    CallString.push curr_ctx elem
 end
 
 (* implementations of CallstringTypes*)
