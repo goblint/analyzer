@@ -3166,7 +3166,12 @@ struct
     let globals = UsedGlobals.get_used_globals f_ask f in
     collect_targets_with_graph ctx graph args f.sformals globals goal
 
-  let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
+  let combine_env_modular ctx lval fexp f args fc (au: store) (f_ask: Queries.ask) =
+    if M.tracing then
+      begin
+        let local : store = ctx.local in
+        M.tracel "combine_env_modular_basic" "Combining states caller: %a\ncallee:%a\n" CPA.pretty local.cpa CPA.pretty au.cpa;
+      end;
     let glob_fun = modular_glob_fun ctx in
     let writes = f_ask.f Q.Written in
     if WrittenDomain.Written.is_top writes then
@@ -3194,32 +3199,42 @@ struct
         in
         WrittenDomain.Written.fold update_entry writes VarMap.empty
       in
+      let update represented ((c,o): PreValueDomain.Mval.t) (written_value: value) (state: D.t) =
+        let typ = PreValueDomain.Mval.type_of (c, o) in
+        let update_one (x, offs) state =
+          let offs = Offs.add_offset_merge_index_offset ~base_offset:offs ~additional_offset:o in
+          let address_to_update = AD.singleton (Addr.of_mval ~is_modular:(is_modular ctx) (x, offs)) in
+
+          let old_value = get (Events.to_base_domain_events ctx.emit) (Analyses.ask_of_ctx ctx) glob_fun ctx.local address_to_update None in
+          let c_value = ModularUtil.ValueDomainExtension.map_back ~reachable written_value in
+          let value = VD.join old_value c_value in
+
+          set (Analyses.ask_of_ctx ctx) ~ctx glob_fun state address_to_update typ value
+        in
+        let update_one repr state =
+          let update_one (x, offs) =
+            update_one (x, offs) state
+          in
+          let mval =
+            Addr.to_mval repr
+          in
+          BatOption.map_default update_one state mval
+        in
+        AD.fold update_one represented state
+      in
+      let update represented (c_o : Addr.t) written_value state =
+        let update (c, o) =
+          update represented (c, o) written_value state
+        in
+        let c_o =
+          Addr.to_mval c_o
+        in
+        BatOption.map_default update state c_o
+      in
       let update_written_addresses (canonical: varinfo) (write: value_map) (state: D.t) =
         let represented = ModularUtil.represented_by ~canonical ~reachable  in
         if M.tracing then M.tracel "combine_env_modular" "Represented by %a with reachable %a: %a\n" CilType.Varinfo.pretty canonical AD.pretty reachable AD.pretty represented;
-        let update (c_o: Addr.t) (written_value: value) (state: D.t) =
-          match Addr.to_mval c_o with
-          | Some (c, o) ->
-            let typ = Addr.type_of c_o in
-            let update_one repr state =
-              match Addr.to_mval repr with
-              | Some (x, offs) ->
-                let offs = Offs.add_offset_merge_index_offset ~base_offset:offs ~additional_offset:o in
-                let address_to_update = AD.singleton (Addr.of_mval ~is_modular:(is_modular ctx) (x, offs)) in
-
-                let old_value = get (Events.to_base_domain_events ctx.emit) (Analyses.ask_of_ctx ctx) glob_fun ctx.local address_to_update None in
-                let c_value = ModularUtil.ValueDomainExtension.map_back ~reachable written_value in
-                let value = VD.join old_value c_value in
-
-                let result = set (Analyses.ask_of_ctx ctx) ~ctx glob_fun state address_to_update typ value in
-                if M.tracing then M.tracel "combine_env_modular" "Updating %a with %a\n results in: %a\n" AD.pretty address_to_update VD.pretty value D.pretty result;
-                result
-              | None -> state
-            in
-            AD.fold update_one represented state
-          | None -> state
-        in
-        AddrMap.fold update write state
+        AddrMap.fold (update represented) write state
       in
       VarMap.fold update_written_addresses vars_to_writes ctx.local
 
