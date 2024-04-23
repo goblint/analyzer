@@ -110,16 +110,6 @@ struct
     fold f ls (Mutexes.empty ())
 end
 
-module MayLockset =
-struct
-  include Lockset
-  let leq x y = leq y x
-  let join = Lockset.meet
-  let meet = Lockset.join
-  let top = Lockset.bot
-  let bot = Lockset.top
-end
-
 module MayLocksetNoRW =
 struct
   include PreValueDomain.AD
