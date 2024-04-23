@@ -167,18 +167,17 @@ struct
       | None -> ctx.local
       | Some mv ->
         let (s, m) = ctx.local in
-        if warn && (not (Lockset.mem (mv, true) s || Lockset.mem (mv, false) s)) then
+        if warn && not (Lockset.mem_rw mv s) then
           M.warn "unlocking mutex (%a) which may not be held" LockDomain.Mval.pretty mv;
-        let rm s = Lockset.remove (mv, true) (Lockset.remove (mv, false) s) in
         if MutexTypeAnalysis.must_be_recursive ctx mv then (
           let (m', rmed) = Multiplicity.decrement mv m in
           if rmed then
-            (rm s, m')
+            (Lockset.remove_rw mv s, m')
           else
             (s, m')
         )
         else
-          (rm s, m)
+          (Lockset.remove_rw mv s, m)
 
     let remove = remove' ~warn:true
 
