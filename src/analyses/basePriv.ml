@@ -333,16 +333,16 @@ struct
 
   let invariant_global (ask: Q.ask) getg = function
     | `Left m' as m -> (* mutex *)
-      let cpa = getg m in
-      let inv = CPA.fold (fun v _ acc ->
-          if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
-            let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
-            Invariant.(acc && inv)
-          else
-            acc
-        ) cpa Invariant.none
-      in
       if ask.f (GhostVarAvailable (Locked m')) then (
+        let cpa = getg m in
+        let inv = CPA.fold (fun v _ acc ->
+            if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
+              let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
+              Invariant.(acc && inv)
+            else
+              acc
+          ) cpa Invariant.none
+        in
         let var = WitnessGhost.to_varinfo (Locked m') in
         Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
       )
