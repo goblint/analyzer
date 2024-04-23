@@ -300,6 +300,12 @@ module Term(Var:Val) = struct
     | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
     | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
 
+  let rec show_v = function
+    | Addr v -> "&" ^ v.vname
+    | Deref (Addr v, z) when Z.equal z Z.zero -> v.vname
+    | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show_v t
+    | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show_v t ^ ")"
+
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm st term = equal st term || match term with
     | Deref (t, _) -> is_subterm st t
@@ -314,15 +320,30 @@ module Term(Var:Val) = struct
     | Addr v -> v
     | Deref (t, _) -> get_var t
 
+  exception UnsupportedCilExpression of string
+
   let default_int_type = IInt
   let to_cil_constant z = Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
-  (** Convert a term to a cil expression and its cil type. *)
+  (** TODO: Convert a term to a cil expression and its cil type. *)
   let rec to_cil off t =
     let cil_t, vtyp = match t with
       | Addr v -> AddrOf (Var v, NoOffset), TPtr (v.vtype, [])
       | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset), v.vtype
-      | Deref (t, z) -> let cil_t, vtyp = to_cil z t in Lval (Mem cil_t, NoOffset), TPtr (vtyp, [])
+      | Deref (t, z) ->
+        let cil_t, vtyp = to_cil z t in
+        begin match vtyp with
+          | TPtr (typ,_) -> Lval (Mem cil_t, NoOffset), typ
+          | TArray (typ, length, _) -> Lval (Mem cil_t, NoOffset), typ (*TODO**)
+          | TComp (_, _) -> cil_t, vtyp(*TODO**)
+          | TVoid _
+          | TInt (_, _)
+          | TFloat (_, _)
+          | TFun (_, _, _, _)
+          | TNamed (_, _)
+          | TEnum (_, _)
+          | TBuiltin_va_list _ -> cil_t, vtyp
+        end
     in if Z.(equal zero off) then cil_t, vtyp else
       BinOp (PlusPI, cil_t, to_cil_constant off, vtyp), vtyp
 
@@ -331,116 +352,187 @@ module Term(Var:Val) = struct
 
   (** Returns an integer from a cil expression and None if the expression is not an integer. *)
   let z_of_exp = function
-    | Const (CInt (i, _, _)) -> Some i
-    | UnOp _
-    | BinOp _-> (*because we performed constant folding*)None
-    | _ -> None
+    | Const (CInt (i, _, _)) -> i
+    | _-> (*because we performed constant folding*)
+      raise (UnsupportedCilExpression "non-constant value")
 
-  (** Returns an integer from a cil offset and None if the offset is not an integer. *)
-  let rec of_offset = function
-    | NoOffset -> Some Z.zero
-    | Field (fieldinfo, offset) -> (*TODO... ?*)None
-    | Index (exp, offset) -> (*TODO... ?*)None
+  let eval_int (ask:Queries.ask) exp =
+    match Cilfacade.get_ikind_exp exp with
+    | exception Invalid_argument _ -> raise (UnsupportedCilExpression "non-constant value")
+    | ikind ->
+      begin match ask.f (Queries.EvalInt exp) with
+        | `Lifted i ->
+          begin match IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind i
+            with
+            | Some i -> i
+            | None -> raise (UnsupportedCilExpression "non-constant value")
+          end
+        | _ -> raise (UnsupportedCilExpression "non-constant value")
+      end
+
+  let eval_int_opt (ask:Queries.ask) exp =
+    match eval_int ask exp with
+    | i -> Some i
+    | exception (UnsupportedCilExpression _) -> None
+
+  let rec get_size_in_bits ask typ =
+    match typ with
+    | TArray (typ, _, _) -> get_size_in_bits ask typ
+    | _ -> Z.(eval_int ask (SizeOf typ) * (of_int 8))
+
+  let get_exp_size_in_bits ask exp =
+    Z.(eval_int ask (SizeOfE exp) * (of_int 8))
+
+  let is_array_type = function
+    | TArray _ -> true
+    | _ -> false
+
+  let is_struct_type = function
+    | TComp _ -> true
+    | _ -> false
+
+  let rec of_index ask t var_type curr_offs =
+    let get_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
+      | Some i -> i
+      | None -> raise (UnsupportedCilExpression "unknown offset")
+    in
+    let rec type_len_array ask = function
+      | TArray (arr_type, Some exp, _) -> arr_type, eval_int ask exp
+      | _ -> raise (UnsupportedCilExpression "incoherent type of variable") in
+    function
+    | Index (exp, NoOffset) ->
+      let new_var_type, len_array = type_len_array ask var_type in
+      let var_size = get_size_in_bits ask new_var_type in
+      let z' = Z.(eval_int ask exp * var_size) in
+      t, Z.(curr_offs * len_array + z'), new_var_type
+    | Index (exp, off) ->
+      let new_var_type, len_array = type_len_array ask var_type in
+      let var_size = get_size_in_bits ask new_var_type in
+      let z' = Z.(eval_int ask exp * var_size) in
+      let t, z'', new_var_type = of_index ask t new_var_type Z.(curr_offs * len_array + z') off in
+      t, z'', new_var_type
+    | Field (finfo, off) -> let field_offset = get_offset finfo in
+      let t, z'', new_var_type = of_index ask t finfo.ftype Z.zero off in
+      t, Z.(curr_offs + field_offset + z''), new_var_type
+    | NoOffset -> t, curr_offs, var_type
+
+  let rec of_offset ask t var_type off =
+    if off == NoOffset then t else
+      let t, z, var_type = of_index ask t var_type Z.zero off in
+      if not (is_array_type var_type) then Deref (t, z)
+      else raise (UnsupportedCilExpression "this is an address")
 
   (** Converts a cil expression to Some term, Some offset;
       or None, Some offset is the expression equals an integer,
       or None, None if the expression can't be described by our analysis.*)
-  let rec of_cil = function
-    | Const c -> None, z_of_exp (Const c)
-    | Lval lval -> of_lval lval
+  let rec of_cil (ask:Queries.ask) e = match e with
+    | Const _ -> None, Z.(get_exp_size_in_bits ask e * z_of_exp e)
     | AlignOf _
-    | AlignOfE _ -> (*no idea*) None, None
-    | StartOf lval  -> of_lval lval
-    | AddrOf (Var var, NoOffset) -> Some (Addr var), Some Z.zero
-    | AddrOf (Mem exp, NoOffset) -> of_cil exp
+    | AlignOfE _ -> raise (UnsupportedCilExpression "unsupported AlignOf")
+    | Lval lval -> Some (of_lval ask lval), Z.zero
+    | StartOf lval  -> Some (of_lval ask lval), Z.zero
+    | AddrOf (Var var, NoOffset) -> Some (Addr var), Z.zero
+    | AddrOf (Mem exp, NoOffset) -> of_cil ask exp
     | UnOp (op,exp,typ)-> begin match op with
-        | Neg -> begin  match of_cil exp with
-            | None, Some off -> None, Some Z.(-off)
-            | _ -> None, None
-          end
-        | _ -> None, None
+        | Neg -> let typ_size = get_size_in_bits ask typ in
+          let off = eval_int ask exp in None, Z.(-off * typ_size)
+        | _ -> raise (UnsupportedCilExpression "unsupported UnOp")
       end
     | BinOp (binop, exp1, exp2, typ)-> begin match binop with
         | PlusA
         | PlusPI
-        | IndexPI -> begin match of_cil exp1, of_cil exp2 with
-            | (None, Some off1), (Some term, Some off2)
-            | (Some term, Some off1), (None, Some off2) -> Some term, Some Z.(off1 + off2)
-            | _ -> None, None
+        | IndexPI ->
+          let typ_size = get_size_in_bits ask typ in
+          let typ1_size = get_exp_size_in_bits ask exp1 in
+          let typ2_size = get_exp_size_in_bits ask exp2 in
+          begin match eval_int_opt ask exp1, eval_int_opt ask exp2 with
+            | None, None -> raise (UnsupportedCilExpression "unsupported BinOp +")
+            | None, Some off2 -> let term, off1 = of_cil ask exp1 in term, Z.(off1 + typ2_size * off2)
+            | Some off1, None -> let term, off2 = of_cil ask exp2 in term, Z.(typ1_size * off1 + off2)
+            | Some off1, Some off2 -> None, Z.(typ_size * (off1 + off2))
           end
         | MinusA
         | MinusPI
-        | MinusPP  -> begin match of_cil exp1, of_cil exp2 with
-            | (Some term, Some off1), (None, Some off2) -> Some term, Some Z.(off1 - off2)
-            | _ -> None, None
+        | MinusPP -> begin match of_cil ask exp1, of_cil ask exp2 with
+            | (Some term, off1), (None, off2) -> Some term, Z.(off1 - off2)
+            | _ -> raise (UnsupportedCilExpression "unsupported BinOp -")
           end
-        | Eq -> None, None
-        | Ne -> None, None
-        | _ -> None, None
+        | _ -> raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)-> of_cil exp
-    | AddrOf lval -> (*TODO*)None, None
-    | _ -> None, None
-  and of_lval = function
-    | (Var var, NoOffset) -> Some (Deref (Addr var, Z.zero)), Some Z.zero
-    | (Var var, Index (exp, NoOffset)) -> begin match of_cil exp with
-        | None, Some off -> Some (Deref ((Deref (Addr var, Z.zero)), off)), Some Z.zero
-        | _ -> None, None
-      end
-    | (Var var, _) -> None, None (*TODO: Index with Offset, and Field*)
-    | (Mem exp, offset) ->
-      begin match of_cil exp, of_offset offset with
-        | (Some term, Some offset), Some z_offset -> Some (Deref (term, offset)), Some z_offset
-        | _ -> None, None
-      end
+    | CastE (typ, exp)-> let old_size = get_exp_size_in_bits ask exp in
+      let new_size = get_exp_size_in_bits ask e in
+      let t, off = of_cil ask exp in t, Z.(off * new_size / old_size)
+    | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
+  and of_lval ask lval =let res = match lval with
+      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) var.vtype off
+        else
+          of_offset ask (Deref (Addr var, Z.zero)) var.vtype off
+      | (Mem exp, off) ->
+        begin match of_cil ask exp with
+          | (Some term, offset) -> of_offset ask (Deref (term, offset)) (*TODO type of mem -> remove pointer from exp type*)(TInt (default_int_type,  [])) off
+          | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
+        end in
+    (if M.tracing then match res with
+        | exception (UnsupportedCilExpression s) -> M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
+        | t -> M.trace "wrpointer-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show_v t))
+  ;res
 
   (** Converts the negated expresion to a term if neg = true.
       If neg = false then it simply converts the expression to a term. *)
-  let rec of_cil_neg neg e = match e with
+  let rec of_cil_neg ask neg e = match e with
     | UnOp (op,exp,typ)->
       begin match op with
-        | Neg -> of_cil_neg (not neg) exp
-        | _ -> if neg then None, None else of_cil e
+        | Neg -> of_cil_neg ask (not neg) exp
+        | _ -> if neg then raise (UnsupportedCilExpression "unsupported UnOp Neg") else of_cil ask e
       end
-    | _ -> if neg then None, None else of_cil e
+    | _ -> if neg then raise (UnsupportedCilExpression "unsupported UnOp Neg") else of_cil ask e
 
-  let of_cil = of_cil_neg false % Cil.constFold false
+  let of_cil_neg ask neg e = let res = match of_cil_neg ask neg (Cil.constFold false e) with
+      | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
+        None, None
+      | t, z -> t, Some z
+    in (if M.tracing && not neg then match res with
+        | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
+        | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show_v t) (Z.to_string z)
+        | _ -> M.trace "wrpointer-cil-conversion" "This is impossible. exp: %a\n" d_plainexp e); res
+
+  let of_cil ask e = of_cil_neg ask false e
 
   let map_z_opt op z = Tuple2.map2 (Option.map (op z))
   (** Converts a cil expression e = "t1 + off1 - (t2 + off2)" to two terms (Some t1, Some off1), (Some t2, Some off2)*)
-  let rec two_terms_of_cil neg e =
+  let rec two_terms_of_cil ask neg e =
     let pos_t, neg_t = match e with
-      | UnOp (Neg,exp,typ) -> two_terms_of_cil (not neg) exp
+      | UnOp (Neg,exp,typ) -> two_terms_of_cil ask (not neg) exp
       | BinOp (binop, exp1, exp2, typ)-> begin match binop with
           | PlusA
           | PlusPI
-          | IndexPI -> begin match of_cil exp1 with
-              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil true exp2 in
+          | IndexPI -> begin match of_cil ask exp1 with
+              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil ask true exp2 in
                 map_z_opt Z.(+) off1 pos_t, neg_t
-              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg true exp2
+              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg ask true exp2
               | _ -> (None, None), (None, None)
             end
           | MinusA
           | MinusPI
-          | MinusPP -> begin match of_cil exp1 with
-              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil false exp2 in
+          | MinusPP -> begin match of_cil ask exp1 with
+              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil ask false exp2 in
                 map_z_opt Z.(+) off1 pos_t, neg_t
-              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg false exp2
-              | _ -> of_cil e, (None, Some Z.zero)
+              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg ask false exp2
+              | _ -> of_cil ask e, (None, Some Z.zero)
             end
-          | _ -> of_cil e, (None, Some Z.zero)
+          | _ -> of_cil ask e, (None, Some Z.zero)
         end
-      | _ -> of_cil e, (None, Some Z.zero)
+      | _ -> of_cil ask e, (None, Some Z.zero)
     in if neg then neg_t, pos_t else pos_t, neg_t
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
       returns a list of length 1 with the parsed expresion or an empty list if
         the expression can't be expressed with the data type `prop`. *)
-  let rec prop_of_cil e pos =
+  let rec prop_of_cil ask e pos =
     let e = Cil.constFold false e in
     match e with
     | BinOp (r, e1, e2, _) ->
-      begin  match two_terms_of_cil false (BinOp (MinusPI, e1, e2, TInt (Cilfacade.get_ikind_exp e,[]))) with
+      begin  match two_terms_of_cil ask false (BinOp (MinusPI, e1, e2, TInt (Cilfacade.get_ikind_exp e,[]))) with
         | ((Some t1, Some z1), (Some t2, Some z2)) ->
           begin match r with
             | Eq -> if pos then [Equal (t1, t2, Z.(z2-z1))] else [Nequal (t1, t2, Z.(z2-z1))]
@@ -449,7 +541,7 @@ module Term(Var:Val) = struct
           end
         | _,_ -> []
       end
-    | UnOp (LNot, e1, _) -> prop_of_cil e1 (not pos)
+    | UnOp (LNot, e1, _) -> prop_of_cil ask e1 (not pos)
     | _ -> []
 
 end
@@ -606,15 +698,6 @@ module CongruenceClosure (Var : Val) = struct
 
   module TMap = ValMap(T)
 
-  let show_all x = "Union Find partition:\n" ^
-                   (TUF.show_uf x.uf)
-                   ^ "\nSubterm set:\n"
-                   ^ (SSet.show_set x.set)
-                   ^ "\nLookup map/transitions:\n"
-                   ^ (LMap.show_map x.map)
-                   ^ "\nMinimal representatives:\n"
-                   ^ (MRMap.show_min_rep x.min_repr)
-
   let string_of_prop = function
     | Equal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
     | Equal (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
@@ -657,6 +740,17 @@ module CongruenceClosure (Var : Val) = struct
           normalize_equality (Deref(min_state, Z.(z - min_z)), min_state', Z.(z' - min_z'))
         ) transitions
     in BatList.sort_unique (compare_prop Var.compare) (conjunctions_of_atoms @ conjunctions_of_transitions)
+
+  let show_all x = "Normal form:\n" ^
+                   show_conj((get_normal_form x)) ^
+                   "Union Find partition:\n" ^
+                   (TUF.show_uf x.uf)
+                   ^ "\nSubterm set:\n"
+                   ^ (SSet.show_set x.set)
+                   ^ "\nLookup map/transitions:\n"
+                   ^ (LMap.show_map x.map)
+                   ^ "\nMinimal representatives:\n"
+                   ^ (MRMap.show_min_rep x.min_repr)
 
   (**
      returns {uf, set, map, min_repr}, where:
