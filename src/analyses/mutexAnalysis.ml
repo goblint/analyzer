@@ -29,7 +29,7 @@ struct
           )
         )
 
-      include MapDomain.MapTop_LiftBot (ValueDomain.Addr) (Count)
+      include MapDomain.MapTop_LiftBot (LockDomain.Mval) (Count)
 
       let name () = "multiplicity"
 
@@ -154,7 +154,7 @@ struct
         let s' = Lockset.add (mv, rw) s in
         let m' =
           if MutexTypeAnalysis.must_be_recursive ctx mv then
-            Multiplicity.increment addr m
+            Multiplicity.increment mv m
           else
             m
         in
@@ -170,7 +170,7 @@ struct
           M.warn "unlocking mutex (%a) which may not be held" LockDomain.Mval.pretty mv;
         let rm s = Lockset.remove (mv, true) (Lockset.remove (mv, false) s) in
         if MutexTypeAnalysis.must_be_recursive ctx mv then (
-          let (m', rmed) = Multiplicity.decrement (Addr mv) m in
+          let (m', rmed) = Multiplicity.decrement mv m in
           if rmed then
             (rm s, m')
           else
