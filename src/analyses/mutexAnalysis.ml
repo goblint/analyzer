@@ -184,8 +184,6 @@ struct
       (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
       M.warn "unlocking unknown mutex which may not be held";
       (MLockset.empty (), Multiplicity.empty ())
-
-    let empty () = (Lockset.empty (), Multiplicity.empty ())
   end
   include LocksetAnalysis.MakeMust (Arg)
   let name () = "mutex"
@@ -233,8 +231,8 @@ struct
         false
       else *)
       non_overlapping held_locks protecting
-    | Queries.MustBeProtectedBy {mutex; global=v; write; protection} ->
-      let mutex_lockset = Lockset.export_locks @@ Lockset.singleton (mutex, true) in
+    | Queries.MustBeProtectedBy {mutex = Addr mutex; global=v; write; protection} ->
+      let mutex_lockset = MLockset.export_locks @@ MLockset.singleton (mutex, true) in
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
