@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-atomic --set sem.int.signed_overflow assume_none
+// SKIP PARAM: --enable ana.sv-comp.functions --set ana.activated[+] apron --set ana.relation.privatization mutex-meet-atomic --set sem.int.signed_overflow assume_none --set ana.base.privatization protection-atomic
 /*-----------------------------------------------------------------------------
  * mutex_with_ghosts.c - Annotated concurrent program with ghost variables for
  *                       witness validation using locking to access a shared
@@ -53,6 +53,7 @@ int main()
   pthread_mutex_lock(&m);
   __VERIFIER_atomic_end();
 
+  // TODO: works with base protection privatization but not protection-atomic
   __goblint_check(used == 0); // TODO (read/refine? of used above makes used write-unprotected)
 
   __VERIFIER_atomic_begin();
