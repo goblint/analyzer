@@ -19,7 +19,10 @@ let name_varinfo = function
     let rec offs: LockDomain.Addr.Offs.t -> string = function
       | `NoOffset -> ""
       | `Field (f, os') -> "_" ^ f.fname ^ offs os'
-      | `Index (i, os') -> failwith "TODO" (* TODO: valid names with interval offsets, etc *)
+      | `Index (i, os') ->
+        match ValueDomain.ID.to_int i with
+        | Some i -> assert Z.Compare.(i >= Z.zero); "_" ^ Z.to_string i
+        | _ -> assert false (* must locksets cannot have ambiguous indices *)
     in
     name ^ offs os ^ "_locked"
   | Locked _ -> assert false
