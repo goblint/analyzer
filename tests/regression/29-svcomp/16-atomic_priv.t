@@ -13,7 +13,7 @@
     write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
     read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
   [Info][Witness] witness generation summary:
-    total generation entries: 9
+    total generation entries: 8
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0
@@ -79,10 +79,5 @@
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || myglobal == 5'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (__VERIFIER_atomic_locked || myglobal == 5)'
       type: assertion
       format: C

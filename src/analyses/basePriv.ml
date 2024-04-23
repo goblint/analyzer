@@ -859,6 +859,8 @@ struct
       let locks = ask.f (Q.MustProtectingLocks g') in
       if Q.AD.is_top locks || Q.AD.is_empty locks then
         Invariant.none
+      else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then
+        Invariant.none (* don't output protected invariant because it's the same as unprotected *)
       else (
         let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
         Q.AD.fold (fun m acc ->

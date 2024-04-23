@@ -4,7 +4,7 @@
     dead: 0
     total lines: 19
   [Info][Witness] witness generation summary:
-    total generation entries: 18
+    total generation entries: 17
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -131,11 +131,6 @@ protection doesn't have precise protected invariant for g2.
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || (m1_locked || (0 <= g2 && g2 <= 1)))'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant
