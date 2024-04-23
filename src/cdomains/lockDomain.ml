@@ -43,20 +43,18 @@ struct
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
-  let add ((addr, _) as lock) set =
-    match addr with
-    | mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
+  let add ((mv, _) as lock) set =
+    if Addr.Mval.is_definite mv then
       add lock set
-    | _ ->
+    else
       set
 
-  let remove ((addr, _) as lock) set =
-    match addr with
-    | mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
+  let remove ((mv, _) as lock) set =
+    if Addr.Mval.is_definite mv then
       remove lock set
-    | _ ->
-      filter (fun (addr', _) ->
-          Mval.semantic_equal addr addr' = Some false
+    else
+      filter (fun (mv', _) ->
+          Mval.semantic_equal mv mv' = Some false
         ) set
 
   let export_locks ls =
