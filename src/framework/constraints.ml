@@ -497,6 +497,91 @@ struct
   let event (ctx:(D.t,G.t,C.t,V.t) ctx) (e:Events.t) (octx:(D.t,G.t,C.t,V.t) ctx):D.t = lift_fun ctx D.lift S.event ((|>) (conv octx) % (|>) e) `Bot
 end
 
+module NoContext = struct let name = "no context" end
+module IntConf = 
+struct
+  let n () = max_int
+  let names x = Format.asprintf "%d" x
+end
+
+(** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively analyzed function calls in a call stack.
+    For every function call the gas is reduced. If the gas is zero, the remaining function calls are analyzed without context-information *)
+module ContextGasLifter (S:Spec)
+  : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf)) 
+          and module C = Printable.Option (S.C) (NoContext)
+          and module G = S.G
+=
+struct
+  include S
+
+  module Context_Gas_Prod (Base1: Lattice.S) (Base2: Lattice.S) = 
+  struct 
+    include Lattice.Prod (Base1) (Base2)
+    let printXml f (x,y) =
+      BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nContext Gas Value\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x Base2.printXml y
+  end
+  module D = Context_Gas_Prod (S.D) (Lattice.Chain (IntConf)) (* Product of S.D and an integer, tracking the context gas value *)
+  module C = Printable.Option (S.C) (NoContext)
+  module G = S.G
+  module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt (x, _) = of_elt x
+  end
+
+  (* returns context gas value of the given ctx *)
+  let cg_val ctx = snd ctx.local
+
+  type marshal = S.marshal
+  let init = S.init
+  let finalize = S.finalize
+
+  let name () = S.name ()^" with context gas"
+  let startstate v = S.startstate v, get_int "ana.context.gas_value"
+  let exitstate v = S.exitstate v, get_int "ana.context.gas_value"
+  let morphstate v (d,i) = S.morphstate v d, i
+
+  let context fd (d,i) = 
+    (* only keep context if the context gas is greater zero *)
+    if i <= 0 then None else Some (S.context fd d)
+
+  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =
+    if (cg_val ctx <= 0) 
+    then {ctx with local = fst ctx.local
+                 ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
+                 ; context = (fun () -> ctx_failwith "no context (contextGas = 0)")}
+    else {ctx with local = fst ctx.local
+                 ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
+                 ; context = (fun () -> Option.get (ctx.context ()))}
+
+  let enter ctx r f args =
+    (* callee gas = caller gas - 1 *)
+    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, max 0 (cg_val ctx - 1))) in
+    liftmap_tup (S.enter (conv ctx) r f args) 
+
+  let threadenter ctx ~multiple lval f args = 
+    let liftmap f = List.map (fun (x) -> (x, max 0 (cg_val ctx - 1))) f in
+    liftmap (S.threadenter (conv ctx) ~multiple lval f args) 
+
+  let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
+  let query ctx q                                 = S.query (conv ctx) q
+  let assign ctx lval expr                        = S.assign (conv ctx) lval expr, cg_val ctx
+  let vdecl ctx v                                 = S.vdecl (conv ctx) v, cg_val ctx
+  let body ctx fundec                             = S.body (conv ctx) fundec, cg_val ctx
+  let branch ctx e tv                             = S.branch (conv ctx) e tv, cg_val ctx
+  let return ctx r f                              = S.return (conv ctx) r f, cg_val ctx
+  let asm ctx                                     = S.asm (conv ctx), cg_val ctx
+  let skip ctx                                    = S.skip (conv ctx), cg_val ctx
+  let special ctx r f args                        = S.special (conv ctx) r f args, cg_val ctx
+  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
+  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
+  let paths_as_set ctx                            = List.map (fun (x) -> (x, cg_val ctx)) @@ S.paths_as_set (conv ctx) 
+  let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
+  let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx
+end
+
+
 module type Increment =
 sig
   val increment: increment_data option
