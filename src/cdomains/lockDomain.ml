@@ -16,15 +16,15 @@ module Priorities = IntDomain.Lifted
 module RW   = IntDomain.Booleans
 
 (* pair Addr and RW; also change pretty printing*)
-module Lock =
+module MakeLockRW (P: Printable.S) =
 struct
-  include Printable.Prod (Addr) (RW)
+  include Printable.Prod (P) (RW)
 
   let pretty () (a, write) =
     if write then
-      Addr.pretty () a
+      P.pretty () a
     else
-      Pretty.dprintf "read lock %a" Addr.pretty a
+      Pretty.dprintf "read lock %a" P.pretty a
 
   include Printable.SimplePretty (
     struct
@@ -34,30 +34,11 @@ struct
     )
 end
 
+module Lock = MakeLockRW (Addr)
+
 module Lockset =
 struct
-
-  (* true means exclusive lock and false represents reader lock*)
-  module RW   = IntDomain.Booleans
-
-  (* pair Addr and RW; also change pretty printing*)
-  module Lock =
-  struct
-    include Printable.Prod (Mval) (RW)
-
-    let pretty () (a, write) =
-      if write then
-        Mval.pretty () a
-      else
-        Pretty.dprintf "read lock %a" Mval.pretty a
-
-    include Printable.SimplePretty (
-      struct
-        type nonrec t = t
-        let pretty = pretty
-      end
-      )
-  end
+  module Lock = MakeLockRW (Mval)
 
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
   let name () = "lockset"
