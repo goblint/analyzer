@@ -43,6 +43,29 @@ struct
     let to_int _ = None (* TODO: more precise for definite indices *)
     let top () = Lazy.force any
   end
+
+  module Z =
+  struct
+    include Printable.StdLeaf (* TODO: move to GobZ *)
+    include GobZ
+    let name () = "Z index"
+
+    (* TODO: move to GobZ *)
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
+
+    let top () = failwith "Offset.Index.Z.top" (* TODO: remove from interface? *)
+    let to_int z = Some z
+    let equal_to z1 z2 =
+      if Z.equal z2 z2 then
+        `Eq
+      else
+        `Neq
+  end
 end
 
 
@@ -256,6 +279,13 @@ struct
     | `NoOffset    -> NoOffset
     | `Index (i,o) -> Index (i, to_cil o)
     | `Field (f,o) -> Field (f, to_cil o)
+end
+
+module Z =
+struct
+  include MakePrintable (Index.Z)
+
+  let is_definite _ = true (* override to avoid iterating over offset *)
 end
 
 

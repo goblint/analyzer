@@ -136,6 +136,10 @@ sig
           Used for Goblint-specific witness invariants. *)
       val all: GoblintCil.exp Lazy.t
     end
+
+    module Z: Printable with type t = Z.t
+    (** {!Z} index.
+        Represents a definite index. *)
   end
 
   exception Type_of_error of GoblintCil.typ * string
@@ -172,4 +176,7 @@ sig
     val to_cil : t -> GoblintCil.offset
     (** Convert to CIL offset. *)
   end
+
+  (** Offset with {!Index.Z} indices. *)
+  module Z: Printable with type idx = Z.t
 end

@@ -72,3 +72,4 @@ end
 
 module Unit = MakePrintable (Offset.Unit)
 module Exp = MakePrintable (Offset.Exp)
+module Z = MakePrintable (Offset.Z)
