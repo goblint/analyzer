@@ -3483,6 +3483,7 @@ let get_main (): (module MainSpec) =
 
 let after_config () =
   let module Main = (val get_main ()) in
+  let module Main = TracingAnalysis.Spec (Main) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   let dep =
     let base_dependencies = ["mallocWrapper"] in
