@@ -9,7 +9,7 @@ module IdxDom = ValueDomain.IndexDomain
 open GoblintCil
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
-module Simple = Lattice.Reverse (Mutexes)
+module Simple = SetDomain.Reverse (SetDomain.ToppedSet (Mval) (struct let topname = "All mutexes" end))
 module Priorities = IntDomain.Lifted
 
 (* true means exclusive lock and false represents reader lock*)
@@ -58,8 +58,8 @@ struct
         ) set
 
   let export_locks ls =
-    let f (x,_) set = Mutexes.add (Addr.Addr x) set in
-    fold f ls (Mutexes.empty ())
+    let f (x,_) set = Simple.add x set in
+    fold f ls (Simple.empty ())
 end
 
 module MayLocksetNoRW =
