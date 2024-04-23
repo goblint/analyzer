@@ -57,6 +57,12 @@ struct
           Mval.semantic_equal mv mv' = Some false
         ) set
 
+  let mem_rw mv set =
+    mem (mv, true) set || mem (mv, false) set
+
+  let remove_rw mv set =
+    remove (mv, true) (remove (mv, false) set)
+
   let export_locks ls =
     let f (x,_) set = Simple.add x set in
     fold f ls (Simple.empty ())
