@@ -120,7 +120,7 @@ struct
   let step_ctx ctx x e =
     try
       step ctx.prev_node (ctx.context ()) x e (snd ctx.local)
-    with Ctx_failure _ ->
+    with Ctx_failure _ | Enter_func_has_no_context ->
       R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
   let step_ctx_inlined_edge ctx x = step_ctx ctx x (InlinedEdge ctx.edge)
