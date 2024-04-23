@@ -4,7 +4,7 @@ open GoblintCil
 open Pretty
 
 type t =
-  | Lock of LockDomain.Lockset.Lock.t
+  | Lock of LockDomain.Lock.t
   | Unlock of LockDomain.Addr.t
   | Escape of EscapeDomain.EscapedVars.t
   | EnterMultiThreaded
@@ -35,7 +35,7 @@ let emit_on_deadcode = function
     false
 
 let pretty () = function
-  | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
+  | Lock m -> dprintf "Lock %a" LockDomain.Lock.pretty m
   | Unlock m -> dprintf "Unlock %a" LockDomain.Addr.pretty m
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"

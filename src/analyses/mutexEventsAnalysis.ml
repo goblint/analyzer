@@ -4,7 +4,6 @@
 
 module M = Messages
 module Addr = ValueDomain.Addr
-module Lockset = LockDomain.Lockset
 module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
 open Batteries
