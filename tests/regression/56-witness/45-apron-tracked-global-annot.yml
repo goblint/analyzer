@@ -1,0 +1,25 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: d834761a-d0d7-4fea-bf42-2ff2b9a19143
+    creation_time: 2024-04-23T10:59:25Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 45-apron-tracked-global-annot.c
+      input_file_hashes:
+        45-apron-tracked-global-annot.c: 9c984e89a790b595d2b37ca8a05e5967a15130592cb2567fac2fae4aff668a4f
+      data_model: LP64
+      language: C
+  location:
+    file_name: 45-apron-tracked-global-annot.c
+    file_hash: 9c984e89a790b595d2b37ca8a05e5967a15130592cb2567fac2fae4aff668a4f
+    line: 7
+    column: 3
+    function: main
+  location_invariant:
+    string: g == 0
+    type: assertion
+    format: C
