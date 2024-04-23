@@ -6,7 +6,7 @@ type t =
 [@@deriving eq, ord, hash]
 
 let name_varinfo = function
-  | Locked (Addr (v, _) as l) ->
+  | Locked (Addr (v, os)) ->
     let name =
       if CilType.Varinfo.equal v LibraryFunctions.verifier_atomic_var then
         "__VERIFIER_atomic"
@@ -14,9 +14,14 @@ let name_varinfo = function
       if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo v then
         Printf.sprintf "alloc_%s%d" (if v.vid < 0 then "m" else "") (abs v.vid) (* turn minus into valid C name *)
       else
-        LockDomain.Addr.show l (* TODO: valid names with fields, interval offsets, etc *)
+        Basetype.Variables.show v
     in
-    name ^ "_locked"
+    let rec offs: LockDomain.Addr.Offs.t -> string = function
+      | `NoOffset -> ""
+      | `Field (f, os') -> "_" ^ f.fname ^ offs os'
+      | `Index (i, os') -> failwith "TODO" (* TODO: valid names with interval offsets, etc *)
+    in
+    name ^ offs os ^ "_locked"
   | Locked _ -> assert false
   | Multithreaded -> "multithreaded"
 
