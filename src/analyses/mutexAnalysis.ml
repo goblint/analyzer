@@ -62,7 +62,7 @@ struct
 
     module V =
     struct
-      include Printable.Either (struct include CilType.Varinfo let name () = "protecting" end) (struct include ValueDomain.Addr let name () = "protected" end)
+      include Printable.Either (struct include CilType.Varinfo let name () = "protecting" end) (struct include LockDomain.Mval let name () = "protected" end)
       let name () = "mutex"
       let protecting x = `Left x
       let protected x = `Right x
@@ -236,7 +236,7 @@ struct
         false
       else *)
       non_overlapping held_locks protecting
-    | Queries.MustBeProtectedBy {mutex = Addr mutex; global=v; write; protection} ->
+    | Queries.MustBeProtectedBy {mutex = Addr mutex; global=v; write; protection} -> (* TODO: non-Addr? *)
       let mutex_lockset = Lockset.export_locks @@ Lockset.singleton (mutex, true) in
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
@@ -250,7 +250,7 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       Simple.mem (LF.verifier_atomic_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
-    | Queries.MustProtectedVars {mutex = m; write} ->
+    | Queries.MustProtectedVars {mutex = Addr m; write} -> (* TODO: non-Addr? *)
       let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
           Queries.VS.add v acc
@@ -273,7 +273,7 @@ struct
             max_protected := max !max_protected s;
             sum_protected := !sum_protected + s;
             incr num_mutexes;
-            M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" ValueDomain.Addr.pretty m s VarSet.pretty protected
+            M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" LockDomain.Mval.pretty m s VarSet.pretty protected
           )
       end
     | _ -> Queries.Result.top q
@@ -325,10 +325,10 @@ struct
               let held_weak = protecting Weak in
               let vs = VarSet.singleton v in
               let protected = G.create_protected @@ GProtected.make ~write vs in
-              Simple.iter (fun addr -> ctx.sideg (V.protected (Addr.Addr addr)) protected) held_strong; (* TODO: remove Addr *)
+              Simple.iter (fun mv -> ctx.sideg (V.protected mv) protected) held_strong;
               (* If the mutex set here is top, it is actually not accessed *)
               if is_recovered_to_st && not @@ Simple.is_bot held_weak then
-                Simple.iter (fun addr -> ctx.sideg (V.protected (Addr.Addr addr)) protected) held_weak; (* TODO: remove Addr *)
+                Simple.iter (fun mv -> ctx.sideg (V.protected mv) protected) held_weak;
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
