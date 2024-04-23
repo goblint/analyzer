@@ -57,4 +57,7 @@ sig
 
   (** Mvalue with {!Offset.Exp} indices in offset. *)
   module Exp: Printable with type idx = GoblintCil.exp
+
+  (** Mvalue with {!Offset.Z} indices in offset. *)
+  module Z: Printable with type idx = Z.t
 end
