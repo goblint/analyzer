@@ -8,10 +8,13 @@ type t =
 let name_varinfo = function
   | Locked (Addr (v, _) as l) ->
     let name =
+      if CilType.Varinfo.equal v LibraryFunctions.verifier_atomic_var then
+        "__VERIFIER_atomic"
+      else
       if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo v then
         Printf.sprintf "alloc_%s%d" (if v.vid < 0 then "m" else "") (abs v.vid) (* turn minus into valid C name *)
       else
-        LockDomain.Addr.show l (* TODO: valid names with interval offsets, etc *)
+        LockDomain.Addr.show l (* TODO: valid names with fields, interval offsets, etc *)
     in
     name ^ "_locked"
   | Locked _ -> assert false
