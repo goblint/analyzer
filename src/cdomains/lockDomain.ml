@@ -12,30 +12,26 @@ module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" 
 module Simple = Lattice.Reverse (Mutexes)
 module Priorities = IntDomain.Lifted
 
-module Lockset =
+(* true means exclusive lock and false represents reader lock*)
+module RW   = IntDomain.Booleans
+
+(* pair Addr and RW; also change pretty printing*)
+module Lock =
 struct
+  include Printable.Prod (Addr) (RW)
 
-  (* true means exclusive lock and false represents reader lock*)
-  module RW   = IntDomain.Booleans
+  let pretty () (a, write) =
+    if write then
+      Addr.pretty () a
+    else
+      Pretty.dprintf "read lock %a" Addr.pretty a
 
-  (* pair Addr and RW; also change pretty printing*)
-  module Lock =
-  struct
-    include Printable.Prod (Addr) (RW)
-
-    let pretty () (a, write) =
-      if write then
-        Addr.pretty () a
-      else
-        Pretty.dprintf "read lock %a" Addr.pretty a
-
-    include Printable.SimplePretty (
-      struct
-        type nonrec t = t
-        let pretty = pretty
-      end
-      )
-  end
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 module MLockset =

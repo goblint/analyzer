@@ -29,7 +29,7 @@ sig
   module G: Lattice.S
   module V: SpecSysVar
 
-  val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
+  val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lock.t -> D.t
   val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
 end
 
