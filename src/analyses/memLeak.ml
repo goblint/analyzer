@@ -20,7 +20,7 @@ struct
   module V = UnitV
   module G = WasMallocCalled
 
-  let context _ d = d
+  let context ctx _ d = d
 
   let must_be_single_threaded ~since_start ctx =
     ctx.ask (Queries.MustBeSingleThreaded { since_start })

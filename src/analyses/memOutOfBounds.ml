@@ -22,7 +22,7 @@ struct
   module D = Lattice.Unit
   module C = D
 
-  let context _ _ = ()
+  let context ctx _ _ = ()
 
   let name () = "memOutOfBounds"
 

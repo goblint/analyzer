@@ -126,14 +126,14 @@ struct
   let exitstate  v = (S.exitstate  v, TS.bot ())
   let morphstate v (d, t) = (S.morphstate v d, t)
 
-  let context fd = S.context fd % D.unlift
-
   let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
     { ctx with local = D.unlift ctx.local
              ; split = (fun d es -> ctx.split (d, snd ctx.local) es) (* Split keeps local widening tokens. *)
              ; global = (fun g -> G.unlift (ctx.global g))
              ; sideg = (fun v g -> ctx.sideg v (g, !side_tokens)) (* Using side_tokens for side effect. *)
     }
+
+  let context ctx fd = S.context (conv ctx) fd % D.unlift
 
   let lift_fun ctx f g h =
     let new_tokens = ref (snd ctx.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)

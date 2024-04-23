@@ -56,7 +56,7 @@ struct
   let startstate v = ()
   let threadenter ctx ~multiple lval f args = [()]
   let exitstate  v = ()
-  let context fd d = ()
+  let context ctx fd d = ()
 
 
   (** Transfer functions: *)

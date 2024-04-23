@@ -107,12 +107,6 @@ struct
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
   let morphstate v (d, _) = (Dom.map_keys (Spec.morphstate v) d, Sync.bot ())
 
-  let context fd (l, _) =
-    if Dom.cardinal l <> 1 then
-      failwith "PathSensitive3.context must be called with a singleton set."
-    else
-      Spec.context fd @@ Dom.choose_key l
-
   let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
     match Sync.find i sync with
@@ -145,6 +139,13 @@ struct
       ctx.split (Dom.singleton y yr, Sync.bot ()) es
     in
     ctx'
+
+  let context ctx fd (l, _) =
+    if Dom.cardinal l <> 1 then
+      failwith "PathSensitive3.context must be called with a singleton set."
+    else
+      let x = Dom.choose_key l in
+      Spec.context (conv ctx x) fd @@ x
 
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)

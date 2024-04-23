@@ -618,7 +618,7 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
-  let context (fd: fundec) (st: store): store =
+  let context ctx (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     (* Here earlyglobs only drops syntactic globals from the context and does not consider e.g. escaped globals. *)
@@ -1271,7 +1271,7 @@ struct
           | _, `Bot -> false
           | `Lifted i1, `Lifted i2 ->
             ( let divisor_contains_zero = (ID.is_bot @@ ID.meet i2 (ID.of_int ik Z.zero))  in
-              if divisor_contains_zero then true else 
+              if divisor_contains_zero then true else
                 ( let (min_ik, max_ik) = IntDomain.Size.range ik in
                   let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
                   let (min_i2, max_i2) = (IntDomain.IntDomTuple.minimal i2, IntDomain.IntDomTuple.maximal i2) in
