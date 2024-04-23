@@ -605,7 +605,7 @@ struct
       match BatDeque.front q with
       | None -> ()
       | Some (x, xs) -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x; 
-                   loop (n+1) (xs))
+                         loop (n+1) (xs))
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs; 
