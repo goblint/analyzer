@@ -77,7 +77,7 @@ struct
     ctx.local
 
   let ghost_var_available ctx = function
-    | WitnessGhost.Var.Locked lock -> not (G.lock (ctx.global (V.lock lock)): bool)
+    | WitnessGhost.Var.Locked lock -> LockDomain.Addr.is_definite lock && not (G.lock (ctx.global (V.lock lock)))
     | Multithreaded -> true
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
