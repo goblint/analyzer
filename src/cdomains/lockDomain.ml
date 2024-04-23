@@ -1,6 +1,7 @@
 (** Lockset domains. *)
 
 module Addr = ValueDomain.Addr
+module Mval = ValueDomain.Mval
 module Offs = ValueDomain.Offs
 module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
@@ -57,6 +58,55 @@ struct
 
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in
+    fold f ls (Mutexes.empty ())
+end
+
+module MLockset =
+struct
+
+  (* true means exclusive lock and false represents reader lock*)
+  module RW   = IntDomain.Booleans
+
+  (* pair Addr and RW; also change pretty printing*)
+  module Lock =
+  struct
+    include Printable.Prod (Mval) (RW)
+
+    let pretty () (a, write) =
+      if write then
+        Mval.pretty () a
+      else
+        Pretty.dprintf "read lock %a" Mval.pretty a
+
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
+  end
+
+  include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
+  let name () = "lockset"
+
+  let add ((addr, _) as lock) set =
+    match addr with
+    | mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
+      add lock set
+    | _ ->
+      set
+
+  let remove ((addr, _) as lock) set =
+    match addr with
+    | mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
+      remove lock set
+    | _ ->
+      filter (fun (addr', _) ->
+          Mval.semantic_equal addr addr' = Some false
+        ) set
+
+  let export_locks ls =
+    let f (x,_) set = Mutexes.add (Addr.Addr x) set in
     fold f ls (Mutexes.empty ())
 end
 
