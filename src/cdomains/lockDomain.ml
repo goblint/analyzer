@@ -34,7 +34,7 @@ struct
     )
 end
 
-module MLockset =
+module Lockset =
 struct
 
   (* true means exclusive lock and false represents reader lock*)
