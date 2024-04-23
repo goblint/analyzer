@@ -36,29 +36,6 @@ struct
       end
       )
   end
-
-  include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
-  let name () = "lockset"
-
-  let add ((addr, _) as lock) set =
-    match addr with
-    | Addr.Addr mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
-      add lock set
-    | _ ->
-      set
-
-  let remove ((addr, _) as lock) set =
-    match addr with
-    | Addr.Addr mv when Addr.Mval.is_definite mv -> (* avoids NULL *)
-      remove lock set
-    | _ ->
-      filter (fun (addr', _) ->
-          Addr.semantic_equal addr addr' = Some false
-        ) set
-
-  let export_locks ls =
-    let f (x,_) set = Mutexes.add x set in
-    fold f ls (Mutexes.empty ())
 end
 
 module MLockset =
