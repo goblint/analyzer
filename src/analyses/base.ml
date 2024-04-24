@@ -292,6 +292,24 @@ struct
           `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
+      (** addToOffset with check that taking index offset is valid! *)
+      let addToOffset n t o =
+        if GobConfig.get_bool "modular" then
+          match t with
+          | Some (TArray (_, _, _)) -> addToOffset n t o
+          | Some t ->
+            if ID.equal_to Z.zero n <> `Neq then
+              (* Just return the offset as-is – The non-zero offsets are assumed to be invalid (TODO: allow for correct offsets)*)
+              o
+            else
+              (* Raise exception?*)
+              raise (Failure "cannot add index offset to non-array")
+          | None ->
+            (* No type -- assume that int offset is valid*)
+            addToOffset n t o
+        else
+          addToOffset n t o
+      in
       let default = function
         | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
@@ -312,6 +330,12 @@ struct
         Address (AD.map (addToAddr n) p)
       | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
+    in
+    let addToAddrOp p n =
+      try
+        addToAddrOp p n
+      with (Failure _) ->
+        Address AD.unknown_ptr
     in
     (* The main function! *)
     match a1,a2 with
@@ -1373,15 +1397,6 @@ struct
   (* Given a set of addresses, collect graph
      that contains all paths with which these addresses are reachable with a depth-first search *)
   let collect_graph ctx (local: CPA.t) (start: AD.t) (goal: AD.t) =
-
-    (* for profiling*)
-    let start_time = Sys.time() in
-    let counter = AddrHT.create 101 in
-    let add_elem elem =
-      let value = AddrHT.find_default counter elem 0 in
-      AddrHT.replace counter elem (value + 1)
-    in
-
     let glob_fun = fun _ -> failwith "Should not lookup globals." in
     (* let set_connection ~start ~via ~sink ~graph =
        ValueDomain.ADGraph.add start (ADOffsetMap.singleton via (AD.singleton sink)) graph
@@ -1421,7 +1436,6 @@ struct
       let local = {state with cpa = local} in
       let rec dfs node (reach_target, visited, graph) : bool AddrMap.t * unit AddrHT.t * ValueDomain.ADGraph.t =
         AddrHT.add visited node ();
-        add_elem node;
         let reachable_from_node = reachable_from_address_offset ctx ask glob_fun local (AD.singleton node) in
 
         let dfs_add_edge o (n: Addr.t) (reach_target, visited, graph) =
@@ -1451,27 +1465,8 @@ struct
       result
     in
     if M.tracing then M.tracel "collect_graph" "Result: %a\n" Graph.pretty r;
-
-
-    if M.tracing then
-      begin
-        let do_entry _address c (sum, max) =
-          c + sum, Int.max max c
-        in
-        let sum, max = AddrHT.fold do_entry counter (0, 0) in
-        let length = AddrHT.length counter in
-        let average () =
-          if length <> 0 then
-            string_of_int (sum / length)
-          else
-            "-"
-        in
-        let current_time = Sys.time () in
-        M.tracel "collect_graph_count" "Max occurence count: %d, average: %s, number of items: %d, runtime: %fs\n" max (average ()) length (current_time -. start_time)
-      end;
     r
 
-  (* module AddrMap = Map.Make (Addr) *)
   type value_map = VD.t AddrMap.t
 
   let modular_glob_fun ctx v =
@@ -1487,7 +1482,9 @@ struct
   let collect_funargs_immediate_offset emit (ask: Q.ask) ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     let value_domain_ask = Queries.to_value_domain_ask ask in
     let do_exp e =
-      let immediately_reachable = reachable_from_value_offset value_domain_ask gs st (eval_rv emit ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      let value = eval_rv emit ask gs st e in
+      let immediately_reachable = reachable_from_value_offset value_domain_ask gs st value (Cilfacade.typeOf e) (CilType.Exp.show e) in
+      if M.tracing then M.tracel "collect_funargs_immediate_offset" "From %a, reachable: %a\n" VD.pretty value ADOffsetMap.pretty immediately_reachable;
       [immediately_reachable]
     in
     List.concat_map do_exp exps
@@ -1495,20 +1492,21 @@ struct
   (** In the given local state, from the start state, find the addresses that correspond to the goals *)
   let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (globals: varinfo list) (goal: AD.t) =
     let ask = Analyses.ask_of_ctx ctx in
-
-    (* TODO: !! Pass addresses instead of params, or, alternatively, pass global variables separetely, as they should be !! *)
+    let visited_to_address pairs =
+      let concretes = AddrPairSet.to_seq pairs |> Seq.map Tuple2.first in
+      Seq.fold_left (fun acc a -> AD.join (AD.singleton a) acc) (AD.bot ()) concretes
+    in
     let start = List.map (Addr.of_var ~is_modular:true) params in
-    if M.tracing then M.tracel "modular_combine" "collect_targets start: %a\ngraph: %a\n" (d_list ", " Addr.pretty) start Graph.pretty graph;
-    (* let queue = List.combine args start in *)
-    (* let queue : (Addr.t * Addr.t) Queue.t = queue |> Seq.of_list |> Queue.of_seq in mutable! *)
-    let queue = Queue.of_seq Seq.empty in
-    let visited = ref AddrPairSet.empty in
 
-    (* Do not emit events, as this function is used in queries *)
+    if M.tracing then M.tracel "modular_combine" "collect_targets start: %a\ngraph: %a\n" (d_list ", " Addr.pretty) start Graph.pretty graph;
+
+    let queue = Queue.create () in
+    let visited = ref AddrPairSet.empty in
     let dir_reachable_conc = collect_funargs_immediate_offset BaseDomainEvents.dummy ask ctx.global ctx.local args in
     let dir_reachable_abs = List.map (fun a -> Graph.find a graph) start in
 
-    (* gIgnore parameters for varargs for now. *)
+    if M.tracing then M.tracel "collect_targets_with_graph" "dir_reachable_conc: %a\n" (d_list ", " ADOffsetMap.pretty) dir_reachable_conc;
+    (* Ignore parameters for varargs for now. *)
     let combined = GobList.combine_short dir_reachable_conc dir_reachable_abs in
     (* Initialized with directly reachable *)
     List.iter (fun (dir_reachable_conc, dir_reachable_abs) ->
@@ -1524,9 +1522,7 @@ struct
               ) a
           ) dir_reachable_abs;
       ) combined;
-
     let caller_is_modular = ctx.ask IsModular in
-
     (* Add globals *)
     let add_global_to_queue (g: varinfo) =
       let a_c = Addr.of_var ~is_modular:caller_is_modular g in
@@ -1553,9 +1549,7 @@ struct
             ) a
         ) dir_reachable_abs;
     done;
-    let pairs = !visited in
-    let concretes = AddrPairSet.to_seq pairs |> Seq.map Tuple2.first in
-    Seq.fold_left (fun acc a -> AD.join (AD.singleton a) acc) (AD.bot ()) concretes
+    visited_to_address !visited
 
   let collect_targets_with_graph ctx (graph: Graph.t) (args: exp list) (params: varinfo list) (globals: varinfo list) (goal: AD.t) =
     Timing.wrap "collect_targets_with_graph" (collect_targets_with_graph ctx graph args params globals) goal
@@ -3179,7 +3173,7 @@ struct
     else
       let reachable =
         get_reachable_for_callee ctx f f_ask args (AD.bot ()) in
-      if M.tracing then M.tracel "modular_combine_reachable" "reachable: %a\n" AD.pretty reachable;
+      if M.tracing then M.tracel "modular_combine_reachable" "reachable: %a\nstate: %a\n" AD.pretty reachable D.pretty ctx.local;
       let vars_to_writes : value_map VarMap.t =
         let update_entry (address: address) (value: value) (acc: value_map VarMap.t) =
           let lvals = AD.to_mval address in
@@ -3199,10 +3193,10 @@ struct
         in
         WrittenDomain.Written.fold update_entry writes VarMap.empty
       in
-      let update represented ((c,o): PreValueDomain.Mval.t) (written_value: value) (state: D.t) =
-        let typ = PreValueDomain.Mval.type_of (c, o) in
+      let update represented (canonical,can_offset) (written_value: value) (state: D.t) =
+        let typ = PreValueDomain.Mval.type_of (canonical, can_offset) in
         let update_one (x, offs) state =
-          let offs = Offs.add_offset_merge_index_offset ~base_offset:offs ~additional_offset:o in
+          let offs = Offs.add_offset_merge_index_offset ~base_offset:offs ~additional_offset:can_offset in
           let address_to_update = AD.singleton (Addr.of_mval ~is_modular:(is_modular ctx) (x, offs)) in
 
           let old_value = get (Events.to_base_domain_events ctx.emit) (Analyses.ask_of_ctx ctx) glob_fun ctx.local address_to_update None in
