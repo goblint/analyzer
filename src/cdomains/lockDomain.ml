@@ -81,13 +81,17 @@ struct
     if Addr.Mval.is_definite mv then
       remove (MustLock.of_mval mv, rw) set
     else
-      filter (fun (mv', _) ->
-          MustLock.semantic_equal_mval mv' mv = Some false
+      filter (fun (ml, _) ->
+          MustLock.semantic_equal_mval ml mv = Some false
         ) set
 
   let mem_mval (mv: Mval.t) (set: t) =
-    Mval.is_definite mv && (
-      mem (MustLock.of_mval mv, true) set || mem (MustLock.of_mval mv, false) set)
+    if Mval.is_definite mv then (
+      let ml = MustLock.of_mval mv in
+      mem (ml, true) set || mem (ml, false) set
+    )
+    else
+      false
 
   let remove_mval (mv: Mval.t) set =
     remove_mval_rw (mv, true) (remove_mval_rw (mv, false) set)
@@ -96,7 +100,7 @@ struct
   let is_all (set: t) = set = `Top
 
   let to_must_lockset (ls: t): MustLockset.t =
-    let f (x,_) set = MustLockset.add x set in
+    let f (ml, _) set = MustLockset.add ml set in
     fold f ls (MustLockset.empty ())
 end
 
@@ -142,11 +146,11 @@ module MustMultiplicity = struct
       decrement (MustLock.of_mval mv) m
     else
       (* TODO: non-definite should also decrement (to 0)? *)
-      fold (fun mv' _ (m, rmed) ->
-          if MustLock.semantic_equal_mval mv' mv = Some false then
+      fold (fun ml _ (m, rmed) ->
+          if MustLock.semantic_equal_mval ml mv = Some false then
             (m, rmed)
           else (
-            let (m', rmed') = decrement mv' m in
+            let (m', rmed') = decrement ml m in
             (m', rmed || rmed')
           )
         ) m (m, false)

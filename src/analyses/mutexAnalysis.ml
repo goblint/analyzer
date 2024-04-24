@@ -207,8 +207,8 @@ struct
         false
       else *)
       MustLockset.disjoint held_locks protecting
-    | Queries.MustBeProtectedBy {mutex = Addr mutex; global=v; write; protection} -> (* TODO: non-Addr? *)
-      let mutex_lockset = MustLocksetRW.to_must_lockset @@ MustLocksetRW.singleton (LockDomain.MustLock.of_mval mutex, true) in (* TODO: what if non-definite? *)
+    | Queries.MustBeProtectedBy {mutex = Addr mutex_mv; global=v; write; protection} -> (* TODO: non-Addr? *)
+      let mutex_lockset = MustLocksetRW.to_must_lockset @@ MustLocksetRW.singleton (LockDomain.MustLock.of_mval mutex_mv, true) in (* TODO: what if non-definite? *)
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
@@ -221,8 +221,8 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
       MustLockset.mem (LF.verifier_atomic_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
-    | Queries.MustProtectedVars {mutex = Addr m; write} -> (* TODO: non-Addr? *)
-      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected (LockDomain.MustLock.of_mval m)))) in (* TODO: what if non-definite? *)
+    | Queries.MustProtectedVars {mutex = Addr mutex_mv; write} -> (* TODO: non-Addr? *)
+      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected (LockDomain.MustLock.of_mval mutex_mv)))) in (* TODO: what if non-definite? *)
       VarSet.fold (fun v acc ->
           Queries.VS.add v acc
         ) protected (Queries.VS.empty ())
@@ -296,10 +296,10 @@ struct
               let held_weak = protecting Weak in
               let vs = VarSet.singleton v in
               let protected = G.create_protected @@ GProtected.make ~write vs in
-              MustLockset.iter (fun mv -> ctx.sideg (V.protected mv) protected) held_strong;
+              MustLockset.iter (fun ml -> ctx.sideg (V.protected ml) protected) held_strong;
               (* If the mutex set here is top, it is actually not accessed *)
               if is_recovered_to_st && not @@ MustLockset.is_all held_weak then
-                MustLockset.iter (fun mv -> ctx.sideg (V.protected mv) protected) held_weak;
+                MustLockset.iter (fun ml -> ctx.sideg (V.protected ml) protected) held_weak;
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
