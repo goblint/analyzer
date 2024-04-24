@@ -38,9 +38,12 @@ module Disequalities = struct
     | CC.Deref (t, z), CC.Deref (v, z') ->
       let (q', z1') = TUF.find_no_pc uf v in
       let (q, z1) = TUF.find_no_pc uf t in
+      let s = T.get_size_in_bits ask (T.type_of_term t) in
+      let s' = T.get_size_in_bits ask (T.type_of_term v) in
+      let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
       (
-        (not (T.equal q' q) || Z.(equal z (z' + z1 - z1')))
+        (not (T.equal q' q) || Z.(lt diff s && lt (-s') diff))
         (* or if we know that they are not equal according to the query MayPointTo*)
         &&
         (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))

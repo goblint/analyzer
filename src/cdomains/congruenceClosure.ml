@@ -347,14 +347,17 @@ module Term(Var:Val) = struct
     | i -> Some i
     | exception (UnsupportedCilExpression _) -> None
 
+  let rec get_size_in_bits ask typ =
+    Z.(eval_int ask (SizeOf typ) * (of_int 8))
+
   (**Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the ize of the
-      elements of the array (even if it is a multidimensional array. Therefore get_size_in_bits int[][][] = sizeof(int)). *)
-  let rec get_size_in_bits ask typ =
+      elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int[][][] = sizeof(int)). *)
+  let rec get_element_size_in_bits ask typ =
     match typ with
-    | TArray (typ, _, _) -> get_size_in_bits ask typ
-    | TPtr (typ, _) -> Z.(eval_int ask (SizeOf typ) * (of_int 8))
-    | _ -> Z.(eval_int ask (SizeOf typ) * (of_int 8))
+    | TArray (typ, _, _) -> get_element_size_in_bits ask typ
+    | TPtr (typ, _) -> get_size_in_bits ask typ
+    | _ -> get_size_in_bits ask typ
 
   let is_array_type = function
     | TArray _ -> true
@@ -368,27 +371,46 @@ module Term(Var:Val) = struct
     | TPtr(TComp _,_) -> true
     | _ -> false
 
+  let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
+    | Some i -> i
+    | None -> raise (UnsupportedCilExpression "unknown offset")
+
+  let rec type_of_term =
+    let get_field_at_index z =
+      List.find (fun field -> Z.equal (get_field_offset field) z)
+    in function
+      | (Addr x) -> TPtr (x.vtype,[])
+      | (Deref (Addr x, z)) -> begin match x.vtype with
+          | TComp (cinfo, _) -> (get_field_at_index z cinfo.cfields).ftype
+          | _ -> x.vtype
+        end
+      | (Deref (t, z)) -> begin match type_of_term t with
+          | TPtr (typ, _) -> typ
+          | typ -> let rec remove_array_and_struct_types = function
+              | TArray (typ, _, _) -> remove_array_and_struct_types typ
+              | TComp (cinfo, _) ->  raise (UnsupportedCilExpression "not supported yet") (*TODO*)
+              | typ -> typ
+            in remove_array_and_struct_types typ
+        end
+
+
   let rec of_index ask t var_type curr_offs =
-    let get_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
-      | Some i -> i
-      | None -> raise (UnsupportedCilExpression "unknown offset")
-    in
     let rec type_len_array ask = function
       | TArray (arr_type, Some exp, _) -> arr_type, eval_int ask exp
       | _ -> raise (UnsupportedCilExpression "incoherent type of variable") in
     function
     | Index (exp, NoOffset) ->
       let new_var_type, len_array = type_len_array ask var_type in
-      let var_size = get_size_in_bits ask new_var_type in
+      let var_size = get_element_size_in_bits ask new_var_type in
       let z' = Z.(eval_int ask exp * var_size) in
       t, Z.(curr_offs * len_array + z'), new_var_type
     | Index (exp, off) ->
       let new_var_type, len_array = type_len_array ask var_type in
-      let var_size = get_size_in_bits ask new_var_type in
+      let var_size = get_element_size_in_bits ask new_var_type in
       let z' = Z.(eval_int ask exp * var_size) in
       let t, z'', new_var_type = of_index ask t new_var_type Z.(curr_offs * len_array + z') off in
       t, z'', new_var_type
-    | Field (finfo, off) -> let field_offset = get_offset finfo in
+    | Field (finfo, off) -> let field_offset = get_field_offset finfo in
       let t, z'', new_var_type = of_index ask t finfo.ftype Z.zero off in
       t, Z.(curr_offs + field_offset + z''), new_var_type
     | NoOffset -> t, curr_offs, var_type
@@ -415,8 +437,8 @@ module Term(Var:Val) = struct
         | _ -> raise (UnsupportedCilExpression "unsupported UnOp")
       end
     | BinOp (binop, exp1, exp2, typ)->
-      let typ1_size = get_size_in_bits ask (Cilfacade.typeOf exp1) in
-      let typ2_size = get_size_in_bits ask (Cilfacade.typeOf exp2) in
+      let typ1_size = get_element_size_in_bits ask (Cilfacade.typeOf exp1) in
+      let typ2_size = get_element_size_in_bits ask (Cilfacade.typeOf exp2) in
       begin match binop with
         | PlusA
         | PlusPI
@@ -430,14 +452,14 @@ module Term(Var:Val) = struct
         | MinusA
         | MinusPI
         | MinusPP -> begin match of_cil ask exp1, eval_int_opt ask exp2 with
-            | (Some term, off1), Some off2 -> let typ1_size = get_size_in_bits ask (Cilfacade.typeOf exp1) in
+            | (Some term, off1), Some off2 -> let typ1_size = get_element_size_in_bits ask (Cilfacade.typeOf exp1) in
               Some term, Z.(off1 - typ1_size * off2)
             | _ -> raise (UnsupportedCilExpression "unsupported BinOp -")
           end
         | _ -> raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)-> let old_size = get_size_in_bits ask (Cilfacade.typeOf exp) in
-      let new_size = get_size_in_bits ask (Cilfacade.typeOf e) in
+    | CastE (typ, exp)-> let old_size = get_element_size_in_bits ask (Cilfacade.typeOf exp) in
+      let new_size = get_element_size_in_bits ask (Cilfacade.typeOf e) in
       let t, off = of_cil ask exp in t, Z.(off * new_size / old_size)
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval = let res = match lval with
@@ -527,7 +549,7 @@ module Term(Var:Val) = struct
 
 
   let default_int_type = IInt
-  let to_cil_constant ask z t = let z = Z.(z/ get_size_in_bits ask t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
+  let to_cil_constant ask z t = let z = Z.(z/ get_element_size_in_bits ask t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
   (** TODO: Convert a term to a cil expression and its cil type. *)
   let rec to_cil ask off t =
