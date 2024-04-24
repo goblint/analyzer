@@ -74,7 +74,7 @@ struct
 
   let protected_vars (ask: Q.ask): varinfo list =
     LockDomain.MustLockset.fold (fun ml acc ->
-        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = Addr (LockDomain.MustLock.to_mval ml); write = true})) acc (* TODO: avoid Addr conversion *)
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; write = true})) acc
       ) (ask.f Q.MustLockset) (Q.VS.empty ())
     |> Q.VS.elements
 end
