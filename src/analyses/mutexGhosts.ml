@@ -152,6 +152,7 @@ struct
         | `Middle _ -> Queries.Result.top q
         | `Right _ -> Queries.Result.top q
       end
+    | InvariantGlobalNodes -> (G.threadcreate (ctx.global V.threadcreate): NodeSet.t)
     | _ -> Queries.Result.top q
 end
 

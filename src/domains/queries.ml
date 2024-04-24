@@ -132,6 +132,7 @@ type _ t =
   | MaySignedOverflow: exp -> MayBool.t t
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
+  | InvariantGlobalNodes: NS.t t (* TODO: V.t argument? *)
 
 type 'a result = 'a
 
@@ -205,6 +206,7 @@ struct
     | MaySignedOverflow  _ -> (module MayBool)
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
+    | InvariantGlobalNodes -> (module NS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -277,6 +279,7 @@ struct
     | MaySignedOverflow _ -> MayBool.top ()
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
+    | InvariantGlobalNodes -> NS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -346,6 +349,7 @@ struct
     | Any (YamlEntryGlobal _) -> 59
     | Any (MustProtectingLocks _) -> 60
     | Any (GhostVarAvailable _) -> 61
+    | Any InvariantGlobalNodes -> 62
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -514,6 +518,7 @@ struct
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
+    | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
 end
 
 let to_value_domain_ask (ask: ask) =

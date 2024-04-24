@@ -325,18 +325,33 @@ struct
     (* Generate flow-insensitive invariants *)
     let entries =
       if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
+        let ns = R.ask_global InvariantGlobalNodes in
         GHT.fold (fun g v acc ->
             match g with
             | `Left g -> (* Spec global *)
-              begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
-                | `Lifted inv ->
+              begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_bool "witness.invariant.flow_insensitive-as-location" with
+                | `Lifted inv, false ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   List.fold_left (fun acc inv ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
                       let entry = Entry.flow_insensitive_invariant ~task ~invariant in
                       entry :: acc
                     ) acc invs
-                | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                | `Lifted inv, true ->
+                  (* TODO: or do at location_invariant loop for each node and query if should also do global invariants there? *)
+                  let invs = WitnessUtil.InvariantExp.process_exp inv in
+                  Queries.NS.fold (fun n acc ->
+                      let fundec = Node.find_fundec n in
+                      let loc = Node.location n in
+                      let location_function = fundec.svar.vname in
+                      let location = Entry.location ~location:loc ~location_function in
+                      List.fold_left (fun acc inv ->
+                          let invariant = Entry.invariant (CilType.Exp.show inv) in
+                          let entry = Entry.location_invariant ~task ~location ~invariant in
+                          entry :: acc
+                        ) acc invs
+                    ) ns acc
+                | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc
               end
             | `Right _ -> (* contexts global *)

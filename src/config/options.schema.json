@@ -2493,6 +2493,12 @@
               "description": "Emit invariants with typedef-ed types (e.g. in casts). Our validator cannot parse these.",
               "type": "boolean",
               "default": true
+            },
+            "flow_insensitive-as-location": {
+              "title": "witness.invariant.flow_insensitive-as-location",
+              "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
