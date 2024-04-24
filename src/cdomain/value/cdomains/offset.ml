@@ -41,7 +41,6 @@ struct
 
     let equal_to _ _ = `Top (* TODO: more precise for definite indices *)
     let to_int _ = None (* TODO: more precise for definite indices *)
-    let top () = Lazy.force any
   end
 
   module Z =
@@ -58,7 +57,6 @@ struct
       end
       )
 
-    let top () = failwith "Offset.Index.Z.top" (* TODO: remove from interface? *)
     let to_int z = Some z
     let equal_to z1 z2 =
       if Z.equal z2 z2 then
@@ -156,8 +154,6 @@ struct
     | `Field (f, o) -> `Field (f, map_indices g o)
     | `Index (i, o) -> `Index (g i, map_indices g o)
 
-  let top_indices = map_indices (fun _ -> Idx.top ())
-
   (* tries to follow o in t *)
   let rec type_of ~base:t o = match unrollType t, o with (* resolves TNamed *)
     | t, `NoOffset -> t
@@ -201,6 +197,8 @@ struct
   let meet x y = merge `Meet x y
   let widen x y = merge `Widen x y
   let narrow x y = merge `Narrow x y
+
+  let top_indices = map_indices (fun _ -> Idx.top ())
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with any_index_exp on all non-concrete cases. *)
@@ -268,6 +266,8 @@ end
 module Exp =
 struct
   include MakePrintable (Index.Exp)
+
+  let top_indices = map_indices (fun _ -> Lazy.force Index.Exp.any)
 
   let rec of_cil: offset -> t = function
     | NoOffset    -> `NoOffset
