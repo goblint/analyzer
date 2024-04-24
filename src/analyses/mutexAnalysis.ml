@@ -3,7 +3,7 @@
 module M = Messages
 module Mval = ValueDomain.Mval
 module Addr = ValueDomain.Addr
-module Lock = LockDomain.Lock
+module AddrRW = LockDomain.AddrRW
 module MustLockset = LockDomain.MustLockset
 module MustLocksetRW = LockDomain.MustLocksetRW
 module MustMultiplicity = LockDomain.MustMultiplicity
@@ -120,7 +120,7 @@ struct
       let create_protected protected = `Lifted2 protected
     end
 
-    let add ctx ((addr, rw): Lock.t): D.t =
+    let add ctx ((addr, rw): AddrRW.t): D.t =
       match Addr.to_mval addr with
       | Some mv ->
         let (s, m) = ctx.local in
