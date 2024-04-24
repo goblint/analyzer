@@ -89,6 +89,59 @@ struct
     fold f ls (Simple.empty ())
 end
 
+module Multiplicity = struct
+  (* the maximum multiplicity which we keep track of precisely *)
+  let max_count () = 4
+
+  module Count = Lattice.Reverse (
+      Lattice.Chain (
+      struct
+        let n () = max_count () + 1
+        let names x = if x = max_count () then Format.asprintf ">= %d" x else Format.asprintf "%d" x
+      end
+      )
+    )
+
+  include MapDomain.MapTop_LiftBot (Mval) (Count)
+
+  let name () = "multiplicity"
+
+  let increment v x =
+    let current = find v x in
+    if current = max_count () then
+      x
+    else
+      add v (current + 1) x
+
+  let increment mv m =
+    if Addr.Mval.is_definite mv then
+      increment (Mval.of_mval mv) m
+    else
+      m
+
+  let decrement v x =
+    let current = find v x in
+    if current = 0 then
+      (x, true)
+    else
+      (add v (current - 1) x, current - 1 = 0) (* TODO: remove if 0? *)
+
+  let decrement mv m =
+    if Addr.Mval.is_definite mv then
+      decrement (Mval.of_mval mv) m
+    else
+      (* TODO: non-definite should also decrement (to 0)? *)
+      fold (fun mv' _ (m, rmed) ->
+          (* TODO: avoid conversion: semantic_equal between ValueDomain.Mval and Mval *)
+          if ValueDomain.Mval.semantic_equal mv (Mval.to_mval mv') = Some false then
+            (m, rmed)
+          else (
+            let (m', rmed') = decrement mv' m in
+            (m', rmed || rmed')
+          )
+        ) m (m, false)
+end
+
 module MayLocksetNoRW =
 struct
   include PreValueDomain.AD
