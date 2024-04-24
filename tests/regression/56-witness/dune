@@ -20,7 +20,8 @@
      (run %{update_suite} mine-tutorial-ex4.10)
      (run %{update_suite} hh-ex3)
      (run %{update_suite} bh-ex1-poly)
-     (run %{update_suite} apron-unassume-precheck)))))
+     (run %{update_suite} apron-unassume-precheck)
+     (run %{update_suite} apron-tracked-global-annot)))))
 
 (cram
  (deps (glob_files *.c) (glob_files ??-*.yml)))
