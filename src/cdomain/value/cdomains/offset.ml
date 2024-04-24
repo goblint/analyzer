@@ -57,6 +57,13 @@ struct
 end
 
 
+module Poly =
+struct
+  let rec map_indices g: 'a t -> 'b t = function
+    | `NoOffset -> `NoOffset
+    | `Field (f, o) -> `Field (f, map_indices g o)
+    | `Index (i, o) -> `Index (g i, map_indices g o)
+end
 
 module MakePrintable (Idx: Index.Printable): Printable with type idx = Idx.t =
 struct
@@ -90,6 +97,8 @@ struct
     end
     )
 
+  include Poly
+
   let rec is_definite: t -> bool = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
@@ -114,7 +123,7 @@ struct
     | `Field(f,o) -> Field(f, to_cil_offset o)
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 
-  let rec to_exp: t -> exp offs = function
+  let rec to_exp: t -> exp offs = function (* TODO: Poly.map_indices *)
     | `NoOffset    -> `NoOffset
     | `Index (i,o) ->
       let i_exp = match Idx.to_int i with
@@ -138,11 +147,6 @@ struct
     | `NoOffset -> false
     | `Field (_, os) -> contains_index os
     | `Index _ -> true
-
-  let rec map_indices g: t -> t = function
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, map_indices g o)
-    | `Index (i, o) -> `Index (g i, map_indices g o)
 
   (* tries to follow o in t *)
   let rec type_of ~base:t o = match unrollType t, o with (* resolves TNamed *)
@@ -192,7 +196,7 @@ struct
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with any_index_exp on all non-concrete cases. *)
-  let rec of_exp: exp offs -> t = function
+  let rec of_exp: exp offs -> t = function (* TODO: Poly.map_indices *)
     | `NoOffset    -> `NoOffset
     | `Index (Const (CInt (i,ik,s)),o) -> `Index (Idx.of_int ik i, of_exp o)
     | `Index (_,o) -> `Index (Idx.top (), of_exp o)
@@ -242,7 +246,7 @@ struct
   include MakePrintable (Index.Unit)
 
   (* TODO: rename to of_poly? *)
-  let rec of_offs: 'i offs -> t = function
+  let rec of_offs: 'i offs -> t = function (* TODO: Poly.map_indices *)
     | `NoOffset -> `NoOffset
     | `Field (f,o) -> `Field (f, of_offs o)
     | `Index (i,o) -> `Index ((), of_offs o)
