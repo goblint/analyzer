@@ -1,7 +1,7 @@
 (** Lockset domains. *)
 
 module Addr = ValueDomain.Addr
-module Mval =
+module MustLock =
 struct
   include Mval.Z
 
@@ -28,7 +28,7 @@ module IdxDom = ValueDomain.IndexDomain
 open GoblintCil
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
-module Simple = SetDomain.Reverse (SetDomain.ToppedSet (Mval) (struct let topname = "All mutexes" end))
+module Simple = SetDomain.Reverse (SetDomain.ToppedSet (MustLock) (struct let topname = "All mutexes" end))
 module Priorities = IntDomain.Lifted
 
 (* true means exclusive lock and false represents reader lock*)
@@ -57,29 +57,29 @@ module Lock = MakeLockRW (Addr)
 
 module Lockset =
 struct
-  module Lock = MakeLockRW (Mval)
+  module Lock = MakeLockRW (MustLock)
 
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
   let add (mv, rw) set =
     if Addr.Mval.is_definite mv then
-      add (Mval.of_mval mv, rw) set
+      add (MustLock.of_mval mv, rw) set
     else
       set
 
   let remove (mv, rw) set =
     if Addr.Mval.is_definite mv then
-      remove (Mval.of_mval mv, rw) set
+      remove (MustLock.of_mval mv, rw) set
     else
       filter (fun (mv', _) ->
           (* TODO: avoid conversion: semantic_equal between ValueDomain.Mval and Mval *)
-          ValueDomain.Mval.semantic_equal mv (Mval.to_mval mv') = Some false
+          ValueDomain.Mval.semantic_equal mv (MustLock.to_mval mv') = Some false
         ) set
 
   let mem_rw mv set =
     ValueDomain.Mval.is_definite mv && (
-      mem (Mval.of_mval mv, true) set || mem (Mval.of_mval mv, false) set)
+      mem (MustLock.of_mval mv, true) set || mem (MustLock.of_mval mv, false) set)
 
   let remove_rw mv set =
     remove (mv, true) (remove (mv, false) set)
@@ -102,7 +102,7 @@ module Multiplicity = struct
       )
     )
 
-  include MapDomain.MapTop_LiftBot (Mval) (Count)
+  include MapDomain.MapTop_LiftBot (MustLock) (Count)
 
   let name () = "multiplicity"
 
@@ -115,7 +115,7 @@ module Multiplicity = struct
 
   let increment mv m =
     if Addr.Mval.is_definite mv then
-      increment (Mval.of_mval mv) m
+      increment (MustLock.of_mval mv) m
     else
       m
 
@@ -128,12 +128,12 @@ module Multiplicity = struct
 
   let decrement mv m =
     if Addr.Mval.is_definite mv then
-      decrement (Mval.of_mval mv) m
+      decrement (MustLock.of_mval mv) m
     else
       (* TODO: non-definite should also decrement (to 0)? *)
       fold (fun mv' _ (m, rmed) ->
           (* TODO: avoid conversion: semantic_equal between ValueDomain.Mval and Mval *)
-          if ValueDomain.Mval.semantic_equal mv (Mval.to_mval mv') = Some false then
+          if ValueDomain.Mval.semantic_equal mv (MustLock.to_mval mv') = Some false then
             (m, rmed)
           else (
             let (m', rmed') = decrement mv' m in
