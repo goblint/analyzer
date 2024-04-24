@@ -188,7 +188,6 @@ struct
     let ls, m = ctx.local in
     (* get the set of mutexes protecting the variable v in the given mode *)
     let protecting ~write mode v = GProtecting.get ~write mode (G.protecting (ctx.global (V.protecting v))) in
-    let non_overlapping locks1 locks2 = MustLockset.is_empty @@ MustLockset.inter locks1 locks2 in
     match q with
     | Queries.MayBePublic _ when MustLocksetRW.is_all ls -> false
     | Queries.MayBePublic {global=v; write; protection} ->
@@ -198,7 +197,7 @@ struct
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
         false
       else *)
-      non_overlapping held_locks protecting
+      MustLockset.disjoint held_locks protecting
     | Queries.MayBePublicWithout _ when MustLocksetRW.is_all ls -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex; protection} ->
       let held_locks = MustLocksetRW.export_locks @@ fst @@ Arg.remove' ctx ~warn:false without_mutex in
@@ -207,7 +206,7 @@ struct
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
       else *)
-      non_overlapping held_locks protecting
+      MustLockset.disjoint held_locks protecting
     | Queries.MustBeProtectedBy {mutex = Addr mutex; global=v; write; protection} -> (* TODO: non-Addr? *)
       let mutex_lockset = MustLocksetRW.export_locks @@ MustLocksetRW.singleton (LockDomain.MustLock.of_mval mutex, true) in (* TODO: what if non-definite? *)
       let protecting = protecting ~write protection v in
