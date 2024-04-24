@@ -221,8 +221,8 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
       MustLockset.mem (LF.verifier_atomic_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
-    | Queries.MustProtectedVars {mutex = Addr mutex_mv; write} -> (* TODO: non-Addr? *)
-      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected (LockDomain.MustLock.of_mval mutex_mv)))) in (* TODO: what if non-definite? *)
+    | Queries.MustProtectedVars {mutex; write} ->
+      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected mutex))) in
       VarSet.fold (fun v acc ->
           Queries.VS.add v acc
         ) protected (Queries.VS.empty ())

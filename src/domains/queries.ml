@@ -51,7 +51,7 @@ end
 type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
+type mustprotectedvars = {mutex: LockDomain.MustLock.t; write: bool} [@@deriving ord, hash]
 type access =
   | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
