@@ -49,7 +49,7 @@ let pretty () = function
   | Assert exp -> dprintf "Assert %a" d_exp exp
   | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval
-  | GenerateObject v -> dprintf "GenerateOjbect %a" CilType.Varinfo.pretty v
+  | GenerateObject v -> dprintf "GenerateObject %a" CilType.Varinfo.pretty v
 
 open BaseDomainEvents
 let to_base_domain_events emit =
