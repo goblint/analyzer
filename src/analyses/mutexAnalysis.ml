@@ -154,8 +154,8 @@ struct
         let (s, m) = ctx.local in
         let s' = Lockset.add (mv, rw) s in
         let m' =
-          if MutexTypeAnalysis.must_be_recursive ctx mv then
-            Multiplicity.increment (LockDomain.Mval.of_mval mv) m (* TODO: no definite check? *)
+          if ValueDomain.Mval.is_definite mv && MutexTypeAnalysis.must_be_recursive ctx mv then
+            Multiplicity.increment (LockDomain.Mval.of_mval mv) m
           else
             m
         in
@@ -169,8 +169,8 @@ struct
         let (s, m) = ctx.local in
         if warn && not (Lockset.mem_rw mv s) then
           M.warn "unlocking mutex (%a) which may not be held" ValueDomain.Mval.pretty mv;
-        if MutexTypeAnalysis.must_be_recursive ctx mv then (
-          let (m', rmed) = Multiplicity.decrement (LockDomain.Mval.of_mval mv) m in (* TODO: no definite check? *)
+        if ValueDomain.Mval.is_definite mv && MutexTypeAnalysis.must_be_recursive ctx mv then (
+          let (m', rmed) = Multiplicity.decrement (LockDomain.Mval.of_mval mv) m in (* TODO: non-definite should also decrement (to 0)? *)
           if rmed then
             (Lockset.remove_rw mv s, m')
           else
