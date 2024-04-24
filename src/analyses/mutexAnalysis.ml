@@ -78,10 +78,10 @@ struct
 
       let make ~write ~recovered locks =
         (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
-        let wlocks = if write then locks else MustLockset.bot () in
+        let wlocks = if write then locks else MustLockset.all () in
         if recovered then
           (* If we are in single-threaded mode again, this does not need to be added to set of mutexes protecting in mt-mode only *)
-          ((locks, wlocks), (MustLockset.bot (), MustLockset.bot ()))
+          ((locks, wlocks), (MustLockset.all (), MustLockset.all ()))
         else
           ((locks, wlocks), (locks, wlocks))
     end
@@ -190,7 +190,7 @@ struct
     let protecting ~write mode v = GProtecting.get ~write mode (G.protecting (ctx.global (V.protecting v))) in
     let non_overlapping locks1 locks2 = MustLockset.is_empty @@ MustLockset.inter locks1 locks2 in
     match q with
-    | Queries.MayBePublic _ when MustLocksetRW.is_bot ls -> false
+    | Queries.MayBePublic _ when MustLocksetRW.is_all ls -> false
     | Queries.MayBePublic {global=v; write; protection} ->
       let held_locks = MustLocksetRW.export_locks (MustLocksetRW.filter snd ls) in
       let protecting = protecting ~write protection v in
@@ -199,7 +199,7 @@ struct
         false
       else *)
       non_overlapping held_locks protecting
-    | Queries.MayBePublicWithout _ when MustLocksetRW.is_bot ls -> false
+    | Queries.MayBePublicWithout _ when MustLocksetRW.is_all ls -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex; protection} ->
       let held_locks = MustLocksetRW.export_locks @@ fst @@ Arg.remove' ctx ~warn:false without_mutex in
       let protecting = protecting ~write protection v in
@@ -215,7 +215,7 @@ struct
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
         true
       else *)
-      MustLockset.subset mutex_lockset protecting
+      MustLockset.subset mutex_lockset protecting (* TODO: some mem? *)
     | Queries.MustLockset ->
       let held_locks = MustLocksetRW.export_locks (MustLocksetRW.filter snd ls) in
       MustLockset.fold (fun addr ls -> Queries.AD.add (Addr (LockDomain.MustLock.to_mval addr)) ls) held_locks (Queries.AD.empty ()) (* TODO: Z indices for Queries.MustLockset result? *)
@@ -280,7 +280,7 @@ struct
         (*privatization*)
         match var_opt with
         | Some v ->
-          if not (MustLocksetRW.is_bot (fst octx.local)) then
+          if not (MustLocksetRW.is_all (fst octx.local)) then
             let locks = MustLocksetRW.export_locks (MustLocksetRW.filter snd (fst octx.local)) in
             let write = match kind with
               | Write | Free -> true
@@ -299,7 +299,7 @@ struct
               let protected = G.create_protected @@ GProtected.make ~write vs in
               MustLockset.iter (fun mv -> ctx.sideg (V.protected mv) protected) held_strong;
               (* If the mutex set here is top, it is actually not accessed *)
-              if is_recovered_to_st && not @@ MustLockset.is_bot held_weak then
+              if is_recovered_to_st && not @@ MustLockset.is_all held_weak then
                 MustLockset.iter (fun mv -> ctx.sideg (V.protected mv) protected) held_weak;
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
