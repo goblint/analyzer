@@ -28,7 +28,13 @@ module IdxDom = ValueDomain.IndexDomain
 open GoblintCil
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
-module MustLockset = SetDomain.Reverse (SetDomain.ToppedSet (MustLock) (struct let topname = "All mutexes" end))
+module MustLockset =
+struct
+  include SetDomain.Reverse (SetDomain.ToppedSet (MustLock) (struct let topname = "All mutexes" end))
+
+  let all (): t = `Top
+  let is_all (set: t) = set = `Top
+end
 
 (* true means exclusive lock and false represents reader lock*)
 module RW   = IntDomain.Booleans
@@ -82,6 +88,9 @@ struct
 
   let remove_rw mv set =
     remove (mv, true) (remove (mv, false) set)
+
+  let all (): t = `Top
+  let is_all (set: t) = set = `Top
 
   let export_locks ls =
     let f (x,_) set = MustLockset.add x set in
