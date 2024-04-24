@@ -29,7 +29,6 @@ open GoblintCil
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
 module MustLockset = SetDomain.Reverse (SetDomain.ToppedSet (MustLock) (struct let topname = "All mutexes" end))
-module Priorities = IntDomain.Lifted
 
 (* true means exclusive lock and false represents reader lock*)
 module RW   = IntDomain.Booleans
