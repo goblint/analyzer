@@ -347,17 +347,16 @@ module Term(Var:Val) = struct
     | i -> Some i
     | exception (UnsupportedCilExpression _) -> None
 
-  let rec get_size_in_bits ask typ =
-    Z.(eval_int ask (SizeOf typ) * (of_int 8))
+  let rec get_size_in_bits typ = Z.of_int (bitsSizeOf typ)
 
   (**Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the ize of the
       elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int[][][] = sizeof(int)). *)
-  let rec get_element_size_in_bits ask typ =
+  let rec get_element_size_in_bits typ =
     match typ with
-    | TArray (typ, _, _) -> get_element_size_in_bits ask typ
-    | TPtr (typ, _) -> get_size_in_bits ask typ
-    | _ -> get_size_in_bits ask typ
+    | TArray (typ, _, _) -> get_element_size_in_bits typ
+    | TPtr (typ, _) -> get_size_in_bits typ
+    | _ -> get_size_in_bits typ
 
   let is_array_type = function
     | TArray _ -> true
@@ -401,12 +400,12 @@ module Term(Var:Val) = struct
     function
     | Index (exp, NoOffset) ->
       let new_var_type, len_array = type_len_array ask var_type in
-      let var_size = get_element_size_in_bits ask new_var_type in
+      let var_size = get_element_size_in_bits new_var_type in
       let z' = Z.(eval_int ask exp * var_size) in
       t, Z.(curr_offs * len_array + z'), new_var_type
     | Index (exp, off) ->
       let new_var_type, len_array = type_len_array ask var_type in
-      let var_size = get_element_size_in_bits ask new_var_type in
+      let var_size = get_element_size_in_bits new_var_type in
       let z' = Z.(eval_int ask exp * var_size) in
       let t, z'', new_var_type = of_index ask t new_var_type Z.(curr_offs * len_array + z') off in
       t, z'', new_var_type
@@ -437,8 +436,8 @@ module Term(Var:Val) = struct
         | _ -> raise (UnsupportedCilExpression "unsupported UnOp")
       end
     | BinOp (binop, exp1, exp2, typ)->
-      let typ1_size = get_element_size_in_bits ask (Cilfacade.typeOf exp1) in
-      let typ2_size = get_element_size_in_bits ask (Cilfacade.typeOf exp2) in
+      let typ1_size = get_element_size_in_bits (Cilfacade.typeOf exp1) in
+      let typ2_size = get_element_size_in_bits (Cilfacade.typeOf exp2) in
       begin match binop with
         | PlusA
         | PlusPI
@@ -452,14 +451,14 @@ module Term(Var:Val) = struct
         | MinusA
         | MinusPI
         | MinusPP -> begin match of_cil ask exp1, eval_int_opt ask exp2 with
-            | (Some term, off1), Some off2 -> let typ1_size = get_element_size_in_bits ask (Cilfacade.typeOf exp1) in
+            | (Some term, off1), Some off2 -> let typ1_size = get_element_size_in_bits (Cilfacade.typeOf exp1) in
               Some term, Z.(off1 - typ1_size * off2)
             | _ -> raise (UnsupportedCilExpression "unsupported BinOp -")
           end
         | _ -> raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)-> let old_size = get_element_size_in_bits ask (Cilfacade.typeOf exp) in
-      let new_size = get_element_size_in_bits ask (Cilfacade.typeOf e) in
+    | CastE (typ, exp)-> let old_size = get_element_size_in_bits (Cilfacade.typeOf exp) in
+      let new_size = get_element_size_in_bits (Cilfacade.typeOf e) in
       let t, off = of_cil ask exp in t, Z.(off * new_size / old_size)
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval = let res = match lval with
@@ -549,7 +548,7 @@ module Term(Var:Val) = struct
 
 
   let default_int_type = IInt
-  let to_cil_constant ask z t = let z = Z.(z/ get_element_size_in_bits ask t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
+  let to_cil_constant ask z t = let z = Z.(z/ get_element_size_in_bits t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
   (** TODO: Convert a term to a cil expression and its cil type. *)
   let rec to_cil ask off t =
