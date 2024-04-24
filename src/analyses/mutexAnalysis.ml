@@ -1,6 +1,7 @@
 (** Must lockset and protecting lockset analysis ([mutex]). *)
 
 module M = Messages
+module Mval = ValueDomain.Mval
 module Addr = ValueDomain.Addr
 module Lock = LockDomain.Lock
 module MustLockset = LockDomain.MustLockset
@@ -139,7 +140,7 @@ struct
       | Some mv ->
         let (s, m) = ctx.local in
         if warn && not (MustLocksetRW.mem_rw mv s) then
-          M.warn "unlocking mutex (%a) which may not be held" ValueDomain.Mval.pretty mv;
+          M.warn "unlocking mutex (%a) which may not be held" Mval.pretty mv;
         if MutexTypeAnalysis.must_be_recursive ctx mv then (
           let (m', rmed) = MustMultiplicity.decrement mv m in
           if rmed then
