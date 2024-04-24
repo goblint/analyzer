@@ -142,6 +142,15 @@ sig
   exception Type_of_error of GoblintCil.typ * string
   (** {!Printable.type_of} could not follow offset completely. *)
 
+  (** Polymorphic offset operations. *)
+  module Poly:
+  sig
+    val map_indices: ('a -> 'b) -> 'a t -> 'b t
+    (** Apply function to all indexing. *)
+
+    (* TODO: include more operations *)
+  end
+
   module type Printable = Printable
   module type Lattice = Lattice
 

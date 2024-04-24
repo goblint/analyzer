@@ -6,20 +6,10 @@ struct
   include Mval.Z
 
   let of_mval ((v, o): ValueDomain.Mval.t): t =
-    let rec offs = function
-      | `NoOffset -> `NoOffset
-      | `Field (f, os') -> `Field (f, offs os')
-      | `Index (i, os') -> `Index (ValueDomain.IndexDomain.to_int i |> Option.get, offs os')
-    in
-    (v, offs o)
+    (v, Offset.Poly.map_indices (fun i -> ValueDomain.IndexDomain.to_int i |> Option.get) o)
 
   let to_mval ((v, o): t): ValueDomain.Mval.t =
-    let rec offs = function
-      | `NoOffset -> `NoOffset
-      | `Field (f, os') -> `Field (f, offs os')
-      | `Index (i, os') -> `Index (ValueDomain.IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) i, offs os')
-    in
-    (v, offs o)
+    (v, Offset.Poly.map_indices (ValueDomain.IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) o)
 end
 module Offs = ValueDomain.Offs
 module Exp = CilType.Exp
