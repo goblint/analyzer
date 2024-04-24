@@ -2,20 +2,25 @@
 
 open Analyses
 
+module NodeSet = Queries.NS
+
 
 module Spec =
 struct
   include UnitAnalysis.Spec
   let name () = "mutexGhosts"
 
+  module ThreadCreate = Printable.UnitConf (struct let name = "threadcreate" end)
   module V =
   struct
-    include Printable.Either (Node) (LockDomain.Addr)
+    include Printable.Either3 (Node) (LockDomain.Addr) (ThreadCreate)
     let node x = `Left x
-    let lock x = `Right x
+    let lock x = `Middle x
+    let threadcreate = `Right ()
     let is_write_only = function
       | `Left _ -> false
-      | `Right _ -> true
+      | `Middle _ -> true
+      | `Right _ -> false
   end
 
   module Locked =
@@ -33,32 +38,32 @@ struct
     include BoolDomain.MayBool
     let name () = "multithread"
   end
-  module ThreadCreate =
-  struct
-    include BoolDomain.MayBool
-    let name () = "threadcreate"
-  end
   module G =
   struct
-    include Lattice.Lift2 (Lattice.Prod4 (Locked) (Unlocked) (MultiThread) (ThreadCreate)) (BoolDomain.MayBool)
+    include Lattice.Lift2 (Lattice.Prod3 (Locked) (Unlocked) (MultiThread)) (Lattice.Lift2 (BoolDomain.MayBool) (NodeSet))
     let node = function
-      | `Bot -> (Locked.bot (), Unlocked.bot (), MultiThread.bot (), ThreadCreate.bot ())
+      | `Bot -> (Locked.bot (), Unlocked.bot (), MultiThread.bot ())
       | `Lifted1 x -> x
       | _ -> failwith "MutexGhosts.node"
     let lock = function
       | `Bot -> BoolDomain.MayBool.bot ()
-      | `Lifted2 x -> x
+      | `Lifted2 (`Lifted1 x) -> x
       | _ -> failwith "MutexGhosts.lock"
+    let threadcreate = function
+      | `Bot -> NodeSet.bot ()
+      | `Lifted2 (`Lifted2 x) -> x
+      | _ -> failwith "MutexGhosts.threadcreate"
     let create_node node = `Lifted1 node
-    let create_lock lock = `Lifted2 lock
+    let create_lock lock = `Lifted2 (`Lifted1 lock)
+    let create_threadcreate threadcreate = `Lifted2 (`Lifted2 threadcreate)
   end
 
   let event ctx e octx =
     begin match e with
       | Events.Lock (l, _) ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot (), ThreadCreate.bot ()));
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()));
         if !AnalysisState.postsolving then (
-          let (locked, _, _, _) = G.node (ctx.global (V.node ctx.prev_node)) in
+          let (locked, _, _) = G.node (ctx.global (V.node ctx.prev_node)) in
           if Locked.cardinal locked > 1 then (
             Locked.iter (fun lock ->
                 ctx.sideg (V.lock lock) (G.create_lock true)
@@ -66,9 +71,9 @@ struct
           );
         )
       | Events.Unlock l ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot (), ThreadCreate.bot ()));
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()));
         if !AnalysisState.postsolving then (
-          let (_, unlocked, _, _) = G.node (ctx.global (V.node ctx.prev_node)) in
+          let (_, unlocked, _) = G.node (ctx.global (V.node ctx.prev_node)) in
           if Locked.cardinal unlocked > 1 then (
             Locked.iter (fun lock ->
                 ctx.sideg (V.lock lock) (G.create_lock true)
@@ -76,13 +81,13 @@ struct
           );
         )
       | Events.EnterMultiThreaded ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.bot (), true, ThreadCreate.bot ()))
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.bot (), true))
       | _ -> ()
     end;
     ctx.local
 
   let threadspawn ctx ~multiple lval f args octx =
-    ctx.sideg (V.node ctx.node) (G.create_node (Locked.bot (), Unlocked.bot (), MultiThread.bot (), true));
+    ctx.sideg V.threadcreate (G.create_threadcreate (NodeSet.singleton ctx.node));
     ctx.local
 
   let ghost_var_available ctx = function
@@ -97,7 +102,7 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' ->
-          let (locked, unlocked, multithread, threadcreate) = G.node (ctx.global g) in
+          let (locked, unlocked, multithread) = G.node (ctx.global g) in
           let g = g' in
           let entries =
             (* TODO: do variable_entry-s only once *)
@@ -144,6 +149,7 @@ struct
               entries
           in
           entries
+        | `Middle _ -> Queries.Result.top q
         | `Right _ -> Queries.Result.top q
       end
     | _ -> Queries.Result.top q

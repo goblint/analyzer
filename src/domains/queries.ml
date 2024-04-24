@@ -10,6 +10,7 @@ module LS = VDQ.LS
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
+module NS = SetDomain.ToppedSet (Node) (struct let topname = "All" end)
 
 module NFL = WrapperFunctionAnalysis0.NodeFlatLattice
 module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
