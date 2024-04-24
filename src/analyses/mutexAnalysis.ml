@@ -7,7 +7,6 @@ module AddrRW = LockDomain.AddrRW
 module MustLockset = LockDomain.MustLockset
 module MustLocksetRW = LockDomain.MustLocksetRW
 module MustMultiplicity = LockDomain.MustMultiplicity
-module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
 open GoblintCil
 open Analyses

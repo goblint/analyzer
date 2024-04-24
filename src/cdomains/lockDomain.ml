@@ -20,7 +20,6 @@ struct
     (v, Offset.Poly.map_indices (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) o)
 end
 
-module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
 module MustLockset =
 struct
   include SetDomain.Reverse (SetDomain.ToppedSet (MustLock) (struct let topname = "All mutexes" end))
