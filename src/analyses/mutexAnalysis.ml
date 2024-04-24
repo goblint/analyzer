@@ -207,8 +207,8 @@ struct
         false
       else *)
       MustLockset.disjoint held_locks protecting
-    | Queries.MustBeProtectedBy {mutex = Addr mutex_mv; global=v; write; protection} -> (* TODO: non-Addr? *)
-      let ml = LockDomain.MustLock.of_mval mutex_mv in (* TODO: what if non-definite? *)
+    | Queries.MustBeProtectedBy {mutex = Addr mutex_mv; global=v; write; protection} when Mval.is_definite mutex_mv -> (* only definite Addrs can be in must-locksets to begin with, anything else cannot protect anything *)
+      let ml = LockDomain.MustLock.of_mval mutex_mv in
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
