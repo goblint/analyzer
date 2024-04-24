@@ -55,7 +55,7 @@ end
 
 module Lock = MakeLockRW (Addr)
 
-module Lockset =
+module MustLocksetRW =
 struct
   module Lock = MakeLockRW (MustLock)
 
