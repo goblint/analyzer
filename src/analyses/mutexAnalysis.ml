@@ -155,7 +155,7 @@ struct
         let s' = Lockset.add (mv, rw) s in
         let m' =
           if MutexTypeAnalysis.must_be_recursive ctx mv then
-            Multiplicity.increment mv m
+            Multiplicity.increment (LockDomain.Mval.of_mval mv) m (* TODO: no definite check? *)
           else
             m
         in
@@ -168,9 +168,9 @@ struct
       | Some mv ->
         let (s, m) = ctx.local in
         if warn && not (Lockset.mem_rw mv s) then
-          M.warn "unlocking mutex (%a) which may not be held" LockDomain.Mval.pretty mv;
+          M.warn "unlocking mutex (%a) which may not be held" ValueDomain.Mval.pretty mv;
         if MutexTypeAnalysis.must_be_recursive ctx mv then (
-          let (m', rmed) = Multiplicity.decrement mv m in
+          let (m', rmed) = Multiplicity.decrement (LockDomain.Mval.of_mval mv) m in (* TODO: no definite check? *)
           if rmed then
             (Lockset.remove_rw mv s, m')
           else
@@ -211,7 +211,7 @@ struct
     num_mutexes := 0;
     sum_protected := 0
 
-  let query (ctx: (D.t, _, _, _) ctx) (type a) (q: a Queries.t): a Queries.result =
+  let query (ctx: (D.t, _, _, V.t) ctx) (type a) (q: a Queries.t): a Queries.result =
     let ls, m = ctx.local in
     (* get the set of mutexes protecting the variable v in the given mode *)
     let protecting ~write mode v = GProtecting.get ~write mode (G.protecting (ctx.global (V.protecting v))) in
@@ -236,7 +236,7 @@ struct
       else *)
       non_overlapping held_locks protecting
     | Queries.MustBeProtectedBy {mutex = Addr mutex; global=v; write; protection} -> (* TODO: non-Addr? *)
-      let mutex_lockset = Lockset.export_locks @@ Lockset.singleton (mutex, true) in
+      let mutex_lockset = Lockset.export_locks @@ Lockset.singleton (LockDomain.Mval.of_mval mutex, true) in (* TODO: what if non-definite? *)
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
@@ -245,12 +245,12 @@ struct
       Simple.subset mutex_lockset protecting
     | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
-      Simple.fold (fun addr ls -> Queries.AD.add (Addr addr) ls) held_locks (Queries.AD.empty ())
+      Simple.fold (fun addr ls -> Queries.AD.add (Addr (LockDomain.Mval.to_mval addr)) ls) held_locks (Queries.AD.empty ()) (* TODO: Z indices for Queries.MustLockset result? *)
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       Simple.mem (LF.verifier_atomic_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
     | Queries.MustProtectedVars {mutex = Addr m; write} -> (* TODO: non-Addr? *)
-      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
+      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected (LockDomain.Mval.of_mval m)))) in (* TODO: what if non-definite? *)
       VarSet.fold (fun v acc ->
           Queries.VS.add v acc
         ) protected (Queries.VS.empty ())
