@@ -2,9 +2,9 @@
 #include <goblint.h>
 
 void main(void) {
-  int *i;
-  int **j;
-  int *k;
+  long *i;
+  long **j;
+  long *k;
   j = &k + 1;
   j++;
   __goblint_check(j == &k + 2);

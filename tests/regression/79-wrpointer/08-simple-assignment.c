@@ -3,12 +3,12 @@
 #include <goblint.h>
 
 void main(void) {
-    int x;
-    int *z = -1 + &x;
+    long x;
+    long *z = -1 + &x;
 
     __goblint_check(z == -1 + &x);
 
-    z = (int*) *(1 + z);
+    z = (long*) *(1 + z);
 
     __goblint_check(x == (long)z);
 

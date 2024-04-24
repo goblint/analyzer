@@ -35,10 +35,7 @@ void main(void) {
 
   struct Crazy crazyy[3][2];
 
-  int a = crazyy[2][1].arr[4];
-  int b = ((struct Crazy *)crazyy)[5].arr[4];
-
-  __goblint_check(a == b);
+  __goblint_check(crazyy[2][1].arr[4] == ((struct Crazy *)crazyy)[5].arr[4]);
 
   int *sx[4];
   int k = *sx[1];
