@@ -1,7 +1,26 @@
 (** Lockset domains. *)
 
 module Addr = ValueDomain.Addr
-module Mval = ValueDomain.Mval
+module Mval =
+struct
+  include Mval.Z
+
+  let of_mval ((v, o): ValueDomain.Mval.t): t =
+    let rec offs = function
+      | `NoOffset -> `NoOffset
+      | `Field (f, os') -> `Field (f, offs os')
+      | `Index (i, os') -> `Index (ValueDomain.IndexDomain.to_int i |> Option.get, offs os')
+    in
+    (v, offs o)
+
+  let to_mval ((v, o): t): ValueDomain.Mval.t =
+    let rec offs = function
+      | `NoOffset -> `NoOffset
+      | `Field (f, os') -> `Field (f, offs os')
+      | `Index (i, os') -> `Index (ValueDomain.IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) i, offs os')
+    in
+    (v, offs o)
+end
 module Offs = ValueDomain.Offs
 module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
@@ -43,22 +62,24 @@ struct
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
-  let add ((mv, _) as lock) set =
+  let add (mv, rw) set =
     if Addr.Mval.is_definite mv then
-      add lock set
+      add (Mval.of_mval mv, rw) set
     else
       set
 
-  let remove ((mv, _) as lock) set =
+  let remove (mv, rw) set =
     if Addr.Mval.is_definite mv then
-      remove lock set
+      remove (Mval.of_mval mv, rw) set
     else
       filter (fun (mv', _) ->
-          Mval.semantic_equal mv mv' = Some false
+          (* TODO: avoid conversion: semantic_equal between ValueDomain.Mval and Mval *)
+          ValueDomain.Mval.semantic_equal mv (Mval.to_mval mv') = Some false
         ) set
 
   let mem_rw mv set =
-    mem (mv, true) set || mem (mv, false) set
+    ValueDomain.Mval.is_definite mv && (
+    mem (Mval.of_mval mv, true) set || mem (Mval.of_mval mv, false) set)
 
   let remove_rw mv set =
     remove (mv, true) (remove (mv, false) set)
