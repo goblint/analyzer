@@ -50,6 +50,7 @@ struct
     )
 end
 
+module MvalRW = MakeRW (Mval)
 module AddrRW = MakeRW (Addr)
 module MustLockRW = MakeRW (MustLock)
 
@@ -58,13 +59,13 @@ struct
   include SetDomain.Reverse (SetDomain.ToppedSet (MustLockRW) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
-  let add (mv, rw) set =
+  let add_mval_rw ((mv, rw): MvalRW.t) (set: t) =
     if Addr.Mval.is_definite mv then
       add (MustLock.of_mval mv, rw) set
     else
       set
 
-  let remove (mv, rw) set =
+  let remove_mval_rw ((mv, rw): MvalRW.t) (set: t) =
     if Addr.Mval.is_definite mv then
       remove (MustLock.of_mval mv, rw) set
     else
@@ -73,17 +74,17 @@ struct
           Mval.semantic_equal mv (MustLock.to_mval mv') = Some false
         ) set
 
-  let mem_rw mv set =
+  let mem_mval (mv: Mval.t) (set: t) =
     Mval.is_definite mv && (
       mem (MustLock.of_mval mv, true) set || mem (MustLock.of_mval mv, false) set)
 
-  let remove_rw mv set =
-    remove (mv, true) (remove (mv, false) set)
+  let remove_mval (mv: Mval.t) set =
+    remove_mval_rw (mv, true) (remove_mval_rw (mv, false) set)
 
   let all (): t = `Top
   let is_all (set: t) = set = `Top
 
-  let export_locks ls =
+  let to_must_lockset (ls: t): MustLockset.t =
     let f (x,_) set = MustLockset.add x set in
     fold f ls (MustLockset.empty ())
 end
