@@ -13,6 +13,18 @@ module MustLock =
 struct
   include MvalZ
 
+  let semantic_equal_mval ((v, o): t) ((v', o'): Mval.t): bool option =
+    if CilType.Varinfo.equal v v' then (
+      let (index1, _) = GoblintCil.bitsOffset v.vtype (Offset.Z.to_cil o) in (* TODO: better way to compute this? as Z.t not int *)
+      let index2: IndexDomain.t = ValueDomain.Offs.to_index ~typ:v.vtype o' in (* TODO: is this bits or bytes? *)
+      match IndexDomain.equal_to (Z.of_int index1) index2 with
+      | `Eq -> Some true
+      | `Neq -> Some false
+      | `Top -> None
+    )
+    else
+      Some false
+
   let of_mval ((v, o): Mval.t): t =
     (v, Offset.Poly.map_indices (fun i -> IndexDomain.to_int i |> Option.get) o)
 
@@ -70,8 +82,7 @@ struct
       remove (MustLock.of_mval mv, rw) set
     else
       filter (fun (mv', _) ->
-          (* TODO: avoid conversion: semantic_equal between Mval and Mval *)
-          Mval.semantic_equal mv (MustLock.to_mval mv') = Some false
+          MustLock.semantic_equal_mval mv' mv = Some false
         ) set
 
   let mem_mval (mv: Mval.t) (set: t) =
@@ -132,8 +143,7 @@ module MustMultiplicity = struct
     else
       (* TODO: non-definite should also decrement (to 0)? *)
       fold (fun mv' _ (m, rmed) ->
-          (* TODO: avoid conversion: semantic_equal between Mval and Mval *)
-          if Mval.semantic_equal mv (MustLock.to_mval mv') = Some false then
+          if MustLock.semantic_equal_mval mv' mv = Some false then
             (m, rmed)
           else (
             let (m', rmed') = decrement mv' m in
