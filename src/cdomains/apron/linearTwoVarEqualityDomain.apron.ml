@@ -109,6 +109,17 @@ module EqualitiesConjunction = struct
         Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
       (get_dim m + Array.length indexes , ref (IntHashtbl.fold (fun k value acc -> IntHashtbl.add (k + offset_map.(k)) (add_offset_to_array_entry value) acc) !(snd m) IntHashtbl.empty ))
 
+  let add_variables_to_domain2 m indexes =
+    if Array.length indexes = 0 then m else
+      let offsetlist = Array.to_list indexes in
+      let offset k value (tbl,delta,list) = match (tbl,delta,list) with
+        | (tbl,delta,pfx::list) when pfx=k -> (IntHashtbl.add (k+delta+1) value tbl,delta+1,list)
+        | (tbl,delta,[]) -> (IntHashtbl.add (k+delta) value tbl,delta,[])
+        | (tbl,delta,list) -> (IntHashtbl.add (k+delta) value tbl,delta,list)
+      in
+      let a = Tuple3.first @@ IntHashtbl.fold (offset) !(snd m) (IntHashtbl.empty,0,offsetlist) in
+      (get_dim m + Array.length indexes, ref a)
+
   let add_variables_to_domain m cols = timing_wrap "add_cols" (add_variables_to_domain m) cols
 
   let remove_variables_from_domain m indexes =
