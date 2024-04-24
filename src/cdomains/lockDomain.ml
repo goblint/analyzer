@@ -55,11 +55,11 @@ end
 
 module Lock = MakeLockRW (Addr)
 
+module MustLockRW = MakeLockRW (MustLock)
+
 module MustLocksetRW =
 struct
-  module Lock = MakeLockRW (MustLock)
-
-  include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
+  include SetDomain.Reverse (SetDomain.ToppedSet (MustLockRW) (struct let topname = "All mutexes" end))
   let name () = "lockset"
 
   let add (mv, rw) set =
