@@ -4,7 +4,7 @@ module M = Messages
 module Addr = ValueDomain.Addr
 module Lock = LockDomain.Lock
 module MustLocksetRW = LockDomain.MustLocksetRW
-module Multiplicity = LockDomain.Multiplicity
+module MustMultiplicity = LockDomain.MustMultiplicity
 module Simple = LockDomain.Simple
 module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
@@ -20,8 +20,8 @@ struct
   struct
     module D =
     struct
-      include Lattice.Prod (MustLocksetRW) (Multiplicity)
-      let empty () = (MustLocksetRW.empty (), Multiplicity.empty ())
+      include Lattice.Prod (MustLocksetRW) (MustMultiplicity)
+      let empty () = (MustLocksetRW.empty (), MustMultiplicity.empty ())
     end
 
 
@@ -126,7 +126,7 @@ struct
         let s' = MustLocksetRW.add (mv, rw) s in
         let m' =
           if MutexTypeAnalysis.must_be_recursive ctx mv then
-            Multiplicity.increment mv m
+            MustMultiplicity.increment mv m
           else
             m
         in
@@ -141,7 +141,7 @@ struct
         if warn && not (MustLocksetRW.mem_rw mv s) then
           M.warn "unlocking mutex (%a) which may not be held" ValueDomain.Mval.pretty mv;
         if MutexTypeAnalysis.must_be_recursive ctx mv then (
-          let (m', rmed) = Multiplicity.decrement mv m in
+          let (m', rmed) = MustMultiplicity.decrement mv m in
           if rmed then
             (* TODO: don't repeat the same semantic_equal checks *)
             (* TODO: rmed per lockset element, not aggregated *)

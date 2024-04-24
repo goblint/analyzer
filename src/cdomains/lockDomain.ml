@@ -89,7 +89,7 @@ struct
     fold f ls (Simple.empty ())
 end
 
-module Multiplicity = struct
+module MustMultiplicity = struct
   (* the maximum multiplicity which we keep track of precisely *)
   let max_count () = 4
 
