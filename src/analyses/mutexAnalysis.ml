@@ -208,13 +208,13 @@ struct
       else *)
       MustLockset.disjoint held_locks protecting
     | Queries.MustBeProtectedBy {mutex = Addr mutex_mv; global=v; write; protection} -> (* TODO: non-Addr? *)
-      let mutex_lockset = MustLocksetRW.to_must_lockset @@ MustLocksetRW.singleton (LockDomain.MustLock.of_mval mutex_mv, true) in (* TODO: what if non-definite? *)
+      let ml = LockDomain.MustLock.of_mval mutex_mv in (* TODO: what if non-definite? *)
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
         true
       else *)
-      MustLockset.subset mutex_lockset protecting (* TODO: some mem? *)
+      MustLockset.mem ml protecting
     | Queries.MustLockset ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
       MustLockset.fold (fun addr ls -> Queries.AD.add (Addr (LockDomain.MustLock.to_mval addr)) ls) held_locks (Queries.AD.empty ()) (* TODO: Z indices for Queries.MustLockset result? *)
