@@ -19,14 +19,18 @@ module Disequalities = struct
   (**Find out if two addresses are possibly equal by using the MayPointTo query*)
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
     if T.equal t1 t2 then true else
-    if Var.equal dummy_varinfo (T.get_var t1) || Var.equal dummy_varinfo (T.get_var t2) then false else
-      let exp1 = T.to_cil Z.zero t1 in
-      let exp2 = T.to_cil off t2 in
-      let mpt1 = ask.f (MayPointTo exp1) in
-      let mpt2 = ask.f (MayPointTo exp2) in
-      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-      if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; res: %a; var1: %d;\nt2: %s; res: %a; var2: %d;\nresult: %s\n"
-          (T.show t1) AD.pretty mpt1 (T.get_var t1).vid (T.show t2) AD.pretty mpt2 (T.get_var t2).vid (string_of_bool res); res
+      (* two local arrays can never point to the same array *)
+      let are_different_arrays = match t1, t2 with
+        | Deref (Addr x1, z1),  Deref (Addr x2, z2) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
+        | _ -> false in
+      if are_different_arrays || Var.equal dummy_varinfo (T.get_var t1) || Var.equal dummy_varinfo (T.get_var t2) then false else
+        let exp1 = T.to_cil ask Z.zero t1 in
+        let exp2 = T.to_cil ask off t2 in
+        let mpt1 = ask.f (MayPointTo exp1) in
+        let mpt2 = ask.f (MayPointTo exp2) in
+        let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+        if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; exp1: %a; res: %a; var1: %d;\nt2: %s; exp2: %a; res: %a; var2: %d;\nresult: %s\n"
+            (T.show t1) d_plainexp exp1 AD.pretty mpt1 (T.get_var t1).vid (T.show t2) d_plainexp exp2 AD.pretty mpt2 (T.get_var t2).vid (string_of_bool res); res
 
   (**Returns true iff by assigning to t1, the value of t2 could change. *)
   let rec may_be_equal ask uf t1 t2 =
