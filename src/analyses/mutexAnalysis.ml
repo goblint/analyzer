@@ -41,12 +41,33 @@ struct
         else
           add v (current + 1) x
 
+      let increment mv m =
+        if Addr.Mval.is_definite mv then
+          increment (LockDomain.Mval.of_mval mv) m
+        else
+          m
+
       let decrement v x =
         let current = find v x in
         if current = 0 then
           (x, true)
         else
-          (add v (current - 1) x, current - 1 = 0)
+          (add v (current - 1) x, current - 1 = 0) (* TODO: remove if 0? *)
+
+      let decrement mv m =
+        if Addr.Mval.is_definite mv then
+          decrement (LockDomain.Mval.of_mval mv) m
+        else
+          (* TODO: non-definite should also decrement (to 0)? *)
+          fold (fun mv' _ (m, rmed) ->
+              (* TODO: avoid conversion: semantic_equal between ValueDomain.Mval and Mval *)
+              if ValueDomain.Mval.semantic_equal mv (LockDomain.Mval.to_mval mv') = Some false then
+                (m, rmed)
+              else (
+                let (m', rmed') = decrement mv' m in
+                (m', rmed || rmed')
+              )
+            ) m (m, false)
     end
 
     module D = struct include Lattice.Prod(Lockset)(Multiplicity)
@@ -154,8 +175,8 @@ struct
         let (s, m) = ctx.local in
         let s' = Lockset.add (mv, rw) s in
         let m' =
-          if ValueDomain.Mval.is_definite mv && MutexTypeAnalysis.must_be_recursive ctx mv then
-            Multiplicity.increment (LockDomain.Mval.of_mval mv) m
+          if MutexTypeAnalysis.must_be_recursive ctx mv then
+            Multiplicity.increment mv m
           else
             m
         in
@@ -169,15 +190,17 @@ struct
         let (s, m) = ctx.local in
         if warn && not (Lockset.mem_rw mv s) then
           M.warn "unlocking mutex (%a) which may not be held" ValueDomain.Mval.pretty mv;
-        if ValueDomain.Mval.is_definite mv && MutexTypeAnalysis.must_be_recursive ctx mv then (
-          let (m', rmed) = Multiplicity.decrement (LockDomain.Mval.of_mval mv) m in (* TODO: non-definite should also decrement (to 0)? *)
+        if MutexTypeAnalysis.must_be_recursive ctx mv then (
+          let (m', rmed) = Multiplicity.decrement mv m in
           if rmed then
+            (* TODO: don't repeat the same semantic_equal checks *)
+            (* TODO: rmed per lockset element, not aggregated *)
             (Lockset.remove_rw mv s, m')
           else
             (s, m')
         )
         else
-          (Lockset.remove_rw mv s, m)
+          (Lockset.remove_rw mv s, m) (* TODO: should decrement something if may be recursive? *)
 
     let remove = remove' ~warn:true
 
