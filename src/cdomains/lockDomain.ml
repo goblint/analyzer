@@ -79,7 +79,7 @@ struct
 
   let mem_rw mv set =
     ValueDomain.Mval.is_definite mv && (
-    mem (Mval.of_mval mv, true) set || mem (Mval.of_mval mv, false) set)
+      mem (Mval.of_mval mv, true) set || mem (Mval.of_mval mv, false) set)
 
   let remove_rw mv set =
     remove (mv, true) (remove (mv, false) set)
