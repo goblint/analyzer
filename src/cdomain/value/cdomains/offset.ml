@@ -45,18 +45,8 @@ struct
 
   module Z =
   struct
-    include Printable.StdLeaf (* TODO: move to GobZ *)
-    include GobZ
+    include Printable.Z
     let name () = "Z index"
-
-    (* TODO: move to GobZ *)
-    include Printable.SimplePretty (
-      struct
-        type nonrec t = t
-        let pretty = pretty
-      end
-      )
-
     let to_int z = Some z
     let equal_to z1 z2 =
       if Z.equal z2 z2 then
