@@ -107,7 +107,7 @@ struct
 
   let compare_dumps ({name = name1; results = lvh1}: result) ({name = name2; results = lvh2}: result) =
     let (c, d) = CompareDump.compare ~verbose:true ~name1 lvh1 ~name2 lvh2 in
-    comparisons := (name1, name2, c) :: !comparisons;
+    comparisons := (name1, name2, c, d) :: !comparisons;
     (c, d)
 
   let count_locations (dumps: result list) =
@@ -125,8 +125,8 @@ struct
   let group () =
     let new_bucket_id = ref 0 in
     let equality_buckets = Hashtbl.create 113 in
-    let sorted = List.sort (fun (n1, _, _) (n2, _, _) -> String.compare n1 n2) !comparisons in
-    List.iter (fun (name1, name2, (c:Comparison.t)) ->
+    let sorted = List.sort (fun (n1, _, _, _) (n2, _, _, _) -> String.compare n1 n2) !comparisons in
+    List.iter (fun (name1, name2, (c:Comparison.t), _) ->
         (if not (Hashtbl.mem equality_buckets name1) then
            (* Make its own bucket if it does not appear yet *)
            (let bucket_id = !new_bucket_id in
@@ -142,8 +142,24 @@ struct
     List.iter (fun bucket ->
         Logs.result "Bucket %d:" (snd (List.hd bucket));
         List.iter (fun (name, _) -> Logs.result "  %s" name) bucket
-      ) buckets
-
+      ) buckets;
+    let comparison_produced = Hashtbl.create 113 in
+    List.iter (fun (name1, name2, c,d) ->
+        let bucket1 = Hashtbl.find equality_buckets name1 in
+        let bucket2 = Hashtbl.find equality_buckets name2 in
+        if bucket1 = bucket2 then
+          ()
+        else
+          begin
+            let comp_tumple = (min bucket1 bucket2, max bucket1 bucket2) in
+            if not @@ Hashtbl.mem comparison_produced comp_tumple then
+              begin
+                Hashtbl.add comparison_produced comp_tumple ();
+                Logs.result "Comparison between bucket %d and %d: %t" (fst comp_tumple) (snd comp_tumple) (fun () -> d);
+              end
+          end
+      ) sorted;
+    ()
 
   let main () =
     Util.init ();
