@@ -1,21 +1,24 @@
 (** Lockset domains. *)
 
+open GoblintCil
+open struct
+  module MvalZ = Mval.Z (* So we can define MustLock using Mval.Z after redefining Mval *)
+end
+
+module IndexDomain = ValueDomain.IndexDomain
+module Mval = ValueDomain.Mval
 module Addr = ValueDomain.Addr
+
 module MustLock =
 struct
-  include Mval.Z
+  include MvalZ
 
-  let of_mval ((v, o): ValueDomain.Mval.t): t =
-    (v, Offset.Poly.map_indices (fun i -> ValueDomain.IndexDomain.to_int i |> Option.get) o)
+  let of_mval ((v, o): Mval.t): t =
+    (v, Offset.Poly.map_indices (fun i -> IndexDomain.to_int i |> Option.get) o)
 
-  let to_mval ((v, o): t): ValueDomain.Mval.t =
-    (v, Offset.Poly.map_indices (ValueDomain.IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) o)
+  let to_mval ((v, o): t): Mval.t =
+    (v, Offset.Poly.map_indices (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) o)
 end
-module Offs = ValueDomain.Offs
-module Exp = CilType.Exp
-module IdxDom = ValueDomain.IndexDomain
-
-open GoblintCil
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO: AD? *)
 module MustLockset =
@@ -68,12 +71,12 @@ struct
       remove (MustLock.of_mval mv, rw) set
     else
       filter (fun (mv', _) ->
-          (* TODO: avoid conversion: semantic_equal between ValueDomain.Mval and Mval *)
-          ValueDomain.Mval.semantic_equal mv (MustLock.to_mval mv') = Some false
+          (* TODO: avoid conversion: semantic_equal between Mval and Mval *)
+          Mval.semantic_equal mv (MustLock.to_mval mv') = Some false
         ) set
 
   let mem_rw mv set =
-    ValueDomain.Mval.is_definite mv && (
+    Mval.is_definite mv && (
       mem (MustLock.of_mval mv, true) set || mem (MustLock.of_mval mv, false) set)
 
   let remove_rw mv set =
@@ -130,8 +133,8 @@ module MustMultiplicity = struct
     else
       (* TODO: non-definite should also decrement (to 0)? *)
       fold (fun mv' _ (m, rmed) ->
-          (* TODO: avoid conversion: semantic_equal between ValueDomain.Mval and Mval *)
-          if ValueDomain.Mval.semantic_equal mv (MustLock.to_mval mv') = Some false then
+          (* TODO: avoid conversion: semantic_equal between Mval and Mval *)
+          if Mval.semantic_equal mv (MustLock.to_mval mv') = Some false then
             (m, rmed)
           else (
             let (m', rmed') = decrement mv' m in
@@ -148,7 +151,7 @@ end
 module Symbolic =
 struct
   (* TODO: use SetDomain.Reverse *)
-  module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
+  module S = SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
 
   let rec eq_set (ask: Queries.ask) e =
