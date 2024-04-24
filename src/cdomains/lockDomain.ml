@@ -33,7 +33,7 @@ end
 module RW   = IntDomain.Booleans
 
 (* pair Addr and RW; also change pretty printing*)
-module MakeLockRW (P: Printable.S) =
+module MakeRW (P: Printable.S) =
 struct
   include Printable.Prod (P) (RW)
 
@@ -51,9 +51,8 @@ struct
     )
 end
 
-module Lock = MakeLockRW (Addr)
-
-module MustLockRW = MakeLockRW (MustLock)
+module AddrRW = MakeRW (Addr)
+module MustLockRW = MakeRW (MustLock)
 
 module MustLocksetRW =
 struct
