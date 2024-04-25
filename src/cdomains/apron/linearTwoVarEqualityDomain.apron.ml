@@ -27,14 +27,13 @@ module Rhs = struct
 end
 
 module EqualitiesConjunction = struct
-  module IntHash = struct type t = int [@@deriving eq, hash] end
-  module IntHashtbl = BatHashtbl.Make(IntHash)
+  module IntHashtbl = BatMap.Make(Int)
 
-  type t = int * Rhs.t IntHashtbl.t
+  type t = int * ( Rhs.t IntHashtbl.t ref)
 
   let equal (idim,imap) (jdim,jmap) = idim = jdim (* compare the dimensions i.e. max indices *)
-                                      && IntHashtbl.length imap = IntHashtbl.length jmap  (* compare the actual number of bindings *)
-                                      && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem jmap lh && IntHashtbl.find jmap lh = rh) imap true (* check all bindings *)
+                                      && IntHashtbl.cardinal !imap = IntHashtbl.cardinal !jmap  (* compare the actual number of bindings *)
+                                      && IntHashtbl.fold (fun lh rh acc -> acc && IntHashtbl.mem lh !jmap && IntHashtbl.find lh !jmap = rh) !imap true (* check all bindings *)
 
   let compare i j = let c = compare (fst i) (fst j) in if c <> 0 then
       c
@@ -42,9 +41,8 @@ module EqualitiesConjunction = struct
         | Some a, Some b -> Some (a,b)
         | Some v, None-> Some (v,Rhs.var_zero k)
         | None, Some v -> Some (Rhs.var_zero k,v)
-        | None, None -> None) (snd i) (snd j) in
-      let lst= IntHashtbl.to_list merg  in
-      let lst= List.sort (fun (a,_) (b,_) -> compare a b) lst in
+        | None, None -> None) !(snd i) !(snd j) in
+      let lst= IntHashtbl.bindings merg in (* bindings are luckily already sorted by key *)
       let rec compare_list li = match li with
         | [] -> 0
         | (_,(a,b))::rest -> let c = compare a b in
@@ -55,61 +53,71 @@ module EqualitiesConjunction = struct
   let show econ = let show_rhs i (v, o) = Printf.sprintf "var_%d=%s " i (Rhs.show (v, o)) in
     IntHashtbl.fold (fun lhs rhs acc -> acc ^ show_rhs lhs rhs) econ ""
 
-  let hash : t -> int = fun (dim,x) ->  dim + 13* IntHashtbl.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
+  let hash : t -> int = fun (dim,x) ->  dim + 13* IntHashtbl.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) !x 0 (* TODO: derive *)
 
-  let empty () = (0, IntHashtbl.create 0)
+  let empty () = (0, ref IntHashtbl.empty)
 
-  let make_empty_conj len = (len, IntHashtbl.create len)
+  let make_empty_conj len = (len, ref IntHashtbl.empty)
 
   let get_dim (dim,_) = dim
 
-  let nontrivial (_,econmap) lhs = IntHashtbl.mem econmap lhs
+  let nontrivial (_,econmap) lhs = IntHashtbl.mem lhs !econmap
 
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
-  let get_rhs (_,econmap) lhs = IntHashtbl.find_default econmap lhs (Rhs.var_zero lhs)
+  let get_rhs (_,econmap) lhs = IntHashtbl.find_default (Rhs.var_zero lhs) lhs !econmap
 
   (** inplace update on the EqualitiesConjunction, replacing the rhs for lhs with a new one if meaningful, otherwise just drop the entry*)
   let set_rhs_with (dim,map) lhs rhs = 
     if Rhs.equal rhs Rhs.(var_zero lhs) then 
-      IntHashtbl.remove map lhs
+      map := IntHashtbl.remove lhs !map
     else
-      IntHashtbl.replace map lhs rhs
+      map := IntHashtbl.add lhs rhs !map
 
-  let maxentry (_,map) = IntHashtbl.fold (fun lhs (_,_) acc -> max acc lhs) map 0
+  let maxentry (_,map) = IntHashtbl.fold (fun lhs (_,_) acc -> max acc lhs) !map 0
 
-  let copy (dim,map) = (dim,IntHashtbl.copy map)
+  let copy (dim,map) = let res = make_empty_conj dim in
+    snd res := !map;
+    res
+
+  let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
   let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
-  let add_variables_to_domain m indexes = 
+  let add_variables_to_domain m indexes =
     if Array.length indexes = 0 then m else
-      let offset_map = Array.make (get_dim m) 0 (* maps each variable to the number of variables that are added before this variable *)
+      let offsetlist = Array.to_list indexes in
+      let rec shiftvar delta i = function
+          head::_ when i=head -> delta+i+1
+        | head::_ when i<head -> delta+i
+        | head::rest -> shiftvar (delta+1) i rest
+        | [] -> delta+i
       in
-      let _ =
-        let rec shift (offset, list) index = (* bumps offset & pops list, if/while index is heading the list *)
-          match list with
-          | hd::tl when hd = index -> shift (offset+1, tl) index
-          | _ -> (offset, list)
-        in
-        (* TODO: https://github.com/goblint/analyzer/pull/1297#discussion_r1479505621 *)
-        Array.fold_lefti (* this is not a textbook fold. We rather use it as a means to iterate over the range
-                            of all indices of offset_map, initializing the array at these indices as a side-effect.
-                            We use fold here as a means of having an accumulator to keep track of the current offset
-                            and the rest of the offset list. In case of more frequent use of this pattern, consider this as
-                            a candidate template for a new library function *)
-          (fun offsetcontext index _ ->
-             let newoffset, newlist = shift offsetcontext index in
-             offset_map.(index) <- newoffset;
-             (newoffset, newlist))
-          (0, Array.to_list indexes) offset_map
+      let memoshiftvar = 
+        if (Array.length indexes > 100) then
+          (let h = Hashtbl.create @@ IntHashtbl.cardinal !(snd m) in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
+           fun x ->
+             try Hashtbl.find h x with Not_found ->
+               let r = shiftvar 0 x offsetlist in
+               Hashtbl.add h x r;
+               r)
+        else
+          fun x -> shiftvar 0 x offsetlist
       in
-      let add_offset_to_array_entry (var, offs) = (* uses offset_map to obtain a new var_index, that is consistent with the new reference indices *)
-        Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
-      let m' = make_empty_conj (get_dim m + Array.length indexes) in
-      IntHashtbl.iter (fun k v -> IntHashtbl.replace (snd m') (k + offset_map.(k)) (add_offset_to_array_entry v)) (snd m);
-      m'(* produces a consistent new conj. of equalities *)
+      let memoshiftrhs = function
+          (Some k, v) -> (Some (memoshiftvar k), v)
+        | a -> a
+      in
+      let rec shiftentry k value = function
+        | (tbl,delta,head::rest) when k=head            -> (IntHashtbl.add (k+delta+1) (memoshiftrhs value) tbl,delta+1,rest)
+        | (tbl,delta,head::rest) when k>head            -> shiftentry k value (tbl,delta+1,rest)
+        | (tbl,delta,list) (* k< fst list or list=[] *) -> (IntHashtbl.add (k+delta)   (memoshiftrhs value) tbl,delta  ,list)
+      in
+      let a = Tuple3.first @@ IntHashtbl.fold (shiftentry) !(snd m) (IntHashtbl.empty,0,offsetlist) in
+      (get_dim m + Array.length indexes, ref a)
+
+  let add_variables_to_domain m cols = timing_wrap "add_cols" (add_variables_to_domain m) cols
 
   let remove_variables_from_domain m indexes =
     let nr_removed_colums = Array.length indexes in
@@ -125,7 +133,9 @@ module EqualitiesConjunction = struct
              0 offset_map in
       let remove_offset_from_rhs (var, offs) =
         Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-      (fst m - nr_removed_colums,IntHashtbl.of_list @@ List.map (fun (lhs,rhs) -> (lhs-offset_map.(lhs),remove_offset_from_rhs rhs)) (IntHashtbl.to_list @@ snd m))
+      (fst m - nr_removed_colums,ref (IntHashtbl.of_seq @@
+                                      BatSeq.map (fun (lhs,rhs) -> (lhs-offset_map.(lhs),remove_offset_from_rhs rhs))
+                                        (IntHashtbl.to_seq @@ !(snd m))))
 
   let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
 
@@ -133,7 +143,7 @@ module EqualitiesConjunction = struct
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
 
-  let is_top_con (_,map) = IntHashtbl.is_empty map
+  let is_top_con (_,map) = IntHashtbl.is_empty !map
 
   (* Forget information about variable var in-place. *)
   let forget_variable_with d var =
@@ -142,14 +152,16 @@ module EqualitiesConjunction = struct
      | Some ref_var when ref_var = var ->
        (* var is the reference variable of its connected component *)
        (let cluster = IntHashtbl.fold
-            (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
+            (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) !(snd d) [] in
         (* obtain cluster with common reference variable ref_var*)
         match cluster with (* new ref_var is taken from head of the cluster *)
         | head :: tail -> let headconst = snd (get_rhs d head) in (* take offset between old and new reference variable *)
           List.iter (fun i -> set_rhs_with d i Z.(Some head, snd (get_rhs d i) - headconst)) cluster (* shift offset to match new reference variable *)
         | _ -> ()) (* empty cluster means no work for us *)
      | _ -> ()) (* variable is either a constant or expressed by another refvar *)
-  ; IntHashtbl.remove (snd d) var (* set d(var) to unknown, finally *)
+  ; if M.tracing then M.tracel "forget" "forget var_%d in %s" var (show !(snd d))
+  ; snd d := IntHashtbl.remove var !(snd d) (* set d(var) to unknown, finally *)
+  ; if M.tracing then M.trace "forget" "forgotten %s" (show !(snd d))
 
   (* Forget information about variable i but not in-place *)
   let forget_variable m j =
@@ -276,7 +288,7 @@ struct
       begin if not @@ EConj.nontrivial d var
       (* var is a reference variable -> it can appear on the right-hand side of an equality *)
         then
-          EConj.IntHashtbl.iter (subtract_const_from_var_for_single_equality) (snd d)
+          EConj.IntHashtbl.iter (subtract_const_from_var_for_single_equality) !(snd d)
         else
           (* var never appears on the right hand side-> we only need to modify the array entry at index var *)
           EConj.set_rhs_with d  var (Tuple2.map2 (Z.add const) (EConj.get_rhs d var))
@@ -348,7 +360,7 @@ struct
       if is_bot varM then
         "Bot \n"
       else
-        EConj.IntHashtbl.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) (snd arr) "" ^ (" with dimension " ^ (string_of_int @@ fst arr))
+        EConj.IntHashtbl.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) !(snd arr) "" ^ (" with dimension " ^ (string_of_int @@ fst arr))
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -358,12 +370,11 @@ struct
 
   let meet_with_one_conj_with ts i (var, b) =
     let subst_var tsi x (vart, bt) =
-      let adjust _ = function
+      let adjust = function
         | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
         | e -> e
       in
-      EConj.IntHashtbl.map_inplace adjust (snd tsi);
-      EConj.IntHashtbl.replace (snd tsi) x (vart, bt) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+      snd tsi := EConj.IntHashtbl.add x (vart, bt) @@ EConj.IntHashtbl.map adjust !(snd tsi) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
     in
     let (var1, b1) = EConj.get_rhs ts i in
     (match var, var1 with
@@ -390,6 +401,11 @@ struct
       with Contradiction ->
         {d = None; env = t.env}
 
+  let meet_with_one_conj t i e =
+    let res= meet_with_one_conj t i e in
+    if M.tracing then M.trace "meet_one_conj" "meet %s with var_%d=%s -> %s" (show t) i (Rhs.show e) (show res);
+    res
+
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     let t1 = change_d t1 sup_env ~add:true ~del:false in
@@ -398,7 +414,7 @@ struct
     | Some d1', Some d2' -> (
         try
           let res_d = EConj.copy d1' in
-          EConj.IntHashtbl.iter (meet_with_one_conj_with res_d) (snd d2'); (* even on sparse d2, this will chose the relevant conjs to meet with*)
+          EConj.IntHashtbl.iter (meet_with_one_conj_with res_d) !(snd d2'); (* even on sparse d2, this will chose the relevant conjs to meet with*)
           {d = Some res_d; env = sup_env}
         with Contradiction ->
           {d = None; env = sup_env}
@@ -425,7 +441,7 @@ struct
     if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      EConj.IntHashtbl.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) (snd m2) true (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
+      EConj.IntHashtbl.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) !(snd m2) true (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -444,7 +460,7 @@ struct
         | _,_                       -> None
       in
       let flatten (a,(b1,b2,b3)) = (a,b1,b2,b3) in
-      let table = List.map (flatten) @@ EConj.IntHashtbl.to_list @@ EConj.IntHashtbl.merge joinfunction (snd ad) (snd bd) in
+      let table = List.map (flatten) @@ EConj.IntHashtbl.bindings @@ EConj.IntHashtbl.merge joinfunction !(snd ad) !(snd bd) in
       (*gather result in res *)
       let res = EConj.make_empty_conj @@ fst ad in
       (*compare two variables for grouping depending on delta function and reference index*)
@@ -670,6 +686,10 @@ struct
             end
           | _ -> t (* For equalities of more then 2 vars we just return t *))
 
+  let meet_tcons ask t tcons original_expr no_ov  =
+    if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a no_ov:%b" d_exp original_expr (Lazy.force no_ov);
+    meet_tcons ask t tcons original_expr no_ov
+
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
 
   let unify a b =
@@ -692,7 +712,6 @@ struct
 
   *)
   let assert_constraint ask d e negate (no_ov: bool Lazy.t) =
-    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
     match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
     | tcons1 -> meet_tcons ask d tcons1 e no_ov
     | exception Convert.Unsupported_CilExp _ -> d
@@ -725,7 +744,7 @@ struct
         let ri = Environment.var_of_dim t.env r in
         of_coeff xi [(Coeff.s_of_int (-1), xi); (Coeff.s_of_int 1, ri)] o :: acc
     in
-    BatOption.get t.d |> fun (_,map) -> EConj.IntHashtbl.fold (fun lhs rhs list -> get_const list lhs rhs) map [] 
+    BatOption.get t.d |> fun (_,map) -> EConj.IntHashtbl.fold (fun lhs rhs list -> get_const list lhs rhs) !map []
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
