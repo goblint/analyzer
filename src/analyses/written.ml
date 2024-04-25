@@ -14,7 +14,7 @@ struct
   let name () = "written"
   (* Value of entries not in mapping: bot, LiftTop such that there is a `Top map. *)
   module D = WrittenDomain.Written
-  module C = Lattice.Unit
+  module C = Printable.Unit
   module V = struct
     include CilType.Fundec
     let is_write_only _ = false
