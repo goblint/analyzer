@@ -342,14 +342,16 @@ struct
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   Queries.NS.fold (fun n acc ->
                       let fundec = Node.find_fundec n in
-                      let loc = Node.location n in
-                      let location_function = fundec.svar.vname in
-                      let location = Entry.location ~location:loc ~location_function in
-                      List.fold_left (fun acc inv ->
-                          let invariant = Entry.invariant (CilType.Exp.show inv) in
-                          let entry = Entry.location_invariant ~task ~location ~invariant in
-                          entry :: acc
-                        ) acc invs
+                      match WitnessInvariant.location_location n with (* if after thread create node happens to be loop node *)
+                      | Some loc ->
+                        let location_function = fundec.svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        List.fold_left (fun acc inv ->
+                            let invariant = Entry.invariant (CilType.Exp.show inv) in
+                            let entry = Entry.location_invariant ~task ~location ~invariant in
+                            entry :: acc
+                          ) acc invs
+                      | None -> acc
                     ) ns acc
                 | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc

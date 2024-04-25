@@ -213,7 +213,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >     file_name: 04-priv_multi.c
   >     file_hash: $FILE_HASH
   >     line: 67
-  >     column: 7
+  >     column: 3
   >     function: main
   >   location_invariant:
   138,139c144,151
@@ -225,7 +225,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >     file_name: 04-priv_multi.c
   >     file_hash: $FILE_HASH
   >     line: 67
-  >     column: 7
+  >     column: 3
   >     function: main
   >   location_invariant:
   143,144c155,228
@@ -237,7 +237,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >     file_name: 04-priv_multi.c
   >     file_hash: $FILE_HASH
   >     line: 67
-  >     column: 7
+  >     column: 3
   >     function: main
   >   location_invariant:
   >     string: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
