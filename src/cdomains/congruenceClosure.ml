@@ -550,7 +550,7 @@ module Term(Var:Val) = struct
   let default_int_type = IInt
   let to_cil_constant ask z t = let z = Z.(z/ get_element_size_in_bits t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
-  (** TODO: Convert a term to a cil expression and its cil type. *)
+  (** Convert a term to a cil expression and its cil type. *)
   let rec to_cil ask off t =
     let cil_t, vtyp = match t with
       | Addr v -> AddrOf (Var v, NoOffset), TPtr (v.vtype, [])
