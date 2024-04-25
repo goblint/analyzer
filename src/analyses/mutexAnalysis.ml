@@ -134,9 +134,14 @@ struct
       | None -> ctx.local
 
     let remove' ctx ~warn (addr: Addr.t): D.t =
-      match Addr.to_mval addr with
-      | None -> ctx.local
-      | Some mv ->
+      match addr with
+      | StrPtr _
+      | UnknownPtr -> ctx.local
+      | NullPtr ->
+        if warn then
+          M.warn "unlocking NULL mutex";
+        ctx.local
+      | Addr mv ->
         let (s, m) = ctx.local in
         if warn && not (MustLocksetRW.mem_mval mv s) then
           M.warn "unlocking mutex (%a) which may not be held" Mval.pretty mv;
