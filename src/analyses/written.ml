@@ -135,11 +135,9 @@ struct
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Written ->
-      let written : D.t = ctx.local in
-      written
+      (ctx.local : D.t)
     | WriteGraph f ->
-      let written : G.t = ctx.global f in
-      written
+      (ctx.global f: G.t)
     | _ -> Q.Result.top q
 
   let modular_support () = Modular
