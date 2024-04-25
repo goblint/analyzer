@@ -114,7 +114,7 @@
     },
     "yaml": {
       "enabled": true,
-      "format-version": "2.0",
+      "format-version": "0.1",
       "entry-types": [
         "flow_insensitive_invariant"
       ]
