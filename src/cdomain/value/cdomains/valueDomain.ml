@@ -532,7 +532,13 @@ struct
     | (_, Top) -> true
     | (Top, _) -> false
     | (Bot, _) -> true
-    | (_, Bot) -> false
+    | (x, Bot) ->
+      if !AnalysisState.bot_in_blob_leq_bot then
+        match x with
+        | Blob (x,s,o) -> leq x Bot
+        | _ -> false
+      else
+        false
     | (Int x, Int y) -> ID.leq x y
     | (Float x, Float y) -> FD.leq x y
     | (Int x, Address y) when ID.to_int x = Some Z.zero && not (AD.is_not_null y) -> true

@@ -30,3 +30,6 @@ let postsolving = ref false
 
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
+
+(* Comparison mode where blobs with bot content that are not zero-initalized are considered equivalent to top-level bot *)
+let bot_in_blob_leq_bot = ref false
