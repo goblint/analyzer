@@ -83,41 +83,36 @@ module EqualitiesConjunction = struct
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
-  let add_variables_to_domain m indexes = 
-    if Array.length indexes = 0 then m else
-      let offset_map = Array.make (get_dim m) 0 (* maps each variable to the number of variables that are added before this variable *)
-      in
-      let _ =
-        let rec shift (offset, list) index = (* bumps offset & pops list, if/while index is heading the list *)
-          match list with
-          | hd::tl when hd = index -> shift (offset+1, tl) index
-          | _ -> (offset, list)
-        in
-        (* TODO: https://github.com/goblint/analyzer/pull/1297#discussion_r1479505621 *)
-        Array.fold_lefti (* this is not a textbook fold. We rather use it as a means to iterate over the range
-                            of all indices of offset_map, initializing the array at these indices as a side-effect.
-                            We use fold here as a means of having an accumulator to keep track of the current offset
-                            and the rest of the offset list. In case of more frequent use of this pattern, consider this as
-                            a candidate template for a new library function *)
-          (fun offsetcontext index _ ->
-             let newoffset, newlist = shift offsetcontext index in
-             offset_map.(index) <- newoffset;
-             (newoffset, newlist))
-          (0, Array.to_list indexes) offset_map
-      in
-      let add_offset_to_array_entry (var, offs) = (* uses offset_map to obtain a new var_index, that is consistent with the new reference indices *)
-        Option.map (fun var_index -> var_index + offset_map.(var_index)) var, offs in
-      (get_dim m + Array.length indexes , ref (IntHashtbl.fold (fun k value acc -> IntHashtbl.add (k + offset_map.(k)) (add_offset_to_array_entry value) acc) !(snd m) IntHashtbl.empty ))
-
-  let add_variables_to_domain2 m indexes =
+  let add_variables_to_domain m indexes =
     if Array.length indexes = 0 then m else
       let offsetlist = Array.to_list indexes in
-      let offset k value (tbl,delta,list) = match (tbl,delta,list) with
-        | (tbl,delta,pfx::list) when pfx=k -> (IntHashtbl.add (k+delta+1) value tbl,delta+1,list)
-        | (tbl,delta,[]) -> (IntHashtbl.add (k+delta) value tbl,delta,[])
-        | (tbl,delta,list) -> (IntHashtbl.add (k+delta) value tbl,delta,list)
+      let rec shiftvar delta i = function
+          head::_ when i=head -> delta+i+1
+        | head::_ when i<head -> delta+i
+        | head::rest -> shiftvar (delta+1) i rest
+        | [] -> delta+i
       in
-      let a = Tuple3.first @@ IntHashtbl.fold (offset) !(snd m) (IntHashtbl.empty,0,offsetlist) in
+      let memoshiftvar = 
+        if (Array.length indexes > 100) then
+          (let h = Hashtbl.create @@ IntHashtbl.cardinal !(snd m) in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
+           fun x ->
+             try Hashtbl.find h x with Not_found ->
+               let r = shiftvar 0 x offsetlist in
+               Hashtbl.add h x r;
+               r)
+        else
+          fun x -> shiftvar 0 x offsetlist
+      in
+      let memoshiftrhs = function
+          (Some k, v) -> (Some (memoshiftvar k), v)
+        | a -> a
+      in
+      let rec shiftentry k value = function
+        | (tbl,delta,head::rest) when k=head            -> (IntHashtbl.add (k+delta+1) (memoshiftrhs value) tbl,delta+1,rest)
+        | (tbl,delta,head::rest) when k>head            -> shiftentry k value (tbl,delta+1,rest)
+        | (tbl,delta,list) (* k< fst list or list=[] *) -> (IntHashtbl.add (k+delta)   (memoshiftrhs value) tbl,delta  ,list)
+      in
+      let a = Tuple3.first @@ IntHashtbl.fold (shiftentry) !(snd m) (IntHashtbl.empty,0,offsetlist) in
       (get_dim m + Array.length indexes, ref a)
 
   let add_variables_to_domain m cols = timing_wrap "add_cols" (add_variables_to_domain m) cols
