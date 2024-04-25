@@ -1,6 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --set ana.relation.privatization mutex-meet
 extern int __VERIFIER_nondet_int();
-// TODO: rename? this doesn't require clusters
+// Normal mutex-meet is enough here, this doesn't require mutex-meet-tid-cluster* (despite the name).
+// The name is "cluster-based" for historical reasons to match the example name in more-traces paper repository.
 #include <pthread.h>
 #include <goblint.h>
 
