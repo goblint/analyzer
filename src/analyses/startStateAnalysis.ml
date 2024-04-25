@@ -2,10 +2,11 @@
     Used by the wrpointer anaylysis. *)
 
 open GoblintCil
+open Batteries
 open Analyses
 
 
-(*First all local variables of the function are duplicated (by negating their ID),
+(*First all parameters (=formals) of the function are duplicated (by negating their ID),
     then we remember the value of each local variable at the beginning of the function
   in this new duplicated variable. *)
 module Spec : Analyses.MCPSpec =
@@ -19,7 +20,9 @@ struct
 
   include Analyses.IdentitySpec
 
-  let duplicated_variable var = { var with vid = - var.vid }
+
+  let duplicated_variable var = { var with vid = - var.vid; vname = var.vname ^ "'" }
+  let original_variable var = { var with vid = - var.vid; vname = String.rchop var.vname }
 
   let get_value (ask: Queries.ask) exp = ask.f (MayPointTo exp)
 
@@ -31,11 +34,18 @@ struct
         | Some v -> v
         | None -> Value.top()
       end
-    | AddrOf (Var x, NoOffset) -> get_value ask (AddrOf (Var (duplicated_variable x), NoOffset))
+    | AddrOf (Var x, NoOffset) -> if x.vid < 0 then get_value ask (AddrOf (Var (original_variable x), NoOffset)) else Value.top()
     | _ -> Value.top ()
 
   let startstate v = D.bot ()
   let exitstate = startstate
+
+  let return ctx exp_opt f =
+    (*remember all value of local vars*)
+    List.fold_left (fun st var -> let value = get_value (ask_of_ctx ctx) (Lval (Var var, NoOffset)) in
+                     if M.tracing then M.trace "startState" "return: added value: var: %a; value: %a" d_lval (Var var, NoOffset) Value.pretty value;
+                     D.add (var) value st) (D.empty()) (f.sformals @ f.slocals)
+
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
@@ -50,11 +60,14 @@ struct
 
   let body ctx (f:fundec) =
     List.fold_left (fun st var -> let value = get_value (ask_of_ctx ctx) (Lval (Var var, NoOffset)) in
-                     if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var var, NoOffset) Value.pretty value;
-                     D.add var value st) (D.empty()) (List.map duplicated_variable f.sformals)
+                     if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var (duplicated_variable var), NoOffset) Value.pretty value;
+                     D.add (duplicated_variable var) value st) (D.empty()) f.sformals
 
-  let combine_env ctx var_opt expr f exprs t_context_opt t ask =
-    ctx.local
+  let combine_assign ctx var_opt expr f exprs t_context_opt t ask =
+    (*remove duplicated vars and local vars *)
+    List.fold_left (fun st var ->
+        if M.tracing then M.trace "startState" "removing var: var: %a" d_lval (Var var, NoOffset);
+        D.remove (var) st) (D.empty()) (f.sformals @ f.slocals @ (List.map duplicated_variable f.sformals))
 
 end
 

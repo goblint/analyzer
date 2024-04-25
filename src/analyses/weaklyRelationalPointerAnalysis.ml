@@ -63,6 +63,12 @@ struct
     | exception (T.UnsupportedCilExpression _) -> t
     | _ -> t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
 
+  let assign_lval_2_ask t (ask1: Queries.ask) (ask2: Queries.ask) lval expr =
+    let f (type a) (q: a Queries.t) =
+      let module Result = (val Queries.Result.lattice q) in
+      Result.meet (ask1.f q) (ask2.f q) in
+    let (ask: Queries.ask) = {f} in assign_lval t ask lval expr
+
   let assign ctx lval expr =
     let res = assign_lval ctx.local (ask_of_ctx ctx) lval expr in
     if M.tracing then M.trace "wrpointer-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval lval d_plainexp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.uf) "" res); res
@@ -99,37 +105,49 @@ struct
         branch ctx exp true
     | _, _ -> ctx.local
 
+  let duplicated_variable var = { var with vid = - var.vid; vname = var.vname ^ "'" }
+  let original_variable var = { var with vid = - var.vid; vname = String.rchop var.vname }
+
+  (*First all local variables of the function are duplicated (by negating their ID),
+    then we remember the value of each local variable at the beginning of the function
+    by using the analysis startState. This way we can infer the relations between the
+    local variables of the caller and the pointers that were modified by the function. *)
   let enter ctx var_opt f args =
-    (* assign function parameters *)
+    (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let new_state = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var var, NoOffset) exp) ctx.local arg_assigns in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
+    if M.tracing then M.trace "wrpointer-function" "ENTER1: state_with_assignments: %s\n" (D.show state_with_assignments);
+    (* add duplicated variables, and set them equal to the original variables *)
+    let added_equalities = (List.map (fun v -> (CC.Deref (CC.Addr (duplicated_variable v),Z.zero), CC.Deref (CC.Addr v,Z.zero), Z.zero)) f.sformals) in
+    let state_with_duplicated_vars = meet_conjs state_with_assignments added_equalities in
+    if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars *)
-    let arg_vars = List.map fst arg_assigns in
-    let reachable_variables = arg_vars (**@ all globals bzw not_locals*)
+    let reachable_variables = f.sformals @ f.slocals @ List.map duplicated_variable f.sformals (*@ all globals*)
     in
-    let new_state = D.remove_terms_not_containing_variables reachable_variables new_state in
-    if M.tracing then M.trace "wrpointer-function" "ENTER: var_opt: %a; state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show new_state);
-    [ctx.local, new_state]
+    let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_duplicated_vars in
+    if M.tracing then M.trace "wrpointer-function" "ENTER3: result: %s\n" (D.show new_state);
+    [state_with_assignments, new_state]
 
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
      expr funktionsaufruf*)
   let combine_env ctx var_opt expr f exprs t_context_opt t ask =
-    let local_vars = f.sformals @ f.slocals in
+    let og_t = t in
     let t = D.meet ctx.local t in
-    let res =
-      D.remove_terms_containing_variables local_vars t
-    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ENV: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
+    if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
+    let t = match var_opt with
+      | None -> t
+      | Some var -> assign_lval_2_ask t (ask_of_ctx ctx) ask var Disequalities.dummy_lval
+    in
+    if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (D.show_all t);
+    let local_vars = f.sformals @ f.slocals in
+    let duplicated_vars = List.map duplicated_variable f.sformals in
+    let t =
+      D.remove_terms_containing_variables (Disequalities.dummy_varinfo::local_vars @ duplicated_vars) t
+    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN3: result: %s\n" (D.show t); t
 
   (*ctx.local is after combine_env, t callee*)
   let combine_assign ctx var_opt expr f exprs t_context_opt t ask =
-    let ask = (ask_of_ctx ctx) in
-    let t' = combine_env ctx var_opt expr f exprs t_context_opt t ask in
-    let t' = match var_opt with
-      | None -> t'
-      | Some var -> assign_lval t' ask var Disequalities.dummy_lval
-    in
-    let res = D.remove_terms_containing_variable Disequalities.dummy_var t'
-    in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN: var_opt: %a; local_state: %s; t_state: %s; result: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show t) (D.show res); res
+    ctx.local
 
   let threadenter ctx ~multiple var_opt v exprs = [ctx.local]
   let threadspawn ctx ~multiple var_opt v exprs ctx2 = ctx.local
