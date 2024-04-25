@@ -377,7 +377,7 @@ struct
         set_path_string st v
       with Yojson.Json_error _ | TypeError _ ->
         set_string st s
-    with e ->
+    with e -> (* TODO: don't catch all? *)
       Logs.error "Cannot set %s to '%s'." st s;
       raise e
 

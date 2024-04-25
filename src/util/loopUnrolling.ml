@@ -292,7 +292,7 @@ let fixedLoopSize loopStatement func =
         Logs.debug "iterations:";
         Logs.debug "%d" s';
         Some s'
-      with  _ -> Logs.debug "iterations too big for integer"; None
+      with  _ -> Logs.debug "iterations too big for integer"; None (* TODO: don't catch all *)
 
 
 class arrayVisitor = object

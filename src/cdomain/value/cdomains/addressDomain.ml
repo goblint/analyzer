@@ -241,7 +241,7 @@ struct
   let type_of xs =
     try Addr.type_of (choose xs)
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)
-    | _ -> voidType
+    | _ -> voidType (* TODO: do not catch all! *)
 
   let of_var x = singleton (Addr.of_var x)
   let of_mval x = singleton (Addr.of_mval x)

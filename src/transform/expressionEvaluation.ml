@@ -31,7 +31,7 @@ struct
 
   let (~?) exception_function =
     try Some (exception_function ()) with
-    | _ -> None
+    | _ -> None (* TODO: don't catch all *)
   let (~!) value_option =
     match value_option with
     | Some value -> value
