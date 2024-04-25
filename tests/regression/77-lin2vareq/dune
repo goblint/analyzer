@@ -7,4 +7,4 @@
    (:update_suite ../../../scripts/update_suite.rb)
    (glob_files ??-*.c))
  (locks /update_suite)
- (action (chdir ../../.. (run %{update_suite} group lin2vareq))))
+ (action (chdir ../../.. (run %{update_suite} group lin2vareq -q))))
