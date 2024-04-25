@@ -11,16 +11,17 @@
  (action
   (chdir ../../..
    (progn
-     (run %{update_suite} apron-unassume-interval)
-     (run %{update_suite} apron-unassume-branch)
-     (run %{update_suite} apron-unassume-global)
-     (run %{update_suite} apron-unassume-priv)
-     (run %{update_suite} apron-unassume-priv2)
-     (run %{update_suite} apron-unassume-strengthening)
-     (run %{update_suite} mine-tutorial-ex4.10)
-     (run %{update_suite} hh-ex3)
-     (run %{update_suite} bh-ex1-poly)
-     (run %{update_suite} apron-unassume-precheck)))))
+     (run %{update_suite} apron-unassume-interval -q)
+     (run %{update_suite} apron-unassume-branch -q)
+     (run %{update_suite} apron-unassume-global -q)
+     (run %{update_suite} apron-unassume-priv -q)
+     (run %{update_suite} apron-unassume-priv2 -q)
+     (run %{update_suite} apron-unassume-strengthening -q)
+     (run %{update_suite} mine-tutorial-ex4.10 -q)
+     (run %{update_suite} hh-ex3 -q)
+     (run %{update_suite} bh-ex1-poly -q)
+     (run %{update_suite} apron-unassume-precheck -q)
+     (run %{update_suite} apron-tracked-global-annot -q)))))
 
 (cram
  (deps (glob_files *.c) (glob_files ??-*.yml)))
