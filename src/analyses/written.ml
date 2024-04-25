@@ -21,7 +21,7 @@ struct
   end
   module G = ValueDomain.ADGraph
 
-  let context _ _ = C.bot ()
+  let context _ _ = ()
 
   let add_entry k v d =
     let value = match D.find_opt k d with
