@@ -1017,11 +1017,11 @@ module CongruenceClosure (Var : Val) = struct
   let rec detect_cyclic_dependencies t1 t2 cc =
     match t1 with
     | Addr v -> false
-    | Deref (t, _) ->
+    | Deref (t1, _) ->
       let v1, o1 = TUF.find_no_pc cc.uf t1 in
       let v2, o2 = TUF.find_no_pc cc.uf t2 in
       if T.equal v1 v2 then true else
-        detect_cyclic_dependencies t t2 cc
+        detect_cyclic_dependencies t1 t2 cc
 
   let add_successor_terms cc t =
     let add_one_successor (cc, successors) (edge_z, _) =
