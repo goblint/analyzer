@@ -25,6 +25,14 @@
         "ldv_xzalloc",
         "ldv_calloc"
       ]
+    },
+    "base" : {
+      "invariant": {
+        "enabled": false
+      },
+      "eval": {
+        "deep-query": false
+      }
     }
   },
   "sem": {
@@ -36,10 +44,18 @@
     },
     "builtin_unreachable": {
       "dead_code": true
+    },
+    "int": {
+      "signed_overflow": "assume_none"
     }
   },
   "exp": {
     "priv-distr-init": false,
     "priv-prec-dump-proj" : true
+  },
+  "solvers" : {
+    "td3": {
+      "side_widen" : "sides-pp"
+    }
   }
 }
