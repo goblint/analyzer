@@ -120,8 +120,8 @@ struct
     end
 
     let add ctx ((addr, rw): AddrRW.t): D.t =
-      match Addr.to_mval addr with
-      | Some mv ->
+      match addr with
+      | Addr mv ->
         let (s, m) = ctx.local in
         let s' = MustLocksetRW.add_mval_rw (mv, rw) s in
         let m' =
@@ -131,7 +131,11 @@ struct
             m
         in
         (s', m')
-      | None -> ctx.local
+      | NullPtr ->
+        M.warn "locking NULL mutex";
+        ctx.local
+      | StrPtr _
+      | UnknownPtr -> ctx.local
 
     let remove' ctx ~warn (addr: Addr.t): D.t =
       match addr with
