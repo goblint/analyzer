@@ -97,8 +97,8 @@ void *t_fun(void *arg) {
     reach3 = 1;
 #endif
   __goblint_check(reach1); // always reached
-  __goblint_check(reach2); // UNKNOWN (sometimes reached)
-  __goblint_check(reach3); // UNKNOWN (sometimes reached)
+  __goblint_check(reach2); // UNKNOWN! (sometimes reached)
+  __goblint_check(reach3); // UNKNOWN! (sometimes reached)
 
   return NULL;
 }
