@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] wrpointer
+// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState
 // example of the paper "2-Pointer Logic" by Seidl et al., pag. 21
 #include <goblint.h>
 

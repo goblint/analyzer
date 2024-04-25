@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] wrpointer
+// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState
 #include <goblint.h>
 
 void main(void) {

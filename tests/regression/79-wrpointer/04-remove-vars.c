@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] wrpointer
+// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState
 #include <goblint.h>
 #include <stdlib.h>
 
@@ -12,7 +12,8 @@ int *f(int **j) {
 
 int main(void) {
   int *i;
-  int **j = (int**)malloc(sizeof(int*));
+  int **j;
+  j = (int**)malloc(sizeof(int*));
   *j = (int *)malloc(sizeof(int));
   int *k = f(j);
 
