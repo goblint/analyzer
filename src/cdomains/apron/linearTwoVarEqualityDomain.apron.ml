@@ -382,7 +382,7 @@ struct
      | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
      | Some j, None -> subst_var ts j (None, Z.(b1 - b))
      | Some j, Some h1 ->
-       (match (EConj.get_rhs ts j) with
+       (match EConj.get_rhs ts j with
         | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
         | (Some h2, b2) ->
           if h1 = h2 then
