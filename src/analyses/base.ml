@@ -1262,7 +1262,7 @@ struct
   (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
   let rec exp_may_signed_overflow ctx exp =
     let res = match Cilfacade.get_ikind_exp exp with
-      | exception _ -> BoolDomain.MayBool.top ()
+      | exception _ -> BoolDomain.MayBool.top () (* TODO: do not catch all! *)
       | ik ->
         let checkDiv e1 e2 =
           let binop = (GobOption.map2 Z.div )in
@@ -1271,7 +1271,7 @@ struct
           | _, `Bot -> false
           | `Lifted i1, `Lifted i2 ->
             ( let divisor_contains_zero = (ID.is_bot @@ ID.meet i2 (ID.of_int ik Z.zero))  in
-              if divisor_contains_zero then true else 
+              if divisor_contains_zero then true else
                 ( let (min_ik, max_ik) = IntDomain.Size.range ik in
                   let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
                   let (min_i2, max_i2) = (IntDomain.IntDomTuple.minimal i2, IntDomain.IntDomTuple.maximal i2) in
