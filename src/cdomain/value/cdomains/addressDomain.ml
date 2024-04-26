@@ -239,9 +239,7 @@ struct
       ID.top_of ik
 
   let type_of xs =
-    try Addr.type_of (choose xs)
-    with (* WTF? Returns TVoid when it is unknown and stuff??? *)
-    | _ -> voidType
+    Addr.type_of (choose xs) (* TODO: what if ambiguous type? what if chooses NullPtr but also contains Addr with proper type? *)
 
   let of_var x = singleton (Addr.of_var x)
   let of_mval x = singleton (Addr.of_mval x)
