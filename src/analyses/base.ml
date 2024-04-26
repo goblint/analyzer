@@ -468,7 +468,6 @@ struct
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
   let rec get ~ctx ?(top=VD.top ()) ?(full=false) (st: store) (addrs:address) (exp:exp option): value =
-    let at = AD.type_of addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
@@ -495,7 +494,12 @@ struct
       in
       (* We form the collecting function by joining *)
       let c (x:value) = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
-        | Int _ when Cil.isArithmeticType at -> VD.cast at x
+        | Int _ ->
+          let at = AD.type_of addrs in
+          if Cil.isArithmeticType at then
+            VD.cast at x
+          else
+            x
         | _ -> x
       in
       let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
@@ -2025,7 +2029,7 @@ struct
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
-      let t = AD.type_of a in
+      let t = try AD.type_of a with Not_found -> voidType in (* TODO: why is this called with empty a to begin with? *)
       let v = get ~ctx st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) t v in
       (a, t, nv)
