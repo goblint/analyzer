@@ -31,24 +31,11 @@ module EqualitiesConjunction = struct
 
   type t = int * ( Rhs.t IntMap.t ref)
 
-  let equal (idim,imap) (jdim,jmap) = idim = jdim (* compare the dimensions i.e. max indices *)
-                                      && IntMap.cardinal !imap = IntMap.cardinal !jmap  (* compare the actual number of bindings *)
-                                      && IntMap.fold (fun lh rh acc -> acc && IntMap.mem lh !jmap && IntMap.find lh !jmap = rh) !imap true (* check all bindings *)
+  let equal (idim,imap) (jdim,jmap) = idim = jdim && IntMap.equal Rhs.equal !imap !jmap
 
-  let compare i j = let c = compare (fst i) (fst j) in if c <> 0 then
+  let compare (idim,imap) (jdim,jmap) = let c = compare idim jdim in if c <> 0 then
       c
-    else let merg = IntMap.merge (fun k a b -> match a,b with
-        | Some a, Some b -> Some (a,b)
-        | Some v, None-> Some (v,Rhs.var_zero k)
-        | None, Some v -> Some (Rhs.var_zero k,v)
-        | None, None -> None) !(snd i) !(snd j) in
-      let lst= IntMap.bindings merg in (* bindings are luckily already sorted by key *)
-      let rec compare_list li = match li with
-        | [] -> 0
-        | (_,(a,b))::rest -> let c = compare a b in
-          if c = 0 then compare_list rest
-          else c
-      in compare_list lst
+    else IntMap.compare Rhs.compare !imap !jmap
 
   let show econ = let show_rhs i (v, o) = Printf.sprintf "var_%d=%s " i (Rhs.show (v, o)) in
     IntMap.fold (fun lhs rhs acc -> acc ^ show_rhs lhs rhs) econ ""
