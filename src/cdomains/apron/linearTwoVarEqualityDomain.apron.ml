@@ -81,8 +81,6 @@ module EqualitiesConjunction = struct
 
   let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
-  let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
-
   (** add new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
   let add_variables_to_domain m indexes =
