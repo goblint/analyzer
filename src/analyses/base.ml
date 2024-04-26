@@ -1266,7 +1266,9 @@ struct
   (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
   let rec exp_may_signed_overflow ctx exp =
     let res = match Cilfacade.get_ikind_exp exp with
-      | exception _ -> BoolDomain.MayBool.top () (* TODO: do not catch all! *)
+      | exception (Cilfacade.TypeOfError _) (* Cilfacade.typeOf *)
+      | exception (Invalid_argument _) -> (* get_ikind *)
+        BoolDomain.MayBool.top ()
       | ik ->
         let checkBinop e1 e2 binop =
           match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
