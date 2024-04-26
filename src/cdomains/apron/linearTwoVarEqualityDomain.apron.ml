@@ -460,7 +460,7 @@ struct
         | _,_                       -> None
       in
       let flatten (a,(b1,b2,b3)) = (a,b1,b2,b3) in
-      let table = List.map (flatten) @@ EConj.IntMap.bindings @@ EConj.IntMap.merge joinfunction !(snd ad) !(snd bd) in
+      let table = List.map flatten @@ EConj.IntMap.bindings @@ EConj.IntMap.merge joinfunction !(snd ad) !(snd bd) in
       (*gather result in res *)
       let res = EConj.make_empty_conj @@ fst ad in
       (*compare two variables for grouping depending on delta function and reference index*)
