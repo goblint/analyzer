@@ -374,6 +374,15 @@ module Term(Var:Val) = struct
     | Some i -> i
     | None -> raise (UnsupportedCilExpression "unknown offset")
 
+  (** For a type TPtr(t) it returns the type t. *)
+  let dereference_type = function
+    | TPtr (typ, _) -> typ
+    | typ -> let rec remove_array_and_struct_types = function
+        | TArray (typ, _, _) -> remove_array_and_struct_types typ
+        | TComp (cinfo, _) ->  raise (UnsupportedCilExpression "not supported yet") (*TODO*)
+        | typ -> typ
+      in remove_array_and_struct_types typ
+
   let rec type_of_term =
     let get_field_at_index z =
       List.find (fun field -> Z.equal (get_field_offset field) z)
@@ -383,14 +392,8 @@ module Term(Var:Val) = struct
           | TComp (cinfo, _) -> (get_field_at_index z cinfo.cfields).ftype
           | _ -> x.vtype
         end
-      | (Deref (t, z)) -> begin match type_of_term t with
-          | TPtr (typ, _) -> typ
-          | typ -> let rec remove_array_and_struct_types = function
-              | TArray (typ, _, _) -> remove_array_and_struct_types typ
-              | TComp (cinfo, _) ->  raise (UnsupportedCilExpression "not supported yet") (*TODO*)
-              | typ -> typ
-            in remove_array_and_struct_types typ
-        end
+      | (Deref (t, z)) -> dereference_type (type_of_term t)
+
 
 
   let rec of_index ask t var_type curr_offs =
@@ -457,9 +460,7 @@ module Term(Var:Val) = struct
           end
         | _ -> raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)-> let old_size = get_element_size_in_bits (Cilfacade.typeOf exp) in
-      let new_size = get_element_size_in_bits (Cilfacade.typeOf e) in
-      let t, off = of_cil ask exp in t, Z.(off * new_size / old_size)
+    | CastE (typ, exp)-> of_cil ask exp
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval = let res = match lval with
       | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) var.vtype off Z.zero
@@ -471,7 +472,7 @@ module Term(Var:Val) = struct
             let typ = Cilfacade.typeOf exp in
             if is_struct_ptr_type typ then of_offset ask term typ off offset
             else
-              of_offset ask (Deref (term, offset)) typ off Z.zero
+              of_offset ask (Deref (term, offset)) (Cilfacade.typeOfLval (Mem exp, NoOffset)) off Z.zero
           | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
         end in
     (if M.tracing then match res with
