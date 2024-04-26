@@ -17,7 +17,7 @@
    qcheck-core.runner)
  (flags :standard -open Goblint_std -open Goblint_logs)
  (preprocess
-  (pps
+  (pps goblintlint
     ppx_blob))
  (preprocessor_deps (file options.schema.json))
  (instrumentation (backend bisect_ppx)))

@@ -11,7 +11,7 @@
    goblint-cil)
  (flags :standard -open Goblint_std)
  (preprocess
-  (pps
+  (pps goblintlint
     ppx_deriving.std
     ppx_deriving_hash
     ppx_deriving_yojson))

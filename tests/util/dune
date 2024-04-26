@@ -8,4 +8,4 @@
    goblint.sites.dune
    goblint.build-info.dune)
  (flags :standard -open Goblint_std)
- (preprocess (pps ppx_deriving.std)))
+ (preprocess (pps goblintlint ppx_deriving.std)))

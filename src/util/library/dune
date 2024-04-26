@@ -11,7 +11,7 @@
    goblint_config
    goblint-cil)
  (preprocess
-  (pps
+  (pps goblintlint
     ppx_deriving.std
     ppx_deriving_hash))
  (instrumentation (backend bisect_ppx)))

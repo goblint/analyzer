@@ -8,4 +8,4 @@
    fpath
    goblint.sites.dune
    goblint.build-info.dune)
- (preprocess (pps ppx_deriving.std)))
+ (preprocess (pps goblintlint ppx_deriving.std)))

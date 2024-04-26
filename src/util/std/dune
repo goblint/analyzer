@@ -12,7 +12,7 @@
    yaml
    qcheck-core)
  (preprocess
-  (pps
+  (pps goblintlint
    ppx_deriving.std
    ppx_deriving_hash
    ppx_deriving_yojson))

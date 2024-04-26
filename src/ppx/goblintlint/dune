@@ -1,0 +1,7 @@
+(include_subdirs no)
+
+(library
+ (name goblintlint)
+ (kind ppx_rewriter)
+ (libraries ppxlib)
+ (preprocess (pps ppxlib.metaquot)))

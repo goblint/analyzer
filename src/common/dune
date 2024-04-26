@@ -20,7 +20,7 @@
  (foreign_stubs (language c) (names stubs))
  (ocamlopt_flags :standard -no-float-const-prop)
  (preprocess
-  (pps
+  (pps goblintlint
     ppx_deriving.std
     ppx_deriving_hash
     ppx_deriving_yojson))
