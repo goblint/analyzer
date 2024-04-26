@@ -21,7 +21,7 @@ module Disequalities = struct
     if T.equal t1 t2 then true else
       (* two local arrays can never point to the same array *)
       let are_different_arrays = match t1, t2 with
-        | Deref (Addr x1, z1),  Deref (Addr x2, z2) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
+        | Deref (Addr x1, z1), Deref (Addr x2, z2) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
         | _ -> false in
       if are_different_arrays || Var.equal dummy_varinfo (T.get_var t1) || Var.equal dummy_varinfo (T.get_var t2) then false else
         let exp1 = T.to_cil ask Z.zero t1 in
@@ -33,17 +33,20 @@ module Disequalities = struct
             (T.show t1) d_plainexp exp1 AD.pretty mpt1 (T.get_var t1).vid (T.show t2) d_plainexp exp2 AD.pretty mpt2 (T.get_var t2).vid (string_of_bool res); res
 
   (**Returns true iff by assigning to t1, the value of t2 could change. *)
-  let rec may_be_equal ask uf t1 t2 =
+  let rec may_be_equal ask uf t1 t2  =
+    let there_is_an_overlap s s' diff =
+      if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
+    in
     match t1, t2 with
     | CC.Deref (t, z), CC.Deref (v, z') ->
       let (q', z1') = TUF.find_no_pc uf v in
       let (q, z1) = TUF.find_no_pc uf t in
-      let s = T.get_size_in_bits (T.type_of_term t) in
-      let s' = T.get_size_in_bits (T.type_of_term v) in
+      let s = T.get_size_in_bits (T.type_of_term t1) in
+      let s' = T.get_size_in_bits (T.type_of_term t2) in
       let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
       (
-        (not (T.equal q' q) || Z.(lt diff s && lt (-s') diff))
+        (not (T.equal q' q) || there_is_an_overlap s s' diff)
         (* or if we know that they are not equal according to the query MayPointTo*)
         &&
         (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))
