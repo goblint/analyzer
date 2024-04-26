@@ -402,7 +402,7 @@ struct
         {d = None; env = t.env}
 
   let meet_with_one_conj t i e =
-    let res= meet_with_one_conj t i e in
+    let res = meet_with_one_conj t i e in
     if M.tracing then M.trace "meet_one_conj" "meet %s with var_%d=%s -> %s" (show t) i (Rhs.show e) (show res);
     res
 
