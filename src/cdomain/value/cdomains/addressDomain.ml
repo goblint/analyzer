@@ -238,6 +238,7 @@ struct
     else
       ID.top_of ik
 
+  (** @raise Not_found if set is empty. *)
   let type_of xs =
     Addr.type_of (choose xs) (* TODO: what if ambiguous type? what if chooses NullPtr but also contains Addr with proper type? *)
 
