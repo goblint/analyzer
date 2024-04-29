@@ -689,7 +689,7 @@ struct
 
   let unify a b =
     let res = unify a b  in
-    if M.tracing then M.tracel "ops" "unify: %s %s -> %s" (show a) (show b) (show res);
+    if M.tracing then M.tracel "ops" "unify: %s\n    U\n %s -> %s" (show a) (show b) (show res);
     res
 
   (** Assert a constraint expression. Defined in apronDomain.apron.ml
