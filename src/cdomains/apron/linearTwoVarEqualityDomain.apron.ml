@@ -102,7 +102,9 @@ module EqualitiesConjunction = struct
       let a = Tuple3.first @@ IntMap.fold (shiftentry) !(snd m) (IntMap.empty,0,offsetlist) in
       (get_dim m + Array.length indexes, ref a)
 
-  let add_variables_to_domain m cols = timing_wrap "add_cols" (add_variables_to_domain m) cols
+  let add_variables_to_domain m cols = let res = add_variables_to_domain m cols in if M.tracing then M.tracel "add_dims" "add  %d dims to %d -> %d" (Array.length cols) (fst m) (fst res); res
+
+  let add_variables_to_domain m cols = timing_wrap "add_dims" (add_variables_to_domain m) cols
 
   let remove_variables_from_domain m indexes =
     let nr_removed_colums = Array.length indexes in
@@ -122,7 +124,10 @@ module EqualitiesConjunction = struct
                                       BatSeq.map (fun (lhs,rhs) -> (lhs-offset_map.(lhs),remove_offset_from_rhs rhs))
                                         (IntMap.to_seq @@ !(snd m))))
 
-  let remove_variables_from_domain m cols = timing_wrap "del_cols" (remove_variables_from_domain m) cols
+  let remove_variables_from_domain m cols =  let res= remove_variables_from_domain m cols in if M.tracing then M.tracel "del_dims" "del %d dims from %d -> %d" (Array.length cols) (fst m) (fst res); res
+
+
+  let remove_variables_from_domain m cols = timing_wrap "del_dims" (remove_variables_from_domain m) cols
 
   let is_empty m = get_dim m = 0
 
