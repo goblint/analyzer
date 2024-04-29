@@ -288,6 +288,8 @@ struct
   include VarManagement
 
   let bound_texpr t texpr =
+    if t.d = None then None, None
+    else
     match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
     | Some (None, offset) ->
       (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string offset) (IntOps.BigIntOps.to_string offset);
