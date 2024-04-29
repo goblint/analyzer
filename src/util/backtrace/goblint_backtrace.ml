@@ -47,7 +47,7 @@ let apply_mark_printers m =
       match f m with
       | Some s -> Some s
       | None
-      | exception _ -> None (* TODO: do not catch all? *)
+      | exception _ -> None (* TODO: do not catch all? Stdlib.Printexc also catches all *)
     ) !mark_printers
 
 let mark_to_string_default m =
