@@ -353,7 +353,7 @@ module Term(Var:Val) = struct
 
   (**Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the ize of the
-      elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int[][][] = sizeof(int)). *)
+      elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int\[]\[]\[] = sizeof(int)). *)
   let rec get_element_size_in_bits typ =
     match typ with
     | TArray (typ, _, _) -> get_element_size_in_bits typ
