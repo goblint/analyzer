@@ -2731,11 +2731,21 @@ module Enums : S with type int_t = Z.t = struct
           ) (Invariant.bot ()) (BISet.elements ps)
       else
         Invariant.top ()
-    | Exc (ns, _) ->
+    | Exc (ns, r) ->
+      (* Emit range invariant if tighter than ikind bounds.
+         This can be more precise than interval, which has been widened. *)
+      let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
+      let (ikmin, ikmax) =
+        let ikr = size ik in
+        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
+      in
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
+      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) (Invariant.top ()) (BISet.elements ns)
+        ) Invariant.(imin && imax) (BISet.elements ns)
 
 
   let arbitrary ik =
