@@ -189,19 +189,7 @@ all without inexact-type-bounds:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
-    total generation entries: 1
-
-TODO: should not have any invariants
+    total generation entries: 0
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: location_invariant
-    location:
-      file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
-      line: 5
-      column: 3
-      function: main
-    location_invariant:
-      string: x == (_Bool)0 || x == (_Bool)1
-      type: assertion
-      format: C
+  []

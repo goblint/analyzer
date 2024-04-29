@@ -2418,10 +2418,13 @@ module Enums : S with type int_t = Z.t = struct
   type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
-  let top_of ik = Exc (BISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
+  let top_of ik =
+    match ik with
+    | IBool -> top_bool
+    | _ -> Exc (BISet.empty (), size ik)
 
   let range ik = Size.range ik
 
@@ -2721,7 +2724,10 @@ module Enums : S with type int_t = Z.t = struct
   let ne ik x y = c_lognot ik (eq ik x y)
 
   let invariant_ikind e ik x =
+    let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
     match x with
+    | Inc ps when not inexact_type_bounds && ik = IBool && is_top_of ik x ->
+      Invariant.none
     | Inc ps ->
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
         BISet.fold (fun x a ->
@@ -2738,7 +2744,6 @@ module Enums : S with type int_t = Z.t = struct
         let ikr = size ik in
         (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
       in
-      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
       let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
       let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
       BISet.fold (fun x a ->
