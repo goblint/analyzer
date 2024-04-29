@@ -2725,10 +2725,10 @@ module Enums : S with type int_t = Z.t = struct
     match x with
     | Inc ps ->
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
-        List.fold_left (fun a x ->
+        BISet.fold (fun x a ->
             let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
             Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-          ) (Invariant.bot ()) (BISet.elements ps)
+          ) ps (Invariant.bot ())
       else
         Invariant.top ()
     | Exc (ns, r) ->
@@ -2742,10 +2742,10 @@ module Enums : S with type int_t = Z.t = struct
       let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
       let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
       let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
-      List.fold_left (fun a x ->
+      BISet.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) Invariant.(imin && imax) (BISet.elements ns)
+        ) ns Invariant.(imin && imax)
 
 
   let arbitrary ik =
