@@ -168,7 +168,8 @@ struct
         Index (parse_index idx, parse_path' pth)
       | _ -> raise PathParseError
 
-  (** Parse a string path, but you may ignore the first dot. *)
+  (** Parse a string path, but you may ignore the first dot.
+      @raise Failure if path couldn't be parsed. *)
   let parse_path (s:string) : path =
     let s = String.trim s in
     try
@@ -180,7 +181,7 @@ struct
       end
     with PathParseError ->
       Logs.error "Error: Couldn't parse the json path '%s'" s;
-      failwith "parsing"
+      failwith "parsing" (* TODO: return ParsePathError still? *)
 
   (** Here we store the actual configuration. *)
   let json_conf : Yojson.Safe.t ref = ref `Null
@@ -252,7 +253,11 @@ struct
       Fun.protect ~finally:(fun () -> set_immutable false) f
     )
 
-  (** The main function to write new values into the conf. Use [set_value] to properly invalidate cache and check immutability. *)
+  (** The main function to write new values into the conf. Use [set_value] to properly invalidate cache and check immutability.
+      @raise Failure
+      @raise TypeError
+      @raise Invalid_argument
+      @raise Json_encoding.Cannot_destruct *)
   let unsafe_set_value v o orig_pth =
     let rec set_value v o pth =
       match o, pth with
@@ -343,13 +348,19 @@ struct
 
   (** Helper functions for writing values. *)
 
-  (** Sets a value, preventing changes when the configuration is immutable and invalidating the cache. *)
+  (** Sets a value, preventing changes when the configuration is immutable and invalidating the cache.
+      @raise Immutable *)
   let set_value v o pth =
     if is_immutable () then raise (Immutable pth);
     drop_memo ();
     unsafe_set_value v o pth
 
-  (** Helper function for writing values. Handles the tracing. *)
+  (** Helper function for writing values. Handles the tracing.
+      @raise Failure if path couldn't be parsed.
+      @raise Immutable
+      @raise TypeError
+      @raise Invalid_argument
+      @raise Json_encoding.Cannot_destruct *)
   let set_path_string st v =
     if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Setting '%s' to %a." st GobYojson.pretty v;
     set_value v json_conf (parse_path st)
@@ -377,9 +388,15 @@ struct
         set_path_string st v
       with Yojson.Json_error _ | TypeError _ ->
         set_string st s
-    with e -> (* TODO: don't catch all? *)
+    with
+    | Failure _
+    | Immutable _
+    | TypeError _
+    | Invalid_argument _
+    | Json_encoding.Cannot_destruct _ as e ->
+      let bt = Printexc.get_raw_backtrace () in
       Logs.error "Cannot set %s to '%s'." st s;
-      raise e
+      Printexc.raise_with_backtrace e bt
 
   let merge json =
     Validator.validate_exn json;
