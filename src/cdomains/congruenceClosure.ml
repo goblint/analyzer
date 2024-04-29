@@ -347,7 +347,9 @@ module Term(Var:Val) = struct
     | i -> Some i
     | exception (UnsupportedCilExpression _) -> None
 
-  let rec get_size_in_bits typ = Z.of_int (bitsSizeOf typ)
+  let rec get_size_in_bits typ = match typ with
+    | TArray (typ, _, _) -> get_size_in_bits (TPtr (typ,[]))
+    | _ -> Z.of_int (bitsSizeOf typ)
 
   (**Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the ize of the
@@ -397,15 +399,21 @@ module Term(Var:Val) = struct
 
 
   let rec of_index ask t var_type curr_offs =
+    let rec type_array = function
+      | TArray (arr_type, _, _) -> arr_type
+      | _ -> raise (UnsupportedCilExpression "incoherent type of variable") in
     let rec type_len_array ask = function
       | TArray (arr_type, Some exp, _) -> arr_type, eval_int ask exp
       | _ -> raise (UnsupportedCilExpression "incoherent type of variable") in
     function
     | Index (exp, NoOffset) ->
-      let new_var_type, len_array = type_len_array ask var_type in
+      let new_var_type = type_array var_type in
       let var_size = get_element_size_in_bits new_var_type in
       let z' = Z.(eval_int ask exp * var_size) in
-      t, Z.(curr_offs * len_array + z'), new_var_type
+      if Z.(equal curr_offs zero) then t, Z.(z'), new_var_type
+      else
+        let new_var_type, len_array = type_len_array ask var_type in
+        t, Z.(curr_offs * len_array + z'), new_var_type
     | Index (exp, off) ->
       let new_var_type, len_array = type_len_array ask var_type in
       let var_size = get_element_size_in_bits new_var_type in
