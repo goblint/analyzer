@@ -63,7 +63,7 @@ module EqualitiesConjunction = struct
   let maxentry (_,map) = IntMap.fold (fun lhs (_,_) acc -> max acc lhs) !map 0
 
   let copy (dim,map) = (dim,ref !map)
-  
+
   let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
@@ -72,10 +72,8 @@ module EqualitiesConjunction = struct
     if Array.length indexes = 0 then m else
       let offsetlist = Array.to_list indexes in
       let rec shiftvar delta i = function
-          head::_ when i=head -> delta+i+1
-        | head::_ when i<head -> delta+i
-        | head::rest -> shiftvar (delta+1) i rest
-        | [] -> delta+i
+        | head::rest when i>=head -> shiftvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
+        | _ -> delta+i
       in
       let memoshiftvar = 
         if (Array.length indexes > 100) then
@@ -297,11 +295,11 @@ struct
   let bound_texpr t texpr =
     if t.d = None then None, None
     else
-    match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
-    | Some (None, offset) ->
-      (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string offset) (IntOps.BigIntOps.to_string offset);
-       Some offset, Some offset)
-    | _ -> None, None
+      match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
+      | Some (None, offset) ->
+        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string offset) (IntOps.BigIntOps.to_string offset);
+         Some offset, Some offset)
+      | _ -> None, None
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
 end
@@ -693,7 +691,7 @@ struct
     meet a b
 
   let unify a b =
-    let res = unify a b  in
+    let res = unify a b in
     if M.tracing then M.tracel "ops" "unify: %s\n    U\n %s -> %s" (show a) (show b) (show res);
     res
 
