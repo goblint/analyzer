@@ -62,10 +62,8 @@ module EqualitiesConjunction = struct
 
   let maxentry (_,map) = IntMap.fold (fun lhs (_,_) acc -> max acc lhs) !map 0
 
-  let copy (dim,map) = let res = make_empty_conj dim in
-    snd res := !map;
-    res
-
+  let copy (dim,map) = (dim,ref !map)
+  
   let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
   (** add new variables to domain with particular indices; translates old indices to keep consistency
@@ -95,14 +93,18 @@ module EqualitiesConjunction = struct
         | a -> a
       in
       let rec shiftentry k value = function
-        | (tbl,delta,head::rest) when k=head            -> (IntMap.add (k+delta+1) (memoshiftrhs value) tbl,delta+1,rest)
-        | (tbl,delta,head::rest) when k>head            -> shiftentry k value (tbl,delta+1,rest)
+        | (tbl,delta,head::rest) when k>=head            -> shiftentry k value (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
         | (tbl,delta,list) (* k< fst list or list=[] *) -> (IntMap.add (k+delta)   (memoshiftrhs value) tbl,delta  ,list)
       in
       let a = Tuple3.first @@ IntMap.fold (shiftentry) !(snd m) (IntMap.empty,0,offsetlist) in
       (get_dim m + Array.length indexes, ref a)
 
-  let add_variables_to_domain m cols = let res = add_variables_to_domain m cols in if M.tracing then M.tracel "add_dims" "add  %d dims to %d -> %d" (Array.length cols) (fst m) (fst res); res
+  let add_variables_to_domain m cols = let res = add_variables_to_domain m cols in if M.tracing then
+      M.tracel "add_dims" "add dimarray %s to { %s } -> { %s }"
+        (Array.fold (fun str i -> (string_of_int i) ^ ", " ^ str) "" cols)
+        (show @@ !( snd m))
+        (show @@ !(snd res));
+    res
 
   let add_variables_to_domain m cols = timing_wrap "add_dims" (add_variables_to_domain m) cols
 
@@ -361,12 +363,13 @@ struct
   exception Contradiction
 
   let meet_with_one_conj_with ts i (var, b) =
+    if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: { %s } eq: var_%d=%s" (EConj.show @@ !(snd ts)) i (Rhs.show (var,b));
     let subst_var tsi x (vart, bt) =
       let adjust = function
         | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
         | e -> e
       in
-      snd tsi := EConj.IntMap.add x (vart, bt) @@ EConj.IntMap.map adjust !(snd tsi) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+      (snd tsi) := EConj.IntMap.add x (vart, bt) @@ EConj.IntMap.map adjust !(snd tsi) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
     in
     let (var1, b1) = EConj.get_rhs ts i in
     (match var, var1 with
@@ -381,6 +384,7 @@ struct
             (if not @@ Z.equal b1 Z.(b2 + b) then raise Contradiction)
           else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
           else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
+  ; if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: ->   { %s } " (EConj.show @@ !(snd ts))
 
   let meet_with_one_conj t i e =
     match t.d with
@@ -395,7 +399,7 @@ struct
 
   let meet_with_one_conj t i e =
     let res = meet_with_one_conj t i e in
-    if M.tracing then M.trace "meet_one_conj" "meet %s with var_%d=%s -> %s" (show t) i (Rhs.show e) (show res);
+    if M.tracing then M.trace "meet" "meet_with_one_conj %s with var_%d=%s -> %s" (show t) i (Rhs.show e) (show res);
     res
 
   let meet t1 t2 =
@@ -409,13 +413,14 @@ struct
           EConj.IntMap.iter (meet_with_one_conj_with res_d) !(snd d2'); (* even on sparse d2, this will chose the relevant conjs to meet with*)
           {d = Some res_d; env = sup_env}
         with Contradiction ->
+          if M.tracing then M.trace "meet" " -> Contradiction\n";
           {d = None; env = sup_env}
       )
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "meet" "meet a: %s\n U  \n b: %s \n -> %s" (show t1) (show t2) (show res) ;
     res
 
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
