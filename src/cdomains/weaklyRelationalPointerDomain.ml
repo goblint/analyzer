@@ -10,7 +10,7 @@ module M = Messages
 (**Find out if two addresses are not equal by using the MayPointTo query*)
 module Disequalities = struct
 
-  module AD = AddressDomain.AddressSet (PreValueDomain.Mval) (ValueDomain.ID)
+  module AD = ValueDomain.AD
 
   let dummy_varinfo = dummyFunDec.svar
   let dummy_var = CC.Addr dummy_varinfo
@@ -29,8 +29,8 @@ module Disequalities = struct
         let mpt1 = ask.f (MayPointTo exp1) in
         let mpt2 = ask.f (MayPointTo exp2) in
         let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-        if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; exp1: %a; res: %a; var1: %d;\nt2: %s; exp2: %a; res: %a; var2: %d;\nresult: %s\n"
-            (T.show t1) d_plainexp exp1 AD.pretty mpt1 (T.get_var t1).vid (T.show t2) d_plainexp exp2 AD.pretty mpt2 (T.get_var t2).vid (string_of_bool res); res
+        if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; exp1: %a; res: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+            (T.show t1) d_plainexp exp1 AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
 
   (**Returns true iff by assigning to t1, the value of t2 could change. *)
   let rec may_be_equal ask uf t1 t2  =

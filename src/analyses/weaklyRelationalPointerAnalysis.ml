@@ -86,7 +86,7 @@ struct
   let assign_return ask t return_var expr =
     (* the return value is not stored on the heap, therefore we don't need to remove any terms *)
     match T.of_cil ask expr with
-    | (Some term, Some offset) -> meet_conjs_opt [Equal (return_var, term, offset)] (insert_set_opt t (SSet.TSet.of_list [return_var; term]))
+    | (Some term, Some offset) -> meet_conjs_opt [Equal (return_var, term, offset)] t
     | _ -> t
 
   let return ctx exp_opt f =
@@ -118,8 +118,8 @@ struct
     let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
     if M.tracing then M.trace "wrpointer-function" "ENTER1: state_with_assignments: %s\n" (D.show state_with_assignments);
     (* add duplicated variables, and set them equal to the original variables *)
-    let added_equalities = (List.map (fun v -> (CC.Deref (CC.Addr (duplicated_variable v),Z.zero), CC.Deref (CC.Addr v,Z.zero), Z.zero)) f.sformals) in
-    let state_with_duplicated_vars = meet_conjs state_with_assignments added_equalities in
+    let added_equalities = (List.map (fun v -> CC.Equal (CC.Deref (CC.Addr (duplicated_variable v),Z.zero), CC.Deref (CC.Addr v,Z.zero), Z.zero)) f.sformals) in
+    let state_with_duplicated_vars = meet_conjs_opt added_equalities state_with_assignments in
     if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars *)
     let reachable_variables = f.sformals @ f.slocals @ List.map duplicated_variable f.sformals (*@ all globals*)

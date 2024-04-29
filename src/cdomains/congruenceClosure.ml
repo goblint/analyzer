@@ -510,6 +510,7 @@ module Term(Var:Val) = struct
   let of_cil ask e = of_cil_neg ask false e
 
   let map_z_opt op z = Tuple2.map2 (Option.map (op z))
+
   (** Converts a cil expression e = "t1 + off1 - (t2 + off2)" to two terms (Some t1, Some off1), (Some t2, Some off2)*)
   let rec two_terms_of_cil ask neg e =
     let pos_t, neg_t = match e with
