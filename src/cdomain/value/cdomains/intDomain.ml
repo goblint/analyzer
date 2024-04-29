@@ -1910,7 +1910,6 @@ struct
     | `Definite x -> if i = x then `Eq else `Neq
     | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
-  let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
