@@ -66,36 +66,38 @@ module EqualitiesConjunction = struct
 
   let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
-  (** add new variables to domain with particular indices; translates old indices to keep consistency
+  (** add/remove new variables to domain with particular indices; translates old indices to keep consistency
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
-  let add_variables_to_domain m indexes =
+  let modify_variables_in_domain m indexes op =
     if Array.length indexes = 0 then m else
       let offsetlist = Array.to_list indexes in
-      let rec shiftvar delta i = function
-        | head::rest when i>=head -> shiftvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
-        | _ -> delta+i
+      let rec bumpvar delta i = function
+        | head::rest when i>=head -> bumpvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
+        | _ -> op i delta
       in
-      let memoshiftvar = 
+      let memobumpvar = 
         if (Array.length indexes > 100) then
           (let h = Hashtbl.create @@ IntMap.cardinal !(snd m) in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
            fun x ->
              try Hashtbl.find h x with Not_found ->
-               let r = shiftvar 0 x offsetlist in
+               let r = bumpvar 0 x offsetlist in
                Hashtbl.add h x r;
                r)
         else
-          fun x -> shiftvar 0 x offsetlist
+          fun x -> bumpvar 0 x offsetlist
       in
-      let memoshiftrhs = function
-          (Some k, v) -> (Some (memoshiftvar k), v)
+      let memobumprhs = function
+          (Some k, v) -> (Some (memobumpvar k), v)
         | a -> a
       in
-      let rec shiftentry k value = function
-        | (tbl,delta,head::rest) when k>=head            -> shiftentry k value (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
-        | (tbl,delta,list) (* k< fst list or list=[] *) -> (IntMap.add (k+delta)   (memoshiftrhs value) tbl,delta  ,list)
+      let rec bumpentry k value = function
+        | (tbl,delta,head::rest) when k>=head            -> bumpentry k value (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
+        | (tbl,delta,list) (* k< fst list or list=[] *) -> (IntMap.add (op k delta) (memobumprhs value) tbl,delta  ,list)
       in
-      let a = Tuple3.first @@ IntMap.fold (shiftentry) !(snd m) (IntMap.empty,0,offsetlist) in
-      (get_dim m + Array.length indexes, ref a)
+      let (a,_,_) = IntMap.fold (bumpentry) !(snd m) (IntMap.empty,0,offsetlist) in
+      (op (get_dim m) (Array.length indexes), ref a)
+
+  let add_variables_to_domain m indexes = modify_variables_in_domain m indexes (+)
 
   let add_variables_to_domain m cols = let res = add_variables_to_domain m cols in if M.tracing then
       M.tracel "add_dims" "add dimarray %s to { %s } -> { %s }"
@@ -106,26 +108,15 @@ module EqualitiesConjunction = struct
 
   let add_variables_to_domain m cols = timing_wrap "add_dims" (add_variables_to_domain m) cols
 
-  let remove_variables_from_domain m indexes =
-    let nr_removed_colums = Array.length indexes in
-    if nr_removed_colums = 0 || get_dim m = 0 then m
-    else
-    if get_dim m = nr_removed_colums then empty () else
-      let offset_map = Array.make (get_dim m) 0
-      (* maps each variable to the number of variables that are removed before this variable *)
-      in let _ = Array.fold_lefti
-             (fun offset index _ ->
-                if offset < nr_removed_colums && indexes.(offset) = index then offset + 1
-                else (offset_map.(index) <- offset; offset))
-             0 offset_map in
-      let remove_offset_from_rhs (var, offs) =
-        Option.map (fun var_index -> var_index - offset_map.(var_index)) var, offs in
-      (fst m - nr_removed_colums,ref (IntMap.of_seq @@
-                                      BatSeq.map (fun (lhs,rhs) -> (lhs-offset_map.(lhs),remove_offset_from_rhs rhs))
-                                        (IntMap.to_seq @@ !(snd m))))
+  let remove_variables_from_domain m indexes = modify_variables_in_domain m indexes (-)
 
-  let remove_variables_from_domain m cols =  let res= remove_variables_from_domain m cols in if M.tracing then M.tracel "del_dims" "del %d dims from %d -> %d" (Array.length cols) (fst m) (fst res); res
-
+  let remove_variables_from_domain m cols = let res= remove_variables_from_domain m cols in if M.tracing then 
+      M.tracel "del_dims" "del dimarray %s dims from { %s } -> { %s }" 
+        (Array.fold (fun str i -> (string_of_int i) ^ ", " ^ str) "" cols) 
+        (show @@ !( snd m)) 
+        (show @@ !(snd res))
+    ; 
+    res
 
   let remove_variables_from_domain m cols = timing_wrap "del_dims" (remove_variables_from_domain m) cols
 
