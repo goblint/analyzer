@@ -49,6 +49,8 @@ int main(void) {
   __goblint_check(x==y);
   __goblint_check(0 <= x);
   __goblint_check(x <= 10); // TODO
+  __goblint_check(0 <= y);
+  __goblint_check(y <= 10); // TODO
   pthread_mutex_unlock(&mutex);
   return 0;
 }
