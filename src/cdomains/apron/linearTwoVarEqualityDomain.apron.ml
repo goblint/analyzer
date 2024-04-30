@@ -62,7 +62,7 @@ module EqualitiesConjunction = struct
 
   let maxentry (_,map) = IntMap.fold (fun lhs (_,_) acc -> max acc lhs) !map 0
 
-  let copy (dim,map) = (dim,ref !map)
+  let copy (dim,map) = (dim, ref !map)
 
   let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
