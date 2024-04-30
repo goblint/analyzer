@@ -8,3 +8,6 @@
    (glob_files ??-*.c))
  (locks /update_suite)
  (action (chdir ../../.. (run %{update_suite} group apron))))
+
+(cram
+ (deps (glob_files *.c)))
