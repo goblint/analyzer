@@ -634,6 +634,16 @@ struct
       )
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
+  let query_invariant_global ctx g =
+    (* TODO: option? *)
+    if ctx.ask (GhostVarAvailable Multithreaded) then (
+      let var = WitnessGhost.to_varinfo Multithreaded in
+      let inv = Priv.invariant_global (Analyses.ask_of_ctx ctx) ctx.global g in
+      Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+    )
+    else
+      Invariant.none
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
@@ -655,6 +665,9 @@ struct
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context -> query_invariant ctx context
+    | Queries.InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      query_invariant_global ctx g
     | _ -> Result.top q
 
 
