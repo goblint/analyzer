@@ -635,8 +635,7 @@ struct
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query_invariant_global ctx g =
-    (* TODO: option? *)
-    if ctx.ask (GhostVarAvailable Multithreaded) then (
+    if GobConfig.get_bool "ana.relation.invariant.global" && ctx.ask (GhostVarAvailable Multithreaded) then (
       let var = WitnessGhost.to_varinfo Multithreaded in
       let inv = Priv.invariant_global (Analyses.ask_of_ctx ctx) ctx.global g in
       Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)

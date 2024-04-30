@@ -693,12 +693,24 @@ struct
   let invariant_global (ask: Q.ask) (getg: V.t -> G.t): V.t -> Invariant.t = function
     | `Left m' as m -> (* mutex *)
       if ask.f (GhostVarAvailable (Locked m')) then (
+        (* filters like query_invariant *)
+        let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+        let exact = GobConfig.get_bool "witness.invariant.exact" in
+
         let rel = keep_only_protected_globals ask m' (getg m) in
         let inv =
           RD.invariant rel
-          (* TODO: filters like query_invariant? *)
-          |> List.filter_map RD.cil_exp_of_lincons1
-          |> List.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+          |> List.enum
+          |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+              (* filter one-vars and exact *)
+              (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+              if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
+                RD.cil_exp_of_lincons1 lincons1
+                |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp))
+              else
+                None
+            )
+          |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
         in
         let var = WitnessGhost.to_varinfo (Locked m') in
         Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
