@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 12-traces-min-rpb1.c
+  $ goblint --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 12-traces-min-rpb1.c --enable ana.apron.invariant.diff-box
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:16:3-16:26)
   [Warning][Assert] Assertion "g == h" is unknown. (12-traces-min-rpb1.c:27:3-27:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:29:3-29:26)
@@ -13,14 +13,12 @@
     write with [lock:{A}, thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:14:3-14:8)
     read with [mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}}, thread:[main]] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:27:3-27:26)
   [Info][Witness] witness generation summary:
-    total generation entries: 9
+    total generation entries: 10
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0
     unsafe: 2
     total memory locations: 2
-
-TODO: emit g == h
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_update
@@ -96,3 +94,9 @@ TODO: emit g == h
     scope: global
     type: int
     initial: "0"
+  - entry_type: flow_insensitive_invariant
+    flow_insensitive_invariant:
+      string: '! multithreaded || (A_locked || ((0LL - (long long )g) + (long long )h
+        >= 0LL && (long long )g - (long long )h >= 0LL))'
+      type: assertion
+      format: C
