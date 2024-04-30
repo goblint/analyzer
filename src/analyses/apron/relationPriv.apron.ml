@@ -693,13 +693,12 @@ struct
   let invariant_global (ask: Q.ask) (getg: V.t -> G.t): V.t -> Invariant.t = function
     | `Left m' as m -> (* mutex *)
       if ask.f (GhostVarAvailable (Locked m')) then (
-        let cpa = getg m in
+        let rel = keep_only_protected_globals ask m' (getg m) in
         let inv =
-          RD.invariant cpa
+          RD.invariant rel
           (* TODO: filters like query_invariant? *)
           |> List.filter_map RD.cil_exp_of_lincons1
           |> List.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
-          (* TODO: need to filter for MustBeProtectedBy like base mutex-meet? *)
         in
         let var = WitnessGhost.to_varinfo (Locked m') in
         Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
