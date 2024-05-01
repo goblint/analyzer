@@ -67,56 +67,44 @@ module EqualitiesConjunction = struct
   let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
 
   (** add/remove new variables to domain with particular indices; translates old indices to keep consistency
+      add if op = (+), remove if op = (-)
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
   let modify_variables_in_domain m indexes op =
     if Array.length indexes = 0 then m else
       let offsetlist = Array.to_list indexes in
-      let rec bumpvar delta i = function
+      let rec bumpvar delta i = function (* bump the variable i by delta; find delta by counting indices in offsetlist until we reach a larger index then our current parameter *)
         | head::rest when i>=head -> bumpvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
-        | _ -> op i delta
+        | _ (* i<head or _=[] *) -> op i delta
       in
-      let memobumpvar = 
-        if (Array.length indexes > 100) then
+      let memobumpvar = (* Memoized version of bumpvar *)
+        if (Array.length indexes < 10) then fun x -> bumpvar 0 x offsetlist else (* only do memoization, if dimchange is significant *)
           (let h = Hashtbl.create @@ IntMap.cardinal !(snd m) in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
-           fun x ->
+           fun x -> (* standard memoization wrapper *)
              try Hashtbl.find h x with Not_found ->
                let r = bumpvar 0 x offsetlist in
                Hashtbl.add h x r;
                r)
-        else
-          fun x -> bumpvar 0 x offsetlist
       in
-      let memobumprhs = function
-          (Some k, v) -> (Some (memobumpvar k), v)
-        | a -> a
+      let rec bumpentry k (refvar,offset) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
+        | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
+        | (tbl,delta,list) (* k<head or list=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar, offset) tbl, delta, list)
       in
-      let rec bumpentry k value = function
-        | (tbl,delta,head::rest) when k>=head            -> bumpentry k value (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
-        | (tbl,delta,list) (* k< fst list or list=[] *) -> (IntMap.add (op k delta) (memobumprhs value) tbl,delta  ,list)
-      in
-      let (a,_,_) = IntMap.fold (bumpentry) !(snd m) (IntMap.empty,0,offsetlist) in
+      let (a,_,_) = IntMap.fold (bumpentry) !(snd m) (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
       (op (get_dim m) (Array.length indexes), ref a)
 
-  let add_variables_to_domain m indexes = modify_variables_in_domain m indexes (+)
-
-  let add_variables_to_domain m cols = let res = add_variables_to_domain m cols in if M.tracing then
-      M.tracel "add_dims" "add dimarray %s to { %s } -> { %s }"
+  let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
+      M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %s } -> { %s }"
+        (op 0 1)
         (Array.fold (fun str i -> (string_of_int i) ^ ", " ^ str) "" cols)
         (show @@ !( snd m))
         (show @@ !(snd res));
     res
 
+  let add_variables_to_domain m indexes = modify_variables_in_domain m indexes (+)
+
   let add_variables_to_domain m cols = timing_wrap "add_dims" (add_variables_to_domain m) cols
 
   let remove_variables_from_domain m indexes = modify_variables_in_domain m indexes (-)
-
-  let remove_variables_from_domain m cols = let res= remove_variables_from_domain m cols in if M.tracing then 
-      M.tracel "del_dims" "del dimarray %s dims from { %s } -> { %s }" 
-        (Array.fold (fun str i -> (string_of_int i) ^ ", " ^ str) "" cols) 
-        (show @@ !( snd m)) 
-        (show @@ !(snd res))
-    ; 
-    res
 
   let remove_variables_from_domain m cols = timing_wrap "del_dims" (remove_variables_from_domain m) cols
 
