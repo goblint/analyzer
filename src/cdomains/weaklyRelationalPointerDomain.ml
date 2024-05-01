@@ -12,18 +12,19 @@ module Disequalities = struct
 
   module AD = ValueDomain.AD
 
-  let dummy_varinfo = dummyFunDec.svar
-  let dummy_var = CC.Addr dummy_varinfo
-  let dummy_lval = AddrOf (Var dummy_varinfo, NoOffset)
+  let dummy_varinfo typ = {dummyFunDec.svar with vtype=typ}
+  let dummy_var var = CC.Addr (dummy_varinfo var)
+  let dummy_lval var = AddrOf (Var (dummy_varinfo var), NoOffset)
 
-  (**Find out if two addresses are possibly equal by using the MayPointTo query*)
+  (**Find out if two addresses are possibly equal by using the MayPointTo query.
+      The parameter s is the size (in bits) of the value that t1 points to. *)
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
     if T.equal t1 t2 then true else
       (* two local arrays can never point to the same array *)
       let are_different_arrays = match t1, t2 with
         | Deref (Addr x1, z1), Deref (Addr x2, z2) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
         | _ -> false in
-      if are_different_arrays || Var.equal dummy_varinfo (T.get_var t1) || Var.equal dummy_varinfo (T.get_var t2) then false else
+      if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term ask t1)) (T.get_var t1) || Var.equal (dummy_varinfo (T.type_of_term ask t2)) (T.get_var t2) then false else
         let exp1 = T.to_cil ask Z.zero t1 in
         let exp2 = T.to_cil ask off t2 in
         let mpt1 = ask.f (MayPointTo exp1) in
@@ -32,8 +33,9 @@ module Disequalities = struct
         if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; exp1: %a; res: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
             (T.show t1) d_plainexp exp1 AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
 
-  (**Returns true iff by assigning to t1, the value of t2 could change. *)
-  let rec may_be_equal ask uf t1 t2  =
+  (**Returns true iff by assigning to t1, the value of t2 could change.
+      The parameter s is the size in bits of the variable t1 we are assigning to. *)
+  let rec may_be_equal ask uf s t1 t2 =
     let there_is_an_overlap s s' diff =
       if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
     in
@@ -41,7 +43,6 @@ module Disequalities = struct
     | CC.Deref (t, z), CC.Deref (v, z') ->
       let (q', z1') = TUF.find_no_pc uf v in
       let (q, z1) = TUF.find_no_pc uf t in
-      let s = T.get_size_in_bits (T.type_of_term ask t1) in
       let s' = T.get_size_in_bits (T.type_of_term ask t2) in
       let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
@@ -51,12 +52,12 @@ module Disequalities = struct
         &&
         (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))
       )
-      || (may_be_equal ask uf t1 v)
+      || (may_be_equal ask uf s t1 v)
     | CC.Deref _, _ -> false (*The value of addresses never change when we overwrite the memory*)
     | CC.Addr _ , _ -> T.is_subterm t1 t2
 
-  let may_be_equal ask uf t1 t2 =
-    let res = (may_be_equal ask uf t1 t2) in
+  let may_be_equal ask uf s t1 t2 =
+    let res = (may_be_equal ask uf s t1 t2) in
     if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 end
@@ -147,9 +148,9 @@ module D = struct
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
-  let remove_may_equal_terms ask term cc =
+  let remove_may_equal_terms ask s term cc =
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
-    Option.map (remove_terms (fun uf -> Disequalities.may_be_equal ask uf term)) cc
+    Option.map (remove_terms (fun uf -> Disequalities.may_be_equal ask uf s term)) cc
 
 end

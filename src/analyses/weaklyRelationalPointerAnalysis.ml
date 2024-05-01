@@ -49,16 +49,18 @@ struct
     | _ -> Result.top q
 
   let assign_lval t ask lval expr =
+    let s = T.get_element_size_in_bits (typeOfLval lval) in
     match T.of_lval ask lval, T.of_cil ask expr with
     (* Indefinite assignment *)
-    | lterm, (None, _) -> D.remove_may_equal_terms ask lterm t
+    | lterm, (None, _) -> D.remove_may_equal_terms ask s lterm t
     (* Definite assignment *)
     | lterm, (Some term, Some offset) ->
+      let dummy_var = Disequalities.dummy_var (typeOfLval lval) in
       if M.tracing then M.trace "wrpointer-assign" "assigning: var: %s; expr: %s + %s\n" (T.show lterm) (T.show term) (Z.to_string offset);
-      t |> meet_conjs_opt [Equal (Disequalities.dummy_var, term, offset)] |>
-      D.remove_may_equal_terms ask lterm |>
-      meet_conjs_opt [Equal (lterm, Disequalities.dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable Disequalities.dummy_var
+      t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
+      D.remove_may_equal_terms ask s lterm |>
+      meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
+      D.remove_terms_containing_variable dummy_var
     (* invertibe assignment *)
     | exception (T.UnsupportedCilExpression _) -> t
     | _ -> t (* TODO what if lhs is None? Just ignore? -> Not a good idea *)
@@ -92,9 +94,9 @@ struct
   let return ctx exp_opt f =
     let res = match exp_opt with
       | Some e ->
-        assign_return (ask_of_ctx ctx) ctx.local Disequalities.dummy_var e
+        assign_return (ask_of_ctx ctx) ctx.local (Disequalities.dummy_var (typeOf e)) e
       | None -> ctx.local
-    in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (Disequalities.dummy_lval) exp_opt) (D.show ctx.local) (D.show res);res
+    in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (Disequalities.dummy_lval (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
 
   let special ctx var_opt v exprs  =
     let desc = LibraryFunctions.find v in
@@ -120,7 +122,7 @@ struct
     (* add duplicated variables, and set them equal to the original variables *)
     let added_equalities = (List.map (fun v -> CC.Equal (CC.Deref (CC.Addr (duplicated_variable v),Z.zero), CC.Deref (CC.Addr v,Z.zero), Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities state_with_assignments in
-    if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
+    if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (Disequalities.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars *)
     let reachable_variables = f.sformals @ f.slocals @ List.map duplicated_variable f.sformals (*@ all globals*)
     in
@@ -133,16 +135,16 @@ struct
   let combine_env ctx var_opt expr f exprs t_context_opt t ask =
     let og_t = t in
     let t = D.meet ctx.local t in
-    if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var Disequalities.dummy_varinfo, NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
+    if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (Disequalities.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
     let t = match var_opt with
       | None -> t
-      | Some var -> assign_lval_2_ask t (ask_of_ctx ctx) ask var Disequalities.dummy_lval
+      | Some var -> assign_lval_2_ask t (ask_of_ctx ctx) ask var (Disequalities.dummy_lval (typeOfLval var))
     in
     if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (D.show_all t);
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = List.map duplicated_variable f.sformals in
     let t =
-      D.remove_terms_containing_variables (Disequalities.dummy_varinfo::local_vars @ duplicated_vars) t
+      D.remove_terms_containing_variables (Disequalities.dummy_varinfo (TVoid [])::local_vars @ duplicated_vars) t
     in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN3: result: %s\n" (D.show t); t
 
   (*ctx.local is after combine_env, t callee*)
