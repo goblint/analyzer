@@ -41,8 +41,8 @@ module Disequalities = struct
     | CC.Deref (t, z), CC.Deref (v, z') ->
       let (q', z1') = TUF.find_no_pc uf v in
       let (q, z1) = TUF.find_no_pc uf t in
-      let s = T.get_size_in_bits (T.type_of_term t1) in
-      let s' = T.get_size_in_bits (T.type_of_term t2) in
+      let s = T.get_size_in_bits (T.type_of_term ask t1) in
+      let s' = T.get_size_in_bits (T.type_of_term ask t2) in
       let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
       (
