@@ -372,7 +372,28 @@ module Term(Var:Val) = struct
     | TPtr(TComp _,_) -> true
     | _ -> false
 
-  let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
+
+  let cil_offs_to_idx (ask: Queries.ask) offs typ =
+    (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml,
+       unclear how to immediately get more reuse *)
+    let rec convert_offset (ofs: offset) =
+      match ofs with
+      | NoOffset -> `NoOffset
+      | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
+      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+        `Index (ValueDomain.ID.top (), convert_offset ofs)
+      | Index (exp, ofs) ->
+        let i = match ask.f (Queries.EvalInt exp) with
+          | `Lifted x -> IntDomain.IntDomTuple.cast_to  (Cilfacade.ptrdiff_ikind ()) @@ x
+          | _ -> ValueDomain.ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+        in
+        `Index (i, convert_offset ofs)
+    in
+    PreValueDomain.Offs.to_index ?typ:(Some typ) (convert_offset offs)
+
+
+  let z_of_offset ask offs typ =
+    match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
     | Some i -> i
     | None -> raise (UnsupportedCilExpression "unknown offset")
 
@@ -385,51 +406,21 @@ module Term(Var:Val) = struct
         | typ -> typ
       in remove_array_and_struct_types typ
 
-  let rec type_of_term =
-    let get_field_at_index z =
-      List.find (fun field -> Z.equal (get_field_offset field) z)
+  let rec type_of_term ask =
+    let get_field_at_index z typ =
+      List.find (fun field -> Z.equal (z_of_offset ask (Field (field, NoOffset)) typ) z)
     in function
       | (Addr x) -> TPtr (x.vtype,[])
-      | (Deref (Addr x, z)) -> begin match x.vtype with
-          | TComp (cinfo, _) -> (get_field_at_index z cinfo.cfields).ftype
+      | (Deref (Addr x, z)) -> begin match x.vtype with (*TODO this doesnt work for arrays of arrays of structs ecc*)
+          | TComp (cinfo, _) -> (get_field_at_index z x.vtype cinfo.cfields).ftype
           | _ -> x.vtype
         end
-      | (Deref (t, z)) -> dereference_type (type_of_term t)
+      | (Deref (t, z)) -> dereference_type (type_of_term ask t)
 
-
-
-  let rec of_index ask t var_type curr_offs =
-    let rec type_array = function
-      | TArray (arr_type, _, _) -> arr_type
-      | _ -> raise (UnsupportedCilExpression "incoherent type of variable") in
-    let rec type_len_array ask = function
-      | TArray (arr_type, Some exp, _) -> arr_type, eval_int ask exp
-      | _ -> raise (UnsupportedCilExpression "incoherent type of variable") in
-    function
-    | Index (exp, NoOffset) ->
-      let new_var_type = type_array var_type in
-      let var_size = get_element_size_in_bits new_var_type in
-      let z' = Z.(eval_int ask exp * var_size) in
-      if Z.(equal curr_offs zero) then t, Z.(z'), new_var_type
-      else
-        let new_var_type, len_array = type_len_array ask var_type in
-        t, Z.(curr_offs * len_array + z'), new_var_type
-    | Index (exp, off) ->
-      let new_var_type, len_array = type_len_array ask var_type in
-      let var_size = get_element_size_in_bits new_var_type in
-      let z' = Z.(eval_int ask exp * var_size) in
-      let t, z'', new_var_type = of_index ask t new_var_type Z.(curr_offs * len_array + z') off in
-      t, z'', new_var_type
-    | Field (finfo, off) -> let field_offset = get_field_offset finfo in
-      let t, z'', new_var_type = of_index ask t finfo.ftype Z.zero off in
-      t, Z.(curr_offs + field_offset + z''), new_var_type
-    | NoOffset -> t, curr_offs, var_type
-
-  let rec of_offset ask t var_type off initial_offs =
-    if off == NoOffset then t else
-      let t, z, var_type = of_index ask t var_type initial_offs off in
-      if not (is_array_type var_type) then Deref (t, z)
-      else raise (UnsupportedCilExpression "this is an address")
+  let rec of_offset ask t off typ =
+    if off = NoOffset then t else
+      let z = z_of_offset ask off typ in
+      Deref (t, z)
 
   (** Converts a cil expression to Some term, Some offset;
       or None, Some offset is the expression equals an integer,
@@ -471,16 +462,18 @@ module Term(Var:Val) = struct
     | CastE (typ, exp)-> of_cil ask exp
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval = let res = match lval with
-      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) var.vtype off Z.zero
-        else
-          of_offset ask (Deref (Addr var, Z.zero)) var.vtype off Z.zero
+      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype
+        else of_offset ask (Deref (Addr var, Z.zero)) off var.vtype
       | (Mem exp, off) ->
         begin match of_cil ask exp with
           | (Some term, offset) ->
             let typ = Cilfacade.typeOf exp in
-            if is_struct_ptr_type typ then of_offset ask term typ off offset
+            if is_struct_ptr_type typ then
+              match of_offset ask term off typ with
+              | Addr x -> Addr x
+              | Deref (x, z) -> Deref (x, Z.(z+offset))
             else
-              of_offset ask (Deref (term, offset)) (Cilfacade.typeOfLval (Mem exp, NoOffset)) off Z.zero
+              of_offset ask (Deref (term, offset)) off typ
           | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
         end in
     (if M.tracing then match res with
@@ -505,6 +498,7 @@ module Term(Var:Val) = struct
     in (if M.tracing && not neg then match res with
         | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
         | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show_v t) (Z.to_string z)
+        | None, None -> ()
         | _ -> M.trace "wrpointer-cil-conversion" "This is impossible. exp: %a\n" d_plainexp e); res
 
   let of_cil ask e = of_cil_neg ask false e
