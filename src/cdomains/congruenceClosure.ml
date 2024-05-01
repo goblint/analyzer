@@ -7,34 +7,43 @@ module M = Messages
 
 exception Unsat
 
-type 'v term = Addr of 'v | Deref of 'v term * Z.t [@@deriving eq, ord, hash]
-type 'v prop = Equal of 'v term * 'v term * Z.t | Nequal of 'v term * 'v term * Z.t [@@deriving eq, ord, hash]
+type ('v, 't) term = Addr of 'v | Deref of ('v, 't) term * Z.t * 't [@@deriving eq, ord, hash]
+type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('v, 't) term * ('v, 't) term * Z.t [@@deriving eq, ord, hash]
 
-module Term = struct
-  type t = Var.t term [@@deriving eq, ord, hash]
-  type v_prop = Var.t prop [@@deriving eq, ord, hash]
+(*terms*)
+module T = struct
+  type typ = Cil.typ
+  (*equality of terms should not depend on types*)
+  let compare_typ _ _ = 0
+  let equal_typ _ _ = true
+  let hash_typ _ = 1
+
+
+  (* term * size in bits of the element pointed to by the term *)
+  type t = (Var.t, typ) term [@@deriving eq, ord, hash]
+  type v_prop = (Var.t, typ) prop [@@deriving eq, ord, hash]
 
   let props_equal = List.equal equal_v_prop
 
-  let rec show = function
+  let rec show : t -> string = function
     | Addr v -> "&" ^ Var.show v
-    | Deref (Addr v, z) when Z.equal z Z.zero -> Var.show v
-    | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
-    | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
+    | Deref (Addr v, z, _) when Z.equal z Z.zero -> Var.show v
+    | Deref (t, z, typ) when Z.equal z Z.zero -> "*" ^ show t
+    | Deref (t, z, typ) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
 
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm st term = equal st term || match term with
-    | Deref (t, _) -> is_subterm st t
+    | Deref (t, _, _) -> is_subterm st t
     | _ -> false
 
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
   let rec contains_variable variables term = match term with
-    | Deref (t, _) -> contains_variable variables t
+    | Deref (t, _, _) -> contains_variable variables t
     | Addr v -> List.mem v variables
 
   let rec get_var = function
     | Addr v -> v
-    | Deref (t, _) -> get_var t
+    | Deref (t, _, _) -> get_var t
 
   exception UnsupportedCilExpression of string
 
@@ -74,6 +83,7 @@ module Term = struct
     match typ with
     | TArray (typ, _, _) -> get_element_size_in_bits typ
     | TPtr (typ, _) -> get_size_in_bits typ
+    (*TODO TComp*)
     | _ -> get_size_in_bits typ
 
   let is_array_type = function
@@ -87,7 +97,6 @@ module Term = struct
   let is_struct_ptr_type = function
     | TPtr(TComp _,_) -> true
     | _ -> false
-
 
   let cil_offs_to_idx (ask: Queries.ask) offs typ =
     (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml,
@@ -122,21 +131,19 @@ module Term = struct
         | typ -> typ
       in remove_array_and_struct_types typ
 
-  let rec type_of_term ask =
-    let get_field_at_index z typ =
-      List.find (fun field -> Z.equal (z_of_offset ask (Field (field, NoOffset)) typ) z)
-    in function
-      | (Addr x) -> TPtr (x.vtype,[])
-      | (Deref (Addr x, z)) -> begin match x.vtype with (*TODO this doesnt work for arrays of arrays of structs ecc*)
-          | TComp (cinfo, _) -> (get_field_at_index z x.vtype cinfo.cfields).ftype
-          | _ -> x.vtype
-        end
-      | (Deref (t, z)) -> dereference_type (type_of_term ask t)
+  let rec type_of_term =
+    function
+    | (Addr v) -> TPtr (v.vtype, [])
+    | (Deref (_, _, typ)) -> typ
+
+
+  let deref_term t z = Deref (t, z, dereference_type (type_of_term t))
+
 
   let rec of_offset ask t off typ =
     if off = NoOffset then t else
       let z = z_of_offset ask off typ in
-      Deref (t, z)
+      Deref (t, z, dereference_type typ)
 
   (** Converts a cil expression to Some term, Some offset;
       or None, Some offset is the expression equals an integer,
@@ -178,8 +185,8 @@ module Term = struct
     | CastE (typ, exp)-> of_cil ask exp
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval = let res = match lval with
-      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype
-        else of_offset ask (Deref (Addr var, Z.zero)) off var.vtype
+      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (*TODO typ?*)
+        else of_offset ask (Deref (Addr var, Z.zero, var.vtype)) off var.vtype
       | (Mem exp, off) ->
         begin match of_cil ask exp with
           | (Some term, offset) ->
@@ -187,9 +194,9 @@ module Term = struct
             if is_struct_ptr_type typ then
               match of_offset ask term off typ with
               | Addr x -> Addr x
-              | Deref (x, z) -> Deref (x, Z.(z+offset))
+              | Deref (x, z, typ) -> Deref (x, Z.(z+offset), typ)
             else
-              of_offset ask (Deref (term, offset)) off typ
+              of_offset ask (Deref (term, offset, typ)) off typ
           | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
         end in
     (if M.tracing then match res with
@@ -272,45 +279,45 @@ module Term = struct
 
   (** Convert a term to a cil expression and its cil type. *)
   let rec to_cil ask off t =
-    let cil_t, vtyp = match t with
-      | Addr v -> AddrOf (Var v, NoOffset), TPtr (v.vtype, [])
-      | Deref (Addr v, z) when Z.equal z Z.zero -> Lval (Var v, NoOffset), v.vtype
-      | Deref (t, z) ->
-        let cil_t, vtyp = to_cil ask z t in
+    let cil_t = match t with
+      | Addr v -> AddrOf (Var v, NoOffset)
+      | Deref (Addr v, z, typ) when Z.equal z Z.zero -> Lval (Var v, NoOffset)
+      | Deref (t, z, vtyp) ->
+        let cil_t = to_cil ask z t in
         begin match vtyp with
-          | TPtr (typ,_) -> Lval (Mem cil_t, NoOffset), typ
-          | TArray (typ, length, _) -> Lval (Mem (CastE (TPtr (typ,[]), cil_t)), NoOffset), typ (*TODO**)
-          | TComp (icomp, _) -> Lval (Mem cil_t, NoOffset), (List.first icomp.cfields).ftype(*TODO**)
+          | TPtr (typ,_) -> Lval (Mem cil_t, NoOffset)
+          | TArray (typ, length, _) -> Lval (Mem (CastE (TPtr (typ,[]), cil_t)), NoOffset) (*TODO**)
+          | TComp (icomp, _) -> Lval (Mem cil_t, NoOffset)
           | TVoid _
           | TInt (_, _)
           | TFloat (_, _)
           | TFun (_, _, _, _)
           | TNamed (_, _)
           | TEnum (_, _)
-          | TBuiltin_va_list _ -> cil_t, vtyp
+          | TBuiltin_va_list _ -> cil_t
         end
-    in if Z.(equal zero off) then cil_t, vtyp else
-      match vtyp with
-      | TArray (typ, length, _) -> cil_t, vtyp
+    in if Z.(equal zero off) then cil_t else
+      let vtype = type_of_term t in
+      match vtype with
+      | TArray (typ, length, _) -> cil_t
       | _ ->
-        BinOp (PlusPI, cil_t, to_cil_constant ask off vtyp, vtyp), vtyp
+        BinOp (PlusPI, cil_t, to_cil_constant ask off vtype, vtype)
 
   (** Convert a term to a cil expression. *)
-  let to_cil ask off t = let exp, typ = to_cil ask off t in
-    if M.tracing then M.trace "wrpointer-cil-conversion2" "Term: %s; Offset: %s; Exp: %a; Typ: %a\n"
-        (show t) (Z.to_string off) d_plainexp exp d_plaintype typ;
+  let to_cil ask off t = let exp = to_cil ask off t in
+    if M.tracing then M.trace "wrpointer-cil-conversion2" "Term: %s; Offset: %s; Exp: %a\n"
+        (show t) (Z.to_string off) d_plainexp exp;
     exp
-
 end
 
 module TMap = struct
-  include Map.Make(Term)
-  let hash node_hash y = fold (fun x node acc -> acc + Term.hash x + node_hash node) y 0
+  include Map.Make(T)
+  let hash node_hash y = fold (fun x node acc -> acc + T.hash x + node_hash node) y 0
 end
 
 module TSet = struct
-  include Set.Make(Term)
-  let hash x = fold (fun x y -> y + Term.hash x) x 0
+  include Set.Make(T)
+  let hash x = fold (fun x y -> y + T.hash x) x 0
 end
 
 (** Quantitative union find *)
@@ -320,9 +327,9 @@ module UnionFind = struct
   (** (value * offset) ref * size of equivalence class *)
   type 'v node = ('v * Z.t) * int [@@deriving eq, ord, hash]
 
-  type t = Term.t node ValMap.t [@@deriving eq, ord, hash] (** Union Find Map: maps value to a node type *)
+  type t = T.t node ValMap.t [@@deriving eq, ord, hash] (** Union Find Map: maps value to a node type *)
 
-  exception UnknownValue of Term.t
+  exception UnknownValue of T.t
   exception InvalidUnionFind of string
 
   let empty = ValMap.empty
@@ -355,7 +362,7 @@ module UnionFind = struct
     let (p, old_size) = ValMap.find t uf in
     let uf = ValMap.add t (p, modification old_size) uf in
     let parent = fst p in
-    if Term.equal parent t then uf else modify_size parent uf modification
+    if T.equal parent t then uf else modify_size parent uf modification
 
   let modify_parent uf v (t, offset) =
     let (_, size) = ValMap.find v uf in
@@ -367,12 +374,12 @@ module UnionFind = struct
 
   (** Returns true if each equivalence class in the data structure contains only one element,
       i.e. every node is a root. *)
-  let is_empty uf = List.for_all (fun (v, (t, _)) -> Term.equal v (fst t)) (ValMap.bindings uf)
+  let is_empty uf = List.for_all (fun (v, (t, _)) -> T.equal v (fst t)) (ValMap.bindings uf)
 
   (** Returns true if v is the representative value of its equivalence class.
 
       Throws "Unknown value" if v is not present in the data structure. *)
-  let is_root uf v = let (parent_t, _) = parent uf v in Term.equal v parent_t
+  let is_root uf v = let (parent_t, _) = parent uf v in T.equal v parent_t
 
   (** The difference between `show_uf` and `show_uf_ugly` is that `show_uf` prints the elements
       grouped by equivalence classes, while this function just prints them in any order.
@@ -380,8 +387,8 @@ module UnionFind = struct
       Throws "Unknown value" if v is not present in the data structure. *)
   let show_uf_ugly uf =
     List.fold_left (fun s (v, (refv, size)) ->
-        s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Term.show v ^
-        "; Parent: " ^ Term.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^ "\n")
+        s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ T.show v ^
+        "; Parent: " ^ T.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^ "\n")
       "" (ValMap.bindings uf) ^ "\n"
 
   (**
@@ -394,7 +401,7 @@ module UnionFind = struct
   *)
   let find uf v =
     let (v',r') = parent uf v in
-    if Term.equal v' v then
+    if T.equal v' v then
       (* v is a root *)
       if Z.equal r' Z.zero then v',r', uf
       else raise (InvalidUnionFind "non-zero self-distance!")
@@ -432,16 +439,16 @@ module UnionFind = struct
   *)
   let rec find_no_pc uf v =
     let (v',r') = parent uf v in
-    if Term.equal v' v then
+    if T.equal v' v then
       if Z.equal r' Z.zero then (v',r')
       else raise (InvalidUnionFind "non-zero self-distance!")
     else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
 
-  let compare_repr = Tuple2.compare ~cmp1:Term.compare ~cmp2:Z.compare
+  let compare_repr = Tuple2.compare ~cmp1:T.compare ~cmp2:Z.compare
 
   (** Compare only first element of the tuples (= the parent term).
       It ignores the offset. *)
-  let compare_repr_v (v1, _) (v2, _) = Term.compare v1 v2
+  let compare_repr_v (v1, _) (v2, _) = T.compare v1 v2
 
   (**
      Parameters: uf v1 v2 r
@@ -460,7 +467,7 @@ module UnionFind = struct
   let union uf v'1 v'2 r =
     let v1,r1,uf = find uf v'1 in
     let v2,r2,uf = find uf v'2 in
-    if Term.equal v1 v2 then
+    if T.equal v1 v2 then
       if Z.(equal r1 (r2 + r)) then v1, uf, true
       else raise (Failure "incomparable union")
     else let (_,s1), (_,s2) = ValMap.find v1 uf, ValMap.find v2 uf in
@@ -476,7 +483,7 @@ module UnionFind = struct
   (** Throws "Unknown value" if the data structure is invalid. *)
   let show_uf uf = List.fold_left (fun s eq_class ->
       s ^ List.fold_left (fun s (v, (t, size)) ->
-          s ^ "\t" ^ (if is_root uf v then "R: " else "") ^ "("^Term.show v ^ "; P: " ^ Term.show (fst t) ^
+          s ^ "\t" ^ (if is_root uf v then "R: " else "") ^ "("^T.show v ^ "; P: " ^ T.show (fst t) ^
           "; o: " ^ Z.to_string (snd t) ^ "; s: " ^ string_of_int size ^")\n") "" eq_class
       ^ "----\n") "" (get_eq_classes uf) ^ "\n"
 
@@ -485,7 +492,6 @@ end
 (** For each representative t' of an equivalence class, the LookupMap maps t' to a map that maps z to a set containing
     all terms in the data structure that are equal to *(z + t').*)
 module LookupMap = struct
-  module T = Term
   module ZMap = struct
     include Map.Make(Z)
     let hash hash_f y = fold (fun x node acc -> acc + Z.hash x + hash_f node) y 0
@@ -575,7 +581,6 @@ end
 
 (** Quantitative congruence closure on terms *)
 module CongruenceClosure = struct
-  module T = Term
 
   module TUF = UnionFind
   module LMap = LookupMap
@@ -597,7 +602,7 @@ module CongruenceClosure = struct
     (** Adds all subterms of t to the SSet and the LookupMap*)
     let rec subterms_of_term (set,map) t = match t with
       | Addr _ -> (add t set, map)
-      | Deref (t',z) ->
+      | Deref (t',z,_) ->
         let set = add t set in
         let map = LMap.map_add (t',z) t map in
         subterms_of_term (set, map) t'
@@ -644,7 +649,7 @@ module CongruenceClosure = struct
           let process_edge (min_representatives, queue, uf) (edge_z, next_term) =
             let next_state, next_z, uf = TUF.find uf next_term in
             let (min_term, min_z) = find state min_representatives in
-            let next_min = (Deref (min_term, Z.(edge_z - min_z)), next_z) in
+            let next_min = (T.deref_term min_term Z.(edge_z - min_z), next_z) in
             match TMap.find_opt next_state min_representatives
             with
             | None ->
@@ -759,9 +764,9 @@ module CongruenceClosure = struct
       List.filter_map (fun (z,s,(s',z')) ->
           let (min_state, min_z) = MRMap.find s cc.min_repr in
           let (min_state', min_z') = MRMap.find s' cc.min_repr in
-          normalize_equality (Deref(min_state, Z.(z - min_z)), min_state', Z.(z' - min_z'))
+          normalize_equality (T.deref_term min_state Z.(z - min_z), min_state', Z.(z' - min_z'))
         ) transitions
-    in BatList.sort_unique (compare_prop Var.compare) (conjunctions_of_atoms @ conjunctions_of_transitions)
+    in BatList.sort_unique (compare_prop Var.compare (T.compare_typ)) (conjunctions_of_atoms @ conjunctions_of_transitions)
 
   let show_all x = "Normal form:\n" ^
                    show_conj((get_normal_form x)) ^
@@ -912,7 +917,7 @@ module CongruenceClosure = struct
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
         (t, Z.zero), {uf; set; map = cc.map; min_repr}, [Addr a]
-      | Deref (t', z) ->
+      | Deref (t', z, _) ->
         let (v, r), cc, queue = insert_no_min_repr cc t' in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
@@ -1002,7 +1007,7 @@ module CongruenceClosure = struct
   let rec detect_cyclic_dependencies t1 t2 cc =
     match t1 with
     | Addr v -> false
-    | Deref (t1, _) ->
+    | Deref (t1, _, _) ->
       let v1, o1 = TUF.find_no_pc cc.uf t1 in
       let v2, o2 = TUF.find_no_pc cc.uf t2 in
       if T.equal v1 v2 then true else
@@ -1012,7 +1017,7 @@ module CongruenceClosure = struct
     let add_one_successor (cc, successors) (edge_z, _) =
       let _, uf_offset, uf = TUF.find cc.uf t in
       let cc = {cc with uf = uf} in
-      let successor = Deref (t, Z.(edge_z - uf_offset)) in
+      let successor = T.deref_term t Z.(edge_z - uf_offset) in
       let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
       let _, cc, _ = if subterm_already_present then (t, Z.zero), cc, []
         else insert_no_min_repr cc successor in

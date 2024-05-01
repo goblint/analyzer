@@ -6,6 +6,7 @@ module Var = CilType.Varinfo
 module CC = CongruenceClosure
 include CC.CongruenceClosure
 module M = Messages
+module T = CC.T
 
 (**Find out if two addresses are not equal by using the MayPointTo query*)
 module Disequalities = struct
@@ -22,9 +23,9 @@ module Disequalities = struct
     if T.equal t1 t2 then true else
       (* two local arrays can never point to the same array *)
       let are_different_arrays = match t1, t2 with
-        | Deref (Addr x1, z1), Deref (Addr x2, z2) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
+        | Deref (Addr x1, z1,_), Deref (Addr x2, z2,_) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
         | _ -> false in
-      if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term ask t1)) (T.get_var t1) || Var.equal (dummy_varinfo (T.type_of_term ask t2)) (T.get_var t2) then false else
+      if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (dummy_varinfo (T.type_of_term t2)) (T.get_var t2) then false else
         let exp1 = T.to_cil ask Z.zero t1 in
         let exp2 = T.to_cil ask off t2 in
         let mpt1 = ask.f (MayPointTo exp1) in
@@ -40,10 +41,10 @@ module Disequalities = struct
       if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
     in
     match t1, t2 with
-    | CC.Deref (t, z), CC.Deref (v, z') ->
+    | CC.Deref (t, z,_), CC.Deref (v, z',_) ->
       let (q', z1') = TUF.find_no_pc uf v in
       let (q, z1) = TUF.find_no_pc uf t in
-      let s' = T.get_size_in_bits (T.type_of_term ask t2) in
+      let s' = T.get_size_in_bits (T.type_of_term t2) in
       let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
       (
