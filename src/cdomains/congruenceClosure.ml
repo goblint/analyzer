@@ -2,293 +2,15 @@
 
 open Batteries
 open GoblintCil
+module Var = CilType.Varinfo
 module M = Messages
-
-module type Val = sig
-  type t
-  val compare : t -> t -> int
-  val equal : t -> t -> bool
-  val show : t -> string
-  val hash : t -> int
-end
-
-module ValMap(Val:Val) = struct
-  include Map.Make(Val)
-  let hash node_hash y = fold (fun x node acc -> acc + Val.hash x + node_hash node) y 0
-end
-
-module ValSet(Val:Val) = struct
-  include Set.Make(Val)
-  let hash x = fold (fun x y -> y + Val.hash x) x 0
-end
-
-(** Quantitative union find *)
-module UnionFind (Val: Val)  = struct
-  module ValMap = ValMap(Val)
-
-  (** (value * offset) ref * size of equivalence class *)
-  type 'v node = ('v * Z.t) * int [@@deriving eq, ord, hash]
-
-  type t = Val.t node ValMap.t [@@deriving eq, ord, hash] (** Union Find Map: maps value to a node type *)
-
-  exception UnknownValue of Val.t
-  exception InvalidUnionFind of string
-
-  let empty = ValMap.empty
-
-  (** create empty union find map, given a list of elements *)
-  let init = List.fold_left (fun map v -> ValMap.add v ((v, Z.zero), 1) map) (ValMap.empty)
-
-  (** `parent uf v` returns (p, z) where p is the parent element of
-      v in the union find tree and z is the offset.
-
-        Throws "Unknown value" if v is not present in the data structure.*)
-  let parent uf v = match fst (ValMap.find v uf) with
-    | exception Not_found -> raise (UnknownValue v)
-    | x -> x
-
-  (** `parent_opt uf v` returns Some (p, z) where p is the parent element of
-      v in the union find tree and z is the offset.
-      It returns None if v is not present in the data structure. *)
-  let parent_opt uf v = Option.map (fun _ -> parent uf v) (ValMap.find_opt v uf)
-
-  let parent_term uf v = fst (parent uf v)
-  let parent_offset uf v = snd (parent uf v)
-  let subtree_size uf v = snd (ValMap.find v uf)
-
-  (** Modifies the size of the equivalence class for the current element and
-      for the whole path to the root of this element.
-
-      The third parameter `modification` is the function to apply to the sizes. *)
-  let rec modify_size t uf modification =
-    let (p, old_size) = ValMap.find t uf in
-    let uf = ValMap.add t (p, modification old_size) uf in
-    let parent = fst p in
-    if Val.equal parent t then uf else modify_size parent uf modification
-
-  let modify_parent uf v (t, offset) =
-    let (_, size) = ValMap.find v uf in
-    ValMap.add v ((t, offset), size) uf
-
-  let modify_offset uf v modification =
-    let ((t, offset), size) = ValMap.find v uf in
-    ValMap.add v ((t, modification offset), size) uf
-
-  (** Returns true if each equivalence class in the data structure contains only one element,
-      i.e. every node is a root. *)
-  let is_empty uf = List.for_all (fun (v, (t, _)) -> Val.equal v (fst t)) (ValMap.bindings uf)
-
-  (** Returns true if v is the representative value of its equivalence class.
-
-      Throws "Unknown value" if v is not present in the data structure. *)
-  let is_root uf v = let (parent_t, _) = parent uf v in Val.equal v parent_t
-
-  (** The difference between `show_uf` and `show_uf_ugly` is that `show_uf` prints the elements
-      grouped by equivalence classes, while this function just prints them in any order.
-
-      Throws "Unknown value" if v is not present in the data structure. *)
-  let show_uf_ugly uf =
-    List.fold_left (fun s (v, (refv, size)) ->
-        s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Val.show v ^
-        "; Parent: " ^ Val.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^ "\n")
-      "" (ValMap.bindings uf) ^ "\n"
-
-  (**
-     For a variable t it returns the reference variable v and the offset r.
-     This find performs path compression.
-     It returns als the updated union-find tree after the path compression.
-
-     Throws "Unknown value" if t is not present in the data structure.
-     Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
-  *)
-  let find uf v =
-    let (v',r') = parent uf v in
-    if Val.equal v' v then
-      (* v is a root *)
-      if Z.equal r' Z.zero then v',r', uf
-      else raise (InvalidUnionFind "non-zero self-distance!")
-    else if is_root uf v' then
-      (* the parent of v is a root *)
-      v',r', uf
-    else
-      let rec search v list =
-        let (v',r') = parent uf v in
-        if is_root uf v' then
-          (* perform path compresion *)
-          let (_,uf) = List.fold_left (fun (r0, uf) v ->
-              let (parent_v, r''), size_v = ValMap.find v uf in
-              let uf = modify_parent uf v (v',Z.(r0+r'')) in
-              let uf = modify_size parent_v uf (fun s -> s - size_v) in
-              let uf = modify_size v' uf ((+) size_v)
-              in Z.(r0+r''),uf) (Z.zero, uf) (v::list)
-          in v',r',uf
-        else search v' (v :: list)
-      in search v' [v]
-
-  (** Returns None if the value v is not present in the datat structure or if the data structure is in an invalid state.*)
-  let find_opt uf v = match find uf v with
-    | exception (UnknownValue _)
-    | exception Not_found
-    | exception (InvalidUnionFind _) -> None
-    | res -> Some res
-
-  (**
-     For a variable t it returns the reference variable v and the offset r.
-     This find DOES NOT perform path compression.
-
-     Throws "Unknown value" if t is not present in the data structure.
-     Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
-  *)
-  let rec find_no_pc uf v =
-    let (v',r') = parent uf v in
-    if Val.equal v' v then
-      if Z.equal r' Z.zero then (v',r')
-      else raise (InvalidUnionFind "non-zero self-distance!")
-    else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
-
-  let compare_repr = Tuple2.compare ~cmp1:Val.compare ~cmp2:Z.compare
-
-  (** Compare only first element of the tuples (= the parent term).
-      It ignores the offset. *)
-  let compare_repr_v (v1, _) (v2, _) = Val.compare v1 v2
-
-  (**
-     Parameters: uf v1 v2 r
-
-     changes the union find data structure `uf` such that the equivalence classes of `v1` and `v2` are merged and `v1 = v2 + r`
-
-     returns v,uf,b where
-
-     - `v` is the new reference variable of the merged equivalence class. It is either the old reference variable of v1 or of v2, depending on which equivalence class is bigger.
-
-     - `uf` is the new union find data structure
-
-     - `b` is true iff v = find v1
-
-  *)
-  let union uf v'1 v'2 r =
-    let v1,r1,uf = find uf v'1 in
-    let v2,r2,uf = find uf v'2 in
-    if Val.equal v1 v2 then
-      if Z.(equal r1 (r2 + r)) then v1, uf, true
-      else raise (Failure "incomparable union")
-    else let (_,s1), (_,s2) = ValMap.find v1 uf, ValMap.find v2 uf in
-      if s1 <= s2 then (
-        v2, modify_size v2 (modify_parent uf v1 (v2, Z.(r2 - r1 + r))) ((+) s1), false
-      ) else (
-        v1, modify_size v1 (modify_parent uf v2 (v1, Z.(r1 - r2 - r))) ((+) s2), true
-      )
-
-  (** Returns a list of equivalence classes. *)
-  let get_eq_classes uf = List.group (fun (el1,_) (el2,_) -> compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)) (ValMap.bindings uf)
-
-  (** Throws "Unknown value" if the data structure is invalid. *)
-  let show_uf uf = List.fold_left (fun s eq_class ->
-      s ^ List.fold_left (fun s (v, (t, size)) ->
-          s ^ "\t" ^ (if is_root uf v then "R: " else "") ^ "("^Val.show v ^ "; P: " ^ Val.show (fst t) ^
-          "; o: " ^ Z.to_string (snd t) ^ "; s: " ^ string_of_int size ^")\n") "" eq_class
-      ^ "----\n") "" (get_eq_classes uf) ^ "\n"
-
-end
-
-(** For each representative t' of an equivalence class, the LookupMap maps t' to a map that maps z to a set containing
-    all terms in the data structure that are equal to *(z + t').*)
-module LookupMap (T: Val) = struct
-  module TMap = ValMap(T)
-  module TSet = ValSet(T)
-
-  module ZMap = struct
-    include Map.Make(Z)
-    let hash hash_f y = fold (fun x node acc -> acc + Z.hash x + hash_f node) y 0
-  end
-
-  type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash]
-
-  let bindings = TMap.bindings
-  let add = TMap.add
-  let remove = TMap.remove
-  let empty = TMap.empty
-  let find_opt = TMap.find_opt
-  let find = TMap.find
-
-  let zmap_bindings = ZMap.bindings
-  (** Returns the bindings of a map, but it transforms the mapped value (which is a set) to a single value (an element in the set). *)
-  let zmap_bindings_one_successor zmap = List.map (Tuple2.map2 TSet.any) (zmap_bindings zmap)
-  let zmap_find_opt = ZMap.find_opt
-  let set_any = TSet.any
-
-  (** Merges the set "m" with the set that is already present in the data structure. *)
-  let zmap_add x y m = match zmap_find_opt x m with
-    | None -> ZMap.add x y m
-    | Some set -> ZMap.add x (TSet.union y set) m
-
-  (** Returns the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
-  let map_find_opt_set (v,r) map = match find_opt v map with
-    | None -> None
-    | Some zmap -> (match zmap_find_opt r zmap with
-        | None -> None
-        | Some v -> Some v
-      )
-
-  (** Returns one element of the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
-  let map_find_opt (v,r) map = Option.map TSet.any (map_find_opt_set (v,r) map)
-
-  (** Adds the term "v'" to the set that is already present in the data structure. *)
-  let map_add (v,r) v' map = let zmap = match find_opt v map with
-      | None -> ZMap.empty
-      | Some zmap ->zmap
-    in add v (zmap_add r (TSet.singleton v') zmap) map
-
-  let show_map map =
-    List.fold_left
-      (fun s (v, zmap) ->
-         s ^ T.show v ^ "\t:\n" ^
-         List.fold_left
-           (fun s (r, v) ->
-              s ^ "\t" ^ Z.to_string r ^ ": " ^ List.fold_left
-                (fun s k -> s ^ T.show k ^ ";")
-                "" (TSet.elements v) ^ ";; ")
-           "" (zmap_bindings zmap) ^ "\n")
-      "" (bindings map)
-
-  let print_map = print_string % show_map
-
-  (** The value at v' is shifted by r and then added for v.
-      The old entry for v' is removed. *)
-  let shift v r v' map =
-    match find_opt v' map with
-    | None -> map
-    | Some zmap -> let infl = zmap_bindings zmap in
-      let zmap = List.fold_left (fun zmap (r', v') ->
-          zmap_add Z.(r' + r) v' zmap) ZMap.empty infl in
-      remove v' (add v zmap map)
-
-  (** Find all outgoing edges of v in the automata.*)
-  let successors v map =
-    match find_opt v map with
-    | None -> []
-    | Some zmap -> zmap_bindings_one_successor zmap
-
-  (** Filters elements from the mapped values which fulfil the predicate p. *)
-  let filter_if map p =
-    TMap.filter_map (fun _ zmap ->
-        let zmap = ZMap.filter_map
-            (fun _ t_set -> let filtered_set = TSet.filter p t_set in
-              if TSet.is_empty filtered_set then None else Some filtered_set) zmap
-        in if ZMap.is_empty zmap then None else Some zmap) map
-
-  (** Maps elements from the mapped values by applying the function f to them. *)
-  let map_values map f =
-    TMap.map (fun zmap ->
-        ZMap.map (fun t_set -> TSet.map f t_set) zmap) map
-end
 
 exception Unsat
 
 type 'v term = Addr of 'v | Deref of 'v term * Z.t [@@deriving eq, ord, hash]
 type 'v prop = Equal of 'v term * 'v term * Z.t | Nequal of 'v term * 'v term * Z.t [@@deriving eq, ord, hash]
 
-module Term(Var:Val) = struct
+module Term = struct
   type t = Var.t term [@@deriving eq, ord, hash]
   type v_prop = Var.t prop [@@deriving eq, ord, hash]
 
@@ -299,12 +21,6 @@ module Term(Var:Val) = struct
     | Deref (Addr v, z) when Z.equal z Z.zero -> Var.show v
     | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show t
     | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
-
-  let rec show_v = function
-    | Addr v -> "&" ^ v.vname
-    | Deref (Addr v, z) when Z.equal z Z.zero -> v.vname
-    | Deref (t, z) when Z.equal z Z.zero -> "*" ^ show_v t
-    | Deref (t, z) -> "*(" ^ Z.to_string z ^ "+" ^ show_v t ^ ")"
 
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm st term = equal st term || match term with
@@ -478,7 +194,7 @@ module Term(Var:Val) = struct
         end in
     (if M.tracing then match res with
         | exception (UnsupportedCilExpression s) -> M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
-        | t -> M.trace "wrpointer-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show_v t))
+        | t -> M.trace "wrpointer-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t))
   ;res
 
   (** Converts the negated expresion to a term if neg = true.
@@ -497,7 +213,7 @@ module Term(Var:Val) = struct
       | t, z -> t, Some z
     in (if M.tracing && not neg then match res with
         | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-        | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show_v t) (Z.to_string z)
+        | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z)
         | None, None -> ()
         | _ -> M.trace "wrpointer-cil-conversion" "This is impossible. exp: %a\n" d_plainexp e); res
 
@@ -582,21 +298,290 @@ module Term(Var:Val) = struct
   (** Convert a term to a cil expression. *)
   let to_cil ask off t = let exp, typ = to_cil ask off t in
     if M.tracing then M.trace "wrpointer-cil-conversion2" "Term: %s; Offset: %s; Exp: %a; Typ: %a\n"
-        (show_v t) (Z.to_string off) d_plainexp exp d_plaintype typ;
+        (show t) (Z.to_string off) d_plainexp exp d_plaintype typ;
     exp
 
 end
 
-(** Quantitative congruence closure on terms *)
-module CongruenceClosure (Var : Val) = struct
-  module T = Term(Var)
+module TMap = struct
+  include Map.Make(Term)
+  let hash node_hash y = fold (fun x node acc -> acc + Term.hash x + node_hash node) y 0
+end
 
-  module TUF = UnionFind (T)
-  module LMap = LookupMap (T)
+module TSet = struct
+  include Set.Make(Term)
+  let hash x = fold (fun x y -> y + Term.hash x) x 0
+end
+
+(** Quantitative union find *)
+module UnionFind = struct
+  module ValMap = TMap
+
+  (** (value * offset) ref * size of equivalence class *)
+  type 'v node = ('v * Z.t) * int [@@deriving eq, ord, hash]
+
+  type t = Term.t node ValMap.t [@@deriving eq, ord, hash] (** Union Find Map: maps value to a node type *)
+
+  exception UnknownValue of Term.t
+  exception InvalidUnionFind of string
+
+  let empty = ValMap.empty
+
+  (** create empty union find map, given a list of elements *)
+  let init = List.fold_left (fun map v -> ValMap.add v ((v, Z.zero), 1) map) (ValMap.empty)
+
+  (** `parent uf v` returns (p, z) where p is the parent element of
+      v in the union find tree and z is the offset.
+
+        Throws "Unknown value" if v is not present in the data structure.*)
+  let parent uf v = match fst (ValMap.find v uf) with
+    | exception Not_found -> raise (UnknownValue v)
+    | x -> x
+
+  (** `parent_opt uf v` returns Some (p, z) where p is the parent element of
+      v in the union find tree and z is the offset.
+      It returns None if v is not present in the data structure. *)
+  let parent_opt uf v = Option.map (fun _ -> parent uf v) (ValMap.find_opt v uf)
+
+  let parent_term uf v = fst (parent uf v)
+  let parent_offset uf v = snd (parent uf v)
+  let subtree_size uf v = snd (ValMap.find v uf)
+
+  (** Modifies the size of the equivalence class for the current element and
+      for the whole path to the root of this element.
+
+      The third parameter `modification` is the function to apply to the sizes. *)
+  let rec modify_size t uf modification =
+    let (p, old_size) = ValMap.find t uf in
+    let uf = ValMap.add t (p, modification old_size) uf in
+    let parent = fst p in
+    if Term.equal parent t then uf else modify_size parent uf modification
+
+  let modify_parent uf v (t, offset) =
+    let (_, size) = ValMap.find v uf in
+    ValMap.add v ((t, offset), size) uf
+
+  let modify_offset uf v modification =
+    let ((t, offset), size) = ValMap.find v uf in
+    ValMap.add v ((t, modification offset), size) uf
+
+  (** Returns true if each equivalence class in the data structure contains only one element,
+      i.e. every node is a root. *)
+  let is_empty uf = List.for_all (fun (v, (t, _)) -> Term.equal v (fst t)) (ValMap.bindings uf)
+
+  (** Returns true if v is the representative value of its equivalence class.
+
+      Throws "Unknown value" if v is not present in the data structure. *)
+  let is_root uf v = let (parent_t, _) = parent uf v in Term.equal v parent_t
+
+  (** The difference between `show_uf` and `show_uf_ugly` is that `show_uf` prints the elements
+      grouped by equivalence classes, while this function just prints them in any order.
+
+      Throws "Unknown value" if v is not present in the data structure. *)
+  let show_uf_ugly uf =
+    List.fold_left (fun s (v, (refv, size)) ->
+        s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ Term.show v ^
+        "; Parent: " ^ Term.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^ "\n")
+      "" (ValMap.bindings uf) ^ "\n"
+
+  (**
+     For a variable t it returns the reference variable v and the offset r.
+     This find performs path compression.
+     It returns als the updated union-find tree after the path compression.
+
+     Throws "Unknown value" if t is not present in the data structure.
+     Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
+  *)
+  let find uf v =
+    let (v',r') = parent uf v in
+    if Term.equal v' v then
+      (* v is a root *)
+      if Z.equal r' Z.zero then v',r', uf
+      else raise (InvalidUnionFind "non-zero self-distance!")
+    else if is_root uf v' then
+      (* the parent of v is a root *)
+      v',r', uf
+    else
+      let rec search v list =
+        let (v',r') = parent uf v in
+        if is_root uf v' then
+          (* perform path compresion *)
+          let (_,uf) = List.fold_left (fun (r0, uf) v ->
+              let (parent_v, r''), size_v = ValMap.find v uf in
+              let uf = modify_parent uf v (v',Z.(r0+r'')) in
+              let uf = modify_size parent_v uf (fun s -> s - size_v) in
+              let uf = modify_size v' uf ((+) size_v)
+              in Z.(r0+r''),uf) (Z.zero, uf) (v::list)
+          in v',r',uf
+        else search v' (v :: list)
+      in search v' [v]
+
+  (** Returns None if the value v is not present in the datat structure or if the data structure is in an invalid state.*)
+  let find_opt uf v = match find uf v with
+    | exception (UnknownValue _)
+    | exception Not_found
+    | exception (InvalidUnionFind _) -> None
+    | res -> Some res
+
+  (**
+     For a variable t it returns the reference variable v and the offset r.
+     This find DOES NOT perform path compression.
+
+     Throws "Unknown value" if t is not present in the data structure.
+     Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
+  *)
+  let rec find_no_pc uf v =
+    let (v',r') = parent uf v in
+    if Term.equal v' v then
+      if Z.equal r' Z.zero then (v',r')
+      else raise (InvalidUnionFind "non-zero self-distance!")
+    else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
+
+  let compare_repr = Tuple2.compare ~cmp1:Term.compare ~cmp2:Z.compare
+
+  (** Compare only first element of the tuples (= the parent term).
+      It ignores the offset. *)
+  let compare_repr_v (v1, _) (v2, _) = Term.compare v1 v2
+
+  (**
+     Parameters: uf v1 v2 r
+
+     changes the union find data structure `uf` such that the equivalence classes of `v1` and `v2` are merged and `v1 = v2 + r`
+
+     returns v,uf,b where
+
+     - `v` is the new reference variable of the merged equivalence class. It is either the old reference variable of v1 or of v2, depending on which equivalence class is bigger.
+
+     - `uf` is the new union find data structure
+
+     - `b` is true iff v = find v1
+
+  *)
+  let union uf v'1 v'2 r =
+    let v1,r1,uf = find uf v'1 in
+    let v2,r2,uf = find uf v'2 in
+    if Term.equal v1 v2 then
+      if Z.(equal r1 (r2 + r)) then v1, uf, true
+      else raise (Failure "incomparable union")
+    else let (_,s1), (_,s2) = ValMap.find v1 uf, ValMap.find v2 uf in
+      if s1 <= s2 then (
+        v2, modify_size v2 (modify_parent uf v1 (v2, Z.(r2 - r1 + r))) ((+) s1), false
+      ) else (
+        v1, modify_size v1 (modify_parent uf v2 (v1, Z.(r1 - r2 - r))) ((+) s2), true
+      )
+
+  (** Returns a list of equivalence classes. *)
+  let get_eq_classes uf = List.group (fun (el1,_) (el2,_) -> compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)) (ValMap.bindings uf)
+
+  (** Throws "Unknown value" if the data structure is invalid. *)
+  let show_uf uf = List.fold_left (fun s eq_class ->
+      s ^ List.fold_left (fun s (v, (t, size)) ->
+          s ^ "\t" ^ (if is_root uf v then "R: " else "") ^ "("^Term.show v ^ "; P: " ^ Term.show (fst t) ^
+          "; o: " ^ Z.to_string (snd t) ^ "; s: " ^ string_of_int size ^")\n") "" eq_class
+      ^ "----\n") "" (get_eq_classes uf) ^ "\n"
+
+end
+
+(** For each representative t' of an equivalence class, the LookupMap maps t' to a map that maps z to a set containing
+    all terms in the data structure that are equal to *(z + t').*)
+module LookupMap = struct
+  module T = Term
+  module ZMap = struct
+    include Map.Make(Z)
+    let hash hash_f y = fold (fun x node acc -> acc + Z.hash x + hash_f node) y 0
+  end
+
+  (* map: term -> z -> size of typ -> *(z + (typ * )t)*)
+  type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash]
+
+  let bindings = TMap.bindings
+  let add = TMap.add
+  let remove = TMap.remove
+  let empty = TMap.empty
+  let find_opt = TMap.find_opt
+  let find = TMap.find
+
+  let zmap_bindings = ZMap.bindings
+  (** Returns the bindings of a map, but it transforms the mapped value (which is a set) to a single value (an element in the set). *)
+  let zmap_bindings_one_successor zmap = List.map (Tuple2.map2 TSet.any) (zmap_bindings zmap)
+  let zmap_find_opt = ZMap.find_opt
+  let set_any = TSet.any
+
+  (** Merges the set "m" with the set that is already present in the data structure. *)
+  let zmap_add x y m = match zmap_find_opt x m with
+    | None -> ZMap.add x y m
+    | Some set -> ZMap.add x (TSet.union y set) m
+
+  (** Returns the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
+  let map_find_opt_set (v,r) map = match find_opt v map with
+    | None -> None
+    | Some zmap -> (match zmap_find_opt r zmap with
+        | None -> None
+        | Some v -> Some v
+      )
+
+  (** Returns one element of the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
+  let map_find_opt (v,r) map = Option.map TSet.any (map_find_opt_set (v,r) map)
+
+  (** Adds the term "v'" to the set that is already present in the data structure. *)
+  let map_add (v,r) v' map = let zmap = match find_opt v map with
+      | None -> ZMap.empty
+      | Some zmap ->zmap
+    in add v (zmap_add r (TSet.singleton v') zmap) map
+
+  let show_map map =
+    List.fold_left
+      (fun s (v, zmap) ->
+         s ^ T.show v ^ "\t:\n" ^
+         List.fold_left
+           (fun s (r, v) ->
+              s ^ "\t" ^ Z.to_string r ^ ": " ^ List.fold_left
+                (fun s k -> s ^ T.show k ^ ";")
+                "" (TSet.elements v) ^ ";; ")
+           "" (zmap_bindings zmap) ^ "\n")
+      "" (bindings map)
+
+  let print_map = print_string % show_map
+
+  (** The value at v' is shifted by r and then added for v.
+      The old entry for v' is removed. *)
+  let shift v r v' map =
+    match find_opt v' map with
+    | None -> map
+    | Some zmap -> let infl = zmap_bindings zmap in
+      let zmap = List.fold_left (fun zmap (r', v') ->
+          zmap_add Z.(r' + r) v' zmap) ZMap.empty infl in
+      remove v' (add v zmap map)
+
+  (** Find all outgoing edges of v in the automata.*)
+  let successors v map =
+    match find_opt v map with
+    | None -> []
+    | Some zmap -> zmap_bindings_one_successor zmap
+
+  (** Filters elements from the mapped values which fulfil the predicate p. *)
+  let filter_if map p =
+    TMap.filter_map (fun _ zmap ->
+        let zmap = ZMap.filter_map
+            (fun _ t_set -> let filtered_set = TSet.filter p t_set in
+              if TSet.is_empty filtered_set then None else Some filtered_set) zmap
+        in if ZMap.is_empty zmap then None else Some zmap) map
+
+  (** Maps elements from the mapped values by applying the function f to them. *)
+  let map_values map f =
+    TMap.map (fun zmap ->
+        ZMap.map (fun t_set -> TSet.map f t_set) zmap) map
+end
+
+(** Quantitative congruence closure on terms *)
+module CongruenceClosure = struct
+  module T = Term
+
+  module TUF = UnionFind
+  module LMap = LookupMap
 
   (** Set of subterms which are present in the current data structure. *)
   module SSet = struct
-    module TSet = ValSet(T)
     type t = TSet.t [@@deriving eq, ord, hash]
 
     let elements = TSet.elements
@@ -633,8 +618,6 @@ module CongruenceClosure (Var : Val) = struct
   (** Minimal representatives map.
       It maps each representative term of an equivalence class to the minimal term of this representative class. *)
   module MRMap = struct
-    module TMap = ValMap (T)
-
     type t = (T.t * Z.t) TMap.t [@@deriving eq, ord, hash]
 
     let bindings = TMap.bindings
@@ -736,8 +719,6 @@ module CongruenceClosure (Var : Val) = struct
             map: LMap.t;
             min_repr: MRMap.t}
   [@@deriving eq, ord, hash]
-
-  module TMap = ValMap(T)
 
   let string_of_prop = function
     | Equal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
@@ -1134,7 +1115,7 @@ module CongruenceClosure (Var : Val) = struct
   let show_new_parents_map new_parents_map = List.fold_left
       (fun s (v1, (v2, o2)) ->
          s ^ T.show v1 ^ "\t: " ^ T.show v2 ^ ", " ^ Z.to_string o2 ^"\n")
-      "" (LMap.bindings new_parents_map)
+      "" (TMap.bindings new_parents_map)
 
   (** Find the representative term of the equivalence classes of an element that has already been deleted from the data structure.
       Returns None if there are no elements in the same equivalence class as t before it was deleted.*)

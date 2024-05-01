@@ -6,7 +6,7 @@ open Analyses
 open GoblintCil
 open WeaklyRelationalPointerDomain
 module CC = CongruenceClosure
-open CC.CongruenceClosure(Var)
+open CC.CongruenceClosure
 open Batteries
 
 module Spec =

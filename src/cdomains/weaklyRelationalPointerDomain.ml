@@ -4,7 +4,7 @@ open Batteries
 open GoblintCil
 module Var = CilType.Varinfo
 module CC = CongruenceClosure
-include CC.CongruenceClosure(Var)
+include CC.CongruenceClosure
 module M = Messages
 
 (**Find out if two addresses are not equal by using the MayPointTo query*)
