@@ -97,7 +97,7 @@ module WP =
         HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        let d = Seq.fold_left (fun d y -> let r = try S.Dom.join d (HPM.find rho' (y,x)) with Not_found -> d in if tracing then trace "sol2" "sides: side %a from %a: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty r; r) (S.Dom.bot ()) (VS.to_seq w) in
+        let d = VS.fold (fun y d -> let r = try S.Dom.join d (HPM.find rho' (y,x)) with Not_found -> d in if tracing then trace "sol2" "sides: side %a from %a: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty r; r) w (S.Dom.bot ()) in
         if tracing then trace "sol2" "sides %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         d
       and side x y d =
