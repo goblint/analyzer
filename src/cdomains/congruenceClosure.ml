@@ -645,6 +645,7 @@ module CongruenceClosure = struct
     let fold = TSet.fold
     let empty = TSet.empty
     let to_list = TSet.to_list
+    let inter = TSet.inter
 
     let show_set set = TSet.fold (fun v s ->
         s ^ "\t" ^ T.show v ^ ";\n") set "" ^ "\n"
@@ -1222,5 +1223,28 @@ module CongruenceClosure = struct
     in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\nRESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
         (show_all old_cc) (show_all {uf; set; map; min_repr});
     {uf; set; map; min_repr}
+
+  (* join *)
+  let join cc1 cc2 =
+    let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
+    let pmap = List.fold_left (fun pmap a -> Map.add (a,a) a pmap) Map.empty atoms in
+    let working_set = List.combine atoms atoms in
+    let cc = init_cc [] in
+    let add_one_edge y t (pmap, cc) (offset, size, a) =
+      match LMap.map_find_opt (y, offset) size cc2.map with
+      | None -> pmap,cc
+      | Some b -> let new_term = T.deref_term t offset in
+        let _ , cc = insert cc new_term (*TODO find dereferenced term in the successors*)
+        in match Map.find_opt (a,b) pmap with
+        | None -> Map.add (a,b) new_term pmap, cc
+        | Some c -> pmap, closure cc [c, new_term, Z.zero]
+    in
+    let rec add_edges_to_map pmap cc = function
+      | [] -> cc, pmap
+      | (x,y)::rest ->
+        let t = Map.find (x,y) pmap in
+        let pmap,cc = List.fold_left (add_one_edge y t) (pmap, cc) (LMap.successors x cc1.map) in add_edges_to_map pmap cc rest
+    in
+    add_edges_to_map pmap cc working_set
 
 end
