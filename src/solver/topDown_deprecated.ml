@@ -91,7 +91,7 @@ module TD3 =
         HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        let d = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
+        let d = Seq.fold_left (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.to_seq w) in
         if tracing then trace "sol2" "sides %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         d
       and side x y d =

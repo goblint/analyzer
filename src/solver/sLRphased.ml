@@ -126,7 +126,7 @@ module Make =
           HM.replace rho x val_new;
           let w = try HM.find infl x with Not_found -> VS.empty in
           (* let w = if wpx then VS.add x w else w in *)
-          q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
+          q := Seq.fold_left (fun x y -> H.add y x) !q (VS.to_seq w);
           HM.replace infl x VS.empty
         end
       and solve0 ?(side=false) x =
@@ -156,12 +156,12 @@ module Make =
           HM.replace rho1 x d;
           let w = VS.add x @@ try HM.find infl x with Not_found -> VS.empty in
           HM.replace infl x VS.empty;
-          q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
+          q := Seq.fold_left (fun x y -> H.add y x) !q (VS.to_seq w);
           iterate true prio
         )
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
+        let v = Seq.fold_left (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.to_seq w)
         in if tracing then trace "sol" "SIDES: Var: %a\nVal: %a" S.Var.pretty_trace x S.Dom.pretty v; v
       and eq x get set =
         eval_rhs_event x;

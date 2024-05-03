@@ -626,8 +626,8 @@ struct
       )
     in
     RD.invariant apr
-    |> List.enum
-    |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+    |> List.to_seq
+    |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
         (* filter one-vars and exact *)
         (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
@@ -637,7 +637,7 @@ struct
         else
           None
       )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query_invariant_global man g =
     if GobConfig.get_bool "ana.relation.invariant.global" && man.ask (GhostVarAvailable Multithreaded) then (

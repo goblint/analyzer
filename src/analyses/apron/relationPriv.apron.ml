@@ -356,14 +356,14 @@ struct
         let rel = st.rel in
         let (g_vars, gs) =
           RD.vars rel
-          |> List.enum
-          |> Enum.filter_map (fun var ->
+          |> List.to_seq
+          |> Seq.filter_map (fun var ->
               match RD.V.find_metadata var with
               | Some (Global g) -> Some (var, g)
               | _ -> None
             )
-          |> Enum.uncombine
-          |> Tuple2.map List.of_enum List.of_enum
+          |> Seq.unzip
+          |> Tuple2.map List.of_seq List.of_seq
         in
         let g_unprot_vars = List.map AV.unprot gs in
         let g_prot_vars = List.map AV.prot gs in
@@ -404,14 +404,14 @@ struct
     let rel = st.rel in
     let (g_vars, gs) =
       RD.vars rel
-      |> List.enum
-      |> Enum.filter_map (fun var ->
+      |> List.to_seq
+      |> Seq.filter_map (fun var ->
           match RD.V.find_metadata var with
           | Some (Global g) -> Some (var, g)
           | _ -> None
         )
-      |> Enum.uncombine
-      |> Tuple2.map List.of_enum List.of_enum
+      |> Seq.unzip
+      |> Tuple2.map List.of_seq List.of_seq
     in
     let g_unprot_vars = List.map AV.unprot gs in
     let g_prot_vars = List.map AV.prot gs in
