@@ -12,10 +12,14 @@ module T = CC.T
 module Disequalities = struct
 
   module AD = ValueDomain.AD
-
+  (*TODO: id should not clash with the other dummy values we have for function parameters*)
   let dummy_varinfo typ = {dummyFunDec.svar with vtype=typ}
-  let dummy_var var = CC.Addr (dummy_varinfo var)
-  let dummy_lval var = AddrOf (Var (dummy_varinfo var), NoOffset)
+  let dummy_var var = T.deref_term (CC.Addr (dummy_varinfo var)) Z.zero
+  let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
+
+  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=dummyFunDec.svar.vid-1;vname="@return"}
+  let return_var var = T.deref_term (CC.Addr (return_varinfo var)) Z.zero
+  let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query.
       The parameter s is the size (in bits) of the value that t1 points to. *)
@@ -25,13 +29,13 @@ module Disequalities = struct
       let are_different_arrays = match t1, t2 with
         | Deref (Addr x1, z1,_), Deref (Addr x2, z2,_) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
         | _ -> false in
-      if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (dummy_varinfo (T.type_of_term t2)) (T.get_var t2) then false else
-        let exp1 = T.to_cil ask Z.zero t1 in
-        let exp2 = T.to_cil ask off t2 in
+      if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t2)) (T.get_var t2) then false else
+        let exp1 = T.to_cil t1 in
+        let exp2 = T.to_cil_sum ask off t2 in
         let mpt1 = ask.f (MayPointTo exp1) in
         let mpt2 = ask.f (MayPointTo exp2) in
         let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-        if M.tracing then M.tracel "wrpointer-maypointto" "QUERY MayPointTo. \nt1: %s; exp1: %a; res: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+        if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nt1: %s; exp1: %a; res: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
             (T.show t1) d_plainexp exp1 AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
 
   (**Returns true iff by assigning to t1, the value of t2 could change.
@@ -44,7 +48,7 @@ module Disequalities = struct
     | CC.Deref (t, z,_), CC.Deref (v, z',_) ->
       let (q', z1') = TUF.find_no_pc uf v in
       let (q, z1) = TUF.find_no_pc uf t in
-      let s' = T.get_size_in_bits (T.type_of_term t2) in
+      let s' = T.get_size t2 in
       let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class but with a different offset, then they are not equal *)
       (

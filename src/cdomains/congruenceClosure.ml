@@ -12,24 +12,35 @@ type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('
 
 (*terms*)
 module T = struct
-  type typ = Cil.typ
-  (*equality of terms should not depend on types*)
-  let compare_typ _ _ = 0
-  let equal_typ _ _ = true
-  let hash_typ _ = 1
+  type exp = Cil.exp
+  (*equality of terms should not depend on the expression*)
+  let compare_exp _ _ = 0
+  let equal_exp _ _ = true
+  let hash_exp _ = 1
 
 
   (* term * size in bits of the element pointed to by the term *)
-  type t = (Var.t, typ) term [@@deriving eq, ord, hash]
-  type v_prop = (Var.t, typ) prop [@@deriving eq, ord, hash]
+  type t = (Var.t, exp) term [@@deriving eq, ord, hash]
+  type v_prop = (Var.t, exp) prop [@@deriving eq, ord, hash]
 
   let props_equal = List.equal equal_v_prop
+  let show_type exp =
+    let typ = typeOf exp in
+    "[" ^ (match typ with
+        | TPtr _ -> "Ptr"
+        | TInt _ -> "Int"
+        | TArray _ -> "Arr"
+        | TVoid _ -> "Voi"
+        | TFloat (_, _)-> "Flo"
+        | TComp (_, _) -> "TCo"
+        | TFun (_, _, _, _)|TNamed (_, _)|TEnum (_, _)|TBuiltin_va_list _ -> "?"
+      )^string_of_int (bitsSizeOf typ) ^ "]"
 
   let rec show : t -> string = function
     | Addr v -> "&" ^ Var.show v
-    | Deref (Addr v, z, _) when Z.equal z Z.zero -> Var.show v
-    | Deref (t, z, typ) when Z.equal z Z.zero -> "*" ^ show t
-    | Deref (t, z, typ) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"
+    | Deref (Addr v, z, exp) when Z.equal z Z.zero -> Var.show v ^ show_type exp
+    | Deref (t, z, exp) when Z.equal z Z.zero -> "*" ^ show t^ show_type exp
+    | Deref (t, z, exp) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
 
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm st term = equal st term || match term with
@@ -116,14 +127,17 @@ module T = struct
     in
     PreValueDomain.Offs.to_index ?typ:(Some typ) (convert_offset offs)
 
-
   let z_of_offset ask offs typ =
     match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
     | Some i -> i
     | None -> raise (UnsupportedCilExpression "unknown offset")
 
+  let can_be_dereferenced = function
+    | TPtr _| TArray _| TComp _ -> true
+    | _ -> false
+
   (** For a type TPtr(t) it returns the type t. *)
-  let dereference_type = function
+  let dereference_type = function (*TODO*)
     | TPtr (typ, _) -> typ
     | typ -> let rec remove_array_and_struct_types = function
         | TArray (typ, _, _) -> remove_array_and_struct_types typ
@@ -134,16 +148,68 @@ module T = struct
   let rec type_of_term =
     function
     | (Addr v) -> TPtr (v.vtype, [])
-    | (Deref (_, _, typ)) -> typ
+    | (Deref (_, _, exp)) -> typeOf exp
 
+  let to_cil =
+    function
+    | (Addr v) -> AddrOf (Var v, NoOffset)
+    | (Deref (_, _, exp)) -> exp
 
-  let deref_term t z = Deref (t, z, dereference_type (type_of_term t))
+  let to_cil t = let exp = to_cil t in
+    if M.tracing then M.trace "wrpointer-cil-conversion2" "Term: %s; Exp: %a\n"
+        (show t) d_plainexp exp;
+    exp
 
+  let default_int_type = ILong
+  let to_cil_constant z t = let z = Z.(z/ get_element_size_in_bits t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
-  let rec of_offset ask t off typ =
+  let to_cil_sum ask off t =
+    let cil_t = to_cil t in
+    if Z.(equal zero off) then cil_t else
+      let vtype = type_of_term t in
+      match vtype with
+      | TArray (typ, length, _) -> cil_t
+      | _ ->
+        BinOp (PlusPI, cil_t, to_cil_constant off vtype, vtype)
+
+  let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
+    | Some i -> i
+    | None -> raise (UnsupportedCilExpression "unknown offset")
+
+  let dereference_exp exp offset =
+    match exp with
+    | AddrOf lval -> Lval lval
+    | _ ->
+      match typeOf exp with
+      | TPtr (typ, _) when Z.equal offset Z.zero -> Lval (Mem exp, NoOffset)
+      | TPtr (typ, _) ->
+        BinOp (PlusPI, Lval (Mem exp, NoOffset), to_cil_constant offset typ, typeOfLval (Mem exp, NoOffset))
+      | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
+        let index = Index (to_cil_constant offset typ, NoOffset) in
+        begin match exp with
+          | Lval (Var v, NoOffset) ->  Lval (Var v, index)
+          | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
+          | _ -> raise (UnsupportedCilExpression "not supported yet")
+        end
+      | TComp (cinfo, _) ->
+        if M.tracing then M.trace "wrpointer2" "%a\n" d_exp exp;
+        let finfo = List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields in
+        let index = Field (finfo, NoOffset) in
+        begin match exp with
+          | Lval (Var v, NoOffset) -> Lval (Var v, index)
+          | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
+          | _ -> raise (UnsupportedCilExpression "not supported yet")
+        end
+      | _ -> Lval (Mem (CastE (TPtr(TVoid[],[]), exp)), NoOffset)
+
+  let get_size = get_size_in_bits % type_of_term
+
+  let deref_term t z = Deref (t, z, dereference_exp (to_cil t) z)
+
+  let rec of_offset ask t off typ exp =
     if off = NoOffset then t else
       let z = z_of_offset ask off typ in
-      Deref (t, z, dereference_type typ)
+      Deref (t, z, exp)
 
   (** Converts a cil expression to Some term, Some offset;
       or None, Some offset is the expression equals an integer,
@@ -182,21 +248,25 @@ module T = struct
           end
         | _ -> raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)-> of_cil ask exp
+    | CastE (typ, exp)-> begin match of_cil ask exp with
+        | Some (Addr x), z -> Some (Addr x), z
+        | Some (Deref (x, z, old_exp)), z' -> Some (Deref (x, z, CastE (typ, exp))), z'
+        | t, z -> t, z
+      end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval = let res = match lval with
-      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (*TODO typ?*)
-        else of_offset ask (Deref (Addr var, Z.zero, var.vtype)) off var.vtype
+      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
+        else of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
       | (Mem exp, off) ->
         begin match of_cil ask exp with
           | (Some term, offset) ->
-            let typ = Cilfacade.typeOf exp in
+            let typ = typeOf exp in
             if is_struct_ptr_type typ then
-              match of_offset ask term off typ with
+              match of_offset ask term off typ (Lval lval) with
               | Addr x -> Addr x
-              | Deref (x, z, typ) -> Deref (x, Z.(z+offset), typ)
+              | Deref (x, z, exp) -> Deref (x, Z.(z+offset), exp)
             else
-              of_offset ask (Deref (term, offset, typ)) off typ
+              of_offset ask (Deref (term, offset, Lval(Mem exp, NoOffset))) off (typeOfLval (Mem exp, NoOffset)) (Lval lval)
           | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
         end in
     (if M.tracing then match res with
@@ -272,42 +342,6 @@ module T = struct
       end
     | UnOp (LNot, e1, _) -> prop_of_cil ask e1 (not pos)
     | _ -> []
-
-
-  let default_int_type = IInt
-  let to_cil_constant ask z t = let z = Z.(z/ get_element_size_in_bits t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
-
-  (** Convert a term to a cil expression and its cil type. *)
-  let rec to_cil ask off t =
-    let cil_t = match t with
-      | Addr v -> AddrOf (Var v, NoOffset)
-      | Deref (Addr v, z, typ) when Z.equal z Z.zero -> Lval (Var v, NoOffset)
-      | Deref (t, z, vtyp) ->
-        let cil_t = to_cil ask z t in
-        begin match vtyp with
-          | TPtr (typ,_) -> Lval (Mem cil_t, NoOffset)
-          | TArray (typ, length, _) -> Lval (Mem (CastE (TPtr (typ,[]), cil_t)), NoOffset) (*TODO**)
-          | TComp (icomp, _) -> Lval (Mem cil_t, NoOffset)
-          | TVoid _
-          | TInt (_, _)
-          | TFloat (_, _)
-          | TFun (_, _, _, _)
-          | TNamed (_, _)
-          | TEnum (_, _)
-          | TBuiltin_va_list _ -> cil_t
-        end
-    in if Z.(equal zero off) then cil_t else
-      let vtype = type_of_term t in
-      match vtype with
-      | TArray (typ, length, _) -> cil_t
-      | _ ->
-        BinOp (PlusPI, cil_t, to_cil_constant ask off vtype, vtype)
-
-  (** Convert a term to a cil expression. *)
-  let to_cil ask off t = let exp = to_cil ask off t in
-    if M.tracing then M.trace "wrpointer-cil-conversion2" "Term: %s; Offset: %s; Exp: %a\n"
-        (show t) (Z.to_string off) d_plainexp exp;
-    exp
 end
 
 module TMap = struct
@@ -498,7 +532,7 @@ module LookupMap = struct
   end
 
   (* map: term -> z -> size of typ -> *(z + (typ * )t)*)
-  type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash]
+  type t = TSet.t ZMap.t ZMap.t TMap.t [@@deriving eq, ord, hash]
 
   let bindings = TMap.bindings
   let add = TMap.add
@@ -507,41 +541,54 @@ module LookupMap = struct
   let find_opt = TMap.find_opt
   let find = TMap.find
 
-  let zmap_bindings = ZMap.bindings
-  (** Returns the bindings of a map, but it transforms the mapped value (which is a set) to a single value (an element in the set). *)
-  let zmap_bindings_one_successor zmap = List.map (Tuple2.map2 TSet.any) (zmap_bindings zmap)
-  let zmap_find_opt = ZMap.find_opt
+  let zmap_bindings zmap =
+    let distribute_pair (a, xs) = List.map (fun (x,y) -> (a,x,y)) xs in
+    (List.flatten @@ List.map distribute_pair
+       (List.map (Tuple2.map2 ZMap.bindings) (ZMap.bindings zmap)))
+
+  let zmap_bindings_of_size s zmap =
+    List.filter_map (fun (off, zmap1) ->
+        Option.map (fun x -> (off, x)) @@ ZMap.find_opt s zmap1
+      ) (ZMap.bindings zmap)
+
+  (** Returns the bindings of a map, but it transforms the mapped value (which is a set) to a single value (an element in the set).
+      It returns a list of (offset, size, term) *)
+  let zmap_bindings_one_successor (zmap:TSet.t ZMap.t ZMap.t)  =
+    List.map (Tuple3.map3 TSet.any) (zmap_bindings zmap)
+  let zmap_find_opt t size = Option.map_default (ZMap.find_opt size) None % ZMap.find_opt t
   let set_any = TSet.any
 
-  (** Merges the set "m" with the set that is already present in the data structure. *)
-  let zmap_add x y m = match zmap_find_opt x m with
-    | None -> ZMap.add x y m
-    | Some set -> ZMap.add x (TSet.union y set) m
+  (** Merges the set "m" with the set that is already present in the data structure.
+      Params: x, size, set m, map.*)
+  let zmap_add x size y m = match ZMap.find_opt x m with
+    | None -> ZMap.add x (ZMap.add size y ZMap.empty) m
+    | Some zmap2 -> match ZMap.find_opt size zmap2 with
+      | None -> ZMap.add x (ZMap.add size y zmap2) m
+      | Some set -> ZMap.add x (ZMap.add size (TSet.union y set) zmap2) m
 
   (** Returns the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
-  let map_find_opt_set (v,r) map = match find_opt v map with
+  let map_find_opt_set (v,r) size map = match find_opt v map with
     | None -> None
-    | Some zmap -> (match zmap_find_opt r zmap with
-        | None -> None
-        | Some v -> Some v
-      )
+    | Some zmap -> zmap_find_opt r size zmap
 
   (** Returns one element of the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
-  let map_find_opt (v,r) map = Option.map TSet.any (map_find_opt_set (v,r) map)
+  let map_find_opt (v,r) size map = Option.map TSet.any (map_find_opt_set (v,r) size map)
 
   (** Adds the term "v'" to the set that is already present in the data structure. *)
-  let map_add (v,r) v' map = let zmap = match find_opt v map with
+  let map_add (v,r) v' map =
+    let size = T.get_size v' in
+    let zmap = match find_opt v map with
       | None -> ZMap.empty
-      | Some zmap ->zmap
-    in add v (zmap_add r (TSet.singleton v') zmap) map
+      | Some zmap -> zmap
+    in add v (zmap_add r size (TSet.singleton v') zmap) map
 
   let show_map map =
     List.fold_left
       (fun s (v, zmap) ->
          s ^ T.show v ^ "\t:\n" ^
          List.fold_left
-           (fun s (r, v) ->
-              s ^ "\t" ^ Z.to_string r ^ ": " ^ List.fold_left
+           (fun s (r, size, v) ->
+              s ^ "\t" ^ Z.to_string r ^ "(" ^ Z.to_string size ^ "bits): " ^ List.fold_left
                 (fun s k -> s ^ T.show k ^ ";")
                 "" (TSet.elements v) ^ ";; ")
            "" (zmap_bindings zmap) ^ "\n")
@@ -555,8 +602,8 @@ module LookupMap = struct
     match find_opt v' map with
     | None -> map
     | Some zmap -> let infl = zmap_bindings zmap in
-      let zmap = List.fold_left (fun zmap (r', v') ->
-          zmap_add Z.(r' + r) v' zmap) ZMap.empty infl in
+      let zmap = List.fold_left (fun zmap (r', s', v') ->
+          zmap_add Z.(r' + r) s' v' zmap) ZMap.empty infl in
       remove v' (add v zmap map)
 
   (** Find all outgoing edges of v in the automata.*)
@@ -568,15 +615,18 @@ module LookupMap = struct
   (** Filters elements from the mapped values which fulfil the predicate p. *)
   let filter_if map p =
     TMap.filter_map (fun _ zmap ->
-        let zmap = ZMap.filter_map
-            (fun _ t_set -> let filtered_set = TSet.filter p t_set in
-              if TSet.is_empty filtered_set then None else Some filtered_set) zmap
-        in if ZMap.is_empty zmap then None else Some zmap) map
+        let zmap = ZMap.filter_map (fun _ zmap2 ->
+            let zmap2 = ZMap.filter_map
+                (fun _ t_set -> let filtered_set = TSet.filter p t_set in
+                  if TSet.is_empty filtered_set then None else Some filtered_set) zmap2
+            in if ZMap.is_empty zmap2 then None else Some zmap2) zmap
+        in if ZMap.is_empty zmap then None else Some zmap)
+      map
 
   (** Maps elements from the mapped values by applying the function f to them. *)
   let map_values map f =
     TMap.map (fun zmap ->
-        ZMap.map (fun t_set -> TSet.map f t_set) zmap) map
+        ZMap.map (fun zmap2 -> ZMap.map (fun t_set -> TSet.map f t_set) zmap2) zmap) map
 end
 
 (** Quantitative congruence closure on terms *)
@@ -646,7 +696,7 @@ module CongruenceClosure = struct
       | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
         match LMap.successors state map with
         | edges ->
-          let process_edge (min_representatives, queue, uf) (edge_z, next_term) =
+          let process_edge (min_representatives, queue, uf) (edge_z, _(*min_repr is independent of the size*), next_term) =
             let next_state, next_z, uf = TUF.find uf next_term in
             let (min_term, min_z) = find state min_representatives in
             let next_min = (T.deref_term min_term Z.(edge_z - min_z), next_z) in
@@ -739,8 +789,8 @@ module CongruenceClosure = struct
   (** Returns a list of all the transition that are present in the automata. *)
   let get_transitions (uf, map) =
     List.flatten @@ List.map (fun (t, zmap) ->
-        (List.map (fun (edge_z, res_t) ->
-             (edge_z, t, TUF.find_no_pc uf (LMap.set_any res_t))) @@
+        (List.map (fun (edge_z, edge_size, res_t) ->
+             (edge_z, t, edge_size, TUF.find_no_pc uf (LMap.set_any res_t))) @@
          (LMap.zmap_bindings zmap)))
       (LMap.bindings map)
 
@@ -761,12 +811,12 @@ module CongruenceClosure = struct
     in
     let conjunctions_of_transitions =
       let transitions = get_transitions (cc.uf, cc.map) in
-      List.filter_map (fun (z,s,(s',z')) ->
+      List.filter_map (fun (z,s,_ (*size is not important for normal form?*),(s',z')) ->
           let (min_state, min_z) = MRMap.find s cc.min_repr in
           let (min_state', min_z') = MRMap.find s' cc.min_repr in
           normalize_equality (T.deref_term min_state Z.(z - min_z), min_state', Z.(z' - min_z'))
         ) transitions
-    in BatList.sort_unique (compare_prop Var.compare (T.compare_typ)) (conjunctions_of_atoms @ conjunctions_of_transitions)
+    in BatList.sort_unique (compare_prop Var.compare (T.compare_exp)) (conjunctions_of_atoms @ conjunctions_of_transitions)
 
   let show_all x = "Normal form:\n" ^
                    show_conj((get_normal_form x)) ^
@@ -816,6 +866,10 @@ module CongruenceClosure = struct
     | (t1, t2, r)::rest ->
       (let v1, r1, uf = TUF.find uf t1 in
        let v2, r2, uf = TUF.find uf t2 in
+       let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
+       if not (Z.equal sizet1 sizet2) then
+         (if M.tracing then M.trace "wrpointer" "ignoring equality because the sizes are not the same";
+          closure (uf, map, min_repr) queue rest) else
        if T.equal v1 v2 then
          (* t1 and t2 are in the same equivalence class *)
          if Z.equal r1 Z.(r2 + r) then closure (uf, map, min_repr) queue rest
@@ -831,23 +885,24 @@ module CongruenceClosure = struct
            | Some imap1, Some imap2, true -> (* v1 is new root *)
              (* zmap describes args of Deref *)
              let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
-             let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings imap2) in
+             (* we move all entries of imap2 to imap1 *)
+             let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings_of_size sizet1 imap2) in
              let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                 let rest = match LMap.zmap_find_opt r' zmap with
+                 let rest = match LMap.zmap_find_opt r' sizet1 zmap with
                    | None -> rest
                    | Some v'' -> (LMap.set_any v', LMap.set_any v'',Z.zero)::rest
-                 in LMap.zmap_add r' v' zmap, rest)
+                 in LMap.zmap_add r' sizet1 v' zmap, rest)
                  (imap1,rest) infl2 in
              LMap.remove v2 (LMap.add v zmap map), rest
            | Some imap1, Some imap2, false -> (* v2 is new root *)
              let r0 = Z.(r1-r2-r) in
-             let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap1) in
+             let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings_of_size sizet1 imap1) in
              let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
                  let rest =
-                   match LMap.zmap_find_opt r' zmap with
+                   match LMap.zmap_find_opt r' sizet1 zmap with
                    | None -> rest
                    | Some v'' -> (LMap.set_any v',LMap.set_any v'',Z.zero)::rest
-                 in LMap.zmap_add r' v' zmap, rest) (imap2, rest) infl1 in
+                 in LMap.zmap_add r' sizet1 v' zmap, rest) (imap2, rest) infl1 in
              LMap.remove v1 (LMap.add v zmap map), rest
          in
          (* update min_repr *)
@@ -917,11 +972,11 @@ module CongruenceClosure = struct
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
         (t, Z.zero), {uf; set; map = cc.map; min_repr}, [Addr a]
-      | Deref (t', z, _) ->
+      | Deref (t', z, exp) ->
         let (v, r), cc, queue = insert_no_min_repr cc t' in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
-        match LMap.map_find_opt (v, Z.(r + z)) cc.map with
+        match LMap.map_find_opt (v, Z.(r + z)) (T.get_size_in_bits (typeOf exp)) cc.map with
         | Some v' -> let v2,z2,uf = TUF.find cc.uf v' in
           let uf = LMap.add t ((t, Z.zero),1) uf in
           (v2,z2), closure {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr} [(t, v', Z.zero)], v::queue
@@ -1014,7 +1069,7 @@ module CongruenceClosure = struct
         detect_cyclic_dependencies t1 t2 cc
 
   let add_successor_terms cc t =
-    let add_one_successor (cc, successors) (edge_z, _) =
+    let add_one_successor (cc, successors) (edge_z, _, _) =
       let _, uf_offset, uf = TUF.find cc.uf t in
       let cc = {cc with uf = uf} in
       let successor = T.deref_term t Z.(edge_z - uf_offset) in
