@@ -100,14 +100,6 @@ module EqualitiesConjunction = struct
         (show @@ !(snd res));
     res
 
-  let add_variables_to_domain m indexes = modify_variables_in_domain m indexes (+)
-
-  let add_variables_to_domain m cols = timing_wrap "add_dims" (add_variables_to_domain m) cols
-
-  let remove_variables_from_domain m indexes = modify_variables_in_domain m indexes (-)
-
-  let remove_variables_from_domain m cols = timing_wrap "del_dims" (remove_variables_from_domain m) cols
-
   let is_empty m = get_dim m = 0
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
@@ -139,7 +131,7 @@ module EqualitiesConjunction = struct
     copy
 
   let dim_add (ch: Apron.Dim.change) m =
-    add_variables_to_domain m ch.dim
+    modify_variables_in_domain m ch.dim (+)
 
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
@@ -149,7 +141,7 @@ module EqualitiesConjunction = struct
     else (
       Array.modifyi (+) ch.dim;
       let m' = Array.fold_left (fun y x -> forget_variable_with y x; y) (copy m) ch.dim in
-      remove_variables_from_domain m' ch.dim)
+      modify_variables_in_domain m' ch.dim (-))
 
   let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
 
