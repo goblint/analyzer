@@ -136,7 +136,7 @@ module Tbls = struct
       table |> Hashtbl.filter (( = ) v) |> Hashtbl.keys |> Enum.get
 
 
-    let to_list () = table |> Hashtbl.enum |> List.of_enum
+    let to_list () = table |> Hashtbl.bindings
   end
 
   module Tbl (G : TblGen) = struct
@@ -146,7 +146,7 @@ module Tbls = struct
 
     let get k = Hashtbl.find table k
 
-    let get_key v = table |> Hashtbl.enum |> List.of_enum |> List.assoc_inv v
+    let get_key v = table |> Hashtbl.bindings |> List.assoc_inv v
   end
 
   let all_keys_count table =
@@ -411,8 +411,7 @@ module Variables = struct
           Some v
         | _ ->
           None)
-    |> Set.enum
-    |> List.of_enum
+    |> Set.elements
 
 
   let is_top tid var =

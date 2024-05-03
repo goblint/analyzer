@@ -136,7 +136,7 @@ struct
   let ivars_only env =
     let ivs, fvs = Environment.vars env in
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
-    List.of_enum (Array.enum ivs)
+    Array.to_list ivs
 
   let add_vars env vs =
     let vs' =

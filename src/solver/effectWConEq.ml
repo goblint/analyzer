@@ -65,8 +65,8 @@ module Make =
           HM.replace rho x tmp;
           let w = try HM.find infl x with Not_found -> VS.empty in
           HM.replace infl x VS.empty;
-          BatEnum.iter (HM.remove stable) (VS.enum w);
-          BatEnum.iter solve (VS.enum w)
+          VS.iter (HM.remove stable) w;
+          VS.iter solve w
         end
       in
 
