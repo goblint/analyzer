@@ -18,21 +18,21 @@ void main(void) {
   // long pointer is cast to char pointer -> *(cpt + 1) overwrites *lpt
   long *lpt = (long *)malloc(sizeof(long));
   char *cpt;
-  long l;
-  *lpt = l;
+  long lo;
+  *lpt = lo;
   // *lpt: 0; l: 0
-  __goblint_check(*lpt == l);
+  __goblint_check(*lpt == lo);
   cpt = (char *)lpt;
   *(cpt + 1) = 'a';
 
   // *lpt: 24832; l: 0
-  __goblint_check(*lpt == l); // UNKNOWN!
+  __goblint_check(*lpt == lo); // UNKNOWN!
 
-  l = 0;
-  *lpt = l;
+  lo = 0;
+  *lpt = lo;
   // *lpt: 0; l: 0
-  __goblint_check(*lpt == l);
+  __goblint_check(*lpt == lo);
   *((char *)lpt + 1) = 'a';
   // *lpt: 24832; l: 0
-  __goblint_check(*lpt == l); // UNKNOWN!
+  __goblint_check(*lpt == lo); // UNKNOWN!
 }

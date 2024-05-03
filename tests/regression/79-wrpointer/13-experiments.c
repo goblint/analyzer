@@ -27,11 +27,11 @@ void main(void) {
   int arr2[2][2] = {{1, 2}, {1, 2}};
   p.second = arr2[1][1];
 
-  // int *test;
+  int *test;
 
-  // int *x2[2] = {test, test};
+  int *x2[2] = {test, test};
 
-  // int test2 = *(x2[1]);
+  int test2 = *(x2[1]);
 
   struct Crazy crazyy[3][2];
 
