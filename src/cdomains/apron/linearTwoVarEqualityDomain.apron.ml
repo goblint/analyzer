@@ -95,7 +95,7 @@ module EqualitiesConjunction = struct
   let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
       M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %s } -> { %s }"
         (op 0 1)
-        (Array.fold (fun str i -> (string_of_int i) ^ ", " ^ str) "" cols)
+        (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str) cols "")
         (show @@ !( snd m))
         (show @@ !(snd res));
     res
@@ -135,16 +135,23 @@ module EqualitiesConjunction = struct
 
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
-  let dim_remove (ch: Apron.Dim.change) m ~del =
+  let dim_remove (ch: Apron.Dim.change) m =
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
-      Array.modifyi (+) ch.dim;
-      let m' = Array.fold_left (fun y x -> forget_variable_with y x; y) (copy m) ch.dim in
-      modify_variables_in_domain m' ch.dim (-))
+      let m' = Array.fold_lefti (fun y i x -> forget_variable_with y (x+i); y) (copy m) ch.dim in  (* clear m' from relations concerning ch.dim *)
+      let cpy = Array.copy ch.dim in
+      Array.modifyi (+) cpy;
+      modify_variables_in_domain m' cpy (-))
 
-  let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
+  let dim_remove ch m = VectorMatrix.timing_wrap "dim remove" (fun m -> dim_remove ch m) m
 
+  let dim_remove ch m ~del = let res = dim_remove ch m in if M.tracing then
+      M.tracel "dim_remove" "dim remove at positions [%s] in { %s } -> { %s }"
+        (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str)  ch.dim "")
+        (show @@ !( snd m))
+        (show @@ !(snd res));
+    res
 
 end
 
