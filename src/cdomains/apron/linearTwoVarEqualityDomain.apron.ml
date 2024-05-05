@@ -96,8 +96,8 @@ module EqualitiesConjunction = struct
       M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %s } -> { %s }"
         (op 0 1)
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str) cols "")
-        (show @@ !( snd m))
-        (show @@ !(snd res));
+        (show !( snd m))
+        (show !(snd res));
     res
 
   let is_empty m = get_dim m = 0
@@ -149,8 +149,8 @@ module EqualitiesConjunction = struct
   let dim_remove ch m ~del = let res = dim_remove ch m in if M.tracing then
       M.tracel "dim_remove" "dim remove at positions [%s] in { %s } -> { %s }"
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str)  ch.dim "")
-        (show @@ !( snd m))
-        (show @@ !(snd res));
+        (show !( snd m))
+        (show !(snd res));
     res
 
 end
@@ -339,7 +339,7 @@ struct
   exception Contradiction
 
   let meet_with_one_conj_with ts i (var, b) =
-    if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: { %s } eq: var_%d=%s" (EConj.show @@ !(snd ts)) i (Rhs.show (var,b));
+    if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: { %s } eq: var_%d=%s" (EConj.show !(snd ts)) i (Rhs.show (var,b));
     let subst_var tsi x (vart, bt) =
       let adjust = function
         | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
@@ -360,7 +360,7 @@ struct
             (if not @@ Z.equal b1 Z.(b2 + b) then raise Contradiction)
           else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
           else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
-  ; if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: ->   { %s } " (EConj.show @@ !(snd ts))
+  ; if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: ->   { %s } " (EConj.show !(snd ts))
 
   let meet_with_one_conj t i e =
     match t.d with
