@@ -468,7 +468,6 @@ struct
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
   let rec get ~ctx ?(top=VD.top ()) ?(full=false) (st: store) (addrs:address) (exp:exp option): value =
-    let at = AD.type_of addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
@@ -495,7 +494,12 @@ struct
       in
       (* We form the collecting function by joining *)
       let c (x:value) = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
-        | Int _ when Cil.isArithmeticType at -> VD.cast at x
+        | Int _ ->
+          let at = AD.type_of addrs in
+          if Cil.isArithmeticType at then
+            VD.cast at x
+          else
+            x
         | _ -> x
       in
       let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
@@ -979,41 +983,45 @@ struct
     (* Evaluate structurally using base at first. *)
     let a1 = eval_rv ~ctx st e1 in
     let a2 = eval_rv ~ctx st e2 in
-    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
-    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
-    let r = evalbinop_base ~ctx op t1 a1 t2 a2 t in
-    if Cil.isIntegralType t then (
-      match r with
-      | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
-      | _ ->
-        (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
-        let must_be_equal () =
-          let r = Q.must_be_equal (Analyses.ask_of_ctx ctx) e1 e2 in
-          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b" d_exp e1 d_exp e2 r;
-          r
-        in
-        match op with
-        | MinusA when must_be_equal () ->
-          let ik = Cilfacade.get_ikind t in
-          Int (ID.of_int ik Z.zero)
-        | MinusPI (* TODO: untested *)
-        | MinusPP when must_be_equal () ->
-          let ik = Cilfacade.ptrdiff_ikind () in
-          Int (ID.of_int ik Z.zero)
-        (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
-        | Le
-        | Ge when must_be_equal () ->
-          let ik = Cilfacade.get_ikind t in
-          Int (ID.of_bool ik true)
-        | Ne
-        | Lt
-        | Gt when must_be_equal () ->
-          let ik = Cilfacade.get_ikind t in
-          Int (ID.of_bool ik false)
-        | _ -> r (* Fallback didn't help. *)
-    )
-    else
-      r (* Avoid fallback, above cases are for ints only. *)
+    try
+      let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
+      let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
+      let r = evalbinop_base ~ctx op t1 a1 t2 a2 t in
+      if Cil.isIntegralType t then (
+        match r with
+        | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
+        | _ ->
+          (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
+          let must_be_equal () =
+            let r = Q.must_be_equal (Analyses.ask_of_ctx ctx) e1 e2 in
+            if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b" d_exp e1 d_exp e2 r;
+            r
+          in
+          match op with
+          | MinusA when must_be_equal () ->
+            let ik = Cilfacade.get_ikind t in
+            Int (ID.of_int ik Z.zero)
+          | MinusPI (* TODO: untested *)
+          | MinusPP when must_be_equal () ->
+            let ik = Cilfacade.ptrdiff_ikind () in
+            Int (ID.of_int ik Z.zero)
+          (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
+          | Le
+          | Ge when must_be_equal () ->
+            let ik = Cilfacade.get_ikind t in
+            Int (ID.of_bool ik true)
+          | Ne
+          | Lt
+          | Gt when must_be_equal () ->
+            let ik = Cilfacade.get_ikind t in
+            Int (ID.of_bool ik false)
+          | _ -> r (* Fallback didn't help. *)
+      )
+      else
+        r (* Avoid fallback, above cases are for ints only. *)
+    with Cilfacade.TypeOfError _ ->
+      (* Emit top value of corresponding type when there are issues *)
+      VD.top_value t
 
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
@@ -1262,7 +1270,9 @@ struct
   (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
   let rec exp_may_signed_overflow ctx exp =
     let res = match Cilfacade.get_ikind_exp exp with
-      | exception _ -> BoolDomain.MayBool.top ()
+      | exception (Cilfacade.TypeOfError _) (* Cilfacade.typeOf *)
+      | exception (Invalid_argument _) -> (* get_ikind *)
+        BoolDomain.MayBool.top ()
       | ik ->
         let checkDiv e1 e2 =
           let binop = (GobOption.map2 Z.div )in
@@ -2041,7 +2051,7 @@ struct
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
-      let t = AD.type_of a in
+      let t = try AD.type_of a with Not_found -> voidType in (* TODO: why is this called with empty a to begin with? *)
       let v = get ~ctx st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) t v in
       (a, t, nv)
@@ -2360,7 +2370,9 @@ struct
           | Addr.Addr (v, o) -> Addr.Addr (v, lo o)
           | other -> other in
         AD.map rmLastOffset a
-      | _ -> raise (Failure "String function: not an address")
+      | _ ->
+        M.debug ~category:Analyzer "Argument to string function did not evaluate to an address!";
+        AD.top ()
     in
     let string_manipulation s1 s2 lv all op_addr op_array =
       let s1_v = eval_rv ~ctx st s1 in

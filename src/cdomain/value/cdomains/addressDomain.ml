@@ -238,10 +238,16 @@ struct
     else
       ID.top_of ik
 
+  (** @raise Not_found if set is empty. *)
   let type_of xs =
-    try Addr.type_of (choose xs)
-    with (* WTF? Returns TVoid when it is unknown and stuff??? *)
-    | _ -> voidType
+    try
+      Addr.type_of (choose xs) (* TODO: what if ambiguous type? what if chooses NullPtr but also contains Addr with proper type? *)
+    with
+    (* to be consistent with pre-#1435 behavior *)
+    | Not_found
+    | Cilfacade.TypeOfError _
+    | Offset.Type_of_error _ ->
+      voidPtrType
 
   let of_var x = singleton (Addr.of_var x)
   let of_mval x = singleton (Addr.of_mval x)

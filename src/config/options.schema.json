@@ -1653,6 +1653,18 @@
           "type": "string",
           "default": ""
         },
+        "priv-prec-dump-suffix": {
+          "title": "exp.priv-prec-dump-suffix",
+          "description": "Suffix for name of precision dump. Useful if one has several configurations for one privatization.",
+          "type": "string",
+          "default": ""
+        },
+        "priv-prec-dump-proj": {
+          "title": "exp.priv-prec-dump-proj",
+          "description": "Project to (enums * def_exc * interval) precision for privatization precision dump.",
+          "type": "boolean",
+          "default": false
+        },
         "priv-distr-init": {
           "title": "exp.priv-distr-init",
           "description":
