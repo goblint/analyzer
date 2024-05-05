@@ -22,7 +22,6 @@ module Rhs = struct
   type t = (int option * GobZ.t) [@@deriving eq, ord, hash, show]
   let zero = (None, Z.zero)
   let var_zero i = (Some i, Z.zero)
-  let to_int (_,x) = Z.to_int x
   let show (v, o) = Option.map_default (fun i -> "var_" ^ string_of_int i^ " + ") "" v  ^ Z.to_string o
 end
 
