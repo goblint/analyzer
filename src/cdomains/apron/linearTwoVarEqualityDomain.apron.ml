@@ -52,13 +52,6 @@ module EqualitiesConjunction = struct
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
   let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs !econmap
 
-  (** inplace update on the EqualitiesConjunction, replacing the rhs for lhs with a new one if meaningful, otherwise just drop the entry*)
-  let set_rhs_with (dim,map) lhs rhs =
-    if Rhs.equal rhs Rhs.(var_zero lhs) then 
-      map := IntMap.remove lhs !map
-    else
-      map := IntMap.add lhs rhs !map
-
   (* set_rhs, staying loyal to immutable, sparse map underneath *)
   let set_rhs (dim,map) lhs rhs = (dim, ref
                                      (if Rhs.equal rhs Rhs.(var_zero lhs) then
@@ -441,8 +434,6 @@ struct
       in
       let flatten (a,(b1,b2,b3)) = (a,b1,b2,b3) in
       let table = List.map flatten @@ EConj.IntMap.bindings @@ EConj.IntMap.merge joinfunction !(snd ad) !(snd bd) in
-      (*gather result in res *)
-      let res = EConj.make_empty_conj @@ fst ad in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in
@@ -451,16 +442,17 @@ struct
       (*Calculate new components as groups*)
       let new_components = BatList.group cmp_z table in
       (*Adjust the domain array to represent the new components*)
-      let modify idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) = EConj.set_rhs_with res (idx)
+      let modify map idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) = EConj.set_rhs map (idx)
           (if opt1 = opt2 && Z.equal z1 z2 then  (opt1, z1)
            else (Some idx_h, Z.(z1 - b_h)))
       in
-      let iterate l =
+      let iterate map l =
         match l with
-        | (idx_h, _, (_, b_h), _) :: t ->  List.iter (modify idx_h b_h) l
+        | (idx_h, _, (_, b_h), _) :: t ->  List.fold (fun map' e -> modify map' idx_h b_h e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
-      List.iter iterate new_components; Some res
+      Some (List.fold (iterate) (EConj.make_empty_conj @@ fst ad) new_components)
+
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     match a.d, b.d with
