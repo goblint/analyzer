@@ -53,12 +53,19 @@ module EqualitiesConjunction = struct
   let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs !econmap
 
   (** inplace update on the EqualitiesConjunction, replacing the rhs for lhs with a new one if meaningful, otherwise just drop the entry*)
-  let set_rhs_with (dim,map) lhs rhs = 
+  let set_rhs_with (dim,map) lhs rhs =
     if Rhs.equal rhs Rhs.(var_zero lhs) then 
       map := IntMap.remove lhs !map
     else
       map := IntMap.add lhs rhs !map
 
+  (* set_rhs, staying loyal to immutable, sparse map underneath *)
+  let set_rhs (dim,map) lhs rhs = (dim, ref
+                                     (if Rhs.equal rhs Rhs.(var_zero lhs) then
+                                        IntMap.remove lhs !map
+                                      else
+                                        IntMap.add lhs rhs !map)
+                                  )
   let maxentry (_,map) = IntMap.fold (fun lhs (_,_) acc -> max acc lhs) !map 0
 
   let copy (dim,map) = (dim, ref !map)
@@ -105,29 +112,25 @@ module EqualitiesConjunction = struct
 
   let is_top_con (_,map) = IntMap.is_empty !map
 
-  (* Forget information about variable var in-place. *)
-  let forget_variable_with d var =
-    (let ref_var_opt = fst (get_rhs d var) in
-     match ref_var_opt with
-     | Some ref_var when ref_var = var ->
-       (* var is the reference variable of its connected component *)
-       (let cluster = IntMap.fold
-            (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) !(snd d) [] in
-        (* obtain cluster with common reference variable ref_var*)
-        match cluster with (* new ref_var is taken from head of the cluster *)
-        | head :: tail -> let headconst = snd (get_rhs d head) in (* take offset between old and new reference variable *)
-          List.iter (fun i -> set_rhs_with d i Z.(Some head, snd (get_rhs d i) - headconst)) cluster (* shift offset to match new reference variable *)
-        | _ -> ()) (* empty cluster means no work for us *)
-     | _ -> ()) (* variable is either a constant or expressed by another refvar *)
-  ; if M.tracing then M.tracel "forget" "forget var_%d in %s" var (show !(snd d))
-  ; snd d := IntMap.remove var !(snd d) (* set d(var) to unknown, finally *)
-  ; if M.tracing then M.trace "forget" "forgotten %s" (show !(snd d))
-
-  (* Forget information about variable i but not in-place *)
-  let forget_variable m j =
-    let copy = copy m in
-    forget_variable_with copy j;
-    copy
+  (* Forget information about variable i *)
+  let forget_variable d var =
+    let res =
+      (let ref_var_opt = fst (get_rhs d var) in
+       match ref_var_opt with
+       | Some ref_var when ref_var = var ->
+         (* var is the reference variable of its connected component *)
+         (let cluster = IntMap.fold
+              (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) !(snd d) [] in
+          (* obtain cluster with common reference variable ref_var*)
+          match cluster with (* new ref_var is taken from head of the cluster *)
+          | head :: tail ->
+            let headconst = snd (get_rhs d head) in (* take offset between old and new reference variable *)
+            List.fold (fun map i -> set_rhs map i Z.(Some head, snd (get_rhs d i) - headconst)) d cluster (* shift offset to match new reference variable *)
+          | _ -> d) (* empty cluster means no work for us *)
+       | _ -> d) (* variable is either a constant or expressed by another refvar *) in
+    let res = (fst res, ref (IntMap.remove var (!(snd res)))) in (* set d(var) to unknown, finally *)
+    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show !(snd d)) (show !(snd res));
+    res
 
   let dim_add (ch: Apron.Dim.change) m =
     modify_variables_in_domain m ch.dim (+)
@@ -140,7 +143,7 @@ module EqualitiesConjunction = struct
     else (
       let cpy = Array.copy ch.dim in
       Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
-      let m' = Array.fold_lefti (fun y i x -> forget_variable_with y (x); y) (copy m) cpy in  (* clear m' from relations concerning ch.dim *)
+      let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m cpy in  (* clear m' from relations concerning ch.dim *)
       modify_variables_in_domain m' cpy (-))
 
   let dim_remove ch m = VectorMatrix.timing_wrap "dim remove" (fun m -> dim_remove ch m) m
@@ -236,30 +239,30 @@ struct
   (* Copy because function is not "with" so should not mutate inputs *)
   let assign_const t var const = match t.d with
     | None -> t
-    | Some t_d ->
-      let d = EConj.copy t_d in EConj.set_rhs_with d var (None, const);  {d = Some d; env = t.env}
+    | Some t_d -> {d = Some (EConj.set_rhs t_d var (None, const)); env = t.env}
 
   let subtract_const_from_var t var const =
     match t.d with
     | None -> t
     | Some t_d ->
-      let d = EConj.copy t_d in
-      let subtract_const_from_var_for_single_equality index (eq_var_opt, off2) =
+      let subtract_const_from_var_for_single_equality index (eq_var_opt, off2) econ =
         if index <> var then
           begin match eq_var_opt with
             | Some eq_var when eq_var = var ->
-              EConj.set_rhs_with d index (eq_var_opt, Z.(off2 - const))
-            | _ -> ()
+              EConj.set_rhs econ index (eq_var_opt, Z.(off2 - const))
+            | _ -> econ
           end
+        else econ
       in
-      begin if not @@ EConj.nontrivial d var
-      (* var is a reference variable -> it can appear on the right-hand side of an equality *)
+      let d =
+        if not @@ EConj.nontrivial t_d var
+        (* var is a reference variable -> it can appear on the right-hand side of an equality *)
         then
-          EConj.IntMap.iter (subtract_const_from_var_for_single_equality) !(snd d)
+          (EConj.IntMap.fold (subtract_const_from_var_for_single_equality) !(snd t_d) t_d)
         else
           (* var never appears on the right hand side-> we only need to modify the array entry at index var *)
-          EConj.set_rhs_with d  var (Tuple2.map2 (Z.add const) (EConj.get_rhs d var))
-      end;
+          EConj.set_rhs t_d var (Tuple2.map2 (Z.add const) (EConj.get_rhs t_d var))
+      in
       {d = Some d; env = t.env}
 
 end
@@ -499,16 +502,17 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  let forget_var t var =
+    if is_bot_env t || is_top t then t
+    else
+      {d = Some (EConj.forget_variable (Option.get t.d) (Environment.dim_of_var t.env var)); env = t.env}
+
   let forget_vars t vars =
     if is_bot_env t || is_top t || List.is_empty vars then
       t
     else
-      let m = EConj.copy @@ Option.get t.d in
-      List.iter
-        (fun var ->
-           EConj.forget_variable_with m (Environment.dim_of_var t.env var))
-        vars;
-      {d = Some m; env = t.env}
+      let newm=(List.fold (fun map i -> EConj.forget_variable map (Environment.dim_of_var t.env i)) (Option.get t.d) vars) in
+      {d = Some newm; env = t.env}
 
   let forget_vars t vars =
     let res = forget_vars t vars in
@@ -526,16 +530,16 @@ struct
       begin match simplify_to_ref_and_offset t texp with
         | None ->
           (* Statement "assigned_var = ?" (non-linear assignment) *)
-          forget_vars t [var]
+          forget_var t var
         | Some (None, off) ->
           (* Statement "assigned_var = off" (constant assignment) *)
-          assign_const (forget_vars t [var]) var_i off
+          assign_const (forget_var t var) var_i off
         | Some (Some exp_var, off) when var_i = exp_var ->
           (* Statement "assigned_var = assigned_var + off" *)
           subtract_const_from_var t var_i off
         | Some (Some exp_var, off) ->
           (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
-          meet_with_one_conj (forget_vars t [var]) var_i (Some exp_var, off)
+          meet_with_one_conj (forget_var t var) var_i (Some exp_var, off)
       end
     | None -> bot_env
 
@@ -548,7 +552,7 @@ struct
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
     | texp -> assign_texpr t var texp
-    | exception Convert.Unsupported_CilExp _ -> forget_vars t [var]
+    | exception Convert.Unsupported_CilExp _ -> forget_var t var
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
@@ -611,7 +615,7 @@ struct
   let substitute_exp ask t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     let res = assign_exp ask t var exp no_ov in
-    forget_vars res [var]
+    forget_var res var
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
