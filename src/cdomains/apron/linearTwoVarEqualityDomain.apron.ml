@@ -42,7 +42,7 @@ module EqualitiesConjunction = struct
 
 
   let show_formatted formatter econ =
-    match (IntMap.bindings econ) with 
+    match IntMap.bindings econ with 
     | [] -> "{}"
     | [(i,(refvar,off))] -> Printf.sprintf "{ %s=%s }" (formatter i) (Rhs.show_formatted (formatter) (refvar,off))
     | (i,(refvar,off))::rest -> 
