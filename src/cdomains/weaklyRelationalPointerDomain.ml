@@ -104,7 +104,17 @@ module D = struct
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.uf
 
-  let join a b = if M.tracing then M.trace "wrpointer" "JOIN\n";a (*TODO implement join*)
+  let join a b =
+    let res =
+      match a,b with
+      | None, b -> b
+      | a, None -> a
+      | Some a, Some b -> Some (fst(join a b))
+    in
+    if M.tracing then M.trace "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\nJOIN: %s\n"
+        (show_all a) (show_all b) (show_all res);
+    res
+
   let widen = join
 
   let meet a b = match a,b with

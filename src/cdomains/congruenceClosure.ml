@@ -1227,23 +1227,31 @@ module CongruenceClosure = struct
   (* join *)
   let join cc1 cc2 =
     let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
-    let pmap = List.fold_left (fun pmap a -> Map.add (a,a) a pmap) Map.empty atoms in
+    let pmap = List.fold_left
+        (fun pmap a -> Map.add (a,a) (a,snd (TUF.find_no_pc cc1.uf a), snd (TUF.find_no_pc cc2.uf a)) pmap)
+        Map.empty atoms in
     let working_set = List.combine atoms atoms in
     let cc = init_cc [] in
-    let add_one_edge y t (pmap, cc) (offset, size, a) =
-      match LMap.map_find_opt (y, offset) size cc2.map with
-      | None -> pmap,cc
-      | Some b -> let new_term = T.deref_term t offset in
-        let _ , cc = insert cc new_term (*TODO find dereferenced term in the successors*)
-        in match Map.find_opt (a,b) pmap with
-        | None -> Map.add (a,b) new_term pmap, cc
-        | Some c -> pmap, closure cc [c, new_term, Z.zero]
+    let add_one_edge y t t1_off t2_off (pmap, cc, new_pairs) (offset, size, a) =
+      let a', a_off = TUF.find_no_pc cc1.uf a in
+      match LMap.map_find_opt (y, Z.(t2_off - t1_off + offset)) size cc2.map with
+      | None -> pmap,cc,new_pairs
+      | Some b -> let b', b_off = TUF.find_no_pc cc2.uf b in
+        let new_term = T.deref_term t Z.(offset - t1_off) in
+        let _ , cc = insert cc new_term (*TODO find dereferenced term in the successors, because of the type/exp information*)
+        in match Map.find_opt (a',b') pmap with
+        | None -> Map.add (a',b') (new_term, a_off, b_off) pmap, cc, (a',b')::new_pairs
+        | Some (c, c1_off, c2_off) ->
+          if Z.(equal (-c1_off + a_off) (-c2_off + b_off)) then
+            pmap, closure cc [new_term, c, Z.(-c1_off + a_off)],new_pairs
+          else pmap,cc,new_pairs (* If c and new_term don't have the same distance in cc1 and cc2, we forget that they are related. *)
     in
     let rec add_edges_to_map pmap cc = function
       | [] -> cc, pmap
       | (x,y)::rest ->
-        let t = Map.find (x,y) pmap in
-        let pmap,cc = List.fold_left (add_one_edge y t) (pmap, cc) (LMap.successors x cc1.map) in add_edges_to_map pmap cc rest
+        let t,t1_off,t2_off = Map.find (x,y) pmap in
+        let pmap,cc,new_pairs = List.fold_left (add_one_edge y t t1_off t2_off) (pmap, cc, []) (LMap.successors x cc1.map) in
+        add_edges_to_map pmap cc (rest@new_pairs)
     in
     add_edges_to_map pmap cc working_set
 
