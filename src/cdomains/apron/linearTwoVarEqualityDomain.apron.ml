@@ -397,7 +397,7 @@ struct
 
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
-    let implies ts (var, b) i =
+    let implies ts i (var, b) =
       let tuple_cmp = Tuple2.eq (Option.eq ~eq:Int.equal) (Z.equal) in
       match var with
       | None -> tuple_cmp (var, b) (EConj.get_rhs ts i)
@@ -408,7 +408,7 @@ struct
     if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      EConj.IntMap.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) (snd m2) true (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
+      EConj.IntMap.for_all (implies m1') (snd m2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
