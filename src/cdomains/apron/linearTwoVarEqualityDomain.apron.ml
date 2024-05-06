@@ -99,7 +99,7 @@ module EqualitiesConjunction = struct
       in
       let rec bumpentry k (refvar,offset) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
         | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
-        | (tbl,delta,list) (* k<head or list=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar, offset) tbl, delta, list)
+        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar, offset) tbl, delta, lyst)
       in
       let (a,_,_) = IntMap.fold bumpentry (snd m) (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
       (op (get_dim m) (Array.length indexes), a)
