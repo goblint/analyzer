@@ -67,7 +67,7 @@ module EqualitiesConjunction = struct
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
   let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs econmap
 
-  (* set_rhs, staying loyal to immutable, sparse map underneath *)
+  (** set_rhs, staying loyal to immutable, sparse map underneath *)
   let set_rhs (dim,map) lhs rhs = (dim,
                                    if Rhs.equal rhs Rhs.(var_zero lhs) then
                                      IntMap.remove lhs map
