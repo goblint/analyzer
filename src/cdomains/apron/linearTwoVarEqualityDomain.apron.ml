@@ -44,7 +44,6 @@ module EqualitiesConjunction = struct
   let show_formatted formatter econ =
     match IntMap.bindings econ with 
     | [] -> "{}"
-    | [(i,(refvar,off))] -> Printf.sprintf "{ %s=%s }" (formatter i) (Rhs.show_formatted (formatter) (refvar,off))
     | (i,(refvar,off))::rest -> 
       let str = List.fold 
           (fun acc (j, rhs2)-> Printf.sprintf "%s=%s ∧ %s" (formatter j) (Rhs.show_formatted formatter rhs2) acc) 
