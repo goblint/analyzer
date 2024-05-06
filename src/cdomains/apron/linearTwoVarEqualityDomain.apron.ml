@@ -54,7 +54,7 @@ module EqualitiesConjunction = struct
 
   let show econ = show_formatted (Printf.sprintf "var_%d") econ
 
-  let hash (dim,x) =dim + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
+  let hash (dim,x) = dim + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
 
   let empty () = (0, IntMap.empty)
 
@@ -76,7 +76,7 @@ module EqualitiesConjunction = struct
                                   )
   let copy = identity
 
-  let maxentry (_,map) = IntMap.fold (fun lhs (_,_) acc -> max acc lhs) map 0
+  let maxentry (_,map) = IntMap.fold (fun lhs _ acc -> max acc lhs) map 0
 
   (** add/remove new variables to domain with particular indices; translates old indices to keep consistency
       add if op = (+), remove if op = (-)
@@ -101,7 +101,7 @@ module EqualitiesConjunction = struct
         | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
         | (tbl,delta,list) (* k<head or list=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar, offset) tbl, delta, list)
       in
-      let (a,_,_) = IntMap.fold (bumpentry) (snd m) (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
+      let (a,_,_) = IntMap.fold bumpentry (snd m) (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
       (op (get_dim m) (Array.length indexes), a)
 
   let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
@@ -132,7 +132,7 @@ module EqualitiesConjunction = struct
           | head :: tail ->
             let headconst = snd (get_rhs d head) in (* take offset between old and new reference variable *)
             List.fold (fun map i -> set_rhs map i Z.(Some head, snd (get_rhs d i) - headconst)) d cluster (* shift offset to match new reference variable *)
-          | _ -> d) (* empty cluster means no work for us *)
+          | [] -> d) (* empty cluster means no work for us *)
        | _ -> d) (* variable is either a constant or expressed by another refvar *) in
     let res = (fst res, IntMap.remove var (snd res)) in (* set d(var) to unknown, finally *)
     if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show (snd d)) (show (snd res));
@@ -450,7 +450,7 @@ struct
         | (idx_h, _, (_, b_h), _) :: t ->  List.fold (fun map' e -> modify map' idx_h b_h e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
-      Some (List.fold (iterate) (EConj.make_empty_conj @@ fst ad) new_components)
+      Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
 
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
@@ -502,7 +502,7 @@ struct
     if is_bot_env t || is_top t || List.is_empty vars then
       t
     else
-      let newm=(List.fold (fun map i -> EConj.forget_variable map (Environment.dim_of_var t.env i)) (Option.get t.d) vars) in
+      let newm = List.fold (fun map i -> EConj.forget_variable map (Environment.dim_of_var t.env i)) (Option.get t.d) vars in
       {d = Some newm; env = t.env}
 
   let forget_vars t vars =
