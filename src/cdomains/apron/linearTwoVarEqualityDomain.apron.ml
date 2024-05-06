@@ -28,42 +28,40 @@ end
 module EqualitiesConjunction = struct
   module IntMap = BatMap.Make(Int)
 
-  type t = int * ( Rhs.t IntMap.t ref)
+  type t = int * ( Rhs.t IntMap.t )
 
-  let equal (idim,imap) (jdim,jmap) = idim = jdim && IntMap.equal Rhs.equal !imap !jmap
+  let equal (idim,imap) (jdim,jmap) = idim = jdim && IntMap.equal Rhs.equal imap jmap
 
   let compare (idim,imap) (jdim,jmap) = let c = compare idim jdim in if c <> 0 then
       c
-    else IntMap.compare Rhs.compare !imap !jmap
+    else IntMap.compare Rhs.compare imap jmap
 
   let show econ = let show_rhs i (v, o) = Printf.sprintf "var_%d=%s " i (Rhs.show (v, o)) in
     IntMap.fold (fun lhs rhs acc -> acc ^ show_rhs lhs rhs) econ ""
 
-  let hash (dim,x) =dim + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) !x 0 (* TODO: derive *)
+  let hash (dim,x) =dim + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
 
-  let empty () = (0, ref IntMap.empty)
+  let empty () = (0, IntMap.empty)
 
-  let make_empty_conj len = (len, ref IntMap.empty)
+  let make_empty_conj len = (len, IntMap.empty)
 
   let get_dim (dim,_) = dim
 
-  let nontrivial (_,econmap) lhs = IntMap.mem lhs !econmap
+  let nontrivial (_,econmap) lhs = IntMap.mem lhs econmap
 
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
-  let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs !econmap
+  let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs econmap
 
   (* set_rhs, staying loyal to immutable, sparse map underneath *)
-  let set_rhs (dim,map) lhs rhs = (dim, ref
-                                     (if Rhs.equal rhs Rhs.(var_zero lhs) then
-                                        IntMap.remove lhs !map
-                                      else
-                                        IntMap.add lhs rhs !map)
+  let set_rhs (dim,map) lhs rhs = (dim,
+                                   if Rhs.equal rhs Rhs.(var_zero lhs) then
+                                     IntMap.remove lhs map
+                                   else
+                                     IntMap.add lhs rhs map
                                   )
-  let maxentry (_,map) = IntMap.fold (fun lhs (_,_) acc -> max acc lhs) !map 0
+  let copy = identity
 
-  let copy (dim,map) = (dim, ref !map)
-
-  let copy  (dim,map) = timing_wrap "copy" (copy) (dim,map)
+  let maxentry (_,map) = IntMap.fold (fun lhs (_,_) acc -> max acc lhs) map 0
 
   (** add/remove new variables to domain with particular indices; translates old indices to keep consistency
       add if op = (+), remove if op = (-)
@@ -77,7 +75,7 @@ module EqualitiesConjunction = struct
       in
       let memobumpvar = (* Memoized version of bumpvar *)
         if (Array.length indexes < 10) then fun x -> bumpvar 0 x offsetlist else (* only do memoization, if dimchange is significant *)
-          (let h = Hashtbl.create @@ IntMap.cardinal !(snd m) in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
+          (let h = Hashtbl.create @@ IntMap.cardinal (snd m) in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
            fun x -> (* standard memoization wrapper *)
              try Hashtbl.find h x with Not_found ->
                let r = bumpvar 0 x offsetlist in
@@ -88,22 +86,22 @@ module EqualitiesConjunction = struct
         | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
         | (tbl,delta,list) (* k<head or list=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar, offset) tbl, delta, list)
       in
-      let (a,_,_) = IntMap.fold (bumpentry) !(snd m) (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
-      (op (get_dim m) (Array.length indexes), ref a)
+      let (a,_,_) = IntMap.fold (bumpentry) (snd m) (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
+      (op (get_dim m) (Array.length indexes), a)
 
   let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
       M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %s } -> { %s }"
         (op 0 1)
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str) cols "")
-        (show !( snd m))
-        (show !(snd res));
+        (show (snd m))
+        (show (snd res));
     res
 
   let is_empty m = get_dim m = 0
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
 
-  let is_top_con (_,map) = IntMap.is_empty !map
+  let is_top_con (_,map) = IntMap.is_empty map
 
   (* Forget information about variable i *)
   let forget_variable d var =
@@ -113,7 +111,7 @@ module EqualitiesConjunction = struct
        | Some ref_var when ref_var = var ->
          (* var is the reference variable of its connected component *)
          (let cluster = IntMap.fold
-              (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) !(snd d) [] in
+              (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
           (* obtain cluster with common reference variable ref_var*)
           match cluster with (* new ref_var is taken from head of the cluster *)
           | head :: tail ->
@@ -121,8 +119,8 @@ module EqualitiesConjunction = struct
             List.fold (fun map i -> set_rhs map i Z.(Some head, snd (get_rhs d i) - headconst)) d cluster (* shift offset to match new reference variable *)
           | _ -> d) (* empty cluster means no work for us *)
        | _ -> d) (* variable is either a constant or expressed by another refvar *) in
-    let res = (fst res, ref (IntMap.remove var (!(snd res)))) in (* set d(var) to unknown, finally *)
-    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show !(snd d)) (show !(snd res));
+    let res = (fst res, IntMap.remove var (snd res)) in (* set d(var) to unknown, finally *)
+    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show (snd d)) (show (snd res));
     res
 
   let dim_add (ch: Apron.Dim.change) m =
@@ -144,20 +142,20 @@ module EqualitiesConjunction = struct
   let dim_remove ch m ~del = let res = dim_remove ch m in if M.tracing then
       M.tracel "dim_remove" "dim remove at positions [%s] in { %s } -> { %s }"
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str)  ch.dim "")
-        (show !( snd m))
-        (show !(snd res));
+        (show (snd m))
+        (show (snd res));
     res
 
   exception Contradiction
 
   let meet_with_one_conj ts i (var, b) =
-    let res = 
+    let res =
       let subst_var tsi x (vart, bt) =
         let adjust = function
           | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
           | e -> e
         in
-        (fst tsi, ref @@ IntMap.add x (vart, bt) @@ IntMap.map adjust !(snd tsi)) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        (fst tsi, IntMap.add x (vart, bt) @@ IntMap.map adjust (snd tsi)) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
       in
       let (var1, b1) = get_rhs ts i in
       (match var, var1 with
@@ -172,7 +170,7 @@ module EqualitiesConjunction = struct
               (if not @@ Z.equal b1 Z.(b2 + b) then raise Contradiction else ts)
             else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
             else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))) in
-    if M.tracing then M.trace "meet" "meet_with_one_conj conj: { %s } eq: var_%d=%s ->   { %s } " (show !(snd ts)) i (Rhs.show (var,b)) (show !(snd ts))
+    if M.tracing then M.trace "meet" "meet_with_one_conj conj: { %s } eq: var_%d=%s ->   { %s } " (show (snd ts)) i (Rhs.show (var,b)) (show (snd ts))
   ; res
 
 end
@@ -278,7 +276,7 @@ struct
         if not @@ EConj.nontrivial t_d var
         (* var is a reference variable -> it can appear on the right-hand side of an equality *)
         then
-          (EConj.IntMap.fold (subtract_const_from_var_for_single_equality) !(snd t_d) t_d)
+          (EConj.IntMap.fold (subtract_const_from_var_for_single_equality) (snd t_d) t_d)
         else
           (* var never appears on the right hand side-> we only need to modify the array entry at index var *)
           EConj.set_rhs t_d var (Tuple2.map2 (Z.add const) (EConj.get_rhs t_d var))
@@ -352,7 +350,7 @@ struct
       if is_bot varM then
         "Bot \n"
       else
-        EConj.IntMap.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) !(snd arr) "" ^ (" with dimension " ^ (string_of_int @@ fst arr))
+        EConj.IntMap.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) (snd arr) "" ^ (" with dimension " ^ (string_of_int @@ fst arr))
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -379,7 +377,7 @@ struct
     let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
     | Some d1', Some d2' -> 
-      EConj.IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) !(snd d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
+      EConj.IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
@@ -402,7 +400,7 @@ struct
     if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      EConj.IntMap.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) !(snd m2) true (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
+      EConj.IntMap.fold (fun lhs rhs acc -> acc && implies m1' rhs lhs) (snd m2) true (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -426,7 +424,7 @@ struct
         | _,_                       -> None  (* no binding for lhs in both maps is replicated implicitely in a sparse result map *)
       in
       let flatten (a,(b1,b2,b3)) = (a,b1,b2,b3) in
-      let table = List.map flatten @@ EConj.IntMap.bindings @@ EConj.IntMap.merge joinfunction !(snd ad) !(snd bd) in
+      let table = List.map flatten @@ EConj.IntMap.bindings @@ EConj.IntMap.merge joinfunction (snd ad) (snd bd) in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in
@@ -710,7 +708,7 @@ struct
         let ri = Environment.var_of_dim t.env r in
         of_coeff xi [(Coeff.s_of_int (-1), xi); (Coeff.s_of_int 1, ri)] o :: acc
     in
-    BatOption.get t.d |> fun (_,map) -> EConj.IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) !map []
+    BatOption.get t.d |> fun (_,map) -> EConj.IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
