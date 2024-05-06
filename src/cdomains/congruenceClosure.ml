@@ -21,9 +21,19 @@ module T = struct
 
   (* term * size in bits of the element pointed to by the term *)
   type t = (Var.t, exp) term [@@deriving eq, ord, hash]
-  type v_prop = (Var.t, exp) prop [@@deriving eq, ord, hash]
+  type v_prop = (Var.t, exp) prop [@@deriving ord, hash]
+
+  let equal_v_prop p1 p2 =
+    let equivalent_triple (t1,t2,o1) (t3,t4,o2) =
+      (equal t1 t3 && equal t2 t4 && Z.equal o1 o2) ||
+      (equal t1 t4 && equal t2 t3 && Z.(equal o1 (-o2)))
+    in match p1, p2 with
+    | Equal (a,b,c), Equal (a',b',c') -> equivalent_triple (a,b,c) (a',b',c')
+    | Nequal (a,b,c), Nequal (a',b',c') ->  equivalent_triple (a,b,c) (a',b',c')
+    | _ -> false
 
   let props_equal = List.equal equal_v_prop
+
   let show_type exp =
     let typ = typeOf exp in
     "[" ^ (match typ with

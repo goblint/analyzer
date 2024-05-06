@@ -87,12 +87,13 @@ module D = struct
 
   let name () = "wrpointer"
 
-  let equal x y = if M.tracing then M.trace "wrpointer-equal" "equal.\nx=\n%s\ny=\n%s" (show x) (show y);
+  let equal x y = let res =
     match x, y with
     | Some x, Some y ->
       (T.props_equal (get_normal_form x) (get_normal_form y))
     | None, None -> true
     | _ -> false
+    in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
   let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty}
 
