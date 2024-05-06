@@ -6,7 +6,40 @@
   [Info][Witness] witness generation summary:
     total generation entries: 3
 
-TODO: check witness.yml content with yamlWitnessStrip
+  $ yamlWitnessStrip < witness.yml
+  - entry_type: location_invariant
+    location:
+      file_name: 08-witness-all-locals.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 3
+      function: main
+    location_invariant:
+      string: y == 10
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 08-witness-all-locals.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 3
+      function: main
+    location_invariant:
+      string: x == 5
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 08-witness-all-locals.c
+      file_hash: $FILE_HASH
+      line: 7
+      column: 5
+      function: main
+    location_invariant:
+      string: x == 5
+      type: assertion
+      format: C
 
 Fewer entries are emitted if locals from nested block scopes are excluded:
 
@@ -19,4 +52,26 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
   [Info][Witness] witness generation summary:
     total generation entries: 2
 
-TODO: check witness.yml content with yamlWitnessStrip
+  $ yamlWitnessStrip < witness.yml
+  - entry_type: location_invariant
+    location:
+      file_name: 08-witness-all-locals.c
+      file_hash: $FILE_HASH
+      line: 9
+      column: 3
+      function: main
+    location_invariant:
+      string: x == 5
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 08-witness-all-locals.c
+      file_hash: $FILE_HASH
+      line: 7
+      column: 5
+      function: main
+    location_invariant:
+      string: x == 5
+      type: assertion
+      format: C

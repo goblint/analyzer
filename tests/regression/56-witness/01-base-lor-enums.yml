@@ -17,7 +17,7 @@
     file_name: 01-base-lor-enums.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 17
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: (x == 1 || x == 3) || x == 6
@@ -42,7 +42,7 @@
     file_name: 01-base-lor-enums.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 18
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: (x == 1 || x == 3) || x == 7
@@ -67,7 +67,7 @@
     file_name: 01-base-lor-enums.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 29
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: y == 11 || y == x
@@ -92,7 +92,7 @@
     file_name: 01-base-lor-enums.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 30
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: (y == 1 || y == 3) || y == 6 || y == 11
@@ -117,7 +117,7 @@
     file_name: 01-base-lor-enums.c
     file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
     line: 31
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: y == 42 || y == x

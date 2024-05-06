@@ -4,6 +4,12 @@
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
+(** If this is true, any overflows happening in IntDomains will not lead to warnings being produced or
+    {!svcomp_may_overflow} being set to true. This is useful when, e.g., {!BaseInvariant.Make.invariant} executes computations that
+    are not in the actual program
+*)
+let executing_speculative_computations = ref false
+
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 

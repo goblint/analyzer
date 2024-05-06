@@ -3,7 +3,7 @@
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
   # published goblint-cil 2.0.3 is currently up-to-date, so no pin needed
-  [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#833378d9102578bab7b62174cb029d385db417a5" ]
+  [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#ae3a4949d478fad77e004c6fe15a7c83427df59f" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
 ]

@@ -356,10 +356,17 @@
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
-          "description": "List of context-insensitive analyses",
+          "description": "List of context-insensitive analyses. This setting is ignored if `ana.ctx_sens` contains elements.",
           "type": "array",
           "items": { "type": "string" },
           "default": [ "stack_loc", "stack_trace_set" ]
+        },
+        "ctx_sens": {
+          "title": "ana.ctx_sens",
+          "description": "List of context-sensitive analyses. In case this list is empty, `ana.ctx_insens` will be used to determine the set of context-insensitive analyses.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
         },
         "setjmp" : {
           "title": "ana.setjmp",
@@ -752,9 +759,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
@@ -970,6 +977,18 @@
                 "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls.",
               "type": "boolean",
               "default": false
+            },
+            "gas_value": {
+              "title": "ana.context.gas_value",
+              "description": "Denotes the gas value x for the ContextGasLifter. Negative values deactivate the context gas, zero yields a context-insensitve analysis. If enabled, the first x recursive calls of the call stack are analyzed context-sensitively. Any calls deeper in the call stack are analyzed with the same (empty) context.",
+              "type": "integer",
+              "default": -1
+            },
+            "callString_length": {
+              "title": "ana.context.callString_length",
+              "description": "Length of the call string that should be used as context for the call_string and/or call_site analyses. In case the value is zero, the analysis is context-insensitive. For a negative value, an infinite call string is used! For this option to have an effect, one of the analyses in `callstring.ml` must be activated.",
+              "type": "integer",
+              "default": 2
             }
           },
           "additionalProperties": false
@@ -1991,6 +2010,12 @@
               "description": "Add loop SCC clusters to CFG .dot output.",
               "type": "boolean",
               "default": false
+            },
+            "loop-unrolling": {
+              "title": "dbg.cfg.loop-unrolling",
+              "description": "Add dotted loop unrolling copy-of edges to CFG .dot output.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -2481,6 +2506,12 @@
               "description": "Emit non-standard Goblint-specific invariants. Currently array invariants with all_index offsets.",
               "type": "boolean",
               "default": false
+            },
+            "typedefs": {
+              "title": "witness.invariant.typedefs",
+              "description": "Emit invariants with typedef-ed types (e.g. in casts). Our validator cannot parse these.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false

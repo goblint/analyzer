@@ -75,18 +75,22 @@ let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThres
 type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
-  let signed = Cil.isSigned ik in
-  if !AnalysisState.postsolving && signed && not cast then
-    AnalysisState.svcomp_may_overflow := true;
-  let sign = if signed then "Signed" else "Unsigned" in
-  match underflow, overflow with
-  | true, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-  | true, false ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
-  | false, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-  | false, false -> assert false
+  if !AnalysisState.executing_speculative_computations then
+    (* Do not produce warnings when the operations are not actually happening in code *)
+    ()
+  else
+    let signed = Cil.isSigned ik in
+    if !AnalysisState.postsolving && signed && not cast then
+      AnalysisState.svcomp_may_overflow := true;
+    let sign = if signed then "Signed" else "Unsigned" in
+    match underflow, overflow with
+    | true, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
+    | true, false ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+    | false, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
+    | false, false -> assert false
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
@@ -179,7 +183,7 @@ sig
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
 
-  val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
+  val cast_to: ?suppress_ovwarn:bool -> ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet. TODO: Should be ported to S in the future. *)
@@ -208,7 +212,7 @@ sig
   val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
 
   val join: Cil.ikind -> t -> t -> t
   val meet: Cil.ikind -> t -> t -> t
@@ -247,7 +251,7 @@ sig
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 
@@ -375,7 +379,7 @@ struct
   let c_logand = lift2 I.c_logand
   let c_logor = lift2 I.c_logor
 
-  let cast_to ?torg ikind x = {v = I.cast_to ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
+  let cast_to ?(suppress_ovwarn=false) ?torg ikind x = {v = I.cast_to  ~suppress_ovwarn ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
@@ -656,7 +660,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
     match x, y with
@@ -1358,7 +1362,7 @@ struct
     in
     binop x y interval_rem
 
-  let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
 
   (*
       narrows down the extremeties of xs if they are equal to boundary values of the ikind with (possibly) narrower values from ys
@@ -1542,7 +1546,7 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
 
   let of_int ik x = fst @@ D.of_int ik x
 
@@ -1612,7 +1616,7 @@ struct
   let c_lognot n1    = of_bool (not (to_bool' n1))
   let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
+  let cast_to ?(suppress_ovwarn=false) ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
 end
@@ -1642,7 +1646,7 @@ struct
 
 
   let name () = "flat integers"
-  let cast_to ?torg t = function
+  let cast_to ?(suppress_ovwarn=false) ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -1722,7 +1726,7 @@ struct
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"
-  let cast_to ?torg t = function
+  let cast_to ?(suppress_ovwarn=false) ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -1906,8 +1910,7 @@ struct
     | `Definite x -> if i = x then `Eq else `Neq
     | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
-  let top_of ik = `Excluded (S.empty (), size ik)
-  let cast_to ?torg ?no_ov ik = function
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
@@ -2063,7 +2066,6 @@ struct
     | _ -> None
 
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
-  let not_zero ikind = from_excl ikind (S.singleton Z.zero)
 
   let of_bool_cmp ik x = of_int ik (if x then Z.one else Z.zero)
   let of_bool = of_bool_cmp
@@ -2074,10 +2076,22 @@ struct
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if Z.compare x y = 0 then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) =
+    if Z.compare x y = 0 then
+      of_int ik x
+    else
+      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
+      norm ik @@ (`Excluded (ex, r))
 
-  let starting ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero > 0 then not_zero ikind else top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero < 0 then not_zero ikind else top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x =
+    let _,u_ik = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (x, u_ik)
+
+  let ending ?(suppress_ovwarn=false) ikind x =
+    let l_ik,_ = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (l_ik, x)
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
@@ -2347,7 +2361,7 @@ struct
   let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
-  let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
+  let cast_to ?(suppress_ovwarn=false) ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
 
   let leq x y = not x || y
   let join = (||)
@@ -2404,10 +2418,13 @@ module Enums : S with type int_t = Z.t = struct
   type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
-  let top_of ik = Exc (BISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
+  let top_of ik =
+    match ik with
+    | IBool -> top_bool
+    | _ -> Exc (BISet.empty (), size ik)
 
   let range ik = Size.range ik
 
@@ -2471,7 +2488,7 @@ module Enums : S with type int_t = Z.t = struct
       if BISet.mem i x then `Neq
       else `Top
 
-  let cast_to ?torg ?no_ov ik v = norm ik @@ match v with
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik v = norm ik @@ match v with
     | Exc (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
@@ -2491,7 +2508,14 @@ module Enums : S with type int_t = Z.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if x = y then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x, y) =
+    if Z.compare x y = 0 then
+      of_int ik x
+    else
+      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
+      norm ik @@ (Exc (ex, r))
 
   let join ik = curry @@ function
     | Inc x, Inc y -> Inc (BISet.union x y)
@@ -2626,8 +2650,13 @@ module Enums : S with type int_t = Z.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
-  let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x =
+    let _,u_ik = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (x, u_ik)
+
+  let ending ?(suppress_ovwarn=false) ikind x =
+    let l_ik,_ = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (l_ik, x)
 
   let c_lognot ik x =
     if is_bot x
@@ -2695,20 +2724,32 @@ module Enums : S with type int_t = Z.t = struct
   let ne ik x y = c_lognot ik (eq ik x y)
 
   let invariant_ikind e ik x =
+    let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
     match x with
+    | Inc ps when not inexact_type_bounds && ik = IBool && is_top_of ik x ->
+      Invariant.none
     | Inc ps ->
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
-        List.fold_left (fun a x ->
+        BISet.fold (fun x a ->
             let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
             Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-          ) (Invariant.bot ()) (BISet.elements ps)
+          ) ps (Invariant.bot ())
       else
         Invariant.top ()
-    | Exc (ns, _) ->
-      List.fold_left (fun a x ->
+    | Exc (ns, r) ->
+      (* Emit range invariant if tighter than ikind bounds.
+         This can be more precise than interval, which has been widened. *)
+      let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
+      let (ikmin, ikmax) =
+        let ikr = size ik in
+        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
+      in
+      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
+      BISet.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) (Invariant.top ()) (BISet.elements ns)
+        ) ns Invariant.(imin && imax)
 
 
   let arbitrary ik =
@@ -2892,7 +2933,7 @@ struct
     | _ -> None
 
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
-  let cast_to ?torg ?(no_ov=false) t x =
+  let cast_to ?(suppress_ovwarn=false) ?torg ?(no_ov=false) t x =
     match x with
     | None -> None
     | Some (c, m) when m =: Z.zero ->
@@ -2916,7 +2957,7 @@ struct
       | _ -> top ()
 
 
-  let cast_to ?torg ?no_ov (t : Cil.ikind) x =
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
     let res = cast_to ?torg ?no_ov t x in
     if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
@@ -3258,7 +3299,7 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?torg ?no_ov ik x = lift @@ D.cast_to ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = lift @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 
@@ -3329,9 +3370,9 @@ module IntDomTupleImpl = struct
     | Some(_, {underflow; overflow}) -> not (underflow || overflow)
     | _ -> false
 
-  let check_ov ~cast ik intv intv_set =
+  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
-    if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
+    if not no_ov && not suppress_ovwarn && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
       let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
@@ -3540,11 +3581,11 @@ module IntDomTupleImpl = struct
 
 
   (* map with overflow check *)
-  let mapovc ?(cast=false) ik r (a, b, c, d, e) =
+  let mapovc ?(suppress_ovwarn=false) ?(cast=false) ik r (a, b, c, d, e) =
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1_ovc (module I2)) b in
     let intv_set = map (r.f1_ovc (module I5)) e in
-    let no_ov = check_ov ~cast ik intv intv_set in
+    let no_ov = check_ov ~suppress_ovwarn ~cast ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> fst) a
@@ -3596,8 +3637,8 @@ module IntDomTupleImpl = struct
   let c_lognot ik =
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_lognot ik)}
 
-  let cast_to ?torg ?no_ov t =
-    mapovc ~cast:true t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t =
+    mapovc ~suppress_ovwarn ~cast:true t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
 
   (* fp: projections *)
   let equal_to i x =

@@ -1,4 +1,4 @@
-- entry_type: location_invariant
+- entry_type: loop_invariant
   metadata:
     format_version: "0.1"
     uuid: bd436e09-244f-45db-a5f4-9337ca997424
@@ -17,9 +17,9 @@
     file_name: 39-bh-ex-add.c
     file_hash: 9d2cb05c2decf8564defade7194c336478ec5ae4be1ee79202269ff09830dada
     line: 7
-    column: 2
+    column: 3
     function: main
-  location_invariant:
+  loop_invariant:
     string: 0 <= m && m <= 60 && 0 <= n && n <= 60
     type: assertion
     format: C

@@ -68,7 +68,7 @@ struct
         (* Take all statements *)
         |> List.concat_map (fun (f : Cil.fundec) -> f.sallstmts |> List.map (fun s -> f, s))
         (* Add locations *)
-        |> List.map (fun (f, (s : Cil.stmt)) -> (Cilfacade.get_stmtLoc s, f, s))
+        |> List.map (fun (f, (s : Cil.stmt)) -> (Cil.get_stmtLoc s.skind, f, s)) (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
         (* Filter artificial ones by impossible location *)
         |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
         (* Create hash table *)
@@ -109,7 +109,7 @@ struct
                         fun (s : Cil.stmt) ->
                           succeeding_statement := Some s;
                           (* Evaluate at (directly before) a succeeding location *)
-                          Some(self#try_ask (Cilfacade.get_stmtLoc s) expression)
+                          Some(self#try_ask (Cil.get_stmtLoc s.skind) expression) (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
                       end
                       statement.succs
                 with Not_found -> None

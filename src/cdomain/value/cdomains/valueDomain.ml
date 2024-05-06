@@ -24,7 +24,8 @@ sig
   val affecting_vars: t -> varinfo list
   val invalidate_value: VDQ.t -> typ -> t -> t
   val invalidate_abstract_value: t -> t
-  val is_safe_cast: typ -> typ -> bool
+  val is_statically_safe_cast: typ -> typ -> bool
+  val is_dynamically_safe_cast: typ -> typ -> t -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t ->  t
   val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) ->  t -> t -> t
@@ -334,8 +335,8 @@ struct
    * Functions for getting state out of a compound:
    ************************************************************)
 
-  (* is a cast t1 to t2 invertible, i.e., content-preserving? TODO also use abstract value? *)
-  let is_safe_cast t2 t1 = match t2, t1 with
+  (* is a cast t1 to t2 invertible, i.e., content-preserving in general? *)
+  let is_statically_safe_cast t2 t1 = match t2, t1 with
     (*| TPtr _, t -> bitsSizeOf t <= bitsSizeOf !upointType
       | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
     | TFloat (fk1,_), TFloat (fk2,_) when fk1 = fk2 -> true
@@ -352,6 +353,21 @@ struct
     | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
     | _ -> false
+
+  (* is a cast t1 to t2 invertible, i.e., content-preserving for the given value of v? *)
+  let is_dynamically_safe_cast t2 t1 v =
+    if is_statically_safe_cast t2 t1 then
+      true
+    else
+      match t2, t1, v with
+      | (TInt (ik2,_) | TEnum ({ekind=ik2; _},_)) , (TInt (ik1,_) | TEnum ({ekind=ik1; _},_)), Int v ->
+        let cl, cu = IntDomain.Size.range ik2 in
+        let l, u = ID.minimal v, ID.maximal v in
+        (match l, u with
+         | Some l, Some u when Z.leq cl l && Z.leq u cu -> true
+         | _ -> false)
+      | _ -> false
+
 
   exception CastError of string
 

@@ -1,6 +1,8 @@
 (env
  (_
-  (binaries ./cfg/util/cfgDot.exe)))
+  (binaries
+    ./cfg/util/cfgDot.exe
+    ../util/yamlWitnessStrip.exe)))
 
 (rule
  (alias runtest)
@@ -15,9 +17,11 @@
    (glob_files_rec 56-witness/??-*.yml) ; excluding witness.yml, etc. which might exist due to running update_suite outside of dune
    (source_tree ../../linux-headers))
  (locks /update_suite)
- (action (chdir ../.. (run %{update_suite}))))
+ (action (chdir ../.. (run %{update_suite} -q))))
 
 (cram
  (applies_to :whole_subtree)
  (alias runcramtest)
- (deps (package goblint)))
+ (deps
+   (package goblint)
+   %{bin:yamlWitnessStrip}))

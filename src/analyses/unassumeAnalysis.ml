@@ -24,7 +24,7 @@ struct
 
   module Locator = WitnessUtil.Locator (Node)
 
-  let locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
+  let location_locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
   let loop_locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
 
   type inv = {
@@ -38,26 +38,26 @@ struct
   let pre_invs: inv EH.t NH.t = NH.create 100
 
   let init _ =
-    Locator.clear locator;
+    Locator.clear location_locator;
     Locator.clear loop_locator;
     let module FileCfg =
     struct
       let file = !Cilfacade.current_file
       module Cfg = (val !MyCFG.current_cfg)
     end  in
-    let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
+    let module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
 
     (* DFS, copied from CfgTools.find_backwards_reachable *)
     let reachable = NH.create 100 in
     let rec iter_node node =
       if not (NH.mem reachable node) then begin
         NH.replace reachable node ();
-        (* TODO: filter synthetic?
-           See YamlWitness. *)
-        if WitnessInvariant.is_invariant_node node then
-          Locator.add locator (Node.location node) node;
-        if WitnessUtil.NH.mem WitnessInvariant.loop_heads node then
-          Locator.add loop_locator (Node.location node) node;
+        Option.iter (fun loc ->
+            Locator.add location_locator loc node
+          ) (WitnessInvariant.location_location node);
+        Option.iter (fun loc ->
+            Locator.add loop_locator loc node
+          ) (WitnessInvariant.loop_location node);
         List.iter (fun (_, prev_node) ->
             iter_node prev_node
           ) (FileCfg.Cfg.prev node)
@@ -74,7 +74,7 @@ struct
     let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
       file = location.file_name;
       line = location.line;
-      column = location.column + 1;
+      column = location.column;
       byte = -1;
       endLine = -1;
       endColumn = -1;
@@ -127,7 +127,7 @@ struct
         let inv = location_invariant.location_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt location_locator loc with
         | Some nodes ->
           unassume_nodes_invariant ~loc ~nodes inv
         | None ->
@@ -190,7 +190,7 @@ struct
         let inv = precondition_loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some nodes ->
           unassume_precondition_nodes_invariant ~loc ~nodes pre inv
         | None ->
@@ -204,7 +204,7 @@ struct
           let inv = location_invariant.value in
           let msgLoc: M.Location.t = CilLocation loc in
 
-          match Locator.find_opt locator loc with
+          match Locator.find_opt location_locator loc with
           | Some nodes ->
             unassume_nodes_invariant ~loc ~nodes inv
           | None ->

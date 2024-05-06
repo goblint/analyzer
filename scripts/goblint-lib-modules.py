@@ -48,6 +48,7 @@ exclude_module_names = set([
     "ConfigVersion",
     "ConfigProfile",
     "ConfigOcaml",
+    "ConfigDatetime",
 ])
 
 src_modules = set()

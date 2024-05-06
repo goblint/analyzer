@@ -11,8 +11,8 @@
  (action
   (chdir ../..
    (progn
-     (run %{update_suite} -i) ; with AST comparison
-     (run %{update_suite} -c))))) ; with CFG comparison
+     (run %{update_suite} -i -q) ; with AST comparison
+     (run %{update_suite} -c -q))))) ; with CFG comparison
 
 (cram
  (applies_to :whole_subtree)
