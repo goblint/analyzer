@@ -22,7 +22,11 @@ module Rhs = struct
   type t = (int option * GobZ.t) [@@deriving eq, ord, hash, show]
   let zero = (None, Z.zero)
   let var_zero i = (Some i, Z.zero)
-  let show (v, o) = Option.map_default (fun i -> "var_" ^ string_of_int i^ " + ") "" v  ^ Z.to_string o
+  let show_formatted formatter = function
+    | (Some v, o) when Z.equal o Z.zero -> formatter v
+    | (Some v, o) -> Printf.sprintf "%s%+Ld" (formatter v) (Z.to_int64 o)
+    | (None, o) -> Printf.sprintf "%Ld" (Z.to_int64 o)
+  let show rhs = show_formatted (Printf.sprintf "var_%d") rhs
 end
 
 module EqualitiesConjunction = struct
@@ -36,8 +40,19 @@ module EqualitiesConjunction = struct
       c
     else IntMap.compare Rhs.compare imap jmap
 
-  let show econ = let show_rhs i (v, o) = Printf.sprintf "var_%d=%s " i (Rhs.show (v, o)) in
-    IntMap.fold (fun lhs rhs acc -> acc ^ show_rhs lhs rhs) econ ""
+
+  let show_formatted formatter econ =
+    match (IntMap.bindings econ) with 
+    | [] -> "{}"
+    | [(i,(refvar,off))] -> Printf.sprintf "{ %s=%s }" (formatter i) (Rhs.show_formatted (formatter) (refvar,off))
+    | (i,(refvar,off))::rest -> 
+      let str = List.fold 
+          (fun acc (j,rhs2)-> (Printf.sprintf "%s=%s ∧ %s" (formatter j) (Rhs.show_formatted (formatter) (rhs2)) acc) )
+          (Printf.sprintf "%s=%s" (formatter i) (Rhs.show_formatted (formatter) (refvar,off))) 
+          rest in
+      "{" ^  str ^ "}"
+
+  let show econ = show_formatted (Printf.sprintf "var_%d") econ
 
   let hash (dim,x) =dim + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
 
@@ -336,13 +351,6 @@ struct
   (** prints the current variable equalities with resolved variable names *)
   let show varM =
     let lookup i = Var.to_string (Environment.var_of_dim varM.env i) in
-    let show_offs o = if Z.equal o Z.zero then "" else " + " ^ Z.to_string o in
-    let show_var i = function
-      | (None, o) -> (lookup i) ^ " = " ^ Z.to_string o ^ ";\n"
-      | (Some index, o) when i <> index ->
-        (lookup i) ^ " = " ^ lookup index ^ show_offs o ^ ";\n"
-      | _ -> ""
-    in
     match varM.d with
     | None -> "⊥\n"
     | Some arr when EConj.is_top_con arr -> "⊤\n"
@@ -350,10 +358,10 @@ struct
       if is_bot varM then
         "Bot \n"
       else
-        EConj.IntMap.fold (fun i (v, o) acc -> acc ^ show_var i (v, o)) (snd arr) "" ^ (" with dimension " ^ (string_of_int @@ fst arr))
+        EConj.show_formatted lookup (snd arr) ^ (" with dimension " ^ (string_of_int @@ fst arr))
 
   let pretty () (x:t) = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
   let eval_interval ask = Bounds.bound_texpr
 
   let meet_with_one_conj t i (var, b) =
