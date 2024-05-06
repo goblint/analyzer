@@ -357,15 +357,16 @@ struct
           else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
   ; if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: ->   { %s } " (EConj.show !(snd ts))
 
-  let meet_with_one_conj t i e =
+  let meet_with_one_conj t i (var, b) =
     match t.d with
     | None -> t
     | Some d ->
       let res_d = EConj.copy d in
       try
-        meet_with_one_conj_with res_d i e;
+        meet_with_one_conj_with res_d i (var, b);
         {d = Some res_d; env = t.env}
       with Contradiction ->
+        if M.tracing then M.trace "meet" " -> Contradiction\n";
         {d = None; env = t.env}
 
   let meet_with_one_conj t i e =
@@ -378,15 +379,8 @@ struct
     let t1 = change_d t1 sup_env ~add:true ~del:false in
     let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
-    | Some d1', Some d2' -> (
-        try
-          let res_d = EConj.copy d1' in
-          EConj.IntMap.iter (meet_with_one_conj_with res_d) !(snd d2'); (* even on sparse d2, this will chose the relevant conjs to meet with*)
-          {d = Some res_d; env = sup_env}
-        with Contradiction ->
-          if M.tracing then M.trace "meet" " -> Contradiction\n";
-          {d = None; env = sup_env}
-      )
+    | Some d1', Some d2' -> 
+      EConj.IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) !(snd d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
