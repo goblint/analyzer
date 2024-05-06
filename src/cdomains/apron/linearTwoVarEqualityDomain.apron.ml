@@ -148,6 +148,33 @@ module EqualitiesConjunction = struct
         (show !(snd res));
     res
 
+  exception Contradiction
+
+  let meet_with_one_conj ts i (var, b) =
+    let res = 
+      let subst_var tsi x (vart, bt) =
+        let adjust = function
+          | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
+          | e -> e
+        in
+        (fst tsi, ref @@ IntMap.add x (vart, bt) @@ IntMap.map adjust !(snd tsi)) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+      in
+      let (var1, b1) = get_rhs ts i in
+      (match var, var1 with
+       | None  , None    -> if not @@ Z.equal b b1 then raise Contradiction else ts
+       | None  , Some h1 -> subst_var ts h1 (None, Z.(b - b1))
+       | Some j, None    -> subst_var ts j  (None, Z.(b1 - b))
+       | Some j, Some h1 ->
+         (match get_rhs ts j with
+          | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
+          | (Some h2, b2) ->
+            if h1 = h2 then
+              (if not @@ Z.equal b1 Z.(b2 + b) then raise Contradiction else ts)
+            else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
+            else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))) in
+    if M.tracing then M.trace "meet" "meet_with_one_conj conj: { %s } eq: var_%d=%s ->   { %s } " (show !(snd ts)) i (Rhs.show (var,b)) (show !(snd ts))
+  ; res
+
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
@@ -331,43 +358,15 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities-array\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
   let eval_interval ask = Bounds.bound_texpr
 
-  exception Contradiction
-
-  let meet_with_one_conj_with ts i (var, b) =
-    if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: { %s } eq: var_%d=%s" (EConj.show !(snd ts)) i (Rhs.show (var,b));
-    let subst_var tsi x (vart, bt) =
-      let adjust = function
-        | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
-        | e -> e
-      in
-      (snd tsi) := EConj.IntMap.add x (vart, bt) @@ EConj.IntMap.map adjust !(snd tsi) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
-    in
-    let (var1, b1) = EConj.get_rhs ts i in
-    (match var, var1 with
-     | None, None -> if not @@ Z.equal b b1 then raise Contradiction
-     | None, Some h1 -> subst_var ts h1 (None, Z.(b - b1))
-     | Some j, None -> subst_var ts j (None, Z.(b1 - b))
-     | Some j, Some h1 ->
-       (match EConj.get_rhs ts j with
-        | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
-        | (Some h2, b2) ->
-          if h1 = h2 then
-            (if not @@ Z.equal b1 Z.(b2 + b) then raise Contradiction)
-          else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
-          else subst_var ts h1 (Some h2, Z.(b + (b2 - b1)))))
-  ; if M.tracing then M.trace "meet" "meet_with_one_conj_with conj: ->   { %s } " (EConj.show !(snd ts))
-
   let meet_with_one_conj t i (var, b) =
     match t.d with
     | None -> t
     | Some d ->
-      let res_d = EConj.copy d in
       try
-        meet_with_one_conj_with res_d i (var, b);
-        {d = Some res_d; env = t.env}
-      with Contradiction ->
+        { d = Some (EConj.meet_with_one_conj d i (var, b)); env = t.env}
+      with EConj.Contradiction ->
         if M.tracing then M.trace "meet" " -> Contradiction\n";
-        {d = None; env = t.env}
+        { d = None; env = t.env}
 
   let meet_with_one_conj t i e =
     let res = meet_with_one_conj t i e in
