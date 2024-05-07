@@ -63,6 +63,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("localeconv", unknown ~attrs:[ThreadUnsafe] []);
     ("localtime", unknown ~attrs:[ThreadUnsafe] [drop "time" [r]]);
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
+    ("_strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("__builtin_strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
@@ -108,7 +109,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("tolower", unknown [drop "ch" []]);
+    ("__tolower", unknown [drop "ch" []]);
     ("toupper", unknown [drop "ch" []]);
+    ("__toupper", unknown [drop "ch" []]);
     ("time", unknown [drop "arg" [w]]);
     ("tmpnam", unknown ~attrs:[ThreadUnsafe] [drop "filename" [w]]);
     ("vprintf", unknown [drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
@@ -117,6 +120,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("asprintf", unknown (drop "strp" [w] :: drop "format" [r] :: VarArgs (drop' [r_deep]))); (* TODO: glibc section? *)
     ("vasprintf", unknown [drop "strp" [w]; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("vsnprintf", unknown [drop "str" [w]; drop "size" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("__builtin_vsnprintf", unknown [drop "str" [w]; drop "size" []; drop "format" [r]; drop "ap" [r_deep]]);
+    ("__builtin___vsnprintf", unknown [drop "str" [w]; drop "size" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: does this actually exist?! *)
     ("mktime", unknown [drop "tm" [r;w]]);
     ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]); (* TODO: why only w? *)
@@ -163,6 +168,13 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("raise", unknown [drop "sig" []]); (* safe-ish, we don't handle signal handlers for now *)
     ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
     ("signal", unknown [drop "signum" []; drop "handler" [s]]);
+    ("va_arg", unknown [drop "ap" [r_deep]; drop "T" []]);
+    ("__builtin_va_arg", unknown [drop "ap" [r_deep]; drop "T" []]);
+    ("va_start", unknown [drop "ap" [r_deep]; drop "parmN" []]);
+    ("__builtin_va_start", unknown [drop "ap" [r_deep]; drop "parmN" []]);
+    ("va_end", unknown [drop "ap" [r_deep]]);
+    ("__builtin_va_end", unknown [drop "ap" [r_deep]]);
+    ("__builtin_va_arg_pack_len", unknown []);
   ]
 [@@coverage off]
 
@@ -312,6 +324,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("send", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []]);
     ("sendto", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []; drop "dest_addr" [r_deep]; drop "addrlen" []]);
     ("strdup", unknown [drop "s" [r]]);
+    ("__strdup", unknown [drop "s" [r]]);
     ("strndup", unknown [drop "s" [r]; drop "n" []]);
     ("__strndup", unknown [drop "s" [r]; drop "n" []]);
     ("syscall", unknown (drop "number" [] :: VarArgs (drop' [r; w])));
@@ -433,6 +446,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("times", unknown [drop "buf" [w]]);
     ("mmap", unknown [drop "addr" []; drop "length" []; drop "prot" []; drop "flags" []; drop "fd" []; drop "offset" []]);
     ("munmap", unknown [drop "addr" []; drop "length" []]);
+    ("getline", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r]; drop "stream" [r_deep; w_deep]]);
+    ("getwline", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r]; drop "stream" [r_deep; w_deep]]);
+    ("getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r];  drop "delimiter" [];drop "stream" [r_deep; w_deep]]);
+    ("__getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r];  drop "delimiter" [];drop "stream" [r_deep; w_deep]]);
+    ("getwdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r];  drop "delimiter" [];drop "stream" [r_deep; w_deep]]);
   ]
 [@@coverage off]
 
@@ -540,6 +558,13 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__assert", special [drop "assertion" [r]; drop "file" [r]; drop "line" []] @@ Abort); (* header says: The following is not at all used here but needed for standard compliance. *)
     ("__builtin_return_address", unknown [drop "level" []]);
     ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("__builtin___snprintf_chk", unknown [drop "s" [w]; drop "maxlen" []; drop "flag" []; drop "os" []]);
+    ("__builtin___vsprintf_chk", unknown [drop "s" [w]; drop "flag" []; drop "os" []; drop "fmt" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("__builtin___vsnprintf_chk", unknown [drop "s" [w]; drop "maxlen" []; drop "flag" []; drop "os" []; drop "fmt" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("__builtin___printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("__builtin___vprintf_chk", unknown [drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("__builtin___fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("__builtin___vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
     ("__builtin_sadd_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
     ("__builtin_saddl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
@@ -624,7 +649,9 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
     ("__readlink_alias", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []]);
     ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
+    ("__ctype_b_loc", unknown []);
     ("__ctype_get_mb_cur_max", unknown []);
+    ("__maskrune", unknown [drop "c" [w]; drop "f" []]);
     ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
     ("yp_get_default_domain", unknown [drop "outdomain" [w]]);
     ("__nss_configure_lookup", unknown [drop "db" [r]; drop "service_line" [r]]);
@@ -657,6 +684,19 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getdtablesize", unknown []);
     ("daemon", unknown [drop "nochdir" []; drop "noclose" []]);
     ("putw", unknown [drop "w" []; drop "stream" [r_deep; w_deep]]);
+    (* RPC library start *)
+    ("clntudp_create", unknown [drop "addr" [r]; drop "prognum" []; drop "versnum" []; drop "wait" [r]; drop "sockp" [w]]);
+    ("clntudp_bufcreate", unknown [drop "addr" [r]; drop "prognum" []; drop "versnum" []; drop "wait" [r]; drop "sockp" [w]; drop "sendsize" []; drop "recosize" []]);
+    ("svctcp_create", unknown [drop "sock" []; drop "send_buf_size" []; drop "recv_buf_size" []]);
+    ("authunix_create_default", unknown []);
+    ("clnt_broadcast", unknown [drop "prognum" []; drop "versnum" []; drop "procnum" []; drop "inproc" [r]; drop "in" [w]; drop "outproc" [r]; drop "out" [w]; drop "eachresult" []]);
+    ("clnt_sperrno", unknown [drop "stat" []]);
+    ("pmap_unset", unknown [drop "prognum" []; drop "versnum" []]);
+    ("svcudp_create", unknown [drop "sock" []]);
+    ("svc_register", unknown [drop "xprt" [r;w]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r;w]; drop "protocol" []]);
+    ("svc_run", unknown []);
+    (* RPC library end *)
+    ("scandir", unknown [drop "dirp" [r]; drop "namelist" [w_deep]; drop "filter" [r]; drop "compar" [r]]);
   ]
 [@@coverage off]
 
@@ -669,7 +709,14 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("epoll_create", unknown [drop "size" []]);
     ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
     ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
+    ("__error", unknown []);
+    ("__errno", unknown []);
+    ("__errno_location", unknown []);
+    ("__h_errno_location", unknown []);
+    ("printk", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("__printf_chk", unknown [drop "flag" []; drop "format" [r]]);
     ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("__vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("sysinfo", unknown [drop "info" [w_deep]]);
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
@@ -691,6 +738,11 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("process_vm_readv", unknown [drop "pid" []; drop "local_iov" [w_deep]; drop "liovcnt" []; drop "remote_iov" []; drop "riovcnt" []; drop "flags" []]);
     ("__libc_current_sigrtmax", unknown []);
     ("__libc_current_sigrtmin", unknown []);
+    ("__xstat", unknown [drop "ver" []; drop "path" [r]; drop "stat_buf" [w]]);
+    ("__lxstat", unknown [drop "ver" []; drop "path" [r]; drop "stat_buf" [w]]);
+    ("__fxstat", unknown [drop "ver" []; drop "fildes" []; drop "stat_buf" [w]]);
+    ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r]]);
+    ("usb_submit_urb", unknown [drop "urb" [r]; drop "mem_flags" []]); (* first argument is written to but according to specification must not be read from anymore *)
   ]
 [@@coverage off]
 
@@ -706,11 +758,13 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("up_read", special [__ "sem" []] @@ fun sem -> Unlock sem);
     ("up_write", special [__ "sem" []] @@ fun sem -> Unlock sem);
     ("mutex_init", unknown [drop "mutex" []]);
+    ("__mutex_init", unknown [drop "lock" [r]; drop "name" [r]; drop "key" [r]]);
     ("mutex_lock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("mutex_trylock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = true; write = true; return_on_success = true });
     ("mutex_lock_interruptible", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("mutex_unlock", special [__ "lock" []] @@ fun lock -> Unlock lock);
     ("spin_lock_init", unknown [drop "lock" []]);
+    ("__spin_lock_init", unknown [drop "lock" []]);
     ("spin_lock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("_spin_lock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("_spin_lock_bh", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
@@ -770,6 +824,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_split_begin", unknown [drop "exp" []]);
     ("__goblint_split_end", unknown [drop "exp" []]);
     ("__goblint_bounded", special [__ "exp"[]] @@ fun exp -> Bounded { exp });
+    ("__goblint_assume_join", unknown [drop "tid" []]);
   ]
 [@@coverage off]
 
@@ -1045,6 +1100,11 @@ let klever_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("rtnl_lock", special [] @@ Lock { lock = rtnl_lock; try_ = false; write = true; return_on_success = true });
     ("rtnl_unlock", special [] @@ Unlock rtnl_lock);
     ("__rtnl_unlock", special [] @@ Unlock rtnl_lock);
+    (* ldv-benchmarks *)
+    (* ddverify *)
+    ("sema_init", unknown [drop "sem" [r]; drop "val" []]);
+    ("idr_pre_get", unknown [drop "idp" [r]; drop "gfp_mask" []]);
+    ("dev_driver_string", unknown [drop "dev" [r]]);
   ]
 [@@coverage off]
 
@@ -1127,6 +1187,38 @@ let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 [@@coverage off]
 
+let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    (* TODO: was "zil_replay", writes [1;2;3;5]; but couldn't find anything with 5/6 arguments, also not in bench *)
+    ("zil_replay", unknown [drop "os" [w]; drop "arg" [w]; drop "replay_func" [r]]);
+    ("_IO_getc", unknown [drop "f" [r_deep; w_deep]]);
+    ("__open_alias", unknown (drop "path" [r] :: drop "oflag" [] :: VarArgs (drop' [r])));
+    ("__open_2", unknown [drop "file" [r]; drop "oflag" []]);
+    ("__open_too_many_args", unknown []);
+    (* bzlib *)
+    ("BZ2_bzBuffToBuffCompress", unknown [drop "dest" []; drop "destLen" []; drop "source" [w]; drop "sourceLen" []; drop "blockSize100k" []; drop "verbosity" []; drop "workFactor" []]);
+    ("BZ2_bzBuffToBuffDecompress", unknown [drop "dest" []; drop "destLen" []; drop "source" [w]; drop "sourceLen" []; drop "small" []; drop "verbosity" []]);
+    (* zlib (Zebedee) *)
+    ("uncompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []]);
+    ("compress2", unknown [drop "dest" [r]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "level" []]);
+    (* opensssl blowfish *)
+    ("BF_cfb64_encrypt", unknown [drop "in" [r]; drop "out" [w]; drop "length" []; drop "schedule" [r]; drop "ivec" [w]; drop "num" [w]; drop "enc" [r]]);
+    ("BF_set_key", unknown [drop "key" [w]; drop "len" []; drop "data" [r]]);
+    (* libintl *)
+    ("textdomain", unknown [drop "domainname" [r]]);
+    ("bindtextdomain", unknown [drop "domainname" [r]; drop "dirname" [r]]);
+    ("dcgettext", unknown [drop "domainname" [r]; drop "msgid" [r]; drop "category" []]);
+    (* TODO: the __extinline suffix was added by CIL in the old times in some cases, but is now switched off for like 10 years *)
+    ("strtoul__extinline", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("atoi__extinline", unknown [drop "nptr" [r]]);
+    ("stat__extinline", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("lstat__extinline", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("fstat__extinline", unknown [drop "fd" []; drop "buf" [w]]);
+    (* only in knot *)
+    ("PL_NewHashTable", unknown [drop "n" []; drop "keyHash" [r]; drop "keyCompare" [r]; drop "valueCompare" [r]; drop "allocOps" [r]; drop "allocPriv" [r]]); (* TODO: should have call instead of read *)
+    ("assert_failed", unknown [drop "file" [r]; drop "line" []; drop "func" [r]; drop "exp" [r]]);
+  ]
+[@@coverage off]
+
 let libraries = Hashtbl.of_list [
     ("c", c_descs_list @ math_descs_list);
     ("posix", posix_descs_list);
@@ -1143,6 +1235,7 @@ let libraries = Hashtbl.of_list [
     ("pcre", pcre_descs_list);
     ("zlib", zlib_descs_list);
     ("liblzma", liblzma_descs_list);
+    ("legacy", legacy_libs_misc_list);
   ]
 
 let libraries =
@@ -1282,75 +1375,7 @@ open Invalidate
 (* Data races: which arguments are read/written?
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
-let invalidate_actions = [
-  "__printf_chk", readsAll;(*safe*)
-  "printk", readsAll;(*safe*)
-  "__mutex_init", readsAll;(*safe*)
-  "__builtin___snprintf_chk", writes [1];(*keep [1]*)
-  "__vfprintf_chk", writes [1];(*keep [1]*)
-  "__builtin_va_arg", readsAll;(*safe*)
-  "__builtin_va_end", readsAll;(*safe*)
-  "__builtin_va_start", readsAll;(*safe*)
-  "__ctype_b_loc", readsAll;(*safe*)
-  "__errno", readsAll;(*safe*)
-  "__errno_location", readsAll;(*safe*)
-  "__strdup", readsAll;(*safe*)
-  "strtoul__extinline", readsAll;(*safe*)
-  "atoi__extinline", readsAll;(*safe*)
-  "_IO_getc", writesAll;(*unsafe*)
-  "_strlen", readsAll;(*safe*)
-  "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-  "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
-  "__open_alias", readsAll;(*safe*)
-  "__open_2", readsAll;(*safe*)
-  "fstat__extinline", writesAll;(*unsafe*)
-  "scandir", writes [1;3;4];(*keep [1;3;4]*)
-  "bindtextdomain", readsAll;(*safe*)
-  "textdomain", readsAll;(*safe*)
-  "dcgettext", readsAll;(*safe*)
-  "__getdelim", writes [3];(*keep [3]*)
-  "__h_errno_location", readsAll;(*safe*)
-  "__fxstat", readsAll;(*safe*)
-  (* RPC library start *)
-  "clntudp_create", writesAllButFirst 3 readsAll;(*drop 3*)
-  "svctcp_create", readsAll;(*safe*)
-  "clntudp_bufcreate", writesAll;(*unsafe*)
-  "authunix_create_default", readsAll;(*safe*)
-  "clnt_broadcast", writesAll;(*unsafe*)
-  "clnt_sperrno", readsAll;(*safe*)
-  "pmap_unset", writesAll;(*unsafe*)
-  "svcudp_create", readsAll;(*safe*)
-  "svc_register", writesAll;(*unsafe*)
-  "svc_run", writesAll;(*unsafe*)
-  (* RPC library end *)
-  "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
-  "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
-  "__error", readsAll; (*safe*)
-  "__maskrune", writesAll; (*unsafe*)
-  "__tolower", readsAll; (*safe*)
-  "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
-  "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
-  "uncompress", writes [3;4]; (*keep [3;4]*)
-  "__xstat", writes [3]; (*keep [1]*)
-  "__lxstat", writes [3]; (*keep [1]*)
-  "BZ2_bzBuffToBuffCompress", writes [3;4]; (*keep [3;4]*)
-  "compress2", writes [3]; (*keep [3]*)
-  "__toupper", readsAll; (*safe*)
-  "BF_set_key", writes [3]; (*keep [3]*)
-  "PL_NewHashTable", readsAll; (*safe*)
-  "assert_failed", readsAll; (*safe*)
-  "__builtin_va_arg_pack_len", readsAll;
-  "__open_too_many_args", readsAll;
-  "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
-  "dev_driver_string", readsAll;
-  "__spin_lock_init", writes [1];
-  "kmem_cache_create", readsAll;
-  "idr_pre_get", readsAll;
-  "zil_replay", writes [1;2;3;5];
-  (* ddverify *)
-  "sema_init", readsAll;
-  "__goblint_assume_join", readsAll;
-]
+let invalidate_actions = []
 
 let invalidate_actions =
   let tbl = Hashtbl.create 113 in
