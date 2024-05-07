@@ -23,8 +23,12 @@ struct
   let lock ctx rw may_fail nonzero_return_when_aquired a lv_opt arg =
     let compute_refine_split (e:Mutexes.elt) = match e with
       | Addr a ->
-        let e' = BinOp(Eq, arg, AddrOf ((PreValueDomain.Mval.to_cil a)), intType) in
-        [Events.SplitBranch  (e',true)]
+        let arg_e = AddrOf (PreValueDomain.Mval.to_cil a) in
+        if not (CilType.Exp.equal arg arg_e) then
+          let e' = BinOp (Eq, arg, arg_e, intType) in
+          [Events.SplitBranch (e', true)]
+        else
+          []
       | _ -> []
     in
     match lv_opt with
