@@ -19,8 +19,7 @@ module Mpqf = SharedFunctions.Mpqf
 module Rhs = struct
   (* (Some i, k) represents a sum of a variable with index i and the number k.
      (None, k) represents the number k. *)
-  type t = (int option * GobZ.t) [@@deriving eq, ord, hash, show]
-  let zero = (None, Z.zero)
+  type t = (int option * GobZ.t) [@@deriving eq, ord, hash]
   let var_zero i = (Some i, Z.zero)
   let show_formatted formatter = function
     | (Some v, o) when Z.equal o Z.zero -> formatter v
@@ -32,14 +31,7 @@ end
 module EqualitiesConjunction = struct
   module IntMap = BatMap.Make(Int)
 
-  type t = int * ( Rhs.t IntMap.t )
-
-  let equal (idim,imap) (jdim,jmap) = idim = jdim && IntMap.equal Rhs.equal imap jmap
-
-  let compare (idim,imap) (jdim,jmap) = let c = compare idim jdim in if c <> 0 then
-      c
-    else IntMap.compare Rhs.compare imap jmap
-
+  type t = int * ( Rhs.t IntMap.t ) [@@deriving eq, ord]
 
   let show_formatted formatter econ =
     match IntMap.bindings econ with 
@@ -55,12 +47,13 @@ module EqualitiesConjunction = struct
 
   let hash (dim,x) = dim + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
 
+  (** creates a domain of dimension 0 *)
   let empty () = (0, IntMap.empty)
 
+  (** creates a domain of dimension len without any valid equalities *)
   let make_empty_conj len = (len, IntMap.empty)
 
-  let get_dim (dim,_) = dim
-
+  (** trivial equalities are of the form var_i = var_i and are not kept explicitely in the sparse representation of EquanlitiesConjunction *)
   let nontrivial (_,econmap) lhs = IntMap.mem lhs econmap
 
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
@@ -80,8 +73,8 @@ module EqualitiesConjunction = struct
   (** add/remove new variables to domain with particular indices; translates old indices to keep consistency
       add if op = (+), remove if op = (-)
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
-  let modify_variables_in_domain m indexes op =
-    if Array.length indexes = 0 then m else
+  let modify_variables_in_domain (dim,map) indexes op =
+    if Array.length indexes = 0 then (dim,map) else
       let offsetlist = Array.to_list indexes in
       let rec bumpvar delta i = function (* bump the variable i by delta; find delta by counting indices in offsetlist until we reach a larger index then our current parameter *)
         | head::rest when i>=head -> bumpvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
@@ -89,7 +82,7 @@ module EqualitiesConjunction = struct
       in
       let memobumpvar = (* Memoized version of bumpvar *)
         if (Array.length indexes < 10) then fun x -> bumpvar 0 x offsetlist else (* only do memoization, if dimchange is significant *)
-          (let h = Hashtbl.create @@ IntMap.cardinal (snd m) in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
+          (let h = Hashtbl.create @@ IntMap.cardinal map in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
            fun x -> (* standard memoization wrapper *)
              try Hashtbl.find h x with Not_found ->
                let r = bumpvar 0 x offsetlist in
@@ -100,8 +93,8 @@ module EqualitiesConjunction = struct
         | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
         | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar, offset) tbl, delta, lyst)
       in
-      let (a,_,_) = IntMap.fold bumpentry (snd m) (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
-      (op (get_dim m) (Array.length indexes), a)
+      let (a,_,_) = IntMap.fold bumpentry map (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
+      (op dim (Array.length indexes), a)
 
   let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
       M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %s } -> { %s }"
@@ -111,7 +104,8 @@ module EqualitiesConjunction = struct
         (show (snd res));
     res
 
-  let is_empty m = get_dim m = 0
+  (** required by  AbstractRelationalDomainRepresentation, true if dimension is zero *)
+  let is_empty (d,_) = d = 0
 
   let is_top_array = GobArray.for_alli (fun i (a, e) -> GobOption.exists ((=) i) a && Z.equal e Z.zero)
 
@@ -197,7 +191,7 @@ struct
   include SharedFunctions.VarManagementOps (EConj)
 
   let dim_add = EConj.dim_add
-  let size t = BatOption.map_default (fun d -> EConj.get_dim d) 0 t.d
+  let size t = BatOption.map_default (fun (d,_) -> d) 0 t.d
 
   (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
   let monomials_from_texp (t: t) texp =
