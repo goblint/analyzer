@@ -75,18 +75,22 @@ let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThres
 type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
-  let signed = Cil.isSigned ik in
-  if !AnalysisState.postsolving && signed && not cast then
-    AnalysisState.svcomp_may_overflow := true;
-  let sign = if signed then "Signed" else "Unsigned" in
-  match underflow, overflow with
-  | true, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-  | true, false ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
-  | false, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-  | false, false -> assert false
+  if !AnalysisState.executing_speculative_computations then
+    (* Do not produce warnings when the operations are not actually happening in code *)
+    ()
+  else
+    let signed = Cil.isSigned ik in
+    if !AnalysisState.postsolving && signed && not cast then
+      AnalysisState.svcomp_may_overflow := true;
+    let sign = if signed then "Signed" else "Unsigned" in
+    match underflow, overflow with
+    | true, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
+    | true, false ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+    | false, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
+    | false, false -> assert false
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
@@ -1906,7 +1910,6 @@ struct
     | `Definite x -> if i = x then `Eq else `Neq
     | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
-  let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
@@ -2063,7 +2066,6 @@ struct
     | _ -> None
 
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
-  let not_zero ikind = from_excl ikind (S.singleton Z.zero)
 
   let of_bool_cmp ik x = of_int ik (if x then Z.one else Z.zero)
   let of_bool = of_bool_cmp
@@ -2416,10 +2418,13 @@ module Enums : S with type int_t = Z.t = struct
   type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
-  let top_of ik = Exc (BISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
+  let top_of ik =
+    match ik with
+    | IBool -> top_bool
+    | _ -> Exc (BISet.empty (), size ik)
 
   let range ik = Size.range ik
 
@@ -2719,20 +2724,32 @@ module Enums : S with type int_t = Z.t = struct
   let ne ik x y = c_lognot ik (eq ik x y)
 
   let invariant_ikind e ik x =
+    let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
     match x with
+    | Inc ps when not inexact_type_bounds && ik = IBool && is_top_of ik x ->
+      Invariant.none
     | Inc ps ->
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
-        List.fold_left (fun a x ->
+        BISet.fold (fun x a ->
             let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
             Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-          ) (Invariant.bot ()) (BISet.elements ps)
+          ) ps (Invariant.bot ())
       else
         Invariant.top ()
-    | Exc (ns, _) ->
-      List.fold_left (fun a x ->
+    | Exc (ns, r) ->
+      (* Emit range invariant if tighter than ikind bounds.
+         This can be more precise than interval, which has been widened. *)
+      let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
+      let (ikmin, ikmax) =
+        let ikr = size ik in
+        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
+      in
+      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
+      BISet.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) (Invariant.top ()) (BISet.elements ns)
+        ) ns Invariant.(imin && imax)
 
 
   let arbitrary ik =

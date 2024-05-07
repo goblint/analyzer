@@ -1,4 +1,4 @@
-// SKIP TODO TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// SKIP TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -22,7 +22,8 @@ int main()
 }
 
 /*
-NOTE:
+NOTE: The description below is probably outdated. This works since 5d291caf43da73d24f3093ec36cced018972cc30.
+
 Test 28: does not terminate but should terminate (test case
 "28-do-while-continue-terminating.c") Reason: upjumping goto
 

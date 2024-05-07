@@ -76,6 +76,7 @@ struct
               VH.find v_ins v
             else
               let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+              v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
               VH.replace v_ins v v_in;
               v_in
           in
@@ -97,6 +98,7 @@ struct
     let v_ins_inv = VH.create (List.length vs) in
     List.iter (fun v ->
         let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+        v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
         VH.replace v_ins_inv v_in v;
       ) vs;
     let rel = RD.add_vars st.rel (List.map RV.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
@@ -245,25 +247,21 @@ struct
   (* Basic transfer functions. *)
   let assign ctx (lv:lval) e =
     let st = ctx.local in
-    if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
-      st (* ignore extern inits because there's no body before assign, so env is empty... *)
-    else (
-      let simplified_e = replace_deref_exps ctx.ask e in
-      if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)" d_lval lv  d_exp e d_exp simplified_e;
-      let ask = Analyses.ask_of_ctx ctx in
-      let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-          assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
-              if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
-              if M.tracing then M.trace "relation" "st: %a" RD.pretty apr';
-              let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
-              if M.tracing then M.traceu "relation" "-> %a" RD.pretty r;
-              r
-            )
-        )
-      in
-      if M.tracing then M.traceu "relation" "-> %a" D.pretty r;
-      r
-    )
+    let simplified_e = replace_deref_exps ctx.ask e in
+    if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)" d_lval lv  d_exp e d_exp simplified_e;
+    let ask = Analyses.ask_of_ctx ctx in
+    let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+        assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
+            if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
+            if M.tracing then M.trace "relation" "st: %a" RD.pretty apr';
+            let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
+            if M.tracing then M.traceu "relation" "-> %a" RD.pretty r;
+            r
+          )
+      )
+    in
+    if M.tracing then M.traceu "relation" "-> %a" D.pretty r;
+    r
 
   let branch ctx e b =
     let st = ctx.local in
