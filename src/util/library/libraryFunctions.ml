@@ -746,8 +746,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 [@@coverage off]
 
-let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
-let console_sem = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[console semaphore]" intType)))
+let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" voidType)))
+let console_sem = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[console semaphore]" voidType)))
 
 (** Linux kernel functions. *)
 let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -1072,7 +1072,7 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 [@@coverage off]
 
-let verifier_atomic_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
+let verifier_atomic_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic]" voidType)
 let verifier_atomic = AddrOf (Cil.var (Cilfacade.create_var verifier_atomic_var))
 
 (** SV-COMP functions.
@@ -1087,7 +1087,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 [@@coverage off]
 
-let rtnl_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[rtnl_lock]" intType)))
+let rtnl_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[rtnl_lock]" voidType)))
 
 (** LDV Klever functions. *)
 let klever_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
