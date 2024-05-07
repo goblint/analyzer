@@ -14,11 +14,11 @@ module Disequalities = struct
   module AD = ValueDomain.AD
   (*TODO: id should not clash with the other dummy values we have for function parameters*)
   let dummy_varinfo typ = {dummyFunDec.svar with vtype=typ}
-  let dummy_var var = T.deref_term (CC.Addr (dummy_varinfo var)) Z.zero
+  let dummy_var var = T.term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
 
   let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=dummyFunDec.svar.vid-1;vname="@return"}
-  let return_var var = T.deref_term (CC.Addr (return_varinfo var)) Z.zero
+  let return_var var = T.term_of_varinfo (return_varinfo var)
   let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query.
@@ -87,12 +87,12 @@ module D = struct
 
   let name () = "wrpointer"
 
-  let equal x y = let res =
-    match x, y with
-    | Some x, Some y ->
-      (T.props_equal (get_normal_form x) (get_normal_form y))
-    | None, None -> true
-    | _ -> false
+  let equal x y =
+    let res = match x, y with
+      | Some x, Some y ->
+        (T.props_equal (get_normal_form x) (get_normal_form y))
+      | None, None -> true
+      | _ -> false
     in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
   let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty}
