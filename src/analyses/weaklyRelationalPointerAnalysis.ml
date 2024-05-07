@@ -55,7 +55,7 @@ struct
     | lterm, (None, _) -> D.remove_may_equal_terms ask s lterm t
     (* Definite assignment *)
     | lterm, (Some term, Some offset) ->
-      let dummy_var = Disequalities.dummy_var (typeOfLval lval) in
+      let dummy_var = MayBeEqual.dummy_var (typeOfLval lval) in
       if M.tracing then M.trace "wrpointer-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
       t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
@@ -94,9 +94,9 @@ struct
   let return ctx exp_opt f =
     let res = match exp_opt with
       | Some e ->
-        assign_return (ask_of_ctx ctx) ctx.local (Disequalities.return_var (typeOf e)) e
+        assign_return (ask_of_ctx ctx) ctx.local (MayBeEqual.return_var (typeOf e)) e
       | None -> ctx.local
-    in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (Disequalities.dummy_lval (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
+    in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
 
   let special ctx var_opt v exprs  =
     let desc = LibraryFunctions.find v in
@@ -122,7 +122,7 @@ struct
     (* add duplicated variables, and set them equal to the original variables *)
     let added_equalities = (List.map (fun v -> CC.Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities state_with_assignments in
-    if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (Disequalities.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
+    if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars *)
     let reachable_variables = f.sformals @ f.slocals @ List.map duplicated_variable f.sformals (*@ all globals*)
     in
@@ -135,16 +135,16 @@ struct
   let combine_env ctx var_opt expr f exprs t_context_opt t ask =
     let og_t = t in
     let t = D.meet ctx.local t in
-    if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (Disequalities.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
+    if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
     let t = match var_opt with
       | None -> t
-      | Some var -> assign_lval_2_ask t (ask_of_ctx ctx) ask var (Disequalities.return_lval (typeOfLval var))
+      | Some var -> assign_lval_2_ask t (ask_of_ctx ctx) ask var (MayBeEqual.return_lval (typeOfLval var))
     in
     if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (D.show_all t);
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = List.map duplicated_variable f.sformals in
     let t =
-      D.remove_terms_containing_variables (Disequalities.return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
+      D.remove_terms_containing_variables (MayBeEqual.return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
     in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN3: result: %s\n" (D.show t); t
 
   (*ctx.local is after combine_env, t callee*)

@@ -9,7 +9,7 @@ module M = Messages
 module T = CC.T
 
 (**Find out if two addresses are not equal by using the MayPointTo query*)
-module Disequalities = struct
+module MayBeEqual = struct
 
   module AD = ValueDomain.AD
   (*TODO: id should not clash with the other dummy values we have for function parameters*)
@@ -95,7 +95,7 @@ module D = struct
       | _ -> false
     in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
-  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty}
+  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty; diseq = Disequalities.empty}
 
   let init () = init_congruence []
 
@@ -167,6 +167,6 @@ module D = struct
   let remove_may_equal_terms ask s term cc =
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
-    Option.map (remove_terms (fun uf -> Disequalities.may_be_equal ask uf s term)) cc
+    Option.map (remove_terms (fun uf -> MayBeEqual.may_be_equal ask uf s term)) cc
 
 end

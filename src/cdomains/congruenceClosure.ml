@@ -537,14 +537,14 @@ module UnionFind = struct
 
 end
 
+module ZMap = struct
+  include Map.Make(Z)
+  let hash hash_f y = fold (fun x node acc -> acc + Z.hash x + hash_f node) y 0
+end
+
 (** For each representative t' of an equivalence class, the LookupMap maps t' to a map that maps z to a set containing
     all terms in the data structure that are equal to *(z + t').*)
 module LookupMap = struct
-  module ZMap = struct
-    include Map.Make(Z)
-    let hash hash_f y = fold (fun x node acc -> acc + Z.hash x + hash_f node) y 0
-  end
-
   (* map: term -> z -> size of typ -> *(z + (typ * )t)*)
   type t = TSet.t ZMap.t ZMap.t TMap.t [@@deriving eq, ord, hash]
 
@@ -648,6 +648,171 @@ module CongruenceClosure = struct
 
   module TUF = UnionFind
   module LMap = LookupMap
+
+  module Disequalities = struct
+
+    type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash] (* disequalitites *)
+    type arg_t = (T.t * Z.t) ZMap.t TMap.t (* maps each state in the automata to its predecessors *)
+
+    let empty = TMap.empty
+
+    (** adds a mapping v -> r -> {v'} to the map, or if there are already elements
+                                   in v -> r -> {..} then v* is added to the previous set *)
+    let map_set_add (v,r) v' map = match TMap.find_opt v map with
+      | None -> TMap.add v (ZMap.add r (TSet.singleton v') ZMap.empty) map
+      | Some imap -> TMap.add v (
+          match ZMap.find_opt r imap with
+          | None -> ZMap.add r (TSet.singleton v') imap
+          | Some set -> ZMap.add r (TSet.add v' set) imap) map
+
+    let map_set_mem (v,r) v' map = match TMap.find_opt v map with
+      | None -> false
+      | Some imap -> (match ZMap.find_opt r imap with
+          | None -> false
+          | Some set -> TSet.mem v' set
+        )
+
+    (** used by NEQ and EQ
+
+        map of partition, transform union find to a map
+        of type V -> Z -> V set
+        with reference variable |-> offset |-> all terms that are in the union find with this ref var and offset *)
+    let comp_map part = List.fold_left (fun comp (v,_) ->
+        map_set_add (TUF.find_no_pc part v) v comp)
+        TMap.empty (TMap.bindings part)
+
+    (** arg:
+
+        maps each representative term t to a map that maps an integer Z to
+        a list of representatives t' of v where *(v + z') is
+        in the representative class of t.
+
+        It basically maps each state in the automata to its predecessors. *)
+    let get_args part =
+      let cmap  = comp_map part in
+      let clist = TMap.bindings cmap in
+      let arg = List.fold_left (fun arg (v, imap) ->
+          let ilist = ZMap.bindings imap in
+          let iarg = List.fold_left (fun iarg (r,set) ->
+              let list = List.filter_map (function
+                  | Deref (v',r',_) ->
+                    let (v0,r0) = TUF.find_no_pc part v' in
+                    Some (v0,Z.(r0+r'))
+                  | _ -> None) (TSet.elements set) in
+              ZMap.add r list iarg) ZMap.empty ilist in
+          TMap.add v iarg arg) TMap.empty clist in
+      (part,cmap,arg)
+
+    let fold_left2 f acc l1 l2 =
+      List.fold_left (
+        fun acc x -> List.fold_left (
+            fun acc y -> f acc x y) acc l2) acc l1
+
+    let map2 f l1 l2 = List.concat (
+        List.map (fun x ->
+            List.map (fun y -> f x y) l2) l1)
+
+    let map_find_opt (v,r) map = match TMap.find_opt v map with
+      | None -> None
+      | Some imap -> (match ZMap.find_opt r imap with
+          | None -> None
+          | Some v -> Some v
+        )
+
+    let check_neq (_,arg) rest (v,imap) =
+      let ilist = ZMap.bindings imap in
+      fold_left2 (fun rest (r1,_) (r2,_) ->
+          if Z.equal r1 r2 then rest
+          else (* r1 <> r2 *)
+            let l1 = match map_find_opt (v,r1) arg
+              with None -> []
+                 | Some list -> list in
+            (* just take the elements of set1 ? *)
+            let l2 = match map_find_opt (v,r2) arg
+              with None -> []
+                 | Some list -> list in
+            fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
+                if v1 = v2 then if r'1 = r'2
+                  then raise Unsat
+                  else rest
+                else (v1,v2,Z.(r'2-r'1))::rest) rest l1 l2
+        ) rest ilist ilist
+
+    (** used by NEQ *)
+    let init_neq (part,cmap,arg) = (* list of non-trivially implied dis-equalities *)
+      List.fold_left (check_neq (part,arg)) [] (TMap.bindings cmap)
+
+    (** used by NEQ *)
+    let init_list_neq (part,_,_) neg =  (* list of normalized provided dis-equalities *)
+      List.filter_map (fun (v1,v2,r) ->
+          let (v1,r1) = TUF.find_no_pc part v1 in
+          let (v2,r2) = TUF.find_no_pc part v2 in
+          if T.compare v1 v2 = 0 then if r1 = Z.(r2+r) then raise Unsat
+            else None
+          else Some (v1,v2,Z.(r2-r1+r))) neg
+
+    (** used by NEQ *)
+    let rec propagate_neq (part,cmap,arg,neq) = function (* v1, v2 are distinct roots with v1 != v2+r   *)
+      | [] -> neq          (* part need not be returns: has been flattened during constr. of cmap *)
+      | (v1,v2,r) :: rest ->            (* v1, v2 are roots; v2 -> r,v1 not yet contained in neq  *)
+        if T.equal v1 v2 then  (* should not happen *)
+          if Z.equal r Z.zero then raise Unsat else propagate_neq (part,cmap,arg,neq) rest
+        else (* check whether it is already in neq *)
+        if map_set_mem (v1,r) v2 neq then propagate_neq (part,cmap,arg,neq) rest
+        else let neq = map_set_add (v1,Z.(-r)) v2 neq |>
+                       map_set_add (v2,r) v1 in
+                                (*
+                                search components of v1, v2 for elements at distance r to obtain inferred equalities
+                                at the same level (not recorded) and then compare their predecessors
+                                *)
+          match TMap.find_opt v1 (cmap:t), TMap.find_opt v2 cmap with
+          | None,_ | _,None -> raise (Failure "empty component?")
+          | Some imap1, Some imap2 ->
+            let ilist1 = ZMap.bindings imap1 in
+            let rest = List.fold_left (fun rest (r1,_) ->
+                match ZMap.find_opt Z.(r1-r) imap2 with
+                | None -> rest
+                | Some _ ->
+                  let l1 = match map_find_opt (v1,r1) arg
+                    with None -> []
+                       | Some list -> list in
+                  let l2 = match map_find_opt (v2,Z.(r1-r)) arg
+                    with None -> []
+                       | Some list -> list in
+                  fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
+                      if v1 = v2 then if r'1 = r'2 then raise Unsat
+                        else rest
+                      else (v1,v2,Z.(r'2-r'1))::rest) rest l1 l2)
+                rest ilist1 in
+            propagate_neq (part,cmap,arg,neq) rest
+
+                       (*
+                        collection of disequalities:
+                                * disequalities originating from different offsets of same root
+                                * stated disequalities
+                                * closure by collecting appropriate args
+                                        for a disequality v1 != v2 +r for distinct roots v1,v2
+                                        check whether there is some r1, r2 such that r1 = r2 +r
+                                        then dis-equate the sets at v1,r1 with v2,r2.
+                       *)
+
+    let print_neq neq =
+      let clist = TMap.bindings neq in
+      List.iter (fun (v,imap) ->
+          let ilist = ZMap.bindings imap in
+          List.iter (fun (r,set) ->
+              let list = TSet.elements set in
+              List.iter (fun v' ->
+                  print_string "\t";
+                  print_string (T.show v');
+                  print_string " != ";
+                  (if r = Z.zero then () else
+                     print_string (Z.to_string r);
+                   print_string " + ");
+                  print_string (T.show v);
+                  print_string "\n") list) ilist) clist
+
+  end
 
   (** Set of subterms which are present in the current data structure. *)
   module SSet = struct
@@ -795,7 +960,8 @@ module CongruenceClosure = struct
   type t = {uf: TUF.t;
             set: SSet.t;
             map: LMap.t;
-            min_repr: MRMap.t}
+            min_repr: MRMap.t;
+            diseq: Disequalities.t}
   [@@deriving eq, ord, hash]
 
   let string_of_prop = function
@@ -868,7 +1034,7 @@ module CongruenceClosure = struct
     let uf = SSet.elements set |>
              TUF.init in
     let min_repr = MRMap.initial_minimal_representatives set in
-    {uf; set; map; min_repr}
+    {uf; set; map; min_repr; diseq = Disequalities.empty}
 
   (**
        parameters: (uf, map) equalities.
@@ -957,7 +1123,7 @@ module CongruenceClosure = struct
   let closure cc conjs =
     let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
     let min_repr, uf = MRMap.update_min_repr (uf, cc.set, map) min_repr queue in
-    {uf; set = cc.set; map; min_repr}
+    {uf; set = cc.set; map; min_repr; diseq = cc.diseq}
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
       and the second one contains all inequality propositions.  *)
@@ -994,7 +1160,7 @@ module CongruenceClosure = struct
       | Addr a -> let uf = TUF.ValMap.add t ((t, Z.zero),1) cc.uf in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
-        (t, Z.zero), {uf; set; map = cc.map; min_repr}, [Addr a]
+        (t, Z.zero), {uf; set; map = cc.map; min_repr; diseq = cc.diseq}, [Addr a]
       | Deref (t', z, exp) ->
         let (v, r), cc, queue = insert_no_min_repr cc t' in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
@@ -1002,10 +1168,10 @@ module CongruenceClosure = struct
         match LMap.map_find_opt (v, Z.(r + z)) (T.get_size_in_bits (typeOf exp)) cc.map with
         | Some v' -> let v2,z2,uf = TUF.find cc.uf v' in
           let uf = LMap.add t ((t, Z.zero),1) uf in
-          (v2,z2), closure {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr} [(t, v', Z.zero)], v::queue
+          (v2,z2), closure {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr; diseq = cc.diseq} [(t, v', Z.zero)], v::queue
         | None -> let map = LMap.map_add (v, Z.(r + z)) t cc.map in
           let uf = LMap.add t ((t, Z.zero),1) cc.uf in
-          (t, Z.zero), {uf; set; map; min_repr}, v::queue
+          (t, Z.zero), {uf; set; map; min_repr; diseq = cc.diseq}, v::queue
 
   (** Add a term to the data structure.
 
@@ -1013,7 +1179,7 @@ module CongruenceClosure = struct
   let insert cc t =
     let v, cc, queue = insert_no_min_repr cc t in
     let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
-    v, {uf; set = cc.set; map = cc.map; min_repr}
+    v, {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq}
 
   (** Add all terms in a specific set to the data structure.
 
@@ -1025,7 +1191,23 @@ module CongruenceClosure = struct
       let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
       (* update min_repr at the end for more efficiency *)
       let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
-      Some {uf; set = cc.set; map = cc.map; min_repr}
+      Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq}
+
+
+  (** used by NEQ *)
+  let congruence_neq cc neg =
+    match insert_set_opt (Some cc) (fst (SSet.subterms_of_conj neg)) with
+    | None -> None
+    | Some cc ->
+      (* getting args of dereferences *)
+      let uf,cmap,arg = Disequalities.get_args cc.uf in
+      (* taking implicit dis-equalities into account *)
+      let neq_list = Disequalities.init_neq (uf,cmap,arg) in
+      let neq = Disequalities.propagate_neq (uf,cmap,arg,TMap.empty) neq_list in
+      (* taking explicit dis-equalities into account *)
+      let neq_list = Disequalities.init_list_neq (uf,cmap,arg) neg in
+      let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) neq_list in
+      Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq}
 
   (**  Returns true if t1 and t2 are equivalent. *)
   let eq_query cc (t1,t2,r) =
@@ -1045,7 +1227,7 @@ module CongruenceClosure = struct
     if T.equal v1 v2 then
       if Z.(equal r1 (r2 + r)) then false
       else true
-    else false
+    else Disequalities.map_set_mem (v1,Z.(r2-r1+r)) v2 cc.diseq
 
   (** Throws "Unsat" if a contradiction is found. *)
   let meet_conjs cc pos_conjs =
@@ -1054,10 +1236,13 @@ module CongruenceClosure = struct
 
   let meet_conjs_opt conjs cc =
     let pos_conjs, neg_conjs = split conjs in
-    if List.exists (fun c -> eq_query_opt cc c) neg_conjs then None else
-      match meet_conjs cc pos_conjs with
-      | exception Unsat -> None
-      | t -> t
+    match meet_conjs cc pos_conjs with
+    | exception Unsat -> None
+    | Some cc -> begin match congruence_neq cc neg_conjs with
+        | exception Unsat -> None
+        | cc -> cc
+      end
+    | None -> None
 
   (** Add proposition t1 = t2 + r to the data structure. *)
   let add_eq cc (t1, t2, r) =
@@ -1243,8 +1428,8 @@ module CongruenceClosure = struct
          remove_terms_from_map (uf, map) removed_terms new_parents_map
     in let min_repr, uf = MRMap.compute_minimal_representatives (uf, set, map)
     in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\nRESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
-        (show_all old_cc) (show_all {uf; set; map; min_repr});
-    {uf; set; map; min_repr}
+        (show_all old_cc) (show_all {uf; set; map; min_repr; diseq = cc.diseq});
+    {uf; set; map; min_repr; diseq = cc.diseq}
 
   (* join *)
   let join cc1 cc2 =
