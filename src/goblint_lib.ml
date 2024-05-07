@@ -386,6 +386,8 @@ module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
 module XmlUtil = XmlUtil
 
+module GobExn = GobExn
+
 (** {2 CIL} *)
 
 module CilType = CilType
