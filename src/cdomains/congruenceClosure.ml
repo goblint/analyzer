@@ -66,6 +66,9 @@ module T = struct
     | Addr v -> v
     | Deref (t, _, _) -> get_var t
 
+  let term_of_varinfo vinfo =
+    Deref (Addr vinfo, Z.zero, Lval (Var vinfo, NoOffset))
+
   exception UnsupportedCilExpression of string
 
   (** Returns an integer from a cil expression and None if the expression is not an integer. *)
@@ -165,6 +168,9 @@ module T = struct
     | (Addr v) -> AddrOf (Var v, NoOffset)
     | (Deref (_, _, exp)) -> exp
 
+  let show t = let res = show t in
+    if M.tracing then M.trace "wrpointer-show" "t: %s; exp: %a" res d_exp (to_cil t); res
+
   let to_cil t = let exp = to_cil t in
     if M.tracing then M.trace "wrpointer-cil-conversion2" "Term: %s; Exp: %a\n"
         (show t) d_plainexp exp;
@@ -213,8 +219,6 @@ module T = struct
       | _ -> Lval (Mem (CastE (TPtr(TVoid[],[]), exp)), NoOffset)
 
   let get_size = get_size_in_bits % type_of_term
-
-  let deref_term t z = Deref (t, z, dereference_exp (to_cil t) z)
 
   let rec of_offset ask t off typ exp =
     if off = NoOffset then t else
@@ -656,6 +660,7 @@ module CongruenceClosure = struct
     let empty = TSet.empty
     let to_list = TSet.to_list
     let inter = TSet.inter
+    let find_opt = TSet.find_opt
 
     let show_set set = TSet.fold (fun v s ->
         s ^ "\t" ^ T.show v ^ ";\n") set "" ^ "\n"
@@ -678,6 +683,13 @@ module CongruenceClosure = struct
       (* `elements set` returns a sorted list of the elements. The atoms are always smaller that other terms,
          according to our comparison function. Therefore take_while is enough. *)
       BatList.take_while (function Addr _ -> true | _ -> false) (elements set)
+
+    (** We try to find the dereferenced term between the already existing terms, in order to remember the information about the exp. *)
+    let deref_term t z set =
+      let exp = T.to_cil t in
+      match find_opt (Deref (t, z, exp)) set with
+      | None -> Deref (t, z, T.dereference_exp exp z)
+      | Some t -> t
 
   end
 
@@ -702,7 +714,7 @@ module CongruenceClosure = struct
 
     let print_min_rep = print_string % show_min_rep
 
-    let rec update_min_repr (uf, map) min_representatives = function
+    let rec update_min_repr (uf, set, map) min_representatives = function
       | [] -> min_representatives, uf
       | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
         match LMap.successors state map with
@@ -710,7 +722,7 @@ module CongruenceClosure = struct
           let process_edge (min_representatives, queue, uf) (edge_z, _(*min_repr is independent of the size*), next_term) =
             let next_state, next_z, uf = TUF.find uf next_term in
             let (min_term, min_z) = find state min_representatives in
-            let next_min = (T.deref_term min_term Z.(edge_z - min_z), next_z) in
+            let next_min = (SSet.deref_term min_term Z.(edge_z - min_z) set, next_z) in
             match TMap.find_opt next_state min_representatives
             with
             | None ->
@@ -720,7 +732,7 @@ module CongruenceClosure = struct
             | _ -> (min_representatives, queue, uf)
           in
           let (min_representatives, queue, uf) = List.fold_left process_edge (min_representatives, queue, uf) edges
-          in update_min_repr (uf, map) min_representatives queue
+          in update_min_repr (uf, set, map) min_representatives queue
 
     (** Uses dijkstra algorithm to update the minimal representatives of
           the successor nodes of all edges in the queue
@@ -740,11 +752,11 @@ module CongruenceClosure = struct
         Returns:
         - The map with the minimal representatives
         - The union find tree. This might have changed because of path compression. *)
-    let update_min_repr (uf, map) min_representatives queue =
+    let update_min_repr (uf, set, map) min_representatives queue =
       (* order queue by size of the current min representative *)
       let queue =
         List.sort_unique (fun el1 el2 -> TUF.compare_repr (find el1 min_representatives) (find el2 min_representatives)) (List.filter (TUF.is_root uf) queue)
-      in update_min_repr (uf, map) min_representatives queue
+      in update_min_repr (uf, set, map) min_representatives queue
 
     (**
        Computes a map that maps each representative of an equivalence class to the minimal representative of the equivalence class.
@@ -772,7 +784,7 @@ module CongruenceClosure = struct
       in
       let (min_representatives, queue, uf) = List.fold_left add_atom_to_map (empty, [], uf) atoms
       (* compute the minimal representative of all remaining edges *)
-      in update_min_repr (uf, map) min_representatives queue
+      in update_min_repr (uf, set, map) min_representatives queue
 
     (** Computes the initial map of minimal representatives.
           It maps each element `e` in the set to `(e, 0)`. *)
@@ -825,7 +837,7 @@ module CongruenceClosure = struct
       List.filter_map (fun (z,s,_ (*size is not important for normal form?*),(s',z')) ->
           let (min_state, min_z) = MRMap.find s cc.min_repr in
           let (min_state', min_z') = MRMap.find s' cc.min_repr in
-          normalize_equality (T.deref_term min_state Z.(z - min_z), min_state', Z.(z' - min_z'))
+          normalize_equality (SSet.deref_term min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
         ) transitions
     in BatList.sort_unique (compare_prop Var.compare (T.compare_exp)) (conjunctions_of_atoms @ conjunctions_of_transitions)
 
@@ -944,7 +956,7 @@ module CongruenceClosure = struct
   *)
   let closure cc conjs =
     let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
-    let min_repr, uf = MRMap.update_min_repr (uf, map) min_repr queue in
+    let min_repr, uf = MRMap.update_min_repr (uf, cc.set, map) min_repr queue in
     {uf; set = cc.set; map; min_repr}
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
@@ -1000,7 +1012,7 @@ module CongruenceClosure = struct
         Returns (reference variable, offset), updated (uf, set, map, min_repr) *)
   let insert cc t =
     let v, cc, queue = insert_no_min_repr cc t in
-    let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.map) cc.min_repr queue in
+    let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
     v, {uf; set = cc.set; map = cc.map; min_repr}
 
   (** Add all terms in a specific set to the data structure.
@@ -1012,7 +1024,7 @@ module CongruenceClosure = struct
     | Some cc ->
       let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
       (* update min_repr at the end for more efficiency *)
-      let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.map) cc.min_repr queue in
+      let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
       Some {uf; set = cc.set; map = cc.map; min_repr}
 
   (**  Returns true if t1 and t2 are equivalent. *)
@@ -1083,7 +1095,7 @@ module CongruenceClosure = struct
     let add_one_successor (cc, successors) (edge_z, _, _) =
       let _, uf_offset, uf = TUF.find cc.uf t in
       let cc = {cc with uf = uf} in
-      let successor = T.deref_term t Z.(edge_z - uf_offset) in
+      let successor = SSet.deref_term t Z.(edge_z - uf_offset) cc.set in
       let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
       let _, cc, _ = if subterm_already_present then (t, Z.zero), cc, []
         else insert_no_min_repr cc successor in
@@ -1247,8 +1259,8 @@ module CongruenceClosure = struct
       match LMap.map_find_opt (y, Z.(t2_off - t1_off + offset)) size cc2.map with
       | None -> pmap,cc,new_pairs
       | Some b -> let b', b_off = TUF.find_no_pc cc2.uf b in
-        let new_term = T.deref_term t Z.(offset - t1_off) in
-        let _ , cc = insert cc new_term (*TODO find dereferenced term in the successors, because of the type/exp information*)
+        let new_term = SSet.deref_term t Z.(offset - t1_off) cc1.set in
+        let _ , cc = insert cc new_term
         in match Map.find_opt (a',b') pmap with
         | None -> Map.add (a',b') (new_term, a_off, b_off) pmap, cc, (a',b')::new_pairs
         | Some (c, c1_off, c2_off) ->

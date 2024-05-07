@@ -44,7 +44,7 @@ struct
           let ik = Cilfacade.get_ikind_exp e in
           ID.of_bool ik res
       end
-    (* TODO what is type a-> C expression, see in Queries in queries.ml -> baically its a cil expression
+    (* TODO Invariant.
        | Queries.Invariant context -> get_normal_form context*)
     | _ -> Result.top q
 
@@ -120,7 +120,7 @@ struct
     let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
     if M.tracing then M.trace "wrpointer-function" "ENTER1: state_with_assignments: %s\n" (D.show state_with_assignments);
     (* add duplicated variables, and set them equal to the original variables *)
-    let added_equalities = (List.map (fun v -> CC.Equal (T.deref_term (CC.Addr (duplicated_variable v)) Z.zero, T.deref_term (CC.Addr v) Z.zero, Z.zero)) f.sformals) in
+    let added_equalities = (List.map (fun v -> CC.Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities state_with_assignments in
     if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (Disequalities.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars *)
