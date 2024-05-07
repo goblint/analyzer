@@ -25,8 +25,8 @@ struct
       | Addr a ->
         let arg_e = AddrOf (PreValueDomain.Mval.to_cil a) in
         if not (CilType.Exp.equal arg arg_e) then
-          let e' = BinOp(Eq, arg, AddrOf (PreValueDomain.Mval.to_cil a), intType) in
-          [Events.SplitBranch  (e',true)]
+          let e' = BinOp (Eq, arg, arg_e, intType) in
+          [Events.SplitBranch (e', true)]
         else
           []
       | _ -> []
