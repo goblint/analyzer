@@ -692,7 +692,8 @@ struct
 
   let invariant_global (ask: Q.ask) (getg: V.t -> G.t): V.t -> Invariant.t = function
     | `Left m' as m -> (* mutex *)
-      if ask.f (GhostVarAvailable (Locked m')) then (
+      let atomic = LockDomain.Addr.equal m' (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
+      if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         (* filters like query_invariant *)
         let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
         let exact = GobConfig.get_bool "witness.invariant.exact" in
@@ -712,8 +713,12 @@ struct
             )
           |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
         in
-        let var = WitnessGhost.to_varinfo (Locked m') in
-        Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        if atomic then
+          inv
+        else (
+          let var = WitnessGhost.to_varinfo (Locked m') in
+          Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        )
       )
       else
         Invariant.none

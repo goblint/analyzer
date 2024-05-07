@@ -13,7 +13,7 @@
     write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
     read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
   [Info][Witness] witness generation summary:
-    total generation entries: 8
+    total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0
@@ -30,49 +30,8 @@
       line: 23
       column: 3
       function: main
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "1"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 25
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "1"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 11
-      column: 3
-      function: t_fun
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "0"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 27
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "0"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 17
-      column: 3
-      function: t_fun
   - entry_type: ghost_variable
     variable: multithreaded
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: __VERIFIER_atomic_locked
     scope: global
     type: int
     initial: "0"
@@ -99,7 +58,7 @@ Non-atomic privatization:
     write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
     read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
   [Info][Witness] witness generation summary:
-    total generation entries: 9
+    total generation entries: 4
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0
@@ -116,55 +75,14 @@ Non-atomic privatization:
       line: 23
       column: 3
       function: main
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "1"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 25
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "1"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 11
-      column: 3
-      function: t_fun
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "0"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 27
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: __VERIFIER_atomic_locked
-    expression: "0"
-    location:
-      file_name: 16-atomic_priv.c
-      file_hash: $FILE_HASH
-      line: 17
-      column: 3
-      function: t_fun
   - entry_type: ghost_variable
     variable: multithreaded
     scope: global
     type: int
     initial: "0"
-  - entry_type: ghost_variable
-    variable: __VERIFIER_atomic_locked
-    scope: global
-    type: int
-    initial: "0"
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (__VERIFIER_atomic_locked || myglobal == 5)'
+      string: '! multithreaded || myglobal == 5'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant

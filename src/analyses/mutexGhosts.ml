@@ -59,8 +59,9 @@ struct
   end
 
   let event ctx e octx =
+    let verifier_atomic_addr = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var in
     begin match e with
-      | Events.Lock (l, _) ->
+      | Events.Lock (l, _) when not (LockDomain.Addr.equal l verifier_atomic_addr) ->
         ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()));
         if !AnalysisState.postsolving then (
           let (locked, _, _) = G.node (ctx.global (V.node ctx.prev_node)) in
@@ -70,7 +71,7 @@ struct
               ) locked
           );
         )
-      | Events.Unlock l ->
+      | Events.Unlock l when not (LockDomain.Addr.equal l verifier_atomic_addr) ->
         ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()));
         if !AnalysisState.postsolving then (
           let (_, unlocked, _) = G.node (ctx.global (V.node ctx.prev_node)) in

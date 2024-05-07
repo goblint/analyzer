@@ -9,7 +9,7 @@ let name_varinfo = function
   | Locked (Addr (v, os)) ->
     let name =
       if CilType.Varinfo.equal v LibraryFunctions.verifier_atomic_var then
-        "__VERIFIER_atomic"
+        invalid_arg "__VERIFIER_atomic"
       else
       if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo v then
         Printf.sprintf "alloc_%s%d" (if v.vid < 0 then "m" else "") (abs v.vid) (* turn minus into valid C name *)

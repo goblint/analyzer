@@ -333,7 +333,8 @@ struct
 
   let invariant_global (ask: Q.ask) getg = function
     | `Left m' as m -> (* mutex *)
-      if ask.f (GhostVarAvailable (Locked m')) then (
+      let atomic = LockDomain.Addr.equal m' (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
+      if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         let cpa = getg m in
         let inv = CPA.fold (fun v _ acc ->
             if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
@@ -343,8 +344,12 @@ struct
               acc
           ) cpa Invariant.none
         in
-        let var = WitnessGhost.to_varinfo (Locked m') in
-        Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        if atomic then
+          inv
+        else (
+          let var = WitnessGhost.to_varinfo (Locked m') in
+          Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        )
       )
       else
         Invariant.none
@@ -864,7 +869,9 @@ struct
       else (
         let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
         Q.AD.fold (fun m acc ->
-            if ask.f (GhostVarAvailable (Locked m)) then (
+            if LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) then
+              acc
+            else if ask.f (GhostVarAvailable (Locked m)) then (
               let var = WitnessGhost.to_varinfo (Locked m) in
               Invariant.(of_exp (Lval (GoblintCil.var var)) || acc) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
             )
