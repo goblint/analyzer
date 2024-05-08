@@ -451,7 +451,7 @@ let apronOctagonOption factors file =
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;
     set_string "ana.apron.threshold_widening_constants" "comparisons";
-    Logs.info "Enabled octagon domain for:";
+    Logs.info "Enabled octagon domain ONLY for:";
     Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
     List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
   in
