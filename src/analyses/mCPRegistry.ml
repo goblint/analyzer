@@ -51,8 +51,6 @@ let find_spec = Hashtbl.find registered
 let find_spec_name n = (find_spec n).name
 let find_id = Hashtbl.find registered_name
 
-type unknown = Obj.t
-
 module type DomainListPrintableSpec =
 sig
   val assoc_dom : int -> (module Printable.S)
@@ -132,7 +130,7 @@ struct
 end
 
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
-  : Printable.S with type t = (int * unknown) list
+  : Printable.S with type t = (int * Obj.t) list
 =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
@@ -140,7 +138,7 @@ struct
   open DLSpec
   open List
 
-  type t = (int * unknown) list
+  type t = (int * Obj.t) list
 
   let unop_fold f a (x:t) =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
@@ -220,7 +218,7 @@ struct
 end
 
 module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
-  : Printable.S with type t = int * unknown
+  : Printable.S with type t = int * Obj.t
 =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
@@ -228,7 +226,7 @@ struct
   open DLSpec
   open List
 
-  type t = int * unknown
+  type t = int * Obj.t
 
   let unop_map f ((n, d):t) =
     f n (assoc_dom n) d
@@ -290,7 +288,7 @@ struct
 end
 
 module DomVariantSysVar (DLSpec : DomainListSysVarSpec)
-  : SpecSysVar with type t = int * unknown
+  : SpecSysVar with type t = int * Obj.t
 =
 struct
   open DLSpec
@@ -307,7 +305,7 @@ struct
 end
 
 module DomListRepresentative (DLSpec : DomainListRepresentativeSpec)
-  : DisjointDomain.Representative with type t = (int * unknown) list and type elt = (int * unknown) list
+  : DisjointDomain.Representative with type t = (int * Obj.t) list and type elt = (int * Obj.t) list
 =
 struct
   open DLSpec
@@ -316,7 +314,7 @@ struct
   include DomListPrintable (PrintableOfRepresentativeSpec (DLSpec))
   let name () = "MCP.P"
 
-  type elt = (int * unknown) list
+  type elt = (int * Obj.t) list
 
   let of_elt (xs: elt): t =
     let rec aux xs ss acc =
@@ -333,7 +331,7 @@ struct
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
-  : Lattice.S with type t = (int * unknown) list
+  : Lattice.S with type t = (int * Obj.t) list
 =
 struct
   open DLSpec
@@ -383,7 +381,7 @@ struct
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
-  : Lattice.S with type t = int * unknown
+  : Lattice.S with type t = int * Obj.t
 =
 struct
   open DLSpec
