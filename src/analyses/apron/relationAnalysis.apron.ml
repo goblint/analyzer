@@ -440,8 +440,10 @@ struct
     if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
         | Some lv ->
-          assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
-              RD.assign_var st.rel (RV.local v) RV.return
+          let ask = Analyses.ask_of_ctx ctx in
+          assign_to_global_wrapper ask ctx.global ctx.sideg unify_st lv (fun st v ->
+              let rel = RD.assign_var st.rel (RV.local v) RV.return in
+              assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
         | None ->
           unify_st
