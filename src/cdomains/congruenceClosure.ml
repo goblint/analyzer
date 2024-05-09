@@ -817,7 +817,9 @@ module CongruenceClosure = struct
                   fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
                       if v1 = v2 then if r'1 = r'2 then raise Unsat
                         else rest
-                      else (v1,v2,Z.(r'2-r'1))::rest) rest l1 l2)
+                        (* disequalities propagate only if the terms have same size*)
+                      else if Z.equal (T.get_size v1) (T.get_size v2) then
+                        (v1,v2,Z.(r'2-r'1))::rest else rest ) rest l1 l2)
                 rest ilist1 in
             propagate_neq (part,cmap,arg,neq) rest
 
@@ -1465,9 +1467,9 @@ module CongruenceClosure = struct
         | Some (new_root, new_offset, uf) -> LMap.shift new_root new_offset term map, uf
     in List.fold_left remove_from_map (map, uf) removed_terms
 
-  let remove_terms_from_diseq (diseq: Disequalities.t) removed_terms new_parents_map uf =
+  let remove_terms_from_diseq (diseq: Disequalities.t) removed_terms predicate new_parents_map uf =
     (* modify mapped values *)
-    let diseq = Disequalities.filter_map (Option.map Tuple3.first % find_new_root new_parents_map uf) diseq in
+    let diseq = Disequalities.filter_map (Option.map Tuple3.first % find_new_root new_parents_map uf) (LMap.filter_if diseq (not % predicate))  in
     (* modify left hand side of map *)
     let remove_from_diseq diseq term =
       match LMap.find_opt term diseq with
@@ -1494,7 +1496,7 @@ module CongruenceClosure = struct
     in let map, uf =
          remove_terms_from_map (uf, map) removed_terms new_parents_map
     in let diseq =
-         remove_terms_from_diseq cc.diseq removed_terms new_parents_map uf
+         remove_terms_from_diseq cc.diseq removed_terms (predicate cc.uf) new_parents_map uf
     in let min_repr, uf = MRMap.compute_minimal_representatives (uf, set, map)
     in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\nRESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
         (show_all old_cc) (show_all {uf; set; map; min_repr; diseq});
