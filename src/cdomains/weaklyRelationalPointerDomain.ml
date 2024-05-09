@@ -133,12 +133,13 @@ module D = struct
 
   let printXml f x = match x with
     | Some x ->
-      BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\nmin. repr\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
+      BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\nmin. repr\n</key>\n<value>\n%s</value>\n<key>\ndiseq\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
         (XmlUtil.escape (Format.asprintf "%s" (show (Some x))))
         (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
         (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
         (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
         (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep x.min_repr)))
+        (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.diseq)))
     | None ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 
   (** Remove terms from the data structure.
