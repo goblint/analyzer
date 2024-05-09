@@ -110,7 +110,8 @@ module D = struct
       match a,b with
       | None, b -> b
       | a, None -> a
-      | Some a, Some b -> Some (fst(join a b))
+      | Some a, Some b -> let cc = fst(join_eq a b)
+    in join_neq a.diseq b.diseq cc
     in
     if M.tracing then M.trace "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\nJOIN: %s\n"
         (show_all a) (show_all b) (show_all res);

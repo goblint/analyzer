@@ -860,6 +860,17 @@ module CongruenceClosure = struct
                       zmap in if ZMap.is_empty zmap then None else Some zmap)
                zmap in if ZMap.is_empty zmap then None else Some zmap) diseq
 
+    let get_disequalities = List.map
+        (fun (t1, z, _, t2) ->
+           Nequal (t1,t2,z)
+        ) % bindings
+
+    let intersect cmap1 cmap2 =
+      List.fold_left (fun result_map (t1, z, size, t2) ->
+          if map_set_mem (t1,z) t2 cmap2 then
+            map_set_add (t1,z) t2 result_map
+          else result_map) TMap.empty
+        (bindings cmap1)
   end
 
   (** Set of subterms which are present in the current data structure. *)
@@ -874,6 +885,7 @@ module CongruenceClosure = struct
     let to_list = TSet.to_list
     let inter = TSet.inter
     let find_opt = TSet.find_opt
+    let union = TSet.union
 
     let show_set set = TSet.fold (fun v s ->
         s ^ "\t" ^ T.show v ^ ";\n") set "" ^ "\n"
@@ -1054,10 +1066,7 @@ module CongruenceClosure = struct
           normalize_equality (SSet.deref_term min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
         ) transitions in
     (*disequalities*)
-    let disequalities = List.map
-        (fun (t1, z, _, t2) ->
-           Nequal (t1,t2,z)
-        ) @@ Disequalities.bindings cc.diseq
+    let disequalities = Disequalities.get_disequalities cc.diseq
     in BatList.sort_unique (T.compare_v_prop)(conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities)
 
   let show_all x = "Normal form:\n" ^
@@ -1253,16 +1262,17 @@ module CongruenceClosure = struct
   let congruence_neq cc neg =
     match insert_set_opt (Some cc) (fst (SSet.subterms_of_conj neg)) with
     | None -> None
-    | Some cc ->
-      (* getting args of dereferences *)
-      let uf,cmap,arg = Disequalities.get_args cc.uf in
-      (* taking implicit dis-equalities into account *)
-      let neq_list = Disequalities.init_neq (uf,cmap,arg) in
-      let neq = Disequalities.propagate_neq (uf,cmap,arg,TMap.empty) neq_list in
-      (* taking explicit dis-equalities into account *)
-      let neq_list = Disequalities.init_list_neq (uf,cmap,arg) neg in
-      let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) neq_list in
-      Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq}
+    | Some cc -> try
+        (* getting args of dereferences *)
+        let uf,cmap,arg = Disequalities.get_args cc.uf in
+        (* taking implicit dis-equalities into account *)
+        let neq_list = Disequalities.init_neq (uf,cmap,arg) in
+        let neq = Disequalities.propagate_neq (uf,cmap,arg,cc.diseq) neq_list in
+        (* taking explicit dis-equalities into account *)
+        let neq_list = Disequalities.init_list_neq (uf,cmap,arg) neg in
+        let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) neq_list in
+        Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq}
+      with Unsat -> None
 
   (**  Returns true if t1 and t2 are equivalent. *)
   let eq_query cc (t1,t2,r) =
@@ -1293,10 +1303,7 @@ module CongruenceClosure = struct
     let pos_conjs, neg_conjs = split conjs in
     match meet_conjs cc pos_conjs with
     | exception Unsat -> None
-    | Some cc -> begin match congruence_neq cc neg_conjs with
-        | exception Unsat -> None
-        | cc -> cc
-      end
+    | Some cc -> congruence_neq cc neg_conjs
     | None -> None
 
   (** Add proposition t1 = t2 + r to the data structure. *)
@@ -1503,7 +1510,7 @@ module CongruenceClosure = struct
     {uf; set; map; min_repr; diseq = cc.diseq}
 
   (* join *)
-  let join cc1 cc2 =
+  let join_eq cc1 cc2 =
     let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
     let pmap = List.fold_left
         (fun pmap a -> Map.add (a,a) (a,snd (TUF.find_no_pc cc1.uf a), snd (TUF.find_no_pc cc2.uf a)) pmap)
@@ -1532,5 +1539,21 @@ module CongruenceClosure = struct
         add_edges_to_map pmap cc (rest@new_pairs)
     in
     add_edges_to_map pmap cc working_set
+
+  (** Joins the disequalities diseq1 and diseq2, given a congruence closure data structure. *)
+  let join_neq diseq1 diseq2 cc =
+    let _,diseq1 = split (Disequalities.get_disequalities diseq1) in
+    let _,diseq2 = split (Disequalities.get_disequalities diseq2) in
+    let cc = insert_set_opt (Some cc) (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2)) in
+    begin match cc with
+      | None -> None
+      | Some cc ->
+        begin match congruence_neq cc diseq1, congruence_neq cc diseq2 with
+          | None, cc | cc, None -> cc
+          | Some cc1, Some cc2 -> Some {cc1 with diseq=Disequalities.intersect cc1.diseq cc2.diseq}
+        end
+    end
+
+
 
 end
