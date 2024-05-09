@@ -337,6 +337,7 @@ let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vatt
 let rec extractVar = function
   | UnOp (Neg, e, _) -> extractVar e
   | Lval ((Var info),_) when not (isGoblintStub info) ->  Some info
+  | CastE (_, e) -> extractVar e
   | _ -> None
 
 let extractOctagonVars = function
@@ -375,6 +376,15 @@ class octagonVariableVisitor(varMap, globals) = object
         DoChildren
       )
     | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
+    | UnOp (LNot, BinOp (op, e1,e2, (TInt _)),_) when isComparison op -> (* TODO: Should be generalized *)
+      handle varMap 5 globals (
+        match extractVar e1, extractVar e2 with
+        | Some a, Some b -> Some (`Left (a,b))
+        | Some a, None
+        | None, Some a -> if isConstant e1 then Some (`Right a) else None
+        | _,_ -> None
+      );
+      DoChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)
