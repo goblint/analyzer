@@ -163,6 +163,7 @@ struct
 
   let main () =
     Util.init ();
+    GobConfig.set_bool "dbg.full-output" true;
     (* Do not colorize stderr output *)
     AnsiColors.stderr := false;
     let filenames = List.tl (Array.to_list Sys.argv) in
