@@ -536,6 +536,7 @@ struct
       if !AnalysisState.bot_in_blob_leq_bot then
         match x with
         | Blob (x,s,o) -> leq x Bot
+        | Array x when CArrays.is_bot x -> true
         | _ -> false
       else
         false
