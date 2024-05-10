@@ -5,7 +5,7 @@
       "interval": false,
       "enums": true,
       "def_exc_widen_by_join": true,
-      "refinement" : "once"
+      "refinement" : "fixpoint"
     },
     "malloc": {
       "wrappers": [
