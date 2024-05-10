@@ -14,6 +14,10 @@ let spec_module: (module MCPSpec) Lazy.t =
     struct
       include SpecFunctor (Priv) (AD) (RelationPrecCompareUtil.DummyUtil)
       let name () = "affeq"
+      let finalize () =
+        let (size,n) = !AffineEqualityDomain.sparseity_stats in
+        let average = Q.div (Q.of_bigint (Z.mul (Z.of_int 100) (n))) (Q.of_bigint (size)) in
+        M.info_noloc ~category:Analyzer "Sparseity %f%% in total: %Ld" (Q.to_float average) (Z.to_int64 size)
     end
     in
     (module Spec)

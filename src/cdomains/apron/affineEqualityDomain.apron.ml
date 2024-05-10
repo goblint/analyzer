@@ -13,6 +13,8 @@ module M = Messages
 open GobApron
 open VectorMatrix
 
+let sparseity_stats = ref (Z.zero,Z.zero)
+
 module Mpqf = SharedFunctions.Mpqf
 
 module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
@@ -344,9 +346,26 @@ struct
 
   let join a b = timing_wrap "join" (join a) b
 
+  let density m =
+    let rownum= Matrix.num_rows m in
+    let size = Matrix.num_cols m * rownum in
+    let rows=List.of_enum (0--(rownum-1)) in
+    let countzero mat rowidx = List.fold (fun sum e -> if Mpqf.zero=e then sum+1 else sum) 0 (Vector.to_list @@ Matrix.get_row mat rowidx) in
+    let sumofentries=List.fold (fun sum rowindex -> (countzero m rowindex) + sum) 0 rows in
+    let percent = if size=0 then 0 else (sumofentries*100)/(size) in
+    (size,sumofentries,percent)
+
   let join a b =
     let res = join a b in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s " (show a) (show b) (show res) ;
+    (if !AnalysisState.postsolving && (Option.get !AnalysisState.verified) then
+       let (size,sum,percent) = density @@ Option.get res.d in
+       let (statcount,statportion) = !sparseity_stats in
+       sparseity_stats:= (Z.add statcount (Z.of_int size),Z.add statportion (Z.of_int sum));
+       let average = Q.div (Q.of_bigint (Z.mul (Z.of_int 100) (snd !sparseity_stats))) (Q.of_bigint (fst !sparseity_stats)) in
+       if M.tracing then M.trace "join-benchmark-in-detail" "join-benchmark: zeroes:%d total/weight: %d -> zero portion: %d%%" sum size percent;
+       if M.tracing then M.trace "join-benchmark" "join-benchmark: average zero portion of all encountered matrices: %f%%" (Q.to_float average)
+    );
     res
 
   let widen a b =
