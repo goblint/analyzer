@@ -4,8 +4,7 @@
       "def_exc": true,
       "interval": false,
       "enums": true,
-      "def_exc_widen_by_join": true,
-      "refinement" : "fixpoint"
+      "def_exc_widen_by_join": true
     },
     "malloc": {
       "wrappers": [
