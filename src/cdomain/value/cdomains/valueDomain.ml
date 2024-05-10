@@ -40,7 +40,7 @@ sig
 
   include ArrayDomain.Null with type t := t
 
-  val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
+  val project: ?force_refine:bool -> VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
 end
 
@@ -1223,36 +1223,36 @@ struct
   let arbitrary () = QCheck.always Bot (* S TODO: other elements *)
 
   (*Changes the value: if p is present, change all Integer precisions. If array_attr=(varAttr, typeAttr) is present, change the top level array domain according to the attributes *)
-  let rec project ask p array_attr (v: t): t =
+  let rec project ?(force_refine=false) ask p array_attr (v: t): t =
     match v, p, array_attr with
     | _, None, None -> v (*Nothing to change*)
     (* as long as we only have one representation, project is a nop*)
     | Float n, _, _ ->  Float n
-    | Int n, Some p, _->  Int (ID.project p n)
-    | Address n, Some p, _-> Address (project_addr p n)
-    | Struct n, _, _ -> Struct (Structs.map (fun (x: t) -> project ask p None x) n)
-    | Union (f, v), _, _ -> Union (f, project ask p None v)
-    | Array n , _, _ -> Array (project_arr ask p array_attr n)
-    | Blob (v, s, z), Some p', _ -> Blob (project ask p None v, ID.project p' s, z)
+    | Int n, Some p, _->  Int (ID.project ~force_refine p n)
+    | Address n, Some p, _-> Address (project_addr ~force_refine p n)
+    | Struct n, _, _ -> Struct (Structs.map (fun (x: t) -> project ~force_refine ask p None x) n)
+    | Union (f, v), _, _ -> Union (f, project ~force_refine ask p None v)
+    | Array n , _, _ -> Array (project_arr ~force_refine ask p array_attr n)
+    | Blob (v, s, z), Some p', _ -> Blob (project ~force_refine ask p None v, ID.project ~force_refine p' s, z)
     | Thread n, _, _ -> Thread n
     | Bot, _, _ -> Bot
     | Top, _, _ -> Top
     | _, _, _ -> v (*Nothing to change*)
-  and project_addr p a =
+  and project_addr ?(force_refine=false) p a =
     AD.map (fun addr ->
         match addr with
-        | Addr.Addr (v, o) -> Addr.Addr (v, project_offs p o)
+        | Addr.Addr (v, o) -> Addr.Addr (v, project_offs ~force_refine p o)
         | ptr -> ptr) a
-  and project_offs p offs = Offs.map_indices (ID.project p) offs
-  and project_arr ask p array_attr n =
+  and project_offs ?(force_refine=false) p offs = Offs.map_indices (ID.project ~force_refine p) offs
+  and project_arr ?(force_refine=false) ask p array_attr n =
     let n = match array_attr with
       | Some (varAttr,typAttr) -> CArrays.project ~varAttr ~typAttr ask n
       | _ -> n
-    in let n' = CArrays.map (fun (x: t) -> project ask p None x) n in
+    in let n' = CArrays.map (fun (x: t) -> project ~force_refine ask p None x) n in
     match CArrays.length n, p with
     | None, _
     | _, None -> n'
-    | Some l, Some p -> CArrays.update_length (ID.project p l) n'
+    | Some l, Some p -> CArrays.update_length (ID.project ~force_refine p l) n'
 
   let relift state =
     match state with

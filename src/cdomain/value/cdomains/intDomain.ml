@@ -228,7 +228,7 @@ sig
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val project: Cil.ikind -> int_precision -> t -> t
+  val project: ?force_refine:bool -> Cil.ikind -> int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 
@@ -275,7 +275,7 @@ sig
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
 
-  val project: int_precision -> t -> t
+  val project: ?force_refine:bool -> int_precision -> t -> t
   val invariant: Cil.exp -> t -> Invariant.t
 end
 
@@ -381,7 +381,7 @@ struct
 
   let relift x = { v = I.relift x.v; ikind = x.ikind }
 
-  let project p v =  { v = I.project v.ikind p v.v; ikind = v.ikind }
+  let project ?(force_refine=false) p v =  { v = I.project ~force_refine v.ikind p v.v; ikind = v.ikind }
 end
 
 module type Ikind =
@@ -982,7 +982,7 @@ struct
       | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
       | _, _-> intv
 
-  let project ik p t = t
+  let project ?(force_refine=false) ik p t = t
 end
 
 (** IntervalSetFunctor that is not just disjunctive completion of intervals, but attempts to be precise for wraparound arithmetic for unsigned types *)
@@ -1515,7 +1515,7 @@ struct
       let excl_list = List.map (excl_to_intervalset ik range) xs in
       List.fold_left (meet ik) intv excl_list
 
-  let project ik p t = t
+  let project ?(force_refine=false) ik p t = t
 
   let arbitrary ik =
     let open QCheck.Iter in
@@ -2322,7 +2322,7 @@ struct
     | _ -> a
   let refine_with_incl_list ik a b = a
 
-  let project ik p t = t
+  let project ?(force_refine=false) ik p t = t
 end
 
 (* BOOLEAN DOMAINS *)
@@ -2743,7 +2743,7 @@ module Enums : S with type int_t = Z.t = struct
     | Inc x, Some (ls) -> meet ik (Inc x) (Inc (BISet.of_list ls))
     | _ -> a
 
-  let project ik p t = t
+  let project ?(force_refine=false) ik p t = t
 end
 
 module Congruence : S with type int_t = Z.t and type t = (Z.t * Z.t) option =
@@ -3239,7 +3239,7 @@ struct
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
 
-  let project ik p t = t
+  let project ?(force_refine=false) ik p t = t
 end
 
 module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t = D.t = struct
@@ -3520,8 +3520,11 @@ module IntDomTupleImpl = struct
      (fun (a, b, c, d, e) -> maybe refine_with_interval ik (a, b, c, d, e) b);
      (fun (a, b, c, d, e) -> maybe refine_with_congruence ik (a, b, c, d, e) d)]
 
-  let refine ik ((a, b, c, d, e) : t ) : t =
+  let refine ?(force_refine=false) ik ((a, b, c, d, e) : t ) : t =
     let dt = ref (a, b, c, d, e) in
+    if force_refine then
+      List.iter (fun f -> dt := f !dt) (refine_functions ik)
+    else
     (match get_refinement () with
      | "never" -> ()
      | "once" ->
@@ -3536,7 +3539,8 @@ module IntDomTupleImpl = struct
          if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a" pretty old_dt pretty !dt;
        done;
      | _ -> ()
-    ); !dt
+    );
+    !dt
 
 
   (* map with overflow check *)
@@ -3645,9 +3649,9 @@ module IntDomTupleImpl = struct
    * ~keep:true will keep elements that are `Some x` but should be set to `None` by p.
    *  This way we won't loose any information for the refinement.
    * ~keep:false will set the elements to `None` as defined by p *)
-  let project ik (p: int_precision) t =
+  let project ?(force_refine=false) ik (p: int_precision) t =
     let t_padded = map ~keep:true { f3 = fun (type a) (module I:SOverflow with type t = a) -> Some (I.top_of ik) } t p in
-    let t_refined = refine ik t_padded in
+    let t_refined = refine ~force_refine ik t_padded in
     map ~keep:false { f3 = fun (type a) (module I:SOverflow with type t = a) -> None } t_refined p
 
 

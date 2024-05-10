@@ -1754,7 +1754,7 @@ struct
   let read_global ask getg st x =
     let v = Priv.read_global ask getg st x in
     if !AnalysisState.postsolving && !is_dumping then (
-      let v_proj = if get_bool "exp.priv-prec-dump-proj" then VD.project (Queries.to_value_domain_ask ask) (Some (true,true,true,false,false)) None v else v in
+      let v_proj = if get_bool "exp.priv-prec-dump-proj" then VD.project ~force_refine:true (Queries.to_value_domain_ask ask) (Some (true,true,true,false,false)) None v else v in
       LVH.modify_def (VD.bot ()) (!Goblint_tracing.current_loc, x) (VD.join v_proj) lvh
     );
     v
