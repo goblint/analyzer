@@ -260,8 +260,10 @@ let basic_preprocess ?preprocess ~all_cppflags fname =
     Logs.debug "%s" command;
     (nname, Some {ProcessPool.command; cwd = None})
   )
-  else
+  else (
+    Preprocessor.FpathH.modify_def Fpath.Map.empty fname (Fpath.Map.add fname false) Preprocessor.dependencies; (* record dependency *)
     (fname, None)
+  )
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
