@@ -527,39 +527,6 @@ struct
   let warn_type op x y =
     Logs.debug "warn_type %s: incomparable abstr. values %a and %a at %a: %a and %a" op pretty_tag x pretty_tag y CilType.Location.pretty !Goblint_tracing.current_loc pretty x pretty y
 
-  let rec leq x y =
-    match (x,y) with
-    | (_, Top) -> true
-    | (Top, _) -> false
-    | (Bot, _) -> true
-    | (x, Bot) ->
-      if !AnalysisState.bot_in_blob_leq_bot then
-        match x with
-        | Blob (x,s,o) -> leq x Bot
-        | Array x when CArrays.is_bot x -> true
-        | _ -> false
-      else
-        false
-    | (Int x, Int y) -> ID.leq x y
-    | (Float x, Float y) -> FD.leq x y
-    | (Int x, Address y) when ID.to_int x = Some Z.zero && not (AD.is_not_null y) -> true
-    | (Int _, Address y) when AD.may_be_unknown y -> true
-    | (Address _, Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
-    | (Address x, Address y) -> AD.leq x y
-    | (Struct x, Struct y) -> Structs.leq x y
-    | (Union x, Union y) -> Unions.leq x y
-    | (Array x, Array y) -> CArrays.leq x y
-    | (Blob x, Blob y) -> Blobs.leq x y
-    | Blob (x,s,o), y -> leq (x:t) y
-    | x, Blob (y,s,o) -> leq x (y:t)
-    | (Thread x, Thread y) -> Threads.leq x y
-    | (Int x, Thread y) -> true
-    | (Address x, Thread y) -> true
-    | (JmpBuf x, JmpBuf y) -> JmpBufs.leq x y
-    | (Mutex, Mutex) -> true
-    | (MutexAttr x, MutexAttr y) -> MutexAttr.leq x y
-    | _ -> warn_type "leq" x y; false
-
   let rec join x y =
     match (x,y) with
     | (Top, _) -> Top
@@ -591,6 +558,41 @@ struct
     | _ ->
       warn_type "join" x y;
       Top
+
+  let rec leq x y =
+    match (x,y) with
+    | (_, Top) -> true
+    | (Top, _) -> false
+    | (Bot, _) -> true
+    | (x, Bot) ->
+      if !AnalysisState.bot_in_blob_leq_bot then
+        match x with
+        | Blob (x,s,o) -> leq x Bot
+        | Array x ->
+          let contents = CArrays.fold_left join Bot x in
+          leq contents Bot
+        | _ -> false
+      else
+        false
+    | (Int x, Int y) -> ID.leq x y
+    | (Float x, Float y) -> FD.leq x y
+    | (Int x, Address y) when ID.to_int x = Some Z.zero && not (AD.is_not_null y) -> true
+    | (Int _, Address y) when AD.may_be_unknown y -> true
+    | (Address _, Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
+    | (Address x, Address y) -> AD.leq x y
+    | (Struct x, Struct y) -> Structs.leq x y
+    | (Union x, Union y) -> Unions.leq x y
+    | (Array x, Array y) -> CArrays.leq x y
+    | (Blob x, Blob y) -> Blobs.leq x y
+    | Blob (x,s,o), y -> leq (x:t) y
+    | x, Blob (y,s,o) -> leq x (y:t)
+    | (Thread x, Thread y) -> Threads.leq x y
+    | (Int x, Thread y) -> true
+    | (Address x, Thread y) -> true
+    | (JmpBuf x, JmpBuf y) -> JmpBufs.leq x y
+    | (Mutex, Mutex) -> true
+    | (MutexAttr x, MutexAttr y) -> MutexAttr.leq x y
+    | _ -> warn_type "leq" x y; false
 
   let widen x y =
     match (x,y) with
