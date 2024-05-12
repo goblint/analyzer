@@ -1764,10 +1764,7 @@ struct
     (* LVH.iter (fun (l, x) v ->
         Logs.debug "%a %a = %a" CilType.Location.pretty l CilType.Varinfo.pretty x VD.pretty v
       ) lvh; *)
-    let topisification_counter = ref 0 in
-    LVH.map_inplace (fun (l,x) v -> if Hashtbl.mem AnalysisState.location_to_topsify l then (incr topisification_counter; VD.top ()) else v) lvh;
-    Printf.printf "topsyfying %d variables\n\n\n" !topisification_counter;
-    Marshal.output f ({name = get_string "ana.base.privatization" ^ get_string "exp.priv-prec-dump-suffix"; results = lvh}: result);
+    Marshal.output f ({name = get_string "ana.base.privatization" ^ get_string "exp.priv-prec-dump-suffix"; results = lvh; disregard = Some AnalysisState.location_to_topsify}: result);
     close_out_noerr f
 
   let finalize () =

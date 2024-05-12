@@ -97,7 +97,7 @@ struct
   let load filename =
     let f = open_in_bin filename in
     let dump: dump = Marshal.from_channel f in
-    let dump: result = {name = dump.name; results = unmarshal dump.marshalled } in
+    let dump: result = {name = dump.name; results = unmarshal dump.marshalled; disregard = dump.disregard } in
     close_in_noerr f;
     dump
 
@@ -105,7 +105,19 @@ struct
 
   let comparisons = ref []
 
-  let compare_dumps ({name = name1; results = lvh1}: result) ({name = name2; results = lvh2}: result) =
+  let compare_dumps ({name = name1; results = lvh1; disregard = disregard1}: result) ({name = name2; results = lvh2; disregard = disregard2}: result) =
+    let (lvh1:Dom.t RH.t) =
+      match disregard1, disregard2 with
+      | Some disregard1, Some disregard2 ->
+        RH.filter_map (fun k v -> if Hashtbl.mem disregard1 (Key.to_location k) || Hashtbl.mem disregard2 (Key.to_location k) then None else Some v) lvh1
+      | _ -> lvh1
+    in
+    let (lvh2:Dom.t RH.t) =
+      match disregard1, disregard2 with
+      | Some disregard1, Some disregard2 ->
+        RH.filter_map (fun k v -> if Hashtbl.mem disregard1 (Key.to_location k) || Hashtbl.mem disregard2 (Key.to_location k) then None else Some v) lvh2
+      | _ -> lvh2
+    in
     let (c, d) = CompareDump.compare ~verbose:true ~name1 lvh1 ~name2 lvh2 in
     comparisons := (name1, name2, c, d) :: !comparisons;
     (c, d)

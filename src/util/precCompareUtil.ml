@@ -13,11 +13,13 @@ end
 type 'a dump_gen = {
   name: string;
   marshalled: 'a;
+  disregard: (GoblintCil.location,unit) Hashtbl.t option
 }
 
 type 'a result_gen = {
   name: string;
   results: 'a;
+  disregard: (GoblintCil.location,unit) Hashtbl.t option
 }
 
 module type R =
