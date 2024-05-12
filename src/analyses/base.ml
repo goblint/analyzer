@@ -503,6 +503,8 @@ struct
         | _ -> x
       in
       let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
+      if !AnalysisState.postsolving && get_string "exp.priv-prec-dump" <> "" &&  AD.mem Addr.UnknownPtr addrs then
+        M.warn "DDDDDDebug: top_pointer at %a" d_loc !Goblint_tracing.current_loc;
       AD.fold f addrs (VD.bot ())
     in
     if M.tracing then M.traceu "get" "Result: %a" VD.pretty res;
