@@ -567,7 +567,7 @@ struct
     | (x, Bot) ->
       if !AnalysisState.bot_in_blob_leq_bot then
         match x with
-        | Blob (x,s,o) -> leq x Bot
+        | Blob (x,s,o) when o -> leq x Bot (* allow only in the case of not zero-initialized blobs *)
         | Array x ->
           let contents = CArrays.fold_left join Bot x in
           leq contents Bot
