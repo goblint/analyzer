@@ -1764,6 +1764,8 @@ struct
     (* LVH.iter (fun (l, x) v ->
         Logs.debug "%a %a = %a" CilType.Location.pretty l CilType.Varinfo.pretty x VD.pretty v
       ) lvh; *)
+
+    LVH.map_inplace (fun (l,x) v -> if Hashtbl.mem AnalysisState.location_to_topsify l then VD.top () else v) lvh;
     Marshal.output f ({name = get_string "ana.base.privatization" ^ get_string "exp.priv-prec-dump-suffix"; results = lvh}: result);
     close_out_noerr f
 
