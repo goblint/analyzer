@@ -1,5 +1,5 @@
 
-// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState
+// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts
 #include <goblint.h>
 #include <stdlib.h>
 

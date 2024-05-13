@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState
+// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts
 // Example 1 from the paper Join Algorithms for the Theory of Uninterpreted
 // Functions by Gulwani et al.
 

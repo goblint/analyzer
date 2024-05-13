@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState
+// PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts
 // example of the paper "2-Pointer Logic" by Seidl et al., pag. 21
 #include <goblint.h>
 
