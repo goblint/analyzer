@@ -13,16 +13,23 @@ module MayBeEqual = struct
 
   module AD = ValueDomain.AD
   (*TODO: id should not clash with the other dummy values we have for function parameters*)
-  let dummy_varinfo typ = {dummyFunDec.svar with vtype=typ}
+  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ}
   let dummy_var var = T.term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
 
-  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=dummyFunDec.svar.vid-1;vname="@return"}
+  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="@return"}
   let return_var var = T.term_of_varinfo (return_varinfo var)
   let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 
-  (**Find out if two addresses are possibly equal by using the MayPointTo query.
-      The parameter s is the size (in bits) of the value that t1 points to. *)
+  (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
+  let may_point_to_address (ask:Queries.ask) adresses t2 off =
+    let exp2 = T.to_cil_sum ask off t2 in
+    let mpt1 = adresses in
+    let mpt2 = ask.f (MayPointTo exp2) in
+    let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+    if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+        AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
+
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
     if T.equal t1 t2 then true else
       (* two local arrays can never point to the same array *)
@@ -31,12 +38,8 @@ module MayBeEqual = struct
         | _ -> false in
       if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t2)) (T.get_var t2) then false else
         let exp1 = T.to_cil t1 in
-        let exp2 = T.to_cil_sum ask off t2 in
         let mpt1 = ask.f (MayPointTo exp1) in
-        let mpt2 = ask.f (MayPointTo exp2) in
-        let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-        if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nt1: %s; exp1: %a; res: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
-            (T.show t1) d_plainexp exp1 AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
+        may_point_to_address ask mpt1 t2 off
 
   (**Returns true iff by assigning to t1, the value of t2 could change.
       The parameter s is the size in bits of the variable t1 we are assigning to. *)
@@ -65,6 +68,14 @@ module MayBeEqual = struct
     let res = (may_be_equal ask uf s t1 t2) in
     if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
+
+  let rec may_point_to_one_of_these_adresses ask adresses t2 =
+    match t2 with
+    |  CC.Deref (v, z',_) ->
+      (may_point_to_address ask adresses v z')
+      || (may_point_to_one_of_these_adresses ask adresses v)
+    | CC.Addr _ -> false
+
 end
 
 module D = struct
@@ -111,7 +122,7 @@ module D = struct
       | None, b -> b
       | a, None -> a
       | Some a, Some b -> let cc = fst(join_eq a b)
-    in join_neq a.diseq b.diseq cc
+        in join_neq a.diseq b.diseq cc
     in
     if M.tracing then M.trace "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\nJOIN: %s\n"
         (show_all a) (show_all b) (show_all res);
@@ -170,5 +181,12 @@ module D = struct
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
     Option.map (remove_terms (fun uf -> MayBeEqual.may_be_equal ask uf s term)) cc
+
+
+  (** Remove terms from the data structure.
+      It removes all terms that may point to the same address as "tainted".*)
+  let remove_tainted_terms ask address cc =
+    if M.tracing then M.tracel "wrpointer-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
+    Option.map (remove_terms (fun uf -> MayBeEqual.may_point_to_one_of_these_adresses ask address)) cc
 
 end
