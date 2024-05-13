@@ -10,7 +10,7 @@ struct a *ptr;
 pthread_mutex_t m;
 
 void doit() {
-  void *newa = malloc(sizeof(struct a));
+  struct a *newa = (struct a *)malloc(sizeof(struct a));
 
   pthread_mutex_lock(&m);
   ptr->b = newa;
