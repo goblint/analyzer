@@ -107,8 +107,8 @@ struct
         branch ctx exp true
     | _, _ -> ctx.local
 
-  let duplicated_variable var = { var with vid = - var.vid; vname = var.vname ^ "'" }
-  let original_variable var = { var with vid = - var.vid; vname = String.rchop var.vname }
+  let duplicated_variable var = { var with vid = - var.vid - 4; vname = var.vname ^ "'" }
+  let original_variable var = { var with vid = - (var.vid + 4); vname = String.rchop var.vname }
 
   (*First all local variables of the function are duplicated (by negating their ID),
     then we remember the value of each local variable at the beginning of the function
@@ -132,9 +132,15 @@ struct
 
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
      expr funktionsaufruf*)
-  let combine_env ctx var_opt expr f exprs t_context_opt t ask =
+  let combine_env ctx var_opt expr f exprs t_context_opt t (ask: Queries.ask) =
     let og_t = t in
-    let t = D.meet ctx.local t in
+    (*remove all variables that were tainted by the function*)
+    let tainted = (* find out the tainted variables from startState *)
+      ask.f (MayPointTo (MayBeEqual.return_lval (dummyFunDec.svar.vtype)))
+    in
+    if M.tracing then M.trace "wrpointer-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
+    let local = D.remove_tainted_terms ask tainted ctx.local in
+    let t = D.meet local t in
     if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
     let t = match var_opt with
       | None -> t
@@ -157,4 +163,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~dep:["startState"] (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["startState"; "taintPartialContexts"] (module Spec : MCPSpec)
