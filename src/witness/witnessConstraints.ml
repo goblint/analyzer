@@ -278,7 +278,15 @@ struct
               R.bot ()
           in
           (* keep left syncs so combine gets them for no-inline case *)
-          ((Dom.singleton x (R.bot ()), snd ctx.local), (Dom.singleton y yr, Sync.bot ()))
+          (* must lookup and short-circuit because enter may modify first in pair (e.g. abortUnless) *)
+          let syncs =
+            match Sync.find x' (snd ctx.local) with
+            | syncs -> syncs
+            | exception Not_found ->
+              M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
+              SyncSet.bot ()
+          in
+          ((Dom.singleton x (R.bot ()), Sync.singleton x syncs), (Dom.singleton y yr, Sync.bot ()))
         ) ys
       in
       ys' @ xs
