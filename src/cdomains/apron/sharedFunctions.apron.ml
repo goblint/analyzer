@@ -309,10 +309,12 @@ sig
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val hash : t -> int
+
   (** empty creates a domain representation of dimension 0 *)
   val empty : unit -> t
-  val copy : t -> t
+
   (** is_empty is true, if the domain representation has a dimension size of zero *)
+  val is_empty : t -> bool
   val is_empty : t -> bool
   val dim_add : Apron.Dim.change -> t -> t
   val dim_remove : Apron.Dim.change -> t -> del:bool-> t
