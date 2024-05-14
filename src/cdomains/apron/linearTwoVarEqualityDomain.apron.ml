@@ -411,18 +411,18 @@ struct
     let join_d ad bd =
       (* joinfunction handles the dirty details of performing an "inner join" on the lhs of both bindings;
          in the resulting binding, the lhs is then mapped to values that are later relevant for sorting/grouping, i.e.
+         - lhs itself
          - the difference of both offsets
          - rhs1
          - rhs2 
            however, we have to account for the sparseity of EConj maps by manually patching holes with default values *)
       let joinfunction lhs rhs1 rhs2 = match rhs1, rhs2 with 
-        | Some (ai,aj),Some (bi,bj) -> Some (Z.(aj - bj),(ai,aj),(bi,bj))           (* this is explicitely what we want *)  
-        | None, Some (bi,bj)        -> Some (Z.neg bj   ,Rhs.var_zero lhs,(bi,bj))  (* account for the sparseity of binding 1 *)
-        | Some (ai,aj), None        -> Some (aj         ,(ai,aj),Rhs.var_zero lhs)  (* account for the sparseity of binding 2 *)
+        | Some (ai,aj),Some (bi,bj) -> Some (lhs,Z.(aj - bj),(ai,aj),(bi,bj))           (* this is explicitely what we want *)  
+        | None, Some (bi,bj)        -> Some (lhs,Z.neg bj   ,Rhs.var_zero lhs,(bi,bj))  (* account for the sparseity of binding 1 *)
+        | Some (ai,aj), None        -> Some (lhs,aj         ,(ai,aj),Rhs.var_zero lhs)  (* account for the sparseity of binding 2 *)
         | _,_                       -> None  (* no binding for lhs in both maps is replicated implicitely in a sparse result map *)
       in
-      let flatten (a,(b1,b2,b3)) = (a,b1,b2,b3) in
-      let table = List.map flatten @@ EConj.IntMap.bindings @@ EConj.IntMap.merge joinfunction (snd ad) (snd bd) in
+      let table = List.of_enum @@ EConj.IntMap.values @@ EConj.IntMap.merge joinfunction (snd ad) (snd bd) in
       (*compare two variables for grouping depending on delta function and reference index*)
       let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:Int.compare in
