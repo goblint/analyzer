@@ -309,6 +309,7 @@ sig
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val hash : t -> int
+  val copy : t -> t
 
   (** empty creates a domain representation of dimension 0 *)
   val empty : unit -> t
