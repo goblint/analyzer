@@ -34,14 +34,10 @@ module EqualitiesConjunction = struct
   type t = int * ( Rhs.t IntMap.t ) [@@deriving eq, ord]
 
   let show_formatted formatter econ =
-    match IntMap.bindings econ with 
-    | [] -> "{}"
-    | (i,(refvar,off))::rest -> 
-      let str = List.fold 
-          (fun acc (j, rhs2)-> Printf.sprintf "%s=%s ∧ %s" (formatter j) (Rhs.show_formatted formatter rhs2) acc) 
-          (Printf.sprintf "%s=%s" (formatter i) (Rhs.show_formatted (formatter) (refvar,off))) 
-          rest in
-      "{" ^  str ^ "}"
+    if IntMap.is_empty econ then "{}"
+    else
+      let str = IntMap.fold (fun i (refvar,off) acc -> Printf.sprintf "%s=%s ∧ %s" (formatter i) (Rhs.show_formatted formatter (refvar,off)) acc) econ "" in
+      "{" ^ String.sub str 0 (String.length str - 4) ^ "}"
 
   let show econ = show_formatted (Printf.sprintf "var_%d") econ
 
@@ -68,7 +64,6 @@ module EqualitiesConjunction = struct
                                   )
   let copy = identity
 
-  let maxentry (_,map) = IntMap.fold (fun lhs _ acc -> max acc lhs) map 0
 
   (** add/remove new variables to domain with particular indices; translates old indices to keep consistency
       add if op = (+), remove if op = (-)
@@ -81,12 +76,14 @@ module EqualitiesConjunction = struct
         | _ (* i<head or _=[] *) -> op i delta
       in
       let memobumpvar = (* Memoized version of bumpvar *)
+        let module IntHash = struct type t = int [@@deriving eq,hash] end in
+        let module IntHashtbl = Hashtbl.Make (IntHash) in
         if (Array.length indexes < 10) then fun x -> bumpvar 0 x offsetlist else (* only do memoization, if dimchange is significant *)
-          (let h = Hashtbl.create @@ IntMap.cardinal map in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
+          (let h = IntHashtbl.create @@ IntMap.cardinal map in (* #of bindings is a tight upper bound on the number of CCs and thus on the number of different lookups *)
            fun x -> (* standard memoization wrapper *)
-             try Hashtbl.find h x with Not_found ->
+             try IntHashtbl.find h x with Not_found ->
                let r = bumpvar 0 x offsetlist in
-               Hashtbl.add h x r;
+               IntHashtbl.add h x r;
                r)
       in
       let rec bumpentry k (refvar,offset) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
