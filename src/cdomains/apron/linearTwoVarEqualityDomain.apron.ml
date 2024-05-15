@@ -116,17 +116,23 @@ module EqualitiesConjunction = struct
   (* Forget information about variable i *)
   let forget_variable d var =
     let res =
-      (let ref_var_opt = fst (get_rhs d var) in
+      (let ref_var_opt = Tuple4.first (get_rhs d var) in
        match ref_var_opt with
        | Some ref_var when ref_var = var ->
          (* var is the reference variable of its connected component *)
          (let cluster = IntMap.fold
-              (fun i (ref, offset) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
+              (fun i (ref,_,_,_) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
           (* obtain cluster with common reference variable ref_var*)
           match cluster with (* new ref_var is taken from head of the cluster *)
-          | head :: tail ->
-            let headconst = snd (get_rhs d head) in (* take offset between old and new reference variable *)
-            List.fold (fun map i -> set_rhs map i Z.(Some head, snd (get_rhs d i) - headconst)) d cluster (* shift offset to match new reference variable *)
+          | head :: _ ->
+            (* ax = by + c    /\     a'z =    b'y + c'        *)
+            (*  ==[[ y:=? ]]==>   (a'b)z = (b'a)x + c' -(b'c) *)
+            let (_,c,b,a) = (get_rhs d head) in (* take offset between old and new reference variable *)
+            List.fold (fun map i -> 
+                let (_,c',b',a') = (get_rhs d i) in
+                let newrhs = (Some head, Z.(c' - (b' * c)), Z.(b'*a), Z.(a'*b)) in
+                set_rhs map i newrhs
+              ) d cluster (* shift offset to match new reference variable *)
           | [] -> d) (* empty cluster means no work for us *)
        | _ -> d) (* variable is either a constant or expressed by another refvar *) in
     let res = (fst res, IntMap.remove var (snd res)) in (* set d(var) to unknown, finally *)
