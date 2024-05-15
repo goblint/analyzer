@@ -17,15 +17,20 @@ open VectorMatrix
 module Mpqf = SharedFunctions.Mpqf
 
 module Rhs = struct
-  (* (Some i, k) represents a sum of a variable with index i and the number k.
-     (None, k) represents the number k. *)
-  type t = (int option * GobZ.t) [@@deriving eq, ord, hash]
-  let var_zero i = (Some i, Z.zero)
-  let show_formatted formatter = function
-    | (Some v, o) when Z.equal o Z.zero -> formatter v
-    | (Some v, o) -> Printf.sprintf "%s%+Ld" (formatter v) (Z.to_int64 o)
-    | (None, o) -> Printf.sprintf "%Ld" (Z.to_int64 o)
-  let show rhs = show_formatted (Printf.sprintf "var_%d") rhs
+  (* (Some i, k,_,_) represents a sum of a variable with index i and the number k.
+     (None,   k,_,_) represents the number k. *)
+  type t = (int option * GobZ.t * GobZ.t * GobZ.t) [@@deriving eq, ord, hash]
+  let var_zero i = (Some i, Z.zero, Z.one, Z.one)
+  let show_coeff c =
+    if Z.equal c Z.one then ""
+    else (Z.to_string c) ^"*"
+  let show_rhs_formatted formatter = function
+    | (Some v, o,coeff,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
+    | (Some v, o,coeff,_) -> Printf.sprintf "%s%s%+Ld" (show_coeff coeff) (formatter v) (Z.to_int64 o)
+    | (None,   o,_,_) -> Printf.sprintf "%Ld" (Z.to_int64 o)
+  let show (v,o,c,d) = 
+    let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,c,d) in
+    if not (Z.equal d Z.one) then "(" ^ rhs ^ ")/" ^ (Z.to_string d) else rhs
 end
 
 module EqualitiesConjunction = struct
@@ -36,7 +41,7 @@ module EqualitiesConjunction = struct
   let show_formatted formatter econ =
     if IntMap.is_empty econ then "{}"
     else
-      let str = IntMap.fold (fun i (refvar,off) acc -> Printf.sprintf "%s=%s ∧ %s" (formatter i) (Rhs.show_formatted formatter (refvar,off)) acc) econ "" in
+      let str = IntMap.fold (fun i (refvar,off,coeff,divi) acc -> Printf.sprintf "%s%s=%s ∧ %s" (Rhs.show_coeff divi) (formatter i) (Rhs.show_rhs_formatted formatter (refvar,off,coeff,divi)) acc) econ "" in
       "{" ^ String.sub str 0 (String.length str - 4) ^ "}"
 
   let show econ = show_formatted (Printf.sprintf "var_%d") econ
@@ -86,9 +91,9 @@ module EqualitiesConjunction = struct
                IntHashtbl.add h x r;
                r)
       in
-      let rec bumpentry k (refvar,offset) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
-        | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
-        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar, offset) tbl, delta, lyst)
+      let rec bumpentry k (refvar,offset,coeff,divi) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
+        | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset,coeff,divi) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
+        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar,offset,coeff,divi) tbl, delta, lyst)
       in
       let (a,_,_) = IntMap.fold bumpentry map (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
       (op dim (Array.length indexes), a)
