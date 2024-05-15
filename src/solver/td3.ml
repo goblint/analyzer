@@ -414,13 +414,20 @@ module Base =
 
             let y_sides = HM.find divided_side_effects y in 
             let old_side = HM.find_default y_sides x (S.Dom.bot ()) in
-            let new_side = if growing then S.Dom.widen old_side d else box old_side d in
+            let new_side = if growing then S.Dom.widen old_side (S.Dom.join old_side d) else box old_side d in
 
             HM.replace stable y ();
             if not (S.Dom.equal old_side new_side) then (
-              HM.replace y_sides y new_side;
+              if tracing then trace "side" "divided side from %a to %a changed (accumulation phase: %b)" S.Var.pretty_trace x S.Var.pretty_trace y growing;
+
+              HM.replace y_sides x new_side;
               let y_newval = combined_side y in
               if not (S.Dom.equal y_newval (HM.find rho y)) then (
+                if tracing then (
+                  let y_oldval = HM.find rho y in
+                  if tracing then trace "side" "value of %a changed by side from %a (accumulation phase: %b, grew: %b, shrank: %b)"
+                      S.Var.pretty_trace x S.Var.pretty_trace y growing (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval);
+                );
                 HM.replace rho y y_newval;
                 destabilize y;
               )
@@ -432,6 +439,7 @@ module Base =
             HM.replace orphan_side_effects y wd;
             let y_oldval = HM.find rho y in
             if not (S.Dom.leq wd y_oldval) then (
+              if tracing then trace "side" "orphaned side changed %a (accumulation phase: %b)" S.Var.pretty_trace y growing;
               HM.replace rho y (S.Dom.join wd y_oldval);
               destabilize y;
             )
