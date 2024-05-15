@@ -25,7 +25,7 @@ struct
   let dot_node ppf node =
     let shape = match Arg.Node.cfgnode node with
       | Statement {skind=If (_,_,_,_,_); _}  -> "diamond"
-      | Statement _     -> "oval"
+      | Statement _     -> "box" (* TODO: default nothing like CFG *)
       | Function _
       | FunctionEntry _ -> "box"
     in
