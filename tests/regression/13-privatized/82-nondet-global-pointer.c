@@ -1,5 +1,5 @@
-// PARAM: --set ana.base.privatization write --enable ana.int.enums
-// Like 81-how-could-we-have-been-so-blind.c, but with syntactic globals instead of escaping ones.
+// PARAM: --set ana.base.privatization protection --enable ana.int.enums
+// Like 81-nondet-struct-ptr.c, but with syntactic globals instead of escaping ones.
 #include<pthread.h>
 #include<stdlib.h>
 struct a {

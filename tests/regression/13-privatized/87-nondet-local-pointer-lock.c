@@ -1,5 +1,4 @@
 // PARAM: --set ana.base.privatization lock --enable ana.int.enums
-// Like 80-treachery-and-lies.c, but somewhat simplified to not use structs and malloc etc
 #include<pthread.h>
 #include<stdlib.h>
 struct a {
