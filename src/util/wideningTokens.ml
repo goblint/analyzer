@@ -135,6 +135,9 @@ struct
              ; sideg = (fun v g -> ctx.sideg v (g, !side_tokens)) (* Using side_tokens for side effect. *)
     }
 
+  let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
+    { gctx with global = (fun g -> G.unlift (gctx.global g)) }
+
   let lift_fun ctx f g h =
     let new_tokens = ref (snd ctx.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)
     let old_add = !add_ref in
@@ -168,6 +171,8 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx Fun.const S.query (fun (x) -> x q)
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    S.global_query (global_conv gctx) q
   let assign ctx lv e = lift_fun ctx lift'   S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx lift'   S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx lift'   S.branch ((|>) tv % (|>) e)

@@ -285,14 +285,6 @@ struct
             Result.meet a @@ res
           in
           match q with
-          | Queries.WarnGlobal g ->
-            (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
-            let (n, g): V.t = Obj.obj g in
-            f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
-          | Queries.InvariantGlobal g ->
-            (* InvariantGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
-            let (n, g): V.t = Obj.obj g in
-            f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
           | Queries.PartAccess a ->
             Obj.repr (access ctx a)
           | Queries.IterSysVars (vq, fi) ->
@@ -606,6 +598,32 @@ struct
     if q then raise Deadcode else d
 
   let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
+
+  let rec global_query: type a. (V.t, G.t) gctx -> a Queries.t -> a Queries.result = fun gctx q ->
+    match gctx.var with
+    | Some (n, g) ->
+      (* TODO: cache? *)
+      let module S: MCPSpec = (val spec n: MCPSpec) in
+      let gctx' = {
+        var = Some (Obj.obj g);
+        global = (fun v -> gctx.global (v_of n v) |> g_to n |> obj);
+        ask = (fun (type b) (q: b Queries.t) -> global_query {gctx with var = None} q);
+      }
+      in
+      S.global_query gctx' q
+    | None ->
+      let module Result = (val Queries.Result.lattice q) in
+      let f acc (n, spec_modules) =
+        let module S: MCPSpec = (val spec_modules.spec: MCPSpec) in
+        let gctx' = {
+          var = None;
+          global = (fun v -> gctx.global (v_of n v) |> g_to n |> obj);
+          ask = (fun (type b) (q: b Queries.t) -> global_query {gctx with var = None} q);
+        }
+        in
+        Result.meet acc (S.global_query gctx' q)
+      in
+      fold_left f (Result.top ()) (!activated)
 
   (* Just to satisfy signature *)
   let paths_as_set ctx = [ctx.local]

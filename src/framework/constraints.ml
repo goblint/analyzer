@@ -56,6 +56,8 @@ struct
   let query ctx =
     S.query (conv ctx)
 
+  let global_query = S.global_query
+
   let assign ctx lv e =
     D.lift @@ S.assign (conv ctx) lv e
 
@@ -139,6 +141,8 @@ struct
       let g i (n, c, j) e = f i (n, Obj.repr (C.lift (Obj.obj c)), j) e in
       S.query (conv ctx) (Queries.IterPrevVars g)
     | _ -> S.query (conv ctx) q
+
+  let global_query = S.global_query
 
   let assign ctx lv e =
     S.assign (conv ctx) lv e
@@ -244,6 +248,7 @@ struct
   let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
   let query' ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity   S.query  (fun x -> x q)
+  let global_query = S.global_query
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
@@ -389,6 +394,7 @@ struct
 
   let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
+  let global_query = S.global_query
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
@@ -480,6 +486,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
+  let global_query = S.global_query
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
@@ -1207,6 +1214,8 @@ struct
     let module Result = (val Queries.Result.lattice q) in
     fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
 
+  let global_query = Spec.global_query
+
   let enter ctx l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
     fold' ctx Spec.enter (fun h -> h l f a) g []
@@ -1268,6 +1277,10 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | `Right _ -> true
+
+    let get_s = function
+      | `Left x -> x
+      | `Right _ -> failwith "DeadBranchLifter.get_s"
   end
 
   module EM =
@@ -1304,37 +1317,37 @@ struct
       sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
     }
 
+  let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
+    { gctx with
+      var = Option.map V.get_s gctx.var;
+      global = (fun v -> G.s (gctx.global (V.s v)));
+    }
+
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    match gctx.var, q with
+    | None, _
+    | Some (`Left _), _ ->
+      S.global_query (global_conv gctx) q
+    | Some (`Right g), WarnGlobal ->
+      let em = G.node (gctx.global (V.node g)) in
+      EM.iter (fun exp tv ->
+          match tv with
+          | `Lifted tv ->
+            let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
+            let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
+            M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
+          | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+            M.msg_final Error ~category:Analyzer ~tags:[Category Unsound] "Both branches dead";
+            M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+          | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
+          | `Top -> (* may be both true and false *)
+            ()
+        ) em
+    | Some (`Right g), _ ->
+      Queries.Result.top q
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | `Right g ->
-          let em = G.node (ctx.global (V.node g)) in
-          EM.iter (fun exp tv ->
-              match tv with
-              | `Lifted tv ->
-                let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
-                let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
-                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
-              | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
-                M.msg_final Error ~category:Analyzer ~tags:[Category Unsound] "Both branches dead";
-                M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
-              | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
-              | `Top -> (* may be both true and false *)
-                ()
-            ) em;
-      end
-    | InvariantGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | `Right g ->
-          Queries.Result.top q
-      end
     | IterSysVars (vq, vf) ->
       (* vars for S *)
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
@@ -1349,7 +1362,6 @@ struct
       end
     | _ ->
       S.query (conv ctx) q
-
 
   let branch ctx = S.branch (conv ctx)
 
@@ -1403,6 +1415,10 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | _ -> false
+
+    let get_s = function
+      | `Left x -> x
+      | _ -> failwith "LongjmpLifter.get_s"
   end
 
   module G =
@@ -1432,24 +1448,14 @@ struct
       sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
     }
 
+  let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
+    { gctx with
+      var = Option.map V.get_s gctx.var;
+      global = (fun v -> G.s (gctx.global (V.s v)));
+    }
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | _ ->
-          Queries.Result.top q
-      end
-    | InvariantGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | _ ->
-          Queries.Result.top q
-      end
     | IterSysVars (vq, vf) ->
       (* vars for S *)
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
@@ -1458,6 +1464,13 @@ struct
     | _ ->
       S.query (conv ctx) q
 
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    match gctx.var with
+    | None
+    | Some (`Left _) ->
+      S.global_query (global_conv gctx) q
+    | Some (`Middle _ | `Right _) ->
+      Queries.Result.top q
 
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
@@ -1690,7 +1703,13 @@ struct
       sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_spec g));
     }
 
-  let cycleDetection ctx call =
+  let global_conv (gctx: (V.t, G.t) gctx): (S.V.t, S.G.t) gctx =
+    { gctx with
+      var = Option.map V.get_spec gctx.var;
+      global = (fun v -> G.spec (gctx.global (V.spec v)));
+    }
+
+  let cycleDetection (gctx: _ gctx) call =
     let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
@@ -1707,7 +1726,7 @@ struct
         LH.replace global_visited_calls call ();
         let new_path_visited_calls = LS.add call path_visited_calls in
         let gvar = V.call call in
-        let callers = G.callers (ctx.global gvar) in
+        let callers = G.callers (gctx.global gvar) in
         CallerSet.iter (fun to_call ->
             iter_call new_path_visited_calls to_call
           ) callers;
@@ -1715,27 +1734,18 @@ struct
     in
     iter_call LS.empty call
 
+  let global_query gctx (type a) (q: a Queries.t): a Queries.result =
+    match gctx.var, q with
+    | None, _
+    | Some (`Left _), _ ->
+      S.global_query (global_conv gctx) q
+    | Some (`Right call), WarnGlobal ->
+      cycleDetection gctx call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
+    | Some (`Right call), _ ->
+      Queries.Result.top q
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | WarnGlobal v ->
-      (* check result of loop analysis *)
-      if not (ctx.ask Queries.MustTermAllLoops) then
-        AnalysisState.svcomp_may_not_terminate := true;
-      let v: V.t = Obj.obj v in
-      begin match v with
-        | `Left v' ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right call -> cycleDetection ctx call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
-      end
-    | InvariantGlobal v ->
-      let v: V.t = Obj.obj v in
-      begin match v with
-        | `Left v ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr v))
-        | `Right v ->
-          Queries.Result.top q
-      end
-    | _ -> S.query (conv ctx) q
+    S.query (conv ctx) q
 
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
