@@ -17,20 +17,30 @@ open VectorMatrix
 module Mpqf = SharedFunctions.Mpqf
 
 module Rhs = struct
-  (* (Some i, k,_,_) represents a sum of a variable with index i and the number k.
-     (None,   k,_,_) represents the number k. *)
-  type t = (int option * GobZ.t * GobZ.t * GobZ.t) [@@deriving eq, ord, hash]
-  let var_zero i = (Some i, Z.zero, Z.one, Z.one)
+  (* Rhs represents coefficient*var_i + offset / divisor
+     depending on whether coefficient is 0, the monomial term may disappear completely, not refering to any var_i, thus:
+     (Some (coefficient, i), offset, divisor )         with coefficient != 0    , or
+     (None                 , offset, divisor ) *)
+  type t = ((GobZ.t * int) option *  GobZ.t * GobZ.t) [@@deriving eq, ord, hash]
+  let var_zero i = (Some (Z.one,i), Z.zero, Z.one)
   let show_coeff c =
     if Z.equal c Z.one then ""
     else (Z.to_string c) ^"*"
   let show_rhs_formatted formatter = function
-    | (Some v, o,coeff,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
-    | (Some v, o,coeff,_) -> Printf.sprintf "%s%s%+Ld" (show_coeff coeff) (formatter v) (Z.to_int64 o)
-    | (None,   o,_,_) -> Printf.sprintf "%Ld" (Z.to_int64 o)
-  let show (v,o,c,d) = 
-    let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,c,d) in
+    | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
+    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s%+Ld" (show_coeff coeff) (formatter v) (Z.to_int64 o)
+    | (None,   o,_) -> Printf.sprintf "%Ld" (Z.to_int64 o)
+  let show (v,o,d) =
+    let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
     if not (Z.equal d Z.one) then "(" ^ rhs ^ ")/" ^ (Z.to_string d) else rhs
+
+  (** factor out gcd from all terms, i.e. ax=by+c is the canonical form for adx+bdy+cd *)
+  let canonicalize (v,o,d) =
+    let gcd = Z.gcd o d in
+    let gcd = match v with
+      | Some (c,_) -> Z.gcd c gcd
+      | None -> gcd
+    in (BatOption.map (fun (coeff,i) -> (Z.div coeff gcd,i)) v,Z.div o gcd, Z.div d gcd)
 end
 
 module EqualitiesConjunction = struct
@@ -41,7 +51,7 @@ module EqualitiesConjunction = struct
   let show_formatted formatter econ =
     if IntMap.is_empty econ then "{}"
     else
-      let str = IntMap.fold (fun i (refvar,off,coeff,divi) acc -> Printf.sprintf "%s%s=%s ∧ %s" (Rhs.show_coeff divi) (formatter i) (Rhs.show_rhs_formatted formatter (refvar,off,coeff,divi)) acc) econ "" in
+      let str = IntMap.fold (fun i (ref,off,divi) acc -> Printf.sprintf "%s%s=%s ∧ %s" (Rhs.show_coeff divi) (formatter i) (Rhs.show_rhs_formatted formatter (ref,off,divi)) acc) econ "" in
       "{" ^ String.sub str 0 (String.length str - 4) ^ "}"
 
   let show econ = show_formatted (Printf.sprintf "var_%d") econ
@@ -60,13 +70,18 @@ module EqualitiesConjunction = struct
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
   let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs econmap
 
-  (** set_rhs, staying loyal to immutable, sparse map underneath *)
+  (** set_rhs, staying loyal to immutable, sparse map underneath; do not attempt any normalization *)
   let set_rhs (dim,map) lhs rhs = (dim,
                                    if Rhs.equal rhs Rhs.(var_zero lhs) then
                                      IntMap.remove lhs map
                                    else
                                      IntMap.add lhs rhs map
                                   )
+
+  (** canonicalize equation, and set_rhs, staying loyal to immutable, sparse map underneath,*)
+  let canonicalize_and_set (dim,map) lhs rhs = set_rhs (dim,map) lhs (Rhs.canonicalize rhs)
+
+  (** add a new equality to the domain *)
   let copy = identity
 
 
@@ -91,9 +106,9 @@ module EqualitiesConjunction = struct
                IntHashtbl.add h x r;
                r)
       in
-      let rec bumpentry k (refvar,offset,coeff,divi) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
-        | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset,coeff,divi) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
-        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (memobumpvar) refvar,offset,coeff,divi) tbl, delta, lyst)
+      let rec bumpentry k (refvar,offset,divi) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
+        | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset,divi) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
+        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (fun (c,v) -> (c,memobumpvar v)) refvar,offset,divi) tbl, delta, lyst)
       in
       let (a,_,_) = IntMap.fold bumpentry map (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
       (op dim (Array.length indexes), a)
@@ -116,22 +131,24 @@ module EqualitiesConjunction = struct
   (* Forget information about variable i *)
   let forget_variable d var =
     let res =
-      (let ref_var_opt = Tuple4.first (get_rhs d var) in
+      (let ref_var_opt = Tuple3.first (get_rhs d var) in
        match ref_var_opt with
-       | Some ref_var when ref_var = var ->
+       | Some (_,ref_var) when ref_var = var ->
          (* var is the reference variable of its connected component *)
          (let cluster = IntMap.fold
-              (fun i (ref,_,_,_) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
+              (fun i (ref,_,_) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
           (* obtain cluster with common reference variable ref_var*)
           match cluster with (* new ref_var is taken from head of the cluster *)
           | head :: _ ->
             (* ax = by + c    /\     a'z =    b'y + c'        *)
             (*  ==[[ y:=? ]]==>   (a'b)z = (b'a)x + c' -(b'c) *)
-            let (_,c,b,a) = (get_rhs d head) in (* take offset between old and new reference variable *)
+            let (newref,c,a) = (get_rhs d head) in (* take offset between old and new reference variable *)
+            let (b,_) = BatOption.get newref in
             List.fold (fun map i -> 
-                let (_,c',b',a') = (get_rhs d i) in
-                let newrhs = (Some head, Z.(c' - (b' * c)), Z.(b'*a), Z.(a'*b)) in
-                set_rhs map i newrhs
+                let (oldref,c',a') = (get_rhs d i) in
+                let (b',_) = BatOption.get oldref in
+                let newrhs = (Some (Z.(b'*a),head), Z.(c' - (b' * c)), Z.(a'*b)) in
+                canonicalize_and_set map i newrhs
               ) d cluster (* shift offset to match new reference variable *)
           | [] -> d) (* empty cluster means no work for us *)
        | _ -> d) (* variable is either a constant or expressed by another refvar *) in
