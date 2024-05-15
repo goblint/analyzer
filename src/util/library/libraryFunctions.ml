@@ -440,11 +440,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("times", unknown [drop "buf" [w]]);
     ("mmap", unknown [drop "addr" []; drop "length" []; drop "prot" []; drop "flags" []; drop "fd" []; drop "offset" []]);
     ("munmap", unknown [drop "addr" []; drop "length" []]);
-    ("getline", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r]; drop "stream" [r_deep; w_deep]]);
-    ("getwline", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r]; drop "stream" [r_deep; w_deep]]);
-    ("getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r];  drop "delimiter" [];drop "stream" [r_deep; w_deep]]);
-    ("__getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r];  drop "delimiter" [];drop "stream" [r_deep; w_deep]]);
-    ("getwdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r];  drop "delimiter" [];drop "stream" [r_deep; w_deep]]);
+    ("getline", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "stream" [r_deep; w_deep]]);
+    ("getwline", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "stream" [r_deep; w_deep]]);
+    ("getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
+    ("__getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
+    ("getwdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
   ]
 [@@coverage off]
 
