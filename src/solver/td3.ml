@@ -325,7 +325,11 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              eq x (eval l x) (side ~x)
+              if GobConfig.get_bool "solvers.td3.divided-narrow" then
+                let acc = HM.create 0 in
+                Fun.protect ~finally:(fun () -> HM.iter (fun y d -> divided_side false x y d) acc;) (fun () -> eq x (eval l x) (side_acc acc x))                
+              else
+                eq x (eval l x) (side ~x)
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
@@ -374,6 +378,45 @@ module Base =
             )
           )
         )
+      and combined_side y =
+        match HM.find_option divided_side_effects y with
+        | Some map -> HM.fold (fun _ value acc -> S.Dom.join acc value) map (S.Dom.bot ())
+        | None -> S.Dom.bot ()
+      and side_acc acc x y d =
+        (* TODO: only side if new_acc is different from old *)
+        let new_acc = match HM.find_option acc y with
+          | Some s -> S.Dom.join s d
+          | None -> d in
+        HM.replace acc y new_acc;
+        divided_side true x y new_acc
+      and divided_side growing x y d =
+        (* TODO: side effects without source unknown are only issued in incremental load, it seems.
+           For divided narrowing, is it fair to assume there is always a source?
+           It should be desirable to narrow the values from incremental load *)
+        if tracing then trace "sol2" "divided side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+        if Hooks.system y <> None then (
+          Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
+        );
+        assert (Hooks.system y = None);
+        let init_divided_side_effects y = if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10) in
+        init_divided_side_effects y;
+        init y;
+
+        let y_sides = HM.find divided_side_effects y in 
+        let old_side = HM.find_default y_sides x (S.Dom.bot ()) in
+        let new_side = if growing then S.Dom.widen old_side d else box old_side d in
+
+        if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
+        HM.replace stable y ();
+        if not (S.Dom.equal old_side new_side) then (
+          HM.replace y_sides y new_side;
+          let y_newval = combined_side y in
+          if not (S.Dom.equal y_newval (HM.find rho y)) then (
+            HM.replace rho y y_newval;
+            destabilize y;
+          )
+        );
+
       and eq x get set =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         match Hooks.system x with
