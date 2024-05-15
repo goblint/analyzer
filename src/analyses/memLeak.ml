@@ -252,6 +252,7 @@ struct
       state
     | _ -> state
 
+  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let exitstate v = D.top ()
 

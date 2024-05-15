@@ -171,11 +171,8 @@ type ('d,'g,'c,'v) ctx =
 
 exception Ctx_failure of string
 (** Failure from ctx, e.g. global initializer *)
-exception Enter_func_has_no_context
-(** Tried to call ctx() on enter_func. Caught by callstring-based approaches and turned into an initial context *)
 
 let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
-let enter_func_has_no_context () = raise Enter_func_has_no_context
 
 (** Convert [ctx] to [Queries.ask]. *)
 let ask_of_ctx ctx: Queries.ask = { Queries.f = ctx.ask }
@@ -209,7 +206,8 @@ sig
   val morphstate : varinfo -> D.t -> D.t
   val exitstate  : varinfo -> D.t
 
-  val context : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t -> C.t
+  val context: (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t -> C.t
+  val startcontext: unit -> C.t
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
@@ -424,6 +422,7 @@ module IdentityUnitContextsSpec = struct
   module C = Printable.Unit
 
   let context ctx _ _ = ()
+  let startcontext () = ()
 end
 
 module type SpecSys =

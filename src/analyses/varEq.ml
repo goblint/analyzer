@@ -43,6 +43,7 @@ struct
   let name () = "var_eq"
 
   let startstate v = D.top ()
+  let startcontext () = D.top ()
   let threadenter ctx ~multiple lval f args = [D.top ()]
   let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()

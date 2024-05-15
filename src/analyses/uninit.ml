@@ -24,6 +24,7 @@ struct
 
   let name () = "uninit"
 
+  let startcontext () = D.top ()
   let startstate v : D.t = D.empty ()
   let threadenter ctx ~multiple lval f args = [D.empty ()]
   let threadspawn ctx ~multiple lval f args fctx = ctx.local

@@ -47,14 +47,11 @@ struct
 
   let name () = "call_"^ CT.ana_name
 
+  let startcontext () = CallString.empty
+
   let context ctx fd _ =
-    let curr_context =
-      try
-        ctx.context ()
-      with Enter_func_has_no_context -> CallString.empty
-    in
     let elem = CT.new_ele fd ctx in (* receive element that should be added to call string *)
-    CallString.push curr_context elem
+    CallString.push (ctx.context ()) elem
 end
 
 (* implementations of CallstringTypes*)

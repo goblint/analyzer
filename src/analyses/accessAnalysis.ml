@@ -52,6 +52,9 @@ struct
     );
     if M.tracing then M.traceu "access" "access_one_top"
 
+
+  let startcontext () = ()
+
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
   let threadenter ctx ~multiple lval f args = [()]

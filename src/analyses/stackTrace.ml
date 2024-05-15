@@ -20,6 +20,7 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
+  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
@@ -41,7 +42,7 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
-
+  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let exitstate  v = D.top ()
 

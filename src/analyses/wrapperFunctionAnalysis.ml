@@ -58,6 +58,7 @@ struct
 
   module D = Lattice.Prod (NodeFlatLattice) (UniqueCallCounter)
   module C = D
+  let startcontext () = D.top ()
 
   let wrappers = Hashtbl.create 13
 

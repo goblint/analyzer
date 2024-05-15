@@ -49,6 +49,7 @@ struct
     }
 
   let context ctx fd = S.context (conv ctx) fd % D.unlift
+  let startcontext () = S.startcontext ()
 
   let sync ctx reason =
     D.lift @@ S.sync (conv ctx) reason
@@ -129,6 +130,7 @@ struct
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
 
   let context ctx fd = C.lift % S.context (conv ctx) fd
+  let startcontext () = C.lift @@ S.startcontext ()
 
   let sync ctx reason =
     S.sync (conv ctx) reason
@@ -230,6 +232,7 @@ struct
     }
 
   let context ctx fd (d,_) = S.context (conv ctx) fd d
+  let startcontext () = S.startcontext ()
 
   let lift_fun ctx f g h =
     f @@ h (g (conv ctx))
@@ -375,6 +378,7 @@ struct
 
   let inj f x = f x, M.bot ()
 
+  let startcontext () = S.startcontext ()
   let startstate = inj S.startstate
   let exitstate  = inj S.exitstate
   let morphstate v (d,m) = S.morphstate v d, m
@@ -455,6 +459,8 @@ struct
   let init = S.init
   let finalize = S.finalize
 
+
+  let startcontext () = S.startcontext ()
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
@@ -540,6 +546,8 @@ struct
   let init = S.init
   let finalize = S.finalize
 
+
+  let startcontext () = Some (S.startcontext ())
   let name () = S.name ()^" with context gas"
   let startstate v = S.startstate v, get_int "ana.context.gas_value"
   let exitstate v = S.exitstate v, get_int "ana.context.gas_value"
@@ -1149,6 +1157,7 @@ struct
   let init = Spec.init
   let finalize = Spec.finalize
 
+  let startcontext () = Spec.startcontext ()
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
   let morphstate v d = D.map (Spec.morphstate v) d

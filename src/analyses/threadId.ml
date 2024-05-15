@@ -60,6 +60,8 @@ struct
 
   let name () = "threadid"
 
+  let startcontext () = D.top ()
+
   let context ctx fd ((n,current,td) as d) =
     if GobConfig.get_bool "ana.thread.context.create-edges" then
       d

@@ -1230,6 +1230,8 @@ module Spec : Analyses.MCPSpec = struct
         @@ List.cartesian_product cond_vars mutex_vars
       | _ -> ctx.local
 
+
+  let startcontext () = D.top ()
   let startstate v =
     let open D in
     make

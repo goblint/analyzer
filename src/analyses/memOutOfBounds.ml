@@ -502,6 +502,8 @@ struct
     Option.iter (fun x -> check_lval_for_oob_access ctx x) lval;
     ctx.local
 
+
+  let startcontext () = D.top ()
   let startstate v = ()
   let exitstate v = ()
 end

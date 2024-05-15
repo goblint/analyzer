@@ -14,6 +14,7 @@ struct
 
   let name () = "mallocFresh"
 
+  let startcontext () = D.top ()
   let startstate _ = D.empty ()
   let exitstate _ = D.empty ()
 

@@ -46,6 +46,7 @@ struct
     else
       D.top ()
 
+  let startcontext () = D.top ()
   let exitstate  _ = { rel = RD.top (); priv = Priv.startstate () }
   let startstate _ = { rel = RD.top (); priv = Priv.startstate () }
 

@@ -60,6 +60,8 @@ struct
   module D = Domain
   module C = Domain
 
+  let startcontext () = D.top ()
+
   (* >? is >>=, |? is >> *)
   let (>?) = Option.bind
 

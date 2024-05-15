@@ -120,7 +120,7 @@ struct
   let step_ctx ctx x e =
     try
       step ctx.prev_node (ctx.context ()) x e (snd ctx.local)
-    with Ctx_failure _ | Enter_func_has_no_context ->
+    with Ctx_failure _ ->
       R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
   let step_ctx_inlined_edge ctx x = step_ctx ctx x (InlinedEdge ctx.edge)
@@ -146,6 +146,8 @@ struct
     else
       let x = Dom.choose_key l in
       Spec.context (conv ctx x) fd @@ x
+
+  let startcontext = Spec.startcontext
 
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)

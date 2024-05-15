@@ -117,6 +117,14 @@ struct
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, Obj.repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, Obj.repr @@ S.morphstate v (Obj.obj d)) (spec_list x)
 
+  let startcontext () =
+    filter_map (fun (n,{spec=(module S:MCPSpec); _}) ->
+        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
+          None
+        else
+          Some (n, Obj.repr @@ S.startcontext ())
+      ) !activated
+
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs

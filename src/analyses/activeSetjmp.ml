@@ -24,6 +24,7 @@ struct
       D.add (Target entry) ctx.local
     | _ -> ctx.local
 
+  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate v = D.top ()

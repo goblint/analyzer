@@ -173,6 +173,8 @@ struct
   let startstate v =
     `Lifted (RegMap.bot ())
 
+  let startcontext () = D.top ()
+
   let threadenter ctx ~multiple lval f args =
     [`Lifted (RegMap.bot ())]
   let threadspawn ctx ~multiple lval f args fctx =

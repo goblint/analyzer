@@ -15,6 +15,7 @@ struct
   module D = MapDomain.MapBot (Basetype.CilExp) (ID)
   module C = D
 
+  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let exitstate = startstate
 

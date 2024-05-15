@@ -42,13 +42,8 @@ struct
     in
     append fd (FundecSet.empty ()) [] current
 
-  let context ctx fd x =
-    let curr_context =
-      try
-        ctx.context ()
-      with Enter_func_has_no_context -> []
-    in
-    append fd curr_context
+  let startcontext () = []
+  let context ctx fd x = append fd (ctx.context ())
 end
 
 let _ = MCP.register_analysis (module Spec : MCPSpec)

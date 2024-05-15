@@ -134,6 +134,7 @@ struct
     }
 
   let context ctx fd = S.context (conv ctx) fd % D.unlift
+  let startcontext () = S.startcontext ()
 
   let lift_fun ctx f g h =
     let new_tokens = ref (snd ctx.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)

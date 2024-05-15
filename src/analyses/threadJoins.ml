@@ -105,6 +105,8 @@ struct
     let (callee_joined, callee_clean) = au in
     (MustTIDs.union caller_joined callee_joined, local_clean && callee_clean)
 
+
+  let startcontext () = D.top ()
   let startstate v = (MustTIDs.empty (), true)
   let exitstate  v = (MustTIDs.empty (), true)
 end

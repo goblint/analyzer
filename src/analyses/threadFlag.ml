@@ -26,6 +26,8 @@ struct
 
   let name () = "threadflag"
 
+
+  let startcontext () = D.top ()
   let startstate v = Flag.bot ()
   let exitstate  v = Flag.get_multi ()
 

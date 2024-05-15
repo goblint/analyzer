@@ -37,6 +37,7 @@ struct
   end
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
+  let startcontext () = ()
   let startstate _ = ()
   let exitstate = startstate
 

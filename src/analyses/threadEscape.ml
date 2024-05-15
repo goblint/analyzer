@@ -161,6 +161,7 @@ struct
       D.join ctx.local escaped
     | _ -> ctx.local
 
+  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()
 

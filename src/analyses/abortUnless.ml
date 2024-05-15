@@ -64,6 +64,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     false
 
+  let startcontext () = ()
   let startstate v = false
   let threadenter ctx ~multiple lval f args = [false]
   let threadspawn ctx ~multiple lval f args fctx = false

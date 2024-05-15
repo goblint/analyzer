@@ -33,6 +33,8 @@ struct
   module C = D
   module P = IdentityP (D) (* fully path-sensitive *)
 
+  let startcontext () = C.top ()
+
   let step d prev_node node =
     match d with
     | `Lifted q -> begin

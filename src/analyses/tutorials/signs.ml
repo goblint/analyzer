@@ -53,6 +53,7 @@ struct
   module C = D
 
   let startstate v = D.bot ()
+  let startcontext () = D.top ()
   let exitstate = startstate
 
   include Analyses.IdentitySpec

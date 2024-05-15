@@ -92,6 +92,8 @@ struct
       end
     | _ -> Queries.Result.top q
 
+
+  let startcontext () = D.top ()
   let startstate v = D.bot ()
 
   let threadenter ctx ~multiple lval f args =

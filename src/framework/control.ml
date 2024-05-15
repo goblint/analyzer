@@ -404,8 +404,8 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = enter_func_has_no_context
-        ; context = enter_func_has_no_context
+        ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+        ; context = Spec.startcontext
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
@@ -463,8 +463,8 @@ struct
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
       ; node    = MyCFG.dummy_node
       ; prev_node = MyCFG.dummy_node
-      ; control_context = enter_func_has_no_context
-      ; context = enter_func_has_no_context
+      ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+      ; context = Spec.startcontext
       ; edge    = MyCFG.Skip
       ; local   = e
       ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
