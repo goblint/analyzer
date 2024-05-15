@@ -316,7 +316,6 @@ sig
 
   (** is_empty is true, if the domain representation has a dimension size of zero *)
   val is_empty : t -> bool
-  val is_empty : t -> bool
   val dim_add : Apron.Dim.change -> t -> t
   val dim_remove : Apron.Dim.change -> t -> del:bool-> t
 end
