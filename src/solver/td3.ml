@@ -56,6 +56,7 @@ module Base =
       infl: VS.t HM.t;
       sides: VS.t HM.t;
       divided_side_effects: (S.Dom.t HM.t) HM.t;
+      orphan_side_effects: S.Dom.t HM.t;
       rho: S.Dom.t HM.t;
       wpoint: unit HM.t;
       stable: unit HM.t;
@@ -73,6 +74,7 @@ module Base =
       infl = HM.create 10;
       sides = HM.create 10;
       divided_side_effects = HM.create (if GobConfig.get_bool "solvers.td3.divided-narrow" then 10 else 0);
+      orphan_side_effects = HM.create (if GobConfig.get_bool "solvers.td3.divided-narrow" then 10 else 0);
       rho = HM.create 10;
       wpoint = HM.create 10;
       stable = HM.create 10;
@@ -122,6 +124,7 @@ module Base =
         infl = HM.copy data.infl;
         sides = HM.copy data.sides;
         divided_side_effects = HM.copy data.divided_side_effects;
+        orphan_side_effects = HM.copy data.orphan_side_effects;
         side_infl = HM.copy data.side_infl;
         side_dep = HM.copy data.side_dep;
         st = data.st; (* data.st is immutable *)
@@ -173,6 +176,10 @@ module Base =
           HM.iter (fun k v -> HM.replace inner_copy (S.Var.relift k) (S.Dom.relift v)) v;
           HM.replace divided_side_effects (S.Var.relift k) inner_copy
         ) data.divided_side_effects;
+      let orphan_side_effects = HM.create (HM.length data.orphan_side_effects) in
+      HM.iter (fun k v -> 
+          HM.replace orphan_side_effects (S.Var.relift k) (S.Dom.relift v)
+        ) data.orphan_side_effects;
       let side_infl = HM.create (HM.length data.side_infl) in
       HM.iter (fun k v ->
           HM.replace side_infl (S.Var.relift k) (VS.map S.Var.relift v)
@@ -198,7 +205,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; divided_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -234,6 +241,7 @@ module Base =
       let infl = data.infl in
       let sides = data.sides in
       let divided_side_effects = data.divided_side_effects in
+      let orphan_side_effects = data.orphan_side_effects in
       let rho = data.rho in
       let wpoint = data.wpoint in
       let stable = data.stable in
@@ -327,7 +335,7 @@ module Base =
               HM.replace dep x VS.empty;
               if GobConfig.get_bool "solvers.td3.divided-narrow" then
                 let acc = HM.create 0 in
-                Fun.protect ~finally:(fun () -> HM.iter (fun y d -> divided_side false x y d) acc;) (fun () -> eq x (eval l x) (side_acc acc x))                
+                Fun.protect ~finally:(fun () -> HM.iter (fun y d -> divided_side false ~x y d) acc;) (fun () -> eq x (eval l x) (side_acc acc x))                
               else
                 eq x (eval l x) (side ~x)
           in
@@ -379,42 +387,54 @@ module Base =
           )
         )
       and combined_side y =
-        match HM.find_option divided_side_effects y with
+        let combined = match HM.find_option divided_side_effects y with
         | Some map -> HM.fold (fun _ value acc -> S.Dom.join acc value) map (S.Dom.bot ())
-        | None -> S.Dom.bot ()
+        | None -> S.Dom.bot () in
+        let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot()) in
+        S.Dom.join combined orphaned
       and side_acc acc x y d =
         (* TODO: only side if new_acc is different from old *)
         let new_acc = match HM.find_option acc y with
           | Some s -> S.Dom.join s d
           | None -> d in
         HM.replace acc y new_acc;
-        divided_side true x y new_acc
-      and divided_side growing x y d =
-        (* TODO: side effects without source unknown are only issued in incremental load, it seems.
-           For divided narrowing, is it fair to assume there is always a source?
-           It should be desirable to narrow the values from incremental load *)
-        if tracing then trace "sol2" "divided side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+        divided_side true ~x y new_acc;
+      and divided_side growing ?x y d =
+        if tracing then trace "sol2" "divided side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
           Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (Hooks.system y = None);
-        let init_divided_side_effects y = if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10) in
-        init_divided_side_effects y;
         init y;
-
-        let y_sides = HM.find divided_side_effects y in 
-        let old_side = HM.find_default y_sides x (S.Dom.bot ()) in
-        let new_side = if growing then S.Dom.widen old_side d else box old_side d in
-
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
-        HM.replace stable y ();
-        if not (S.Dom.equal old_side new_side) then (
-          HM.replace y_sides y new_side;
-          let y_newval = combined_side y in
-          if not (S.Dom.equal y_newval (HM.find rho y)) then (
-            HM.replace rho y y_newval;
-            destabilize y;
+        match x with
+        | Some x -> (
+            let init_divided_side_effects y = if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10) in
+            init_divided_side_effects y;
+
+            let y_sides = HM.find divided_side_effects y in 
+            let old_side = HM.find_default y_sides x (S.Dom.bot ()) in
+            let new_side = if growing then S.Dom.widen old_side d else box old_side d in
+
+            HM.replace stable y ();
+            if not (S.Dom.equal old_side new_side) then (
+              HM.replace y_sides y new_side;
+              let y_newval = combined_side y in
+              if not (S.Dom.equal y_newval (HM.find rho y)) then (
+                HM.replace rho y y_newval;
+                destabilize y;
+              )
+            );
           )
+        | None -> (
+            let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot ()) in
+            let wd = S.Dom.widen orphaned d in
+            HM.replace orphan_side_effects y wd;
+            let y_oldval = HM.find rho y in
+            if not (S.Dom.leq wd y_oldval) then (
+              HM.replace rho y (S.Dom.join wd y_oldval);
+              destabilize y;
+            )
         );
 
       and eq x get set =
@@ -1100,7 +1120,8 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; divided_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (* TODO: clear side-effects? *)
+      (rho, {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 (** TD3 with no hooks. *)
