@@ -432,6 +432,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("stpcpy", unknown [drop "dest" [w]; drop "src" [r]]);
     ("dup", unknown [drop "oldfd" []]);
     ("readdir_r", unknown [drop "dirp" [r_deep]; drop "entry" [r_deep]; drop "result" [w]]);
+    ("scandir", unknown [drop "dirp" [r]; drop "namelist" [w]; drop "filter" [r]; drop "compar" [r]]);
     ("pipe", unknown [drop "pipefd" [w_deep]]);
     ("waitpid", unknown [drop "pid" []; drop "wstatus" [w]; drop "options" []]);
     ("strerror_r", unknown [drop "errnum" []; drop "buff" [w]; drop "buflen" []]);
@@ -649,7 +650,6 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
     ("__readlink_alias", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []]);
     ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
-    ("__ctype_b_loc", unknown []);
     ("__ctype_get_mb_cur_max", unknown []);
     ("__maskrune", unknown [drop "c" [w]; drop "f" []]);
     ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
@@ -693,10 +693,9 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("clnt_sperrno", unknown [drop "stat" []]);
     ("pmap_unset", unknown [drop "prognum" []; drop "versnum" []]);
     ("svcudp_create", unknown [drop "sock" []]);
-    ("svc_register", unknown [drop "xprt" [r;w]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r;w]; drop "protocol" []]);
+    ("svc_register", unknown [drop "xprt" [r_deep; w_deep]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r; w]; drop "protocol" []]);
     ("svc_run", unknown []);
     (* RPC library end *)
-    ("scandir", unknown [drop "dirp" [r]; drop "namelist" [w_deep]; drop "filter" [r]; drop "compar" [r]]);
   ]
 [@@coverage off]
 
@@ -713,7 +712,6 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__errno", unknown []);
     ("__errno_location", unknown []);
     ("__h_errno_location", unknown []);
-    ("printk", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
     ("__printf_chk", unknown [drop "flag" []; drop "format" [r]]);
     ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
@@ -741,8 +739,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__xstat", unknown [drop "ver" []; drop "path" [r]; drop "stat_buf" [w]]);
     ("__lxstat", unknown [drop "ver" []; drop "path" [r]; drop "stat_buf" [w]]);
     ("__fxstat", unknown [drop "ver" []; drop "fildes" []; drop "stat_buf" [w]]);
-    ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r]]);
-    ("usb_submit_urb", unknown [drop "urb" [r]; drop "mem_flags" []]); (* first argument is written to but according to specification must not be read from anymore *)
+    ("__ctype_b_loc", unknown []);
+    ("_IO_getc", unknown [drop "f" [r_deep; w_deep]]);
   ]
 [@@coverage off]
 
@@ -758,7 +756,7 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("up_read", special [__ "sem" []] @@ fun sem -> Unlock sem);
     ("up_write", special [__ "sem" []] @@ fun sem -> Unlock sem);
     ("mutex_init", unknown [drop "mutex" []]);
-    ("__mutex_init", unknown [drop "lock" [r]; drop "name" [r]; drop "key" [r]]);
+    ("__mutex_init", unknown [drop "lock" []; drop "name" [r]; drop "key" [r]]);
     ("mutex_lock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("mutex_trylock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = true; write = true; return_on_success = true });
     ("mutex_lock_interruptible", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
@@ -810,7 +808,12 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
     ("kzalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Calloc {count = Cil.one; size});
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
+    ("usb_submit_urb", unknown [drop "urb" [r_deep; w_deep]; drop "mem_flags" []]); (* old comment: first argument is written to but according to specification must not be read from anymore *)
+    ("dev_driver_string", unknown [drop "dev" [r_deep]]);
     ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
+    ("idr_pre_get", unknown [drop "idp" [r_deep]; drop "gfp_mask" []]);
+    ("printk", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r]]);
   ]
 [@@coverage off]
 
@@ -1100,11 +1103,8 @@ let klever_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("rtnl_lock", special [] @@ Lock { lock = rtnl_lock; try_ = false; write = true; return_on_success = true });
     ("rtnl_unlock", special [] @@ Unlock rtnl_lock);
     ("__rtnl_unlock", special [] @@ Unlock rtnl_lock);
-    (* ldv-benchmarks *)
     (* ddverify *)
-    ("sema_init", unknown [drop "sem" [r]; drop "val" []]);
-    ("idr_pre_get", unknown [drop "idp" [r]; drop "gfp_mask" []]);
-    ("dev_driver_string", unknown [drop "dev" [r]]);
+    ("sema_init", unknown [drop "sem" []; drop "val" []]);
   ]
 [@@coverage off]
 
@@ -1188,9 +1188,6 @@ let liblzma_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 [@@coverage off]
 
 let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
-    (* TODO: was "zil_replay", writes [1;2;3;5]; but couldn't find anything with 5/6 arguments, also not in bench *)
-    ("zil_replay", unknown [drop "os" [w]; drop "arg" [w]; drop "replay_func" [r]]);
-    ("_IO_getc", unknown [drop "f" [r_deep; w_deep]]);
     ("__open_alias", unknown (drop "path" [r] :: drop "oflag" [] :: VarArgs (drop' [r])));
     ("__open_2", unknown [drop "file" [r]; drop "oflag" []]);
     ("__open_too_many_args", unknown []);
@@ -1201,7 +1198,7 @@ let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("uncompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []]);
     ("compress2", unknown [drop "dest" [r]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "level" []]);
     (* opensssl blowfish *)
-    ("BF_cfb64_encrypt", unknown [drop "in" [r]; drop "out" [w]; drop "length" []; drop "schedule" [r]; drop "ivec" [w]; drop "num" [w]; drop "enc" [r]]);
+    ("BF_cfb64_encrypt", unknown [drop "in" [r]; drop "out" [w]; drop "length" []; drop "schedule" [r]; drop "ivec" [r; w]; drop "num" [r; w]; drop "enc" []]);
     ("BF_set_key", unknown [drop "key" [w]; drop "len" []; drop "data" [r]]);
     (* libintl *)
     ("textdomain", unknown [drop "domainname" [r]]);
