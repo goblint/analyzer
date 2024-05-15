@@ -552,7 +552,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__assert", special [drop "assertion" [r]; drop "file" [r]; drop "line" []] @@ Abort); (* header says: The following is not at all used here but needed for standard compliance. *)
     ("__builtin_return_address", unknown [drop "level" []]);
     ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
-    ("__builtin___snprintf_chk", unknown [drop "s" [w]; drop "maxlen" []; drop "flag" []; drop "os" []]);
+    ("__builtin___snprintf_chk", unknown (drop "s" [w] :: drop "maxlen" [] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
     ("__builtin___vsprintf_chk", unknown [drop "s" [w]; drop "flag" []; drop "os" []; drop "fmt" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("__builtin___vsnprintf_chk", unknown [drop "s" [w]; drop "maxlen" []; drop "flag" []; drop "os" []; drop "fmt" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("__builtin___printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
