@@ -1,4 +1,4 @@
-// PARAM: --set ana.base.privatization write --disable exp.priv-distr-init
+// PARAM: --set ana.base.privatization write
 #include<pthread.h>
 struct a {
   char* b;
