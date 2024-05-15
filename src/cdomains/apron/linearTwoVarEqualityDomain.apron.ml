@@ -725,14 +725,14 @@ struct
       lincons
     in
     let get_const acc i = function
-      | (None, o) ->
+      | (None, o, d) ->
         let xi = Environment.var_of_dim t.env i in
-        of_coeff xi [(Coeff.s_of_int (-1), xi)] o :: acc
-      | (Some r, _) when r = i -> acc
-      | (Some r, o) ->
+        of_coeff xi [(Coeff.s_of_int (- (Z.to_int d)), xi)] o :: acc
+      | (Some (c,r), _,_) when r = i -> acc
+      | (Some (c,r), o, d) ->
         let xi = Environment.var_of_dim t.env i in
         let ri = Environment.var_of_dim t.env r in
-        of_coeff xi [(Coeff.s_of_int (-1), xi); (Coeff.s_of_int 1, ri)] o :: acc
+        of_coeff xi [(Coeff.s_of_int (- (Z.to_int d)), xi); (Coeff.s_of_int @@ Z.to_int c, ri)] o :: acc
     in
     BatOption.get t.d |> fun (_,map) -> EConj.IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
 
