@@ -748,6 +748,15 @@ struct
     if get_bool "exp.arg" then (
       let module ArgTool = ArgTools.Make (R) in
       let module Arg = (val ArgTool.create entrystates) in
+      let module Arg =
+        (val match get_string "witness.graphml.id" with
+          | "node" ->
+            (module Arg: ArgTools.BiArg)
+          | "enumerate" ->
+            (module ArgTools.Enumerate (Arg))
+          | _ -> failwith "witness.graphml.id: illegal value"
+        )
+      in
       if get_bool "exp.argdot" then (
         let module ArgDot = ArgTools.Dot (Arg) in
         let oc = Batteries.open_out "arg.dot" in

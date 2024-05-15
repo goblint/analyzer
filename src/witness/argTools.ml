@@ -39,6 +39,23 @@ struct
     Format.fprintf ppf "@[<v 2>digraph arg {%t@]@,}@\n" dot_nodes
 end
 
+module Enumerate (Arg: BiArg): BiArg =
+struct
+  include Arg
+
+  module Node =
+  struct
+    include Node
+
+    module HC = BatHashcons.MakeTable (Node)
+    let htable = HC.create 113
+
+    let to_string n =
+      let hc = HC.hashcons htable n in
+      string_of_int hc.tag
+  end
+end
+
 let current_arg: (module BiArg) option ref = ref None
 
 module Make (R: ResultQuery.SpecSysSol2) =

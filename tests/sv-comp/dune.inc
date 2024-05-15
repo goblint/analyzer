@@ -6,7 +6,7 @@
      (target for_fun_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -21,7 +21,7 @@
      (target for_odd_vesal_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -36,7 +36,7 @@
      (target for_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -51,7 +51,7 @@
      (target global_init_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -66,7 +66,7 @@
      (target if_det_false-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -81,7 +81,7 @@
      (target if_det_incr_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -96,7 +96,7 @@
      (target if_det_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -111,7 +111,7 @@
      (target if_mod_false-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -126,7 +126,7 @@
      (target if_mod_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -141,7 +141,7 @@
      (target if_nondet_fun_false-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -156,7 +156,7 @@
      (target if_nondet_var_false-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -171,7 +171,7 @@
      (target if_trier_exclude_multiple_false-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -186,7 +186,7 @@
      (target if_trier_exclude_multiple_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
@@ -201,7 +201,7 @@
      (target if_trier_exclude_true-unreach-call.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
        (with-stdout-to %{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule
