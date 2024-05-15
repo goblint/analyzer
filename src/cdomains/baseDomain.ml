@@ -92,7 +92,7 @@ struct
 
   let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); weak = WeakUpdates.bot (); priv = PrivD.bot ()}
   let is_bot {cpa; deps; weak; priv} = CPA.is_bot cpa && PartDeps.is_bot deps && WeakUpdates.is_bot weak && PrivD.is_bot priv
-  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.bot ()}
+  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.top ()}
   let is_top {cpa; deps; weak; priv} = CPA.is_top cpa && PartDeps.is_top deps && WeakUpdates.is_top weak && PrivD.is_top priv
 
   let leq {cpa=x1; deps=x2; weak=x3; priv=x4 } {cpa=y1; deps=y2; weak=y3; priv=y4} =

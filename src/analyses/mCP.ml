@@ -20,16 +20,16 @@ struct
   module V = DomVariantSysVar (VarListSpec)
   module P = DomListRepresentative (PathListSpec)
 
-  open List open Obj
-  let v_of n v = (n, repr v)
-  let g_of n g = `Lifted (n, repr g)
+  open List
+  let v_of n v = (n, Obj.repr v)
+  let g_of n g = `Lifted (n, Obj.repr g)
   let g_to n = function
     | `Lifted (n', g) ->
       assert (n = n');
       g
     | `Bot ->
       let module S = (val GlobalDomainListSpec.assoc_dom n) in
-      repr (S.bot ())
+      Obj.repr (S.bot ())
     | `Top ->
       failwith "MCP2.g_to: top"
 
@@ -109,13 +109,13 @@ struct
 
   let map_deadcode f xs =
     let dead = ref false in
-    let one_el xs (n,(module S:MCPSpec),d) = try f xs (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
+    let one_el xs (n,(module S:MCPSpec),d) = try f xs (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,Obj.repr @@ S.D.bot ()) :: xs in
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
-  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
-  let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
+  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, Obj.repr @@ S.exitstate  v) !activated
+  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, Obj.repr @@ S.startstate v) !activated
+  let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, Obj.repr @@ S.morphstate v (Obj.obj d)) (spec_list x)
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
@@ -203,7 +203,7 @@ struct
         let f post_all (n,(module S:MCPSpec),(d,od)) =
           let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all ctx'' n d in
           let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
-          n, repr @@ S.event ctx' e octx'
+          n, Obj.repr @@ S.event ctx' e octx'
         in
         if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pretty e D.pretty ctx.local;
         let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
@@ -234,7 +234,7 @@ struct
           None
         else
           let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "context_computation" ctx'' n d in
-          Some (n, repr @@ S.context ctx' fd (obj d))
+          Some (n, Obj.repr @@ S.context ctx' fd (Obj.obj d))
       ) x
 
   and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
@@ -245,7 +245,7 @@ struct
     let ctx'' = outer_ctx "branch" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "branch" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.branch ctx' e tv
+      n, Obj.repr @@ S.branch ctx' e tv
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -330,7 +330,7 @@ struct
     let ctx'' = outer_ctx "access" ctx in
     let f (n, (module S: MCPSpec), d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "access" ctx'' n d in
-      (n, repr (S.access ctx' a))
+      (n, Obj.repr (S.access ctx' a))
     in
     BatList.map f (spec_list ctx.local) (* map without deadcode *)
 
@@ -359,13 +359,13 @@ struct
   (* Explicitly polymorphic type required here for recursive call in branch. *)
   and inner_ctx: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) ctx -> int -> Obj.t -> (d, g, c, v) ctx = fun tfname ?splits ?(post_all=[]) ctx n d ->
     let split = match splits with
-      | Some splits -> (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+      | Some splits -> (fun d es   -> splits := (n,(Obj.repr d,es)) :: !splits)
       | None -> (fun _ _    -> failwith ("Cannot \"split\" in " ^ tfname ^ " context."))
     in
     { ctx with
-      local  = obj d
-    ; context = (fun () -> ctx.context () |> assoc n |> obj)
-    ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
+      local  = Obj.obj d
+    ; context = (fun () -> ctx.context () |> assoc n |> Obj.obj)
+    ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> Obj.obj)
     ; split
     ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
     }
@@ -378,7 +378,7 @@ struct
     let ctx'' = outer_ctx "assign" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "assign" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.assign ctx' l e
+      n, Obj.repr @@ S.assign ctx' l e
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -396,7 +396,7 @@ struct
     let ctx'' = outer_ctx "vdecl" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "vdecl" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.vdecl ctx' v
+      n, Obj.repr @@ S.vdecl ctx' v
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -413,7 +413,7 @@ struct
     let ctx'' = outer_ctx "body" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "body" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.body ctx' f
+      n, Obj.repr @@ S.body ctx' f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -430,7 +430,7 @@ struct
     let ctx'' = outer_ctx "return" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "return" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.return ctx' e f
+      n, Obj.repr @@ S.return ctx' e f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -448,7 +448,7 @@ struct
     let ctx'' = outer_ctx "asm" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.asm ctx'
+      n, Obj.repr @@ S.asm ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -465,7 +465,7 @@ struct
     let ctx'' = outer_ctx "skip" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "skip" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.skip ctx'
+      n, Obj.repr @@ S.skip ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -482,7 +482,7 @@ struct
     let ctx'' = outer_ctx "special" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "special" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.special ctx' r f a
+      n, Obj.repr @@ S.special ctx' r f a
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -499,7 +499,7 @@ struct
     let ctx'' = outer_ctx "sync" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "sync" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.sync ctx' reason
+      n, Obj.repr @@ S.sync ctx' reason
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -514,7 +514,7 @@ struct
     let ctx'' = outer_ctx "enter" ~spawns ~sides ctx in
     let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "enter" ctx'' n d in
-      map (fun (c,d) -> ((n, repr c), (n, repr d))) @@ S.enter ctx' r f a
+      map (fun (c,d) -> ((n, Obj.repr c), (n, Obj.repr d))) @@ S.enter ctx' r f a
     in
     let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -542,7 +542,7 @@ struct
     in
     let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_env" ~post_all ctx'' n d in
-      n, repr @@ S.combine_env ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
+      n, Obj.repr @@ S.combine_env ctx' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
     in
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;
@@ -571,7 +571,7 @@ struct
     in
     let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_assign" ~post_all ctx'' n d in
-      n, repr @@ S.combine_assign ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
+      n, Obj.repr @@ S.combine_assign ctx' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
     in
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;
@@ -585,7 +585,7 @@ struct
     let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in
     let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadenter" ctx'' n d in
-      map (fun d -> (n, repr d)) @@ (S.threadenter ~multiple) ctx' lval f a
+      map (fun d -> (n, Obj.repr d)) @@ (S.threadenter ~multiple) ctx' lval f a
     in
     let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
@@ -600,7 +600,7 @@ struct
     let f post_all (n,(module S:MCPSpec),(d,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all ctx'' n d in
       let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all fctx'' n fd in
-      n, repr @@ S.threadspawn ~multiple ctx' lval f a fctx'
+      n, Obj.repr @@ S.threadspawn ~multiple ctx' lval f a fctx'
     in
     let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
     do_sideg ctx !sides;

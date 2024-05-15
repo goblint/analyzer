@@ -199,7 +199,8 @@ let getFuns fileAST : startfuns =
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
 
-(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. *)
+(** Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs.
+    @raise Invalid_argument if not integral type. *)
 let rec get_ikind t =
   (* important to unroll the type here, otherwise problems with typedefs *)
   match Cil.unrollType t with
@@ -208,6 +209,7 @@ let rec get_ikind t =
   | TPtr _ -> get_ikind !Cil.upointType
   | _ -> invalid_arg ("Cilfacade.get_ikind: non-integer type " ^ CilType.Typ.show t)
 
+(** @raise Invalid_argument if not floating-point type. *)
 let get_fkind t =
   (* important to unroll the type here, otherwise problems with typedefs *)
   match Cil.unrollType t with
@@ -245,6 +247,7 @@ let () = Printexc.register_printer (function
 (* Cil doesn't expose this *)
 let stringLiteralType = ref charPtrType
 
+(** @raise TypeOfError *)
 let typeOfRealAndImagComponents t =
   match unrollType t with
   | TInt _ -> t
@@ -272,6 +275,7 @@ let isComplexFKind = function
   | FComplexLongDouble
   | FComplexFloat128 -> true
 
+(** @raise TypeOfError *)
 let rec typeOf (e: exp) : typ =
   match e with
   | Const(CInt (_, ik, _)) -> TInt(ik, [])
@@ -308,11 +312,13 @@ let rec typeOf (e: exp) : typ =
       | _ -> raise (TypeOfError StartOf_NonArray)
     end
 
+(** @raise TypeOfError *)
 and typeOfInit (i: init) : typ =
   match i with
     SingleInit e -> typeOf e
   | CompoundInit (t, _) -> t
 
+(** @raise TypeOfError *)
 and typeOfLval = function
     Var vi, off -> typeOffset vi.vtype off
   | Mem addr, off -> begin
@@ -321,6 +327,7 @@ and typeOfLval = function
       | _ -> raise (TypeOfError (Mem_NonPointer addr))
     end
 
+(** @raise TypeOfError *)
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
@@ -363,7 +370,12 @@ let mkCast ~(e: exp) ~(newt: typ) =
   in
   Cil.mkCastT ~e ~oldt ~newt
 
+(** @raise TypeOfError
+    @raise Invalid_argument if not integral type. *)
 let get_ikind_exp e = get_ikind (typeOf e)
+
+(** @raise TypeOfError
+    @raise Invalid_argument if not floating-point type. *)
 let get_fkind_exp e = get_fkind (typeOf e)
 
 (** Make {!Cil.BinOp} with correct implicit casts inserted. *)
