@@ -7,7 +7,7 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (modules :standard \ goblint privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs
+  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs elina
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.

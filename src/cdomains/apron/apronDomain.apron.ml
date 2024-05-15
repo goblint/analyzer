@@ -41,13 +41,13 @@ end
     For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
 module OctagonManager =
 struct
-  type mt = Oct.t
+  type mt = Elina_oct.t
 
   (* Type of the manager *)
   type t = mt Manager.t
 
   (* Create the manager *)
-  let mgr =  Oct.manager_alloc ()
+  let mgr =  Elina_oct.manager_alloc ()
   let name () = "Octagon"
 end
 
@@ -704,13 +704,13 @@ struct
     let y_env = A.env y in
     if Environment.equal x_env y_env then (
       if GobConfig.get_bool "ana.apron.threshold_widening" then (
-        if Oct.manager_is_oct Man.mgr then (
-          let octmgr = Oct.manager_to_oct Man.mgr in
+        if Elina_oct.manager_is_opt_oct Man.mgr then (
+          let octmgr = Elina_oct.manager_to_opt_oct Man.mgr in
           let ts = ResettableLazy.force widening_thresholds_apron in
-          let x_oct = Oct.Abstract1.to_oct x in
-          let y_oct = Oct.Abstract1.to_oct y in
-          let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
-          Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+          let x_oct = Elina_oct.Abstract1.to_opt_oct x in
+          let y_oct = Elina_oct.Abstract1.to_opt_oct y in
+          let r = Elina_oct.elina_abstract0_opt_oct_widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+          Elina_oct.Abstract1.of_opt_oct {x_oct with abstract0 = r}
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
@@ -763,12 +763,12 @@ struct
     let x_env = A.env x in
     let y_env = A.env y in
     if Environment.equal x_env y_env then (
-      if Oct.manager_is_oct Man.mgr then (
-        let octmgr = Oct.manager_to_oct Man.mgr in
-        let x_oct = Oct.Abstract1.to_oct x in
-        let y_oct = Oct.Abstract1.to_oct y in
-        let r = Oct.narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
-        Oct.Abstract1.of_oct {env = x_env; abstract0 = r}
+      if Elina_oct.manager_is_opt_oct Man.mgr then (
+        let octmgr = Elina_oct.manager_to_opt_oct Man.mgr in
+        let x_oct = Elina_oct.Abstract1.to_opt_oct x in
+        let y_oct = Elina_oct.Abstract1.to_opt_oct y in
+        let r = Elina_oct.elina_abstract0_opt_oct_narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
+        Elina_oct.Abstract1.of_opt_oct {env = x_env; abstract0 = r}
       )
       else
         x
@@ -823,17 +823,17 @@ struct
 
   type marshal = OctagonD.marshal
 
-  let marshal t : Oct.t Abstract0.t * string array =
+  let marshal t : Elina_oct.t Abstract0.t * string array =
     let convert_single (a: t): OctagonD.t =
-      if Oct.manager_is_oct Man.mgr then
-        Oct.Abstract1.to_oct a
+      if Elina_oct.manager_is_opt_oct Man.mgr then
+        Elina_oct.Abstract1.to_opt_oct a
       else
         let generator = to_lincons_array a in
         OctagonD.of_lincons_array generator
     in
     OctagonD.marshal @@ convert_single t
 
-  let unmarshal (m: marshal) = Oct.Abstract1.of_oct @@ OctagonD.unmarshal m
+  let unmarshal (m: marshal) = Elina_oct.Abstract1.of_opt_oct @@ OctagonD.unmarshal m
 end
 
 (** Lift [D] to a non-reduced product with box.
