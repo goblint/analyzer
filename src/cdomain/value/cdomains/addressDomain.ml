@@ -112,6 +112,7 @@ struct
 
   let amenable_to_meet x y = match x,y with
     | StrPtr _, StrPtr _ -> true
+    | Addr x, Addr y when Mval.equal (Mval.top_indices x) (Mval.top_indices y) -> true
     | _ -> false
 
   let leq x y = match x, y with
