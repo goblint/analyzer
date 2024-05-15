@@ -169,7 +169,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
     ("signal", unknown [drop "signum" []; drop "handler" [s]]);
     ("va_arg", unknown [drop "ap" [r_deep]; drop "T" []]);
-    ("__builtin_va_arg", unknown [drop "ap" [r_deep]; drop "T" []; drop "lhs" []]); (* cil: "__builtin_va_arg is special: in CIL, the left hand side is stored as the last argument" *)
+    ("__builtin_va_arg", unknown [drop "ap" [r_deep]; drop "T" []; drop "lhs" [w]]); (* cil: "__builtin_va_arg is special: in CIL, the left hand side is stored as the last argument" *)
     ("va_start", unknown [drop "ap" [r_deep]; drop "parmN" []]);
     ("__builtin_va_start", unknown [drop "ap" [r_deep]]); (* cil: "When we parse builtin_{va,stdarg}_start, we drop the second argument" *)
     ("va_end", unknown [drop "ap" [r_deep]]);
