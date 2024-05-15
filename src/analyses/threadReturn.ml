@@ -13,7 +13,7 @@ struct
 
   let name () = "threadreturn"
   module D = IntDomain.Booleans
-  module C = D
+  include Analyses.ValueContexts(D)
 
   (* transfer functions *)
 
@@ -27,8 +27,6 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
-
-  let startcontext () = D.top ()
   let startstate v = true
   let threadenter ctx ~multiple lval f args = [true]
   let exitstate  v = D.top ()

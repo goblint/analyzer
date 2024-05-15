@@ -38,7 +38,7 @@ struct
   module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
   type t = Dom.t
   module D      = Dom
-  module C      = Dom
+  include Analyses.ValueContexts(D)
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
@@ -80,7 +80,6 @@ struct
 
   let name () = "base"
 
-  let startcontext () = D.top ()
   let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
   let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
 

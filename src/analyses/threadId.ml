@@ -53,14 +53,12 @@ struct
 
   (** Uniqueness Counter * TID * (All thread creates of current thread * All thread creates of the current function and its callees) *)
   module D = Lattice.Prod3 (N) (ThreadLifted) (Created)
-  module C = D
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   let tids = ref (Hashtbl.create 20)
 
   let name () = "threadid"
-
-  let startcontext () = D.top ()
 
   let context ctx fd ((n,current,td) as d) =
     if GobConfig.get_bool "ana.thread.context.create-edges" then

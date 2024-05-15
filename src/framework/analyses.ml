@@ -425,6 +425,11 @@ module IdentityUnitContextsSpec = struct
   let startcontext () = ()
 end
 
+module ValueContexts (D:Lattice.S) = struct
+  module C = D
+  let startcontext () = D.top ()
+end
+
 module type SpecSys =
 sig
   module Spec: Spec

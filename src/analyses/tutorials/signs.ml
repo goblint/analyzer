@@ -50,10 +50,9 @@ struct
 
   (* Map of integers variables to our signs lattice. *)
   module D = MapDomain.MapBot (Basetype.Variables) (SL)
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let startstate v = D.bot ()
-  let startcontext () = D.top ()
   let exitstate = startstate
 
   include Analyses.IdentitySpec

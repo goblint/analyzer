@@ -21,7 +21,7 @@ struct
 
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
-  module C = EscapeDomain.EscapedVars
+  include Analyses.ValueContexts(D)
   module V = VarinfoV
   module G = ThreadIdSet
 
@@ -161,7 +161,6 @@ struct
       D.join ctx.local escaped
     | _ -> ctx.local
 
-  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()
 

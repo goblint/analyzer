@@ -13,7 +13,7 @@ struct
 
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
-  module C = ValueDomain.AddrSetDomain
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   (*
@@ -214,7 +214,6 @@ struct
 
   let name () = "malloc_null"
 
-  let startcontext () = D.top ()
   let startstate v = D.empty ()
   let threadenter ctx ~multiple lval f args = [D.empty ()]
   let threadspawn ctx ~multiple lval f args fctx = ctx.local

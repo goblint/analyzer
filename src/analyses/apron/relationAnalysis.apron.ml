@@ -20,7 +20,7 @@ struct
   module Priv = Priv (RD)
   module D = RelationDomain.RelComponents (RD) (Priv.D)
   module G = Priv.G
-  module C = D
+  include Analyses.ValueContexts(D)
   module V =
   struct
     include Priv.V
@@ -46,7 +46,6 @@ struct
     else
       D.top ()
 
-  let startcontext () = D.top ()
   let exitstate  _ = { rel = RD.top (); priv = Priv.startstate () }
   let startstate _ = { rel = RD.top (); priv = Priv.startstate () }
 

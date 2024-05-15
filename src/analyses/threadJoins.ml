@@ -19,7 +19,7 @@ struct
   (* The first component is the set of must-joined TIDs, the second component tracks whether all TIDs recorded in MustTIDs have been exited cleanly, *)
   (* i.e., all created subthreads have also been joined. This is helpful as there is no set of all transitively created threads available. *)
   module D = Lattice.Prod(MustTIDs)(CleanExit)
-  module C = D
+  include Analyses.ValueContexts(D)
   module G = D
   module V =
   struct
@@ -106,7 +106,6 @@ struct
     (MustTIDs.union caller_joined callee_joined, local_clean && callee_clean)
 
 
-  let startcontext () = D.top ()
   let startstate v = (MustTIDs.empty (), true)
   let exitstate  v = (MustTIDs.empty (), true)
 end

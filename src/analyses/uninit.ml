@@ -15,7 +15,7 @@ struct
   module Addr = ValueDomain.Addr
 
   module D = ValueDomain.AddrSetDomain
-  module C = ValueDomain.AddrSetDomain
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   type trans_in  = D.t
@@ -24,7 +24,6 @@ struct
 
   let name () = "uninit"
 
-  let startcontext () = D.top ()
   let startstate v : D.t = D.empty ()
   let threadenter ctx ~multiple lval f args = [D.empty ()]
   let threadspawn ctx ~multiple lval f args fctx = ctx.local

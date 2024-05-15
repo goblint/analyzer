@@ -14,7 +14,7 @@ struct
   let name () = "memLeak"
 
   module D = ToppedVarInfoSet
-  module C = D
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   module V = UnitV
@@ -252,7 +252,6 @@ struct
       state
     | _ -> state
 
-  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let exitstate v = D.top ()
 

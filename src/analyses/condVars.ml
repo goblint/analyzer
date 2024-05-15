@@ -58,9 +58,7 @@ struct
 
   let name () = "condvars"
   module D = Domain
-  module C = Domain
-
-  let startcontext () = D.top ()
+  include Analyses.ValueContexts(D)
 
   (* >? is >>=, |? is >> *)
   let (>?) = Option.bind

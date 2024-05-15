@@ -2,7 +2,6 @@
 
 open GoblintCil
 open Analyses
-module LF = LibraryFunctions
 
 module Spec (D: StackDomain.S) (N: sig val name : string end)=
 struct
@@ -10,7 +9,7 @@ struct
 
   let name () = N.name
   module D = D
-  module C = D
+  include Analyses.ValueContexts(D)
 
   (* transfer functions *)
 
@@ -20,7 +19,6 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
-  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
@@ -32,7 +30,7 @@ struct
 
   let name () = "stack_loc"
   module D = StackDomain.Dom3
-  module C = StackDomain.Dom3
+  include Analyses.ValueContexts(D)
 
   (* transfer functions *)
 
@@ -42,7 +40,6 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
-  let startcontext () = D.top ()
   let startstate v = D.bot ()
   let exitstate  v = D.top ()
 

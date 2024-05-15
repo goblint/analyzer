@@ -24,11 +24,10 @@ struct
   exception Top
 
   module D = LockDomain.Symbolic
-  module C = LockDomain.Symbolic
+  include Analyses.ValueContexts(D)
 
   let name () = "symb_locks"
 
-  let startcontext () = D.top ()
   let startstate v = D.top ()
   let threadenter ctx ~multiple lval f args = [D.top ()]
   let threadspawn ctx ~multiple lval f args fctx = ctx.local

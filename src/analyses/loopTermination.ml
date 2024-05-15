@@ -30,14 +30,14 @@ struct
   let name () = "termination"
 
   module D = Lattice.Unit
-  module C = D
+  include Analyses.ValueContexts(D)
+
   module V = struct
     include UnitV
     let is_write_only _ = true
   end
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
-  let startcontext () = ()
   let startstate _ = ()
   let exitstate = startstate
 

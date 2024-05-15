@@ -12,7 +12,7 @@ struct
 
   let name () = "thread"
   module D = ConcDomain.CreatedThreadSet
-  module C = D
+  include Analyses.ValueContexts(D)
   module G = ConcDomain.ThreadCreation
   module V =
   struct
@@ -92,8 +92,6 @@ struct
       end
     | _ -> Queries.Result.top q
 
-
-  let startcontext () = D.top ()
   let startstate v = D.bot ()
 
   let threadenter ctx ~multiple lval f args =
