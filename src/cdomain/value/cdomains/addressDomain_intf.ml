@@ -80,8 +80,11 @@ sig
 
     val semantic_equal: t -> t -> bool option
     (** Check semantic equality of two addresses.
-
         @return [Some true] if definitely equal, [Some false] if definitely not equal, [None] if unknown. *)
+
+    val amenable_to_meet: t -> t -> bool
+    (** Whether two addresses are amenable to meet operation, i.e., their lattice meet overapproximates the intersection
+        of concretizations. If true, meet is used instead of semantic_equal *)
   end
 
   (** Address lattice with sublattice representatives for {!DisjointDomain}. *)
