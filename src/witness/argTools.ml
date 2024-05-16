@@ -47,12 +47,21 @@ struct
   struct
     include Node
 
-    module HC = BatHashcons.MakeTable (Node)
-    let htable = HC.create 113
+    module NH = Hashtbl.Make (Node)
+    let nh = NH.create 113
+    let next = ref 0
 
     let to_string n =
-      let hc = HC.hashcons htable n in
-      string_of_int hc.tag
+      let i =
+        match NH.find_opt nh n with
+        | Some i -> i
+        | None ->
+          let i = !next in
+          NH.replace nh n i;
+          incr next;
+          i
+      in
+      string_of_int i
   end
 end
 
