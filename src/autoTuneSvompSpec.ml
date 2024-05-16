@@ -3,24 +3,26 @@
 open GobConfig
 open AutoTune
 
+let logEnablingAnalyses spec ana = Logs.info "Specification: %s -> enabling soundness analyses \"%s\"" (Svcomp.Specification.to_string [spec]) (String.concat ", " ana)
+
 (* TODO: have only one function for matching all specifications and find a place where it can be called. *)
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidFree -> (* Enable the soundness analyses for ValidFree spec *)
     let uafAna = ["base"; "useAfterFree"] in
-    Logs.info "Specification: ValidFree -> enabling soundness analyses \"%s\"" (String.concat ", " uafAna);
+    logEnablingAnalyses spec uafAna;
     enableAnalyses uafAna
   | ValidDeref -> (* Enable the soundness analyses for ValidDeref spec *)
     let memOobAna = ["base"; "memOutOfBounds"] in
+    logEnablingAnalyses spec memOobAna;
+    enableAnalyses memOobAna;
     set_bool "ana.arrayoob" true;
     Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
-    set_bool "cil.addNestedScopeAttr" true;
-    Logs.info "Specification: ValidDeref -> enabling soundness analyses \"%s\"" (String.concat ", " memOobAna);
-    enableAnalyses memOobAna
+    set_bool "cil.addNestedScopeAttr" true
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the soundness analyses for ValidMemtrack and ValidMemcleanup specs *)
     let memLeakAna = ["memLeak"] in
-    Logs.info "Specification: ValidMemtrack and ValidMemcleanup -> enabling soundness analyses \"%s\"" (String.concat ", " memLeakAna);
+    logEnablingAnalyses spec memLeakAna;
     enableAnalyses memLeakAna
   | _ -> ()
 
@@ -31,7 +33,7 @@ let enableAnalysesForTerminationSpecification (spec: Svcomp.Specification.t) =
   match spec with
   | Termination -> (* Enable the soundness analyses for Termination spec *)
     let terminationAna = ["termination"] in
-    Logs.info "Specification: Termination -> enabling soundness analyses \"%s\"" (String.concat ", " terminationAna);
+    logEnablingAnalyses spec terminationAna;
     enableAnalyses terminationAna
   | _ -> ()
 
@@ -43,7 +45,7 @@ let enableAnalysesForSpecification (spec: Svcomp.Specification.t) =
   | UnreachCall s -> ()
   | NoDataRace -> (* Enable the soundness analyses for NoDataRace spec *)
     let dataRaceAna = ["access"; "race"] in
-    Logs.info "Specification: NoDataRace -> enabling soundness analyses \"%s\"" (String.concat ", " dataRaceAna);
+    logEnablingAnalyses spec dataRaceAna;
     enableAnalyses dataRaceAna
   | NoOverflow -> (* Enable the soundness analyses for NoOverflow spec *)
     Logs.info "Setting \"ana.int.interval\" to true";
