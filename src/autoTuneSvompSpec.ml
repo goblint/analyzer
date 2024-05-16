@@ -9,21 +9,21 @@ let logEnablingAnalyses spec ana = Logs.info "Specification: %s -> enabling soun
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidFree -> (* Enable the soundness analyses for ValidFree spec *)
-    let uafAna = ["base"; "useAfterFree"] in
-    logEnablingAnalyses spec uafAna;
-    enableAnalyses uafAna
+    let analyses = ["base"; "useAfterFree"] in
+    logEnablingAnalyses spec analyses;
+    enableAnalyses analyses
   | ValidDeref -> (* Enable the soundness analyses for ValidDeref spec *)
-    let memOobAna = ["base"; "memOutOfBounds"] in
-    logEnablingAnalyses spec memOobAna;
-    enableAnalyses memOobAna;
+    let analyses = ["base"; "memOutOfBounds"] in
+    logEnablingAnalyses spec analyses;
+    enableAnalyses analyses;
     set_bool "ana.arrayoob" true;
     Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
     set_bool "cil.addNestedScopeAttr" true
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the soundness analyses for ValidMemtrack and ValidMemcleanup specs *)
-    let memLeakAna = ["memLeak"] in
-    logEnablingAnalyses spec memLeakAna;
-    enableAnalyses memLeakAna
+    let analyses = ["memLeak"] in
+    logEnablingAnalyses spec analyses;
+    enableAnalyses analyses
   | _ -> ()
 
 let enableAnalysesForMemSafetySpecification () =
@@ -32,9 +32,9 @@ let enableAnalysesForMemSafetySpecification () =
 let enableAnalysesForTerminationSpecification (spec: Svcomp.Specification.t) =
   match spec with
   | Termination -> (* Enable the soundness analyses for Termination spec *)
-    let terminationAna = ["termination"] in
-    logEnablingAnalyses spec terminationAna;
-    enableAnalyses terminationAna
+    let analyses = ["termination"] in
+    logEnablingAnalyses spec analyses;
+    enableAnalyses analyses
   | _ -> ()
 
 let enableAnalysesForTerminationSpecification () =
@@ -44,9 +44,9 @@ let enableAnalysesForSpecification (spec: Svcomp.Specification.t) =
   match spec with
   | UnreachCall s -> ()
   | NoDataRace -> (* Enable the soundness analyses for NoDataRace spec *)
-    let dataRaceAna = ["access"; "race"] in
-    logEnablingAnalyses spec dataRaceAna;
-    enableAnalyses dataRaceAna
+    let analyses = ["access"; "race"] in
+    logEnablingAnalyses spec analyses;
+    enableAnalyses analyses
   | NoOverflow -> (* Enable the soundness analyses for NoOverflow spec *)
     Logs.info "Setting \"ana.int.interval\" to true";
     set_bool "ana.int.interval" true
