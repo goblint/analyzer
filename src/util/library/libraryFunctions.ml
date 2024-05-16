@@ -1172,7 +1172,7 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gzread", unknown [drop "file" [r_deep; w_deep]; drop "buf" [w]; drop "len" []]);
     ("gzclose", unknown [drop "file" [f_deep]]);
     ("uncompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []]);
-    ("compress2", unknown [drop "dest" [r]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "level" []]);
+    ("compress2", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "level" []]);
   ]
 [@@coverage off]
 
@@ -1194,8 +1194,8 @@ let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__open_2", unknown [drop "file" [r]; drop "oflag" []]);
     ("__open_too_many_args", unknown []);
     (* bzlib *)
-    ("BZ2_bzBuffToBuffCompress", unknown [drop "dest" []; drop "destLen" []; drop "source" [w]; drop "sourceLen" []; drop "blockSize100k" []; drop "verbosity" []; drop "workFactor" []]);
-    ("BZ2_bzBuffToBuffDecompress", unknown [drop "dest" []; drop "destLen" []; drop "source" [w]; drop "sourceLen" []; drop "small" []; drop "verbosity" []]);
+    ("BZ2_bzBuffToBuffCompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "blockSize100k" []; drop "verbosity" []; drop "workFactor" []]);
+    ("BZ2_bzBuffToBuffDecompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "small" []; drop "verbosity" []]);
     (* opensssl blowfish *)
     ("BF_cfb64_encrypt", unknown [drop "in" [r]; drop "out" [w]; drop "length" []; drop "schedule" [r]; drop "ivec" [r; w]; drop "num" [r; w]; drop "enc" []]);
     ("BF_set_key", unknown [drop "key" [w]; drop "len" []; drop "data" [r]]);
