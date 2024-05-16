@@ -459,7 +459,13 @@ module Base =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let eqd = eq y (eval l x) (side ~x) in
+          let eqd =
+            if GobConfig.get_bool "solvers.td3.divided-narrow" then
+              let acc = HM.create 0 in
+              Fun.protect ~finally:(fun () -> HM.iter (fun y d -> divided_side false ~x y d) acc;) (fun () -> eq y (eval l x) (side_acc acc x))
+            else
+              eq y (eval l x) (side ~x)
+            in
           HM.remove called y;
           if HM.mem wpoint y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y eqd; eqd)
