@@ -5,21 +5,21 @@ open AutoTune
 
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
-  | ValidFree -> (* Enable the useAfterFree analysis *)
+  | ValidFree -> (* Enable the soundness analyses for ValidFree spec *)
     let uafAna = ["base"; "useAfterFree"] in
-    Logs.info "Specification: ValidFree -> enabling useAfterFree analysis \"%s\"" (String.concat ", " uafAna);
+    Logs.info "Specification: ValidFree -> enabling soundness analyses \"%s\"" (String.concat ", " uafAna);
     enableAnalyses uafAna
-  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
+  | ValidDeref -> (* Enable the soundness analyses for ValidDeref spec *)
     let memOobAna = ["base"; "memOutOfBounds"] in
     set_bool "ana.arrayoob" true;
     Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
     set_bool "cil.addNestedScopeAttr" true;
-    Logs.info "Specification: ValidDeref -> enabling memOutOfBounds analysis \"%s\"" (String.concat ", " memOobAna);
-    enableAnalyses memOobAna;
+    Logs.info "Specification: ValidDeref -> enabling soundness analyses \"%s\"" (String.concat ", " memOobAna);
+    enableAnalyses memOobAna
   | ValidMemtrack
-  | ValidMemcleanup -> (* Enable the memLeak analysis *)
+  | ValidMemcleanup -> (* Enable the soundness analyses for ValidMemtrack and ValidMemcleanup specs *)
     let memLeakAna = ["memLeak"] in
-    Logs.info "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"%s\"" (String.concat ", " memLeakAna);
+    Logs.info "Specification: ValidMemtrack and ValidMemcleanup -> enabling soundness analyses \"%s\"" (String.concat ", " memLeakAna);
     enableAnalyses memLeakAna
   | _ -> ()
 
