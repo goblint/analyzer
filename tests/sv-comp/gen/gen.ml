@@ -10,7 +10,7 @@ let generate_rule file =
      (target %s.output)
      (action
       (progn
-       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %%{prop} %%{c} --enable exp.argdot --enable exp.arg --set witness.graphml.id enumerate))
+       (ignore-outputs (run goblint --conf svcomp21.json --set ana.specification %%{prop} %%{c} --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
        (with-stdout-to %%{target} (run graph-easy --as=boxart arg.dot)))))
 
     (rule

@@ -14,7 +14,13 @@ sig
   val query: Node.t -> 'a Queries.t -> 'a Queries.result
 end
 
-module Dot (Arg: BiArg) =
+module type NodeStyles =
+sig
+  type node
+  val extra_node_styles: node -> string list
+end
+
+module Dot (Arg: BiArg) (NodeStyles: NodeStyles with type node = Arg.Node.t) =
 struct
   let dot_node_name ppf node =
     Format.fprintf ppf "\"%s\"" (Arg.Node.to_string node)
@@ -24,12 +30,13 @@ struct
 
   let dot_node ppf node =
     let shape = match Arg.Node.cfgnode node with
-      | Statement {skind=If (_,_,_,_,_); _}  -> "diamond"
-      | Statement _     -> "box" (* TODO: default nothing like CFG *)
+      | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
+      | Statement _ -> [] (* use default shape *)
       | Function _
-      | FunctionEntry _ -> "box"
+      | FunctionEntry _ -> ["shape=box"]
     in
-    Format.fprintf ppf "@,%a [shape=%s];" dot_node_name node shape;
+    let styles = String.concat "," (shape @ NodeStyles.extra_node_styles node) in
+    Format.fprintf ppf "@,%a [%s];" dot_node_name node styles;
     List.iter (dot_edge ppf node) (Arg.next node)
 
   let dot_nodes ppf =
@@ -37,32 +44,6 @@ struct
 
   let dot ppf =
     Format.fprintf ppf "@[<v 2>digraph arg {%t@]@,}@\n" dot_nodes
-end
-
-module Enumerate (Arg: BiArg): BiArg =
-struct
-  include Arg
-
-  module Node =
-  struct
-    include Node
-
-    module NH = Hashtbl.Make (Node)
-    let nh = NH.create 113
-    let next = ref 0
-
-    let to_string n =
-      let i =
-        match NH.find_opt nh n with
-        | Some i -> i
-        | None ->
-          let i = !next in
-          NH.replace nh n i;
-          incr next;
-          i
-      in
-      string_of_int i
-  end
 end
 
 let current_arg: (module BiArg) option ref = ref None

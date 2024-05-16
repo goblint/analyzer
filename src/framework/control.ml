@@ -748,17 +748,18 @@ struct
     if get_bool "exp.arg" then (
       let module ArgTool = ArgTools.Make (R) in
       let module Arg = (val ArgTool.create entrystates) in
-      let module Arg =
-        (val match get_string "witness.graphml.id" with
-          | "node" ->
-            (module Arg: ArgTools.BiArg)
-          | "enumerate" ->
-            (module ArgTools.Enumerate (Arg))
-          | _ -> failwith "witness.graphml.id: illegal value"
-        )
-      in
       if get_bool "exp.argdot" then (
-        let module ArgDot = ArgTools.Dot (Arg) in
+        let module NoLabelNodeStyle =
+        struct
+          type node = Arg.Node.t
+          let extra_node_styles node =
+            match GobConfig.get_string "exp.argdotlabel" with
+            | "node" -> []
+            | "empty" -> ["label=\"_\""] (* can't have empty string because graph-easy will default to node ID then... *)
+            | _ -> assert false
+        end
+        in
+        let module ArgDot = ArgTools.Dot (Arg) (NoLabelNodeStyle) in
         let oc = Batteries.open_out "arg.dot" in
         Fun.protect (fun () ->
             let ppf = Format.formatter_of_out_channel oc in

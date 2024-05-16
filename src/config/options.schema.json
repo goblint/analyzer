@@ -1826,6 +1826,13 @@
           "description": "Output ARG as dot file.",
           "type": "boolean",
           "default": false
+        },
+        "argdotlabel": {
+          "title": "exp.argdotlabel",
+          "description": "Which ARG node labels to use? node/empty",
+          "type": "string",
+          "enum": ["node", "empty"],
+          "default": "node"
         }
       },
       "additionalProperties": false
