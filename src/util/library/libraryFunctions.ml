@@ -166,7 +166,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("raise", unknown [drop "sig" []]); (* safe-ish, we don't handle signal handlers for now *)
     ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
     ("signal", unknown [drop "signum" []; drop "handler" [s]]);
-    ("va_arg", unknown [drop "ap" [r_deep]; drop "T" []]);
+    ("va_arg", unknown [drop "ap" [r]; drop "T" []]);
     ("va_start", unknown [drop "ap" [r_deep]; drop "parmN" []]);
     ("va_end", unknown [drop "ap" [r_deep]]);
   ]
@@ -432,7 +432,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("stpcpy", unknown [drop "dest" [w]; drop "src" [r]]);
     ("dup", unknown [drop "oldfd" []]);
     ("readdir_r", unknown [drop "dirp" [r_deep]; drop "entry" [r_deep]; drop "result" [w]]);
-    ("scandir", unknown [drop "dirp" [r]; drop "namelist" [w]; drop "filter" [r]; drop "compar" [r]]);
+    ("scandir", unknown [drop "dirp" [r]; drop "namelist" [w]; drop "filter" [r; c]; drop "compar" [r; c]]);
     ("pipe", unknown [drop "pipefd" [w_deep]]);
     ("waitpid", unknown [drop "pid" []; drop "wstatus" [w]; drop "options" []]);
     ("strerror_r", unknown [drop "errnum" []; drop "buff" [w]; drop "buflen" []]);
@@ -689,12 +689,12 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("clntudp_bufcreate", unknown [drop "addr" [r]; drop "prognum" []; drop "versnum" []; drop "wait" [r]; drop "sockp" [w]; drop "sendsize" []; drop "recosize" []]);
     ("svctcp_create", unknown [drop "sock" []; drop "send_buf_size" []; drop "recv_buf_size" []]);
     ("authunix_create_default", unknown []);
-    ("clnt_broadcast", unknown [drop "prognum" []; drop "versnum" []; drop "procnum" []; drop "inproc" [r]; drop "in" [w]; drop "outproc" [r]; drop "out" [w]; drop "eachresult" []]);
+    ("clnt_broadcast", unknown [drop "prognum" []; drop "versnum" []; drop "procnum" []; drop "inproc" [r; c]; drop "in" [w]; drop "outproc" [r; c]; drop "out" [w]; drop "eachresult" [c]]);
     ("clnt_sperrno", unknown [drop "stat" []]);
     ("pmap_unset", unknown [drop "prognum" []; drop "versnum" []]);
     ("svcudp_create", unknown [drop "sock" []]);
-    ("svc_register", unknown [drop "xprt" [r_deep; w_deep]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r; w]; drop "protocol" []]);
-    ("svc_run", unknown []);
+    ("svc_register", unknown [drop "xprt" [r_deep; w_deep]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r; w; c]; drop "protocol" []]);
+    ("svc_run", special [] Abort);
     (* RPC library end *)
   ]
 [@@coverage off]
@@ -808,12 +808,12 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__kmalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Malloc size);
     ("kzalloc", special [__ "size" []; drop "flags" []] @@ fun size -> Calloc {count = Cil.one; size});
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
-    ("usb_submit_urb", unknown [drop "urb" [r_deep; w_deep]; drop "mem_flags" []]); (* old comment: first argument is written to but according to specification must not be read from anymore *)
+    ("usb_submit_urb", unknown [drop "urb" [r_deep; w_deep; c_deep]; drop "mem_flags" []]); (* old comment: first argument is written to but according to specification must not be read from anymore *)
     ("dev_driver_string", unknown [drop "dev" [r_deep]]);
     ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
     ("idr_pre_get", unknown [drop "idp" [r_deep]; drop "gfp_mask" []]);
     ("printk", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
-    ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r]]);
+    ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r; c]]);
   ]
 [@@coverage off]
 
@@ -1171,6 +1171,8 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gzdopen", unknown [drop "fd" []; drop "mode" [r]]);
     ("gzread", unknown [drop "file" [r_deep; w_deep]; drop "buf" [w]; drop "len" []]);
     ("gzclose", unknown [drop "file" [f_deep]]);
+    ("uncompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []]);
+    ("compress2", unknown [drop "dest" [r]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "level" []]);
   ]
 [@@coverage off]
 
@@ -1194,9 +1196,6 @@ let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     (* bzlib *)
     ("BZ2_bzBuffToBuffCompress", unknown [drop "dest" []; drop "destLen" []; drop "source" [w]; drop "sourceLen" []; drop "blockSize100k" []; drop "verbosity" []; drop "workFactor" []]);
     ("BZ2_bzBuffToBuffDecompress", unknown [drop "dest" []; drop "destLen" []; drop "source" [w]; drop "sourceLen" []; drop "small" []; drop "verbosity" []]);
-    (* zlib (Zebedee) *)
-    ("uncompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []]);
-    ("compress2", unknown [drop "dest" [r]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "level" []]);
     (* opensssl blowfish *)
     ("BF_cfb64_encrypt", unknown [drop "in" [r]; drop "out" [w]; drop "length" []; drop "schedule" [r]; drop "ivec" [r; w]; drop "num" [r; w]; drop "enc" []]);
     ("BF_set_key", unknown [drop "key" [w]; drop "len" []; drop "data" [r]]);
