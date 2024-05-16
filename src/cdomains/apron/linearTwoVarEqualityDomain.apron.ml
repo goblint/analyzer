@@ -223,14 +223,17 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
     let exception ScalarIsInfinity in
-    let negate coeff_var_list = List.map (fun (coeff, var) -> (Z.(-coeff), var)) coeff_var_list in
-    let multiply_with_Z number coeff_var_list =
-      List.map (fun (coeff, var) -> (Z.(number * coeff, var))) coeff_var_list in
+    let negate coeff_var_list = List.map (function
+        | (Some(coeff,i),offs,divi) -> (Some(Z.neg coeff,i),Z.neg offs,divi)
+        | (None         ,offs,divi) -> (None               ,Z.neg offs,divi)) coeff_var_list in
+    let multiply_with_Z number divisor coeff_var_list = List.map (function
+        | (Some (coeff, var),offs,divi) -> Rhs.canonicalize (Some(Z.mul number coeff,var),Z.(number * offs),Z.mul divi divisor)
+        | (None,offs,divi)              -> Rhs.canonicalize (None,Z.mul number offs,Z.mul divi divisor)) coeff_var_list in
     let multiply a b =
       (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
       match a, b with
-      | [(a_coeff, None)], b -> multiply_with_Z a_coeff b
-      | a, [(b_coeff, None)] -> multiply_with_Z b_coeff a
+      | [(None,a_coeff, divi)], b -> multiply_with_Z a_coeff divi b
+      | a, [(None,b_coeff, divi)] -> multiply_with_Z b_coeff divi a
       | _ -> raise NotLinearExpr
     in
     let rec convert_texpr texp =
@@ -239,16 +242,16 @@ struct
         | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
         | Cst (Scalar x) ->
           begin match SharedFunctions.int_of_scalar ?round:None x with
-            | Some x -> [(x, None)]
+            | Some x -> [(None,x,Z.one)]
             | None -> raise ScalarIsInfinity end
         | Var x ->
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
-            | None -> [(Z.one, Some var_dim)]
+            | None -> [(Some (Z.one,var_dim),Z.zero,Z.one)]
             | Some d ->
               (match (EConj.get_rhs d var_dim) with
-               | (Some i, k) -> [(Z.one, Some i); (k, None)]
-               | (None, k) ->   [(k, None)])
+               | (Some (coeff,i), k,divi) -> [(Some (coeff,i),Z.zero,Z.one); (None,k,Z.one)]
+               | (None,           k,divi) -> [                               (None,k,Z.one)])
           end
         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
         | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
