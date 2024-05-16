@@ -208,6 +208,7 @@ module Base =
       {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
+    type divided_side_phase = D_Widen | D_Box of S.d
 
     module CurrentVarS = ConstrSys.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
@@ -335,7 +336,7 @@ module Base =
               HM.replace dep x VS.empty;
               if GobConfig.get_bool "solvers.td3.divided-narrow" then
                 let acc = HM.create 0 in
-                Fun.protect ~finally:(fun () -> HM.iter (fun y d -> divided_side false ~x y d) acc;) (fun () -> eq x (eval l x) (side_acc acc x))                
+                Fun.protect ~finally:(fun () -> HM.iter (fun y (acc, old) -> divided_side (D_Box old) ~x y acc) acc;) (fun () -> eq x (eval l x) (side_acc acc x))                
               else
                 eq x (eval l x) (side ~x)
           in
@@ -395,11 +396,13 @@ module Base =
       and side_acc acc x y d =
         (* TODO: only side if new_acc is different from old *)
         let new_acc = match HM.find_option acc y with
-          | Some s -> S.Dom.join s d
-          | None -> d in
+          | Some (acc, old) -> (S.Dom.join acc d, old)
+          | None -> (d, match HM.find_option divided_side_effects y with
+            | Some y_sides -> HM.find_default y_sides x (S.Dom.bot ())
+            | None -> S.Dom.bot ()) in
         HM.replace acc y new_acc;
-        divided_side true ~x y new_acc;
-      and divided_side growing ?x y d =
+        divided_side D_Widen  ~x y (fst new_acc);
+      and divided_side (phase:divided_side_phase) ?x y d =
         if tracing then trace "sol2" "divided side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
           Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
@@ -417,11 +420,14 @@ module Base =
             let y_sides = HM.find divided_side_effects y in
             if tracing then trace "side" "distinguishing %d side origins for %a" (HM.length y_sides) S.Var.pretty_trace y;
             let old_side = HM.find_default y_sides x (S.Dom.bot ()) in
-            let new_side = if growing then S.Dom.widen old_side (S.Dom.join old_side d) else box old_side d in
+            let new_side = match phase with
+              | D_Widen -> S.Dom.widen old_side (S.Dom.join old_side d)
+              | D_Box old_side -> box old_side d
+            in
 
             HM.replace stable y ();
             if not (S.Dom.equal old_side new_side) then (
-              if tracing then trace "side" "divided side from %a to %a changed (accumulation phase: %b)" S.Var.pretty_trace x S.Var.pretty_trace y growing;
+              if tracing then trace "side" "divided side from %a to %a changed (accumulation phase: %b)" S.Var.pretty_trace x S.Var.pretty_trace y (phase == D_Widen);
 
               HM.replace y_sides x new_side;
               let y_newval = combined_side y in
@@ -429,7 +435,7 @@ module Base =
                 if tracing then (
                   let y_oldval = HM.find rho y in
                   if tracing then trace "side" "value of %a changed by side from %a (accumulation phase: %b, grew: %b, shrank: %b)"
-                      S.Var.pretty_trace x S.Var.pretty_trace y growing (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval);
+                      S.Var.pretty_trace x S.Var.pretty_trace y (phase == D_Widen) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval);
                 );
                 HM.replace rho y y_newval;
                 destabilize y;
@@ -442,7 +448,7 @@ module Base =
             HM.replace orphan_side_effects y wd;
             let y_oldval = HM.find rho y in
             if not (S.Dom.leq wd y_oldval) then (
-              if tracing then trace "side" "orphaned side changed %a (accumulation phase: %b)" S.Var.pretty_trace y growing;
+              if tracing then trace "side" "orphaned side changed %a (accumulation phase: %b)" S.Var.pretty_trace y (phase == D_Widen);
               HM.replace rho y (S.Dom.join wd y_oldval);
               destabilize y;
             )
@@ -465,7 +471,7 @@ module Base =
           let eqd =
             if GobConfig.get_bool "solvers.td3.divided-narrow" then
               let acc = HM.create 0 in
-              Fun.protect ~finally:(fun () -> HM.iter (fun y d -> divided_side false ~x y d) acc;) (fun () -> eq y (eval l x) (side_acc acc x))
+              Fun.protect ~finally:(fun () -> HM.iter (fun y (acc, old) -> divided_side (D_Box old) ~x y acc) acc;) (fun () -> eq y (eval l x) (side_acc acc x))
             else
               eq y (eval l x) (side ~x)
             in
@@ -810,7 +816,7 @@ module Base =
             );
             if GobConfig.get_bool "solvers.td3.divided-narrow" then
               (* it is not necessary to perform narrowing here, orphan side-effects cannot be narrowed anyway *)
-              divided_side true v d
+              divided_side D_Widen v d
             else
               side v d
           ) st;
