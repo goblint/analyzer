@@ -2336,7 +2336,7 @@
               "title": "solvers.td3.divided-narrow",
               "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "remove-wpoint": {
               "title": "solvers.td3.remove-wpoint",
