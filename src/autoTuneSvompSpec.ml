@@ -5,6 +5,13 @@ open AutoTune
 
 let logEnablingAnalyses spec ana = Logs.info "Specification: %s -> enabling soundness analyses \"%s\"" (Svcomp.Specification.to_string [spec]) (String.concat ", " ana)
 
+let enableOptions options = 
+  let enableOpt option = 
+    Logs.info "Setting \"%s\" to true" option;
+    set_bool option true
+  in
+  List.iter enableOpt options
+
 (* TODO: have only one function for matching all specifications and find a place where it can be called. *)
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
@@ -16,9 +23,8 @@ let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
     let analyses = ["base"; "memOutOfBounds"] in
     logEnablingAnalyses spec analyses;
     enableAnalyses analyses;
-    set_bool "ana.arrayoob" true;
-    Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
-    set_bool "cil.addNestedScopeAttr" true
+    let options = ["ana.arrayoob"; "cil.addNestedScopeAttr"] in
+    enableOptions options
   | ValidMemtrack
   | ValidMemcleanup -> (* Enable the soundness analyses for ValidMemtrack and ValidMemcleanup specs *)
     let analyses = ["memLeak"] in
@@ -48,8 +54,8 @@ let enableAnalysesForSpecification (spec: Svcomp.Specification.t) =
     logEnablingAnalyses spec analyses;
     enableAnalyses analyses
   | NoOverflow -> (* Enable the soundness analyses for NoOverflow spec *)
-    Logs.info "Setting \"ana.int.interval\" to true";
-    set_bool "ana.int.interval" true
+    let options = ["ana.int.interval"] in
+    enableOptions options
   | _ -> ()
 
 let enableAnalysesForSpecification () =
