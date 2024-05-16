@@ -25,3 +25,14 @@ let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
 
 let enableAnalysesForMemSafetySpecification () =
   List.iter enableAnalysesForMemSafetySpecification (Svcomp.Specification.of_option ())
+
+let enableAnalysesForTerminationSpecification (spec: Svcomp.Specification.t) =
+  match spec with
+  | Termination -> (* Enable the soundness analyses for Termination spec *)
+    let terminationAna = ["termination"] in
+    Logs.info "Specification: Termination -> enabling soundness analyses \"%s\"" (String.concat ", " terminationAna);
+    enableAnalyses terminationAna
+  | _ -> ()
+
+let enableAnalysesForTerminationSpecification () =
+  List.iter enableAnalysesForTerminationSpecification (Svcomp.Specification.of_option ())
