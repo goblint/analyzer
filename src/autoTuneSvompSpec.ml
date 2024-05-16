@@ -3,6 +3,7 @@
 open GobConfig
 open AutoTune
 
+(* TODO: have only one function for matching all specifications and find a place where it can be called. *)
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidFree -> (* Enable the soundness analyses for ValidFree spec *)
@@ -36,3 +37,18 @@ let enableAnalysesForTerminationSpecification (spec: Svcomp.Specification.t) =
 
 let enableAnalysesForTerminationSpecification () =
   List.iter enableAnalysesForTerminationSpecification (Svcomp.Specification.of_option ())
+
+let enableAnalysesForSpecification (spec: Svcomp.Specification.t) =
+  match spec with
+  | UnreachCall s -> ()
+  | NoDataRace -> (* Enable the soundness analyses for NoDataRace spec *)
+    let dataRaceAna = ["access"; "race"] in
+    Logs.info "Specification: NoDataRace -> enabling soundness analyses \"%s\"" (String.concat ", " dataRaceAna);
+    enableAnalyses dataRaceAna
+  | NoOverflow -> (* Enable the soundness analyses for NoOverflow spec *)
+    Logs.info "Setting \"ana.int.interval\" to true";
+    set_bool "ana.int.interval" true
+  | _ -> ()
+
+let enableAnalysesForSpecification () =
+  List.iter enableAnalysesForSpecification (Svcomp.Specification.of_option ())

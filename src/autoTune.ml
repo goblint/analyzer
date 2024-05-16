@@ -247,8 +247,7 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
-    set_bool "ana.int.def_exc" true;
-    set_bool "ana.int.interval" true
+    set_bool "ana.int.def_exc" true
   | _ -> ()
 
 let focusOnSpecification () =
