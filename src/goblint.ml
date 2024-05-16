@@ -36,7 +36,7 @@ let main () =
     Logs.debug "%s" (GobUnix.localtime ());
     Logs.debug "%s" GobSys.command_line;
     (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
-    if get_string "ana.specification" <> "" then AutoTuneSvompSpec.enableAnalysesForTerminationSpecification ();
+    if get_string "ana.specification" <> "" then AutoTuneSvcompSpec.enableAnalysesForTerminationSpecification ();
     if AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
@@ -58,7 +58,7 @@ let main () =
       in
       (* This is run independant of the autotuner being enabled or not be sound for programs with longjmp *)
       AutoTune.activateLongjmpAnalysesWhenRequired ();
-      if get_string "ana.specification" <> "" then AutoTuneSvompSpec.enableAnalysesForSpecification ();
+      if get_string "ana.specification" <> "" then AutoTuneSvcompSpec.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
       do_html_output ();
