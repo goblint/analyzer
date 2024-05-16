@@ -37,7 +37,7 @@ let main () =
     Logs.debug "%s" GobSys.command_line;
     (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
     if get_string "ana.specification" <> "" then AutoTuneSvompSpec.enableAnalysesForTerminationSpecification ();
-    if get_bool "ana.autotune.enabled" && AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
+    if AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =

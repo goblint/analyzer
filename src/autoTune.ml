@@ -508,6 +508,9 @@ let specificationIsActivated () =
 let specificationTerminationIsActivated () =
   isActivated "termination"
 
+let specificationMemSafetyIsActivated () =
+  isActivated "memsafetySpecification"
+
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
