@@ -6,11 +6,11 @@ open AutoTune
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidFree -> (* Enable the useAfterFree analysis *)
-    let uafAna = ["useAfterFree"] in
+    let uafAna = ["base"; "useAfterFree"] in
     Logs.info "Specification: ValidFree -> enabling useAfterFree analysis \"%s\"" (String.concat ", " uafAna);
     enableAnalyses uafAna
   | ValidDeref -> (* Enable the memOutOfBounds analysis *)
-    let memOobAna = ["memOutOfBounds"] in
+    let memOobAna = ["base"; "memOutOfBounds"] in
     set_bool "ana.arrayoob" true;
     Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
     set_bool "cil.addNestedScopeAttr" true;
