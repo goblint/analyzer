@@ -406,13 +406,16 @@ module Base =
         );
         assert (Hooks.system y = None);
         init y;
+        if tracing then trace "side" "divided side to %a from %a ## new global: %b" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x (not (HM.mem divided_side_effects y));
+        if tracing then trace "side" "distinguishing %d globals" (HM.length divided_side_effects);
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
         match x with
         | Some x -> (
             let init_divided_side_effects y = if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10) in
             init_divided_side_effects y;
 
-            let y_sides = HM.find divided_side_effects y in 
+            let y_sides = HM.find divided_side_effects y in
+            if tracing then trace "side" "distinguishing %d side origins for %a" (HM.length y_sides) S.Var.pretty_trace y;
             let old_side = HM.find_default y_sides x (S.Dom.bot ()) in
             let new_side = if growing then S.Dom.widen old_side (S.Dom.join old_side d) else box old_side d in
 
@@ -498,6 +501,7 @@ module Base =
           Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (Hooks.system y = None);
+        if tracing then trace "side" "side to %a from %a ## new global: %b" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x (not (HM.mem rho y));
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let widen a b =
@@ -804,7 +808,11 @@ module Base =
                 (* restart removed start global below *)
                 ()
             );
-            side v d
+            if GobConfig.get_bool "solvers.td3.divided-narrow" then
+              (* it is not necessary to perform narrowing here, orphan side-effects cannot be narrowed anyway *)
+              divided_side true v d
+            else
+              side v d
           ) st;
 
         if should_restart_start then (
