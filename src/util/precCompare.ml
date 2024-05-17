@@ -97,7 +97,7 @@ struct
   let load filename =
     let f = open_in_bin filename in
     let dump: dump = Marshal.from_channel f in
-    let dump: result = {name = dump.name; results = unmarshal dump.marshalled; disregard = None } in
+    let dump: result = {name = dump.name; results = unmarshal dump.marshalled; disregard = dump.disregard } in
     close_in_noerr f;
     dump
 
