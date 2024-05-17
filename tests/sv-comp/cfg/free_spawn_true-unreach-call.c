@@ -15,6 +15,7 @@ int main()
     else
         p = &foo; // actually dead
 
+    // TODO: uncil false branch missing
     free(p); // TODO: free shouldn't spawn
     return 0;
 }

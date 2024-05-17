@@ -15,7 +15,7 @@ let generate_rule c_dir_file =
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %%{prop} %%{c} --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %%{prop} %%{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
     (with-stdout-to %%{target}
      (run graph-easy --as=boxart arg.dot)))))
 
