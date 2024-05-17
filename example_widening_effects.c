@@ -29,3 +29,6 @@ int main() {
   pqueue_close();
   return 0;
 }
+
+
+// rm out.txt && ./goblint --conf conf/traces.json --set ana.base.privatization protection 2.c --enable allglobs --enable dbg.timing.enabled --enable warn.debug -v --sets exp.priv-prec-dump level-ip.protection.prec --enable ana.int.interval && ./goblint --conf conf/traces.json --set ana.base.privatization write 2.c --enable allglobs --enable dbg.timing.enabled --enable warn.debug -v --sets exp.priv-prec-dump level-ip.write.prec --enable ana.int.interval &&  ./privPrecCompare level-ip.protection.prec level-ip.write.prec &> out.txt
