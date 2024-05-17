@@ -327,7 +327,7 @@ struct
   (* Copy because function is not "with" so should not mutate inputs *)
   let assign_const t var const = match t.d with
     | None -> t
-    | Some t_d -> {d = Some (EConj.set_rhs t_d var (None, const)); env = t.env}
+    | Some t_d -> {d = Some (EConj.set_rhs t_d var (None, const,Z.one)); env = t.env}
 
   let subtract_const_from_var t var const =
     match t.d with
@@ -419,12 +419,12 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
   let eval_interval ask = Bounds.bound_texpr
 
-  let meet_with_one_conj t i (var, b) =
+  let meet_with_one_conj t i (var, o, divi) =
     match t.d with
     | None -> t
     | Some d ->
       try
-        { d = Some (EConj.meet_with_one_conj d i (var, b)); env = t.env}
+        { d = Some (EConj.meet_with_one_conj d i (var, o, divi)); env = t.env}
       with EConj.Contradiction ->
         if M.tracing then M.trace "meet" " -> Contradiction\n";
         { d = None; env = t.env}
@@ -585,7 +585,7 @@ struct
           subtract_const_from_var t var_i off
         | Some (Some exp_var, off) ->
           (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
-          meet_with_one_conj (forget_var t var) var_i (Some exp_var, off)
+          meet_with_one_conj (forget_var t var) var_i (Some (Z.one,exp_var), off, Z.one)
       end
     | None -> bot_env
 
@@ -702,13 +702,13 @@ struct
             end
           | [(varexpr, index)] -> (* guard has a single reference variable only *)
             if Tcons1.get_typ tcons = EQ && Z.divisible constant varexpr then
-              meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)))
+              meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)),Z.one)
             else
               t (* only EQ is supported in equality based domains *)
           | [(a1,var1); (a2,var2)] -> (* two variables in relation needs a little sorting out *)
             begin match Tcons1.get_typ tcons with
               | EQ when Z.(a1 * a2 = -one) -> (* var1-var1 or var2-var1 *)
-                meet_with_one_conj t var2 (Some var1, Z.mul a1 constant)
+                meet_with_one_conj t var2 (Some (Z.one,var1), Z.mul a1 constant,Z.one)
               | _-> t (* Not supported in equality based 2vars without coeffiients *)
             end
           | _ -> t (* For equalities of more then 2 vars we just return t *))
