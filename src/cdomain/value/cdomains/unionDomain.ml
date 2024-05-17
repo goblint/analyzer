@@ -26,7 +26,11 @@ module Field = struct
     if equal f g then
       f
     else
-      raise Lattice.Uncomparable
+      match f, g with
+      | `Top, f
+      | f, `Top -> f
+      | _ -> raise Lattice.Uncomparable
+
 end
 
 module Simple (Values: Arg) =
