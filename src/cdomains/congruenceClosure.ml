@@ -1498,30 +1498,33 @@ module CongruenceClosure = struct
 
   let join_eq cc1 cc2 =
     let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
-    let pmap = List.fold_left
-        (fun pmap a -> Map.add (a,a) (a,snd (TUF.find_no_pc cc1.uf a), snd (TUF.find_no_pc cc2.uf a)) pmap)
-        Map.empty atoms in
-    let working_set = List.combine atoms atoms in
+    let mappings = List.map
+        (fun a -> let r1, off1 = TUF.find_no_pc cc1.uf a in
+          let r2, off2 = TUF.find_no_pc cc2.uf a in
+          (r1,r2,Z.(off2 - off1)), (a,off1)) atoms in
+    let pmap = List.fold_left (fun pmap (x1,x2) -> Map.add x1 x2 pmap) Map.empty mappings in
+    let working_set = List.map fst mappings in
     let cc = init_cc [] in
-    let add_one_edge y t t1_off t2_off (pmap, cc, new_pairs) (offset, size, a) =
+    let add_one_edge y t t1_off diff (pmap, cc, new_pairs) (offset, size, a) =
       let a', a_off = TUF.find_no_pc cc1.uf a in
-      match LMap.map_find_opt (y, Z.(t2_off - t1_off + offset)) size cc2.map with
+      match LMap.map_find_opt (y, Z.(diff + offset)) size cc2.map with
       | None -> pmap,cc,new_pairs
       | Some b -> let b', b_off = TUF.find_no_pc cc2.uf b in
-        let new_term = SSet.deref_term t Z.(offset - t1_off) cc1.set in
-        let _ , cc = insert cc new_term
-        in match Map.find_opt (a',b') pmap with
-        | None -> Map.add (a',b') (new_term, a_off, b_off) pmap, cc, (a',b')::new_pairs
-        | Some (c, c1_off, c2_off) ->
-          if Z.(equal (-c1_off + a_off) (-c2_off + b_off)) then
+        match SSet.deref_term t Z.(offset - t1_off) cc1.set with
+        | exception (T.UnsupportedCilExpression _) -> pmap,cc,new_pairs
+        | new_term ->
+          let _ , cc = insert cc new_term in
+          let new_element = a',b',Z.(b_off - a_off) in
+          match Map.find_opt new_element pmap with
+          | None -> Map.add new_element (new_term, a_off) pmap, cc, new_element::new_pairs
+          | Some (c, c1_off) ->
             pmap, closure cc [new_term, c, Z.(-c1_off + a_off)],new_pairs
-          else pmap,cc,new_pairs (* If c and new_term don't have the same distance in cc1 and cc2, we forget that they are related. *)
     in
     let rec add_edges_to_map pmap cc = function
       | [] -> cc, pmap
-      | (x,y)::rest ->
-        let t,t1_off,t2_off = Map.find (x,y) pmap in
-        let pmap,cc,new_pairs = List.fold_left (add_one_edge y t t1_off t2_off) (pmap, cc, []) (LMap.successors x cc1.map) in
+      | (x,y,diff)::rest ->
+        let t,t1_off = Map.find (x,y,diff) pmap in
+        let pmap,cc,new_pairs = List.fold_left (add_one_edge y t t1_off diff) (pmap, cc, []) (LMap.successors x cc1.map) in
         add_edges_to_map pmap cc (rest@new_pairs)
     in
     add_edges_to_map pmap cc working_set
