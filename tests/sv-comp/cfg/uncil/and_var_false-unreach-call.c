@@ -10,7 +10,7 @@ void __VERIFIER_assert(int cond) {
 int main()
 {
     int x = __VERIFIER_nondet_int();
-    int y = x > 0 && x < 2; // TODO: uncil broken
+    int y = x > 0 && x < 2;
     if (y)
         __VERIFIER_error();
     return 0;
