@@ -22,7 +22,7 @@ int main()
         }
         else
         {
-            __VERIFIER_assert(x != 0 && x != 2); // TODO: uncil broken
+            __VERIFIER_assert(x != 0 && x != 2);
         }
     }
     // TODO: double InlineReturn edge in two first cases?

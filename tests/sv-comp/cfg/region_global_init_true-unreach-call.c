@@ -22,6 +22,6 @@ int main()
         x = 1;
     else
         x = 2;
-    __VERIFIER_assert(1 <= x && x <= 2); // TODO: uncil broken
+    __VERIFIER_assert(1 <= x && x <= 2);
     return 0;
 }

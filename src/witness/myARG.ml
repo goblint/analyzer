@@ -312,7 +312,7 @@ struct
       (* TODO: need to handle longer loops? *)
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {sid=sid2; skind=If (_, _, _, loc2, eloc2); _}, _ when sid <> sid2 && loc = loc2 ->
+        | Statement {sid=sid2; skind=If (_, _, _, loc2, eloc2); _}, _ when sid <> sid2 && CilType.Location.equal loc loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -360,7 +360,7 @@ struct
   let next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.graphml.uncil" -> (* TODO: use eloc instead? *)
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
-      if Node.location if_true_next_n = loc && Node.location if_false_next_n = loc then
+      if CilType.Location.equal (Node.location if_true_next_n) loc && CilType.Location.equal (Node.location if_false_next_n) loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
         | [(Assign (v_true, e_true), if_true_next_next_n)], [(Assign (v_false, e_false), if_false_next_next_n)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in
