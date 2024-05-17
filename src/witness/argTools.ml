@@ -162,11 +162,23 @@ struct
       include Intra (ArgIntra) (Arg)
 
       let prev = witness_prev
-      let iter_nodes f =
-        f main_entry;
-        NHT.iter (fun n _ ->
-            f n
-          ) witness_prev_map
+
+      (** Iterate over {e reachable} nodes. *)
+      let iter_nodes (f: Node.t -> unit): unit =
+        let reachable = NHT.create (NHT.length witness_prev_map) in
+
+        (* DFS *)
+        let rec iter_node node =
+          if not (NHT.mem reachable node) then (
+            NHT.replace reachable node ();
+            f node;
+            List.iter (fun (edge, to_node) ->
+                iter_node to_node
+              ) (next node) (* use included next, not Arg.next, to prune uncilled nodes *)
+          )
+        in
+
+        iter_node main_entry
 
       let query ((n, c, i): Node.t) q =
         R.ask_local (n, c) (PathQuery (i, q))
