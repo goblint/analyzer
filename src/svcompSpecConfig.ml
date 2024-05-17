@@ -1,4 +1,7 @@
-(** Autotuning of the activated analyses for soundness based on SV-COMP specification. *)
+(** Selecting sound configurations based on SV-COMP specification.
+    Activating the analyses and enabling options that are
+    required for analyzing the property defined in the specification.
+ **)
 
 open GobConfig
 open AutoTune
