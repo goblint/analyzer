@@ -26,7 +26,13 @@ struct
     Format.fprintf ppf "\"%s\"" (Arg.Node.to_string node)
 
   let dot_edge ppf from_node (edge, to_node) =
-    Format.fprintf ppf "@,%a -> %a [label=\"%s\"];" dot_node_name from_node dot_node_name to_node (String.escaped (Arg.Edge.to_string edge))
+    let label = [Format.sprintf "label=\"%s\"" (String.escaped (Arg.Edge.to_string edge))] in
+    let style = match edge with
+      | MyARG.InlinedEdge _ -> ["style=dotted"]
+      | _ -> []
+    in
+    let styles = String.concat "," (label @ style) in
+    Format.fprintf ppf "@,%a -> %a [%s];" dot_node_name from_node dot_node_name to_node styles
 
   let dot_node ppf node =
     let shape = match Arg.Node.cfgnode node with
