@@ -41,6 +41,14 @@ module Rhs = struct
       | Some (c,_) -> Z.gcd c gcd
       | None -> gcd
     in (BatOption.map (fun (coeff,i) -> (Z.div coeff gcd,i)) v,Z.div o gcd, Z.div d gcd)
+
+  (** Substitute rhs for varx in rhs' *)
+  let subst rhs varx rhs' =
+    match rhs,rhs' with
+    | (Some (c,x),o,d),(Some (c',x'),o',d') when x'=varx -> canonicalize (Some (Z.mul c c',x),Z.((o*c')+(d*o')),Z.mul d d')
+    | (None      ,o,d),(Some (c',x'),o',d') when x'=varx -> canonicalize (None               ,Z.((o*c')+(d*o')),Z.mul d d')
+    | _ -> rhs'
+
 end
 
 module EqualitiesConjunction = struct
@@ -66,6 +74,9 @@ module EqualitiesConjunction = struct
 
   (** trivial equalities are of the form var_i = var_i and are not kept explicitely in the sparse representation of EquanlitiesConjunction *)
   let nontrivial (_,econmap) lhs = IntMap.mem lhs econmap
+
+  (** turn x = (cy+o)/d   into  y = (dx-o)/c*)
+  let reverse x (c,y,o,d) = (y,(Some (d,x),Z.neg o,c)) 
 
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
   let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs econmap
@@ -181,29 +192,52 @@ module EqualitiesConjunction = struct
 
   exception Contradiction
 
-  let meet_with_one_conj ts i (var, b) =
+  let meet_with_one_conj ts i (var, offs, divi) =
+    let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
     let res =
-      let subst_var tsi x (vart, bt) =
+      let subst_var tsi x (vary, o, d) =
+        (* [[x substby (cy+o)/d ]] ((c'x+o')/d')             *)
+        (* =====>   (c'cy + c'o+o'd)/(dd')                   *)
         let adjust = function
-          | (Some vare, b') when vare = x -> (vart, Z.(b' + bt))
+          | (Some (c',varx), o',d') when varx = x -> Rhs.canonicalize (BatOption.map (fun (c,y)->(Z.mul c c',y)) vary, Z.((c'*o)+(o'*d)),Z.(d'*d))
           | e -> e
         in
-        (fst tsi, IntMap.add x (vart, bt) @@ IntMap.map adjust (snd tsi)) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        (fst tsi, IntMap.add x (vary, o, d) @@ IntMap.map adjust (snd tsi)) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
       in
-      let (var1, b1) = get_rhs ts i in
-      (match var, var1 with
-       | None  , None    -> if not @@ Z.equal b b1 then raise Contradiction else ts
-       | None  , Some h1 -> subst_var ts h1 (None, Z.(b - b1))
-       | Some j, None    -> subst_var ts j  (None, Z.(b1 - b))
-       | Some j, Some h1 ->
+      (match var, (get_rhs ts i) with
+       (*| new conj      , old conj          *)
+       | None          , (None            , o1, divi1) -> if not @@ (Z.equal offs o1 && Z.equal divi divi1) then raise Contradiction else ts
+       (*  o/d         =  x_i  = (c1*x_h1+o1)/d1            *)
+       (*  ======> x_h1 = (o*d1-o1*d)/(d*c1) /\  x_i = o/d  *)
+       | None          , (Some (coeff1,h1), o1, divi1) -> subst_var ts h1 (None, Z.(offs*divi1 - o1*divi),Z.(divi*coeff1))
+       (* (c*x_j+o)/d  =  x_i  =  o1/d1                     *)
+       (*  ======> x_j = (o1*d-o*d1)/(d1*c) /\  x_i = o1/d1 *)
+       | Some (coeff,j), (None            , o1, divi1) -> subst_var ts j  (None, Z.(o1*divi - offs*divi1),Z.(divi1*coeff))
+       (* (c*x_j+o)/d  =  x_i  = (c1*x_h1+o1)/d1            *)
+       (*  ======>   x_j needs normalization wrt. ts        *)
+       | Some (coeff,j), ((Some (coeff1,h1), o1, divi1) as oldi)->
          (match get_rhs ts j with
-          | (None, b2) -> subst_var ts i (None, Z.(b2 + b))
-          | (Some h2, b2) ->
-            if h1 = h2 then
-              (if not @@ Z.equal b1 Z.(b2 + b) then raise Contradiction else ts)
-            else if h1 < h2 then subst_var ts h2 (Some h1, Z.(b1 - (b + b2)))
-            else subst_var ts h1 (Some h2, Z.(b + (b2 - b1))))) in
-    if M.tracing then M.trace "meet" "meet_with_one_conj conj: { %s } eq: var_%d=%s ->   { %s } " (show (snd ts)) i (Rhs.show (var,b)) (show (snd ts))
+          (* ts[x_j]=o2/d2             ========>  ... *)
+          | (None            , o2, divi2) -> 
+            let newxi  = Rhs.subst (None,o2,divi2) j (Some (coeff,j),offs,divi) in
+            let newxh1 = snd @@ reverse i (coeff1,h1,o1,divi1) in
+            let newxh1 = Rhs.subst newxi i newxh1 in
+            subst_var ts h1 newxh1
+          (* ts[x_j]=(c2*x_h2+o2)/d2   ========>   ...  *)
+          | (Some (coeff2,h2), o2, divi2) as normalizedj ->
+            if h1 = h2 then (* this is the case where x_i and x_j already where in the same equivalence class; let's see whether the new equality contradicts the old one *)
+              let normalizedi= Rhs.subst normalizedj j (Some(coeff,j),offs,divi) in
+              (if not @@ Rhs.equal normalizedi oldi then raise Contradiction else ts)
+            else if h1 < h2 (* good, we no unite the two equvalence classes; let's decide upon the representant *)
+            then (* express h2 in terms of h1: *)
+              let (_,newh2)= reverse j (coeff2,h2,o2,divi2) in
+              let newh2 = Rhs.subst oldi i (Rhs.subst (snd @@ reverse i (coeff,j,offs,divi)) j newh2) in
+              subst_var ts h2 newh2
+            else (* express h1 in terms of h2: *)
+              let (_,newh1)= reverse i (coeff1,h1,o1,divi1) in
+              let newh1 = Rhs.subst normalizedj j (Rhs.subst (Some(coeff,j),offs,divi) i newh1) in
+              subst_var ts h1 newh1)) in
+    if M.tracing then M.trace "meet" "meet_with_one_conj conj: { %s } eq: var_%d=%s ->   { %s } " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd ts))
   ; res
 
 end
