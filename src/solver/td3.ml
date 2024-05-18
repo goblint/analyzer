@@ -409,8 +409,6 @@ module Base =
         );
         assert (Hooks.system y = None);
         init y;
-        if tracing then trace "side" "divided side to %a from %a ## new global: %b" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x (not (HM.mem divided_side_effects y));
-        if tracing then trace "side" "distinguishing %d globals" (HM.length divided_side_effects);
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
         match x with
         | Some x -> (
@@ -418,24 +416,29 @@ module Base =
             init_divided_side_effects y;
 
             let y_sides = HM.find divided_side_effects y in
-            if tracing then trace "side" "distinguishing %d side origins for %a" (HM.length y_sides) S.Var.pretty_trace y;
             let old_side = HM.find_default y_sides x (S.Dom.bot ()) in
+            (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             let new_side = match phase with
               | D_Widen -> S.Dom.widen old_side (S.Dom.join old_side d)
-              | D_Box old_side -> box old_side d
+              | D_Box old_side -> 
+                (
+                  let result = box old_side d in
+                  if tracing then trace "side" "Trying to narrow side from %a to %a. Old value: %a ## New value: %a ## Combined value: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_side S.Dom.pretty d S.Dom.pretty result;
+                  result
+                )
             in
 
             HM.replace stable y ();
             if not (S.Dom.equal old_side new_side) then (
-              if tracing then trace "side" "divided side from %a to %a changed (accumulation phase: %b)" S.Var.pretty_trace x S.Var.pretty_trace y (phase == D_Widen);
+              if tracing then trace "side" "divided side from %a to %a changed (accumulation phase: %b) Old value: %a ## New value: %a" S.Var.pretty_trace x S.Var.pretty_trace y (phase == D_Widen) S.Dom.pretty old_side S.Dom.pretty new_side;
 
               HM.replace y_sides x new_side;
               let y_newval = combined_side y in
               if not (S.Dom.equal y_newval (HM.find rho y)) then (
                 if tracing then (
                   let y_oldval = HM.find rho y in
-                  if tracing then trace "side" "value of %a changed by side from %a (accumulation phase: %b, grew: %b, shrank: %b)"
-                      S.Var.pretty_trace x S.Var.pretty_trace y (phase == D_Widen) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval);
+                  trace "side" "value of %a changed by side from %a (accumulation phase: %b, grew: %b, shrank: %b) Old value: %a ## New value: %a"
+                    S.Var.pretty_trace y S.Var.pretty_trace x (phase == D_Widen) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
                 );
                 HM.replace rho y y_newval;
                 destabilize y;
