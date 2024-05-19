@@ -260,14 +260,14 @@ struct
     let negate coeff_var_list = List.map (function
         | (Some(coeff,i),offs,divi) -> (Some(Z.neg coeff,i),Z.neg offs,divi)
         | (None         ,offs,divi) -> (None               ,Z.neg offs,divi)) coeff_var_list in
-    let multiply_with_Z number divisor coeff_var_list = List.map (function
-        | (Some (coeff, var),offs,divi) -> Rhs.canonicalize (Some(Z.mul number coeff,var),Z.(number * offs),Z.mul divi divisor)
-        | (None,offs,divi)              -> Rhs.canonicalize (None,Z.mul number offs,Z.mul divi divisor)) coeff_var_list in
+    let multiply_with_Q dividend divisor coeff_var_list = List.map (function
+        | (Some (coeff, var),offs,divi) -> Rhs.canonicalize (Some(Z.mul dividend coeff,var),Z.(dividend * offs),Z.mul divi divisor)
+        | (None,offs,divi)              -> Rhs.canonicalize (None,Z.mul dividend offs,Z.mul divi divisor)) coeff_var_list in
     let multiply a b =
       (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
       match a, b with
-      | [(None,a_coeff, divi)], b -> multiply_with_Z a_coeff divi b
-      | a, [(None,b_coeff, divi)] -> multiply_with_Z b_coeff divi a
+      | [(None,coeff, divi)], c 
+      | c, [(None,coeff, divi)] -> multiply_with_Q coeff divi c
       | _ -> raise NotLinearExpr
     in
     let rec convert_texpr texp =
@@ -284,8 +284,8 @@ struct
             | None -> [(Some (Z.one,var_dim),Z.zero,Z.one)]
             | Some d ->
               (match (EConj.get_rhs d var_dim) with
-               | (Some (coeff,i), k,divi) -> [(Some (coeff,i),Z.zero,Z.one); (None,k,Z.one)]
-               | (None,           k,divi) -> [                               (None,k,Z.one)])
+               | (Some (coeff,i), k,divi) -> [(Some (coeff,i),Z.zero,divi); (None,k,divi)]
+               | (None,           k,divi) -> [                              (None,k,divi)])
           end
         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
         | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
@@ -299,27 +299,27 @@ struct
     | exception ScalarIsInfinity -> None
     | x -> Some(x)
 
-  (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials and a constant *)
+  (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
   let simplified_monomials_from_texp (t: t) texp =
     BatOption.bind (monomials_from_texp t texp)
       (fun monomiallist ->
          let d = Option.get t.d in
-         let expr = Array.make (Environment.size t.env) Z.zero in
-         let accumulate_constants a (c, v) = match v with
-           | None -> Z.(a + c)
-           | Some idx -> let (term,con) = (EConj.get_rhs d idx) in
-             (Option.may (fun ter -> expr.(ter) <- Z.(expr.(ter) + c)) term;
-              Z.(a + c * con))
+         let expr = Array.make (Environment.size t.env) (Q.zero) in (*TODO*: migrate to map; array of coeff/divisor per var idx*)
+         let accumulate_constants (aconst,adiv) (v,offs,divi) = match v with
+           | None -> let gcdee = Z.gcd adiv divi in (Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
+           | Some (coeff,idx) -> let (somevar,someoffs,somedivi)=Rhs.subst (EConj.get_rhs d idx) idx (v,offs,divi) in (* normalize! *)
+             (Option.may (fun (coef,ter) -> expr.(ter) <- Q.(expr.(ter) + Q.make coef somedivi)) somevar; 
+              let gcdee = Z.gcd adiv divi in (Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
          in
-         let constant = List.fold_left accumulate_constants Z.zero monomiallist in (* abstract simplification of the guard wrt. reference variables *)
-         Some (Array.fold_lefti (fun list v (c) -> if Z.equal c Z.zero then list else (c,v)::list) [] expr, constant) )
+         let constant = List.fold_left accumulate_constants (Z.zero,Z.one) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+         Some (Array.fold_lefti (fun list v (c) -> if Q.equal c Q.zero then list else (c.num,v,c.den)::list) [] expr, constant) )
 
   let simplify_to_ref_and_offset (t: t) texp =
     BatOption.bind (simplified_monomials_from_texp t texp )
-      (fun (sum_of_terms, constant) ->
+      (fun (sum_of_terms, (constant,divisor)) ->
          (match sum_of_terms with
-          | [] -> Some (None, constant)
-          | [(coeff,var)] when Z.equal coeff Z.one -> Some (Some var, constant)
+          | [] -> Some (None, constant,divisor) 
+          | [(coeff,var,divi)] when Z.equal coeff Z.one -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
           |_ -> None))
 
   let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
@@ -364,9 +364,12 @@ struct
     if t.d = None then None, None
     else
       match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
-      | Some (None, offset) ->
-        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string offset) (IntOps.BigIntOps.to_string offset);
-         Some offset, Some offset)
+      | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
+        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string res) (IntOps.BigIntOps.to_string res);
+         Some res, Some res)
+      | Some (None, offset, divisor) -> let res = Z.div offset divisor in
+        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string res) (IntOps.BigIntOps.to_string (Z.add res Z.one));
+         Some res, Some (Z.add res Z.one); failwith "ToDo: Rethink interval bounds (add or subtract depending on sign of res)")
       | _ -> None, None
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
