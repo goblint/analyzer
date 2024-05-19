@@ -1,4 +1,4 @@
-// PARAM: --set ana.base.privatization write --enable ana.int.interval --set solvers.td3.side_widen never
+// PARAM: --set ana.base.privatization write --enable ana.int.interval
 // For write side_widen never is needed, for protection it is not.
 #include <pthread.h>
 int occupied;
@@ -7,7 +7,7 @@ pthread_mutex_t mtx;
 
 void* thread(void* arg) {
   pthread_mutex_lock(&mtx);
-  if(occupied < 2) {
+  if(occupied < 1) {
     occupied++;
   }
   pthread_mutex_unlock(&mtx);
