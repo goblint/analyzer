@@ -19,6 +19,7 @@ void* thread(void* arg) {
   if(pqb.occupied < 2) {
     pqb.occupied++;
   }
+  
   pthread_mutex_unlock(&mtx);
  }
 
