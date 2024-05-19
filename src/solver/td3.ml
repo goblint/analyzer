@@ -405,10 +405,9 @@ module Base =
           | Some acc -> S.Dom.join acc d
           | None -> d in
         HM.replace acc y new_acc;
-        if not ((HM.mem rho y) && S.Dom.leq new_acc (HM.find rho y)) then (
-          divided_side D_Widen ~x y new_acc;
-          HM.replace changed y ();
-        );
+        (* TODO: SIDE - if not ((HM.mem rho y) && S.Dom.leq new_acc (HM.find rho y)), join instead of widen *)
+        divided_side D_Widen ~x y new_acc;
+        HM.replace changed y ();
       and divided_side (phase:divided_side_phase) ?x y d =
         if tracing then trace "sol2" "divided side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
@@ -454,13 +453,17 @@ module Base =
           )
         | None -> (
             let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot ()) in
-            let wd = S.Dom.widen orphaned d in
+            let wd = S.Dom.widen orphaned (S.Dom.join orphaned d) in
             HM.replace orphan_side_effects y wd;
+            if tracing then trace "side" "orphaned side to %a" S.Var.pretty_trace y;
             let y_oldval = HM.find rho y in
             if not (S.Dom.leq wd y_oldval) then (
               if tracing then trace "side" "orphaned side changed %a (accumulation phase: %b)" S.Var.pretty_trace y (phase == D_Widen);
               HM.replace rho y (S.Dom.join wd y_oldval);
-              destabilize y;
+              (* TODO: SIDE destabilize might be uninitialized. Handle this more cleanly. *)
+              try
+                destabilize y;
+              with Failure f -> ()
             )
         );
 
@@ -601,7 +604,11 @@ module Base =
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
-        HM.replace rho x d;
+        (* TODO: SIDE make this change-proof *)
+        if GobConfig.get_bool "solvers.td3.divided-narrow" then
+          divided_side D_Widen x d
+        else
+          HM.replace rho x d;
         HM.replace stable x ();
         (* solve x Widen *)
       in
@@ -639,7 +646,11 @@ module Base =
           (* immediately redo "side effect" from st *)
           match GobList.assoc_eq_opt S.Var.equal x st with
           | Some d ->
-            HM.replace rho x d;
+            (* TODO: SIDE make this change-proof *)
+            if GobConfig.get_bool "solvers.td3.divided-narrow" then
+              divided_side D_Widen x d
+            else
+              HM.replace rho x d;
           | None ->
             ()
         in
@@ -942,6 +953,7 @@ module Base =
           );
           d1
         ) else (
+          (* TODO: SIDE handle sides here *)
           let d = eq check x in
           HM.replace rho x d;
           d
