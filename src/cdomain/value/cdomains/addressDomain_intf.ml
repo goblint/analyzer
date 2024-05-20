@@ -80,6 +80,7 @@ sig
 
     val semantic_equal: t -> t -> bool option
     (** Check semantic equality of two addresses.
+
         @return [Some true] if definitely equal, [Some false] if definitely not equal, [None] if unknown. *)
 
     val amenable_to_meet: t -> t -> bool
