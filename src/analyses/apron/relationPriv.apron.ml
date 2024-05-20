@@ -635,7 +635,7 @@ struct
           st
       end
     | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+      if ConfCheck.no_branched_thread_creation () || (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
         st
       else
         let rel = st.rel in
