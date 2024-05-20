@@ -1,7 +1,10 @@
-(** Selecting sound configurations based on SV-COMP specification.
-    Activating the analyses and enabling options that are
-    required for analyzing the property defined in the specification.
- **)
+
+(** Automatically turning on analyses required to ensure soundness
+    based on a given specification (e.g., SV-COMP specification)
+    or programming idioms (e.g., longjump) in the analyzed code,
+    but only when it is possible to do so automatically.
+    This does not fully exempt from the need for manual configuration.
+*)
 
 open GobConfig
 open AutoTune
@@ -15,7 +18,11 @@ let enableOptions options =
   in
   List.iter enableOpt options
 
-(* TODO: have only one function for matching all specifications and find a place where it can be called. *)
+(** Selecting sound configurations based on SV-COMP specification.
+    Activating the analyses and enabling options that are
+    required for analyzing the property defined in the specification.
+    TODO: have only one function for matching all specifications and find a place where it can be called.
+*)
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidFree -> (* Enable the soundness analyses for ValidFree spec *)
