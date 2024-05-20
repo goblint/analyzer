@@ -31,9 +31,6 @@ struct
   let context ctx _ _ = ()
   let startcontext () = ()
 
-  (* Queries *)
-
-  (** Determines whether a variable [v] is tainted, given a [state]. *)
 
   (** Determines whether an expression [e] is tainted, given a [state]. *)
   let rec is_exp_tainted (state:D.t) (e:Cil.exp) = match e with
