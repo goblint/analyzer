@@ -1917,6 +1917,17 @@ struct
     if M.tracing then M.traceu "priv" "-> %a" BaseComponents.pretty r;
     r
 
+  let invariant_global ask getg g =
+    if M.tracing then M.traceli "priv" "invariant_global %a" V.pretty g;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "priv" "getg %a -> %a" V.pretty x G.pretty r;
+      r
+    in
+    let r = invariant_global ask getg g in
+    if M.tracing then M.traceu "priv" "-> %a" Invariant.pretty r;
+    r
+
 end
 
 let priv_module: (module S) Lazy.t =
