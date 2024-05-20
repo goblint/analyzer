@@ -857,12 +857,34 @@ module CongruenceClosure = struct
            Nequal (t1,t2,z)
         ) % bindings
 
-    let intersect cmap1 cmap2 =
-      List.fold_left (fun result_map (t1, z, size, t2) ->
-          if map_set_mem (t1,z) t2 cmap2 then
-            map_set_add (t1,z) t2 result_map
-          else result_map) TMap.empty
-        (bindings cmap1)
+    let element_closure diseqs uf =
+      let cmap = comp_map uf in
+      let comp_closure (r1,r2,z) =
+        let find_size_64 =  (*TODO don't hardcode 64*)
+          List.flatten % List.filter_map
+            (fun (z, zmap) -> Option.map
+                (fun l -> List.cartesian_product [z] (TSet.to_list l))
+                (ZMap.find_opt (Z.of_int 64) zmap)) in
+        let comp_closure_zmap bindings1 bindings2 =
+          List.map (fun ((z1, nt1),(z2, nt2)) ->
+              (nt1, nt2, Z.(-z2+z+z1)))
+            (List.cartesian_product (find_size_64 bindings1) (find_size_64 bindings2))
+        in
+        let singleton term = [Z.zero, ZMap.add (Z.of_int 64) (TSet.singleton term) ZMap.empty] in
+        begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
+          | None, None -> [(r1,r2,z)]
+          | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
+          | Some zmap1, None -> comp_closure_zmap (ZMap.bindings zmap1) (singleton r2)
+          | Some zmap1, Some zmap2 ->
+            comp_closure_zmap (ZMap.bindings zmap1) (ZMap.bindings zmap2)
+        end
+      in
+      List.flatten @@ List.map comp_closure diseqs
+
+
+
+
+
   end
 
   (** Set of subterms which are present in the current data structure. *)
@@ -1240,15 +1262,17 @@ module CongruenceClosure = struct
   (** Add all terms in a specific set to the data structure.
 
       Returns updated (uf, set, map, min_repr). *)
-  let insert_set_opt cc t_set =
-    match cc with
-    | None -> None
-    | Some cc ->
-      let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
-      (* update min_repr at the end for more efficiency *)
-      let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
-      Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq}
+  let insert_set t_set cc =
+    let cc, queue = SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = (insert_no_min_repr cc t) in (cc, queue @ a_queue) ) t_set (cc, []) in
+    (* update min_repr at the end for more efficiency *)
+    let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
+    {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq}
 
+  (** Add all terms in a specific set to the data structure.
+
+      Returns updated (uf, set, map, min_repr). *)
+  let insert_set_opt cc t_set =
+    Option.map (insert_set t_set) cc
 
   (** used by NEQ *)
   let congruence_neq cc neg =
@@ -1518,7 +1542,7 @@ module CongruenceClosure = struct
           match Map.find_opt new_element pmap with
           | None -> Map.add new_element (new_term, a_off) pmap, cc, new_element::new_pairs
           | Some (c, c1_off) ->
-            pmap, closure cc [new_term, c, Z.(-c1_off + a_off)],new_pairs
+            pmap, add_eq cc (new_term, c, Z.(-c1_off + a_off)),new_pairs
     in
     let rec add_edges_to_map pmap cc = function
       | [] -> cc, pmap
@@ -1530,17 +1554,14 @@ module CongruenceClosure = struct
     add_edges_to_map pmap cc working_set
 
   (** Joins the disequalities diseq1 and diseq2, given a congruence closure data structure. *)
-  let join_neq diseq1 diseq2 cc =
+  let join_neq diseq1 diseq2 cc1 cc2 cc =
     let _,diseq1 = split (Disequalities.get_disequalities diseq1) in
     let _,diseq2 = split (Disequalities.get_disequalities diseq2) in
-    let cc = insert_set_opt (Some cc) (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2)) in
-    begin match cc with
-      | None -> None
-      | Some cc ->
-        begin match congruence_neq cc diseq1, congruence_neq cc diseq2 with
-          | None, cc | cc, None -> cc
-          | Some cc1, Some cc2 -> Some {cc1 with diseq=Disequalities.intersect cc1.diseq cc2.diseq}
-        end
-    end
+    (* keep all disequalities from diseq1 that are implied by cc2 and
+       those from diseq2 that are implied by cc1 *)
+    let diseq1 = List.filter (neq_query cc2) (Disequalities.element_closure diseq1 cc1.uf) in
+    let diseq2 = List.filter (neq_query cc1) (Disequalities.element_closure diseq2 cc2.uf) in
+    let cc = insert_set (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2)) cc in
+    congruence_neq cc (diseq1 @ diseq2)
 
 end

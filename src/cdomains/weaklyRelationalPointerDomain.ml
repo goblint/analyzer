@@ -12,7 +12,6 @@ module T = CC.T
 module MayBeEqual = struct
 
   module AD = ValueDomain.AD
-  (*TODO: id should not clash with the other dummy values we have for function parameters*)
   let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ}
   let dummy_var var = T.term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
@@ -122,13 +121,13 @@ module D = struct
       | None, b -> b
       | a, None -> a
       | Some a, Some b -> let cc = fst(join_eq a b)
-        in join_neq a.diseq b.diseq cc
+        in join_neq a.diseq b.diseq a b cc
     in
-    if M.tracing then M.trace "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\nJOIN: %s\n"
-        (show_all a) (show_all b) (show_all res);
+    if M.tracing then M.tracel "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\nJOIN: %s\n"
+        (show a) (show b) (show res);
     res
 
-  let widen = join
+  let widen a b = top ()
 
   let meet a b = match a,b with
     | None, _ -> None
