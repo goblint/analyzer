@@ -76,7 +76,7 @@ module EqualitiesConjunction = struct
   let nontrivial (_,econmap) lhs = IntMap.mem lhs econmap
 
   (** turn x = (cy+o)/d   into  y = (dx-o)/c*)
-  let reverse x (c,y,o,d) = (y,(Some (d,x),Z.neg o,c)) 
+  let inverse x (c,y,o,d) = (y,(Some (d,x),Z.neg o,c)) 
 
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
   let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs econmap
@@ -220,7 +220,7 @@ module EqualitiesConjunction = struct
           (* ts[x_j]=o2/d2             ========>  ... *)
           | (None            , o2, divi2) -> 
             let newxi  = Rhs.subst (None,o2,divi2) j (Some (coeff,j),offs,divi) in
-            let newxh1 = snd @@ reverse i (coeff1,h1,o1,divi1) in
+            let newxh1 = snd @@ inverse i (coeff1,h1,o1,divi1) in
             let newxh1 = Rhs.subst newxi i newxh1 in
             subst_var ts h1 newxh1
           (* ts[x_j]=(c2*x_h2+o2)/d2   ========>   ...  *)
@@ -230,15 +230,31 @@ module EqualitiesConjunction = struct
               (if not @@ Rhs.equal normalizedi oldi then raise Contradiction else ts)
             else if h1 < h2 (* good, we no unite the two equvalence classes; let's decide upon the representant *)
             then (* express h2 in terms of h1: *)
-              let (_,newh2)= reverse j (coeff2,h2,o2,divi2) in
-              let newh2 = Rhs.subst oldi i (Rhs.subst (snd @@ reverse i (coeff,j,offs,divi)) j newh2) in
+              let (_,newh2)= inverse j (coeff2,h2,o2,divi2) in
+              let newh2 = Rhs.subst oldi i (Rhs.subst (snd @@ inverse i (coeff,j,offs,divi)) j newh2) in
               subst_var ts h2 newh2
             else (* express h1 in terms of h2: *)
-              let (_,newh1)= reverse i (coeff1,h1,o1,divi1) in
+              let (_,newh1)= inverse i (coeff1,h1,o1,divi1) in
               let newh1 = Rhs.subst normalizedj j (Rhs.subst (Some(coeff,j),offs,divi) i newh1) in
               subst_var ts h1 newh1)) in
     if M.tracing then M.trace "meet" "meet_with_one_conj conj: { %s } eq: var_%d=%s ->   { %s } " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd ts))
   ; res
+
+  (** affine transform variable i allover conj with transformer (Some (coeff,i)+offs)/divi *)
+  let affine_transform econ i (var,offs,divi) =
+    if nontrivial econ i then (** i cannot occur on any other rhs apart from itself *)
+      set_rhs econ i (Rhs.subst (get_rhs econ i) i (var,offs,divi))
+    else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
+      match var with
+      | None -> failwith "this is not a valid affine transformation"
+      | Some (coeff,j) -> 
+        (* so now, we transform with the inverse of the transformer: *)
+        let inv = snd (inverse i (coeff,j,offs,divi)) in
+        IntMap.fold (fun k v acc -> 
+            match v with
+            | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
+            | _ -> acc
+          ) (snd econ) econ
 
 end
 
@@ -325,33 +341,9 @@ struct
   let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
   (* Copy because function is not "with" so should not mutate inputs *)
-  let assign_const t var const = match t.d with
+  let assign_const t var const divi = match t.d with
     | None -> t
-    | Some t_d -> {d = Some (EConj.set_rhs t_d var (None, const,Z.one)); env = t.env}
-
-  let subtract_const_from_var t var const =
-    match t.d with
-    | None -> t
-    | Some t_d ->
-      let subtract_const_from_var_for_single_equality index (eq_var_opt, off2) econ =
-        if index <> var then
-          begin match eq_var_opt with
-            | Some eq_var when eq_var = var ->
-              EConj.set_rhs econ index (eq_var_opt, Z.(off2 - const))
-            | _ -> econ
-          end
-        else econ
-      in
-      let d =
-        if not @@ EConj.nontrivial t_d var
-        (* var is a reference variable -> it can appear on the right-hand side of an equality *)
-        then
-          (EConj.IntMap.fold (subtract_const_from_var_for_single_equality) (snd t_d) t_d)
-        else
-          (* var never appears on the right hand side-> we only need to modify the array entry at index var *)
-          EConj.set_rhs t_d var (Tuple2.map2 (Z.add const) (EConj.get_rhs t_d var))
-      in
-      {d = Some d; env = t.env}
+    | Some t_d -> {d = Some (EConj.set_rhs t_d var (None, const, divi)); env = t.env}
 
 end
 
@@ -580,15 +572,15 @@ struct
         | None ->
           (* Statement "assigned_var = ?" (non-linear assignment) *)
           forget_var t var
-        | Some (None, off) ->
+        | Some (None, off, divi) ->
           (* Statement "assigned_var = off" (constant assignment) *)
-          assign_const (forget_var t var) var_i off
-        | Some (Some exp_var, off) when var_i = exp_var ->
-          (* Statement "assigned_var = assigned_var + off" *)
-          subtract_const_from_var t var_i off
-        | Some (Some exp_var, off) ->
-          (* Statement "assigned_var = exp_var + off" (assigned_var is not the same as exp_var) *)
-          meet_with_one_conj (forget_var t var) var_i (Some (Z.one,exp_var), off, Z.one)
+          assign_const (forget_var t var) var_i off divi
+        | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
+          (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
+          {d=Some (EConj.affine_transform d var_i (Some (coeff_var, var_i), off, divi)); env=t.env }
+        | Some (Some monomial, off, divi) ->
+          (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
+          meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
       end
     | None -> bot_env
 
