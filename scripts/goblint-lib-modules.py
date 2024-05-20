@@ -44,6 +44,7 @@ exclude_module_names = set([
 
     "MessageCategory", # included in Messages
     "PreValueDomain", # included in ValueDomain
+    "WitnessGhostVar", # included in WitnessGhost
 
     "ConfigVersion",
     "ConfigProfile",

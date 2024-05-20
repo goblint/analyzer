@@ -42,6 +42,10 @@ struct
         PreconditionLoopInvariantCertificate {x with target = target_strip_file_hash x.target}
       | InvariantSet x ->
         InvariantSet {content = List.map invariant_strip_file_hash x.content}
+      | GhostVariable x ->
+        GhostVariable x (* no location to strip *)
+      | GhostUpdate x ->
+        GhostUpdate {x with location = location_strip_file_hash x.location}
     in
     {entry_type}
 

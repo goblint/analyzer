@@ -9,6 +9,7 @@ struct
     command_line: string option;
     (* TODO: description *)
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {name; version; command_line} =
     `O ([
@@ -39,6 +40,7 @@ struct
     language: string;
     specification: string option;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {input_files; input_file_hashes; data_model; language; specification} =
     `O ([
@@ -78,6 +80,7 @@ struct
     producer: Producer.t;
     task: Task.t option;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {format_version; uuid; creation_time; producer; task} =
     `O ([
@@ -111,7 +114,7 @@ struct
     column: int;
     function_: string;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {file_name; file_hash; line; column; function_} =
     `O [
@@ -139,7 +142,7 @@ struct
     type_: string;
     format: string;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -162,7 +165,7 @@ struct
     location: Location.t;
     loop_invariant: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "loop_invariant"
 
@@ -185,7 +188,7 @@ struct
     location: Location.t;
     location_invariant: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "location_invariant"
 
@@ -207,7 +210,7 @@ struct
   type t = {
     flow_insensitive_invariant: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "flow_insensitive_invariant"
 
@@ -229,7 +232,7 @@ struct
     loop_invariant: Invariant.t;
     precondition: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "precondition_loop_invariant"
 
@@ -257,7 +260,7 @@ struct
       value: string;
       format: string;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let invariant_type = "loop_invariant"
 
@@ -289,7 +292,7 @@ struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
@@ -317,7 +320,7 @@ struct
     type t = {
       invariant_type: InvariantType.t;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let to_yaml {invariant_type} =
       `O [
@@ -336,7 +339,7 @@ struct
   type t = {
     content: Invariant.t list;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "invariant_set"
 
@@ -356,7 +359,7 @@ struct
     type_: string;
     file_hash: string;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {uuid; type_; file_hash} =
     `O [
@@ -380,7 +383,7 @@ struct
     type_: string;
     format: string;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -403,7 +406,7 @@ struct
     target: Target.t;
     certification: Certification.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "loop_invariant_certificate"
 
@@ -426,6 +429,62 @@ struct
   let entry_type = "precondition_loop_invariant_certificate"
 end
 
+module GhostVariable =
+struct
+  type t = {
+    variable: string;
+    scope: string;
+    type_: string;
+    initial: string;
+  }
+  [@@deriving eq, ord, hash]
+
+  let entry_type = "ghost_variable"
+
+  let to_yaml' {variable; scope; type_; initial} =
+    [
+      ("variable", `String variable);
+      ("scope", `String scope);
+      ("type", `String type_);
+      ("initial", `String initial);
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ variable = y |> find "variable" >>= to_string
+    and+ scope = y |> find "scope" >>= to_string
+    and+ type_ = y |> find "type" >>= to_string
+    and+ initial = y |> find "initial" >>= to_string in
+    {variable; scope; type_; initial}
+end
+
+module GhostUpdate =
+struct
+  type t = {
+    variable: string;
+    expression: string;
+    location: Location.t;
+    (* TODO: branching? *)
+  }
+  [@@deriving eq, ord, hash]
+
+  let entry_type = "ghost_update"
+
+  let to_yaml' {variable; expression; location} =
+    [
+      ("variable", `String variable);
+      ("expression", `String expression);
+      ("location", Location.to_yaml location);
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ variable = y |> find "variable" >>= to_string
+    and+ expression = y |> find "expression" >>= to_string
+    and+ location = y |> find "location" >>= Location.of_yaml in
+    {variable; expression; location}
+end
+
 (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
 module EntryType =
 struct
@@ -437,7 +496,9 @@ struct
     | LoopInvariantCertificate of LoopInvariantCertificate.t
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
     | InvariantSet of InvariantSet.t
-  [@@deriving ord]
+    | GhostVariable of GhostVariable.t
+    | GhostUpdate of GhostUpdate.t
+  [@@deriving eq, ord, hash]
 
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type
@@ -447,6 +508,8 @@ struct
     | LoopInvariantCertificate _ -> LoopInvariantCertificate.entry_type
     | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
+    | GhostVariable _ -> GhostVariable.entry_type
+    | GhostUpdate _ -> GhostUpdate.entry_type
 
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -456,6 +519,8 @@ struct
     | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
     | PreconditionLoopInvariantCertificate x -> PreconditionLoopInvariantCertificate.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
+    | GhostVariable x -> GhostVariable.to_yaml' x
+    | GhostUpdate x -> GhostUpdate.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -481,16 +546,33 @@ struct
     else if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
+    else if entry_type = GhostVariable.entry_type then
+      let+ x = y |> GhostVariable.of_yaml in
+      GhostVariable x
+    else if entry_type = GhostUpdate.entry_type then
+      let+ x = y |> GhostUpdate.of_yaml in
+      GhostUpdate x
     else
-      Error (`Msg "entry_type")
+      Error (`Msg ("entry_type " ^ entry_type))
 end
 
 module Entry =
 struct
+  include Printable.StdLeaf
+
   type t = {
     entry_type: EntryType.t;
-    metadata: Metadata.t;
+    metadata: Metadata.t [@equal fun _ _ -> true] [@compare fun _ _ -> 0] [@hash fun _ -> 1];
   }
+  [@@deriving eq, ord, hash]
+
+  let name () = "YAML entry"
+
+  let show _ = "TODO"
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
 
   let to_yaml {entry_type; metadata} =
     `O ([
