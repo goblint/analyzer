@@ -198,20 +198,6 @@ let reduceThreadAnalyses () =
     disableAnalyses notNeccessaryThreadAnalyses;
   )
 
-(* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
-(* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
-let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceSetjmp"; "poisonVariables"; "expsplit"; "vla"]
-
-let activateLongjmpAnalysesWhenRequired () =
-  let isLongjmp = function
-    | LibraryDesc.Longjmp _ -> true
-    | _ -> false
-  in
-  if hasFunction isLongjmp  then (
-    Logs.info "longjmp -> enabling longjmp analyses \"%s\"" (String.concat ", " longjmpAnalyses);
-    enableAnalyses longjmpAnalyses;
-  )
-
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidMemtrack

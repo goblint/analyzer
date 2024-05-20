@@ -56,8 +56,8 @@ let main () =
         else
           None
       in
-      (* This is run independant of the autotuner being enabled or not be sound for programs with longjmp *)
-      AutoTune.activateLongjmpAnalysesWhenRequired ();
+      (* This is run independant of the autotuner being enabled or not to be sound for programs with longjmp *)
+      SvcompSpecConfig.activateLongjmpAnalysesWhenRequired ();
       if get_string "ana.specification" <> "" then SvcompSpecConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
