@@ -13,7 +13,7 @@ struct
 
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
-  module C = ValueDomain.AddrSetDomain
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   (*

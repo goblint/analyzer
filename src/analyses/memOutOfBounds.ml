@@ -20,9 +20,9 @@ struct
   include Analyses.IdentitySpec
 
   module D = Lattice.Unit
-  module C = D
+  include Analyses.ValueContexts(D)
 
-  let context _ _ = ()
+  let context ctx _ _ = ()
 
   let name () = "memOutOfBounds"
 

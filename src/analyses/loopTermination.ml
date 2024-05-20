@@ -30,7 +30,8 @@ struct
   let name () = "termination"
 
   module D = Lattice.Unit
-  module C = D
+  include Analyses.ValueContexts(D)
+
   module V = struct
     include UnitV
     let is_write_only _ = true

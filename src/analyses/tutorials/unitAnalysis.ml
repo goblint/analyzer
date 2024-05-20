@@ -38,6 +38,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
 
+  let startcontext () = ()
   let startstate v = D.bot ()
   let threadenter ctx ~multiple lval f args = [D.top ()]
   let threadspawn ctx ~multiple lval f args fctx = ctx.local

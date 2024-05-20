@@ -38,7 +38,7 @@ struct
   module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
   type t = Dom.t
   module D      = Dom
-  module C      = Dom
+  include Analyses.ValueContexts(D)
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
@@ -79,6 +79,7 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
+
   let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
   let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
 
@@ -622,7 +623,7 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
-  let context (fd: fundec) (st: store): store =
+  let context ctx (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     (* Here earlyglobs only drops syntactic globals from the context and does not consider e.g. escaped globals. *)

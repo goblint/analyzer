@@ -13,7 +13,7 @@ struct
   let name () = "expsplit"
 
   module D = MapDomain.MapBot (Basetype.CilExp) (ID)
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let startstate v = D.bot ()
   let exitstate = startstate

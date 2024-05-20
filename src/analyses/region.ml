@@ -16,7 +16,8 @@ struct
 
   module D = RegionDomain.RegionDom
   module G = RegPart
-  module C = D
+  include Analyses.ValueContexts(D)
+
   module V =
   struct
     include Printable.UnitConf (struct let name = "partitions" end)
