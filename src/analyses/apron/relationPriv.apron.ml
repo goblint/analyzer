@@ -694,14 +694,14 @@ struct
   let finalize () = ()
 
   let invariant_global (ask: Q.ask) (getg: V.t -> G.t): V.t -> Invariant.t = function
-    | `Left m' as m -> (* mutex *)
+    | `Left m' -> (* mutex *)
       let atomic = LockDomain.Addr.equal m' (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         (* filters like query_invariant *)
         let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
         let exact = GobConfig.get_bool "witness.invariant.exact" in
 
-        let rel = keep_only_protected_globals ask m' (getg m) in
+        let rel = keep_only_protected_globals ask m' (get_m_with_mutex_inits ask getg m') in (* TODO: disjunct with mutex_inits instead of join? *)
         let inv =
           RD.invariant rel
           |> List.enum

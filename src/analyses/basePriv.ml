@@ -250,7 +250,7 @@ struct
 
   let invariant_global ask getg = function
     | `Right g' -> (* global *)
-      ValueDomain.invariant_global (read_unprotected_global getg) g'
+      ValueDomain.invariant_global (read_unprotected_global getg) g' (* TODO: disjunct with mutex_inits instead of join? *)
     | _ -> (* mutex *)
       Invariant.none
 
@@ -332,10 +332,10 @@ struct
   include PerMutexPrivBase
 
   let invariant_global (ask: Q.ask) getg = function
-    | `Left m' as m -> (* mutex *)
+    | `Left m' -> (* mutex *)
       let atomic = LockDomain.Addr.equal m' (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
-        let cpa = getg m in
+        let cpa = get_m_with_mutex_inits ask getg m' in (* TODO: disjunct with mutex_inits instead of join? *)
         let inv = CPA.fold (fun v _ acc ->
             if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
               let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
@@ -688,7 +688,7 @@ struct
 
   let invariant_global ask getg = function
     | `Middle  g -> (* global *)
-      ValueDomain.invariant_global (read_unprotected_global getg) g
+      ValueDomain.invariant_global (read_unprotected_global getg) g (* TODO: disjunct with mutex_inits instead of join? *)
     | `Left _
     | `Right _ -> (* mutex or thread *)
       Invariant.none
