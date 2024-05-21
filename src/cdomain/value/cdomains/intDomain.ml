@@ -681,10 +681,20 @@ struct
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
       let threshold = get_interval_threshold_widening () in
-      let lt = if threshold then IArith.lower_threshold l1 min_ik else min_ik in
-      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt min_ik) in
-      let ut = if threshold then IArith.upper_threshold u1 max_ik else max_ik in
-      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut max_ik) in
+      let l2 =
+        if Ints_t.compare l0 l1 = 0 then
+          l0
+        else
+          let lt = if threshold then IArith.lower_threshold l1 min_ik else min_ik in
+          Ints_t.min l1 (Ints_t.max lt min_ik)
+      in
+      let u2 =
+        if Ints_t.compare u0 u1 = 0 then
+          u0
+        else
+          let ut = if threshold then IArith.upper_threshold u1 max_ik else max_ik in
+          Ints_t.max u1 (Ints_t.min ut max_ik)
+      in
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
