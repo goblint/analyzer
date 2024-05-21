@@ -686,14 +686,14 @@ struct
           l0
         else
           let lt = if threshold then IArith.lower_threshold l1 min_ik else min_ik in
-          Ints_t.min l1 (Ints_t.max lt min_ik)
+          Ints_t.min l1 lt
       in
       let u2 =
         if Ints_t.compare u0 u1 = 0 then
           u0
         else
           let ut = if threshold then IArith.upper_threshold u1 max_ik else max_ik in
-          Ints_t.max u1 (Ints_t.min ut max_ik)
+          Ints_t.max u1 ut
       in
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
