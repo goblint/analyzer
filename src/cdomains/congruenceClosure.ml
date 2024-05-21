@@ -188,21 +188,24 @@ module T = struct
 
   let dereference_exp exp offset =
     let find_field cinfo = Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset) in
-    match exp with
-    | AddrOf lval -> Lval lval
-    | _ ->
-      match typeOf exp with
-      | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
-      | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
-      | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
-        let index = Index (to_cil_constant offset typ, NoOffset) in
-        begin match exp with
-          | Lval (Var v, NoOffset) ->  Lval (Var v, index)
-          | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
-          | _ -> raise (UnsupportedCilExpression "not supported yet")
-        end
-      | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
-      | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
+    let res = match exp with
+      | AddrOf lval -> Lval lval
+      | _ ->
+        match typeOf exp with
+        | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
+        | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
+        | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
+          let index = Index (to_cil_constant offset typ, NoOffset) in
+          begin match exp with
+            | Lval (Var v, NoOffset) ->  Lval (Var v, index)
+            | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
+            | _ -> raise (UnsupportedCilExpression "not supported yet")
+          end
+        | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
+        | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
+    in match typeOf res with (* we want to make sure that the expression is valid *)
+    | exception GoblintCil__Errormsg.Error -> raise (UnsupportedCilExpression "this expression is not coherent")
+    | _ -> res
 
   let get_size = get_size_in_bits % type_of_term
 
