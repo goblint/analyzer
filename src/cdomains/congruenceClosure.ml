@@ -799,7 +799,7 @@ module CongruenceClosure = struct
           at the same level (not recorded) and then compare their predecessors
         *)
           match TMap.find_opt v1 (cmap:t), TMap.find_opt v2 cmap with
-          | None,_ | _,None -> raise (Failure "empty component?")
+          | None,_ | _,None -> (*should not happen*) propagate_neq (uf,cmap,arg,neq) rest
           | Some imap1, Some imap2 ->
             let ilist1 = ZMap.bindings imap1 in
             let rest = List.fold_left (fun rest (r1,_) ->
