@@ -360,8 +360,12 @@ struct
         (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string res) (IntOps.BigIntOps.to_string res);
          Some res, Some res)
       | Some (None, offset, divisor) -> let res = Z.div offset divisor in
-        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string res) (IntOps.BigIntOps.to_string (Z.add res Z.one));
-         Some res, Some (Z.add res Z.one); failwith "ToDo: Rethink interval bounds (add or subtract depending on sign of res)")
+        let (lower,upper) = if Z.lt res Z.zero then
+            (Z.sub res Z.one,res)
+          else
+            (res,Z.add res Z.one) in
+        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string lower) (IntOps.BigIntOps.to_string upper);
+         Some lower, Some upper)
       | _ -> None, None
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
