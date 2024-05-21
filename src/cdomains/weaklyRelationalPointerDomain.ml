@@ -22,7 +22,7 @@ module MayBeEqual = struct
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
   let may_point_to_address (ask:Queries.ask) adresses t2 off =
-    let exp2 = T.to_cil_sum ask off t2 in
+    let exp2 = T.to_cil_sum off (T.to_cil t2) in
     let mpt1 = adresses in
     let mpt2 = ask.f (MayPointTo exp2) in
     let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in

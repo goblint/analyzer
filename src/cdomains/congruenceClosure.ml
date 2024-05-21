@@ -102,15 +102,17 @@ module T = struct
       get_size_in_bits (TPtr (typ,[]))
     | _ -> Z.of_int (bitsSizeOf typ)
 
+  let rec type_of_element typ =
+    match typ with
+    | TArray (typ, _, _) -> type_of_element typ
+    | TPtr (typ, _) -> typ
+    | _ -> typ
+
   (** Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the size of the
       elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int\[]\[]\[] = sizeof(int)). *)
   let rec get_element_size_in_bits typ =
-    match typ with
-    | TArray (typ, _, _) -> get_element_size_in_bits typ
-    | TPtr (typ, _) -> get_size_in_bits typ
-    (*TODO TComp*)
-    | _ -> get_size_in_bits typ
+    get_size_in_bits (type_of_element typ)
 
   let is_array_type = function
     | TArray _ -> true
@@ -151,15 +153,6 @@ module T = struct
     | TPtr _| TArray _| TComp _ -> true
     | _ -> false
 
-  (** For a type TPtr(t) it returns the type t. *)
-  let dereference_type = function
-    | TPtr (typ, _) -> typ
-    | typ -> let rec remove_array_and_struct_types = function
-        | TArray (typ, _, _) -> remove_array_and_struct_types typ
-        | TComp (cinfo, _) ->  raise (UnsupportedCilExpression "not supported yet") (*TODO*)
-        | typ -> typ
-      in remove_array_and_struct_types typ
-
   let rec type_of_term =
     function
     | (Addr v) -> TPtr (v.vtype, [])
@@ -174,27 +167,33 @@ module T = struct
   (** Returns a Cil expression which is the constant z divided by the size of the elements of t.*)
   let to_cil_constant z t = let z = Z.(z/ get_element_size_in_bits t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
-  let to_cil_sum ask off t =
-    let cil_t = to_cil t in
+  let to_cil_sum off cil_t =
     if Z.(equal zero off) then cil_t else
-      let vtype = type_of_term t in
-      match vtype with
-      | TArray (typ, length, _) -> cil_t
-      | _ ->
-        BinOp (PlusPI, cil_t, to_cil_constant off vtype, vtype)
+      let typ = typeOf cil_t in
+      let el_typ = type_of_element typ in
+      BinOp (PlusPI, cil_t, to_cil_constant off el_typ, typ)
 
   let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
     | Some i -> i
     | None -> raise (UnsupportedCilExpression "unknown offset")
 
+  let rec add_index_to_exp exp index =
+    begin match exp with
+      | Lval (Var v, NoOffset) -> Lval (Var v, index)
+      | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
+      | BinOp (PlusPI, exp1, Const (CInt (z, _ , _ )), _)when Z.equal z Z.zero ->
+        add_index_to_exp exp1 index
+      | _ -> raise (UnsupportedCilExpression "not supported yet")
+    end
+
   let dereference_exp exp offset =
+    let find_field cinfo = Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset) in
     match exp with
     | AddrOf lval -> Lval lval
     | _ ->
       match typeOf exp with
-      | TPtr (typ, _) when Z.equal offset Z.zero -> Lval (Mem exp, NoOffset)
-      | TPtr (typ, _) ->
-        BinOp (PlusPI, Lval (Mem exp, NoOffset), to_cil_constant offset typ, typeOfLval (Mem exp, NoOffset))
+      | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
+      | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
       | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
         let index = Index (to_cil_constant offset typ, NoOffset) in
         begin match exp with
@@ -202,15 +201,8 @@ module T = struct
           | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
           | _ -> raise (UnsupportedCilExpression "not supported yet")
         end
-      | TComp (cinfo, _) ->
-        let finfo = List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields in
-        let index = Field (finfo, NoOffset) in
-        begin match exp with
-          | Lval (Var v, NoOffset) -> Lval (Var v, index)
-          | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
-          | _ -> raise (UnsupportedCilExpression "not supported yet")
-        end
-      | _ -> Lval (Mem (CastE (TPtr(TVoid[],[]), exp)), NoOffset)
+      | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
+      | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
 
   let get_size = get_size_in_bits % type_of_term
 
@@ -961,14 +953,17 @@ module CongruenceClosure = struct
           let process_edge (min_representatives, queue, uf) (edge_z, _(*min_repr is independent of the size*), next_term) =
             let next_state, next_z, uf = TUF.find uf next_term in
             let (min_term, min_z) = find state min_representatives in
-            let next_min = (SSet.deref_term min_term Z.(edge_z - min_z) set, next_z) in
-            match TMap.find_opt next_state min_representatives
-            with
-            | None ->
-              (add next_state next_min min_representatives, queue @ [next_state], uf)
-            | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
-              (add next_state next_min min_representatives, queue @ [next_state], uf)
-            | _ -> (min_representatives, queue, uf)
+            match (SSet.deref_term min_term Z.(edge_z - min_z) set, next_z) with
+            | exception (T.UnsupportedCilExpression _) ->
+              min_representatives, queue, uf
+            | next_min ->
+              match TMap.find_opt next_state min_representatives
+              with
+              | None ->
+                (add next_state next_min min_representatives, queue @ [next_state], uf)
+              | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
+                (add next_state next_min min_representatives, queue @ [next_state], uf)
+              | _ -> (min_representatives, queue, uf)
           in
           let (min_representatives, queue, uf) = List.fold_left process_edge (min_representatives, queue, uf) edges
           in update_min_repr (uf, set, map) min_representatives queue
@@ -1077,7 +1072,9 @@ module CongruenceClosure = struct
       List.filter_map (fun (z,s,_ (*size is not important for normal form?*),(s',z')) ->
           let (min_state, min_z) = MRMap.find s cc.min_repr in
           let (min_state', min_z') = MRMap.find s' cc.min_repr in
-          normalize_equality (SSet.deref_term min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
+          match normalize_equality (SSet.deref_term min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z')) with
+          | exception (T.UnsupportedCilExpression _) -> None
+          | eq -> eq
         ) transitions in
     (*disequalities*)
     let disequalities = Disequalities.get_disequalities cc.diseq
@@ -1358,11 +1355,14 @@ module CongruenceClosure = struct
     let add_one_successor (cc, successors) (edge_z, _, _) =
       let _, uf_offset, uf = TUF.find cc.uf t in
       let cc = {cc with uf = uf} in
-      let successor = SSet.deref_term t Z.(edge_z - uf_offset) cc.set in
-      let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
-      let _, cc, _ = if subterm_already_present then (t, Z.zero), cc, []
-        else insert_no_min_repr cc successor in
-      (cc, if subterm_already_present then successors else successor::successors) in
+      match SSet.deref_term t Z.(edge_z - uf_offset) cc.set with
+      | exception (T.UnsupportedCilExpression _) ->
+        (cc, successors)
+      | successor ->
+        let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
+        let _, cc, _ = if subterm_already_present then (t, Z.zero), cc, []
+          else insert_no_min_repr cc successor in
+        (cc, if subterm_already_present then successors else successor::successors) in
     List.fold_left add_one_successor (cc, []) (LMap.successors (Tuple3.first (TUF.find cc.uf t)) cc.map)
 
   (** Parameters:
