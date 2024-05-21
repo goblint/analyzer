@@ -563,12 +563,14 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let upper_threshold u max_ik =
     let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
     let u = Ints_t.to_bigint u in
-    let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x (Ints_t.to_bigint max_ik) <= 0) ts in
+    let max_ik' = Ints_t.to_bigint max_ik in
+    let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x max_ik' <= 0) ts in
     BatOption.map_default Ints_t.of_bigint max_ik t
   let lower_threshold l min_ik =
     let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
     let l = Ints_t.to_bigint l in
-    let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x (Ints_t.to_bigint min_ik) >= 0) ts in
+    let min_ik' = Ints_t.to_bigint min_ik in
+    let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x min_ik' >= 0) ts in
     BatOption.map_default Ints_t.of_bigint min_ik t
 end
 
