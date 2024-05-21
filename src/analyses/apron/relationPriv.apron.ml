@@ -97,8 +97,8 @@ struct
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
-    | `Join ->
-      if ConfCheck.no_branched_thread_creation () || ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -110,6 +110,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread
@@ -346,8 +347,8 @@ struct
         | _ ->
           st
       end
-    | `Join ->
-      if ConfCheck.no_branched_thread_creation () || (ask.f (Q.MustBeSingleThreaded { since_start= true })) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -375,6 +376,7 @@ struct
            let rel_local' = RD.meet rel_local (getg ()) in
            {st with rel = rel_local'} *)
         st
+    | `Join
     | `Normal
     | `Init
     | `Thread ->
@@ -634,8 +636,8 @@ struct
         | _ ->
           st
       end
-    | `Join ->
-      if ConfCheck.no_branched_thread_creation () || (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -657,6 +659,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread ->
@@ -1189,8 +1192,8 @@ struct
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
     | `Return -> st (* TODO: implement? *)
-    | `Join ->
-      if ConfCheck.no_branched_thread_creation () || (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -1204,6 +1207,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread ->

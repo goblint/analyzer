@@ -61,8 +61,6 @@ struct
         false
     else
       true
-
-  let no_branched_thread_creation () = not (branched_thread_creation ())
 end
 
 module Protection =
