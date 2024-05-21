@@ -651,7 +651,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__readlink_alias", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []]);
     ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
     ("__ctype_get_mb_cur_max", unknown []);
-    ("__maskrune", unknown [drop "c" [w]; drop "f" []]);
+    ("__maskrune", unknown [drop "c" []; drop "f" []]);
     ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
     ("yp_get_default_domain", unknown [drop "outdomain" [w]]);
     ("__nss_configure_lookup", unknown [drop "db" [r]; drop "service_line" [r]]);
