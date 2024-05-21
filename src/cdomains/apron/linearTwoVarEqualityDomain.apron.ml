@@ -361,9 +361,9 @@ struct
          Some res, Some res)
       | Some (None, offset, divisor) -> let res = Z.div offset divisor in
         let (lower,upper) = if Z.lt res Z.zero then
-            (Z.sub res Z.one,res)
+            (Z.pred res,res)
           else
-            (res,Z.add res Z.one) in
+            (res,Z.succ res) in
         (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string lower) (IntOps.BigIntOps.to_string upper);
          Some lower, Some upper)
       | _ -> None, None
