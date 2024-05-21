@@ -20,6 +20,12 @@ struct
   let startstate v = D.empty()
   let exitstate v = D.empty()
 
+  (* find reachable variables in a function *)
+  let reachable_from_args ctx args =
+    let res =
+      List.fold (fun vs e -> vs @ (ctx.ask (ReachableFrom e) |> Queries.AD.to_var_may)) [] args in
+    if M.tracing then M.tracel "wrpointer-reachable" "reachable vars: %s\n" (List.fold_left (fun s v -> s ^v.vname ^"; ") "" res); res
+
   (* Returns Some true if we know for sure that it is true,
      and Some false if we know for sure that it is false,
      and None if we don't know anyhing. *)
@@ -120,8 +126,9 @@ struct
     let added_equalities = (List.map (fun v -> CC.Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities ctx.local in
     if M.tracing then M.trace "wrpointer-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
-    (* remove callee vars *)
-    let reachable_variables = f.sformals @ f.slocals @ List.map duplicated_variable f.sformals (*@ all globals*)
+    (* remove callee vars that are not reachable and not global *)
+    let reachable_variables =
+      f.sformals @ f.slocals @ List.map duplicated_variable f.sformals @ reachable_from_args ctx args
     in
     let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_duplicated_vars in
     if M.tracing then M.trace "wrpointer-function" "ENTER2: result: %s\n" (D.show new_state);

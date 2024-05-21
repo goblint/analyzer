@@ -169,10 +169,11 @@ module D = struct
 
   (** Remove terms from the data structure.
       It removes all terms which do not contain one of the "vars",
+      except the global vars are also keeped (when vstorage = static),
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-    Option.map (remove_terms (fun _ -> not % T.contains_variable vars)) cc
+    Option.map (remove_terms (fun _ t -> (not (T.get_var t).vglob) && not (T.contains_variable vars t))) cc
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
