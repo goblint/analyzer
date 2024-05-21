@@ -51,14 +51,12 @@ struct
         ()
   end
 
+  (** Whether branched thread creation needs to be handled by [sync `Join] of privatization. *)
   let branched_thread_creation () =
     let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
     if threadflag_active then
       let threadflag_path_sens = List.mem "threadflag" (GobConfig.get_string_list "ana.path_sens") in
-      if not threadflag_path_sens then
-        true
-      else
-        false
+      not threadflag_path_sens
     else
       true
 end
