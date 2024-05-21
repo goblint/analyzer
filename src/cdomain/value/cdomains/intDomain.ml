@@ -1393,18 +1393,8 @@ struct
   let widen ik xs ys =
     let (min_ik,max_ik) = range ik in
     let threshold = get_bool "ana.int.interval_threshold_widening" in
-    let upper_threshold (_,u) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-      let u = Ints_t.to_bigint u in
-      let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x (Ints_t.to_bigint max_ik) <= 0) ts in
-      BatOption.map_default Ints_t.of_bigint max_ik t
-    in
-    let lower_threshold (l,_) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-      let l = Ints_t.to_bigint l in
-      let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x (Ints_t.to_bigint min_ik) >= 0) ts in
-      BatOption.map_default Ints_t.of_bigint min_ik t
-    in
+    let upper_threshold (_,u) = IArith.upper_threshold u max_ik in
+    let lower_threshold (l,_) = IArith.lower_threshold l min_ik in
     (*obtain partitioning of xs intervals according to the ys interval that includes them*)
     let rec interval_sets_to_partitions (ik: ikind) (acc : (int_t * int_t) option) (xs: t) (ys: t)=
       match xs,ys with
