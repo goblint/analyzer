@@ -478,32 +478,36 @@ struct
       (* joinfunction handles the dirty details of performing an "inner join" on the lhs of both bindings;
          in the resulting binding, the lhs is then mapped to values that are later relevant for sorting/grouping, i.e.
          - lhs itself
-         - the difference of both offsets
+         - the affine transformation from refvar1 to refvar2, i.E. the parameters A and B of the general affine transformer Ax+B 
          - rhs1
          - rhs2 
            however, we have to account for the sparseity of EConj maps by manually patching holes with default values *)
-      let joinfunction lhs rhs1 rhs2 = match rhs1, rhs2 with 
-        | Some (ai,aj),Some (bi,bj) -> Some (lhs,Z.(aj - bj),(ai,aj),(bi,bj))           (* this is explicitely what we want *)  
-        | None, Some (bi,bj)        -> Some (lhs,Z.neg bj   ,Rhs.var_zero lhs,(bi,bj))  (* account for the sparseity of binding 1 *)
-        | Some (ai,aj), None        -> Some (lhs,aj         ,(ai,aj),Rhs.var_zero lhs)  (* account for the sparseity of binding 2 *)
-        | _,_                       -> None  (* no binding for lhs in both maps is replicated implicitely in a sparse result map *)
+      let joinfunction lhs rhs1 rhs2 = let coeff = Option.map_default fst Z.one in match rhs1, rhs2 with
+        (*  Compute Ax+B such that  (coeff1*(Ax+B)+off1)/d1 = (coeff2*x+off2)/d2                         *)
+        (*  ====>  A = (coeff2*d1)/(coeff1*d2)   /\   B = (off2*d1-off1*d2)/(c1*c2)                      *)
+        (*                                          lhs                     A                          B                                rhs1                rhs2     *)
+        (*TODO*: if this works, make it more concise *)
+        | Some (ai,aj,ak), Some (bi,bj,bk) -> Some (lhs,Q.make Z.(ak*coeff bi) Z.(bk* coeff ai),Q.make Z.(bj*ak-aj*bk) Z.(bk*coeff ai), (ai,aj,ak)      , (bi,bj,bk))  (* this is explicitely what we want *)  
+        | None           , Some (bi,bj,bk) -> Some (lhs,Q.make Z.(   coeff bi) Z.(bk          ),Q.make Z.(bj         ) Z.(bk         ), Rhs.var_zero lhs, (bi,bj,bk))  (* account for the sparseity of binding 1 *)
+        | Some (ai,aj,ak), None            -> Some (lhs,Q.make Z.(ak         ) Z.(    coeff ai),Q.make Z.(     neg aj) Z.(   coeff ai), (ai,aj,ak), Rhs.var_zero lhs)  (* account for the sparseity of binding 2 *)
+        | _,_                              -> None  (* no binding for lhs in both maps is replicated implicitely in a sparse result map *)
       in
       let table = List.of_enum @@ EConj.IntMap.values @@ EConj.IntMap.merge joinfunction (snd ad) (snd bd) in
-      (*compare two variables for grouping depending on delta function and reference index*)
-      let cmp_z (_, t0i, t1i, t2i) (_, t0j, t1j, t2j) =
-        let cmp_ref = Option.compare ~cmp:Int.compare in
-        Tuple3.compare ~cmp1:cmp_ref ~cmp2:cmp_ref ~cmp3:Z.compare (fst t1i, fst t2i, t0i) (fst t1j, fst t2j, t0j)
+      (* compare two variables for grouping depending on affine function parameters a, b and reference variable indices  *)
+      let cmp_z (_, ai, bi, t1i, t2i) (_, aj, bj, t1j, t2j) =
+        let cmp_ref = Option.compare ~cmp:(fun x y -> Int.compare (snd x) (snd y)) in
+        Tuple4.compare ~cmp1:cmp_ref ~cmp2:cmp_ref ~cmp3:Q.compare ~cmp4:Q.compare (Tuple3.first t1i, Tuple3.first t2i, ai, bi) (Tuple3.first t1j, Tuple3.first t2j, aj, bj)
       in
-      (*Calculate new components as groups*)
+      (* Calculate new components as groups *)
       let new_components = BatList.group cmp_z table in
-      (*Adjust the domain array to represent the new components*)
-      let modify map idx_h b_h (idx, _, (opt1, z1), (opt2, z2)) = EConj.set_rhs map (idx)
-          (if opt1 = opt2 && Z.equal z1 z2 then  (opt1, z1)
-           else (Some idx_h, Z.(z1 - b_h)))
+      (* Adjust the domain map to represent the new components *)
+      let modify map idx_h offs_h (idx, _, _, (opt1, z1, d1), (opt2, z2, d2)) = EConj.set_rhs map (idx)
+          (if opt1 = opt2 && Z.equal z1 z2 && Z.equal d1 d2 then (opt1, z1, d1)
+           else (Some idx_h, Z.(z1 - offs_h)))
       in
       let iterate map l =
         match l with
-        | (idx_h, _, (_, b_h), _) :: t ->  List.fold (fun map' e -> modify map' idx_h b_h e) map l
+        | (idx_h, _, _, (_, offs_h, divi_h), _) :: t ->  List.fold (fun map' e -> modify map' idx_h offs_h e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
