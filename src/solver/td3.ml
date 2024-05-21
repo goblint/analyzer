@@ -416,8 +416,14 @@ module Base =
         assert (Hooks.system y = None);
         init y;
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
+        HM.replace stable y ();
+
         match x with
         | Some x -> (
+            let sided = match HM.find_option sides y with
+              | Some sides -> VS.mem x sides
+              | None -> false in
+            if not sided then add_sides y x;
             let init_divided_side_effects y = if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10) in
             init_divided_side_effects y;
 
@@ -434,7 +440,6 @@ module Base =
                 )
             in
 
-            HM.replace stable y ();
             if not (S.Dom.equal old_side new_side) then (
               if tracing then trace "side" "divided side from %a to %a changed (accumulation phase: %b) Old value: %a ## New value: %a" S.Var.pretty_trace x S.Var.pretty_trace y (phase == D_Widen) S.Dom.pretty old_side S.Dom.pretty new_side;
 
@@ -642,6 +647,11 @@ module Base =
           (* HM.remove rho x; *)
           HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
           HM.remove sides x; (* just in case *)
+
+          if GobConfig.get_bool "solvers.td3.divided-narrow" then (
+              HM.remove divided_side_effects x;
+              HM.remove orphan_side_effects x;
+            );
 
           (* immediately redo "side effect" from st *)
           match GobList.assoc_eq_opt S.Var.equal x st with
