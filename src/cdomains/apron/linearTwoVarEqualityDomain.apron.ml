@@ -690,9 +690,9 @@ struct
     | Some d ->
       match simplified_monomials_from_texp t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
       | None -> t
-      | Some (sum_of_terms, constant) ->(
+      | Some (sum_of_terms, (constant,divisor)) ->(
           match sum_of_terms with
-          | [] -> (* no reference variables in the guard *)
+          | [] -> (* no reference variables in the guard, so check constant for zero *)
             begin match Tcons1.get_typ tcons with
               | EQ when Z.equal constant Z.zero -> t
               | SUPEQ when Z.geq constant Z.zero -> t
@@ -701,15 +701,20 @@ struct
               | EQMOD _ -> t
               | _ -> bot_env (* all other results are violating the guard *)
             end
-          | [(varexpr, index)] -> (* guard has a single reference variable only *)
-            if Tcons1.get_typ tcons = EQ && Z.divisible constant varexpr then
-              meet_with_one_conj t index (None,  (Z.(-(constant) / varexpr)),Z.one)
+          | [(coeff, index, divi)] -> (* guard has a single reference variable only *)
+            if Tcons1.get_typ tcons = EQ then
+              meet_with_one_conj t index (Rhs.canonicalize (None, Z.(divi*constant),Z.(coeff*divisor)))
             else
               t (* only EQ is supported in equality based domains *)
-          | [(a1,var1); (a2,var2)] -> (* two variables in relation needs a little sorting out *)
+          | [(c1,var1,d1); (c2,var2,d2)] -> (* two variables in relation needs a little sorting out *)
             begin match Tcons1.get_typ tcons with
-              | EQ when Z.(a1 * a2 = -one) -> (* var1-var1 or var2-var1 *)
-                meet_with_one_conj t var2 (Some (Z.one,var1), Z.mul a1 constant,Z.one)
+              | EQ -> (* c1*var1/d1 + c2*var2/d2 +constant/divisor = 0*)
+                (* ======>  c1*divisor*d2 * var1 = -c2*divisor*d1 * var2 +constant*-d1*d2*)
+                (*   \/     c2*divisor*d1 * var2 = -c1*divisor*d2 * var1 +constant*-d1*d2*)
+                if var1 < var2 then
+                  meet_with_one_conj t var2 (Rhs.canonicalize (Some (Z.neg @@ Z.(c1*divisor),var1),Z.neg @@ Z.(constant*d2*d1),Z.(c2*divisor*d1)))
+                else
+                  meet_with_one_conj t var1 (Rhs.canonicalize (Some (Z.neg @@ Z.(c2*divisor),var2),Z.neg @@ Z.(constant*d2*d1),Z.(c1*divisor*d2)))
               | _-> t (* Not supported in equality based 2vars without coeffiients *)
             end
           | _ -> t (* For equalities of more then 2 vars we just return t *))
