@@ -451,11 +451,13 @@ struct
 
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
-    let implies ts i (var, b) =
-      let tuple_cmp = Tuple2.eq (Option.eq ~eq:Int.equal) (Z.equal) in
+    let implies ts i (var, offs, divi) =
+      let tuple_cmp = Tuple3.eq (Option.eq ~eq:(Tuple2.eq (Z.equal) (Int.equal))) (Z.equal) (Z.equal) in
       match var with
-      | None -> tuple_cmp (var, b) (EConj.get_rhs ts i)
-      | Some j -> tuple_cmp (EConj.get_rhs ts i) @@ Tuple2.map2 (Z.add b) (EConj.get_rhs ts j)
+      (* directly compare in case of constant value *)
+      | None -> tuple_cmp (var, offs, divi) (EConj.get_rhs ts i)
+      (* normalize in case of a full blown equality *)
+      | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true else
