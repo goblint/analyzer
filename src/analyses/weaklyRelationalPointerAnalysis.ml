@@ -65,6 +65,7 @@ struct
     | exception (T.UnsupportedCilExpression _) -> D.top () (* the assigned variables couldn't be parsed, so we don't know which addresses were written to. We have to forget all the information we had. This should almost never happen. *)
     | _ -> D.top ()
 
+  (*TODO remove*)
   let assign_lval_2_ask t (ask1: Queries.ask) (ask2: Queries.ask) lval expr =
     let f (type a) (q: a Queries.t) =
       let module Result = (val Queries.Result.lattice q) in
@@ -118,12 +119,12 @@ struct
     (* add duplicated variables, and set them equal to the original variables *)
     let added_equalities = (List.map (fun v -> CC.Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities ctx.local in
-    if M.tracing then M.trace "wrpointer-function" "ENTER2: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
+    if M.tracing then M.trace "wrpointer-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars *)
     let reachable_variables = f.sformals @ f.slocals @ List.map duplicated_variable f.sformals (*@ all globals*)
     in
     let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_duplicated_vars in
-    if M.tracing then M.trace "wrpointer-function" "ENTER3: result: %s\n" (D.show new_state);
+    if M.tracing then M.trace "wrpointer-function" "ENTER2: result: %s\n" (D.show new_state);
     [ctx.local, new_state]
 
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
@@ -137,7 +138,7 @@ struct
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
     let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
-    if M.tracing then M.trace "wrpointer-function" "ENTER1: state_with_assignments: %s\n" (D.show state_with_assignments);
+    if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN0: state_with_assignments: %s\n" (D.show state_with_assignments);
     (*remove all variables that were tainted by the function*)
     let tainted = (* find out the tainted variables from startState *)
       ask.f (MayPointTo (MayBeEqual.return_lval (dummyFunDec.svar.vtype)))
