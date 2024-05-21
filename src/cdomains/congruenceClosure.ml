@@ -956,17 +956,19 @@ module CongruenceClosure = struct
           let process_edge (min_representatives, queue, uf) (edge_z, _(*min_repr is independent of the size*), next_term) =
             let next_state, next_z, uf = TUF.find uf next_term in
             let (min_term, min_z) = find state min_representatives in
-            match (SSet.deref_term min_term Z.(edge_z - min_z) set, next_z) with
-            | exception (T.UnsupportedCilExpression _) ->
-              min_representatives, queue, uf
-            | next_min ->
-              match TMap.find_opt next_state min_representatives
-              with
-              | None ->
-                (add next_state next_min min_representatives, queue @ [next_state], uf)
-              | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
-                (add next_state next_min min_representatives, queue @ [next_state], uf)
-              | _ -> (min_representatives, queue, uf)
+            let next_min =
+              match (SSet.deref_term min_term Z.(edge_z - min_z) set, next_z) with
+              | exception (T.UnsupportedCilExpression _) ->
+                let random_type = (TPtr (TPtr (TInt (ILong,[]),[]),[])) in (*the type is not so important for min_repr*)
+                Deref (min_term, Z.(edge_z - min_z), Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), T.to_cil_constant Z.(edge_z - min_z) random_type, random_type)), NoOffset)), next_z
+              | next_min -> next_min in
+            match TMap.find_opt next_state min_representatives
+            with
+            | None ->
+              (add next_state next_min min_representatives, queue @ [next_state], uf)
+            | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
+              (add next_state next_min min_representatives, queue @ [next_state], uf)
+            | _ -> (min_representatives, queue, uf)
           in
           let (min_representatives, queue, uf) = List.fold_left process_edge (min_representatives, queue, uf) edges
           in update_min_repr (uf, set, map) min_representatives queue
