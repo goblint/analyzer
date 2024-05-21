@@ -671,13 +671,13 @@ struct
       let upper_threshold u =
         let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
         let u = Ints_t.to_bigint u in
-        let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
+        let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x (Ints_t.to_bigint max_ik) <= 0) ts in
         BatOption.map_default Ints_t.of_bigint max_ik t
       in
       let lower_threshold l =
         let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
         let l = Ints_t.to_bigint l in
-        let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
+        let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x (Ints_t.to_bigint min_ik) >= 0) ts in
         BatOption.map_default Ints_t.of_bigint min_ik t
       in
       let lt = if threshold then lower_threshold l1 else min_ik in
@@ -1397,13 +1397,13 @@ struct
     let upper_threshold (_,u) =
       let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
       let u = Ints_t.to_bigint u in
-      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
+      let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x (Ints_t.to_bigint max_ik) <= 0) ts in
       BatOption.map_default Ints_t.of_bigint max_ik t
     in
     let lower_threshold (l,_) =
       let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
       let l = Ints_t.to_bigint l in
-      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
+      let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x (Ints_t.to_bigint min_ik) >= 0) ts in
       BatOption.map_default Ints_t.of_bigint min_ik t
     in
     (*obtain partitioning of xs intervals according to the ys interval that includes them*)
