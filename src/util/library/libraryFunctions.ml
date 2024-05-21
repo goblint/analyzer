@@ -694,7 +694,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pmap_unset", unknown [drop "prognum" []; drop "versnum" []]);
     ("svcudp_create", unknown [drop "sock" []]);
     ("svc_register", unknown [drop "xprt" [r_deep; w_deep]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r; w; c]; drop "protocol" []]);
-    ("svc_run", special [] Abort);
+    ("svc_run", unknown []); (* TODO: make new special kind "NoReturn" for this: the following node will be dead (like Abort), but the program doesn't exit (so it shouldn't be Abort) *)
     (* RPC library end *)
   ]
 [@@coverage off]
