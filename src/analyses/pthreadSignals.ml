@@ -14,7 +14,7 @@ struct
 
   let name () = "pthreadSignals"
   module D = MustSignals
-  module C = MustSignals
+  include Analyses.ValueContexts(D)
   module G = SetDomain.ToppedSet (MHP) (struct let topname = "All Threads" end)
 
   let possible_vinfos (a: Queries.ask) cv_arg =

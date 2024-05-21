@@ -24,7 +24,7 @@ struct
   exception Top
 
   module D = LockDomain.Symbolic
-  module C = LockDomain.Symbolic
+  include Analyses.ValueContexts(D)
 
   let name () = "symb_locks"
 
