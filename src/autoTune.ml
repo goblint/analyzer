@@ -350,7 +350,11 @@ let extractBinOpVars e1 e2 =
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
   | BinOp (MinusA, e1,e2, (TInt _)) -> extractBinOpVars e1 e2
-  | _ -> None
+  | e -> (
+      match extractVar e with
+      | Some a -> Some (`Right a)
+      | _ -> None
+    )
 
 let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
       if VariableMap.mem key !varMap then
@@ -372,15 +376,14 @@ class octagonVariableVisitor(varMap, globals) = object
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
     | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
+        Logs.info "exp1 %a exp2 %a" GoblintCil.d_plainexp e1 GoblintCil.d_plainexp e2;
         handle varMap 5 globals (extractOctagonVars e1) ;
         handle varMap 5 globals (extractOctagonVars e2) ;
         DoChildren
       )
     | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
-    | UnOp (LNot, BinOp (op, e1,e2, (TInt _)),_) when isComparison op -> (* TODO: Should be generalized *)
-      handle varMap 5 globals (extractBinOpVars e1 e2);
-      DoChildren
     (*Traverse down only operations fitting for linear equations*)
+    | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)
     | BinOp (MinusA,_,_,_)
