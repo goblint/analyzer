@@ -239,7 +239,7 @@ module EqualitiesConjunction = struct
               let (_,newh1)= inverse i (coeff1,h1,o1,divi1) in
               let newh1 = Rhs.subst normalizedj j (Rhs.subst (Some(coeff,j),offs,divi) i newh1) in
               subst_var ts h1 newh1)) in
-    if M.tracing then M.trace "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd ts))
+    if M.tracing then M.trace "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd res))
   ; res
 
   (** affine transform variable i allover conj with transformer (Some (coeff,i)+offs)/divi *)
@@ -451,7 +451,7 @@ struct
 
   let meet_with_one_conj t i e =
     let res = meet_with_one_conj t i e in
-    if M.tracing then M.trace "meet" "%s with single eq %s=%s -> %s" (show t) (show_var t.env i) (Rhs.show_rhs_formatted (show_var t.env) e) (show res);
+    if M.tracing then M.tracel "meet" "%s with single eq %s=%s -> %s" (show t) (Z.(to_string @@ Tuple3.third e)^ show_var t.env i) (Rhs.show_rhs_formatted (show_var t.env) e) (show res);
     res
 
   let meet t1 t2 =
