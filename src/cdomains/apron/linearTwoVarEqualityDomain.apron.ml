@@ -503,7 +503,21 @@ struct
          - rhs1
          - rhs2 
            however, we have to account for the sparseity of EConj maps by manually patching holes with default values *)
-      let joinfunction lhs rhs1 rhs2 = let coeff = Option.map_default fst Z.one in match rhs1, rhs2 with
+      let joinfunction lhs rhs1 rhs2 =
+        let pairing = match rhs1,rhs2 with (* first of all re-instantiate implicit sparse elements *)
+          | Some a, Some b -> Some (a,b)
+          | None,   Some b -> Some (Rhs.var_zero lhs,b)
+          | Some a,   None -> Some (a,Rhs.var_zero lhs)
+          | _ -> None
+        in let _= BatOption.map (function
+            | (Some (c1,var1),o1,d1) as r1 ,(Some (c2,var2),o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
+            | (None,          o1,d1) as r1, (Some (c2,var2),o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
+            | (Some (c1,var1),o1,d1) as r1, (None          ,o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
+            | (None,          o1,d1) as r1, (None          ,o2,d2) as r2 ->
+              let magicnumber=Z.((o1/d1)-(o2/d2)) in
+              lhs, Q.make Z.(o1/magicnumber) Z.one,Q.make Z.(o1 mod magicnumber) Z.one,r1, r2
+          ) pairing in () ;
+        let coeff = Option.map_default fst Z.one in match rhs1, rhs2 with
         (*  Compute Ax+B such that  (coeff1*(Ax+B)+off1)/d1 = (coeff2*x+off2)/d2                         *)
         (*  ====>  A = (coeff2*d1)/(coeff1*d2)   /\   B = (off2*d1-off1*d2)/(c1*c2)                      *)
         (*                                          lhs                     A                          B                                rhs1                rhs2     *)
