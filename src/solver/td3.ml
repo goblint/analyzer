@@ -208,7 +208,7 @@ module Base =
       {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
-    type divided_side_phase = D_Widen | D_Narrow
+    type divided_side_phase = D_Widen | D_Narrow [@@deriving show]
 
     module CurrentVarS = ConstrSys.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
@@ -338,10 +338,7 @@ module Base =
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
-                      if HM.mem stable x then
-                        HM.iter (fun y acc -> divided_side D_Narrow ~x y acc) acc
-                      else
-                        HM.iter (fun y acc -> if not @@ HM.mem changed x then divided_side D_Narrow ~x y acc) acc
+                      HM.iter (fun y acc -> if not @@ HM.mem changed y then divided_side D_Narrow ~x y acc) acc
                     )) (fun () -> eq x (eval l x) (side_acc acc changed x))
               else
                 eq x (eval l x) (side ~x)
@@ -400,14 +397,16 @@ module Base =
         let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot()) in
         S.Dom.join combined orphaned
       and side_acc acc changed x y d =
-        (* TODO: only side if new_acc is different from old *)
         let new_acc = match HM.find_option acc y with
-          | Some acc -> S.Dom.join acc d
-          | None -> d in
-        HM.replace acc y new_acc;
-        (* TODO: SIDE - if not ((HM.mem rho y) && S.Dom.leq new_acc (HM.find rho y)), join instead of widen *)
-        divided_side D_Widen ~x y new_acc;
-        HM.replace changed y ();
+          | Some acc -> if not @@ S.Dom.leq d acc then Some (S.Dom.join acc d) else None
+          | None -> Some d in
+        match new_acc with
+        | Some new_acc -> (
+            HM.replace acc y new_acc;
+            divided_side D_Widen ~x y new_acc;
+            HM.replace changed y ();
+          )
+        | _ -> ()
       and divided_side (phase:divided_side_phase) ?x y d =
         if tracing then trace "sol2" "divided side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
@@ -432,12 +431,7 @@ module Base =
             (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             let new_side = match phase with
               | D_Widen -> S.Dom.widen old_side (S.Dom.join old_side d)
-              | D_Narrow ->
-                (
-                  let result = S.Dom.narrow old_side d in
-                  if tracing then trace "side" "Trying to narrow side from %a to %a. Old value: %a ## New value: %a ## Combined value: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_side S.Dom.pretty d S.Dom.pretty result;
-                  result
-                )
+              | D_Narrow -> S.Dom.narrow old_side d
             in
 
             if not (S.Dom.equal old_side new_side) then (
