@@ -422,7 +422,7 @@ struct
     let res = Var.to_string (Environment.var_of_dim env i) in
     match String.split_on_char '#' res with
     | varname::rest::[] -> varname ^ (try String.fold_left (fun acc c -> acc ^ transl.(Char.code c - Char.code '0')) "" rest with _ -> "#"^rest)
-    | _ -> failwith "Variable name not found"
+    | _ -> res
 
   (** prints the current variable equalities with resolved variable names *)
   let show varM =
