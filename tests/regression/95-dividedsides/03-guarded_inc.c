@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.divided-narrow --enable ana.int.interval
+// PARAM: --enable solvers.td3.divided-narrow --enable ana.int.interval --set ana.base.privatization write+lock
 #include <pthread.h>
 #include <goblint.h>
 #include <unistd.h>
@@ -15,7 +15,6 @@ void f(void *) {
 
 int main(void) {
   pthread_t id;
-  pthread_create(&id, NULL, f, NULL);
   pthread_create(&id, NULL, f, NULL);
 
   __goblint_check(a <= 10);
