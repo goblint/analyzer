@@ -336,25 +336,21 @@ let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vatt
 
 let rec extractVar = function
   | UnOp (Neg, e, _) -> extractVar e
-  | Lval ((Var info),_) when not (isGoblintStub info) ->  Some info
+  | Lval ((Var info),_) when not (isGoblintStub info) -> [info]
   | CastE (_, e) -> extractVar e
-  | _ -> None
+  | _ -> []
 
 let extractBinOpVars e1 e2 =
   match extractVar e1, extractVar e2 with
-  | Some a, Some b -> Some (`Left (a,b))
-  | Some a, None when isConstant e2 -> Some (`Right a)
-  | None, Some a when isConstant e1 -> Some (`Right a)
-  | _,_ -> None
+  | [], [] -> []
+  | a, [] when isConstant e2 -> a
+  | [], b when isConstant e1 -> b
+  | a, b -> List.append a b
 
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
   | BinOp (MinusA, e1,e2, (TInt _)) -> extractBinOpVars e1 e2
-  | e -> (
-      match extractVar e with
-      | Some a -> Some (`Right a)
-      | _ -> None
-    )
+  | e -> extractVar e
 
 let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
       if VariableMap.mem key !varMap then
@@ -363,12 +359,7 @@ let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then var
       else
         VariableMap.add key v !varMap
 
-let handle varMap v globals = function
-  | Some (`Left (a,b)) ->
-    addOrCreateVarMapping varMap a v globals;
-    addOrCreateVarMapping varMap b v globals;
-  | Some (`Right a) ->  addOrCreateVarMapping varMap a v globals;
-  | None -> ()
+let handle varMap v globals vars = List.iter (fun var -> addOrCreateVarMapping varMap var v globals) vars
 
 class octagonVariableVisitor(varMap, globals) = object
   inherit nopCilVisitor
@@ -381,7 +372,7 @@ class octagonVariableVisitor(varMap, globals) = object
         handle varMap 5 globals (extractOctagonVars e2) ;
         DoChildren
       )
-    | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
+    | Lval ((Var info),_) when not (isGoblintStub info) -> handle varMap 1 globals [info]; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)
