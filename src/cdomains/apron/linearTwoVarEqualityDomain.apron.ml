@@ -41,7 +41,8 @@ module Rhs = struct
     let gcd = match v with
       | Some (c,_) -> Z.gcd c gcd
       | None -> gcd
-    in (BatOption.map (fun (coeff,i) -> (Z.div coeff gcd,i)) v,Z.div o gcd, Z.div d gcd)
+    in let gcd = if (Z.(lt d  Z.zero)) then Z.neg gcd else gcd in
+    (BatOption.map (fun (coeff,i) -> (Z.div coeff gcd,i)) v,Z.div o gcd, Z.div d gcd)
 
   (** Substitute rhs for varx in rhs' *)
   let subst rhs varx rhs' =
@@ -238,7 +239,7 @@ module EqualitiesConjunction = struct
               let (_,newh1)= inverse i (coeff1,h1,o1,divi1) in
               let newh1 = Rhs.subst normalizedj j (Rhs.subst (Some(coeff,j),offs,divi) i newh1) in
               subst_var ts h1 newh1)) in
-    if M.tracing then M.trace "meet" "meet_with_one_conj conj: { %s } eq: var_%d=%s ->   { %s } " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd ts))
+    if M.tracing then M.trace "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd ts))
   ; res
 
   (** affine transform variable i allover conj with transformer (Some (coeff,i)+offs)/divi *)
@@ -331,6 +332,12 @@ struct
          let constant = List.fold_left accumulate_constants (Z.zero,Z.one) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
          Some (Array.fold_lefti (fun list v (c) -> if Q.equal c Q.zero then list else (c.num,v,c.den)::list) [] expr, constant) )
 
+  let simplified_monomials_from_texp (t: t) texp =
+    let res = simplified_monomials_from_texp t texp in
+    if M.tracing then M.tracel "from_texp" "%s %s -> %s" (EConj.show @@ snd @@ BatOption.get t.d) (Format.asprintf "%a" Texpr1.print_expr texp)
+        (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
+    res
+
   let simplify_to_ref_and_offset (t: t) texp =
     BatOption.bind (simplified_monomials_from_texp t texp )
       (fun (sum_of_terms, (constant,divisor)) ->
@@ -403,15 +410,22 @@ struct
   (** is_top returns true for top_of array and empty array; precondition: t.env and t.d are of same size *)
   let is_top t = Environment.equal empty_env t.env && GobOption.exists EConj.is_top_con t.d
 
+  let to_subscript i =
+    let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
+    let rec subscr i =
+      if i = 0 then ""
+      else (subscr (i/10)) ^ transl.(i mod 10) in
+    subscr i
+
+  let show_var env i =
+    let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
+    let res = Var.to_string (Environment.var_of_dim env i) in
+    match String.split_on_char '#' res with
+    | varname::rest::[] -> varname ^ (try String.fold_left (fun acc c -> acc ^ transl.(Char.code c - Char.code '0')) "" rest with _ -> "#"^rest)
+    | _ -> failwith "Variable name not found"
+
   (** prints the current variable equalities with resolved variable names *)
   let show varM =
-    let lookup i =
-      let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
-      let res = Var.to_string (Environment.var_of_dim varM.env i) in
-      match String.split_on_char '#' res with
-      | varname::rest::[] -> varname ^ (try String.fold_left (fun acc c -> acc ^ transl.(Char.code c - Char.code '0')) "" rest with _ -> "#"^rest)
-      | _ -> failwith "Variable name not found"
-    in
     match varM.d with
     | None -> "⊥\n"
     | Some arr when EConj.is_top_con arr -> "⊤\n"
@@ -419,7 +433,7 @@ struct
       if is_bot varM then
         "Bot \n"
       else
-        EConj.show_formatted lookup (snd arr) ^ (" with dimension " ^ (string_of_int @@ fst arr))
+        EConj.show_formatted (show_var varM.env) (snd arr) ^ (to_subscript @@ fst arr)
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -437,7 +451,7 @@ struct
 
   let meet_with_one_conj t i e =
     let res = meet_with_one_conj t i e in
-    if M.tracing then M.trace "meet" "meet_with_one_conj %s with var_%d=%s -> %s" (show t) i (Rhs.show e) (show res);
+    if M.tracing then M.trace "meet" "%s with single eq %s=%s -> %s" (show t) (show_var t.env i) (Rhs.show_rhs_formatted (show_var t.env) e) (show res);
     res
 
   let meet t1 t2 =
@@ -517,7 +531,7 @@ struct
       in
       let iterate map l =
         match l with
-        | (idx_h, _, _, rhs_h, _) :: t ->  List.fold (fun acc e -> modify acc idx_h rhs_h e) map l
+        | (idx_h, _, _, rhs_h, _) :: t -> List.fold (fun acc e -> modify acc idx_h rhs_h e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
@@ -717,7 +731,7 @@ struct
             end
           | [(coeff, index, divi)] -> (* guard has a single reference variable only *)
             if Tcons1.get_typ tcons = EQ then
-              meet_with_one_conj t index (Rhs.canonicalize (None, Z.(divi*constant),Z.(coeff*divisor)))
+              meet_with_one_conj t index (Rhs.canonicalize (None, Z.neg @@ Z.(divi*constant),Z.(coeff*divisor)))
             else
               t (* only EQ is supported in equality based domains *)
           | [(c1,var1,d1); (c2,var2,d2)] -> (* two variables in relation needs a little sorting out *)
