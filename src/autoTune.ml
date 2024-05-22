@@ -359,20 +359,17 @@ let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then var
       else
         VariableMap.add key v !varMap
 
-let handle varMap v globals vars = List.iter (fun var -> addOrCreateVarMapping varMap var v globals) vars
-
 class octagonVariableVisitor(varMap, globals) = object
   inherit nopCilVisitor
 
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
     | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
-        Logs.info "exp1 %a exp2 %a" GoblintCil.d_plainexp e1 GoblintCil.d_plainexp e2;
-        handle varMap 5 globals (extractOctagonVars e1) ;
-        handle varMap 5 globals (extractOctagonVars e2) ;
+        let extractedVars = List.append (extractOctagonVars e1) (extractOctagonVars e2) in
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) extractedVars;
         DoChildren
       )
-    | Lval ((Var info),_) when not (isGoblintStub info) -> handle varMap 1 globals [info]; SkipChildren
+    | Lval ((Var info),_) when not (isGoblintStub info) -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)
