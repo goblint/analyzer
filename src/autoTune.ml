@@ -345,8 +345,8 @@ let extractOctagonVars = function
   | BinOp (MinusA, e1,e2, (TInt _)) -> (
       match extractVar e1, extractVar e2 with
       | Some a, Some b -> Some (`Left (a,b))
-      | Some a, None
-      | None, Some a -> if isConstant e1 then Some (`Right a) else None
+      | Some a, None when isConstant e2 -> Some (`Right a)
+      | None, Some a when isConstant e1 -> Some (`Right a)
       | _,_ -> None
     )
   | _ -> None
