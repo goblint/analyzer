@@ -2334,9 +2334,22 @@
             },
             "divided-narrow": {
               "title": "solvers.td3.divided-narrow",
-              "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
-              "type": "boolean",
-              "default": false
+              "type": "object",
+              "properties": {
+                "enable": {
+                  "title": "solvers.td3.divided-narrow.enable",
+                  "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "stable": {
+                  "title": "solvers.td3.divided-narrow.stable",
+                  "description": "Controls when to narrow. true: If unknown remains stable after evaluating its rhs, apply all sides with narrowing. false: Apply sides that did not increase with narrowing.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             },
             "remove-wpoint": {
               "title": "solvers.td3.remove-wpoint",

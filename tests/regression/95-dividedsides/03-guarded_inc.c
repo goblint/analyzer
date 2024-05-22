@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.divided-narrow --enable ana.int.interval --set ana.base.privatization write+lock
+// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval --set ana.base.privatization write+lock
 #include <pthread.h>
 #include <goblint.h>
 #include <unistd.h>

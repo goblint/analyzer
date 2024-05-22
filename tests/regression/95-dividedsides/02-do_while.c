@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.divided-narrow --enable ana.int.interval --set solvers.td3.side_widen sides-local
+// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval
 #include <pthread.h>
 #include <goblint.h>
 

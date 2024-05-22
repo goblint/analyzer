@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 3 --enable solvers.td3.divided-narrow
+// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 3 --enable solvers.td3.divided-narrow.enable
 // Taken from context gas tests, where the assertions were unknown.
 #include <stdio.h>
 
