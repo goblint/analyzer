@@ -27,18 +27,12 @@ let enableOptions options =
 *)
 let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
-  | ValidFree -> (* Enable the soundness analyses for ValidFree spec *)
-    let analyses = ["base"; "useAfterFree"] in
-    enableSpecAnalyses spec analyses;
-  | ValidDeref -> (* Enable the soundness analyses for ValidDeref spec *)
-    let analyses = ["base"; "memOutOfBounds"] in
-    enableSpecAnalyses spec analyses;
-    let options = ["ana.arrayoob"; "cil.addNestedScopeAttr"] in
-    enableOptions options
+  | ValidFree -> enableSpecAnalyses spec ["base"; "useAfterFree"];
+  | ValidDeref ->
+    enableSpecAnalyses spec ["base"; "memOutOfBounds"];
+    enableOptions ["ana.arrayoob"; "cil.addNestedScopeAttr"]
   | ValidMemtrack
-  | ValidMemcleanup -> (* Enable the soundness analyses for ValidMemtrack and ValidMemcleanup specs *)
-    let analyses = ["memLeak"] in
-    enableSpecAnalyses spec analyses;
+  | ValidMemcleanup -> enableSpecAnalyses spec ["memLeak"];
   | _ -> ()
 
 let enableAnalysesForMemSafetySpecification () =
@@ -46,9 +40,7 @@ let enableAnalysesForMemSafetySpecification () =
 
 let enableAnalysesForTerminationSpecification (spec: Svcomp.Specification.t) =
   match spec with
-  | Termination -> (* Enable the soundness analyses for Termination spec *)
-    let analyses = ["termination"] in
-    enableSpecAnalyses spec analyses;
+  | Termination -> enableSpecAnalyses spec ["termination"];
   | _ -> ()
 
 let enableAnalysesForTerminationSpecification () =
@@ -57,12 +49,8 @@ let enableAnalysesForTerminationSpecification () =
 let enableAnalysesForSpecification (spec: Svcomp.Specification.t) =
   match spec with
   | UnreachCall s -> ()
-  | NoDataRace -> (* Enable the soundness analyses for NoDataRace spec *)
-    let analyses = ["access"; "race"] in
-    enableSpecAnalyses spec analyses;
-  | NoOverflow -> (* Enable the soundness analyses for NoOverflow spec *)
-    let options = ["ana.int.interval"] in
-    enableOptions options
+  | NoDataRace -> enableSpecAnalyses spec ["access"; "race"];
+  | NoOverflow -> enableOptions ["ana.int.interval"]
   | _ -> ()
 
 let enableAnalysesForSpecification () =
