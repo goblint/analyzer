@@ -427,7 +427,7 @@ end
 
 module ValueContexts (D:Lattice.S) = struct
   module C = D
-  let startcontext () = D.top ()
+  let startcontext () = D.bot ()
 end
 
 module type SpecSys =
