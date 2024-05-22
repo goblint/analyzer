@@ -365,8 +365,8 @@ class octagonVariableVisitor(varMap, globals) = object
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
     | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
-        let extractedVars = List.append (extractOctagonVars e1) (extractOctagonVars e2) in
-        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) extractedVars;
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e1);
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren
       )
     | Lval ((Var info),_) when not (isGoblintStub info) -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
