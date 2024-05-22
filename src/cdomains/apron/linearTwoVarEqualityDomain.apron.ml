@@ -501,13 +501,16 @@ struct
       (* Calculate new components as groups *)
       let new_components = BatList.group cmp_z table in
       (* Adjust the domain map to represent the new components *)
-      let modify map idx_h offs_h (idx, _, _, (opt1, z1, d1), (opt2, z2, d2)) = EConj.set_rhs map (idx)
-          (if opt1 = opt2 && Z.equal z1 z2 && Z.equal d1 d2 then (opt1, z1, d1)
-           else (Some idx_h, Z.(z1 - offs_h)))
+      let modify map x (refmonom, offs, divi) (idx, _, _, (monom1, z1, d1), (monom2, z2, d2)) = EConj.set_rhs map (idx)
+          (if monom1 = monom2 && Z.equal z1 z2 && Z.equal d1 d2 then (monom1, z1, d1)
+           else 
+             let refcoeff = Option.map_default fst Z.one refmonom in
+             let coeff1 = Option.map_default fst Z.one monom1 in
+             (Some (Z.(coeff1*divi),x), Z.((z1*refcoeff)-(offs*coeff1)), Z.(refcoeff*d1)) )
       in
       let iterate map l =
         match l with
-        | (idx_h, _, _, (_, offs_h, divi_h), _) :: t ->  List.fold (fun map' e -> modify map' idx_h offs_h e) map l
+        | (idx_h, _, _, rhs_h, _) :: t ->  List.fold (fun acc e -> modify acc idx_h rhs_h e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
