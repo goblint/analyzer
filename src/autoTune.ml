@@ -340,15 +340,16 @@ let rec extractVar = function
   | CastE (_, e) -> extractVar e
   | _ -> None
 
+let extractBinOpVars e1 e2 =
+  match extractVar e1, extractVar e2 with
+  | Some a, Some b -> Some (`Left (a,b))
+  | Some a, None when isConstant e2 -> Some (`Right a)
+  | None, Some a when isConstant e1 -> Some (`Right a)
+  | _,_ -> None
+
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
-  | BinOp (MinusA, e1,e2, (TInt _)) -> (
-      match extractVar e1, extractVar e2 with
-      | Some a, Some b -> Some (`Left (a,b))
-      | Some a, None when isConstant e2 -> Some (`Right a)
-      | None, Some a when isConstant e1 -> Some (`Right a)
-      | _,_ -> None
-    )
+  | BinOp (MinusA, e1,e2, (TInt _)) -> extractBinOpVars e1 e2
   | _ -> None
 
 let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
@@ -377,13 +378,7 @@ class octagonVariableVisitor(varMap, globals) = object
       )
     | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
     | UnOp (LNot, BinOp (op, e1,e2, (TInt _)),_) when isComparison op -> (* TODO: Should be generalized *)
-      handle varMap 5 globals (
-        match extractVar e1, extractVar e2 with
-        | Some a, Some b -> Some (`Left (a,b))
-        | Some a, None
-        | None, Some a -> if isConstant e1 then Some (`Right a) else None
-        | _,_ -> None
-      );
+      handle varMap 5 globals (extractBinOpVars e1 e2);
       DoChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (Neg, _,_)
