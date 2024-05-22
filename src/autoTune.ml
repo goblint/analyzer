@@ -335,22 +335,22 @@ let isComparison = function
 let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vattr
 
 let rec extractVar = function
-  | UnOp (Neg, e, _) -> extractVar e
-  | Lval ((Var info),_) when not (isGoblintStub info) -> [info]
+  | UnOp (Neg, e, _)
   | CastE (_, e) -> extractVar e
-  | _ -> []
+  | Lval ((Var info),_) when not (isGoblintStub info) -> Some info
+  | _ -> None
 
 let extractBinOpVars e1 e2 =
   match extractVar e1, extractVar e2 with
-  | [], [] -> []
-  | a, [] when isConstant e2 -> a
-  | [], b when isConstant e1 -> b
-  | a, b -> List.append a b
+  | Some a, Some b -> [a; b]
+  | Some a, None when isConstant e2 -> [a]
+  | None, Some b when isConstant e1 -> [b]
+  | _, _ -> []
 
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
   | BinOp (MinusA, e1,e2, (TInt _)) -> extractBinOpVars e1 e2
-  | e -> extractVar e
+  | e -> Option.to_list (extractVar e)
 
 let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
       if VariableMap.mem key !varMap then
