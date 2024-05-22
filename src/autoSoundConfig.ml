@@ -1,7 +1,6 @@
-
 (** Automatically turning on analyses required to ensure soundness
     based on a given specification (e.g., SV-COMP specification)
-    or programming idioms (e.g., longjump) in the analyzed code,
+    or programming idioms (e.g., longjmp) in the analyzed code,
     but only when it is possible to do so automatically.
     This does not fully exempt from the need for manual configuration.
 *)
