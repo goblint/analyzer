@@ -25,7 +25,8 @@ module Rhs = struct
   let var_zero i = (Some (Z.one,i), Z.zero, Z.one)
   let show_coeff c =
     if Z.equal c Z.one then ""
-    else (Z.to_string c) ^"*"
+    else if Z.equal c Z.minus_one then "-"
+    else (Z.to_string c) ^"·"
   let show_rhs_formatted formatter = function
     | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
     | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s%+Ld" (show_coeff coeff) (formatter v) (Z.to_int64 o)
@@ -404,7 +405,13 @@ struct
 
   (** prints the current variable equalities with resolved variable names *)
   let show varM =
-    let lookup i = Var.to_string (Environment.var_of_dim varM.env i) in
+    let lookup i =
+      let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
+      let res = Var.to_string (Environment.var_of_dim varM.env i) in
+      match String.split_on_char '#' res with
+      | varname::rest::[] -> varname ^ (try String.fold_left (fun acc c -> acc ^ transl.(Char.code c - Char.code '0')) "" rest with _ -> "#"^rest)
+      | _ -> failwith "Variable name not found"
+    in
     match varM.d with
     | None -> "⊥\n"
     | Some arr when EConj.is_top_con arr -> "⊤\n"
