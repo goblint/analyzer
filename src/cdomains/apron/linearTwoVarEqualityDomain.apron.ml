@@ -525,21 +525,21 @@ struct
       in
       (* Calculate new components as groups *)
       let new_components = BatList.group cmp_z table in
-      (* Adjust the domain map to represent the new components *)
-      let modify map x (refmonom, offs, divi) (idx, _, _, (monom1, z1, d1), (monom2, z2, d2)) = EConj.set_rhs map (idx)
-          (if monom1 = monom2 && Z.equal z1 z2 && Z.equal d1 d2 then (monom1, z1, d1)
-           else 
-             let refcoeff = Option.map_default fst Z.one refmonom in
-             let coeff1 = Option.map_default fst Z.one monom1 in
-             (Some (Z.(coeff1*divi),x), Z.((z1*refcoeff)-(offs*coeff1)), Z.(refcoeff*d1)) )
-      in
+
+      (* ci1 = a*ch1+b /\ ci2 = a*ch2+b *)
+      (* ===> a = (ci1-ci2)/(ch1-ch2) b = ci2-a*ch2 *)
+      let constentry ci1 ci2 ch1 ch2 xh = 
+        let a = Q.((ci1-ci2) / (ch1-ch2)) in
+        let b= Q.(ci2 - a*ch2) in
+        let anum=a.num and aden=a.den and bnum=b.num and bden=b.den in
+        Rhs.canonicalize (Some (Z.(anum*bden),xh),Z.(bnum*aden) ,Z.(aden*bden) ) in
       let iterate map l = 
         match l with
-        | (x, a, b, ((Some _,_,_) as rhs), ((Some _,_,_) as rhs')) :: t -> if M.tracing then M.trace "join" "handle var-var equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((Some _,_,_) as rhs), ((None,_,_)   as rhs')) :: t -> if M.tracing then M.trace "join" "handle var-const equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((None,_,_)   as rhs), ((Some _,_,_) as rhs')) :: t -> if M.tracing then M.trace "join" "handle const-var equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((None,o1,d1) as rhs), ((None,o2,d2)        )) :: t when (o1,d1)=(o2,d2) -> if M.tracing then M.trace "join" "handle const-const equivalence group" ; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((None,_,_)   as rhs), ((None,_,_)   as rhs')) :: t -> if M.tracing then M.trace "join" "handle const1-const2 equivalence group" ; List.fold (fun acc e -> modify acc x rhs e) map l
+        | (h, _, _, ((Some (ch,_),oh,dh)), ((Some _,_,_)       )) :: t -> if M.tracing then M.trace "join" "handle var-var class";   List.fold (fun acc e -> acc) map t
+        | (h, _, _, ((Some (ch,_),oh,dh)), ((None,_,_)         )) :: t -> if M.tracing then M.trace "join" "handle var-const class"; List.fold (fun acc e -> acc) map t
+        | (h, _, _, ((None,_,_)         ), ((Some (ch,_),oh,dh))) :: t -> if M.tracing then M.trace "join" "handle const-var class"; List.fold (fun acc e -> acc) map t
+        | (_, _, _, rhs                  , rhs'                 ) :: t when rhs=rhs' -> if M.tracing then M.trace "join" "handle const-const class" ; List.fold (fun acc (x,_,_,rh,_) -> EConj.set_rhs acc x rh) map l
+        | (h, _, _, ((None,oh1,dh1)     ), ((None),oh2,dh2)     ) :: t -> if M.tracing then M.trace "join" "handle const1-const2 class" ; List.fold (fun acc (i,_,_,(_,oi1,di1),(_,oi2,di2)) -> EConj.set_rhs acc i (constentry Q.(make oi1 di1) Q.(make oi2 di2) (Q.make oh1 dh1) (Q.make oh2 dh2) h)) map t
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
