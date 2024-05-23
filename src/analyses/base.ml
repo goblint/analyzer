@@ -250,7 +250,6 @@ struct
      * the integer domain operations. *)
     let bool_top ik = ID.(join (of_int ik Z.zero) (of_int ik Z.one)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
-    let exception UnknownPtr in
     let addToAddr n (addr:Addr.t) =
       let typeOffsetOpt o t =
         try
@@ -285,30 +284,14 @@ struct
         | `Field (f, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
           `Field(f, addToOffset n t' o)
-        | `NoOffset ->
-          let isNotArray typ =
-            match unrollType typ with
-            | TArray _ -> false
-            | _ -> true
-          in
-          if GobOption.exists isNotArray t then
-            if GobOption.exists (Z.equal Z.zero) (ID.to_int n) then
-              `NoOffset (* it is ok to add (or subtract) zero from an address of a non-array type value *)
-            else
-              raise UnknownPtr (* if we add (or subtract) any other value, we get an unknown pointer *)
-          else
-            `Index (iDtoIdx n, `NoOffset)
+        | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_mval addr with
-      | Some (x, o) ->
-        begin
-          try Addr.of_mval (x, addToOffset n (Some x.vtype) o)
-          with UnknownPtr -> default addr
-        end
+      | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
       | None -> default addr
     in
     let addToAddrOp p (n:ID.t):value =
