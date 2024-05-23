@@ -12,3 +12,5 @@ let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volat
 
 let is_excluded_from_earlyglobs v = List.mem v.vname (get_string_list "exp.exclude_from_earlyglobs")
 let is_excluded_from_invalidation v =  List.mem v.vname (get_string_list "exp.exclude_from_invalidation")
+
+let is_not_alloc_var (a: Q.ask) (v: varinfo): bool = not (a.f (Queries.IsAllocVar v))

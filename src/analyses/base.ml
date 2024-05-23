@@ -290,8 +290,19 @@ struct
         | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
       in
+      let isNotIndexable x =
+        match unrollType x.vtype with
+        | TArray _ -> false
+        | _ -> is_not_alloc_var (Analyses.ask_of_ctx ctx) x
+      in
       match Addr.to_mval addr with
-      | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
+      | Some (x, o) ->
+        begin
+          match o with
+          | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) && isNotIndexable x -> addr
+          | `NoOffset when isNotIndexable x -> default addr
+          | _ -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
+        end
       | None -> default addr
     in
     let addToAddrOp p (n:ID.t):value =
@@ -1172,9 +1183,6 @@ struct
 
   (* interpreter end *)
 
-  let is_not_alloc_var ctx v =
-    not (ctx.ask (Queries.IsAllocVar v))
-
   let is_not_heap_alloc_var ctx v =
     let is_alloc = ctx.ask (Queries.IsAllocVar v) in
     not is_alloc || (is_alloc && not (ctx.ask (Queries.IsHeapVar v)))
@@ -1437,7 +1445,7 @@ struct
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_alloc_var ctx v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var (Analyses.ask_of_ctx ctx) v || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
