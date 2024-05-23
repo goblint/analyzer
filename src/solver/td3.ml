@@ -522,7 +522,6 @@ module Base =
           Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (Hooks.system y = None);
-        if tracing then trace "side" "side to %a from %a ## new global: %b" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x (not (HM.mem rho y));
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let widen a b =
