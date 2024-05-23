@@ -2350,7 +2350,7 @@
                 },
                 "narrow-gas": {
                   "title": "solvers.td3.divided-narrow.narrow-gas",
-                  "description": "Limits the number of times a global can be narrowed to enforce termination.",
+                  "description": "Limits the number of times a global can be narrowed to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
                   "type": "integer",
                   "default": -1
                 }
