@@ -69,12 +69,14 @@ module Base =
 
     type marshal = solver_data
 
-    let create_empty_data () = {
+    let create_empty_data () =
+      let divided_narrow = GobConfig.get_bool "solvers.td3.divided-narrow.enable" in
+      {
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
-      divided_side_effects = HM.create (if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then 10 else 0);
-      orphan_side_effects = HM.create (if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then 10 else 0);
+      divided_side_effects = HM.create (if divided_narrow then 10 else 0);
+      orphan_side_effects = HM.create (if divided_narrow then 10 else 0);
       rho = HM.create 10;
       wpoint = HM.create 10;
       stable = HM.create 10;
@@ -265,6 +267,9 @@ module Base =
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
 
+      let divided_narrow = GobConfig.get_bool "solvers.td3.divided-narrow.enable" in 
+      let divided_narrow_stable = GobConfig.get_bool "solvers.td3.divided-narrow.stable" in 
+
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
       let var_messages = data.var_messages in
@@ -334,11 +339,11 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then
+              if divided_narrow then
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
-                      if GobConfig.get_bool "solvers.td3.divided-narrow.stable" then (
+                      if divided_narrow_stable then (
                         if HM.mem stable x then HM.iter (fun y acc -> divided_side D_Narrow ~x y acc) acc
                       )
                       else HM.iter (fun y acc -> if not @@ HM.mem changed y then divided_side D_Narrow ~x y acc) acc
@@ -407,7 +412,7 @@ module Base =
         | Some new_acc -> (
             HM.replace acc y new_acc;
             divided_side D_Widen ~x y new_acc;
-            if not @@ GobConfig.get_bool "solvers.td3.divided-narrow.stable" then
+            if not @@ divided_narrow_stable then
               HM.replace changed y ();
           )
         | _ -> ()
@@ -485,7 +490,7 @@ module Base =
         else (
           HM.replace called y ();
           let eqd =
-            if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then
+            if divided_narrow then
               failwith "divided narrow not yet implemented for simple solve"
             else
               eq y (eval l x) (side ~x)
@@ -607,7 +612,7 @@ module Base =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
         (* TODO: SIDE make this change-proof *)
-        if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then
+        if divided_narrow then
           divided_side D_Widen x d
         else
           HM.replace rho x d;
@@ -645,7 +650,7 @@ module Base =
           HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
           HM.remove sides x; (* just in case *)
 
-          if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then (
+          if divided_narrow then (
               HM.remove divided_side_effects x;
               HM.remove orphan_side_effects x;
             );
@@ -654,7 +659,7 @@ module Base =
           match GobList.assoc_eq_opt S.Var.equal x st with
           | Some d ->
             (* TODO: SIDE make this change-proof *)
-            if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then
+            if divided_narrow then
               divided_side D_Widen x d
             else
               HM.replace rho x d;
@@ -841,7 +846,7 @@ module Base =
                 (* restart removed start global below *)
                 ()
             );
-            if GobConfig.get_bool "solvers.td3.divided-narrow.enable" then
+            if divided_narrow then
               (* it is not necessary to perform narrowing here, orphan side-effects cannot be narrowed anyway *)
               divided_side D_Widen v d
             else
