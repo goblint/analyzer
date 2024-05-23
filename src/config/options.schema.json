@@ -2347,6 +2347,12 @@
                   "description": "Controls when to narrow. true: If unknown remains stable after evaluating its rhs, apply all sides with narrowing. false: Apply sides that did not increase with narrowing.",
                   "type": "boolean",
                   "default": false
+                },
+                "narrow-gas": {
+                  "title": "solvers.td3.divided-narrow.narrow-gas",
+                  "description": "Limits the number of times a global can be narrowed to enforce termination.",
+                  "type": "integer",
+                  "default": -1
                 }
               },
               "additionalProperties": false
