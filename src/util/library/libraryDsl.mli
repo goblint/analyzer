@@ -71,3 +71,9 @@ val s: LibraryDesc.Access.t
 (** Deep {!AccessKind.Spawn} access.
     Rarely needed. *)
 val s_deep: LibraryDesc.Access.t
+
+(** Shallow {!AccessKind.Spawn} access, substituting function pointer calls for now (TODO). *)
+val c: LibraryDesc.Access.t
+
+(** Deep {!AccessKind.Spawn} access, substituting deep function pointer calls for now (TODO)  *)
+val c_deep: LibraryDesc.Access.t
