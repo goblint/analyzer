@@ -198,42 +198,14 @@ let reduceThreadAnalyses () =
     disableAnalyses notNeccessaryThreadAnalyses;
   )
 
-(* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
-(* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
-let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceSetjmp"; "poisonVariables"; "expsplit"; "vla"]
-
-let activateLongjmpAnalysesWhenRequired () =
-  let isLongjmp = function
-    | LibraryDesc.Longjmp _ -> true
-    | _ -> false
-  in
-  if hasFunction isLongjmp  then (
-    Logs.info "longjmp -> enabling longjmp analyses \"%s\"" (String.concat ", " longjmpAnalyses);
-    enableAnalyses longjmpAnalyses;
-  )
-
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
-  | ValidFree -> (* Enable the useAfterFree analysis *)
-    let uafAna = ["useAfterFree"] in
-    Logs.info "Specification: ValidFree -> enabling useAfterFree analysis \"%s\"" (String.concat ", " uafAna);
-    enableAnalyses uafAna
-  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
-    let memOobAna = ["memOutOfBounds"] in
-    set_bool "ana.arrayoob" true;
-    Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
-    set_bool "cil.addNestedScopeAttr" true;
-    Logs.info "Specification: ValidDeref -> enabling memOutOfBounds analysis \"%s\"" (String.concat ", " memOobAna);
-    enableAnalyses memOobAna;
   | ValidMemtrack
-  | ValidMemcleanup -> (* Enable the memLeak analysis *)
-    let memLeakAna = ["memLeak"] in
+  | ValidMemcleanup ->
     if (get_int "ana.malloc.unique_address_count") < 1 then (
       Logs.info "Setting \"ana.malloc.unique_address_count\" to 5";
       set_int "ana.malloc.unique_address_count" 5;
     );
-    Logs.info "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"%s\"" (String.concat ", " memLeakAna);
-    enableAnalyses memLeakAna
   | _ -> ()
 
 let focusOnMemSafetySpecification () =
@@ -242,7 +214,7 @@ let focusOnMemSafetySpecification () =
 let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
-    let terminationAnas = ["termination"; "threadflag"; "apron"] in
+    let terminationAnas = ["threadflag"; "apron"] in
     Logs.info "Specification: Termination -> enabling termination analyses \"%s\"" (String.concat ", " terminationAnas);
     enableAnalyses terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
@@ -261,8 +233,7 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
-    set_bool "ana.int.def_exc" true;
-    set_bool "ana.int.interval" true
+    set_bool "ana.int.def_exc" true
   | _ -> ()
 
 let focusOnSpecification () =
@@ -522,6 +493,9 @@ let specificationIsActivated () =
 
 let specificationTerminationIsActivated () =
   isActivated "termination"
+
+let specificationMemSafetyIsActivated () =
+  isActivated "memsafetySpecification"
 
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
