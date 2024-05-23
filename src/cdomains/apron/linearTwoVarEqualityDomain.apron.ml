@@ -343,7 +343,7 @@ struct
       (fun (sum_of_terms, (constant,divisor)) ->
          (match sum_of_terms with
           | [] -> Some (None, constant,divisor) 
-          | [(coeff,var,divi)] when Z.equal coeff Z.one -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
+          | [(coeff,var,divi)] -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
           |_ -> None))
 
   let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
@@ -514,8 +514,7 @@ struct
             | (None,          o1,d1) as r1, (Some (c2,var2),o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
             | (Some (c1,var1),o1,d1) as r1, (None          ,o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
             | (None,          o1,d1) as r1, (None          ,o2,d2) as r2 ->
-              let magicnumber=Z.((o1/d1)-(o2/d2)) in
-              lhs, Q.make Z.(o1/magicnumber) Z.one,Q.make Z.(o1 mod magicnumber) Z.one,r1, r2
+              lhs, Q.make Z.((o1*d2)-(o2*d1)) Z.(d1*d2), Q.zero, r1, r2
           ) pairing in () ;
         let coeff = Option.map_default fst Z.one in match rhs1, rhs2 with
         (*  Compute Ax+B such that  (coeff1*(Ax+B)+off1)/d1 = (coeff2*x+off2)/d2                         *)
@@ -543,9 +542,9 @@ struct
              let coeff1 = Option.map_default fst Z.one monom1 in
              (Some (Z.(coeff1*divi),x), Z.((z1*refcoeff)-(offs*coeff1)), Z.(refcoeff*d1)) )
       in
-      let iterate map l =
+      let iterate map l = 
         match l with
-        | (idx_h, _, _, rhs_h, _) :: t -> List.fold (fun acc e -> modify acc idx_h rhs_h e) map l
+        | (idx_h, a, b, rhs_h, _) :: t -> M.trace "join" " join me in dept %s %s" (Q.to_string a) (Q.to_string b); List.fold (fun acc e -> modify acc idx_h rhs_h e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
