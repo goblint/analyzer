@@ -306,20 +306,22 @@ let isComparison = function
 let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vattr
 
 let rec extractVar = function
-  | UnOp (Neg, e, _) -> extractVar e
-  | Lval ((Var info),_) when not (isGoblintStub info) ->  Some info
+  | UnOp (Neg, e, _)
+  | CastE (_, e) -> extractVar e
+  | Lval ((Var info),_) when not (isGoblintStub info) -> Some info
   | _ -> None
+
+let extractBinOpVars e1 e2 =
+  match extractVar e1, extractVar e2 with
+  | Some a, Some b -> [a; b]
+  | Some a, None when isConstant e2 -> [a]
+  | None, Some b when isConstant e1 -> [b]
+  | _, _ -> []
 
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
-  | BinOp (MinusA, e1,e2, (TInt _)) -> (
-      match extractVar e1, extractVar e2 with
-      | Some a, Some b -> Some (`Left (a,b))
-      | Some a, None
-      | None, Some a -> if isConstant e1 then Some (`Right a) else None
-      | _,_ -> None
-    )
-  | _ -> None
+  | BinOp (MinusA, e1,e2, (TInt _)) -> extractBinOpVars e1 e2
+  | e -> Option.to_list (extractVar e)
 
 let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
       if VariableMap.mem key !varMap then
@@ -328,25 +330,19 @@ let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then var
       else
         VariableMap.add key v !varMap
 
-let handle varMap v globals = function
-  | Some (`Left (a,b)) ->
-    addOrCreateVarMapping varMap a v globals;
-    addOrCreateVarMapping varMap b v globals;
-  | Some (`Right a) ->  addOrCreateVarMapping varMap a v globals;
-  | None -> ()
-
 class octagonVariableVisitor(varMap, globals) = object
   inherit nopCilVisitor
 
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
     | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
-        handle varMap 5 globals (extractOctagonVars e1) ;
-        handle varMap 5 globals (extractOctagonVars e2) ;
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e1);
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren
       )
-    | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
+    | Lval ((Var info),_) when not (isGoblintStub info) -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
+    | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)
     | BinOp (MinusA,_,_,_)
