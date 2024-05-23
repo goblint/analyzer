@@ -499,32 +499,23 @@ struct
       (* joinfunction handles the dirty details of performing an "inner join" on the lhs of both bindings;
          in the resulting binding, the lhs is then mapped to values that are later relevant for sorting/grouping, i.e.
          - lhs itself
-         - the affine transformation from refvar1 to refvar2, i.E. the parameters A and B of the general affine transformer Ax+B 
+         - criteria A and B that characterize equivalence class, depending on the reference variable and the affine expression parameters wrt. each EConj
          - rhs1
          - rhs2 
            however, we have to account for the sparseity of EConj maps by manually patching holes with default values *)
       let joinfunction lhs rhs1 rhs2 =
-        let pairing = match rhs1,rhs2 with (* first of all re-instantiate implicit sparse elements *)
-          | Some a, Some b -> Some (a,b)
-          | None,   Some b -> Some (Rhs.var_zero lhs,b)
-          | Some a,   None -> Some (a,Rhs.var_zero lhs)
-          | _ -> None
-        in let _= BatOption.map (function
-            | (Some (c1,var1),o1,d1) as r1 ,(Some (c2,var2),o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
-            | (None,          o1,d1) as r1, (Some (c2,var2),o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
-            | (Some (c1,var1),o1,d1) as r1, (None          ,o2,d2) as r2 -> lhs, Q.one, Q.one, r1, r2
-            | (None,          o1,d1) as r1, (None          ,o2,d2) as r2 ->
-              lhs, Q.make Z.((o1*d2)-(o2*d1)) Z.(d1*d2), Q.zero, r1, r2
-          ) pairing in () ;
-        let coeff = Option.map_default fst Z.one in match rhs1, rhs2 with
-        (*  Compute Ax+B such that  (coeff1*(Ax+B)+off1)/d1 = (coeff2*x+off2)/d2                         *)
-        (*  ====>  A = (coeff2*d1)/(coeff1*d2)   /\   B = (off2*d1-off1*d2)/(c1*c2)                      *)
-        (*                                          lhs                     A                          B                                rhs1                rhs2     *)
-        (*TODO*: if this works, make it more concise *)
-        | Some (ai,aj,ak), Some (bi,bj,bk) -> Some (lhs,Q.make Z.(ak*coeff bi) Z.(bk* coeff ai),Q.make Z.(bj*ak-aj*bk) Z.(bk*coeff ai), (ai,aj,ak)      , (bi,bj,bk))  (* this is explicitely what we want *)  
-        | None           , Some (bi,bj,bk) -> Some (lhs,Q.make Z.(   coeff bi) Z.(bk          ),Q.make Z.(bj         ) Z.(bk         ), Rhs.var_zero lhs, (bi,bj,bk))  (* account for the sparseity of binding 1 *)
-        | Some (ai,aj,ak), None            -> Some (lhs,Q.make Z.(ak         ) Z.(    coeff ai),Q.make Z.(     neg aj) Z.(   coeff ai), (ai,aj,ak), Rhs.var_zero lhs)  (* account for the sparseity of binding 2 *)
-        | _,_                              -> None  (* no binding for lhs in both maps is replicated implicitely in a sparse result map *)
+        (match rhs1,rhs2 with (* first of all re-instantiate implicit sparse elements *)
+         | Some a, Some b -> Some (a,b)
+         | None,   Some b -> Some (Rhs.var_zero lhs,b)
+         | Some a,   None -> Some (a,Rhs.var_zero lhs)
+         | _ -> None)
+        |>
+        BatOption.map  (fun (r1,r2) -> match (r1,r2) with     (*   criterion A                                        , criterion B                *)
+            | (Some (c1,_),o1,d1), (Some (c2,_),o2,d2)-> lhs,      Q.make Z.((o1*d2)-(o2*d1)) Z.(c1*d2),                Q.make Z.(c2*d2) Z.(c1*d1), r1, r2
+            | (None,       oc,dc), (Some (cv,_),ov,dv)
+            | (Some (cv,_),ov,dv), (None       ,oc,dc)-> lhs,      Q.make Z.((oc*dv)-(ov*dc)) Z.(dc*cv),                Q.one ,                     r1, r2 (* equivalence class defined by (oc/dc-ov/dv)/(cv/dv) *)
+            | (None,       o1,d1), (None       ,o2,d2)-> lhs, (if Z.(zero = ((o1*d2)-(o2*d1))) then Q.one else Q.zero), Q.zero,                     r1, r2 (* only two equivalence classes: constants with matching values or constants with different values *)
+          )
       in
       let table = List.of_enum @@ EConj.IntMap.values @@ EConj.IntMap.merge joinfunction (snd ad) (snd bd) in
       (* compare two variables for grouping depending on affine function parameters a, b and reference variable indices  *)
@@ -544,7 +535,7 @@ struct
       in
       let iterate map l = 
         match l with
-        | (idx_h, a, b, rhs_h, _) :: t -> M.trace "join" " join me in dept %s %s" (Q.to_string a) (Q.to_string b); List.fold (fun acc e -> modify acc idx_h rhs_h e) map l
+        | (idx_h, a, b, rhs_h, _) :: t -> M.trace "join" " iterate through equivalence group with a=%s and b=%s" (Q.to_string a) (Q.to_string b); List.fold (fun acc e -> modify acc idx_h rhs_h e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
