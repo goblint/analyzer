@@ -535,11 +535,11 @@ struct
       in
       let iterate map l = 
         match l with
-        | (x, a, b, ((Some _,_,_) as rhs), ((Some _,_,_) as rhs')) :: t -> M.trace "join" "handle var-var equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((Some _,_,_) as rhs), ((None,_,_)   as rhs')) :: t -> M.trace "join" "handle var-const equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((None,_,_)   as rhs), ((Some _,_,_) as rhs')) :: t -> M.trace "join" "handle const-var equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((None,o1,d1) as rhs), ((None,o2,d2)        )) :: t when (o1,d1)=(o2,d2) -> M.trace "join" "handle const-const equivalence group" ; List.fold (fun acc e -> modify acc x rhs e) map l
-        | (x, a, b, ((None,_,_)   as rhs), ((None,_,_)   as rhs')) :: t -> M.trace "join" "handle const1-const2 equivalence group" ; List.fold (fun acc e -> modify acc x rhs e) map l
+        | (x, a, b, ((Some _,_,_) as rhs), ((Some _,_,_) as rhs')) :: t -> if M.tracing then M.trace "join" "handle var-var equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
+        | (x, a, b, ((Some _,_,_) as rhs), ((None,_,_)   as rhs')) :: t -> if M.tracing then M.trace "join" "handle var-const equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
+        | (x, a, b, ((None,_,_)   as rhs), ((Some _,_,_) as rhs')) :: t -> if M.tracing then M.trace "join" "handle const-var equivalence group"; List.fold (fun acc e -> modify acc x rhs e) map l
+        | (x, a, b, ((None,o1,d1) as rhs), ((None,o2,d2)        )) :: t when (o1,d1)=(o2,d2) -> if M.tracing then M.trace "join" "handle const-const equivalence group" ; List.fold (fun acc e -> modify acc x rhs e) map l
+        | (x, a, b, ((None,_,_)   as rhs), ((None,_,_)   as rhs')) :: t -> if M.tracing then M.trace "join" "handle const1-const2 equivalence group" ; List.fold (fun acc e -> modify acc x rhs e) map l
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
