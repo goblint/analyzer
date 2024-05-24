@@ -525,21 +525,25 @@ struct
       in
       (* Calculate new components as groups *)
       let new_components = BatList.group cmp_z table in
-
+      let varentry ci offi ch offh xh =
+        let (coeff,off,d) = Q.(ci,(offi*ch)-(ci*offh),ch) in (* compute new rhs in Q *)
+        let (coeff,off,d) = Z.(coeff.num*d.den*off.den,off.num*d.den*coeff.den,d. num*coeff.den*off.den) in (* convert that back into Z *)
+        Rhs.canonicalize (Some(coeff,xh),off,d) 
+      in
       (* ci1 = a*ch1+b /\ ci2 = a*ch2+b *)
       (* ===> a = (ci1-ci2)/(ch1-ch2) b = ci2-a*ch2 *)
       let constentry ci1 ci2 ch1 ch2 xh = 
         let a = Q.((ci1-ci2) / (ch1-ch2)) in
-        let b= Q.(ci2 - a*ch2) in
+        let b = Q.(ci2 - a*ch2) in
         let anum=a.num and aden=a.den and bnum=b.num and bden=b.den in
         Rhs.canonicalize (Some (Z.(anum*bden),xh),Z.(bnum*aden) ,Z.(aden*bden) ) in
       let iterate map l = 
         match l with
-        | (h, _, _, ((Some (ch,_),oh,dh)), ((Some _,_,_)       )) :: t -> if M.tracing then M.trace "join" "handle var-var class";   List.fold (fun acc e -> acc) map t
-        | (h, _, _, ((Some (ch,_),oh,dh)), ((None,_,_)         )) :: t -> if M.tracing then M.trace "join" "handle var-const class"; List.fold (fun acc e -> acc) map t
-        | (h, _, _, ((None,_,_)         ), ((Some (ch,_),oh,dh))) :: t -> if M.tracing then M.trace "join" "handle const-var class"; List.fold (fun acc e -> acc) map t
-        | (_, _, _, rhs                  , rhs'                 ) :: t when rhs=rhs' -> if M.tracing then M.trace "join" "handle const-const class" ; List.fold (fun acc (x,_,_,rh,_) -> EConj.set_rhs acc x rh) map l
-        | (h, _, _, ((None,oh1,dh1)     ), ((None),oh2,dh2)     ) :: t -> if M.tracing then M.trace "join" "handle const1-const2 class" ; List.fold (fun acc (i,_,_,(_,oi1,di1),(_,oi2,di2)) -> EConj.set_rhs acc i (constentry Q.(make oi1 di1) Q.(make oi2 di2) (Q.make oh1 dh1) (Q.make oh2 dh2) h)) map t
+        | (h, _, _, ((Some (ch,_),oh,dh)), ((Some _,_,_)       )) :: t -> List.fold (fun acc (i,_,_,(Some (ci,_),oi,di),_)   -> EConj.set_rhs acc i (varentry   Q.(make ci di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
+        | (h, _, _, ((Some (ch,_),oh,dh)), ((None,_,_)         )) :: t -> List.fold (fun acc (i,_,_,(Some (ci,_),oi,di),_)   -> EConj.set_rhs acc i (varentry   Q.(make ci di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
+        | (h, _, _, ((None,_,_)         ), ((Some (ch,_),oh,dh))) :: t -> List.fold (fun acc (i,_,_,_,(Some (ci,_),oi,di))   -> EConj.set_rhs acc i (varentry   Q.(make ci di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
+        | (_, _, _, rhs                  , rhs'   ) :: t when rhs=rhs' -> List.fold (fun acc (x,_,_,rh,_)                    -> EConj.set_rhs acc x rh) map l
+        | (h, _, _, ((None,oh1,dh1)     ), ((None),oh2,dh2)     ) :: t -> List.fold (fun acc (i,_,_,(_,oi1,di1),(_,oi2,di2)) -> EConj.set_rhs acc i (constentry Q.(make oi1 di1) Q.(make oi2 di2) Q.(make oh1 dh1) Q.(make oh2 dh2) h)) map t
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
       Some (List.fold iterate (EConj.make_empty_conj @@ fst ad) new_components)
