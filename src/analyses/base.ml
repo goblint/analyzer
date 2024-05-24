@@ -280,11 +280,12 @@ struct
               if GobOption.exists (Z.equal Z.zero) (ID.to_int n) then `NoOffset
               else raise UnknownPtr
           in
+          let n_offset = iDtoIdx n in
           begin match t with (* todo: isn't this t always (Some f.ftype) ? *)
             | Some t ->
               let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
               let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
-              begin match IdxDom.(to_bool (eq f_offset (neg n))) with
+              begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset
                 | _ -> getOffsetBasedOnType f
               end
