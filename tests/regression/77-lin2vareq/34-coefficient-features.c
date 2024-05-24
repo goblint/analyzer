@@ -26,6 +26,10 @@ void loop() {
         y=y+8;
 
         __goblint_check(y == 2*x); //SUCCESS
+
+        int res = (y==2*x )+ 1;
+
+        __goblint_check(res); //SUCCESS
     }
 
     x=0;
@@ -55,9 +59,9 @@ void main() {
 
     __goblint_check(b == 4*c); //SUCCESS
 
-    if (5*b == 20*unknown + a){
+    if (7*b == 20*unknown + a){
 
-        __goblint_check(5*b == 20*unknown + a); //SUCCESS
+        __goblint_check(7*b == 20*unknown + a); //SUCCESS
     }
 
     b = unknown ? a*c : 4*c;
