@@ -1914,3 +1914,76 @@ struct
         Some f'
   end
 end
+
+module Delayed (S:Spec)
+  : Spec with module D = Lattice.Delayed (S.D)
+          and module G = S.G
+          and module C = S.C
+=
+struct
+  module D = Lattice.Delayed (S.D)
+  module G = S.G
+  module C = S.C
+  module V = S.V
+
+  let name () = S.name ()^" delayed"
+
+  let start_level = ref (`Top)
+
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  let init marshal =
+    S.init marshal
+
+  let finalize = S.finalize
+
+  let should_join (x,_) (y,_) = S.should_join x y
+
+  let startstate v = (S.startstate v, 0)
+  let exitstate  v = (S.exitstate  v, D.n ())
+  let morphstate v (d,l) = (S.morphstate v d, l)
+
+  let context fd (d,_) = S.context fd d
+
+  let conv (ctx: (D.t, G.t, C.t, V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+    { ctx with local = fst ctx.local
+             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
+    }
+  let lift_fun ctx f g h =
+    f @@ h (g (conv ctx))
+
+  let enter ctx r f args =
+    let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (y, snd ctx.local)) in
+    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
+
+  let lift ctx d = (d, 0)
+
+  (* Used only in the threadspawn function. *)
+  let rec lift' ctx dl =
+    match dl with
+    | [] -> []
+    | d::l -> (d, 0)::(lift' ctx l)
+
+  let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
+  let query ctx (type a) (q: a Queries.t): a Queries.result = S.query (conv ctx) q
+  let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
+  let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
+  let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
+  let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
+  let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
+  let skip ctx        = lift_fun ctx (lift ctx) S.skip identity
+  let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
+  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
+
+  let threadenter ctx lval f args = lift_fun ctx (lift' ctx) S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
+
+
+  let paths_as_set ctx =
+    let liftmap = List.map (fun x -> (x, snd ctx.local)) in
+    lift_fun ctx liftmap S.paths_as_set (Fun.id)
+
+  let event ctx e octx =
+    lift_fun ctx (lift ctx) S.event ((|>) (conv octx) % (|>) e)
+end

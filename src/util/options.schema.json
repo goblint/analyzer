@@ -1045,6 +1045,12 @@
               "description": "Delay widenings using widening tokens.",
               "type": "boolean",
               "default": false
+            },
+            "delay": {
+              "title": "ana.widen.delay",
+              "description": "Delay widenings by count.",
+              "type": "integer",
+              "default": 0
             }
           },
           "additionalProperties": false
