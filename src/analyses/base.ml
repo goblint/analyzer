@@ -257,8 +257,14 @@ struct
         with Cilfacade.TypeOfError _ ->
           None
       in
+      let isNotIndexable x =
+        match unrollType x.vtype with
+        | TArray _ -> false
+        | _ -> is_not_alloc_var (Analyses.ask_of_ctx ctx) x
+      in
+      let exception UnknownPtr in
       (* adds n to the last offset *)
-      let rec addToOffset n (t:typ option) = function
+      let rec addToOffset n (t : typ option) ((v, off) : Addr.Mval.t) = function
         | `Index (i, `NoOffset) ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
@@ -280,29 +286,24 @@ struct
           end
         | `Index (i, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
-          `Index(i, addToOffset n t' o)
+          `Index(i, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
         | `Field (f, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
-          `Field(f, addToOffset n t' o)
-        | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
+          `Field(f, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
+        (* The following cases are only reached via the first call, but not recursively (as the previous cases catch those) *)
+        | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) && isNotIndexable v -> `NoOffset
+        | `NoOffset when isNotIndexable v -> raise UnknownPtr
+        | `NoOffset -> `Index (iDtoIdx n, `NoOffset)
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
       in
-      let isNotIndexable x =
-        match unrollType x.vtype with
-        | TArray _ -> false
-        | _ -> is_not_alloc_var (Analyses.ask_of_ctx ctx) x
-      in
       match Addr.to_mval addr with
-      | Some (x, o) ->
-        begin
-          match o with
-          | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) && isNotIndexable x -> addr
-          | `NoOffset when isNotIndexable x -> default addr
-          | _ -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
-        end
+      | Some (x, o) -> (
+          try Addr.of_mval (x, addToOffset n (Some x.vtype) (x,o) o)
+          with UnknownPtr -> default addr
+        )
       | None -> default addr
     in
     let addToAddrOp p (n:ID.t):value =
