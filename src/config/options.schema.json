@@ -1806,7 +1806,7 @@
           "title": "exp.hide-std-globals",
           "description": "Hide standard extern globals (e.g. `stdout`) from cluttering local states.",
           "type": "boolean",
-          "default": true
+          "default": false
         },
         "arg": {
           "title": "exp.arg",
