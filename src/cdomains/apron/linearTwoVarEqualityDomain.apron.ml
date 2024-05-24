@@ -536,7 +536,7 @@ struct
         Rhs.canonicalize (Some (Z.(anum*bden),xh),Z.(bnum*aden) ,Z.(aden*bden) ) in
       let iterate map l = 
         match l with
-        | (_, _, _, rhs                  , rhs'                 ) :: t when rhs=rhs' -> List.fold (fun acc (x,_,_,rh,_)      -> EConj.set_rhs acc x rh) map l
+        | (_, _, _, rhs                  , rhs'                 ) :: t when Rhs.equal rhs rhs' -> List.fold (fun acc (x,_,_,rh,_)      -> EConj.set_rhs acc x rh) map l
         | (h, _, _, ((Some (ch,_),oh,dh)), ((Some _,_,_)       )) :: t -> List.fold (fun acc (i,_,_,(monom,oi,di),_)         -> EConj.set_rhs acc i (varentry   Q.(make (fst@@Option.get monom) di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
         | (h, _, _, ((Some (ch,_),oh,dh)), ((None,_,_)         )) :: t -> List.fold (fun acc (i,_,_,(monom,oi,di),_)         -> EConj.set_rhs acc i (varentry   Q.(make (fst@@Option.get monom) di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
         | (h, _, _, ((None,_,_)         ), ((Some (ch,_),oh,dh))) :: t -> List.fold (fun acc (i,_,_,_,(monom,oi,di))         -> EConj.set_rhs acc i (varentry   Q.(make (fst@@Option.get monom) di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
