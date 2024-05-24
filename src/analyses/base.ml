@@ -268,13 +268,6 @@ struct
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let getOffsetBasedOnType f =
-            match unrollType f.ftype with
-            | TArray _ -> `Field (f, `Index (n, `NoOffset))
-            | _ -> (* todo: similar to isNotIndexable, but a field cannot be something that is alloced? *)
-              if GobOption.exists (Z.equal Z.zero) (ID.to_int n) then `NoOffset
-              else raise UnknownPtr
-          in
           let n_offset = iDtoIdx n in
           begin match t with (* todo: isn't this t always (Some f.ftype) ? *)
             | Some t ->
@@ -282,9 +275,13 @@ struct
               let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
               begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset
-                | _ -> getOffsetBasedOnType f
+                | _ when isArrayType f.ftype -> `Field (f, `Index (n, `NoOffset))
+                | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset (* adding (or subtracting) 0 to any type of pointer is ok *)
+                | _ -> raise UnknownPtr (* adding (or subtracting) anything else than 0 to a pointer that is non-indexable will yield an unknown pointer *)
               end
-            | None -> getOffsetBasedOnType f
+            | _ when isArrayType f.ftype -> `Field (f, `Index (n, `NoOffset))
+            | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset
+            | _ -> raise UnknownPtr
           end
         | `Index (i, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
