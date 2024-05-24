@@ -38,7 +38,7 @@ struct
     | AddrOf (Var x, NoOffset) -> if x.vid < -1 then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "wrpointer-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty res;res) else Value.top()
     | _ -> Value.top ()
 
-  let startcontext () = D.top ()
+  let startcontext () = D.empty ()
   let startstate v = D.bot ()
   let exitstate = startstate
 
