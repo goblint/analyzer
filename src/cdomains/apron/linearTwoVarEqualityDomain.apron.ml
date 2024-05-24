@@ -416,10 +416,9 @@ struct
     subscr i
 
   let show_var env i =
-    let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
     let res = Var.to_string (Environment.var_of_dim env i) in
     match String.split_on_char '#' res with
-    | varname::rest::[] -> varname ^ (try String.fold_left (fun acc c -> acc ^ transl.(Char.code c - Char.code '0')) "" rest with _ -> "#"^rest)
+    | varname::rest::[] -> varname ^ (try to_subscript @@ int_of_string rest with _ -> "#" ^ rest)
     | _ -> res
 
   (** prints the current variable equalities with resolved variable names *)
