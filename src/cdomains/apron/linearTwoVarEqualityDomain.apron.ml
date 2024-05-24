@@ -501,11 +501,11 @@ struct
          - rhs2 
            however, we have to account for the sparseity of EConj maps by manually patching holes with default values *)
       let joinfunction lhs rhs1 rhs2 =
-        (match rhs1,rhs2 with (* first of all re-instantiate implicit sparse elements *)
-         | Some a, Some b -> Some (a,b)
-         | None,   Some b -> Some (Rhs.var_zero lhs,b)
-         | Some a,   None -> Some (a,Rhs.var_zero lhs)
-         | _ -> None)
+        (
+          let e = Option.default (Rhs.var_zero lhs) in
+          match rhs1,rhs2 with (* first of all re-instantiate implicit sparse elements *)
+         | None, None -> None
+         | a, b -> Some (e a, e b))
         |>
         BatOption.map  (fun (r1,r2) -> match (r1,r2) with     (*   criterion A                                        , criterion B                *)
             | (Some (c1,_),o1,d1), (Some (c2,_),o2,d2)-> lhs,      Q.make Z.((o1*d2)-(o2*d1)) Z.(c1*d2),                Q.make Z.(c2*d2) Z.(c1*d1), r1, r2
