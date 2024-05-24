@@ -504,8 +504,8 @@ struct
         (
           let e = Option.default (Rhs.var_zero lhs) in
           match rhs1,rhs2 with (* first of all re-instantiate implicit sparse elements *)
-         | None, None -> None
-         | a, b -> Some (e a, e b))
+          | None, None -> None
+          | a, b -> Some (e a, e b))
         |>
         BatOption.map  (fun (r1,r2) -> match (r1,r2) with     (*   criterion A                                        , criterion B                *)
             | (Some (c1,_),o1,d1), (Some (c2,_),o2,d2)-> lhs,      Q.make Z.((o1*d2)-(o2*d1)) Z.(c1*d2),                Q.make Z.(c2*d2) Z.(c1*d1), r1, r2
