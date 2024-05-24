@@ -81,6 +81,7 @@ module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
+module StartStateAnalysis = StartStateAnalysis
 
 (** {2 Heap}
 
@@ -221,7 +222,6 @@ module Mval = Mval
 module Offset = Offset
 module StringDomain = StringDomain
 module AddressDomain = AddressDomain
-module WeaklyRelationalPointerDomain = WeaklyRelationalPointerDomain
 
 (** {5 Complex} *)
 
@@ -273,6 +273,9 @@ module AccessDomain = AccessDomain
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
 module StackDomain = StackDomain
+
+module CongruenceClosure = CongruenceClosure
+module WeaklyRelationalPointerDomain = WeaklyRelationalPointerDomain
 
 (** {2 Testing}
 
