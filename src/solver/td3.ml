@@ -346,9 +346,9 @@ module Base =
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
                       if divided_narrow_stable then (
-                        if HM.mem stable x then HM.iter (fun y acc -> divided_side D_Narrow ~x y acc) acc
+                        if HM.mem stable x then HM.iter (fun y acc -> ignore @@ divided_side D_Narrow ~x y acc) acc
                       )
-                      else HM.iter (fun y acc -> if not @@ HM.mem changed y then divided_side D_Narrow ~x y acc) acc
+                      else HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
                     )) (fun () -> eq x (eval l x) (side_acc acc changed x))
               else
                 eq x (eval l x) (side ~x)
@@ -413,13 +413,14 @@ module Base =
         match new_acc with
         | Some new_acc -> (
             HM.replace acc y new_acc;
-            divided_side D_Widen ~x y new_acc;
-            if not @@ divided_narrow_stable then
+            let y_changed = divided_side D_Widen ~x y new_acc in
+            if y_changed && not @@ divided_narrow_stable then
               HM.replace changed y ();
           )
         | _ -> ()
-      and divided_side (phase:divided_side_phase) ?x y d =
-        if tracing then trace "sol2" "divided side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
+      and divided_side (phase:divided_side_phase) ?x y d : bool =
+        if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
+        if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
           Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
         );
@@ -442,12 +443,12 @@ module Base =
             (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             if not (phase = D_Narrow && narrow_gas = Some 0) then (
               let (new_side, narrow_gas) = match phase with
-                | D_Widen -> (S.Dom.widen old_side (S.Dom.join old_side d), narrow_gas)
-                | D_Narrow -> (S.Dom.narrow old_side d, Option.map (fun x -> x - 1) narrow_gas)
+                | D_Widen -> (if not @@ S.Dom.leq d old_side then S.Dom.widen old_side (S.Dom.join old_side d) else old_side), narrow_gas
+                | D_Narrow -> S.Dom.narrow old_side d, Option.map (fun x -> x - 1) narrow_gas
               in
 
               if not (S.Dom.equal old_side new_side) then (
-                if tracing then trace "side" "divided side from %a to %a changed (accumulation phase: %b) Old value: %a ## New value: %a" S.Var.pretty_trace x S.Var.pretty_trace y (phase == D_Widen) S.Dom.pretty old_side S.Dom.pretty new_side;
+                if tracing then trace "side" "divided side to %a from %a changed (accumulation phase: %b) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (phase == D_Widen) S.Dom.pretty old_side S.Dom.pretty new_side;
 
                 HM.replace y_sides x (new_side, narrow_gas);
                 let y_oldval = HM.find rho y in
@@ -461,9 +462,12 @@ module Base =
                       S.Var.pretty_trace y S.Var.pretty_trace x (phase == D_Widen) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
                   HM.replace rho y y_newval;
                   destabilize y;
-                )
-              );
-            );
+                );
+                true
+              ) else
+                false
+            ) else
+              false
           )
         | None -> (
             let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot ()) in
@@ -475,12 +479,13 @@ module Base =
               if tracing then trace "side" "orphaned side changed %a (accumulation phase: %b)" S.Var.pretty_trace y (phase == D_Widen);
               HM.replace rho y (S.Dom.join wd y_oldval);
               (* TODO: SIDE destabilize might be uninitialized. Handle this more cleanly. *)
-              try
+              (try
                 destabilize y;
-              with Failure f -> ()
-            )
-        );
-
+               with Failure f -> ());
+              true
+            ) else
+              false
+          )
       and eq x get set =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         match Hooks.system x with
@@ -619,7 +624,7 @@ module Base =
         init x;
         (* TODO: SIDE make this change-proof *)
         if divided_narrow then
-          divided_side D_Widen x d
+          ignore @@ divided_side D_Widen x d
         else
           HM.replace rho x d;
         HM.replace stable x ();
@@ -666,7 +671,7 @@ module Base =
           | Some d ->
             (* TODO: SIDE make this change-proof *)
             if divided_narrow then
-              divided_side D_Widen x d
+              ignore @@ divided_side D_Widen x d
             else
               HM.replace rho x d;
           | None ->
@@ -854,7 +859,7 @@ module Base =
             );
             if divided_narrow then
               (* it is not necessary to perform narrowing here, orphan side-effects cannot be narrowed anyway *)
-              divided_side D_Widen v d
+              ignore @@ divided_side D_Widen v d
             else
               side v d
           ) st;
