@@ -29,7 +29,7 @@ module Rhs = struct
     else (Z.to_string c) ^"·"
   let show_rhs_formatted formatter = function
     | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
-    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s%+Ld" (show_coeff coeff) (formatter v) (Z.to_int64 o)
+    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s%+Lu" (show_coeff coeff) (formatter v) (Z.to_int64_unsigned o)
     | (None,   o,_) -> Printf.sprintf "%Ld" (Z.to_int64 o)
   let show (v,o,d) =
     let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
