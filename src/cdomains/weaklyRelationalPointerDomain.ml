@@ -127,7 +127,7 @@ module D = struct
         (show a) (show b) (show res);
     res
 
-  let widen a b = join a b
+  let widen a b = if M.tracing then M.trace "wrpointer-join" "WIDEN\n";join a b
 
   let meet a b = match a,b with
     | None, _ -> None

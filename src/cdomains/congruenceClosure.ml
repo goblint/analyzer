@@ -989,7 +989,8 @@ module CongruenceClosure = struct
     let update_min_repr (uf, set, map) min_representatives queue =
       (* order queue by size of the current min representative *)
       let queue =
-        List.sort_unique (fun el1 el2 -> TUF.compare_repr (find el1 min_representatives) (find el2 min_representatives)) (List.filter (TUF.is_root uf) queue)
+        List.sort_unique (fun el1 el2 -> let compare_repr = TUF.compare_repr (find el1 min_representatives) (find el2 min_representatives) in
+                           if compare_repr = 0 then T.compare el1 el2 else compare_repr) (List.filter (TUF.is_root uf) queue)
       in update_min_repr (uf, set, map) min_representatives queue
 
     (**
@@ -1000,6 +1001,7 @@ module CongruenceClosure = struct
        - The map with the minimal representatives
        - The union find tree. This might have changed because of path compression. *)
     let compute_minimal_representatives (uf, set, map) =
+      if M.tracing then M.trace "wrpointer" "compute_minimal_representatives\n";
       let atoms = SSet.get_atoms set in
       (* process all atoms in increasing order *)
       let uf_ref = ref uf in
@@ -1009,7 +1011,9 @@ module CongruenceClosure = struct
             uf_ref := new_uf;
             let v2, z2, new_uf = TUF.find !uf_ref el2 in
             uf_ref := new_uf;
-            TUF.compare_repr (v1, z1) (v2, z2)) atoms in
+            let repr_compare = TUF.compare_repr (v1, z1) (v2, z2)
+            in
+            if repr_compare = 0 then T.compare el1 el2 else repr_compare) atoms in
       let add_atom_to_map (min_representatives, queue, uf) a =
         let (rep, offs, uf) = TUF.find uf a in
         if not (mem rep min_representatives) then
@@ -1197,7 +1201,9 @@ module CongruenceClosure = struct
   *)
   let closure cc conjs =
     let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
-    let min_repr, uf = MRMap.update_min_repr (uf, cc.set, map) min_repr queue in
+    (* let min_repr, uf = MRMap.update_min_repr (uf, cc.set, map) min_repr queue in *)
+    let min_repr, uf = MRMap.compute_minimal_representatives (uf, cc.set, map) in
+    if M.tracing then M.trace "wrpointer" "closure minrepr: %s\n" (MRMap.show_min_rep min_repr);
     {uf; set = cc.set; map; min_repr; diseq = cc.diseq}
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
