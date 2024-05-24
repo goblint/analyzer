@@ -37,10 +37,10 @@ module Rhs = struct
 
   (** factor out gcd from all terms, i.e. ax=by+c is the canonical form for adx+bdy+cd *)
   let canonicalize (v,o,d) =
-    let gcd = Z.gcd o d in
-    let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in
-    let gcd = if (Z.(lt d  Z.zero)) then Z.neg gcd else gcd in
-    (BatOption.map (fun (coeff,i) -> (Z.div coeff gcd,i)) v,Z.div o gcd, Z.div d gcd)
+    let gcd = Z.gcd o d in (* gcd of coefficients *)
+    let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in (* include monomial in gcd computation *)
+    let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* cannonical form dictates d being positive *)
+    (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v,Z.div o commondivisor, Z.div d commondivisor)
 
   (** Substitute rhs for varx in rhs' *)
   let subst rhs varx rhs' =
