@@ -273,22 +273,28 @@ struct
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let n_offset = iDtoIdx n in
-          begin match t with
+          let getOffsetBasedOnType f =
+            match unrollType f.ftype with
+            | TArray _ -> `Field (f, `Index (n, `NoOffset))
+            | _ -> (* todo: similar to isNotIndexable, but a field cannot be something that is alloced? *)
+              if GobOption.exists (Z.equal Z.zero) (ID.to_int n) then `NoOffset
+              else raise UnknownPtr
+          in
+          begin match t with (* todo: isn't this t always (Some f.ftype) ? *)
             | Some t ->
               let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
               let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
-              begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
+              begin match IdxDom.(to_bool (eq f_offset (neg n))) with
                 | Some true -> `NoOffset
-                | _ -> `Field (f, `Index (n_offset, `NoOffset))
+                | _ -> getOffsetBasedOnType f
               end
-            | None -> `Field (f, `Index (n_offset, `NoOffset))
+            | None -> getOffsetBasedOnType f
           end
         | `Index (i, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
           `Index(i, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
         | `Field (f, o) ->
-          let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
+          let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in (* todo: why this, not just f.ftype ?! *)
           `Field(f, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
         (* The following cases are only reached via the first call, but not recursively (as the previous cases catch those) *)
         | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) && isNotIndexable v -> `NoOffset
