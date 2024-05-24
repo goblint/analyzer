@@ -1914,3 +1914,82 @@ struct
         Some f'
   end
 end
+
+module Lookahead (S:Spec)
+  : Spec with module D = Lattice.Lookahead (S.D)
+          and module G = S.G
+          and module C = S.C
+=
+struct
+  module D = Lattice.Lookahead (S.D)
+  module G = S.G
+  module C = S.C
+  module V = S.V
+
+  let name () = S.name ()^" lookahead"
+
+  let start_level = ref (`Top)
+
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  let init marshal =
+    S.init marshal
+
+  let finalize = S.finalize
+
+  let should_join (x,_) (y,_) = S.should_join x y
+
+  let startstate v = (S.startstate v, S.startstate v)
+  let exitstate  v = (S.exitstate  v, S.exitstate  v)
+  let morphstate v (d,l) = (S.morphstate v d, S.morphstate v l)
+
+  let context fd (d,_) = S.context fd d
+
+  let conv1 (ctx: (D.t, G.t, C.t, V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+    { ctx with local = fst ctx.local
+             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
+    }
+  let conv2 (ctx: (D.t, G.t, C.t, V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+    { ctx with local = snd ctx.local
+             ; split = (fun d es -> ctx.split (fst ctx.local, d) es )
+    }
+  let lift_fun (ctx: (D.t, G.t, C.t, V.t) ctx) f g h =
+    let main = h (g (conv1 ctx)) in
+    if S.D.is_bot main then D.bot () else
+      (main, h (g (conv2 ctx)))
+  let lift_fun' (ctx: (D.t, G.t, C.t, V.t) ctx) f g h =
+    let main = h (g (conv1 ctx)) in
+    (main, h (g (conv2 ctx)))
+
+  let enter ctx r f args =
+    let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (fst ctx.local, y)) in
+    let (l1, l2) = lift_fun' ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) in
+    List.map2 (fun (x1, y1) (x2, y2) -> ((x1, x2), (y1, y2))) l1 l2
+
+  let lift ctx d = (d, snd ctx.local)
+  let rec lift' ctx dl =
+    match dl with
+    | [] -> []
+    | d::l -> (d, snd ctx.local)::(lift' ctx l)
+  let lift_start_level d = (d, !start_level)
+
+  let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
+  let query ctx (type a) (q: a Queries.t): a Queries.result = S.query (conv1 ctx) q
+  let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
+  let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
+  let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
+  let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
+  let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
+  let skip ctx        = lift_fun ctx (lift ctx) S.skip identity
+  let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
+  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
+
+  let threadenter ctx lval f args = failwith "TODO" (*lift_fun ctx (lift' ctx) S.threadenter ((|>) args % (|>) f % (|>) lval)*)
+  let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv1 fctx) % (|>) args % (|>) f % (|>) lval)
+
+  let paths_as_set ctx = [ctx.local] (** Trivial, may be incorrect. *)
+
+  let event ctx e octx =
+    lift_fun ctx (lift ctx) S.event ((|>) (conv1 octx) % (|>) e)
+end

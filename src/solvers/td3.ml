@@ -314,7 +314,10 @@ module Base =
             else
               if term then
                 match phase with
-                | Widen -> S.Dom.widen old (S.Dom.join old eqd)
+                | Widen -> AnalysisState.widening := true;
+                  let r = S.Dom.widen old (S.Dom.join old eqd) in
+                  AnalysisState.widening := false;
+                  r
                 | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
                 | Narrow ->
                   (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
