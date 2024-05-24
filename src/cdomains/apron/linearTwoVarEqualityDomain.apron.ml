@@ -532,8 +532,7 @@ struct
       let constentry ci1 ci2 ch1 ch2 xh = 
         let a = Q.((ci1-ci2) / (ch1-ch2)) in
         let b = Q.(ci2 - a*ch2) in
-        let anum=a.num and aden=a.den and bnum=b.num and bden=b.den in
-        Rhs.canonicalize (Some (Z.(anum*bden),xh),Z.(bnum*aden) ,Z.(aden*bden) ) in
+        Rhs.canonicalize (Some (Z.(a.num*b.den),xh),Z.(b.num*a.den) ,Z.(a.den*b.den) ) in
       let iterate map l = 
         match l with
         | (_, _, _, rhs                  , rhs'                 ) :: t when Rhs.equal rhs rhs' -> List.fold (fun acc (x,_,_,rh,_)      -> EConj.set_rhs acc x rh) map l
