@@ -728,9 +728,8 @@ module CongruenceClosure = struct
         fun acc x -> List.fold_left (
             fun acc y -> f acc x y) acc l2) acc l1
 
-    let map2 f l1 l2 = List.concat (
-        List.map (fun x ->
-            List.map (fun y -> f x y) l2) l1)
+    let map2 f l1 l2 = List.concat_map (fun x ->
+            List.map (fun y -> f x y) l2) l1
 
     let map_find_opt (v,r) map = match TMap.find_opt v map with
       | None -> None

@@ -15,6 +15,7 @@ struct
   module C = D
 
   let name () = "wrpointer"
+  let startcontext () = D.empty ()
   let startstate v = D.empty()
   let exitstate v = D.empty()
 
