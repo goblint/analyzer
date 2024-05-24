@@ -290,7 +290,6 @@ struct
     in
     let rec convert_texpr texp =
       begin match texp with
-        (* If x is a constant, replace it with its const. val. immediately *)
         | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
         | Cst (Scalar x) ->
           begin match SharedFunctions.int_of_scalar ?round:None x with
@@ -322,15 +321,15 @@ struct
     BatOption.bind (monomials_from_texp t texp)
       (fun monomiallist ->
          let d = Option.get t.d in
-         let expr = Array.make (Environment.size t.env) (Q.zero) in (*TODO*: migrate to map; array of coeff/divisor per var idx*)
-         let accumulate_constants (aconst,adiv) (v,offs,divi) = match v with
-           | None -> let gcdee = Z.gcd adiv divi in (Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
+         let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
+           | None -> let gcdee = Z.gcd adiv divi in exprcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
            | Some (coeff,idx) -> let (somevar,someoffs,somedivi)=Rhs.subst (EConj.get_rhs d idx) idx (v,offs,divi) in (* normalize! *)
-             (Option.may (fun (coef,ter) -> expr.(ter) <- Q.(expr.(ter) + Q.make coef somedivi)) somevar; 
-              let gcdee = Z.gcd adiv divi in (Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
+             let newcache = Option.map_default (fun (coef,ter) -> EConj.IntMap.add ter Q.((EConj.IntMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
+             let gcdee = Z.gcd adiv divi in 
+             (newcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
          in
-         let constant = List.fold_left accumulate_constants (Z.zero,Z.one) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
-         Some (Array.fold_lefti (fun list v (c) -> if Q.equal c Q.zero then list else (c.num,v,c.den)::list) [] expr, constant) )
+         let (expr,constant) = List.fold_left accumulate_constants (EConj.IntMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+         Some (EConj.IntMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
 
   let simplified_monomials_from_texp (t: t) texp =
     let res = simplified_monomials_from_texp t texp in
@@ -348,7 +347,6 @@ struct
 
   let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
-  (* Copy because function is not "with" so should not mutate inputs *)
   let assign_const t var const divi = match t.d with
     | None -> t
     | Some t_d -> {d = Some (EConj.set_rhs t_d var (None, const, divi)); env = t.env}
