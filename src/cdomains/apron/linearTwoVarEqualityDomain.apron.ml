@@ -540,9 +540,9 @@ struct
       let iterate map l = 
         match l with
         | (_, _, _, rhs                  , rhs'                 ) :: t when rhs=rhs' -> List.fold (fun acc (x,_,_,rh,_)      -> EConj.set_rhs acc x rh) map l
-        | (h, _, _, ((Some (ch,_),oh,dh)), ((Some _,_,_)       )) :: t -> List.fold (fun acc (i,_,_,(Some (ci,_),oi,di),_)   -> EConj.set_rhs acc i (varentry   Q.(make ci di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
-        | (h, _, _, ((Some (ch,_),oh,dh)), ((None,_,_)         )) :: t -> List.fold (fun acc (i,_,_,(Some (ci,_),oi,di),_)   -> EConj.set_rhs acc i (varentry   Q.(make ci di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
-        | (h, _, _, ((None,_,_)         ), ((Some (ch,_),oh,dh))) :: t -> List.fold (fun acc (i,_,_,_,(Some (ci,_),oi,di))   -> EConj.set_rhs acc i (varentry   Q.(make ci di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
+        | (h, _, _, ((Some (ch,_),oh,dh)), ((Some _,_,_)       )) :: t -> List.fold (fun acc (i,_,_,(monom,oi,di),_)         -> EConj.set_rhs acc i (varentry   Q.(make (fst@@Option.get monom) di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
+        | (h, _, _, ((Some (ch,_),oh,dh)), ((None,_,_)         )) :: t -> List.fold (fun acc (i,_,_,(monom,oi,di),_)         -> EConj.set_rhs acc i (varentry   Q.(make (fst@@Option.get monom) di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
+        | (h, _, _, ((None,_,_)         ), ((Some (ch,_),oh,dh))) :: t -> List.fold (fun acc (i,_,_,_,(monom,oi,di))         -> EConj.set_rhs acc i (varentry   Q.(make (fst@@Option.get monom) di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
         | (h, _, _, ((None,oh1,dh1)     ), ((None),oh2,dh2)     ) :: t -> List.fold (fun acc (i,_,_,(_,oi1,di1),(_,oi2,di2)) -> EConj.set_rhs acc i (constentry Q.(make oi1 di1) Q.(make oi2 di2) Q.(make oh1 dh1) Q.(make oh2 dh2) h)) map t
         | [] -> let exception EmptyComponent in raise EmptyComponent
       in
