@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none
+// PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set sem.int.signed_overflow assume_none --enable ana.widen.lookahead
 int main(){
     int x = 0;
     int y = 0;
