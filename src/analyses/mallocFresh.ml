@@ -10,7 +10,7 @@ struct
 
   (* must fresh variables *)
   module D = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All variables" end)) (* need bot (top) for hoare widen *)
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let name () = "mallocFresh"
 

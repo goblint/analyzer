@@ -59,6 +59,7 @@ module GobConfig = GobConfig
 module AfterConfig = AfterConfig
 
 module AutoTune = AutoTune
+module AutoSoundConfig = AutoSoundConfig
 
 module JsonSchema = JsonSchema
 module Options = Options
@@ -152,6 +153,8 @@ module UnitAnalysis = UnitAnalysis
 
 module Assert = Assert
 module LoopTermination = LoopTermination
+module Callstring = Callstring
+module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module StackTrace = StackTrace
@@ -385,6 +388,8 @@ module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
 module XmlUtil = XmlUtil
+
+module GobExn = GobExn
 
 (** {2 CIL} *)
 

@@ -16,14 +16,13 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
         ocaml-compiler:
+          - 5.2.x
+          - 5.1.x
           - 5.0.x
           - ocaml-variants.4.14.0+options,ocaml-option-flambda
           - 4.14.x
-          - 4.13.x
-          - 4.12.x
-          - 4.10.x
         apron:
           - false
           - true
@@ -91,7 +90,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
         ocaml-compiler:
           - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file, downgrade deps step
 
@@ -189,7 +188,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
         ocaml-compiler:
           - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
 

@@ -102,8 +102,15 @@ sig
   val remove_vars : t -> var list -> t
 
   val remove_vars_with : t -> var list -> unit
+  (** Remove variables {e in-place}.
+      This avoids an extra copy like {!remove_vars} if the input relation is unshared. *)
+
   val remove_filter : t -> (var -> bool) -> t
+
   val remove_filter_with: t -> (var -> bool) -> unit
+  (** Filter variables {e in-place}.
+      This avoids an extra copy like {!remove_filter} if the input relation is unshared. *)
+
   val copy: t -> t
   val keep_vars : t -> var list -> t
   val keep_filter : t -> (var -> bool) -> t
@@ -114,7 +121,11 @@ sig
 
   val assign_exp : Queries.ask -> t -> var -> exp -> bool Lazy.t -> t
   val assign_var : t -> var -> var -> t
+
   val assign_var_parallel_with : t -> (var * var) list -> unit
+  (** Assign variables in parallel {e in-place}.
+      This avoids an extra copy like {!assign_var_parallel'} if the input relation is unshared. *)
+
   val assign_var_parallel' : t -> var list -> var list -> t
   val substitute_exp : Queries.ask -> t -> var -> exp -> bool Lazy.t -> t
   val unify: t -> t -> t

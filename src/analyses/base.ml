@@ -38,7 +38,7 @@ struct
   module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
   type t = Dom.t
   module D      = Dom
-  module C      = Dom
+  include Analyses.ValueContexts(D)
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
@@ -79,6 +79,7 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
+
   let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
   let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
 
@@ -468,7 +469,6 @@ struct
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
   let rec get ~ctx ?(top=VD.top ()) ?(full=false) (st: store) (addrs:address) (exp:exp option): value =
-    let at = AD.type_of addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
@@ -495,7 +495,12 @@ struct
       in
       (* We form the collecting function by joining *)
       let c (x:value) = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
-        | Int _ when Cil.isArithmeticType at -> VD.cast at x
+        | Int _ ->
+          let at = AD.type_of addrs in
+          if Cil.isArithmeticType at then
+            VD.cast at x
+          else
+            x
         | _ -> x
       in
       let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
@@ -618,7 +623,7 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
-  let context (fd: fundec) (st: store): store =
+  let context ctx (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     (* Here earlyglobs only drops syntactic globals from the context and does not consider e.g. escaped globals. *)
@@ -755,7 +760,7 @@ struct
       let te1 = Cilfacade.typeOf e1 in
       let te2 = Cilfacade.typeOf e2 in
       let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
-      let is_safe = (extra_is_safe || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
+      let is_safe = (extra_is_safe || VD.is_statically_safe_cast t1 te1 && VD.is_statically_safe_cast t2 te2) && not both_arith_type in
       if M.tracing then M.tracel "cast" "remove cast on both sides for %a? -> %b" d_exp exp is_safe;
       if is_safe then ( (* we can ignore the casts if the casts can't change the value *)
         let e1 = if isArithmeticType te1 then c1 else e1 in
@@ -1262,8 +1267,30 @@ struct
   (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
   let rec exp_may_signed_overflow ctx exp =
     let res = match Cilfacade.get_ikind_exp exp with
-      | exception _ -> BoolDomain.MayBool.top ()
+      | exception (Cilfacade.TypeOfError _) (* Cilfacade.typeOf *)
+      | exception (Invalid_argument _) -> (* get_ikind *)
+        BoolDomain.MayBool.top ()
       | ik ->
+        let checkDiv e1 e2 =
+          let binop = (GobOption.map2 Z.div )in
+          match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
+          | `Bot, _ -> false
+          | _, `Bot -> false
+          | `Lifted i1, `Lifted i2 ->
+            ( let divisor_contains_zero = (ID.is_bot @@ ID.meet i2 (ID.of_int ik Z.zero))  in
+              if divisor_contains_zero then true else
+                ( let (min_ik, max_ik) = IntDomain.Size.range ik in
+                  let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
+                  let (min_i2, max_i2) = (IntDomain.IntDomTuple.minimal i2, IntDomain.IntDomTuple.maximal i2) in
+                  let (min_i2, max_i2) = (Option.map (fun x -> if (Z.zero=x) then Z.one else x) min_i2,
+                                          Option.map (fun x -> if (Z.zero=x) then Z.neg Z.one else x) max_i2) in
+                  let possible_combinations = [binop min_i1 min_i2; binop  min_i1 max_i2; binop max_i1 min_i2; binop max_i1 max_i2] in
+                  let min_exp = List.min possible_combinations in
+                  let max_exp = List.max possible_combinations in
+                  match min_exp, max_exp with
+                  | Some min, Some max when min >= min_ik && max <= max_ik -> false
+                  | _ -> true ))
+          | _   -> true in
         let checkBinop e1 e2 binop =
           match ctx.ask (EvalInt e1), ctx.ask (EvalInt e2) with
           | `Bot, _ -> false
@@ -1317,7 +1344,7 @@ struct
               | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.map2 Z.(+))
               | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.map2 Z.(-))
               | Mult -> checkBinop e1 e2 (GobOption.map2 Z.mul)
-              | Div -> checkBinop e1 e2 (GobOption.map2 Z.div)
+              | Div -> checkDiv e1 e2
               | Mod -> (* an overflow happens when the second operand is negative *)
                 checkPredicate e2 (fun interval_bound _ -> Z.gt interval_bound Z.zero)
               (* operations that do not result in overflow in C: *)
@@ -1375,10 +1402,15 @@ struct
     | Q.EvalInt e ->
       query_evalint ~ctx ctx.local e
     | Q.EvalMutexAttr e -> begin
-        let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
-        match eval_rv ~ctx ctx.local e with
-        | MutexAttr a -> a
-        | v -> MutexAttrDomain.top ()
+        match eval_rv_address ~ctx ctx.local e with
+        | Address a ->
+          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in (* Goblint assumption *)
+          begin match get ~ctx ~top:(MutexAttr default) ctx.local a None with (* ~top corresponds to default NULL with assume_top *)
+            | MutexAttr a -> a
+            | Bot -> default (* corresponds to default NULL with assume_none *)
+            | _ -> MutexAttrDomain.top ()
+          end
+        | _ -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
         match eval_rv_address ~ctx ctx.local e with
@@ -1707,7 +1739,7 @@ struct
       (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a" CPA.pretty nst; *)
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then { nst with cpa = CPA.join st.cpa nst.cpa } else nst in
+      let nst = if AD.cardinal lval > 1 then D.join st nst else nst in
       (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a" CPA.pretty nst; *)
       nst
     with
@@ -2016,7 +2048,7 @@ struct
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
-      let t = AD.type_of a in
+      let t = try AD.type_of a with Not_found -> voidType in (* TODO: why is this called with empty a to begin with? *)
       let v = get ~ctx st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) t v in
       (a, t, nv)

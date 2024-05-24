@@ -36,6 +36,19 @@ struct
           in
           ctx.sideg (v,o) kind;
           ctx.local
+        | Field ({fname = "__sig"; _}, NoOffset) when ValueDomain.Compound.is_mutex_type t -> (* OSX *)
+          let kind: MAttr.t = match Cil.constFold true rval with
+            | Const (CInt (c, _, _)) ->
+              begin match Z.to_int c with (* magic constants from https://opensource.apple.com/source/libpthread/libpthread-301.30.1/pthread/pthread_impl.h.auto.html *)
+                | 0x32AAABA7 -> `Lifted NonRec (* _PTHREAD_MUTEX_SIG_init *)
+                | 0x32AAABA1 -> `Lifted NonRec (* _PTHREAD_ERRORCHECK_MUTEX_SIG_init *)
+                | 0x32AAABA2 -> `Lifted Recursive (* _PTHREAD_RECURSIVE_MUTEX_SIG_init *)
+                | _ -> `Top
+              end
+            | _ -> `Top
+          in
+          ctx.sideg (v,o) kind;
+          ctx.local
         | Index (i,o') ->
           let o'' = O.of_offs (`Index (i, `NoOffset)) in
           helper (O.add_offset o o'') (Cilfacade.typeOffset t (Index (i,NoOffset))) o'

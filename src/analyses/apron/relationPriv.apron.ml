@@ -97,7 +97,7 @@ struct
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
-    | `Join ->
+    | `Join when ConfCheck.branched_thread_creation () ->
       if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
@@ -110,6 +110,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread
@@ -346,8 +347,8 @@ struct
         | _ ->
           st
       end
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded { since_start= true })) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -375,6 +376,7 @@ struct
            let rel_local' = RD.meet rel_local (getg ()) in
            {st with rel = rel_local'} *)
         st
+    | `Join
     | `Normal
     | `Init
     | `Thread ->
@@ -607,7 +609,10 @@ struct
         )
       in
       (* Unprotected invariant is one big relation. *)
-      sideg (V.mutex atomic_mutex) rel_side;
+      (* If no globals are contained here, none need to be published *)
+      (* https://github.com/goblint/analyzer/pull/1354 *)
+      if RD.vars rel_side <> [] then
+        sideg (V.mutex atomic_mutex) rel_side;
       let rel_local =
         let newly_unprot var = match AV.find_metadata var with
           | Some (Global g) -> is_unprotected_without ask g atomic_mutex
@@ -631,8 +636,8 @@ struct
         | _ ->
           st
       end
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -654,6 +659,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread ->
@@ -1186,8 +1192,8 @@ struct
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
     | `Return -> st (* TODO: implement? *)
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -1201,6 +1207,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread ->

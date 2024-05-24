@@ -356,10 +356,17 @@
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
-          "description": "List of context-insensitive analyses",
+          "description": "List of context-insensitive analyses. This setting is ignored if `ana.ctx_sens` contains elements.",
           "type": "array",
           "items": { "type": "string" },
           "default": [ "stack_loc", "stack_trace_set" ]
+        },
+        "ctx_sens": {
+          "title": "ana.ctx_sens",
+          "description": "List of context-sensitive analyses. In case this list is empty, `ana.ctx_insens` will be used to determine the set of context-insensitive analyses.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
         },
         "setjmp" : {
           "title": "ana.setjmp",
@@ -970,6 +977,18 @@
                 "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls.",
               "type": "boolean",
               "default": false
+            },
+            "gas_value": {
+              "title": "ana.context.gas_value",
+              "description": "Denotes the gas value x for the ContextGasLifter. Negative values deactivate the context gas, zero yields a context-insensitve analysis. If enabled, the first x recursive calls of the call stack are analyzed context-sensitively. Any calls deeper in the call stack are analyzed with the same (empty) context.",
+              "type": "integer",
+              "default": -1
+            },
+            "callString_length": {
+              "title": "ana.context.callString_length",
+              "description": "Length of the call string that should be used as context for the call_string and/or call_site analyses. In case the value is zero, the analysis is context-insensitive. For a negative value, an infinite call string is used! For this option to have an effect, one of the analyses in `callstring.ml` must be activated.",
+              "type": "integer",
+              "default": 2
             }
           },
           "additionalProperties": false
@@ -1325,7 +1344,8 @@
               "zstd",
               "pcre",
               "zlib",
-              "liblzma"
+              "liblzma",
+              "legacy"
             ]
           },
           "default": [
@@ -1336,7 +1356,8 @@
             "glibc",
             "linux-userspace",
             "goblint",
-            "ncurses"
+            "ncurses",
+            "legacy"
           ]
         }
       },

@@ -75,18 +75,22 @@ let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThres
 type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
-  let signed = Cil.isSigned ik in
-  if !AnalysisState.postsolving && signed && not cast then
-    AnalysisState.svcomp_may_overflow := true;
-  let sign = if signed then "Signed" else "Unsigned" in
-  match underflow, overflow with
-  | true, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-  | true, false ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
-  | false, true ->
-    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-  | false, false -> assert false
+  if !AnalysisState.executing_speculative_computations then
+    (* Do not produce warnings when the operations are not actually happening in code *)
+    ()
+  else
+    let signed = Cil.isSigned ik in
+    if !AnalysisState.postsolving && signed && not cast then
+      AnalysisState.svcomp_may_overflow := true;
+    let sign = if signed then "Signed" else "Unsigned" in
+    match underflow, overflow with
+    | true, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
+    | true, false ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+    | false, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
+    | false, false -> assert false
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
@@ -555,6 +559,19 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
 
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None
+
+  let upper_threshold u max_ik =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+    let u = Ints_t.to_bigint u in
+    let max_ik' = Ints_t.to_bigint max_ik in
+    let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x max_ik' <= 0) ts in
+    BatOption.map_default Ints_t.of_bigint max_ik t
+  let lower_threshold l min_ik =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+    let l = Ints_t.to_bigint l in
+    let min_ik' = Ints_t.to_bigint min_ik in
+    let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x min_ik' >= 0) ts in
+    BatOption.map_default Ints_t.of_bigint min_ik t
 end
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -664,22 +681,16 @@ struct
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
       let threshold = get_interval_threshold_widening () in
-      let upper_threshold u =
-        let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-        let u = Ints_t.to_bigint u in
-        let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-        BatOption.map_default Ints_t.of_bigint max_ik t
+      let l2 =
+        if Ints_t.compare l0 l1 = 0 then l0
+        else if threshold then IArith.lower_threshold l1 min_ik
+        else min_ik
       in
-      let lower_threshold l =
-        let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-        let l = Ints_t.to_bigint l in
-        let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-        BatOption.map_default Ints_t.of_bigint min_ik t
+      let u2 =
+        if Ints_t.compare u0 u1 = 0 then u0
+        else if threshold then IArith.upper_threshold u1 max_ik
+        else max_ik
       in
-      let lt = if threshold then lower_threshold l1 else min_ik in
-      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt min_ik) in
-      let ut = if threshold then upper_threshold u1 else max_ik in
-      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut max_ik) in
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
@@ -1390,18 +1401,8 @@ struct
   let widen ik xs ys =
     let (min_ik,max_ik) = range ik in
     let threshold = get_bool "ana.int.interval_threshold_widening" in
-    let upper_threshold (_,u) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-      let u = Ints_t.to_bigint u in
-      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-      BatOption.map_default Ints_t.of_bigint max_ik t
-    in
-    let lower_threshold (l,_) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-      let l = Ints_t.to_bigint l in
-      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-      BatOption.map_default Ints_t.of_bigint min_ik t
-    in
+    let upper_threshold (_,u) = IArith.upper_threshold u max_ik in
+    let lower_threshold (l,_) = IArith.lower_threshold l min_ik in
     (*obtain partitioning of xs intervals according to the ys interval that includes them*)
     let rec interval_sets_to_partitions (ik: ikind) (acc : (int_t * int_t) option) (xs: t) (ys: t)=
       match xs,ys with
@@ -1906,7 +1907,6 @@ struct
     | `Definite x -> if i = x then `Eq else `Neq
     | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
-  let top_of ik = `Excluded (S.empty (), size ik)
   let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
@@ -2063,7 +2063,6 @@ struct
     | _ -> None
 
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
-  let not_zero ikind = from_excl ikind (S.singleton Z.zero)
 
   let of_bool_cmp ik x = of_int ik (if x then Z.one else Z.zero)
   let of_bool = of_bool_cmp
@@ -2074,10 +2073,22 @@ struct
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if Z.compare x y = 0 then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) =
+    if Z.compare x y = 0 then
+      of_int ik x
+    else
+      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
+      norm ik @@ (`Excluded (ex, r))
 
-  let starting ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero > 0 then not_zero ikind else top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = if Z.compare x Z.zero < 0 then not_zero ikind else top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x =
+    let _,u_ik = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (x, u_ik)
+
+  let ending ?(suppress_ovwarn=false) ikind x =
+    let l_ik,_ = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (l_ik, x)
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
@@ -2404,10 +2415,13 @@ module Enums : S with type int_t = Z.t = struct
   type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
-  let top_of ik = Exc (BISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
+  let top_of ik =
+    match ik with
+    | IBool -> top_bool
+    | _ -> Exc (BISet.empty (), size ik)
 
   let range ik = Size.range ik
 
@@ -2491,7 +2505,14 @@ module Enums : S with type int_t = Z.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if x = y then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x, y) =
+    if Z.compare x y = 0 then
+      of_int ik x
+    else
+      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
+      norm ik @@ (Exc (ex, r))
 
   let join ik = curry @@ function
     | Inc x, Inc y -> Inc (BISet.union x y)
@@ -2626,8 +2647,13 @@ module Enums : S with type int_t = Z.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
-  let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
-  let ending ?(suppress_ovwarn=false) ikind x = top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x =
+    let _,u_ik = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (x, u_ik)
+
+  let ending ?(suppress_ovwarn=false) ikind x =
+    let l_ik,_ = Size.range ikind in
+    of_interval ~suppress_ovwarn ikind (l_ik, x)
 
   let c_lognot ik x =
     if is_bot x
@@ -2695,20 +2721,32 @@ module Enums : S with type int_t = Z.t = struct
   let ne ik x y = c_lognot ik (eq ik x y)
 
   let invariant_ikind e ik x =
+    let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
     match x with
+    | Inc ps when not inexact_type_bounds && ik = IBool && is_top_of ik x ->
+      Invariant.none
     | Inc ps ->
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
-        List.fold_left (fun a x ->
+        BISet.fold (fun x a ->
             let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
             Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-          ) (Invariant.bot ()) (BISet.elements ps)
+          ) ps (Invariant.bot ())
       else
         Invariant.top ()
-    | Exc (ns, _) ->
-      List.fold_left (fun a x ->
+    | Exc (ns, r) ->
+      (* Emit range invariant if tighter than ikind bounds.
+         This can be more precise than interval, which has been widened. *)
+      let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
+      let (ikmin, ikmax) =
+        let ikr = size ik in
+        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
+      in
+      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
+      BISet.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) (Invariant.top ()) (BISet.elements ns)
+        ) ns Invariant.(imin && imax)
 
 
   let arbitrary ik =

@@ -12,7 +12,7 @@ struct
 
   let name () = "thread"
   module D = ConcDomain.CreatedThreadSet
-  module C = D
+  include Analyses.ValueContexts(D)
   module G = ConcDomain.ThreadCreation
   module V =
   struct

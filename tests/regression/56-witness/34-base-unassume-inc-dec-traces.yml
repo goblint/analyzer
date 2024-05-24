@@ -17,7 +17,7 @@
     file_name: 34-base-unassume-inc-dec-traces.c
     file_hash: 3df8890403a9efa4ab1c824bac7eba729e187ba93605beda5034793b99ab7bf0
     line: 10
-    column: 4
+    column: 5
     function: t_fun
   location_invariant:
     string: -10 <= g && g <= 10
@@ -42,7 +42,7 @@
     file_name: 34-base-unassume-inc-dec-traces.c
     file_hash: 3df8890403a9efa4ab1c824bac7eba729e187ba93605beda5034793b99ab7bf0
     line: 20
-    column: 4
+    column: 5
     function: t_fun2
   location_invariant:
     string: -10 <= g && g <= 10
