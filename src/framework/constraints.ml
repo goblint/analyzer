@@ -1959,6 +1959,10 @@ struct
   let lift_fun' (ctx: (D.t, G.t, C.t, V.t) ctx) f g h =
     let main = h (g (conv1 ctx)) in
     (main, h (g (conv2 ctx)))
+  let lift_fun2 (ctx: (D.t, G.t, C.t, V.t) ctx) f g h1 h2 =
+    let main = h1 (g (conv1 ctx)) in
+    if S.D.is_bot main then D.bot () else
+      (main, h2 (g (conv2 ctx)))
 
   let enter ctx r f args =
     let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (fst ctx.local, y)) in
@@ -1985,11 +1989,15 @@ struct
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
-  let threadenter ctx lval f args = failwith "TODO" (*lift_fun ctx (lift' ctx) S.threadenter ((|>) args % (|>) f % (|>) lval)*)
-  let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv1 fctx) % (|>) args % (|>) f % (|>) lval)
+  let threadenter ctx lval f args =
+    let (l1, l2) = lift_fun' ctx Fun.id S.threadenter ((|>) args % (|>) f % (|>) lval) in
+    List.combine l1 l2
+  let threadspawn ctx lval f args fctx = lift_fun2 ctx (lift ctx) S.threadspawn ((|>) (conv1 fctx) % (|>) args % (|>) f % (|>) lval) ((|>) (conv2 fctx) % (|>) args % (|>) f % (|>) lval)
 
-  let paths_as_set ctx = [ctx.local] (** Trivial, may be incorrect. *)
+  let paths_as_set ctx = (*[ctx.local]*) (** Trivial, may be incorrect. *)
+    let (l1, l2) = lift_fun' ctx Fun.id S.paths_as_set Fun.id in
+    List.combine l1 l2
 
   let event ctx e octx =
-    lift_fun ctx (lift ctx) S.event ((|>) (conv1 octx) % (|>) e)
+    lift_fun2 ctx (lift ctx) S.event ((|>) (conv1 octx) % (|>) e) ((|>) (conv2 octx) % (|>) e)
 end
