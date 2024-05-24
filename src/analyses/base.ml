@@ -251,15 +251,9 @@ struct
     let bool_top ik = ID.(join (of_int ik Z.zero) (of_int ik Z.one)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
-      let typeOffsetOpt o t =
-        try
-          Some (Cilfacade.typeOffset t o)
-        with Cilfacade.TypeOfError _ ->
-          None
-      in
       let exception UnknownPtr in
       (* adds n to the last offset *)
-      let rec addToOffset n (t : typ option) ((v, off) : Addr.Mval.t) = function
+      let rec addToOffset n (t : typ) ((v, off) : Addr.Mval.t) = function
         | `Index (i, `NoOffset) ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
@@ -268,27 +262,18 @@ struct
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let n_offset = iDtoIdx n in
-          begin match t with (* todo: isn't this t always (Some f.ftype) ? *)
-            | Some t ->
-              let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
-              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
-              begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
-                | Some true -> `NoOffset
-                | _ when isArrayType f.ftype -> `Field (f, `Index (n, `NoOffset))
-                | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset (* adding (or subtracting) 0 to any type of pointer is ok *)
-                | _ -> raise UnknownPtr (* adding (or subtracting) anything else than 0 to a pointer that is non-indexable will yield an unknown pointer *)
-              end
+          let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
+          let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
+          begin match IdxDom.(to_bool (eq f_offset (neg (iDtoIdx n)))) with
+            | Some true -> `NoOffset
             | _ when isArrayType f.ftype -> `Field (f, `Index (n, `NoOffset))
-            | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset
-            | _ -> raise UnknownPtr
+            | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset (* adding (or subtracting) 0 to any type of pointer is ok *)
+            | _ -> raise UnknownPtr (* adding (or subtracting) anything else than 0 to a pointer that is non-indexable will yield an unknown pointer *)
           end
         | `Index (i, o) ->
-          let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
+          let t' = Cilfacade.typeOffset t NoOffset in (* actual index value doesn't matter for typeOffset *)
           `Index(i, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
-        | `Field (f, o) ->
-          let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in (* todo: why this, not just f.ftype ?! *)
-          `Field(f, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
+        | `Field (f, o) -> `Field(f, addToOffset n f.ftype (Addr.Mval.add_offset (v, off) o) o)
         (* The following cases are only reached via the first call, but not recursively (as the previous cases catch those) *)
         | `NoOffset when isArrayType (v.vtype) || is_alloc_var (Analyses.ask_of_ctx ctx) v -> `Index (iDtoIdx n, `NoOffset)
         | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset (* adding (or subtracting) 0 to any type of pointer is ok *)
@@ -300,7 +285,7 @@ struct
       in
       match Addr.to_mval addr with
       | Some (x, o) -> (
-          try Addr.of_mval (x, addToOffset n (Some x.vtype) (x,o) o)
+          try Addr.of_mval (x, addToOffset n x.vtype (x,o) o)
           with UnknownPtr -> default addr
         )
       | None -> default addr
