@@ -1,4 +1,3 @@
-
 // PARAM: --set ana.activated[+] wrpointer --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts
 #include <goblint.h>
 #include <stdlib.h>
@@ -17,7 +16,6 @@ void main(void) {
   // array of struct
   struct mystruct arrayStructs[3];
 
-  //   printf("%d == %d \n", arrayStructs[2].first, ((int *)arrayStructs)[3]);
   __goblint_check(arrayStructs[0].first ==
                   ((int *)arrayStructs)[0]); // they are the same element
   __goblint_check(arrayStructs[1].second ==
@@ -56,10 +54,7 @@ void main(void) {
   __goblint_check((int *)array2D + 4 == (int *)array2D[2]);
 
   // 3D array
-  int array3D[2][3][4] ;
-  // = {
-  //     {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}},
-  //     {{13, 14, 15, 16}, {17, 18, 19, 20}, {21, 22, 23, 24}}};
+  int array3D[2][3][4];
   __goblint_check(array3D[1][0][3] == *((int *)array3D + 15));
   __goblint_check(array3D[1][2][0] == *((int *)array3D + 20));
   __goblint_check(array3D[1][2][3] == *((int *)array3D + 23));

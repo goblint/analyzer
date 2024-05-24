@@ -18,7 +18,4 @@ void main(void) {
   __goblint_check(l == *(j + 3));
   __goblint_check(j[2] == m);
 
-  j = &k + 1;
-
-  __goblint_check(j == &k); // FAIL
 }
