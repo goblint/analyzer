@@ -855,11 +855,11 @@ module CongruenceClosure = struct
     let element_closure diseqs uf =
       let cmap = comp_map uf in
       let comp_closure (r1,r2,z) =
-        let find_size_64 =  (*TODO don't hardcode 64*)
+        let find_size_64 =  (*TODO this is not the best solution*)
           List.flatten % List.filter_map
             (fun (z, zmap) -> Option.map
                 (fun l -> List.cartesian_product [z] (TSet.to_list l))
-                (ZMap.find_opt (Z.of_int 64) zmap)) in
+                (ZMap.find_opt (T.get_size_in_bits (TPtr (TVoid [], []))) zmap)) in
         let comp_closure_zmap bindings1 bindings2 =
           List.map (fun ((z1, nt1),(z2, nt2)) ->
               (nt1, nt2, Z.(-z2+z+z1)))
@@ -875,11 +875,6 @@ module CongruenceClosure = struct
         end
       in
       List.flatten @@ List.map comp_closure diseqs
-
-
-
-
-
   end
 
   (** Set of subterms which are present in the current data structure. *)

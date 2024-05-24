@@ -127,7 +127,7 @@ module D = struct
         (show a) (show b) (show res);
     res
 
-  let widen a b = top ()
+  let widen a b = join a b
 
   let meet a b = match a,b with
     | None, _ -> None

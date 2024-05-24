@@ -1,6 +1,4 @@
-(** A Weakly-Relational Pointer Analysis..([wrpointer])*)
-
-(** TODO description *)
+(** A Weakly-Relational Pointer Analysis. The analysis can infer equalities and disequalities between terms which are built from pointer variables, with the addition of constants and dereferencing. ([wrpointer])*)
 
 open Analyses
 open GoblintCil
@@ -70,13 +68,6 @@ struct
     (* invertibe assignment *)
     | exception (T.UnsupportedCilExpression _) -> D.top () (* the assigned variables couldn't be parsed, so we don't know which addresses were written to. We have to forget all the information we had. This should almost never happen. *)
     | _ -> D.top ()
-
-  (*TODO remove*)
-  let assign_lval_2_ask t (ask1: Queries.ask) (ask2: Queries.ask) lval expr =
-    let f (type a) (q: a Queries.t) =
-      let module Result = (val Queries.Result.lattice q) in
-      Result.meet (ask1.f q) (ask2.f q) in
-    let (ask: Queries.ask) = {f} in assign_lval t ask lval expr
 
   let assign ctx lval expr =
     let res = assign_lval ctx.local (ask_of_ctx ctx) lval expr in
@@ -156,7 +147,7 @@ struct
     if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
     let t = match var_opt with
       | None -> t
-      | Some var -> assign_lval_2_ask t (ask_of_ctx ctx) ask var (MayBeEqual.return_lval (typeOfLval var))
+      | Some var -> assign_lval t ask var (MayBeEqual.return_lval (typeOfLval var))
     in
     if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (D.show_all t);
     let local_vars = f.sformals @ f.slocals in
