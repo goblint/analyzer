@@ -14,4 +14,13 @@ int main() {
   pthread_mutex_t* ptr = axel.conn + rand();
   pthread_mutex_lock(ptr);
   pthread_mutex_unlock(ptr); // WARN
+  pthread_mutex_t* ptr = axel.conn - rand();
+  pthread_mutex_lock(ptr);
+  pthread_mutex_unlock(ptr); // WARN
+  pthread_mutex_t* ptr = axel.conn + 0;
+  pthread_mutex_lock(ptr);
+  pthread_mutex_unlock(ptr); // NOWARN
+  pthread_mutex_t* ptr = axel.conn - 0;
+  pthread_mutex_lock(ptr);
+  pthread_mutex_unlock(ptr); // NOWARN
 }
