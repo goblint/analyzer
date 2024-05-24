@@ -257,11 +257,6 @@ struct
         with Cilfacade.TypeOfError _ ->
           None
       in
-      let isNotIndexable x =
-        match unrollType x.vtype with
-        | TArray _ -> false
-        | _ -> is_not_alloc_var (Analyses.ask_of_ctx ctx) x
-      in
       let exception UnknownPtr in
       (* adds n to the last offset *)
       let rec addToOffset n (t : typ option) ((v, off) : Addr.Mval.t) = function
@@ -298,9 +293,9 @@ struct
           let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in (* todo: why this, not just f.ftype ?! *)
           `Field(f, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
         (* The following cases are only reached via the first call, but not recursively (as the previous cases catch those) *)
-        | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) && isNotIndexable v -> `NoOffset
-        | `NoOffset when isNotIndexable v -> raise UnknownPtr
-        | `NoOffset -> `Index (iDtoIdx n, `NoOffset)
+        | `NoOffset when isArrayType (v.vtype) || is_alloc_var (Analyses.ask_of_ctx ctx) v -> `Index (iDtoIdx n, `NoOffset)
+        | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset (* adding (or subtracting) 0 to any type of pointer is ok *)
+        | `NoOffset -> raise UnknownPtr (* adding (or subtracting) anything else than 0 to a pointer that is non-indexable will yield an unknown pointer *)
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr

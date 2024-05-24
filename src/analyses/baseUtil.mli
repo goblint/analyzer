@@ -8,4 +8,5 @@ val is_volatile: varinfo -> bool
 val is_always_unknown: varinfo -> bool
 val is_excluded_from_earlyglobs: varinfo -> bool
 val is_excluded_from_invalidation: varinfo -> bool
+val is_alloc_var: Queries.ask -> varinfo -> bool
 val is_not_alloc_var: Queries.ask -> varinfo -> bool
