@@ -547,7 +547,7 @@ module LookupMap = struct
 
   let zmap_bindings zmap =
     let distribute_pair (a, xs) = List.map (fun (x,y) -> (a,x,y)) xs in
-    (List.flatten @@ List.map distribute_pair
+    (List.concat_map distribute_pair
        (List.map (Tuple2.map2 ZMap.bindings) (ZMap.bindings zmap)))
 
   let zmap_bindings_of_size s zmap =
@@ -597,8 +597,6 @@ module LookupMap = struct
                 "" (TSet.elements v) ^ ";; ")
            "" (zmap_bindings zmap) ^ "\n")
       "" (bindings map)
-
-  let print_map = print_string % show_map
 
   (** The value at v' is shifted by r and then added for v.
       The old entry for v' is removed. *)
@@ -655,8 +653,7 @@ module CongruenceClosure = struct
     let bindings =
       List.flatten %
       List.flatten %
-      List.flatten %
-      List.map (fun (t, zmap) ->
+      List.concat_map (fun (t, zmap) ->
           List.map (fun (z, smap) ->
               List.map (fun (size, tset) ->
                   List.map (fun term ->
@@ -874,7 +871,7 @@ module CongruenceClosure = struct
             comp_closure_zmap (ZMap.bindings zmap1) (ZMap.bindings zmap2)
         end
       in
-      List.flatten @@ List.map comp_closure diseqs
+      List.concat_map comp_closure diseqs
   end
 
   (** Set of subterms which are present in the current data structure. *)
@@ -940,8 +937,6 @@ module CongruenceClosure = struct
         "\n\tMin: (" ^ T.show rep ^ ", " ^ Z.to_string z ^ ")--\n\n"
       in
       List.fold_left show_one_rep "" (bindings min_representatives)
-
-    let print_min_rep = print_string % show_min_rep
 
     let rec update_min_repr (uf, set, map) min_representatives = function
       | [] -> min_representatives, uf
@@ -1046,11 +1041,9 @@ module CongruenceClosure = struct
   let show_conj list = List.fold_left
       (fun s d -> s ^ "\t" ^ string_of_prop d ^ ";\n") "" list
 
-  let print_conj = print_string % show_conj
-
   (** Returns a list of all the transition that are present in the automata. *)
   let get_transitions (uf, map) =
-    List.flatten @@ List.map (fun (t, zmap) ->
+    List.concat_map (fun (t, zmap) ->
         (List.map (fun (edge_z, edge_size, res_t) ->
              (edge_z, t, edge_size, TUF.find_no_pc uf (LMap.set_any res_t))) @@
          (LMap.zmap_bindings zmap)))
