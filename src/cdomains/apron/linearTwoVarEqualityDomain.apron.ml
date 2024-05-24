@@ -38,10 +38,8 @@ module Rhs = struct
   (** factor out gcd from all terms, i.e. ax=by+c is the canonical form for adx+bdy+cd *)
   let canonicalize (v,o,d) =
     let gcd = Z.gcd o d in
-    let gcd = match v with
-      | Some (c,_) -> Z.gcd c gcd
-      | None -> gcd
-    in let gcd = if (Z.(lt d  Z.zero)) then Z.neg gcd else gcd in
+    let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in
+    let gcd = if (Z.(lt d  Z.zero)) then Z.neg gcd else gcd in
     (BatOption.map (fun (coeff,i) -> (Z.div coeff gcd,i)) v,Z.div o gcd, Z.div d gcd)
 
   (** Substitute rhs for varx in rhs' *)
