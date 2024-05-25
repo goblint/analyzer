@@ -316,19 +316,20 @@ struct
     | x -> Some(x)
 
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
-  let simplified_monomials_from_texp (t: t) texp =
+  let simplified_monomials_from_texp (t: t) texp = 
     BatOption.bind (monomials_from_texp t texp)
       (fun monomiallist ->
          let d = Option.get t.d in
+         let module IMap = EConj.IntMap in
          let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
            | None -> let gcdee = Z.gcd adiv divi in exprcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
            | Some (coeff,idx) -> let (somevar,someoffs,somedivi)=Rhs.subst (EConj.get_rhs d idx) idx (v,offs,divi) in (* normalize! *)
-             let newcache = Option.map_default (fun (coef,ter) -> EConj.IntMap.add ter Q.((EConj.IntMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
+             let newcache = Option.map_default (fun (coef,ter) -> IMap.add ter Q.((IMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
              let gcdee = Z.gcd adiv divi in 
              (newcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
          in
-         let (expr,constant) = List.fold_left accumulate_constants (EConj.IntMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
-         Some (EConj.IntMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
+         let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+         Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
 
   let simplified_monomials_from_texp (t: t) texp =
     let res = simplified_monomials_from_texp t texp in
