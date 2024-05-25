@@ -1310,7 +1310,17 @@ let unknown_desc f =
     M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
     M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
   );
-  LibraryDesc.of_old ~attrs old_accesses
+  {
+    LibraryDesc.attrs;
+    accs = (fun args ->
+        [
+          ({ kind = Read; deep = true; }, old_accesses Read args);
+          ({ kind = Write; deep = true; }, old_accesses Write args);
+          ({ kind = Free; deep = true; }, old_accesses Free args);
+          ({ kind = Spawn; deep = true; }, old_accesses Spawn args);
+        ]);
+    special = fun _ -> Unknown;
+  }
 
 let find f =
   let name = f.vname in
