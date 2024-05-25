@@ -46,8 +46,7 @@ module Rhs = struct
   (** Substitute rhs for varx in rhs' *)
   let subst rhs varx rhs' =
     match rhs,rhs' with
-    | (Some (c,x),o,d),(Some (c',x'),o',d') when x'=varx -> canonicalize (Some (Z.mul c c',x),Z.((o*c')+(d*o')),Z.mul d d')
-    | (None      ,o,d),(Some (c',x'),o',d') when x'=varx -> canonicalize (None               ,Z.((o*c')+(d*o')),Z.mul d d')
+    | (monom,o,d),(Some (c',x'),o',d') when x'=varx -> canonicalize (Option.map (fun (c,x) -> (Z.mul c c',x)) monom,Z.((o*c')+(d*o')),Z.mul d d')
     | _ -> rhs'
 
 end
