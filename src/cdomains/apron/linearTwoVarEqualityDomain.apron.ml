@@ -27,9 +27,10 @@ module Rhs = struct
     if Z.equal c Z.one then ""
     else if Z.equal c Z.minus_one then "-"
     else (Z.to_string c) ^"·"
-  let show_rhs_formatted formatter = function
+  let show_rhs_formatted formatter = let ztostring n = if Z.(geq n zero) then "+" else "" ^ Z.to_string n in
+    function
     | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
-    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s%+Lu" (show_coeff coeff) (formatter v) (Z.to_int64_unsigned o)
+    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s %s" (show_coeff coeff) (formatter v) (ztostring o)
     | (None,   o,_) -> Printf.sprintf "%Ld" (Z.to_int64 o)
   let show (v,o,d) =
     let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
