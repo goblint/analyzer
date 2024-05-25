@@ -1287,17 +1287,14 @@ let is_safe_uncalled fn_name =
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
 
 
-let unknown_desc f =
-  let old_accesses (kind: AccessKind.t) args = match kind with
-    | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
-    | Write -> []
-    | Read when GobConfig.get_bool "sem.unknown_function.read.args" -> args
-    | Read -> []
-    | Free -> []
-    | Call when get_bool "sem.unknown_function.call.args" -> args
-    | Call -> []
-    | Spawn when get_bool "sem.unknown_function.spawn" -> args
-    | Spawn -> []
+let unknown_desc f : LibraryDesc.t =
+  let accs args : (LibraryDesc.Access.t * 'a list) list = [
+    ({ kind = Read; deep = true; }, if GobConfig.get_bool "sem.unknown_function.read.args" then args else []);
+    ({ kind = Write; deep = true; }, if GobConfig.get_bool "sem.unknown_function.invalidate.args" then args else []);
+    ({ kind = Free; deep = true; }, []); (* TODO: why no option? *)
+    ({ kind = Call; deep = true; }, if get_bool "sem.unknown_function.call" then args else []);
+    ({ kind = Spawn; deep = true; }, if get_bool "sem.unknown_function.spawn" then args else []);
+  ]
   in
   let attrs: LibraryDesc.attr list =
     if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then
@@ -1311,14 +1308,8 @@ let unknown_desc f =
     M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
   );
   {
-    LibraryDesc.attrs;
-    accs = (fun args ->
-        [
-          ({ kind = Read; deep = true; }, old_accesses Read args);
-          ({ kind = Write; deep = true; }, old_accesses Write args);
-          ({ kind = Free; deep = true; }, old_accesses Free args);
-          ({ kind = Spawn; deep = true; }, old_accesses Spawn args);
-        ]);
+    attrs;
+    accs;
     special = fun _ -> Unknown;
   }
 
