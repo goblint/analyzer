@@ -158,8 +158,8 @@ module EqualitiesConjunction = struct
             List.fold (fun map i -> 
                 let (oldref,c',a') = (get_rhs d i) in
                 let (b',_) = BatOption.get oldref in
-                let newrhs = (Some (Z.(b'*a),head), Z.(c' - (b' * c)), Z.(a'*b)) in
-                canonicalize_and_set map i newrhs
+                (Some (Z.(b'*a),head), Z.(c' - (b' * c)), Z.(a'*b)) |>
+                canonicalize_and_set map i
               ) d cluster (* shift offset to match new reference variable *)
           | [] -> d) (* empty cluster means no work for us *)
        | _ -> d) (* variable is either a constant or expressed by another refvar *) in
@@ -364,13 +364,6 @@ struct
       | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
         (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string res) (IntOps.BigIntOps.to_string res);
          Some res, Some res)
-      | Some (None, offset, divisor) -> let res = Z.div offset divisor in
-        let (lower,upper) = if Z.lt res Z.zero then
-            (Z.pred res,res)
-          else
-            (res,Z.succ res) in
-        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string lower) (IntOps.BigIntOps.to_string upper);
-         Some lower, Some upper)
       | _ -> None, None
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
