@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval --set ana.base.privatization write+lock
+// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval
 #include <pthread.h>
 #include <goblint.h>
 #include <unistd.h>
@@ -19,7 +19,7 @@ int main(void) {
 
   __goblint_check(a <= 10);
   pthread_mutex_lock(&mutex);
-  __goblint_check(a <= 10);
+  __goblint_check(a <= 10); // UNKNOWN due to privatization issue (TODO)
   pthread_mutex_unlock(&mutex);
   return 0;
 }

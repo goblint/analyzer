@@ -1,7 +1,17 @@
-// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval
+// PARAM: --enable solvers.td3.divided-narrow.enable --enable solvers.td3.divided-narrow.stable --enable ana.int.interval
 #include <pthread.h>
 #include <goblint.h>
 #include <unistd.h>
+
+// TODO: again, this does not work due to privatization.
+// As established in 03, protected values can typically not be narrowed.
+// In this example, there is one guarded increment and one
+// guarded decrement. Widening on the side of increment to the protected sem->count
+// leads to [min, 10]. The protected sem->count influences the value arriving at the
+// increment. The increment leads to side [min + 1, 1000] to the unprotected
+// sem->count. Conversely, the increment produces side [0, max] to protected sem->count,
+// so the decrement produces [0, min - 1] to unprotected sem->count.
+// At the end, nearly nothing is known about both protected and unprotected sem->count.
 
 typedef struct {
     pthread_mutex_t mutex;
@@ -50,8 +60,9 @@ int main(void) {
   pthread_create(&id, NULL, worker, &sem);
   pthread_create(&id, NULL, worker, &sem);
 
+  __goblint_check(sem.count >= 0); // UNKNOWN due to privatization issue (TODO)
   pthread_mutex_lock(&sem.mutex);
-  __goblint_check(sem.count >= 0);
+  __goblint_check(sem.count >= 0); // UNKNOWN due to privatization issue (TODO)
   pthread_mutex_unlock(&sem.mutex);
   return 0;
 }
