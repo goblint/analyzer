@@ -269,6 +269,7 @@ module Base =
 
       let divided_narrow = GobConfig.get_bool "solvers.td3.divided-narrow.enable" in
       let divided_narrow_stable = GobConfig.get_bool "solvers.td3.divided-narrow.stable" in
+      let divided_narrow_conservative_widen = GobConfig.get_bool "solvers.td3.divided-narrow.conservative-widen" in
       let divided_narrow_gas_default = GobConfig.get_int "solvers.td3.divided-narrow.narrow-gas" in
       let divided_narrow_gas_default = if divided_narrow_gas_default < 0 then None else Some divided_narrow_gas_default in
 
@@ -443,7 +444,12 @@ module Base =
             (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             if not (phase = D_Narrow && narrow_gas = Some 0) then (
               let (new_side, narrow_gas) = match phase with
-                | D_Widen -> (if not @@ S.Dom.leq d old_side then S.Dom.widen old_side (S.Dom.join old_side d) else old_side), narrow_gas
+                | D_Widen -> (if not @@ S.Dom.leq d old_side then
+                                if divided_narrow_conservative_widen && (S.Dom.leq d (HM.find rho y)) then
+                                  S.Dom.join old_side d
+                                else
+                                  S.Dom.widen old_side (S.Dom.join old_side d)
+                              else old_side), narrow_gas
                 | D_Narrow -> S.Dom.narrow old_side d, Option.map (fun x -> x - 1) narrow_gas
               in
 

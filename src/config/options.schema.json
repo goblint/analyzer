@@ -2348,6 +2348,12 @@
                   "type": "boolean",
                   "default": false
                 },
+                "conservative-widen": {
+                  "title": "solvers.td3.divided-narrow.conservative-widen",
+                  "description": "Controls when to narrow. true: Only widen on a side-effect, if joining would affect the overall value of the global. false: Always widen increasing/incomparable side-effects",
+                  "type": "boolean",
+                  "default": true
+                },
                 "narrow-gas": {
                   "title": "solvers.td3.divided-narrow.narrow-gas",
                   "description": "Limits the number of times a global can be narrowed to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
