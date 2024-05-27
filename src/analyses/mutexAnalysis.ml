@@ -159,7 +159,7 @@ struct
             (s, m')
         )
         else
-          (MustLocksetRW.remove_mval mv s, m) (* TODO: should decrement something if may be recursive? *)
+          (MustLocksetRW.remove_mval mv s, m) (* Should decrement something if may be recursive? No: https://github.com/goblint/analyzer/pull/1430#discussion_r1615266081. *)
 
     let remove = remove' ~warn:true
 
