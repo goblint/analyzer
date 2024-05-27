@@ -1,3 +1,4 @@
+; Automatically generated, do not edit!
 
 (subdir basic
  (rule

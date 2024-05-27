@@ -1,3 +1,7 @@
+let generate_header () =
+  Printf.printf {|; Automatically generated, do not edit!
+|}
+
 let generate_rule c_dir_file =
   let dir = Filename.dirname c_dir_file in
   let c_file = Filename.basename c_dir_file in
@@ -27,6 +31,7 @@ let generate_rule c_dir_file =
 |} dir c_file file file file
 
 let () =
+  generate_header ();
   Sys.argv
   |> Array.to_seq
   |> Seq.drop 1
