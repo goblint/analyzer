@@ -840,3 +840,17 @@ struct
 
   let to_yojson x = x (* override SimplePretty *)
 end
+
+module Z: S with type t = Z.t =
+struct
+  include StdLeaf
+  include GobZ
+  let name () = "Z"
+
+  include SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end

@@ -43,12 +43,13 @@ struct
   let exitstate  v = D.lift (S.exitstate  v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let context fd = S.context fd % D.unlift
-
   let conv ctx =
     { ctx with local = D.unlift ctx.local
              ; split = (fun d es -> ctx.split (D.lift d) es )
     }
+
+  let context ctx fd = S.context (conv ctx) fd % D.unlift
+  let startcontext () = S.startcontext ()
 
   let sync ctx reason =
     D.lift @@ S.sync (conv ctx) reason
@@ -125,10 +126,11 @@ struct
   let exitstate  = S.exitstate
   let morphstate = S.morphstate
 
-  let context fd = C.lift % S.context fd
-
   let conv ctx =
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
+
+  let context ctx fd = C.lift % S.context (conv ctx) fd
+  let startcontext () = C.lift @@ S.startcontext ()
 
   let sync ctx reason =
     S.sync (conv ctx) reason
@@ -224,12 +226,13 @@ struct
   let exitstate  v = (S.exitstate  v, !start_level)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
-  let context fd (d,_) = S.context fd d
-
   let conv ctx =
     { ctx with local = fst ctx.local
              ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
     }
+
+  let context ctx fd (d,_) = S.context (conv ctx) fd d
+  let startcontext () = S.startcontext ()
 
   let lift_fun ctx f g h =
     f @@ h (g (conv ctx))
@@ -375,16 +378,19 @@ struct
 
   let inj f x = f x, M.bot ()
 
+  let startcontext () = S.startcontext ()
   let startstate = inj S.startstate
   let exitstate  = inj S.exitstate
   let morphstate v (d,m) = S.morphstate v d, m
 
-  let context fd (d,m) = S.context fd d (* just the child analysis' context *)
 
   let conv ctx =
     { ctx with local = fst ctx.local
              ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
     }
+
+  let context ctx fd (d,m) = S.context (conv ctx) fd d (* just the child analysis' context *)
+
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
   let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
@@ -453,16 +459,19 @@ struct
   let init = S.init
   let finalize = S.finalize
 
+
+  let startcontext () = S.startcontext ()
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
-  let context fd = S.context fd % D.unlift
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
              ; split = (fun d es -> ctx.split (D.lift d) es )
     }
+
+  let context ctx fd = S.context (conv ctx) fd % D.unlift
 
   let lift_fun ctx f g h b =
     try f @@ h (g (conv ctx))
@@ -498,7 +507,7 @@ struct
 end
 
 module NoContext = struct let name = "no context" end
-module IntConf = 
+module IntConf =
 struct
   let n () = max_int
   let names x = Format.asprintf "%d" x
@@ -507,15 +516,15 @@ end
 (** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively analyzed function calls in a call stack.
     For every function call the gas is reduced. If the gas is zero, the remaining function calls are analyzed without context-information *)
 module ContextGasLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf)) 
+  : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf))
           and module C = Printable.Option (S.C) (NoContext)
           and module G = S.G
 =
 struct
   include S
 
-  module Context_Gas_Prod (Base1: Lattice.S) (Base2: Lattice.S) = 
-  struct 
+  module Context_Gas_Prod (Base1: Lattice.S) (Base2: Lattice.S) =
+  struct
     include Lattice.Prod (Base1) (Base2)
     let printXml f (x,y) =
       BatPrintf.fprintf f "\n%a<analysis name=\"context gas value\">\n%a\n</analysis>" Base1.printXml x Base2.printXml y
@@ -537,17 +546,15 @@ struct
   let init = S.init
   let finalize = S.finalize
 
+
+  let startcontext () = Some (S.startcontext ())
   let name () = S.name ()^" with context gas"
   let startstate v = S.startstate v, get_int "ana.context.gas_value"
   let exitstate v = S.exitstate v, get_int "ana.context.gas_value"
   let morphstate v (d,i) = S.morphstate v d, i
 
-  let context fd (d,i) = 
-    (* only keep context if the context gas is greater zero *)
-    if i <= 0 then None else Some (S.context fd d)
-
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =
-    if (cg_val ctx <= 0) 
+    if (cg_val ctx <= 0)
     then {ctx with local = fst ctx.local
                  ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
                  ; context = (fun () -> ctx_failwith "no context (contextGas = 0)")}
@@ -555,14 +562,18 @@ struct
                  ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
                  ; context = (fun () -> Option.get (ctx.context ()))}
 
+  let context ctx fd (d,i) =
+    (* only keep context if the context gas is greater zero *)
+    if i <= 0 then None else Some (S.context (conv ctx) fd d)
+
   let enter ctx r f args =
     (* callee gas = caller gas - 1 *)
     let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, max 0 (cg_val ctx - 1))) in
-    liftmap_tup (S.enter (conv ctx) r f args) 
+    liftmap_tup (S.enter (conv ctx) r f args)
 
-  let threadenter ctx ~multiple lval f args = 
+  let threadenter ctx ~multiple lval f args =
     let liftmap f = List.map (fun (x) -> (x, max 0 (cg_val ctx - 1))) f in
-    liftmap (S.threadenter (conv ctx) ~multiple lval f args) 
+    liftmap (S.threadenter (conv ctx) ~multiple lval f args)
 
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
   let query ctx q                                 = S.query (conv ctx) q
@@ -576,7 +587,7 @@ struct
   let special ctx r f args                        = S.special (conv ctx) r f args, cg_val ctx
   let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
   let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
-  let paths_as_set ctx                            = List.map (fun (x) -> (x, cg_val ctx)) @@ S.paths_as_set (conv ctx) 
+  let paths_as_set ctx                            = List.map (fun (x) -> (x, cg_val ctx)) @@ S.paths_as_set (conv ctx)
   let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
   let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx
 end
@@ -648,7 +659,7 @@ struct
           spawns := (lval, f, args, d, multiple) :: !spawns;
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
-            let c = S.context fd d in
+            let c = S.context ctx fd d in
             sidel (FunctionEntry fd, c) d;
             ignore (getl (Function fd, c))
           | exception Not_found ->
@@ -789,7 +800,7 @@ struct
       r
     in
     let paths = S.enter ctx lv f args in
-    let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
+    let paths = List.map (fun (c,v) -> (c, S.context ctx f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
@@ -1146,15 +1157,10 @@ struct
   let init = Spec.init
   let finalize = Spec.finalize
 
+  let startcontext () = Spec.startcontext ()
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
   let morphstate v d = D.map (Spec.morphstate v) d
-
-  let context fd l =
-    if D.cardinal l <> 1 then
-      failwith "PathSensitive2.context must be called with a singleton set."
-    else
-      Spec.context fd @@ D.choose l
 
   let conv ctx x =
     let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
@@ -1162,6 +1168,14 @@ struct
                             ; split = (ctx.split % D.singleton) }
     in
     ctx'
+
+  let context ctx fd l =
+    if D.cardinal l <> 1 then
+      failwith "PathSensitive2.context must be called with a singleton set."
+    else
+      let x = D.choose l in
+      Spec.context (conv ctx x) fd x
+
 
   let map ctx f g =
     let h x xs =
@@ -1352,6 +1366,7 @@ struct
 
 
   let branch ctx = S.branch (conv ctx)
+  let context ctx = S.context (conv ctx)
 
   let branch ctx exp tv =
     if !AnalysisState.postsolving then (
@@ -1466,6 +1481,7 @@ struct
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
+  let context ctx = S.context (conv ctx)
 
   let combine_env ctx lv e f args fc fd f_ask =
     let conv_ctx = conv ctx in
@@ -1746,6 +1762,7 @@ struct
     sideg (V.call callee) (G.create_singleton_caller caller)
 
   let enter ctx  = S.enter (conv ctx)
+  let context ctx = S.context (conv ctx)
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)

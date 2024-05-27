@@ -97,7 +97,7 @@ struct
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
-    | `Join ->
+    | `Join when ConfCheck.branched_thread_creation () ->
       if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
@@ -110,6 +110,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread
@@ -346,8 +347,8 @@ struct
         | _ ->
           st
       end
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded { since_start= true })) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -375,6 +376,7 @@ struct
            let rel_local' = RD.meet rel_local (getg ()) in
            {st with rel = rel_local'} *)
         st
+    | `Join
     | `Normal
     | `Init
     | `Thread ->
@@ -634,8 +636,8 @@ struct
         | _ ->
           st
       end
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -657,6 +659,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread ->
@@ -810,7 +813,9 @@ struct
     let g_var = V.global g in
     (* normal (strong) mapping: contains only still fully protected *)
     let g' = VS.singleton g in
-    let oct = LRD.find g' octs in
+    (* If there is no map entry yet which contains the global, default to top rather than bot *)
+    (* Happens e.g. in 46/86 because of escape *)
+    let oct = Option.default (RD.top ()) (LRD.find_opt g' octs) in
     LRD.singleton g' (RD.keep_vars oct [g_var])
 
   let lock_get_m oct local_m get_m =
@@ -1189,8 +1194,8 @@ struct
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
     | `Return -> st (* TODO: implement? *)
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+    | `Join when ConfCheck.branched_thread_creation () ->
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -1204,6 +1209,7 @@ struct
           )
         in
         {st with rel = rel_local}
+    | `Join
     | `Normal
     | `Init
     | `Thread ->

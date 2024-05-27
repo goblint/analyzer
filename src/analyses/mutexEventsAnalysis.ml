@@ -4,8 +4,6 @@
 
 module M = Messages
 module Addr = ValueDomain.Addr
-module Lockset = LockDomain.Lockset
-module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
 open Batteries
 open GoblintCil
@@ -21,7 +19,7 @@ struct
   let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointTo exp)
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv_opt arg =
-    let compute_refine_split (e:Mutexes.elt) = match e with
+    let compute_refine_split (e: Addr.t) = match e with
       | Addr a ->
         let arg_e = AddrOf (PreValueDomain.Mval.to_cil a) in
         if not (CilType.Exp.equal arg arg_e) then

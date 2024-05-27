@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] abortUnless --enable exp.arg
+// PARAM: --set ana.activated[+] abortUnless --enable exp.arg.enabled
 // NOCRASH
 
 void printLine()

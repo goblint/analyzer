@@ -15,9 +15,6 @@ struct
   sig
     include Printable.S (** @closed *)
 
-    val top: unit -> t
-    (** Unknown index. *)
-
     val equal_to: Z.t -> t -> [`Eq | `Neq | `Top]
     (** Check semantic equality of an integer and the index.
 
@@ -59,9 +56,6 @@ sig
   val map_indices: (idx -> idx) -> t -> t
   (** Apply function to all indexing. *)
 
-  val top_indices: t -> t
-  (** Change all indices to top indices. *)
-
   val to_cil: t -> GoblintCil.offset
   (** Convert to CIL offset. *)
 
@@ -88,6 +82,9 @@ module type Lattice =
 sig
   include Printable (** @closed *)
   include Lattice.S with type t := t (** @closed *)
+
+  val top_indices: t -> t
+  (** Change all indices to top indices. *)
 
   val of_exp: GoblintCil.exp offs -> t
   (** Convert from Goblint offset with {!GoblintCil.exp} indices. *)
@@ -136,10 +133,23 @@ sig
           Used for Goblint-specific witness invariants. *)
       val all: GoblintCil.exp Lazy.t
     end
+
+    module Z: Printable with type t = Z.t
+    (** {!Z} index.
+        Represents a definite index. *)
   end
 
   exception Type_of_error of GoblintCil.typ * string
   (** {!Printable.type_of} could not follow offset completely. *)
+
+  (** Polymorphic offset operations. *)
+  module Poly:
+  sig
+    val map_indices: ('a -> 'b) -> 'a t -> 'b t
+    (** Apply function to all indexing. *)
+
+    (* TODO: include more operations *)
+  end
 
   module type Printable = Printable
   module type Lattice = Lattice
@@ -166,10 +176,16 @@ sig
   sig
     include Printable with type idx = GoblintCil.exp
 
+    val top_indices: t -> t
+    (** Change all indices to top indices. *)
+
     val of_cil : GoblintCil.offset -> t
     (** Convert from CIL offset. *)
 
     val to_cil : t -> GoblintCil.offset
     (** Convert to CIL offset. *)
   end
+
+  (** Offset with {!Index.Z} indices. *)
+  module Z: Printable with type idx = Z.t
 end
