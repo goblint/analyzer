@@ -1276,115 +1276,6 @@ let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t 
 let reset_lazy () =
   ResettableLazy.reset activated_library_descs
 
-module Invalidate =
-struct
-  [@@@warning "-unused-value-declaration"] (* some functions are not used below *)
-  open AccessKind
-
-  let drop = List.drop
-  let keep ns = List.filteri (fun i _ -> List.mem i ns)
-
-  let partition ns x =
-    let rec go n =
-      function
-      | [] -> ([],[])
-      | y :: ys ->
-        let (i,o) = go (n + 1) ys in
-        if List.mem n ns
-        then (y::i,   o)
-        else (   i,y::o)
-    in
-    go 1 x
-
-  let writesAllButFirst n f a x =
-    match a with
-    | Write | Call | Spawn -> f a x @ drop n x
-    | Read  -> f a x
-    | Free  -> []
-
-  let readsAllButFirst n f a x =
-    match a with
-    | Write | Call | Spawn -> f a x
-    | Read  -> f a x @ drop n x
-    | Free  -> []
-
-  let reads ns a x =
-    let i, o = partition ns x in
-    match a with
-    | Write | Call | Spawn -> o
-    | Read  -> i
-    | Free  -> []
-
-  let writes ns a x =
-    let i, o = partition ns x in
-    match a with
-    | Write | Call | Spawn -> i
-    | Read  -> o
-    | Free  -> []
-
-  let frees ns a x =
-    let i, o = partition ns x in
-    match a with
-    | Write | Call | Spawn -> []
-    | Read  -> o
-    | Free  -> i
-
-  let readsFrees rs fs a x =
-    match a with
-    | Write | Call | Spawn -> []
-    | Read  -> keep rs x
-    | Free  -> keep fs x
-
-  let onlyReads ns a x =
-    match a with
-    | Write | Call | Spawn -> []
-    | Read  -> keep ns x
-    | Free  -> []
-
-  let onlyWrites ns a x =
-    match a with
-    | Write | Call | Spawn -> keep ns x
-    | Read  -> []
-    | Free  -> []
-
-  let readsWrites rs ws a x =
-    match a with
-    | Write | Call | Spawn -> keep ws x
-    | Read  -> keep rs x
-    | Free  -> []
-
-  let readsAll a x =
-    match a with
-    | Write | Call | Spawn -> []
-    | Read  -> x
-    | Free  -> []
-
-  let writesAll a x =
-    match a with
-    | Write | Call | Spawn -> x
-    | Read  -> []
-    | Free  -> []
-end
-
-open Invalidate
-
-(* Data races: which arguments are read/written?
- * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
-(* WTF: why are argument numbers 1-indexed (in partition)? *)
-let invalidate_actions = []
-
-let invalidate_actions =
-  let tbl = Hashtbl.create 113 in
-  List.iter (fun (name, old_accesses) ->
-      Hashtbl.modify_opt name (function
-          | None when Hashtbl.mem all_library_descs name -> failwith (Format.sprintf "Library function %s specified both in libraries and invalidate actions" name)
-          | None -> Some old_accesses
-          | Some _ -> failwith (Format.sprintf "Library function %s specified multiple times in invalidate actions" name)
-        ) tbl
-    ) invalidate_actions;
-  tbl
-
-
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
@@ -1396,17 +1287,14 @@ let is_safe_uncalled fn_name =
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
 
 
-let unknown_desc f =
-  let old_accesses (kind: AccessKind.t) args = match kind with
-    | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
-    | Write -> []
-    | Read when GobConfig.get_bool "sem.unknown_function.read.args" -> args
-    | Read -> []
-    | Free -> []
-    | Call when get_bool "sem.unknown_function.call.args" -> args
-    | Call -> []
-    | Spawn when get_bool "sem.unknown_function.spawn" -> args
-    | Spawn -> []
+let unknown_desc f : LibraryDesc.t =
+  let accs args : (LibraryDesc.Access.t * 'a list) list = [
+    ({ kind = Read; deep = true; }, if GobConfig.get_bool "sem.unknown_function.read.args" then args else []);
+    ({ kind = Write; deep = true; }, if GobConfig.get_bool "sem.unknown_function.invalidate.args" then args else []);
+    ({ kind = Free; deep = true; }, []); (* TODO: why no option? *)
+    ({ kind = Call; deep = true; }, if get_bool "sem.unknown_function.call" then args else []);
+    ({ kind = Spawn; deep = true; }, if get_bool "sem.unknown_function.spawn" then args else []);
+  ]
   in
   let attrs: LibraryDesc.attr list =
     if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then
@@ -1419,18 +1307,17 @@ let unknown_desc f =
     M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
     M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
   );
-  LibraryDesc.of_old ~attrs old_accesses
+  {
+    attrs;
+    accs;
+    special = fun _ -> Unknown;
+  }
 
 let find f =
   let name = f.vname in
   match Hashtbl.find_option (ResettableLazy.force activated_library_descs) name with
   | Some desc -> desc
-  | None ->
-    match Hashtbl.find_option invalidate_actions name with
-    | Some old_accesses ->
-      LibraryDesc.of_old old_accesses
-    | None ->
-      unknown_desc f
+  | None -> unknown_desc f
 
 
 let is_special fv =
