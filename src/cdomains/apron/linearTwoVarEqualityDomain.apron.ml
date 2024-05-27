@@ -31,7 +31,7 @@ module Rhs = struct
     function
     | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
     | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s %s" (show_coeff coeff) (formatter v) (ztostring o)
-    | (None,   o,_) -> Printf.sprintf "%Ld" (Z.to_int64 o)
+    | (None,   o,_) -> Printf.sprintf "%s" (Z.to_string o)
   let show (v,o,d) =
     let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
     if not (Z.equal d Z.one) then "(" ^ rhs ^ ")/" ^ (Z.to_string d) else rhs
@@ -798,12 +798,12 @@ struct
     let get_const acc i = function
       | (None, o, d) ->
         let xi = Environment.var_of_dim t.env i in
-        of_coeff xi [(Coeff.s_of_int (- (Z.to_int d)), xi)] o :: acc
+        of_coeff xi [(GobApron.Coeff.s_of_z @@ Z.neg d, xi)] o :: acc
       | (Some (c,r), _,_) when r = i -> acc
       | (Some (c,r), o, d) ->
         let xi = Environment.var_of_dim t.env i in
         let ri = Environment.var_of_dim t.env r in
-        of_coeff xi [(Coeff.s_of_int (- (Z.to_int d)), xi); (Coeff.s_of_int @@ Z.to_int c, ri)] o :: acc
+        of_coeff xi [(GobApron.Coeff.s_of_z @@ Z.neg d, xi); (GobApron.Coeff.s_of_z c, ri)] o :: acc
     in
     BatOption.get t.d |> fun (_,map) -> EConj.IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
 
