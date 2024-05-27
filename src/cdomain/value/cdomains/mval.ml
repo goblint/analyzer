@@ -41,7 +41,7 @@ end
 module MakeLattice (Offs: Offset.Lattice): Lattice with type idx = Offs.idx =
 struct
   include MakePrintable (Offs)
-  
+
   let top_indices (x, o) = (x, Offs.top_indices o)
 
   let semantic_equal (x, xoffs) (y, yoffs) =
