@@ -11,7 +11,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -33,7 +33,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -55,7 +55,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -77,7 +77,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -99,7 +99,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -121,7 +121,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -143,7 +143,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -165,7 +165,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -187,7 +187,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -209,7 +209,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -231,7 +231,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -253,7 +253,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -275,7 +275,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -297,7 +297,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -319,7 +319,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -341,7 +341,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -363,7 +363,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -385,7 +385,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -407,7 +407,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -429,7 +429,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -451,7 +451,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -473,7 +473,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -495,7 +495,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -517,7 +517,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -539,7 +539,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -561,7 +561,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -583,7 +583,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -605,7 +605,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -627,7 +627,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -649,7 +649,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -671,7 +671,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -693,7 +693,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -715,7 +715,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -737,7 +737,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -759,7 +759,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -781,7 +781,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -803,7 +803,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -825,7 +825,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -847,7 +847,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -869,7 +869,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 
@@ -891,7 +891,7 @@
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.argdot --enable exp.arg --set exp.argdotlabel empty))
+     (run goblint --conf svcomp21.json --set ana.specification %{prop} %{c} --enable witness.graphml.uncil --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %{target}
      (run graph-easy --as=boxart arg.dot)))))
 

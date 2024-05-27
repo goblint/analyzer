@@ -1817,22 +1817,38 @@
         },
         "arg": {
           "title": "exp.arg",
-          "description": "Construct abstract reachability graph (ARG).",
-          "type": "boolean",
-          "default": false
-        },
-        "argdot": {
-          "title": "exp.argdot",
-          "description": "Output ARG as dot file.",
-          "type": "boolean",
-          "default": false
-        },
-        "argdotlabel": {
-          "title": "exp.argdotlabel",
-          "description": "Which ARG node labels to use? node/empty",
-          "type": "string",
-          "enum": ["node", "empty"],
-          "default": "node"
+          "description": "Abstract reachability graph (ARG) options",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "exp.arg.enabled",
+              "description": "Construct ARG.",
+              "type": "boolean",
+              "default": false
+            },
+            "dot": {
+              "title": "exp.arg.dot",
+              "description": "ARG output as .dot file",
+              "type": "object",
+              "properties": {
+                "path": {
+                  "title": "exp.arg.dot.path",
+                  "description": "ARG .dot file output path. Disabled if empty.",
+                  "type": "string",
+                  "default": ""
+                },
+                "node-label": {
+                  "title": "exp.arg.dot.node-label",
+                  "description": "Which ARG node labels to use? node/empty",
+                  "type": "string",
+                  "enum": ["node", "empty"],
+                  "default": "node"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
