@@ -477,7 +477,7 @@ struct
     let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
     RD.join get_m get_mutex_inits'
 
-  let get_mutex_global_g_with_mutex_inits ask getg g =
+  let get_mutex_global_g_with_mutex_inits (ask:Q.ask) getg g =
     let g_var = AV.global g in
     let get_mutex_global_g =
       if Param.handle_atomic then (
@@ -485,7 +485,12 @@ struct
         RD.keep_vars (getg (V.mutex atomic_mutex)) [g_var]
       )
       else
-        getg (V.global g)
+        let r = getg (V.global g) in
+        if RD.is_bot r && (ask.f (Queries.IsAllocVar g)) then
+          (* malloc'ed blobs may not have a value here yet *)
+          RD.top ()
+        else
+          r
     in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
