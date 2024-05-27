@@ -201,7 +201,9 @@ let handle_options () =
   Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
   check_arguments ();
   Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
-  if AutoTune.isActivated "memsafetySpecification" && get_string "ana.specification" <> "" then
+  if get_string "ana.specification" <> "" then
+    AutoSoundConfig.enableAnalysesForMemSafetySpecification ();
+  if AutoTune.specificationMemSafetyIsActivated () then
     AutoTune.focusOnMemSafetySpecification ();
   AfterConfig.run ();
   Cilfacade.init_options ();
@@ -260,8 +262,10 @@ let basic_preprocess ?preprocess ~all_cppflags fname =
     Logs.debug "%s" command;
     (nname, Some {ProcessPool.command; cwd = None})
   )
-  else
+  else (
+    Preprocessor.FpathH.modify_def Fpath.Map.empty fname (Fpath.Map.add fname false) Preprocessor.dependencies; (* record dependency *)
     (fname, None)
+  )
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =

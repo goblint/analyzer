@@ -23,10 +23,9 @@ module Field = struct
     end) (CilType.Fieldinfo)
 
   let meet f g =
-    if equal f g then
-      f
-    else
-      raise Lattice.Uncomparable
+    match meet f g with
+    | `Bot -> raise Lattice.Uncomparable
+    | m -> m
 end
 
 module Simple (Values: Arg) =

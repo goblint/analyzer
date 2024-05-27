@@ -198,42 +198,14 @@ let reduceThreadAnalyses () =
     disableAnalyses notNeccessaryThreadAnalyses;
   )
 
-(* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
-(* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
-let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceSetjmp"; "poisonVariables"; "expsplit"; "vla"]
-
-let activateLongjmpAnalysesWhenRequired () =
-  let isLongjmp = function
-    | LibraryDesc.Longjmp _ -> true
-    | _ -> false
-  in
-  if hasFunction isLongjmp  then (
-    Logs.info "longjmp -> enabling longjmp analyses \"%s\"" (String.concat ", " longjmpAnalyses);
-    enableAnalyses longjmpAnalyses;
-  )
-
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
-  | ValidFree -> (* Enable the useAfterFree analysis *)
-    let uafAna = ["useAfterFree"] in
-    Logs.info "Specification: ValidFree -> enabling useAfterFree analysis \"%s\"" (String.concat ", " uafAna);
-    enableAnalyses uafAna
-  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
-    let memOobAna = ["memOutOfBounds"] in
-    set_bool "ana.arrayoob" true;
-    Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
-    set_bool "cil.addNestedScopeAttr" true;
-    Logs.info "Specification: ValidDeref -> enabling memOutOfBounds analysis \"%s\"" (String.concat ", " memOobAna);
-    enableAnalyses memOobAna;
   | ValidMemtrack
-  | ValidMemcleanup -> (* Enable the memLeak analysis *)
-    let memLeakAna = ["memLeak"] in
+  | ValidMemcleanup ->
     if (get_int "ana.malloc.unique_address_count") < 1 then (
       Logs.info "Setting \"ana.malloc.unique_address_count\" to 5";
       set_int "ana.malloc.unique_address_count" 5;
     );
-    Logs.info "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"%s\"" (String.concat ", " memLeakAna);
-    enableAnalyses memLeakAna
   | _ -> ()
 
 let focusOnMemSafetySpecification () =
@@ -242,7 +214,7 @@ let focusOnMemSafetySpecification () =
 let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
-    let terminationAnas = ["termination"; "threadflag"; "apron"] in
+    let terminationAnas = ["threadflag"; "apron"] in
     Logs.info "Specification: Termination -> enabling termination analyses \"%s\"" (String.concat ", " terminationAnas);
     enableAnalyses terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
@@ -261,8 +233,7 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
-    set_bool "ana.int.def_exc" true;
-    set_bool "ana.int.interval" true
+    set_bool "ana.int.def_exc" true
   | _ -> ()
 
 let focusOnSpecification () =
@@ -335,20 +306,22 @@ let isComparison = function
 let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vattr
 
 let rec extractVar = function
-  | UnOp (Neg, e, _) -> extractVar e
-  | Lval ((Var info),_) when not (isGoblintStub info) ->  Some info
+  | UnOp (Neg, e, _)
+  | CastE (_, e) -> extractVar e
+  | Lval ((Var info),_) when not (isGoblintStub info) -> Some info
   | _ -> None
+
+let extractBinOpVars e1 e2 =
+  match extractVar e1, extractVar e2 with
+  | Some a, Some b -> [a; b]
+  | Some a, None when isConstant e2 -> [a]
+  | None, Some b when isConstant e1 -> [b]
+  | _, _ -> []
 
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
-  | BinOp (MinusA, e1,e2, (TInt _)) -> (
-      match extractVar e1, extractVar e2 with
-      | Some a, Some b -> Some (`Left (a,b))
-      | Some a, None
-      | None, Some a -> if isConstant e1 then Some (`Right a) else None
-      | _,_ -> None
-    )
-  | _ -> None
+  | BinOp (MinusA, e1,e2, (TInt _)) -> extractBinOpVars e1 e2
+  | e -> Option.to_list (extractVar e)
 
 let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
       if VariableMap.mem key !varMap then
@@ -357,25 +330,19 @@ let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then var
       else
         VariableMap.add key v !varMap
 
-let handle varMap v globals = function
-  | Some (`Left (a,b)) ->
-    addOrCreateVarMapping varMap a v globals;
-    addOrCreateVarMapping varMap b v globals;
-  | Some (`Right a) ->  addOrCreateVarMapping varMap a v globals;
-  | None -> ()
-
 class octagonVariableVisitor(varMap, globals) = object
   inherit nopCilVisitor
 
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
     | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
-        handle varMap 5 globals (extractOctagonVars e1) ;
-        handle varMap 5 globals (extractOctagonVars e2) ;
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e1);
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren
       )
-    | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
+    | Lval ((Var info),_) when not (isGoblintStub info) -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
+    | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)
     | BinOp (MinusA,_,_,_)
@@ -451,7 +418,7 @@ let apronOctagonOption factors file =
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;
     set_string "ana.apron.threshold_widening_constants" "comparisons";
-    Logs.info "Enabled octagon domain for:";
+    Logs.info "Enabled octagon domain ONLY for:";
     Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
     List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
   in
@@ -522,6 +489,9 @@ let specificationIsActivated () =
 
 let specificationTerminationIsActivated () =
   isActivated "termination"
+
+let specificationMemSafetyIsActivated () =
+  isActivated "memsafetySpecification"
 
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in

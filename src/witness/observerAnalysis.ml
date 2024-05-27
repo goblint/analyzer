@@ -30,7 +30,7 @@ struct
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams))
-  module C = D
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D) (* fully path-sensitive *)
 
   let step d prev_node node =

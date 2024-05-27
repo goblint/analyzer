@@ -1344,7 +1344,8 @@
               "zstd",
               "pcre",
               "zlib",
-              "liblzma"
+              "liblzma",
+              "legacy"
             ]
           },
           "default": [
@@ -1355,7 +1356,8 @@
             "glibc",
             "linux-userspace",
             "goblint",
-            "ncurses"
+            "ncurses",
+            "legacy"
           ]
         }
       },

@@ -15,7 +15,7 @@ struct
   let name () = "lockset"
 
   module D = D
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let startstate v = D.empty ()
   let threadenter ctx ~multiple lval f args = [D.empty ()]

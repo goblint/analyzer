@@ -198,21 +198,34 @@ let test_ex_set _ =
   assert_equal (Some true) (T.to_bool tex10);
   assert_equal None (T.to_bool tex1)
 
-module Interval =
+module IntervalTest (I : IntDomain.SOverflow with type int_t = Z.t) =
 struct
-  module I = IntDomain.SOverflowUnlifter(IntDomain.Interval)
+  module I = IntDomain.SOverflowUnlifter (I)
+  let ik      = Cil.IInt
+  let i65536  = I.of_interval ik (Z.zero, of_int 65536)
+  let i65537  = I.of_interval ik (Z.zero, of_int 65537)
+  let imax    = I.of_interval ik (Z.zero, of_int 2147483647)
 
   let assert_equal x y =
     assert_equal ~cmp:I.equal ~printer:I.show x y
 
   let test_interval_rem _ =
-    let ik = Cil.IInt in
     assert_equal (I.of_int ik Z.zero) (I.rem ik (I.of_int ik Z.minus_one) (I.of_int ik Z.one))
+
+  let test_interval_widen _ =
+    GobConfig.set_bool "ana.int.interval_threshold_widening" true;
+    GobConfig.set_string "ana.int.interval_threshold_widening_constants" "comparisons";
+    assert_equal imax (I.widen ik i65536 i65537);
+    assert_equal imax (I.widen ik i65536 imax)
 
   let test () = [
     "test_interval_rem" >:: test_interval_rem;
+    "test_interval_widen" >:: test_interval_widen;
   ]
 end
+
+module Interval    = IntervalTest (IntDomain.Interval)
+module IntervalSet = IntervalTest (IntDomain.IntervalSet)
 
 module Congruence =
 struct
@@ -291,6 +304,7 @@ let test () =
     "test_meet"     >::  test_meet;
     "test_excl_list">::  test_ex_set;
     "interval" >::: Interval.test ();
+    "intervalSet" >::: IntervalSet.test ();
     "congruence" >::: Congruence.test ();
     "intDomTuple" >::: IntDomTuple.test ();
   ]

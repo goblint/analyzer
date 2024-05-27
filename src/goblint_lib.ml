@@ -59,6 +59,7 @@ module GobConfig = GobConfig
 module AfterConfig = AfterConfig
 
 module AutoTune = AutoTune
+module AutoSoundConfig = AutoSoundConfig
 
 module JsonSchema = JsonSchema
 module Options = Options
@@ -385,6 +386,8 @@ module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
 module XmlUtil = XmlUtil
+
+module GobExn = GobExn
 
 (** {2 CIL} *)
 
