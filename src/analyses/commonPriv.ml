@@ -82,8 +82,8 @@ struct
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
-    Q.AD.fold (fun m acc ->
-        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+    LockDomain.MustLockset.fold (fun ml acc ->
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; write = true})) acc
       ) (ask.f Q.MustLockset) (Q.VS.empty ())
     |> Q.VS.elements
 end
@@ -145,8 +145,8 @@ struct
     if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
-      let ad = ask.f Queries.MustLockset in
-      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ()) (* TODO: use AD as Lockset *)
+      let mls = ask.f Queries.MustLockset in
+      LockDomain.MustLockset.fold (fun ml acc -> Lockset.add (Addr (LockDomain.MustLock.to_mval ml)) acc) mls (Lockset.empty ()) (* TODO: use MustLockset as Lockset *)
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
