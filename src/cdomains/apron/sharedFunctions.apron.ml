@@ -20,21 +20,21 @@ let int_of_scalar ?round (scalar: Scalar.t) =
         | None when Stdlib.Float.is_integer f -> Some f
         | None -> None
       in
-      Z.of_float f
+      Q.make (Z.of_float f) Z.one
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
-      let+ z =
+      let+ (n,d) =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
-          Some n
+          Some (n,Mpzf.of_int 1)
         else
           begin match round with
-            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
-            | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
-            | None -> None
+            | Some `Floor -> Some (Mpzf.fdiv_q n d, Mpzf.of_int 1) (* floor division *)
+            | Some `Ceil -> Some (Mpzf.cdiv_q n d, Mpzf.of_int 1) (* ceiling division *)
+            | None -> Some (n,d)
           end
       in
-      Z_mlgmpidl.z_of_mpzf z
+      Q.make (Z_mlgmpidl.z_of_mpzf n) (Z_mlgmpidl.z_of_mpzf d)
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
