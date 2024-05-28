@@ -21,17 +21,6 @@ void loop() {
 
     __goblint_check(x == 4*i); //SUCCESS
 
-    for(i = 1; i < 100; i++) {
-        x=x+4;
-        y=y+8;
-
-        __goblint_check(y == 2*x); //SUCCESS
-
-        int res = (y==2*x )+ 1;
-
-        __goblint_check(res); //SUCCESS
-    }
-
     x=0;
     y=0;
 

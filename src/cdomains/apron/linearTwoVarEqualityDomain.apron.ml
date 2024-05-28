@@ -104,7 +104,7 @@ module EqualitiesConjunction = struct
       let offsetlist = Array.to_list indexes in
       let rec bumpvar delta i = function (* bump the variable i by delta; find delta by counting indices in offsetlist until we reach a larger index then our current parameter *)
         | head::rest when i>=head -> bumpvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
-        | _ (* i<head or _=[] *) -> op i delta
+        | _ (* i<head or _=[] *) -> let res = op i delta in res
       in
       let memobumpvar = (* Memoized version of bumpvar *)
         let module IntHash = struct type t = int [@@deriving eq,hash] end in
@@ -145,9 +145,11 @@ module EqualitiesConjunction = struct
       (let ref_var_opt = Tuple3.first (get_rhs d var) in
        match ref_var_opt with
        | Some (_,ref_var) when ref_var = var ->
+         if M.tracing then M.trace "forget" "headvar var_%d" var;
          (* var is the reference variable of its connected component *)
          (let cluster = IntMap.fold
-              (fun i (ref,_,_) l -> if ref = ref_var_opt then i::l else l) (snd d) [] in
+              (fun i (ref,_,_) l -> BatOption.map_default (fun (coeff,ref) -> if (ref=ref_var) then i::l else l) l ref) (snd d) [] in
+          if M.tracing then M.trace "forget" "cluster varindices: [%s]" (String.concat ", " (List.map (string_of_int) cluster));
           (* obtain cluster with common reference variable ref_var*)
           match cluster with (* new ref_var is taken from head of the cluster *)
           | head :: _ ->
