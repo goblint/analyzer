@@ -710,18 +710,24 @@ struct
     let name () = "P"
   end
 
+  module Sigma' =
+  struct
+    include CPA
+    let name () = "Protected Changes"
+  end
+
   (* W is implicitly represented by CPA domain *)
-  module D = P
+  module D = Lattice.Prod (P) (Sigma')
 
   module Wrapper = Wrapper (VD)
   module G = Wrapper.G
   module V = ProtectionBasedV.V
 
-  let startstate () = P.empty ()
+  let startstate () = P.empty (), Sigma'.empty ()
 
   let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
     let getg = Wrapper.getg ask getg in
-    if P.mem x st.priv then
+    if P.mem x @@ fst st.priv then
       CPA.find x st.cpa
     else if Param.handle_atomic && ask.f MustBeAtomic then
       VD.join (CPA.find x st.cpa) (getg (V.unprotected x)) (* Account for previous unpublished unprotected writes in current atomic section. *)
@@ -732,19 +738,27 @@ struct
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     let sideg = Wrapper.sideg ask sideg in
-    if not invariant then (
+    let (p, sigma') = st.priv in
+    let unprotected = is_unprotected ask x in
+    let sigma' = if not invariant then (
       if not (Param.handle_atomic && ask.f MustBeAtomic) then
         sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
+
+      (* Shouldn't this also check, whether x is protected? CPA is only modified if it is. *)
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
-        sideg (V.protected x) v
+        sideg (V.protected x) v;
         (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
-    );
+      if unprotected then
+        sigma'
+      else
+        Sigma'.add x v sigma'
+    ) else sigma' in
     if Param.handle_atomic && ask.f MustBeAtomic then
-      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv} (* Keep write local as if it were protected by the atomic section. *)
-    else if is_unprotected ask x then
-      st
+      {st with cpa = CPA.add x v st.cpa; priv = P.add x p, sigma'} (* Keep write local as if it were protected by the atomic section. *)
+    else if unprotected then
+      {st with priv = p, sigma'}
     else
-      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
+      {st with cpa = CPA.add x v st.cpa; priv = P.add x p, sigma'}
 
   let lock ask getg st m = st
 
@@ -752,18 +766,25 @@ struct
     let sideg = Wrapper.sideg ask sideg in
     let atomic = Param.handle_atomic && LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
-    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+    CPA.fold (fun x _ (st: BaseComponents (D).t) ->
         if is_protected_by ask m x then ( (* is_in_Gm *)
-          (* Extra precision in implementation to pass tests:
-             If global is read-protected by multiple locks,
-             then inner unlock shouldn't yet publish. *)
-          if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
-            sideg (V.protected x) v;
-          if atomic then
-            sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
-
+          let (p, sigma') = st.priv in
+          (* Only apply sides for values that were actually written to globals!
+             This excludes invariants inferred through guards. *)
+          begin match Sigma'.find_opt x sigma' with
+            | Some v -> begin
+                (* Extra precision in implementation to pass tests:
+                   If global is read-protected by multiple locks,
+                   then inner unlock shouldn't yet publish. *)
+                if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
+                  sideg (V.protected x) v;
+                if atomic then
+                  sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
+              end
+            | None -> ()
+          end;
           if is_unprotected_without ask x m then (* is_in_V' *)
-            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+            {st with cpa = CPA.remove x st.cpa; priv = P.remove x p, Sigma'.remove x sigma'}
           else
             st
         )
@@ -779,7 +800,7 @@ struct
           if is_global ask x && is_unprotected ask x then (
             sideg (V.unprotected x) v;
             sideg (V.protected x) v; (* must be like enter_multithreaded *)
-            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+            {st with cpa = CPA.remove x st.cpa; priv = P.remove x @@ fst st.priv, Sigma'.remove x @@ snd st.priv}
           )
           else
             st
@@ -811,7 +832,7 @@ struct
         if is_global ask x then (
           sideg (V.unprotected x) v;
           sideg (V.protected x) v;
-          {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+          {st with cpa = CPA.remove x st.cpa; priv = P.remove x @@ fst st.priv, Sigma'.remove x @@ snd st.priv}
         )
         else
           st
