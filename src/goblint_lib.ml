@@ -416,6 +416,8 @@ module ContextUtil = ContextUtil
 module ReturnUtil = ReturnUtil
 module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
+
+module WideningDelay = WideningDelay
 module WideningThresholds = WideningThresholds
 
 module VectorMatrix = VectorMatrix
