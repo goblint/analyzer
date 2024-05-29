@@ -152,17 +152,18 @@ module EqualitiesConjunction = struct
           if M.tracing then M.trace "forget" "cluster varindices: [%s]" (String.concat ", " (List.map (string_of_int) cluster));
           (* obtain cluster with common reference variable ref_var*)
           match cluster with (* new ref_var is taken from head of the cluster *)
-          | head :: _ ->
+          | head :: clusterrest ->
             (* ax = by + c    /\     a'z =    b'y + c'        *)
             (*  ==[[ y:=? ]]==>   (a'b)z = (b'a)x + c' -(b'c) *)
             let (newref,c,a) = (get_rhs d head) in (* take offset between old and new reference variable *)
             let (b,_) = BatOption.get newref in
-            List.fold (fun map i -> 
+            let shifted_cluster =  (List.fold (fun map i -> (* shift offset to match new reference variable *)
                 let (oldref,c',a') = (get_rhs d i) in
                 let (b',_) = BatOption.get oldref in
                 (Some (Z.(b'*a),head), Z.(c' - (b' * c)), Z.(a'*b)) |>
                 canonicalize_and_set map i
-              ) d cluster (* shift offset to match new reference variable *)
+              ) d clusterrest) in
+            set_rhs shifted_cluster head (Rhs.var_zero head) (* finally make sure that head is now trivial *)
           | [] -> d) (* empty cluster means no work for us *)
        | _ -> d) (* variable is either a constant or expressed by another refvar *) in
     let res = (fst res, IntMap.remove var (snd res)) in (* set d(var) to unknown, finally *)
