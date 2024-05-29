@@ -1,4 +1,4 @@
-// PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.sv-comp.functions --set ana.widen.delay 1
+// PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.sv-comp.functions --set ana.widen.delay.local 1
 #include <goblint.h>
 extern _Bool __VERIFIER_nondet_bool();
 int main() {

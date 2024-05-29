@@ -25,7 +25,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       (module MCP.MCP2 : Spec)
       |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter)
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
-      |> lift (get_int "ana.widen.delay" > 0) (module WideningDelay.Lifter)
+      |> lift (get_int "ana.widen.delay.local" > 0) (module WideningDelay.DLifter)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
       |> lift arg_enabled (module HashconsLifter)
@@ -42,6 +42,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
       |> lift true (module LongjmpLifter)
       |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
+      |> lift (get_int "ana.widen.delay.global" > 0) (module WideningDelay.GLifter)
     )
   in
   GobConfig.building_spec := false;
