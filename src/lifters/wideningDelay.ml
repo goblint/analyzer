@@ -7,52 +7,53 @@ open Batteries
 open Lattice
 open Analyses
 
-module DelayedConf (C: Printable.ProdConfiguration) (Base: S) =
+module Dom (Base: S) =
 struct
-  (** n () is an arbitrary constant *)
-  let n () = GobConfig.get_int "ana.widen.delay"
-  module P = (Printable.Chain (struct let n () = n () let names n = (string_of_int n) end))
+  module ChainParams =
+  struct
+    let n () = GobConfig.get_int "ana.widen.delay"
+    let names = string_of_int
+  end
+  module Chain = Printable.Chain (ChainParams)
 
-  include Printable.ProdConf (C) (Base) (P)
+  include Printable.Prod (Base) (Chain)
 
   let bot () = (Base.bot (), 0)
   let is_bot (b, _) = Base.is_bot b
-  let top () = (Base.top (), n ())
+  let top () = (Base.top (), ChainParams.n ())
   let is_top (b, _) = Base.is_top b
 
-  let leq (b1,_) (b2,_) = Base.leq b1 b2
+  let leq (b1, _) (b2, _) = Base.leq b1 b2
 
-  let pretty_diff () (((b1,i1):t),((b2,i2):t)): Pretty.doc =
-    if Base.leq b1 b2 then
-      let f = fun () i -> Pretty.num i in
-      Pretty.dprintf "%a not leq %a" f i1 f i2
+  (** All operations keep maximal counter. *)
+  let join (b1, i1) (b2, i2) = (Base.join b1 b2, max i1 i2)
+  let meet (b1, i1) (b2, i2) = (Base.meet b1 b2, max i1 i2)
+  let widen (b1, i1) (b2, i2) =
+    let i' = max i1 i2 in
+    if i' < ChainParams.n () then
+      (Base.join b1 b2, i' + 1)
     else
-      Base.pretty_diff () (b1,b2)
+      (Base.widen b1 b2, i') (* Don't increase beyond n, otherwise TD3 will not reach fixpoint w.r.t. equal. *)
+  let narrow (b1, i1) (b2, i2) = (Base.narrow b1 b2, max i1 i2)
 
-  let join (b1,i1) (b2,i2) = (Base.join b1 b2, max i1 i2)
-  let meet (b1,i1) (b2,i2) = (Base.meet b1 b2, max i1 i2)
-  let narrow (b1,i1) (b2,i2) = (Base.narrow b1 b2, max i1 i2)
-  let widen (b1,i1) (b2,i2) =
-    if max i1 i2 < n () then
-      (Base.join b1 b2, 1 + max i1 i2)
-    else
-      (Base.widen b1 b2, max i1 i2)
-
-  let printXml f (b, i) =
-    BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" Base.printXml b P.printXml i
+  let pretty_diff () ((b1, _), (b2, _)) =
+    Base.pretty_diff () (b1, b2) (* Counters cannot violate leq. *)
 end
-
-module Delayed = DelayedConf (struct let expand_fst = true let expand_snd = true end)
-module DelayedSimple = DelayedConf (struct let expand_fst = false let expand_snd = false end)
 
 
 module Lifter (S:Spec)
-  : Spec with module D = Delayed (S.D)
+  : Spec with module D = Dom (S.D)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Delayed (S.D)
+  module D =
+  struct
+    include Dom (S.D)
+
+    let printXml f (b, i) =
+      BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" S.D.printXml b Chain.printXml i
+  end
   module G = S.G
   module C = S.C
   module V = S.V
@@ -73,7 +74,7 @@ struct
   let finalize = S.finalize
 
   let startstate v = (S.startstate v, 0)
-  let exitstate  v = (S.exitstate  v, D.n ())
+  let exitstate  v = (S.exitstate  v, D.ChainParams.n ())
   let morphstate v (d,l) = (S.morphstate v d, l)
 
   let conv (ctx: (D.t, G.t, C.t, V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
