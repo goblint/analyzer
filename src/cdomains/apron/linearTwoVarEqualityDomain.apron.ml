@@ -147,21 +147,21 @@ module EqualitiesConjunction = struct
        | Some (_,ref_var) when ref_var = var ->
          if M.tracing then M.trace "forget" "headvar var_%d" var;
          (* var is the reference variable of its connected component *)
-         (let cluster = IntMap.fold
+         (let cluster = List.sort (Int.compare) @@ IntMap.fold
               (fun i (ref,_,_) l -> BatOption.map_default (fun (coeff,ref) -> if (ref=ref_var) then i::l else l) l ref) (snd d) [] in
           if M.tracing then M.trace "forget" "cluster varindices: [%s]" (String.concat ", " (List.map (string_of_int) cluster));
           (* obtain cluster with common reference variable ref_var*)
           match cluster with (* new ref_var is taken from head of the cluster *)
           | head :: clusterrest ->
-            (* ax = by + c    /\     a'z =    b'y + c'        *)
-            (*  ==[[ y:=? ]]==>   (a'b)z = (b'a)x + c' -(b'c) *)
-            let (newref,c,a) = (get_rhs d head) in (* take offset between old and new reference variable *)
-            let (b,_) = BatOption.get newref in
-            let shifted_cluster =  (List.fold (fun map i -> (* shift offset to match new reference variable *)
-                let (oldref,c',a') = (get_rhs d i) in
-                let (b',_) = BatOption.get oldref in
-                (Some (Z.(b'*a),head), Z.(c' - (b' * c)), Z.(a'*b)) |>
-                canonicalize_and_set map i
+            (* head: divi*x = coeff*y + offs *)
+            (* divi*x = coeff*y + offs   =inverse=>    y =( divi*x - offs)/coeff     *)
+            let (newref,offs,divi) = (get_rhs d head) in
+            let (coeff,y) = BatOption.get newref in
+            let (y,yrhs)= inverse head (coeff,y,offs,divi) in (* reassemble yrhs out of components *)
+            let shifted_cluster =  (List.fold (fun map i -> 
+                let irhs = (get_rhs d i) in (* old entry is i = irhs *)
+                Rhs.subst yrhs y irhs |>    (* new entry for i is irhs [yrhs/y] *)
+                set_rhs map i
               ) d clusterrest) in
             set_rhs shifted_cluster head (Rhs.var_zero head) (* finally make sure that head is now trivial *)
           | [] -> d) (* empty cluster means no work for us *)
@@ -240,7 +240,7 @@ module EqualitiesConjunction = struct
               let (_,newh1)= inverse i (coeff1,h1,o1,divi1) in
               let newh1 = Rhs.subst normalizedj j (Rhs.subst (Some(coeff,j),offs,divi) i newh1) in
               subst_var ts h1 newh1)) in
-    if M.tracing then M.trace "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd res))
+    if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd res))
   ; res
 
   (** affine transform variable i allover conj with transformer (Some (coeff,i)+offs)/divi *)
