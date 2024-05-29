@@ -400,7 +400,7 @@ struct
   let top () = {d = Some (EConj.empty()); env = empty_env}
 
   (** is_top returns true for top_of array and empty array; precondition: t.env and t.d are of same size *)
-  let is_top t = Environment.equal empty_env t.env && GobOption.exists EConj.is_top_con t.d
+  let is_top t = GobOption.exists EConj.is_top_con t.d
 
   let to_subscript i =
     let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
@@ -472,8 +472,8 @@ struct
       | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
     if env_comp = -2 || env_comp > 0 then false else
-    if is_bot_env t1 || is_top t2 then true else
-    if is_bot_env t2 || is_top t1 then false else
+    if is_bot_env t1 || is_top t2 then true
+    else if is_bot_env t2 || is_top t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
       EConj.IntMap.for_all (implies m1') (snd m2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
