@@ -1,6 +1,6 @@
-(** Symbolic lock-sets for use in per-element patterns.
+(** Symbolic lockset analysis for per-element (field or index) locking patterns ([symb_locks]).
 
-    See Section 5 and 6 in https://dl.acm.org/doi/10.1145/2970276.2970337 for more details. *)
+    @see <https://doi.org/10.1145/2970276.2970337> Static race detection for device drivers: the Goblint approach. Section 5 and 6. *)
 
 module LF = LibraryFunctions
 module LP = SymbLocksDomain.LockingPattern
@@ -23,14 +23,14 @@ struct
 
   exception Top
 
-  module D = LockDomain.Symbolic
-  module C = LockDomain.Symbolic
+  module D = SymbLocksDomain.Symbolic
+  include Analyses.ValueContexts(D)
 
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let branch ctx exp tv = ctx.local
@@ -65,11 +65,11 @@ struct
       | a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
       | _ -> Queries.ES.singleton e
     in
-    if M.tracing then M.tracel "symb_locks" "get_all_locks exps %a = %a\n" d_plainexp e Queries.ES.pretty exps;
-    if M.tracing then M.tracel "symb_locks" "get_all_locks st = %a\n" D.pretty st;
+    if M.tracing then M.tracel "symb_locks" "get_all_locks exps %a = %a" d_plainexp e Queries.ES.pretty exps;
+    if M.tracing then M.tracel "symb_locks" "get_all_locks st = %a" D.pretty st;
     let add_locks x xs = PS.union (get_locks x st) xs in
     let r = Queries.ES.fold add_locks exps (PS.empty ()) in
-    if M.tracing then M.tracel "symb_locks" "get_all_locks %a = %a\n" d_plainexp e PS.pretty r;
+    if M.tracing then M.tracel "symb_locks" "get_all_locks %a = %a" d_plainexp e PS.pretty r;
     r
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
@@ -106,13 +106,12 @@ struct
 
   module A =
   struct
-    module E = struct
-      include Printable.Either (CilType.Offset) (ILock)
+    module PLock =
+    struct
+      include CilType.Offset
+      let name () = "p-lock"
 
-      let pretty () = function
-        | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
-        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr
-
+      let pretty = d_offset (text "*")
       include Printable.SimplePretty (
         struct
           type nonrec t = t
@@ -120,6 +119,7 @@ struct
         end
         )
     end
+    module E = Printable.Either (PLock) (ILock)
     include SetDomain.Make (E)
 
     let name () = "symblock"
@@ -138,7 +138,7 @@ struct
     *)
     let one_perelem (e,a,l) xs =
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
-      if M.tracing then M.tracel "symb_locks" "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l;
+      if M.tracing then M.tracel "symb_locks" "one_perelem (%a,%a,%a)" Exp.pretty e Exp.pretty a Exp.pretty l;
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
       | Some (v, o) ->
         (* ignore (printf "adding lock %s\n" l); *)
@@ -155,7 +155,7 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ILock.from_var_offset (v, o) in
+        let lock = ILock.of_mval (v, o) in
         A.add (`Right lock) xs
       | _ ->
         Messages.info ~category:Unsound "Internal error: found a strange lockstep pattern.";
@@ -184,7 +184,7 @@ struct
         (match ctx.ask (Queries.Regions e) with
          | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
-                try Queries.ES.add (Lval.CilLval.to_exp x) xs
+                try Queries.ES.add (Mval.Exp.to_cil_exp x) xs
                 with Lattice.BotValue -> xs
            in begin
              try Queries.LS.fold add_exp ls (Queries.ES.singleton e)

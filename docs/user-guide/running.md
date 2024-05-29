@@ -67,3 +67,20 @@ Here is a list of issues and workarounds for different compilation database gene
 #### bear
 1. Bear 2.3.11 from Ubuntu 18.04 produces incomplete database (<https://github.com/goblint/bench/issues/7#issuecomment-1011055984>, <https://github.com/goblint/bench/issues/7#issuecomment-1011987188>).
     * Bear 3.0.8 seems fine.
+
+
+## SV-COMP
+The most up-to-date SV-COMP configuration is in `conf/svcomp.json`.
+There are also per-year configurations (e.g. `conf/svcomp24.json`) which try to reflect that year's submission using current option names.
+Due to unconfigurable changes (e.g. bug fixes) these do not _exactly_ behave as that year's submission.
+See SV-COMP submissions in GitHub releases for exact submitted versions.
+
+In SV-COMP Goblint is run as follows:
+```console
+./goblint --conf conf/svcomp.json --set ana.specification property.prp --set exp.architecture {32bit,64bit} input.c
+```
+
+Goblint YAML correctness witness validator is run as:
+```console
+./goblint --conf conf/svcomp.json --set ana.specification property.prp --set exp.architecture {32bit,64bit} --set witness.yaml.unassume witness.yml --set witness.yaml.validate witness.yml input.c
+```

@@ -1,16 +1,15 @@
-(** Stack-trace "analyses". *)
+(** Call stack analyses ([stack_trace], [stack_trace_set], [stack_loc]). *)
 
 open GoblintCil
 open Analyses
-module LF = LibraryFunctions
 
-module Spec (D: StackDomain.S) (P: sig val name : string end)=
+module Spec (D: StackDomain.S) (N: sig val name : string end)=
 struct
   include Analyses.IdentitySpec
 
-  let name () = P.name
+  let name () = N.name
   module D = D
-  module C = D
+  include Analyses.ValueContexts(D)
 
   (* transfer functions *)
 
@@ -21,7 +20,7 @@ struct
     ctx.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 end
 
@@ -31,22 +30,21 @@ struct
 
   let name () = "stack_loc"
   module D = StackDomain.Dom3
-  module C = StackDomain.Dom3
+  include Analyses.ValueContexts(D)
 
   (* transfer functions *)
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.push !Tracing.current_loc ctx.local]
+    [ctx.local, D.push !Goblint_tracing.current_loc ctx.local]
 
   let combine_env ctx lval fexp f args fc au f_ask =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
-
   let startstate v = D.bot ()
   let exitstate  v = D.top ()
 
-  let threadenter ctx lval f args =
-    [D.push !Tracing.current_loc ctx.local]
+  let threadenter ctx ~multiple lval f args =
+    [D.push !Goblint_tracing.current_loc ctx.local]
 end
 
 

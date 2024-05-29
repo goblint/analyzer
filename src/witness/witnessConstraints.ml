@@ -1,4 +1,4 @@
-(** An analysis specification for witnesses. *)
+(** Analysis specification transformation for ARG construction. *)
 
 open Batteries
 open Analyses
@@ -40,19 +40,20 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (R: Lattice.S) =
+  module SpecDMap (V: Lattice.S) =
   struct
-    module C =
+    module R =
     struct
+      include Spec.P
       type elt = Spec.D.t
-      let cong = Spec.should_join
     end
-    module J = MapDomain.Joined (Spec.D) (R)
-    include DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
+    module J = MapDomain.Joined (Spec.D) (V)
+    include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
   end
 
   module Dom =
   struct
+    module V = R
     include SpecDMap (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
@@ -60,7 +61,7 @@ struct
     let printXml f x =
       let print_one x r =
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
-        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x V.printXml r
       in
       iter print_one x
 
@@ -94,6 +95,7 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module P = UnitP
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
@@ -101,17 +103,9 @@ struct
   let init = Spec.init
   let finalize = Spec.finalize
 
-  let should_join x y = true
-
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
   let morphstate v (d, _) = (Dom.map_keys (Spec.morphstate v) d, Sync.bot ())
-
-  let context fd (l, _) =
-    if Dom.cardinal l <> 1 then
-      failwith "PathSensitive3.context must be called with a singleton set."
-    else
-      Spec.context fd @@ Dom.choose_key l
 
   let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
@@ -145,6 +139,15 @@ struct
       ctx.split (Dom.singleton y yr, Sync.bot ()) es
     in
     ctx'
+
+  let context ctx fd (l, _) =
+    if Dom.cardinal l <> 1 then
+      failwith "PathSensitive3.context must be called with a singleton set."
+    else
+      let x = Dom.choose_key l in
+      Spec.context (conv ctx x) fd @@ x
+
+  let startcontext = Spec.startcontext
 
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
@@ -199,7 +202,7 @@ struct
     let r = Dom.bindings a in
     List.map (fun (x,v) -> (Dom.singleton x v, b)) r
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
           let yr = step ctx.prev_node (ctx.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)
@@ -208,10 +211,10 @@ struct
       in
       ys' @ xs
     in
-    fold' ctx Spec.threadenter (fun h -> h lval f args) g []
-  let threadspawn ctx lval f args fctx =
+    fold' ctx (Spec.threadenter ~multiple) (fun h -> h lval f args) g []
+  let threadspawn ctx ~multiple lval f args fctx =
     let fd1 = Dom.choose_key (fst fctx.local) in
-    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
+    map ctx (Spec.threadspawn ~multiple) (fun h -> h lval f args (conv fctx fd1))
 
   let sync ctx reason =
     fold'' ctx Spec.sync (fun h -> h reason) (fun (a, async) x r a' ->
@@ -221,16 +224,16 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
-      if M.tracing then M.tracei "witness" "IterPrevVars\n";
+      if M.tracing then M.tracei "witness" "IterPrevVars";
       Dom.iter (fun x r ->
-          if M.tracing then M.tracei "witness" "x = %a\n" Spec.D.pretty x;
+          if M.tracing then M.tracei "witness" "x = %a" Spec.D.pretty x;
           R.iter (function ((n, c, j), e) ->
-              if M.tracing then M.tracec "witness" "n = %a\n" Node.pretty_plain n;
-              if M.tracing then M.tracec "witness" "c = %a\n" Spec.C.pretty c;
-              if M.tracing then M.tracec "witness" "j = %a\n" Spec.D.pretty j;
+              if M.tracing then M.tracec "witness" "n = %a" Node.pretty_plain n;
+              if M.tracing then M.tracec "witness" "c = %a" Spec.C.pretty c;
+              if M.tracing then M.tracec "witness" "j = %a" Spec.D.pretty j;
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r;
-          if M.tracing then M.traceu "witness" "\n"
+          if M.tracing then M.traceu "witness" "" (* unindent! *)
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
@@ -239,7 +242,7 @@ struct
            | Function _ -> () (* returns post-sync in FromSpec *)
            | _ -> assert (Sync.is_bot (snd ctx.local));
          end; *)
-      if M.tracing then M.traceu "witness" "\n";
+      if M.tracing then M.traceu "witness" "";
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->
@@ -278,7 +281,15 @@ struct
               R.bot ()
           in
           (* keep left syncs so combine gets them for no-inline case *)
-          ((Dom.singleton x (R.bot ()), snd ctx.local), (Dom.singleton y yr, Sync.bot ()))
+          (* must lookup and short-circuit because enter may modify first in pair (e.g. abortUnless) *)
+          let syncs =
+            match Sync.find x' (snd ctx.local) with
+            | syncs -> syncs
+            | exception Not_found ->
+              M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
+              SyncSet.bot ()
+          in
+          ((Dom.singleton x (R.bot ()), Sync.singleton x syncs), (Dom.singleton y yr, Sync.bot ()))
         ) ys
       in
       ys' @ xs

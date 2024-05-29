@@ -1,3 +1,7 @@
+(** Abstract relational {e integer} value analysis.
+
+    See {!ApronAnalysis} and {!AffineEqualityAnalysis}. *)
+
 (** Contains most of the implementation of the original apronDomain, but now solely operates with functions provided by relationDomain. *)
 
 open Batteries
@@ -7,6 +11,7 @@ open Analyses
 open RelationDomain
 
 module M = Messages
+module VS = SetDomain.Make (CilType.Varinfo)
 
 module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
@@ -15,11 +20,17 @@ struct
   module Priv = Priv (RD)
   module D = RelationDomain.RelComponents (RD) (Priv.D)
   module G = Priv.G
-  module C = D
+  include Analyses.ValueContexts(D)
   module V =
   struct
     include Priv.V
     include StdV
+  end
+  module P =
+  struct
+    include Priv.P
+
+    let of_elt {priv; _} = of_elt priv
   end
 
   module RV = RD.V
@@ -29,16 +40,14 @@ struct
   (* Result map used for comparison of results for relational traces paper. *)
   let results = PCU.RH.create 103
 
-  let should_join = Priv.should_join
-
-  let context fd x =
+  let context ctx fd x =
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
       x
     else
-      D.bot () (* just like startstate, heterogeneous RD.bot () means top over empty set of variables *)
+      D.top ()
 
-  let exitstate  _ = { rel = RD.bot (); priv = Priv.startstate () }
-  let startstate _ = { rel = RD.bot (); priv = Priv.startstate () }
+  let exitstate  _ = { rel = RD.top (); priv = Priv.startstate () }
+  let startstate _ = { rel = RD.top (); priv = Priv.startstate () }
 
   (* Functions for manipulating globals as temporary locals. *)
 
@@ -61,12 +70,13 @@ struct
     let visitor = object
       inherit nopCilVisitor
       method! vlval = function
-        | (Var v, NoOffset) when v.vglob || ThreadEscape.has_escaped ask v ->
+        | (Var v, NoOffset) when (v.vglob || ThreadEscape.has_escaped ask v) && RD.Tracked.varinfo_tracked v ->
           let v_in =
             if VH.mem v_ins v then
               VH.find v_ins v
             else
               let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+              v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
               VH.replace v_ins v v_in;
               v_in
           in
@@ -78,7 +88,7 @@ struct
     let e' = visitCilExpr visitor e in
     let rel = RD.add_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
-        if M.tracing then M.trace "relation" "read_global %a %a\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
+        if M.tracing then M.trace "relation" "read_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
       ) v_ins rel
     in
@@ -88,6 +98,7 @@ struct
     let v_ins_inv = VH.create (List.length vs) in
     List.iter (fun v ->
         let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+        v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
         VH.replace v_ins_inv v_in v;
       ) vs;
     let rel = RD.add_vars st.rel (List.map RV.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
@@ -112,7 +123,7 @@ struct
 
   let assign_from_globals_wrapper ask getg st e f =
     let (rel', e', v_ins) = read_globals_to_locals ask getg st e in
-    if M.tracing then M.trace "relation" "assign_from_globals_wrapper %a\n" d_exp e';
+    if M.tracing then M.trace "relation" "assign_from_globals_wrapper %a" d_exp e';
     let rel' = f rel' e' in (* x = e; *)
     let rel'' = RD.remove_vars rel' (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     rel''
@@ -143,21 +154,20 @@ struct
         v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
         let st' = {st with rel = f st v_out} in (* g#out = e; *)
-        if M.tracing then M.trace "relation" "write_global %a %a\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_out;
+        if M.tracing then M.trace "relation" "write_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_out;
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
         let rel'' = RD.remove_vars st'.rel [RV.local v_out] in (* remove temporary g#out *)
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
-      (let r = ask.f (Queries.MayPointTo v) in
-       match r with
-       | `Top ->
-         st
-       | `Lifted s ->
-         let lvals = Queries.LS.elements r in
-         let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Lval.CilLval.to_lval lv) f) lvals in
-         List.fold_right D.join ass' (D.bot ())
-      )
+      let ad = ask.f (Queries.MayPointTo v) in
+      Queries.AD.fold (fun addr acc ->
+          match addr with
+          | ValueDomain.Addr.Addr mval ->
+            D.join acc (assign_to_global_wrapper ask getg sideg st (ValueDomain.Addr.Mval.to_cil mval) f)
+          | UnknownPtr | NullPtr | StrPtr _ ->
+            D.join acc st (* Ignore assign *)
+        ) ad (D.bot ())
     (* Ignoring all other assigns *)
     | _ ->
       st
@@ -169,7 +179,7 @@ struct
 
   let no_overflow (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument _ -> false (* TODO: why this? *)
+    | exception Invalid_argument _ -> false (* is thrown by get_ikind_exp when the type of the expression is not an integer type *)
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
       if IntDomain.should_wrap ik then
@@ -177,27 +187,26 @@ struct
       else if IntDomain.should_ignore_overflow ik then
         true
       else
-        not (Queries.ID.is_top_of ik (ask.f (EvalInt exp)))
+        not (ask.f (MaySignedOverflow exp))
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in
-    if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a\n" res d_exp exp;
+    if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a" res d_exp exp;
     res
   )
-
 
   let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
-    | ik when not (IntDomain.should_ignore_overflow ik) -> (* don't add type bounds for signed when assume_none *)
+    | ik ->
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
       let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik type_min), intType) in
-      let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
-      let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
+      (* TODO: do not duplicate no_overflow defined via ask: https://github.com/goblint/analyzer/pull/1297#discussion_r1477281950 *)
+      let rel = RD.assert_inv ask rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
+      let rel = RD.assert_inv ask rel e2 false (no_overflow ask e2) in
       rel
-    | _
     | exception Invalid_argument _ ->
       rel
 
@@ -209,47 +218,57 @@ struct
       | CastE (t,e) -> CastE (t, inner e)
       | Lval (Var v, off) -> Lval (Var v, off)
       | Lval (Mem e, NoOffset) ->
-        (match ask (Queries.MayPointTo e) with
-         | a when not (Queries.LS.is_top a || Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) && (Queries.LS.cardinal a) = 1 ->
-           let lval = Lval.CilLval.to_lval (Queries.LS.choose a) in
-           Lval lval
-         (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
-         (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
-         | _ -> Lval (Mem e, NoOffset))
+        begin match ask (Queries.MayPointTo e) with
+          | ad when not (Queries.AD.is_top ad) && (Queries.AD.cardinal ad) = 1 ->
+            let replace mval =
+              try
+                let pointee = ValueDomain.Addr.Mval.to_cil_exp mval in
+                let pointee_typ = Cil.typeSig @@ Cilfacade.typeOf pointee in
+                let lval_typ = Cil.typeSig @@ Cilfacade.typeOfLval (Mem e, NoOffset) in
+                if pointee_typ = lval_typ then
+                  Some pointee
+                else
+                  (* there is a type-mismatch between pointee and pointer-type *)
+                  (* to avoid mismatch errors, we bail on this expression *)
+                  None
+              with Cilfacade.TypeOfError _ ->
+                None
+            in
+            let r = Option.bind (Queries.AD.Addr.to_mval (Queries.AD.choose ad)) replace in
+            Option.default (Lval (Mem e, NoOffset)) r
+          (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
+          (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
+          | _ -> Lval (Mem e, NoOffset)
+        end
       | e -> e (* TODO: Potentially recurse further? *)
     in
     inner e
 
   (* Basic transfer functions. *)
-
   let assign ctx (lv:lval) e =
     let st = ctx.local in
-    if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
-      st (* ignore extern inits because there's no body before assign, so env is empty... *)
-    else (
-      let simplified_e = replace_deref_exps ctx.ask e in
-      if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)\n" d_lval lv  d_exp e d_exp simplified_e;
-      let ask = Analyses.ask_of_ctx ctx in
-      let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-          assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
-              if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)\n" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
-              if M.tracing then M.trace "relation" "st: %a\n" RD.pretty apr';
-              let r = RD.assign_exp apr' (RV.local v) e' (no_overflow ask simplified_e) in
-              if M.tracing then M.traceu "relation" "-> %a\n" RD.pretty r;
-              r
-            )
-        )
-      in
-      if M.tracing then M.traceu "relation" "-> %a\n" D.pretty r;
-      r
-    )
+    let simplified_e = replace_deref_exps ctx.ask e in
+    if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)" d_lval lv  d_exp e d_exp simplified_e;
+    let ask = Analyses.ask_of_ctx ctx in
+    let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+        assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
+            if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
+            if M.tracing then M.trace "relation" "st: %a" RD.pretty apr';
+            let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
+            if M.tracing then M.traceu "relation" "-> %a" RD.pretty r;
+            r
+          )
+      )
+    in
+    if M.tracing then M.traceu "relation" "-> %a" D.pretty r;
+    r
 
   let branch ctx e b =
     let st = ctx.local in
     let ask = Analyses.ask_of_ctx ctx in
     let res = assign_from_globals_wrapper ask ctx.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
-        RD.assert_inv rel' e' (not b) (no_overflow ask e)
+        RD.assert_inv ask rel' e' (not b) (no_overflow ask e)
       )
     in
     if RD.is_bot_env res then raise Deadcode;
@@ -261,50 +280,63 @@ struct
   let any_local_reachable fundec reachable_from_args =
     let locals = fundec.sformals @ fundec.slocals in
     let locals_id = List.map (fun v -> v.vid) locals in
-    Queries.LS.exists (fun (v',_) -> List.mem v'.vid locals_id && RD.Tracked.varinfo_tracked v') reachable_from_args
+    VS.exists (fun v -> List.mem v.vid locals_id && RD.Tracked.varinfo_tracked v) reachable_from_args
+
+  let reachable_from_args ctx args =
+    let to_vs e =
+      ctx.ask (ReachableFrom e)
+      |> Queries.AD.to_var_may
+      |> VS.of_list
+    in
+    List.fold (fun vs e -> VS.join vs (to_vs e)) (VS.empty ()) args
 
   let pass_to_callee fundec any_local_reachable var =
     (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
+    (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    let vname = RD.Var.to_string var in
+    let vname = Apron.Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
     match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
     | Some v -> any_local_reachable
 
-  let enter ctx r f args =
+  let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    if M.tracing then M.tracel "combine" "relation enter f: %a\n" CilType.Varinfo.pretty f.svar;
-    if M.tracing then M.tracel "combine" "relation enter formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
-    if M.tracing then M.tracel "combine" "relation enter local: %a\n" D.pretty ctx.local;
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
-      |> List.map (Tuple2.map1 RV.arg)
+      |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
     in
-    let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
     (* RD.assign_exp_parallel_with new_rel arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
-    let ask = Analyses.ask_of_ctx ctx in
-    let new_rel = List.fold_left (fun new_rel (var, e) ->
-        assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
-            RD.assign_exp rel' var e' (no_overflow ask e)
-          )
-      ) new_rel arg_assigns
+    let new_rel =
+      if thread then
+        new_rel
+      else
+        let ask = Analyses.ask_of_ctx ctx in
+        List.fold_left (fun new_rel (var, e) ->
+            assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
+                RD.assign_exp ask rel' var e' (no_overflow ask e)
+              )
+          ) new_rel arg_assigns
     in
+    let reachable_from_args = reachable_from_args ctx args in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
-        | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
-    if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
-    [st, {st with rel = new_rel}]
+    if M.tracing then M.tracel "combine" "relation enter newd: %a" RD.pretty new_rel;
+    new_rel
+
+  let enter ctx r f args =
+    let calle_rel = make_callee_rel ~thread:false ctx f args in
+    [ctx.local, {ctx.local with rel = calle_rel}]
 
   let body ctx f =
     let st = ctx.local in
@@ -330,7 +362,7 @@ struct
         match e with
         | Some e ->
           assign_from_globals_wrapper ask ctx.global {st with rel = rel'} e (fun rel' e' ->
-              RD.assign_exp rel' RV.return e' (no_overflow ask e)
+              RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
             )
         | None ->
           rel' (* leaves V.return unconstrained *)
@@ -354,16 +386,22 @@ struct
 
   let combine_env ctx r fe f args fc fun_st (f_ask : Queries.ask) =
     let st = ctx.local in
-    let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
+    let reachable_from_args = reachable_from_args ctx args in
     let fundec = Node.find_fundec ctx.node in
-    if M.tracing then M.tracel "combine" "relation f: %a\n" CilType.Varinfo.pretty f.svar;
-    if M.tracing then M.tracel "combine" "relation formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
-    if M.tracing then M.tracel "combine" "relation args: %a\n" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine" "relation f: %a" CilType.Varinfo.pretty f.svar;
+    if M.tracing then M.tracel "combine" "relation formals: %a" (d_list "," CilType.Varinfo.pretty) f.sformals;
+    if M.tracing then M.tracel "combine" "relation args: %a" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine" "relation st: %a" D.pretty st;
+    if M.tracing then M.tracel "combine" "relation fun_st: %a" D.pretty fun_st;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
+      let filter_actuals (x,e) =
+        RD.Tracked.varinfo_tracked x
+        && List.for_all (fun v -> not (VS.mem v reachable_from_args)) (Basetype.CilExp.get_vars e)
+      in
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       (* Do not do replacement for actuals whose value may be modified after the call *)
-      |> List.filter (fun (x, e) -> RD.Tracked.varinfo_tracked x && List.for_all (fun v -> not (Queries.LS.exists (fun (v',_) -> v'.vid = v.vid) reachable_from_args)) (Basetype.CilExp.get_vars e))
+      |> List.filter filter_actuals
       |> List.map (Tuple2.map1 RV.arg)
     in
     (* RD.substitute_exp_parallel_with new_fun_rel arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
@@ -372,13 +410,15 @@ struct
     let new_fun_rel = List.fold_left (fun new_fun_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_fun_rel} e (fun rel' e' ->
             (* not an assign, but still works? *)
-            RD.substitute_exp rel' var e' (no_overflow ask e)
+            (* substitute is the backwards semantics of assignment *)
+            (* https://antoinemine.github.io/Apron/doc/papers/expose_CEA_2007.pdf *)
+            RD.substitute_exp ask rel' var e' (no_overflow ask e)
           )
       ) new_fun_rel arg_substitutes
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
-    if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine" "relation remove vars: %a" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
@@ -392,7 +432,7 @@ struct
       )
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
-    if M.tracing then M.tracel "combine" "relation unifying %a %a = %a\n" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
+    if M.tracing then M.tracel "combine" "relation unifying %a %a = %a" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
     {fun_st with rel = unify_rel}
 
   let combine_assign ctx r fe f args fc fun_st (f_ask : Queries.ask) =
@@ -400,8 +440,10 @@ struct
     if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
         | Some lv ->
-          assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
-              RD.assign_var st.rel (RV.local v) RV.return
+          let ask = Analyses.ask_of_ctx ctx in
+          assign_to_global_wrapper ask ctx.global ctx.sideg unify_st lv (fun st v ->
+              let rel = RD.assign_var st.rel (RV.local v) RV.return in
+              assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
         | None ->
           unify_st
@@ -426,13 +468,13 @@ struct
       match st with
       | None -> None
       | Some st ->
-        let vs = ask.f (Queries.ReachableFrom e) in
-        if Queries.LS.is_top vs then
+        let ad = ask.f (Queries.ReachableFrom e) in
+        if Queries.AD.is_top ad then
           None
         else
-          Some (Queries.LS.join vs st)
+          Some (Queries.AD.join ad st)
     in
-    List.fold_right reachable es (Some (Queries.LS.empty ()))
+    List.fold_right reachable es (Some (Queries.AD.empty ()))
 
 
   let forget_reachable ctx st es =
@@ -444,9 +486,13 @@ struct
         RD.vars st.rel
         |> List.filter_map RV.to_cil_varinfo
         |> List.map Cil.var
-      | Some rs ->
-        Queries.LS.elements rs
-        |> List.map Lval.CilLval.to_lval
+      | Some ad ->
+        let to_cil addr rs =
+          match addr with
+          | Queries.AD.Addr.Addr mval -> (ValueDomain.Addr.Mval.to_cil mval) :: rs
+          | _ -> rs
+        in
+        Queries.AD.fold to_cil ad []
     in
     List.fold_left (fun st lval ->
         invalidate_one ask ctx st lval
@@ -461,7 +507,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let res = assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
           (* not an assign, but must remove g#in-s still *)
-          RD.assert_inv apr' e' false (no_overflow ask e)
+          RD.assert_inv ask apr' e' false (no_overflow ask e)
         )
       in
       if RD.is_bot_env res then raise Deadcode;
@@ -495,12 +541,19 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true ask ctx.global id st
+    | Rand, _ ->
+      (match r with
+       | Some lv ->
+         let st = invalidate_one ask ctx st lv in
+         assert_fn {ctx with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
+       | None -> st)
     | _, _ ->
       let lvallist e =
-        let s = ask.f (Queries.MayPointTo e) in
-        match s with
-        | `Top -> []
-        | `Lifted _ -> List.map (Lval.CilLval.to_lval) (Queries.LS.elements s)
+        match ask.f (Queries.MayPointTo e) with
+        | ad when Queries.AD.is_top ad -> []
+        | ad ->
+          Queries.AD.to_mval ad
+          |> List.map ValueDomain.Addr.Mval.to_cil
       in
       let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
       let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
@@ -572,7 +625,7 @@ struct
     |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
         (* filter one-vars and exact *)
         (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
-        if (one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
+        if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
@@ -582,8 +635,6 @@ struct
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let no_overflow ctx' exp' =
-      IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in (* TODO: separate no_overflow? *)
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
@@ -591,14 +642,14 @@ struct
       read_from_globals_wrapper
         (Analyses.ask_of_ctx ctx)
         ctx.global st esimple
-        (fun rel' e' -> RD.eval_int rel' e' no_ov)
+        (fun rel' e' -> RD.eval_int (Analyses.ask_of_ctx ctx) rel' e' no_ov)
     in
     match q with
     | EvalInt e ->
-      if M.tracing then M.traceli "evalint" "relation query %a (%a)\n" d_exp e d_plainexp e;
-      if M.tracing then M.trace "evalint" "relation st: %a\n" D.pretty ctx.local;
-      let r = eval_int e (lazy(no_overflow ctx e)) in
-      if M.tracing then M.traceu "evalint" "relation query %a -> %a\n" d_exp e ID.pretty r;
+      if M.tracing then M.traceli "evalint" "relation query %a (%a)" d_exp e d_plainexp e;
+      if M.tracing then M.trace "evalint" "relation st: %a" D.pretty ctx.local;
+      let r = eval_int e (no_overflow (Analyses.ask_of_ctx ctx) e) in
+      if M.tracing then M.traceu "evalint" "relation query %a -> %a" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
@@ -609,7 +660,7 @@ struct
 
   (* Thread transfer functions. *)
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let st = ctx.local in
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
@@ -620,19 +671,14 @@ struct
       if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
-      let arg_vars =
-        fd.sformals
-        |> List.filter RD.Tracked.varinfo_tracked
-        |> List.map RV.arg
-      in
-      let new_rel = RD.add_vars st'.rel arg_vars in
+      let new_rel = make_callee_rel ~thread:true ctx fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
       (* Unknown functions *)
       (* TODO: do something like base? *)
       failwith "relation.threadenter: unknown function"
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     ctx.local
 
   let event ctx e octx =
@@ -661,7 +707,29 @@ struct
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
       let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
       let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
-      let rel = RD.assert_inv rel e false (no_overflow ask e_orig) in (* assume *)
+      let rec dummyask =
+        (* assert_inv calls texpr1_expr_of_cil_exp, which simplifies the constraint based on the pre-state of the transition;
+           this does not reflect the state after RD.forget_vars rel .... has been performed; to prevent this aggressive
+           simplification, we restrict read_int queries to a local dummy ask, that only dispatches to rel instead of the
+           full state *)
+        let f (type a) (q : a Queries.t) : a =
+          let eval_int e no_ov =
+            let esimple = replace_deref_exps dummyask.f e in
+            read_from_globals_wrapper
+              (dummyask)
+              ctx.global { st with rel } esimple
+              (fun rel' e' -> RD.eval_int (dummyask) rel' e' no_ov)
+          in
+          match q with
+          | EvalInt e ->
+            if M.tracing then M.traceli "relation" "evalint query %a (%a), ctx %a" d_exp e d_plainexp e D.pretty ctx.local;
+            let r = eval_int e (no_overflow (dummyask) e) in
+            if M.tracing then M.trace "relation" "evalint response %a -> %a" d_exp e ValueDomainQueries.ID.pretty r;
+            r
+          |_ -> Queries.Result.top q
+        in
+        ({ f } : Queries.ask) in
+      let rel = RD.assert_inv dummyask rel e false (no_overflow ask e_orig) in (* assume *)
       let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
 
       (* TODO: parallel write_global? *)
@@ -675,7 +743,9 @@ struct
       in
       let rel = RD.remove_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
 
+      if M.tracing then M.traceli "apron" "unassume join";
       let st = D.join ctx.local {st with rel} in (* (strengthening) join *)
+      if M.tracing then M.traceu "apron" "unassume join";
       M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
       st
     | _ ->
@@ -714,7 +784,7 @@ struct
   let finalize () =
     let file = GobConfig.get_string "exp.relation.prec-dump" in
     if file <> "" then begin
-      Printf.printf "exp.relation.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
+      Logs.warn "exp.relation.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!";
       Timing.wrap "relation.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()

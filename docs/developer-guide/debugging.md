@@ -1,41 +1,48 @@
 # Debugging
 
-## Printing
-Goblint extensively uses [CIL's `Pretty`](https://people.eecs.berkeley.edu/~necula/cil/api/Pretty.html) module for printing due to many non-primitive values.
+## Logging
+Instead of debug printing directly to `stdout`, all logging should be done using the `Logs` module.
+This allows for consistent pretty terminal output, as well as avoiding interference with server mode.
+There are five logging levels: result, error, warning, info and debug.
+Log output is controlled by the `dbg.level` option, which defaults to "info".
 
-* Printing CIL values (e.g. an expression `exp`) using the corresponding pretty-printer `d_exp` from `Cil` module:
+Logs are written to `stderr`, except for result level, which go to `stdout` by default.
+
+Goblint extensively uses [CIL's `Pretty`](https://people.eecs.berkeley.edu/~necula/cil/api/Pretty.html) module for output due to many non-primitive values.
+
+* Logging CIL values (e.g. an expression `exp`) using the corresponding pretty-printer `d_exp` from `Cil` module:
 
 ```ocaml
-ignore (Pretty.printf "A CIL exp: %a\n" d_exp exp);
+Logs.debug "A CIL exp: %a" d_exp exp;
 ```
 
-* Printing Goblint's `Printable` values (e.g. a domain `D` element `d`) using the corresponding pretty-printer `D.pretty`:
+* Logging Goblint's `Printable` values (e.g. a domain `D` element `d`) using the corresponding pretty-printer `D.pretty`:
 
 ```ocaml
-ignore (Pretty.printf "A domain element: %a\n" D.pretty d);
+Logs.debug "A domain element: %a" D.pretty d;
 ```
 
-* Printing primitives (e.g. OCaml ints, strings, etc) using the standard [OCaml `Printf`](https://ocaml.org/api/Printf.html) specifiers:
+* Logging primitives (e.g. OCaml ints, strings, etc) using the standard [OCaml `Printf`](https://ocaml.org/api/Printf.html) specifiers:
 
 ```ocaml
-ignore (Pretty.printf "An int and a string: %d %s\n" 42 "magic");
+Logs.debug "An int and a string: %d %s" 42 "magic";
 ```
 
-* Printing lists of pretty-printables (e.g. expressions list `exps`) using `d_list`:
+* Logging lists of pretty-printables (e.g. expressions list `exps`) using `d_list`:
 
 ```ocaml
-ignore (Pretty.printf "Some expressions: %a\n" (d_list ", " d_exp) exps);
+Logs.debug "Some expressions: %a" (d_list ", " d_exp) exps;
 ```
 
 
 ## Tracing
-Tracing is a nicer alternative to debug printing, because it can be disabled for best performance and it can be used to only see relevant tracing output.
+Tracing is a nicer alternative to some logging, because it can be disabled for best performance and it can be used to only see relevant tracing output.
 
 Recompile with tracing enabled: `./scripts/trace_on.sh`.
 
-Instead of debug printing use a tracing function from the `Messages` module, which is often aliased to just `M` (and pick a relevant name instead of `mything`):
+Instead of logging use a tracing function from the `Messages` module, which is often aliased to just `M` (and pick a relevant name instead of `mything`):
 ```ocaml
-if M.tracing then M.trace "mything" "A domain element: %a\n" D.pretty d;
+if M.tracing then M.trace "mything" "A domain element: %a" D.pretty d;
 ```
 
 Then run Goblint with the additional argument `--trace mything`.
@@ -60,14 +67,14 @@ This will create a file called `goblint.byte`.
 ### Debugging Goblint with VS Code
 
 To debug OCaml programs, you can use the command line interface of `ocamldebug` or make use of the Visual Studio Code
-integration provided by `hackwaly.ocamlearlybird`.
+integration provided by `ocamllabs.ocaml-platform`.
 In the following, we describe the steps necessary to set up this VS Code extension to
 debug Goblint.
 
 ### Setting-up Earlybird
 
-Install the [`hackwaly.ocamlearlybird` extension](https://marketplace.visualstudio.com/items?itemName=hackwaly.ocamlearlybird) in your installation of Visual Studio Code.
-To be able to use this extension, you additionally need to install `ocamlearlybird` on the opam switch you use for Goblint.
+Install the [`ocamllabs.ocaml-platform` extension](https://marketplace.visualstudio.com/items?itemName=ocamllabs.ocaml-platform) in your installation of Visual Studio Code.
+To be able to use this extension, you additionally need to install `earlybird` on the opam switch you use for Goblint.
 To do so, run the following command in the `analyzer` directory:
 
 ```console
@@ -76,7 +83,7 @@ opam install earlybird
 
 ### Providing a Launch Configuration
 
-To let the `hackwaly.ocamlearlybird` extension know which executable it should debug, and which arguments it should pass, we have to provide a configuration file.
+To let the `ocamllabs.ocaml-platform` extension know which executable it should debug, and which arguments it should pass, we have to provide a configuration file.
 The configuration file has to be named `launch.json` and must reside in the `./.vscode` directory. Here is an example `launch.json`:
 
 ```JSON
@@ -85,19 +92,23 @@ The configuration file has to be named `launch.json` and must reside in the `./.
     "configurations": [
       {
         "name": "Goblint",
-        "type": "ocamlearlybird",
+        "type": "ocaml.earlybird",
         "request": "launch",
         "program": "${workspaceFolder}/goblint.byte",
         "arguments": [
           "tests/regression/00-sanity/01-assert.c",
           "--enable", "ana.int.interval",
         ],
+        "env": {
+          "LD_LIBRARY_PATH": "$LD_LIBRARY_PATH:_build/default/src/common"
+        },
         "stopOnEntry": false,
       }
     ]
 }
 ```
-Note that the individual arguments to Goblint should be passed here as separate strings that do not contain spaces.
+Note that the individual arguments to Goblint should be passed here as separate strings that do not contain spaces. Finally, to enable breakpoints uncomment `(map_workspace_root false)` in the dune-project file.
+
 
 ### Running Goblint in the VS Code Debugger
 

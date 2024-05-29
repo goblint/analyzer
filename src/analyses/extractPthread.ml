@@ -1,4 +1,4 @@
-(** Tracking of pthread lib code. Output to promela. *)
+(** Promela extraction analysis for Pthread programs ([extract-pthread]). *)
 
 open GoblintCil
 open Pretty
@@ -220,7 +220,7 @@ module Tbls = struct
       let make_new_val table k =
         (* TODO: all same key occurrences instead *)
         let line = -5 - all_keys_count table in
-        let loc = { !Tracing.current_loc with line } in
+        let loc = { !Goblint_tracing.current_loc with line } in
         MyCFG.Statement
           { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc, loc)) with
             sid = new_sid ()
@@ -244,7 +244,7 @@ let fun_ctx ctx f =
   f.vname ^ "_" ^ ctx_hash
 
 
-module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (PthreadDomain.D))
+module Tasks = SetDomain.Make (Lattice.Prod (Queries.AD) (PthreadDomain.D))
 module rec Env : sig
   type t
 
@@ -576,7 +576,7 @@ module Codegen = struct
       let dir = GobSys.mkdir_or_exists_absolute (Fpath.v "pml-result") in
       let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("pthread." ^ ext)) in
       output_file ~filename:path ~text:content ;
-      print_endline @@ "saved " ^ desc ^ " as " ^ path
+      Logs.info "saved %s as %s" desc path
   end
 
   let tabulate = ( ^ ) "\t"
@@ -612,7 +612,7 @@ module Codegen = struct
     let called_funs_done = ref Set.empty in
 
     let rec process_def res =
-      print_endline @@ Resource.show res ;
+      print_endline @@ Resource.show res ; (* nosemgrep: print-not-logging *)
       let res_type = Resource.res_type res in
       let res_name = Resource.res_name res in
       let is_thread = res_type = Resource.Thread in
@@ -850,7 +850,7 @@ module Codegen = struct
 
     Writer.write "promela model" "pml" promela ;
     Writer.write "graph" "dot" dot_graph ;
-    print_endline
+    Logs.result
       "Copy spin/pthread_base.pml to same folder and then do: spin -a \
        pthread.pml && cc -o pan pan.c && ./pan -a"
 end
@@ -866,11 +866,9 @@ module Spec : Analyses.MCPSpec = struct
   (** Domains *)
   module D = PthreadDomain.D
 
-  module C = D
+  include Analyses.ValueContexts(D)
 
   (** Set of created tasks to spawn when going multithreaded *)
-  module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D))
-
   module G = Tasks
 
   let tasks_var =
@@ -879,22 +877,9 @@ module Spec : Analyses.MCPSpec = struct
 
   module ExprEval = struct
     let eval_ptr ctx exp =
-      let mayPointTo ctx exp =
-        let a = ctx.ask (Queries.MayPointTo exp) in
-        if (not (Queries.LS.is_top a)) && Queries.LS.cardinal a > 0 then
-          let top_elt = (dummyFunDec.svar, `NoOffset) in
-          let a' =
-            if Queries.LS.mem top_elt a
-            then (* UNSOUND *)
-              Queries.LS.remove top_elt a
-            else a
-          in
-          Queries.LS.elements a'
-        else
-          []
-      in
-      List.map fst @@ mayPointTo ctx exp
-
+      ctx.ask (Queries.MayPointTo exp)
+      |> Queries.AD.remove UnknownPtr (* UNSOUND *)
+      |> Queries.AD.to_var_may
 
     let eval_var ctx exp =
       match exp with
@@ -1124,18 +1109,17 @@ module Spec : Analyses.MCPSpec = struct
       let arglist' = List.map (stripCasts % constFold false) arglist in
       match (LibraryFunctions.find f).special arglist', f.vname, arglist with
       | ThreadCreate { thread; start_routine = func; _ }, _, _ ->
-        let funs_ls =
-          let ls = ctx.ask (Queries.ReachableFrom func) in
-          Queries.LS.filter
-            (fun (v, o) ->
-               let lval = (Var v, Lval.CilLval.to_ciloffs o) in
-               isFunctionType (typeOfLval lval))
-            ls
+        let funs_ad =
+          let ad = ctx.ask (Queries.ReachableFrom func) in
+          Queries.AD.filter
+            (function
+              | Queries.AD.Addr.Addr mval ->
+                isFunctionType (ValueDomain.Mval.type_of mval)
+              | _ -> false)
+            ad
         in
         let thread_fun =
-          funs_ls
-          |> Queries.LS.elements
-          |> List.map fst
+          Queries.AD.to_var_may funs_ad
           |> List.unique ~eq:(fun a b -> a.vid = b.vid)
           |> List.hd
         in
@@ -1148,7 +1132,7 @@ module Spec : Analyses.MCPSpec = struct
               ; ctx = Ctx.top ()
               }
             in
-            Tasks.singleton (funs_ls, f_d)
+            Tasks.singleton (funs_ad, f_d)
           in
           ctx.sideg tasks_var tasks ;
         in
@@ -1254,20 +1238,23 @@ module Spec : Analyses.MCPSpec = struct
       (Ctx.top ())
 
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     let d : D.t = ctx.local in
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)
     let tasks_f =
-      Tasks.filter
-        (fun (fs, f_d) -> Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs)
-        tasks
+      let var_in_ad ad f = Queries.AD.exists (function
+          | Queries.AD.Addr.Addr (ls_f,_) -> CilType.Varinfo.equal ls_f f
+          | _ -> false
+        ) ad
+      in
+      Tasks.filter (fun (ad,_) -> var_in_ad ad f) tasks
     in
     let f_d = snd (Tasks.choose tasks_f) in
     [ { f_d with pred = d.pred } ]
 
 
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
 
   let exitstate v = D.top ()
 

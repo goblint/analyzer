@@ -67,7 +67,10 @@
     }
   },
   "witness": {
-    "id": "enumerate",
-    "unknown": false
+    "graphml": {
+      "enabled": true,
+      "id": "enumerate",
+      "unknown": false
+    }
   }
 }

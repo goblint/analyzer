@@ -8,4 +8,31 @@
 (library
   (name goblint_build_info)
   (public_name goblint.build-info)
-  (virtual_modules goblint_build_info))
+  (libraries batteries.unthreaded)
+  (virtual_modules dune_build_info))
+
+(rule
+  (target configVersion.ml)
+  (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
+  (deps (universe)) ; do not cache, always regenerate
+  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
+
+(rule
+  (target configProfile.ml)
+  (mode (promote (until-clean) (only configProfile.ml))) ; replace existing file in source tree, even if releasing (only overrides)
+  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
+
+(rule
+  (target configOcaml.ml)
+  (mode (promote (until-clean) (only configOcaml.ml))) ; replace existing file in source tree, even if releasing (only overrides)
+  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet flambda = \"%{ocaml-config:flambda}\"")))
+
+(rule
+  (target configDatetime.ml)
+  (mode (promote (until-clean) (only configDatetime.ml))) ; replace existing file in source tree, even if releasing (only overrides)
+  (deps (universe)) ; do not cache, always regenerate
+  (action (pipe-stdout (bash "date +\"%Y-%m-%dT%H:%M:%S\" || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet datetime = \"%s\"'")))))
+
+(env
+  (_
+    (flags (:standard -w -no-cmx-file)))) ; suppress warning from flambda compiler bug: https://github.com/ocaml/dune/issues/3277

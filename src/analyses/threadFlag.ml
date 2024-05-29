@@ -1,4 +1,4 @@
-(** Multi-threadedness analysis. *)
+(** Multi-threadedness analysis ([threadflag]). *)
 
 module LF = LibraryFunctions
 
@@ -19,9 +19,13 @@ struct
 
   module Flag = ThreadFlagDomain.Simple
   module D = Flag
-  module C = Flag
+  include Analyses.ValueContexts(D)
+  module P = IdentityP (D)
+  module V = UnitV
+  module G = BoolDomain.MayBool
 
   let name () = "threadflag"
+
 
   let startstate v = Flag.bot ()
   let exitstate  v = Flag.get_multi ()
@@ -30,8 +34,6 @@ struct
 
   let create_tid v =
     Flag.get_multi ()
-
-  let should_join = D.equal
 
   let return ctx exp fundec  =
     match fundec.svar.vname with
@@ -45,6 +47,7 @@ struct
     match x with
     | Queries.MustBeSingleThreaded _ -> not (Flag.is_multi ctx.local) (* If this analysis can tell, it is the case since the start *)
     | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
+    | Queries.IsEverMultiThreaded -> (ctx.global () : bool) (* requires annotation to compile *)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
     | _ -> Queries.Result.top x
@@ -59,12 +62,13 @@ struct
   let access ctx _ =
     is_currently_multi (Analyses.ask_of_ctx ctx)
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     [create_tid f]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
+    ctx.sideg () true;
     if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     D.join ctx.local (Flag.get_main ())

@@ -1,3 +1,5 @@
+(** Detection of suitable C preprocessor. *)
+
 open Batteries
 
 let bad_cpp_version_regexp = Str.regexp_case_fold "clang\\|apple\\|darwin"
@@ -9,8 +11,7 @@ let is_bad name =
     | exception Not_found -> false
     | _ -> true
   in
-  if GobConfig.get_bool "dbg.verbose" then
-    Printf.printf "Preprocessor %s: is_bad=%B\n" name r;
+  Logs.debug "Preprocessor %s: is_bad=%B" name r;
   r
 
 let compgen prefix =

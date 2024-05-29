@@ -1,19 +1,16 @@
-(** Analysis tracking which longjmp is currently active *)
+(** Analysis of active [longjmp] targets ([activeLongjmp]). *)
 
 open GoblintCil
 open Analyses
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "activeLongjmp"
 
   (* The first component are the longjmp targets, the second are the longjmp callers *)
   module D = JmpBufDomain.ActiveLongjmps
-  module C = Lattice.Unit
-
-  let context _ _ = ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
@@ -26,7 +23,7 @@ struct
 
   (* Initial values don't really matter: overwritten at longjmp call. *)
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

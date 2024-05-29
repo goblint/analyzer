@@ -1,4 +1,4 @@
-(** Deadlock analysis. *)
+(** Deadlock analysis ([deadlock]). *)
 
 open Batteries
 open GoblintCil
@@ -30,7 +30,7 @@ struct
     let part_access ctx: MCPAccess.A.t =
       Obj.obj (ctx.ask (PartAccess Point))
 
-    let add ctx ((l, _): LockDomain.Lockset.Lock.t) =
+    let add ctx ((l, _): LockDomain.AddrRW.t) =
       let after: LockEvent.t = (l, ctx.prev_node, part_access ctx) in (* use octx for access to use locksets before event *)
       D.iter (fun before ->
           side_lock_event_pair ctx before after
