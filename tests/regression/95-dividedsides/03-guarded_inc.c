@@ -19,7 +19,7 @@ int main(void) {
 
   __goblint_check(a <= 10);
   pthread_mutex_lock(&mutex);
-  __goblint_check(a <= 10); // UNKNOWN due to privatization issue (TODO)
+  __goblint_check(a <= 10);
   pthread_mutex_unlock(&mutex);
   return 0;
 }
