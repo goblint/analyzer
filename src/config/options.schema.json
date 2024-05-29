@@ -768,6 +768,20 @@
               "title": "ana.base.priv",
               "type": "object",
               "properties": {
+                "protection": {
+                  "title": "ana.base.priv.protection",
+                  "description": "Options for protection based privatization schemes.",
+                  "type": "object",
+                  "properties": {
+                    "changes-only": {
+                      "title": "ana.base.priv.protection.changes-only",
+                      "description": "Only propagate changes to globals on unlock, don't side the full value of the privatized global.",
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
                 "not-started": {
                   "title": "ana.base.priv.not-started",
                   "description":

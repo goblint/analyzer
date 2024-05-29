@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval
+// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval --enable ana.base.priv.protection.changes-only
 #include <pthread.h>
 #include <goblint.h>
 #include <unistd.h>
