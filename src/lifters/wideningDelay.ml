@@ -7,15 +7,21 @@ open Batteries
 open Lattice
 open Analyses
 
-module Dom (Base: S) =
+module LocalChainParams: Printable.ChainParams =
 struct
-  module ChainParams =
-  struct
-    let n () = GobConfig.get_int "ana.widen.delay"
-    let names = string_of_int
-  end
-  module Chain = Printable.Chain (ChainParams)
+  let n () = GobConfig.get_int "ana.widen.delay.local"
+  let names = string_of_int
+end
 
+module GlobalChainParams: Printable.ChainParams =
+struct
+  let n () = GobConfig.get_int "ana.widen.delay.global"
+  let names = string_of_int
+end
+
+module Dom (Base: S) (ChainParams: Printable.ChainParams) =
+struct
+  module Chain = Printable.Chain (ChainParams)
   include Printable.Prod (Base) (Chain)
 
   let bot () = (Base.bot (), 0)
@@ -41,11 +47,11 @@ struct
 end
 
 
-module Lifter (S: Spec): Spec =
+module DLifter (S: Spec): Spec =
 struct
   module D =
   struct
-    include Dom (S.D)
+    include Dom (S.D) (LocalChainParams)
 
     let printXml f (b, i) =
       BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" S.D.printXml b Chain.printXml i
@@ -103,6 +109,68 @@ struct
   let paths_as_set ctx =
     let liftmap = List.map (fun x -> (x, snd ctx.local)) in
     lift_fun ctx liftmap S.paths_as_set Fun.id
+
+  let event ctx e octx =
+    lift_fun ctx lift S.event ((|>) (conv octx) % (|>) e)
+end
+
+module GLifter (S: Spec): Spec =
+struct
+  module D = S.D
+  module G =
+  struct
+    include Dom (S.G) (GlobalChainParams)
+
+    let printXml f (b, i) =
+      BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" S.G.printXml b Chain.printXml i
+  end
+  module C = S.C
+  module V = S.V
+  module P = S.P
+
+  let name () = S.name () ^ " with widening delay"
+
+  type marshal = S.marshal
+  let init = S.init
+  let finalize = S.finalize
+
+  let startstate v = S.startstate v
+  let exitstate  v = S.exitstate  v
+  let morphstate v d = S.morphstate v d
+
+  let context fd d = S.context fd d
+
+  let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+    { ctx with global = (fun v -> fst (ctx.global v))
+             ; sideg = (fun v g -> ctx.sideg v (g, 0))
+    }
+  let lift_fun ctx f g h =
+    f @@ h (g (conv ctx))
+
+  let lift d = d
+
+  let sync ctx reason = lift_fun ctx lift S.sync   ((|>) reason)
+  let query ctx (type a) (q: a Queries.t): a Queries.result = S.query (conv ctx) q
+  let assign ctx lv e = lift_fun ctx lift S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v     = lift_fun ctx lift S.vdecl  ((|>) v)
+  let branch ctx e tv = lift_fun ctx lift S.branch ((|>) tv % (|>) e)
+  let body ctx f      = lift_fun ctx lift S.body   ((|>) f)
+  let return ctx r f  = lift_fun ctx lift S.return ((|>) f % (|>) r)
+  let asm ctx         = lift_fun ctx lift S.asm    identity
+  let skip ctx        = lift_fun ctx lift S.skip identity
+  let special ctx r f args = lift_fun ctx lift S.special ((|>) args % (|>) f % (|>) r)
+
+  let enter ctx r f args =
+    let liftmap = List.map (Tuple2.mapn lift) in
+    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
+  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift S.combine_env (fun p -> p r fe f args fc es f_ask)
+  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift S.combine_assign (fun p -> p r fe f args fc es f_ask)
+
+  let threadenter ctx ~multiple lval f args = lift_fun ctx (List.map lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
+  let threadspawn ctx ~multiple lval f args fctx = lift_fun ctx lift (S.threadspawn ~multiple) ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
+
+  let paths_as_set ctx =
+    lift_fun ctx Fun.id S.paths_as_set Fun.id
 
   let event ctx e octx =
     lift_fun ctx lift S.event ((|>) (conv octx) % (|>) e)
