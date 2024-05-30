@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.divided-narrow.enable --enable ana.int.interval
+// PARAM: --enable solvers.td3.narrow-sides.enabled --enable ana.int.interval
 
 // This is supposed to check if the solver terminates
 #include <pthread.h>

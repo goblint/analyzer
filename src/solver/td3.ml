@@ -70,7 +70,7 @@ module Base =
     type marshal = solver_data
 
     let create_empty_data () =
-      let divided_narrow = GobConfig.get_bool "solvers.td3.divided-narrow.enable" in
+      let divided_narrow = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
       {
       st = [];
       infl = HM.create 10;
@@ -267,10 +267,10 @@ module Base =
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
 
-      let divided_narrow = GobConfig.get_bool "solvers.td3.divided-narrow.enable" in
-      let divided_narrow_stable = GobConfig.get_bool "solvers.td3.divided-narrow.stable" in
-      let divided_narrow_conservative_widen = GobConfig.get_bool "solvers.td3.divided-narrow.conservative-widen" in
-      let divided_narrow_gas_default = GobConfig.get_int "solvers.td3.divided-narrow.narrow-gas" in
+      let divided_narrow = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
+      let divided_narrow_stable = GobConfig.get_bool "solvers.td3.narrow-sides.stable" in
+      let divided_narrow_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-sides.conservative-widen" in
+      let divided_narrow_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
       let divided_narrow_gas_default = if divided_narrow_gas_default < 0 then None else Some divided_narrow_gas_default in
 
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in

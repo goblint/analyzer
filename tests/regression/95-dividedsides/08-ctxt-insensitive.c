@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.callString_length 0 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']" --enable ana.int.interval_set --enable solvers.td3.divided-narrow.enable --enable solvers.td3.divided-narrow.stable
+// PARAM: --set ana.context.callString_length 0 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']" --enable ana.int.interval_set --enable solvers.td3.narrow-sides.enabled --enable solvers.td3.narrow-sides.stable
 
 int g(int i) {
     if (i == 0) {

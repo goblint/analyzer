@@ -2346,30 +2346,30 @@
               "type": "boolean",
               "default": true
             },
-            "divided-narrow": {
-              "title": "solvers.td3.divided-narrow",
+            "narrow-sides": {
+              "title": "solvers.td3.narrow-sides",
               "type": "object",
               "properties": {
-                "enable": {
-                  "title": "solvers.td3.divided-narrow.enable",
+                "enabled": {
+                  "title": "solvers.td3.narrow-sides.enabled",
                   "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
                   "type": "boolean",
                   "default": false
                 },
                 "stable": {
-                  "title": "solvers.td3.divided-narrow.stable",
+                  "title": "solvers.td3.narrow-sides.stable",
                   "description": "Controls when to narrow. true: If unknown remains stable after evaluating its rhs, apply all sides with narrowing. false: Apply sides that did not increase with narrowing.",
                   "type": "boolean",
                   "default": false
                 },
                 "conservative-widen": {
-                  "title": "solvers.td3.divided-narrow.conservative-widen",
-                  "description": "Controls when to narrow. true: Only widen on a side-effect, if joining would affect the overall value of the global. false: Always widen increasing/incomparable side-effects",
+                  "title": "solvers.td3.narrow-sides.conservative-widen",
+                  "description": "Controls when to widen divided sides. true: Only widen on a side-effect, if joining would affect the overall value of the global. false: Always widen increasing/incomparable side-effects",
                   "type": "boolean",
                   "default": true
                 },
                 "narrow-gas": {
-                  "title": "solvers.td3.divided-narrow.narrow-gas",
+                  "title": "solvers.td3.narrow-sides.narrow-gas",
                   "description": "Limits the number of times a global can be narrowed to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
                   "type": "integer",
                   "default": -1
