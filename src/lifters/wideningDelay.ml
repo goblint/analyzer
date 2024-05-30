@@ -47,6 +47,9 @@ struct
 end
 
 
+(** Lift {!S} to use widening delay for local states.
+
+    All transfer functions reset the counter to 0, so counting only happens between old and new values at a local unknown. *)
 module DLifter (S: Spec): Spec =
 struct
   module D =
@@ -116,6 +119,7 @@ struct
     lift_fun ctx lift S.event ((|>) (conv octx) % (|>) e)
 end
 
+(** Lift {!S} to use widening delay for global unknowns. *)
 module GLifter (S: Spec): Spec =
 struct
   module D = S.D
