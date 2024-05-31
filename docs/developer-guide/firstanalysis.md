@@ -74,7 +74,7 @@ For more information on the signature of the individual transfer functions, plea
 ## Extending the domain
 
 You could now enrich the lattice to also have a representation for non-negative (i.e., zero or positive) values.
-Then the join of `Zero` and `Pos` would be "non-negative" instead of `Top`, allowing you to prove that such join is greated than `Neg`.
+Then the join of `Zero` and `Pos` would be "non-negative" instead of `Top`, allowing you to prove that such join is greater than `Neg`.
 For example, have a look at the following program: `tests/regression/99-tutorials/02-first-extend.c`.
 
 _Hint:_
