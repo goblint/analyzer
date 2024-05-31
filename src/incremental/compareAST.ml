@@ -360,14 +360,6 @@ and eq_stmt ?cfg_comp ((a, af): stmt * fundec) ((b, bf): stmt * fundec) ~(rename
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) ~(rename_mapping: rename_mapping) : bool * rename_mapping =
   (a.battrs = b.battrs, rename_mapping) &&>> forward_list_equal (fun x y -> eq_stmt (x, af) (y, bf)) a.bstmts b.bstmts
 
-let rec eq_init (a: init) (b: init) ~(rename_mapping: rename_mapping) = match a, b with
-  | SingleInit e1, SingleInit e2 -> eq_exp e1 e2 ~rename_mapping
-  | CompoundInit (t1, l1), CompoundInit (t2, l2) ->
-    eq_typ t1 t2 ~rename_mapping &&>>
-    forward_list_equal (fun (o1, i1) (o2, i2) ~rename_mapping:rename_mapping -> eq_offset o1 o2 ~rename_mapping &&>> eq_init i1 i2) l1 l2
-  | _, _ -> false, rename_mapping
-
-let eq_initinfo (a: initinfo) (b: initinfo) ~(rename_mapping: rename_mapping) = match a.init, b.init with
-  | (Some init_a), (Some init_b) -> eq_init init_a init_b ~rename_mapping
-  | None, None -> true, rename_mapping
-  | _, _ -> false, rename_mapping
+(* No eq_init for comparing globals,
+   because new globals are used to build new starting state for the solver:
+   https://github.com/goblint/analyzer/issues/1425#issuecomment-2129387141. *)
