@@ -15,7 +15,7 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg" in
+  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
   let open Batteries in
   (* apply functor F on module X if opt is true *)
@@ -760,12 +760,23 @@ struct
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;
 
-    if get_bool "exp.arg" then (
+    if get_bool "exp.arg.enabled" then (
       let module ArgTool = ArgTools.Make (R) in
       let module Arg = (val ArgTool.create entrystates) in
-      if get_bool "exp.argdot" then (
-        let module ArgDot = ArgTools.Dot (Arg) in
-        let oc = Batteries.open_out "arg.dot" in
+      let arg_dot_path = get_string "exp.arg.dot.path" in
+      if arg_dot_path <> "" then (
+        let module NoLabelNodeStyle =
+        struct
+          type node = Arg.Node.t
+          let extra_node_styles node =
+            match GobConfig.get_string "exp.arg.dot.node-label" with
+            | "node" -> []
+            | "empty" -> ["label=\"_\""] (* can't have empty string because graph-easy will default to node ID then... *)
+            | _ -> assert false
+        end
+        in
+        let module ArgDot = ArgTools.Dot (Arg) (NoLabelNodeStyle) in
+        let oc = Batteries.open_out arg_dot_path in
         Fun.protect (fun () ->
             let ppf = Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;

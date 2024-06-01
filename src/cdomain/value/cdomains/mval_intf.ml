@@ -17,9 +17,6 @@ sig
 
       @return [Some o] if it is (such that the variables are equal and [add_offset m1 o = m2]), [None] if it is not. *)
 
-  val top_indices: t -> t
-  (** Change all indices to top indices. *)
-
   val to_cil: t -> GoblintCil.lval
   (** Convert to CIL lvalue. *)
 
@@ -34,6 +31,9 @@ module type Lattice =
 sig
   include Printable (** @closed *)
   include Lattice.S with type t := t (** @closed *)
+
+  val top_indices: t -> t
+  (** Change all indices to top indices. *)
 
   val semantic_equal: t -> t -> bool option
   (** Check semantic equality of two mvalues.
@@ -57,4 +57,7 @@ sig
 
   (** Mvalue with {!Offset.Exp} indices in offset. *)
   module Exp: Printable with type idx = GoblintCil.exp
+
+  (** Mvalue with {!Offset.Z} indices in offset. *)
+  module Z: Printable with type idx = Z.t
 end
