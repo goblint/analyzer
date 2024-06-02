@@ -572,6 +572,16 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let min_ik' = Ints_t.to_bigint min_ik in
     let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x min_ik' >= 0) ts in
     BatOption.map_default Ints_t.of_bigint min_ik t
+  let is_upper_threshold u =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+    let u = Ints_t.to_bigint u in
+    let t = List.find_opt (fun x -> Z.compare u x = 0) ts in
+    Option.is_some t
+  let is_lower_threshold l =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+    let l = Ints_t.to_bigint l in
+    let t = List.find_opt (fun x -> Z.compare l x = 0) ts in
+    Option.is_some t
 end
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -702,9 +712,10 @@ struct
     match x, y with
     | _,None | None, _ -> None
     | Some (x1,x2), Some (y1,y2) ->
+      let threshold = get_interval_threshold_widening () in
       let (min_ik, max_ik) = range ik in
-      let lr = if Ints_t.compare min_ik x1 = 0 then y1 else x1 in
-      let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
+      let lr = if Ints_t.compare min_ik x1 = 0 || threshold && IArith.is_lower_threshold x1 then y1 else x1 in
+      let ur = if Ints_t.compare max_ik x2 = 0 || threshold && IArith.is_upper_threshold x2 then y2 else x2 in
       norm ik @@ Some (lr,ur) |> fst
 
 
