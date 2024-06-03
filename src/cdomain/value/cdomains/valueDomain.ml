@@ -57,11 +57,24 @@ sig
   val invalidate_value: VDQ.t -> typ -> t -> t
 end
 
-(* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
-module ZeroInit =
+module type ZeroInit =
+sig
+  include Lattice.S
+
+  val is_malloc : t -> bool
+  val malloc : t
+  val calloc : t
+end
+
+(* ZeroInit is false if malloc was used to allocate memory and true if calloc was used *)
+module ZeroInit : ZeroInit =
 struct
   include Lattice.Fake(Basetype.RawBools)
-  let name () = "no zeroinit"
+  let name () = "zeroinit"
+
+  let is_malloc x = not x
+  let malloc = false
+  let calloc = true
 end
 
 module Blob (Value: S) (Size: IntDomain.Z)=
@@ -862,8 +875,8 @@ struct
       end
     | _, _ ->  None
 
-  let zero_init_calloced_memory orig x t =
-    if orig then
+  let zero_init_calloced_memory zeroinit x t =
+    if ZeroInit.is_malloc zeroinit then
       (* This Blob came from malloc *)
       x
     else if x = Bot then
