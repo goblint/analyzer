@@ -419,7 +419,7 @@ module Base =
               HM.replace changed y ();
           )
         | _ -> ()
-      and divided_side (phase:divided_side_phase) ?x y d : bool =
+      and divided_side (phase:divided_side_phase) ?(do_destabilize=true) ?x y d : bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
@@ -467,7 +467,8 @@ module Base =
                   if tracing then trace "side" "value of %a changed by side from %a (accumulation phase: %b, grew: %b, shrank: %b) Old value: %a ## New value: %a"
                       S.Var.pretty_trace y S.Var.pretty_trace x (phase == D_Widen) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
                   HM.replace rho y y_newval;
-                  destabilize y;
+                  if do_destabilize then
+                    destabilize y;
                 );
                 true
               ) else
@@ -484,10 +485,8 @@ module Base =
             if not (S.Dom.leq wd y_oldval) then (
               if tracing then trace "side" "orphaned side changed %a (accumulation phase: %b)" S.Var.pretty_trace y (phase == D_Widen);
               HM.replace rho y (S.Dom.join wd y_oldval);
-              (* TODO: SIDE destabilize might be uninitialized. Handle this more cleanly. *)
-              (try
+              if do_destabilize then
                 destabilize y;
-               with Failure f -> ());
               true
             ) else
               false
@@ -630,7 +629,7 @@ module Base =
         init x;
         (* TODO: SIDE make this change-proof *)
         if divided_narrow then
-          ignore @@ divided_side D_Widen x d
+          ignore @@ divided_side ~do_destabilize:false D_Widen x d
         else
           HM.replace rho x d;
         HM.replace stable x ();
@@ -969,7 +968,6 @@ module Base =
           );
           d1
         ) else (
-          (* TODO: SIDE handle sides here *)
           let d = eq check x in
           HM.replace rho x d;
           d
@@ -1185,7 +1183,6 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (* TODO: clear side-effects? *)
       (rho, {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
