@@ -167,6 +167,11 @@ let check_arguments () =
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if get_bool "solvers.td3.space" && get_bool "solvers.td3.narrow-sides.enabled" then fail "solvers.td3.space is incompatible with solvers.td3.narrow-sides";
+  if (get_bool "incremental.load" || get_bool "incremental.save") && get_bool "solvers.td3.narrow-sides.enabled" then (
+    set_bool "solvers.td3.narrow-sides.enabled" false;
+    warn "solvers.td3.narrow-sides implicitly disabled by incremental analysis";
+  );
   if List.mem "termination" @@ get_string_list "ana.activated" then (
     if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
     set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);

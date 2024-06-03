@@ -667,19 +667,10 @@ module Base =
           HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
           HM.remove sides x; (* just in case *)
 
-          if divided_narrow then (
-              HM.remove divided_side_effects x;
-              HM.remove orphan_side_effects x;
-            );
-
           (* immediately redo "side effect" from st *)
           match GobList.assoc_eq_opt S.Var.equal x st with
           | Some d ->
-            (* TODO: SIDE make this change-proof *)
-            if divided_narrow then
-              ignore @@ divided_side D_Widen x d
-            else
-              HM.replace rho x d;
+            HM.replace rho x d;
           | None ->
             ()
         in
@@ -863,11 +854,7 @@ module Base =
                 (* restart removed start global below *)
                 ()
             );
-            if divided_narrow then
-              (* it is not necessary to perform narrowing here, orphan side-effects cannot be narrowed anyway *)
-              ignore @@ divided_side D_Widen v d
-            else
-              side v d
+            side v d
           ) st;
 
         if should_restart_start then (
