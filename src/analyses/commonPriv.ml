@@ -74,12 +74,12 @@ struct
 
   let is_unprotected_without ask ?(write=true) ?(protection=Strong) x m: bool =
     (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
-    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m; protection})
+    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=Addr (LockDomain.MustLock.to_mval m); protection}) (* TODO: no mutex conversion? *)
 
   let is_protected_by ask ?(protection=Strong) m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
+    ask.f (Q.MustBeProtectedBy {mutex=Addr (LockDomain.MustLock.to_mval m); global=x; write=true; protection}) (* TODO: no mutex conversion? *)
 
   let protected_vars (ask: Q.ask): varinfo list =
     LockDomain.MustLockset.fold (fun ml acc ->
@@ -92,7 +92,7 @@ module MutexGlobals =
 struct
   module VMutex =
   struct
-    include LockDomain.Addr
+    include LockDomain.MustLock
     let name () = "mutex"
   end
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
@@ -106,7 +106,7 @@ struct
     include Printable.Either3Conf (struct include Printable.DefaultConf let expand2 = false end) (VMutex) (VMutexInits) (VGlobal)
     let name () = "MutexGlobals"
     let mutex x: t = `Left x
-    let mutex_mustlock x = mutex (Addr (LockDomain.MustLock.to_mval x))
+    let mutex_mustlock x = mutex x (* TODO: remove *)
     let mutex_inits: t = `Middle ()
     let global x: t = `Right x
   end
@@ -250,7 +250,7 @@ struct
 
   module LLock =
   struct
-    include Printable.Either (Locksets.Lock) (struct include CilType.Varinfo let name () = "global" end)
+    include Printable.Either (LockDomain.MustLock) (struct include CilType.Varinfo let name () = "global" end)
     let mutex m = `Left m
     let global x = `Right x
   end
@@ -313,7 +313,7 @@ let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   match addr with
   | UnknownPtr -> st
   | Addr (v, _) when ask.f (IsMultiple v) -> st
-  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st (LockDomain.MustLock.of_mval mv)
   | Addr _
   | NullPtr
   | StrPtr _ -> st
@@ -328,16 +328,16 @@ let lift_unlock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   | UnknownPtr ->
     LockDomain.MustLockset.fold (fun ml st ->
         (* call privatization's unlock only with definite lock *)
-        f st (LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+        f st ml
       ) (ask.f MustLockset) st
   | StrPtr _
   | NullPtr -> st
-  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st (LockDomain.MustLock.of_mval mv)
   | Addr mv ->
     LockDomain.MustLockset.fold (fun ml st ->
         if LockDomain.MustLock.semantic_equal_mval ml mv = Some false then
           st
         else
           (* call privatization's unlock only with definite lock *)
-          f st (Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+          f st ml
       ) (ask.f MustLockset) st

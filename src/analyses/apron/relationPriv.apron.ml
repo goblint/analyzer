@@ -33,8 +33,8 @@ module type S =
        the state when following conditional guards. *)
     val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> varinfo -> varinfo -> relation_components_t
 
-    val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.Addr.t -> relation_components_t
-    val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.Addr.t -> relation_components_t
+    val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
+    val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
 
     val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `Return | `Init | `Thread] -> relation_components_t
 
@@ -471,7 +471,7 @@ struct
 
   let startstate () = ()
 
-  let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
+  let atomic_mutex = LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
@@ -577,9 +577,9 @@ struct
   let write_escape = write_global_internal ~skip_meet:true
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
     (* TODO: somehow actually unneeded here? *)
-    if not atomic && Locksets.(not (MustLockset.mem_addr m (current_lockset ask))) then (
+    if not atomic && Locksets.(not (MustLockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let get_m = get_m_with_mutex_inits ask getg m in
       (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
@@ -592,7 +592,7 @@ struct
       st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
     let rel = st.rel in
     if not atomic then (
       let rel_side = keep_only_protected_globals ask m rel in
@@ -703,7 +703,7 @@ module type ClusterArg = functor (RD: RelationDomain.RD) ->
 sig
   module LRD: Lattice.S
 
-  val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LRD.t -> LRD.t
+  val keep_only_protected_globals: Q.ask -> LockDomain.MustLock.t -> LRD.t -> LRD.t
   val keep_global: varinfo -> LRD.t -> LRD.t
 
   val lock: RD.t -> LRD.t -> LRD.t -> RD.t
@@ -962,7 +962,7 @@ struct
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
-    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a" LockDomain.Addr.pretty m LRD.pretty get_m;
+    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a" LockDomain.MustLock.pretty m LRD.pretty get_m;
     let r =
       if not inits then
         get_m
@@ -975,7 +975,7 @@ struct
     if M.tracing then M.traceu "relationpriv" "-> %a" LRD.pretty r;
     r
 
-  let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
+  let atomic_mutex = LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let get_mutex_global_g =
@@ -1088,8 +1088,8 @@ struct
       {rel = rel_local; priv = (W.add g w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
-    if not atomic && Locksets.(not (MustLockset.mem_addr m (current_lockset ask))) then (
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
+    if not atomic && Locksets.(not (MustLockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in
@@ -1112,7 +1112,7 @@ struct
     RD.keep_filter oct protected
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
     let rel = st.rel in
     let w,lmust,l = st.priv in
     if not atomic then (
@@ -1290,7 +1290,7 @@ struct
     r
 
   let lock ask getg st m =
-    if M.tracing then M.traceli "relationpriv" "lock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.traceli "relationpriv" "lock %a" LockDomain.MustLock.pretty m;
     if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -1302,7 +1302,7 @@ struct
     r
 
   let unlock ask getg sideg st m =
-    if M.tracing then M.traceli "relationpriv" "unlock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.traceli "relationpriv" "unlock %a" LockDomain.MustLock.pretty m;
     if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
