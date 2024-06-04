@@ -868,6 +868,10 @@ struct
         Invariant.none (* don't output protected invariant because it's the same as unprotected *)
       else (
         let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: this takes protected values of everything *)
+        (* Very conservative about multiple (write-)protecting mutexes: invariant is not claimed when any of them is held.
+           It should be possible to be more precise because writes only happen with all of them held,
+           but conjunction is unsound when one of the mutexes is temporarily unlocked.
+           Hypothetical read-protection is also somehow relevant. *)
         Q.AD.fold (fun m acc ->
             if LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) then
               acc
