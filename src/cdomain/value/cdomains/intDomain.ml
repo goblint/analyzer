@@ -714,8 +714,8 @@ struct
     | Some (x1,x2), Some (y1,y2) ->
       let threshold = get_interval_threshold_widening () in
       let (min_ik, max_ik) = range ik in
-      let lr = if Ints_t.compare min_ik x1 = 0 || threshold && IArith.is_lower_threshold x1 then y1 else x1 in
-      let ur = if Ints_t.compare max_ik x2 = 0 || threshold && IArith.is_upper_threshold x2 then y2 else x2 in
+      let lr = if Ints_t.compare min_ik x1 = 0 || threshold && Ints_t.compare y1 x1 > 0 && IArith.is_lower_threshold x1 then y1 else x1 in
+      let ur = if Ints_t.compare max_ik x2 = 0 || threshold && Ints_t.compare y2 x2 < 0 && IArith.is_upper_threshold x2 then y2 else x2 in
       norm ik @@ Some (lr,ur) |> fst
 
 
