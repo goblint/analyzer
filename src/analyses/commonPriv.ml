@@ -74,12 +74,12 @@ struct
 
   let is_unprotected_without ask ?(write=true) ?(protection=Strong) x m: bool =
     (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
-    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=Addr (LockDomain.MustLock.to_mval m); protection}) (* TODO: no mutex conversion? *)
+    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m; protection})
 
   let is_protected_by ask ?(protection=Strong) m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=Addr (LockDomain.MustLock.to_mval m); global=x; write=true; protection}) (* TODO: no mutex conversion? *)
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
     LockDomain.MustLockset.fold (fun ml acc ->
