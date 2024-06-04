@@ -579,7 +579,7 @@ struct
   let lock ask getg (st: relation_components_t) m =
     let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
     (* TODO: somehow actually unneeded here? *)
-    if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    if not atomic && Locksets.(not (MustLockset.mem_addr m (current_lockset ask))) then (
       let rel = st.rel in
       let get_m = get_m_with_mutex_inits ask getg m in
       (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
@@ -1089,7 +1089,7 @@ struct
 
   let lock ask getg (st: relation_components_t) m =
     let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
-    if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    if not atomic && Locksets.(not (MustLockset.mem_addr m (current_lockset ask))) then (
       let rel = st.rel in
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in

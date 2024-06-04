@@ -281,7 +281,7 @@ struct
      cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
-    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    if Locksets.(not (MustLockset.mem_addr m (current_lockset ask))) then (
       let get_m = get_m_with_mutex_inits ask getg m in
       (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
          where our (necessary) original context still has the mutex,
@@ -377,7 +377,7 @@ struct
      cpa' *)
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
-    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    if Locksets.(not (MustLockset.mem_addr m (current_lockset ask))) then (
       let get_m = get_m_with_mutex_inits ask getg m in
       (* Additionally filter get_m in case it contains variables it no longer protects. *)
       let is_in_Gm x _ = is_protected_by ask m x in
@@ -523,7 +523,7 @@ struct
     {st with cpa = cpa'; priv = (W.add x w,LMust.add lm lmust,l')}
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
-    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    if Locksets.(not (MustLockset.mem_addr m (current_lockset ask))) then (
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in
       let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
@@ -847,12 +847,12 @@ struct
 
   module GWeak =
   struct
-    include MapDomain.MapBot (Lockset) (WeakRange)
+    include MapDomain.MapBot (MustLockset) (WeakRange)
     let name () = "weak"
   end
   module GSync =
   struct
-    include MapDomain.MapBot (Lockset) (SyncRange)
+    include MapDomain.MapBot (MustLockset) (SyncRange)
     let name () = "synchronized"
   end
   module G =
@@ -908,10 +908,10 @@ struct
   let invariant_vars ask getg st =
     let module VS = Set.Make (CilType.Varinfo) in
     let s = current_lockset ask in
-    Lockset.fold (fun m acc ->
+    MustLockset.fold (fun m acc ->
         GSync.fold (fun s' cpa' acc ->
             SyncRange.fold_sync_vars VS.add cpa' acc
-          ) (G.sync (getg (V.mutex m))) acc
+          ) (G.sync (getg (V.mutex_mustlock m))) acc
       ) s VS.empty
     |> VS.elements
 end
@@ -987,7 +987,7 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     GWeak.fold (fun s' tm acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           ThreadMap.fold (fun t' v acc ->
               VD.join v acc
             ) tm acc
@@ -1007,7 +1007,7 @@ struct
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
     let cpa' = GSync.fold (fun s' cpa' acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
@@ -1016,13 +1016,13 @@ struct
     {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
-    let s = Lockset.remove m (current_lockset ask) in
+    let s = MustLockset.remove_addr m (current_lockset ask) in
     let t = current_thread ask in
     let side_cpa = CPA.filter (fun x _ ->
         GWeak.fold (fun s' tm acc ->
             (* TODO: swap 2^M and T partitioning for lookup by t here first? *)
             let v = ThreadMap.find t tm in
-            (Lockset.mem m s' && not (VD.is_bot v)) || acc
+            (MustLockset.mem_addr m s' && not (VD.is_bot v)) || acc
           ) (G.weak (getg (V.global x))) false
       ) st.cpa
     in
@@ -1048,7 +1048,7 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     GWeak.fold (fun s' v acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           VD.join v acc
         else
           acc
@@ -1065,7 +1065,7 @@ struct
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
     let cpa' = GSync.fold (fun s' cpa' acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
@@ -1074,10 +1074,10 @@ struct
     {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
-    let s = Lockset.remove m (current_lockset ask) in
+    let s = MustLockset.remove_addr m (current_lockset ask) in
     let side_cpa = CPA.filter (fun x _ ->
         GWeak.fold (fun s' v acc ->
-            (Lockset.mem m s' && not (VD.is_bot v)) || acc
+            (MustLockset.mem_addr m s' && not (VD.is_bot v)) || acc
           ) (G.weak (getg (V.global x))) false
       ) st.cpa
     in
@@ -1119,7 +1119,7 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     GWeak.fold (fun s' v acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           VD.join v acc
         else
           acc
@@ -1140,7 +1140,7 @@ struct
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
     let cpa' = GSync.fold (fun s' cpa' acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
@@ -1149,7 +1149,7 @@ struct
     {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
-    let s = Lockset.remove m (current_lockset ask) in
+    let s = MustLockset.remove_addr m (current_lockset ask) in
     let is_in_W x _ = W.mem x st.priv in
     let side_cpa = CPA.filter is_in_W st.cpa in
     sideg (V.mutex m) (G.create_sync (GSync.singleton s side_cpa));
@@ -1169,7 +1169,7 @@ struct
     if Param.side_effect_global_init then (
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x then (
-            sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
+            sideg (V.global x) (G.create_weak (GWeak.singleton (MustLockset.empty ()) v));
             {st with priv = W.add x st.priv} (* TODO: is this add necessary? *)
           )
           else
@@ -1222,7 +1222,7 @@ struct
 
   let startstate () = (DV.bot (), L.bot ())
 
-  let lockset_init = Lockset.top ()
+  let lockset_init = MustLockset.all ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
@@ -1241,7 +1241,7 @@ struct
           let syncs = UnwrappedG.sync (getg (V.mutex m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' cpa' acc ->
-                  if Lockset.disjoint b s' then
+                  if MustLockset.disjoint b s' then
                     let v = CPA.find x cpa' in
                     VD.join v acc
                   else
@@ -1254,7 +1254,7 @@ struct
     in
     let weaks = UnwrappedG.weak (getg (V.global x)) in
     let d_weak = GWeak.fold (fun s' v acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           VD.join v acc
         else
           acc
@@ -1301,7 +1301,7 @@ struct
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let sideg = Wrapper.sideg ask sideg in
     let getg = Wrapper.getg ask getg in
-    let s = Lockset.remove m (current_lockset ask) in
+    let s = MustLockset.remove_addr m (current_lockset ask) in
     let is_in_G x _ = is_global ask x in
     let side_cpa = CPA.filter is_in_G st.cpa in
     let side_cpa = CPA.mapi (fun x v ->
@@ -1355,13 +1355,13 @@ struct
 
   module GWeakW =
   struct
-    include MapDomain.MapBot (Lockset) (VD)
+    include MapDomain.MapBot (MustLockset) (VD)
 
     let fold_weak f m a = fold (fun _ v a -> f v a) m a
   end
   module GSyncW =
   struct
-    include MapDomain.MapBot (Lockset) (LockCenteredBase.CPA)
+    include MapDomain.MapBot (MustLockset) (LockCenteredBase.CPA)
 
     let fold_sync_vars f m a =
       fold (fun _ cpa a ->
@@ -1393,11 +1393,11 @@ struct
 
   let startstate () = (W.bot (), P.top ())
 
-  let lockset_init = Lockset.top ()
+  let lockset_init = MustLockset.all ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
-      let v_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) (UnwrappedG.weak (getg (V.global x)))) in
+      let v_init = GWeakW.find lockset_init (GWeak.find (MustLockset.empty ()) (UnwrappedG.weak (getg (V.global x)))) in
       VD.join v v_init
     else
       v
@@ -1408,13 +1408,13 @@ struct
     let (w, p) = st.priv in
     let p_x = P.find x p in
     let d_cpa = CPA.find x st.cpa in
-    let d_sync = Lockset.fold (fun m acc ->
-        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
-          let syncs = UnwrappedG.sync (getg (V.mutex m)) in
+    let d_sync = MustLockset.fold (fun m acc ->
+        if MinLocksets.exists (fun s''' -> not (MustLockset.mem m s''')) p_x then
+          let syncs = UnwrappedG.sync (getg (V.mutex_mustlock m)) in
           GSync.fold (fun s' gsyncw' acc ->
-              if Lockset.disjoint s s' then
+              if MustLockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
-                    if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
+                    if MinLocksets.exists (fun s'' -> MustLockset.disjoint s'' w') p_x then
                       let v = CPA.find x cpa' in
                       VD.join v acc
                     else
@@ -1429,9 +1429,9 @@ struct
     in
     let weaks = UnwrappedG.weak (getg (V.global x)) in
     let d_weak = GWeak.fold (fun s' gweakw' acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           GWeakW.fold (fun w' v acc ->
-              if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
+              if MinLocksets.exists (fun s'' -> MustLockset.disjoint s'' w') p_x then
                 VD.join v acc
               else
                 acc
@@ -1471,7 +1471,7 @@ struct
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let getg = Wrapper.getg ask getg in
     let sideg = Wrapper.sideg ask sideg in
-    let s = Lockset.remove m (current_lockset ask) in
+    let s = MustLockset.remove_addr m (current_lockset ask) in
     let (w, p) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
     if M.tracing then M.traceli "priv" "unlock %a %a" Lock.pretty m CPA.pretty st.cpa;
@@ -1507,7 +1507,7 @@ struct
         if EscapeDomain.EscapedVars.mem x escaped then (
           let (w, p) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
-          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (MustLockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa; priv = (w, p')}
         )
         else
@@ -1518,7 +1518,7 @@ struct
     let sideg = Wrapper.sideg ask sideg in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (MustLockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa}
         )
         else
@@ -1548,11 +1548,11 @@ struct
 
   let startstate () = ((W.bot (), P.top ()), (DV.bot (), L.bot ()))
 
-  let lockset_init = Lockset.top ()
+  let lockset_init = MustLockset.all ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
-      let v_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) (UnwrappedG.weak (getg (V.global x)))) in
+      let v_init = GWeakW.find lockset_init (GWeak.find (MustLockset.empty ()) (UnwrappedG.weak (getg (V.global x)))) in
       VD.join v v_init
     else
       v
@@ -1568,9 +1568,9 @@ struct
           let syncs = UnwrappedG.sync (getg (V.mutex m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' gsyncw' acc ->
-                  if Lockset.disjoint b s' then
+                  if MustLockset.disjoint b s' then
                     GSyncW.fold (fun w' cpa' acc ->
-                        if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
+                        if MinLocksets.exists (fun s'' -> MustLockset.disjoint s'' w') p_x then
                           let v = CPA.find x cpa' in
                           VD.join v acc
                         else
@@ -1586,9 +1586,9 @@ struct
     in
     let weaks = UnwrappedG.weak (getg (V.global x)) in
     let d_m_weak = GWeak.fold (fun s' gweakw' acc ->
-        if Lockset.disjoint s s' then
+        if MustLockset.disjoint s s' then
           GWeakW.fold (fun w' v acc ->
-              if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
+              if MinLocksets.exists (fun s'' -> MustLockset.disjoint s'' w') p_x then
                 VD.join v acc
               else
                 acc
@@ -1598,13 +1598,13 @@ struct
       ) weaks (VD.bot ())
     in
     let d_m = VD.join d_m_sync d_m_weak in
-    let d_g_sync = Lockset.fold (fun m acc ->
-        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
-          let syncs = UnwrappedG.sync (getg (V.mutex m)) in
+    let d_g_sync = MustLockset.fold (fun m acc ->
+        if MinLocksets.exists (fun s''' -> not (MustLockset.mem m s''')) p_x then
+          let syncs = UnwrappedG.sync (getg (V.mutex_mustlock m)) in
           GSync.fold (fun s' gsyncw' acc ->
-              if Lockset.disjoint s s' then
+              if MustLockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
-                    if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
+                    if MinLocksets.exists (fun s'' -> MustLockset.disjoint s'' w') p_x then
                       let v = CPA.find x cpa' in
                       VD.join v acc
                     else
@@ -1656,7 +1656,7 @@ struct
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let getg = Wrapper.getg ask getg in
     let sideg = Wrapper.sideg ask sideg in
-    let s = Lockset.remove m (current_lockset ask) in
+    let s = MustLockset.remove_addr m (current_lockset ask) in
     let ((w, p), vl) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
     let side_gsyncw = CPA.fold (fun x v acc ->
@@ -1689,7 +1689,7 @@ struct
         if EscapeDomain.EscapedVars.mem x escaped then (
           let ((w, p), (vv, l)) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
-          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (MustLockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa; priv = ((w, p'), (vv, l))}
         )
         else
@@ -1700,7 +1700,7 @@ struct
     let sideg = Wrapper.sideg ask sideg in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (MustLockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa}
         )
         else

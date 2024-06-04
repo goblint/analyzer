@@ -106,6 +106,7 @@ struct
     include Printable.Either3Conf (struct include Printable.DefaultConf let expand2 = false end) (VMutex) (VMutexInits) (VGlobal)
     let name () = "MutexGlobals"
     let mutex x: t = `Left x
+    let mutex_mustlock x = mutex (Addr (LockDomain.MustLock.to_mval x))
     let mutex_inits: t = `Middle ()
     let global x: t = `Right x
   end
@@ -136,17 +137,14 @@ struct
     let name () = "lock"
   end
 
-  module Lockset = SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
+  module MustLockset = LockDomain.MustLockset
 
-  module MustLockset = SetDomain.Reverse (Lockset)
-
-  let current_lockset (ask: Q.ask): Lockset.t =
+  let current_lockset (ask: Q.ask): MustLockset.t =
     (* TODO: remove this global_init workaround *)
     if !AnalysisState.global_initialization then
-      Lockset.empty ()
+      MustLockset.empty ()
     else
-      let mls = ask.f Queries.MustLockset in
-      LockDomain.MustLockset.fold (fun ml acc -> Lockset.add (Addr (LockDomain.MustLock.to_mval ml)) acc) mls (Lockset.empty ()) (* TODO: use MustLockset as Lockset *)
+      ask.f Queries.MustLockset
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
@@ -171,7 +169,7 @@ struct
     let name () = "P"
 
     (* TODO: change MinLocksets.exists/top instead? *)
-    let find x p = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) (* ensure exists has something to check for thread returns *)
+    let find x p = find_opt x p |? MinLocksets.singleton (MustLockset.empty ()) (* ensure exists has something to check for thread returns *)
   end
 end
 

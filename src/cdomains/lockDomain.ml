@@ -35,6 +35,22 @@ module MustLockset =
 struct
   include SetDomain.Reverse (SetDomain.ToppedSet (MustLock) (struct let topname = "All mutexes" end))
 
+  let mem_addr (a: Addr.t) (set: t) = (* TODO: replace with mem_mval *)
+    match Addr.to_mval a with
+    | Some mv when Mval.is_definite mv ->
+      let ml = MustLock.of_mval mv in
+      mem ml set
+    | _ ->
+      false
+
+  let remove_addr (a: Addr.t) (set: t) = (* TODO: replace with remove_mval *)
+    match Addr.to_mval a with
+    | Some mv when Mval.is_definite mv ->
+      let ml = MustLock.of_mval mv in
+      remove ml set
+    | _ ->
+      set
+
   let all (): t = `Top
   let is_all (set: t) = set = `Top
 end
