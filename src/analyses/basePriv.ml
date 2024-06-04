@@ -911,7 +911,7 @@ struct
     MustLockset.fold (fun m acc ->
         GSync.fold (fun s' cpa' acc ->
             SyncRange.fold_sync_vars VS.add cpa' acc
-          ) (G.sync (getg (V.mutex_mustlock m))) acc
+          ) (G.sync (getg (V.mutex m))) acc
       ) s VS.empty
     |> VS.elements
 end
@@ -1410,7 +1410,7 @@ struct
     let d_cpa = CPA.find x st.cpa in
     let d_sync = MustLockset.fold (fun m acc ->
         if MinLocksets.exists (fun s''' -> not (MustLockset.mem m s''')) p_x then
-          let syncs = UnwrappedG.sync (getg (V.mutex_mustlock m)) in
+          let syncs = UnwrappedG.sync (getg (V.mutex m)) in
           GSync.fold (fun s' gsyncw' acc ->
               if MustLockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
@@ -1600,7 +1600,7 @@ struct
     let d_m = VD.join d_m_sync d_m_weak in
     let d_g_sync = MustLockset.fold (fun m acc ->
         if MinLocksets.exists (fun s''' -> not (MustLockset.mem m s''')) p_x then
-          let syncs = UnwrappedG.sync (getg (V.mutex_mustlock m)) in
+          let syncs = UnwrappedG.sync (getg (V.mutex m)) in
           GSync.fold (fun s' gsyncw' acc ->
               if MustLockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->

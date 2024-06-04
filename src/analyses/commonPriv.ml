@@ -106,7 +106,6 @@ struct
     include Printable.Either3Conf (struct include Printable.DefaultConf let expand2 = false end) (VMutex) (VMutexInits) (VGlobal)
     let name () = "MutexGlobals"
     let mutex x: t = `Left x
-    let mutex_mustlock x = mutex x (* TODO: remove *)
     let mutex_inits: t = `Middle ()
     let global x: t = `Right x
   end
@@ -131,12 +130,6 @@ end
 
 module Locksets =
 struct
-  module Lock =
-  struct
-    include LockDomain.Addr
-    let name () = "lock"
-  end
-
   module MustLockset = LockDomain.MustLockset
 
   let current_lockset (ask: Q.ask): MustLockset.t =
