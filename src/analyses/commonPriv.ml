@@ -299,27 +299,36 @@ end
 
 
 let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
+  (* Should be in sync with:
+     1. LocksetAnalysis.MakeMust.event
+     2. MutexAnalysis.Spec.Arg.add
+     3. LockDomain.MustLocksetRW.add_mval_rw *)
   match addr with
   | UnknownPtr -> st
   | Addr (v, _) when ask.f (IsMultiple v) -> st
-  | Addr (v, o) when LockDomain.Mval.is_definite (v, o) ->
-    f st addr
-  | _ -> st
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr _
+  | NullPtr
+  | StrPtr _ -> st
 
 let lift_unlock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
+  (* Should be in sync with:
+     1. LocksetAnalysis.MakeMust.event
+     2. MutexAnalysis.Spec.Arg.remove
+     3. MutexAnalysis.Spec.Arg.remove_all
+     4. LockDomain.MustLocksetRW.remove_mval_rw *)
   match addr with
   | UnknownPtr ->
     M.info ~category:Unsound "Unknown mutex unlocked, privatization unsound"; (* TODO: something more sound *)
     st (* TODO: remove all! *)
-  | Addr (v, o) when LockDomain.Mval.is_definite (v, o) ->
-    f st addr
-  | Addr (v, o) ->
-    let s = ask.f MustLockset in
+  | StrPtr _
+  | NullPtr -> st
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv ->
     LockDomain.MustLockset.fold (fun ml st ->
-        if LockDomain.MustLock.semantic_equal_mval ml (v, o) = Some false then
+        if LockDomain.MustLock.semantic_equal_mval ml mv = Some false then
           st
         else
-          let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml) in
-          f st addr
-      ) s st
-  | _ -> st
+          (* call privatization's unlock only with definite lock *)
+          f st (Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+      ) (ask.f MustLockset) st
