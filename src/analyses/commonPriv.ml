@@ -319,8 +319,10 @@ let lift_unlock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
      4. LockDomain.MustLocksetRW.remove_mval_rw *)
   match addr with
   | UnknownPtr ->
-    M.info ~category:Unsound "Unknown mutex unlocked, privatization unsound"; (* TODO: something more sound *)
-    st (* TODO: remove all! *)
+    LockDomain.MustLockset.fold (fun ml st ->
+        (* call privatization's unlock only with definite lock *)
+        f st (LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+      ) (ask.f MustLockset) st
   | StrPtr _
   | NullPtr -> st
   | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
