@@ -1393,8 +1393,9 @@ struct
       let min_ys = minimal ys |> Option.get in
       let max_ys = maximal ys |> Option.get in
       let min_range,max_range = range ik in
-      let min = if min_xs =. min_range then min_ys else min_xs in
-      let max = if max_xs =. max_range then max_ys else max_xs in
+      let threshold = get_interval_threshold_widening () in
+      let min = if min_xs =. min_range || threshold && min_ys <. min_xs && IArith.is_lower_threshold min_xs then min_ys else min_xs in
+      let max = if max_xs =. max_range || threshold && max_ys <. max_xs && IArith.is_upper_threshold max_xs then max_ys else max_xs in
       xs
       |> (function (_, y)::z -> (min, y)::z | _ -> [])
       |> List.rev
