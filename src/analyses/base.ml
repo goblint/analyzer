@@ -3062,35 +3062,15 @@ struct
     match e with
     | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a" LockDomain.Addr.pretty addr;
-      begin match addr with
-        | UnknownPtr -> ctx.local
-        | Addr (v, _) when ctx.ask (IsMultiple v) -> ctx.local
-        | Addr (v, o) when Addr.Mval.is_definite (v, o) ->
-          Priv.lock ask (priv_getg ctx.global) st addr
-        | _ -> ctx.local
-      end
+      CommonPriv.lift_lock ask (fun st m ->
+          Priv.lock ask (priv_getg ctx.global) st m
+        ) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
-      begin match addr with
-        | UnknownPtr ->
-          M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
-          ctx.local (* TODO: remove all! *)
-        | Addr (v, o) when Addr.Mval.is_definite (v, o) ->
-          WideningTokens.with_local_side_tokens (fun () ->
-              Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
-            )
-        | Addr (v, o) ->
-          WideningTokens.with_local_side_tokens (fun () ->
-              let s = ctx.ask MustLockset in
-              LockDomain.MustLockset.fold (fun ml st ->
-                  if LockDomain.MustLock.semantic_equal_mval ml (v, o) = Some false then
-                    st
-                  else
-                    let addr = Addr.Addr (LockDomain.MustLock.to_mval ml) in
-                    Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
-                ) s st
-            )
-        | _ -> ctx.local
-      end
+      WideningTokens.with_local_side_tokens (fun () ->
+          CommonPriv.lift_unlock ask (fun st m ->
+              Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st m
+            ) st addr
+        )
     | Events.Escape escaped ->
       Priv.escape ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st escaped
     | Events.EnterMultiThreaded ->

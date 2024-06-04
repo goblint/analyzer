@@ -305,3 +305,30 @@ struct
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end
+
+
+let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
+  match addr with
+  | UnknownPtr -> st
+  | Addr (v, _) when ask.f (IsMultiple v) -> st
+  | Addr (v, o) when LockDomain.Mval.is_definite (v, o) ->
+    f st addr
+  | _ -> st
+
+let lift_unlock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
+  match addr with
+  | UnknownPtr ->
+    M.info ~category:Unsound "Unknown mutex unlocked, privatization unsound"; (* TODO: something more sound *)
+    st (* TODO: remove all! *)
+  | Addr (v, o) when LockDomain.Mval.is_definite (v, o) ->
+    f st addr
+  | Addr (v, o) ->
+    let s = ask.f MustLockset in
+    LockDomain.MustLockset.fold (fun ml st ->
+        if LockDomain.MustLock.semantic_equal_mval ml (v, o) = Some false then
+          st
+        else
+          let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml) in
+          f st addr
+      ) s st
+  | _ -> st
