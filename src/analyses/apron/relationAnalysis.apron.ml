@@ -678,38 +678,19 @@ struct
     ctx.local
 
   let event ctx e octx =
+    let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      begin match addr with
-        | UnknownPtr -> ctx.local
-        | Addr (v, _) when ctx.ask (IsMultiple v) -> ctx.local
-        | Addr (v, o) when LockDomain.Mval.is_definite (v, o) ->
-          Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
-        | _ -> ctx.local
-      end
-    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      begin match addr with
-        | UnknownPtr ->
-          M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
-          ctx.local (* TODO: remove all! *)
-        | Addr (v, o) when LockDomain.Mval.is_definite (v, o) ->
-          WideningTokens.with_local_side_tokens (fun () ->
-              Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
-            )
-        | Addr (v, o) ->
-          WideningTokens.with_local_side_tokens (fun () ->
-              let s = ctx.ask MustLockset in
-              LockDomain.MustLockset.fold (fun ml st ->
-                  if LockDomain.MustLock.semantic_equal_mval ml (v, o) = Some false then
-                    st
-                  else
-                    let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml) in
-                    Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
-                ) s st
-            )
-        | _ -> ctx.local
-      end
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
+      CommonPriv.lift_lock ask (fun st m ->
+          Priv.lock ask ctx.global st m
+        ) st addr
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
+      WideningTokens.with_local_side_tokens (fun () ->
+          CommonPriv.lift_unlock ask (fun st m ->
+              Priv.unlock ask ctx.global ctx.sideg st m
+            ) st addr
+        )
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
