@@ -14,7 +14,7 @@ struct
   let name () = "access"
 
   module D = Lattice.Unit
-  module C = Printable.Unit
+  include Analyses.ValueContexts(D)
 
   module V =
   struct
@@ -52,11 +52,12 @@ struct
     );
     if M.tracing then M.traceu "access" "access_one_top"
 
+
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
   let threadenter ctx ~multiple lval f args = [()]
   let exitstate  v = ()
-  let context fd d = ()
+  let context ctx fd d = ()
 
 
   (** Transfer functions: *)

@@ -206,7 +206,8 @@ sig
   val morphstate : varinfo -> D.t -> D.t
   val exitstate  : varinfo -> D.t
 
-  val context : fundec -> D.t -> C.t
+  val context: (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t -> C.t
+  val startcontext: unit -> C.t
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
@@ -375,7 +376,7 @@ struct
   let sync ctx _ = ctx.local
   (* Most domains do not have a global part. *)
 
-  let context fd x = x
+  let context ctx fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
   let paths_as_set ctx = [ctx.local]
@@ -420,7 +421,13 @@ module IdentityUnitContextsSpec = struct
   include IdentitySpec
   module C = Printable.Unit
 
-  let context _ _ = ()
+  let context ctx _ _ = ()
+  let startcontext () = ()
+end
+
+module ValueContexts (D:Lattice.S) = struct
+  module C = D
+  let startcontext () = D.bot ()
 end
 
 module type SpecSys =

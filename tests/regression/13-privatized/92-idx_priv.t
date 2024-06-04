@@ -1,5 +1,5 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 80-idx_priv.c
-  [Success][Assert] Assertion "data == 0" will succeed (80-idx_priv.c:22:3-22:29)
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 92-idx_priv.c
+  [Success][Assert] Assertion "data == 0" will succeed (92-idx_priv.c:22:3-22:29)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 0
@@ -17,7 +17,7 @@
     variable: multithreaded
     expression: "1"
     location:
-      file_name: 80-idx_priv.c
+      file_name: 92-idx_priv.c
       file_hash: $FILE_HASH
       line: 20
       column: 3

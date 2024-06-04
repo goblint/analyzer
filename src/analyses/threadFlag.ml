@@ -19,12 +19,13 @@ struct
 
   module Flag = ThreadFlagDomain.Simple
   module D = Flag
-  module C = Flag
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
   module V = UnitV
   module G = BoolDomain.MayBool
 
   let name () = "threadflag"
+
 
   let startstate v = Flag.bot ()
   let exitstate  v = Flag.get_multi ()

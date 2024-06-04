@@ -25,12 +25,12 @@ struct
 
   module Locked =
   struct
-    include LockDomain.Mutexes
+    include LockDomain.MayLocksetNoRW
     let name () = "locked"
   end
   module Unlocked =
   struct
-    include LockDomain.Mutexes
+    include LockDomain.MayLocksetNoRW
     let name () = "unlocked"
   end
   module MultiThread =
@@ -92,7 +92,7 @@ struct
     ctx.local
 
   let ghost_var_available ctx = function
-    | WitnessGhost.Var.Locked (Addr (v, o) as lock) -> not (LockDomain.Offs.contains_index o) && not (G.lock (ctx.global (V.lock lock)))
+    | WitnessGhost.Var.Locked (Addr (v, o) as lock) -> not (LockDomain.Addr.Offs.contains_index o) && not (G.lock (ctx.global (V.lock lock)))
     | Locked _ -> false
     | Multithreaded -> true
 

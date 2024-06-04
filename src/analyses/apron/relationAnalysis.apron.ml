@@ -20,7 +20,7 @@ struct
   module Priv = Priv (RD)
   module D = RelationDomain.RelComponents (RD) (Priv.D)
   module G = Priv.G
-  module C = D
+  include Analyses.ValueContexts(D)
   module V =
   struct
     include Priv.V
@@ -40,7 +40,7 @@ struct
   (* Result map used for comparison of results for relational traces paper. *)
   let results = PCU.RH.create 103
 
-  let context fd x =
+  let context ctx fd x =
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
       x
     else
@@ -440,8 +440,10 @@ struct
     if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
         | Some lv ->
-          assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
-              RD.assign_var st.rel (RV.local v) RV.return
+          let ask = Analyses.ask_of_ctx ctx in
+          assign_to_global_wrapper ask ctx.global ctx.sideg unify_st lv (fun st v ->
+              let rel = RD.assign_var st.rel (RV.local v) RV.return in
+              assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
         | None ->
           unify_st

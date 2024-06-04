@@ -52,7 +52,7 @@ end
 type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
+type mustprotectedvars = {mutex: LockDomain.MustLock.t; write: bool} [@@deriving ord, hash]
 type access =
   | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
@@ -77,7 +77,7 @@ type _ t =
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
-  | MustLockset: AD.t t
+  | MustLockset: LockDomain.MustLockset.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
@@ -117,7 +117,7 @@ type _ t =
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
-  | MustProtectingLocks: CilType.Varinfo.t -> AD.t t
+  | MustProtectingLocks: CilType.Varinfo.t -> LockDomain.MustLockset.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -154,7 +154,7 @@ struct
     | MayPointTo _ -> (module AD)
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
-    | MustLockset -> (module AD)
+    | MustLockset -> (module LockDomain.MustLockset)
     | EvalFunvar _ -> (module AD)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
@@ -191,7 +191,7 @@ struct
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
-    | MustProtectingLocks _ -> (module AD)
+    | MustProtectingLocks _ -> (module LockDomain.MustLockset)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
@@ -227,7 +227,7 @@ struct
     | MayPointTo _ -> AD.top ()
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
-    | MustLockset -> AD.top ()
+    | MustLockset -> LockDomain.MustLockset.top ()
     | EvalFunvar _ -> AD.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
@@ -264,7 +264,7 @@ struct
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
-    | MustProtectingLocks _ -> AD.top ()
+    | MustProtectingLocks _ -> LockDomain.MustLockset.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()

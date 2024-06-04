@@ -57,7 +57,7 @@ struct
     else remove unique_call counter |> add unique_call (count + 1)
 
   module D = Lattice.Prod (NodeFlatLattice) (UniqueCallCounter)
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let wrappers = Hashtbl.create 13
 

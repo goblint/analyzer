@@ -107,12 +107,6 @@ struct
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
   let morphstate v (d, _) = (Dom.map_keys (Spec.morphstate v) d, Sync.bot ())
 
-  let context fd (l, _) =
-    if Dom.cardinal l <> 1 then
-      failwith "PathSensitive3.context must be called with a singleton set."
-    else
-      Spec.context fd @@ Dom.choose_key l
-
   let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
     match Sync.find i sync with
@@ -145,6 +139,15 @@ struct
       ctx.split (Dom.singleton y yr, Sync.bot ()) es
     in
     ctx'
+
+  let context ctx fd (l, _) =
+    if Dom.cardinal l <> 1 then
+      failwith "PathSensitive3.context must be called with a singleton set."
+    else
+      let x = Dom.choose_key l in
+      Spec.context (conv ctx x) fd @@ x
+
+  let startcontext = Spec.startcontext
 
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
@@ -278,7 +281,15 @@ struct
               R.bot ()
           in
           (* keep left syncs so combine gets them for no-inline case *)
-          ((Dom.singleton x (R.bot ()), snd ctx.local), (Dom.singleton y yr, Sync.bot ()))
+          (* must lookup and short-circuit because enter may modify first in pair (e.g. abortUnless) *)
+          let syncs =
+            match Sync.find x' (snd ctx.local) with
+            | syncs -> syncs
+            | exception Not_found ->
+              M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
+              SyncSet.bot ()
+          in
+          ((Dom.singleton x (R.bot ()), Sync.singleton x syncs), (Dom.singleton y yr, Sync.bot ()))
         ) ys
       in
       ys' @ xs

@@ -559,6 +559,19 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
 
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None
+
+  let upper_threshold u max_ik =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+    let u = Ints_t.to_bigint u in
+    let max_ik' = Ints_t.to_bigint max_ik in
+    let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x max_ik' <= 0) ts in
+    BatOption.map_default Ints_t.of_bigint max_ik t
+  let lower_threshold l min_ik =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+    let l = Ints_t.to_bigint l in
+    let min_ik' = Ints_t.to_bigint min_ik in
+    let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x min_ik' >= 0) ts in
+    BatOption.map_default Ints_t.of_bigint min_ik t
 end
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -668,22 +681,16 @@ struct
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
       let threshold = get_interval_threshold_widening () in
-      let upper_threshold u =
-        let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-        let u = Ints_t.to_bigint u in
-        let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-        BatOption.map_default Ints_t.of_bigint max_ik t
+      let l2 =
+        if Ints_t.compare l0 l1 = 0 then l0
+        else if threshold then IArith.lower_threshold l1 min_ik
+        else min_ik
       in
-      let lower_threshold l =
-        let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-        let l = Ints_t.to_bigint l in
-        let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-        BatOption.map_default Ints_t.of_bigint min_ik t
+      let u2 =
+        if Ints_t.compare u0 u1 = 0 then u0
+        else if threshold then IArith.upper_threshold u1 max_ik
+        else max_ik
       in
-      let lt = if threshold then lower_threshold l1 else min_ik in
-      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt min_ik) in
-      let ut = if threshold then upper_threshold u1 else max_ik in
-      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut max_ik) in
       norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
@@ -1394,18 +1401,8 @@ struct
   let widen ik xs ys =
     let (min_ik,max_ik) = range ik in
     let threshold = get_bool "ana.int.interval_threshold_widening" in
-    let upper_threshold (_,u) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-      let u = Ints_t.to_bigint u in
-      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-      BatOption.map_default Ints_t.of_bigint max_ik t
-    in
-    let lower_threshold (l,_) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-      let l = Ints_t.to_bigint l in
-      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-      BatOption.map_default Ints_t.of_bigint min_ik t
-    in
+    let upper_threshold (_,u) = IArith.upper_threshold u max_ik in
+    let lower_threshold (l,_) = IArith.lower_threshold l min_ik in
     (*obtain partitioning of xs intervals according to the ys interval that includes them*)
     let rec interval_sets_to_partitions (ik: ikind) (acc : (int_t * int_t) option) (xs: t) (ys: t)=
       match xs,ys with

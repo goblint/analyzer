@@ -1,7 +1,7 @@
 (** Ghost variables for YAML witnesses. *)
 
 type t =
-  | Locked of LockDomain.Addr.t
+  | Locked of LockDomain.Addr.t (* TODO: change *)
   | Multithreaded
 [@@deriving eq, ord, hash]
 

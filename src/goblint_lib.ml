@@ -59,6 +59,7 @@ module GobConfig = GobConfig
 module AfterConfig = AfterConfig
 
 module AutoTune = AutoTune
+module AutoSoundConfig = AutoSoundConfig
 
 module JsonSchema = JsonSchema
 module Options = Options

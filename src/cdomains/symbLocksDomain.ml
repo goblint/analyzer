@@ -322,7 +322,7 @@ end
 module Symbolic =
 struct
   (* TODO: use SetDomain.Reverse *)
-  module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
+  module S = SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
 
   let rec eq_set (ask: Queries.ask) e =

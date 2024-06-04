@@ -307,7 +307,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Join -> (* required for branched thread creation *)
+    | `Join when ConfCheck.branched_thread_creation () -> (* required for branched thread creation *)
       let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
       sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
       (* TODO: this makes mutex-oplus less precise in 28-race_reach/10-ptrmunge_racefree and 28-race_reach/trylock2_racefree, why? *)
@@ -318,6 +318,7 @@ struct
             sideg (V.global x) (CPA.singleton x v)
         ) st.cpa;
       st
+    | `Join
     | `Return
     | `Normal
     | `Init
@@ -432,7 +433,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Join -> (* required for branched thread creation *)
+    | `Join when ConfCheck.branched_thread_creation () -> (* required for branched thread creation *)
       let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
       sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
 
@@ -449,6 +450,7 @@ struct
         ) st.cpa st.cpa
       in
       {st with cpa = cpa'}
+    | `Join
     | `Return
     | `Normal
     | `Init
@@ -800,7 +802,7 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     let sideg = Wrapper.sideg ask sideg in
     match reason with
-    | `Join -> (* required for branched thread creation *)
+    | `Join when ConfCheck.branched_thread_creation () -> (* required for branched thread creation *)
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x && is_unprotected ask x then (
             sideg (V.unprotected x) v;
@@ -810,6 +812,7 @@ struct
           else
             st
         ) st.cpa st
+    | `Join
     | `Return
     | `Normal
     | `Init
@@ -862,7 +865,7 @@ struct
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
     | `Right g' -> (* protected *)
       let locks = ask.f (Q.MustProtectingLocks g') in
-      if Q.AD.is_top locks || Q.AD.is_empty locks then
+      if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then
         Invariant.none
       else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then
         Invariant.none (* don't output protected invariant because it's the same as unprotected *)
@@ -872,7 +875,8 @@ struct
            It should be possible to be more precise because writes only happen with all of them held,
            but conjunction is unsound when one of the mutexes is temporarily unlocked.
            Hypothetical read-protection is also somehow relevant. *)
-        Q.AD.fold (fun m acc ->
+        LockDomain.MustLockset.fold (fun m acc ->
+            let m: LockDomain.Addr.t = Addr (LockDomain.MustLock.to_mval m) in (* TODO: don't convert *)
             if LockDomain.Addr.equal m (LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var) then
               acc
             else if ask.f (GhostVarAvailable (Locked m)) then (
