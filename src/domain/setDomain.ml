@@ -436,23 +436,23 @@ struct
   include Lattice.Reverse (Base)
 end
 
-module type FiniteSetElems =
+module type FiniteSetElem =
 sig
-  type t
+  include Printable.S
   val elems: t list
+  (** List of all possible elements. *)
 end
 
-(* TODO: put elems into E *)
-module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
+module FiniteSet (E: FiniteSetElem) =
 struct
   module E =
   struct
     include E
-    let arbitrary () = QCheck.oneofl Elems.elems
+    let arbitrary () = QCheck.oneofl E.elems
   end
 
   include Make (E)
-  let top () = of_list Elems.elems
+  let top () = of_list E.elems
   let is_top x = equal x (top ())
 end
 
