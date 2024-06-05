@@ -575,13 +575,11 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let is_upper_threshold u =
     let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
     let u = Ints_t.to_bigint u in
-    let t = List.find_opt (fun x -> Z.compare u x = 0) ts in
-    Option.is_some t
+    List.exists (fun x -> Z.compare u x = 0) ts
   let is_lower_threshold l =
     let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
     let l = Ints_t.to_bigint l in
-    let t = List.find_opt (fun x -> Z.compare l x = 0) ts in
-    Option.is_some t
+    List.exists (fun x -> Z.compare l x = 0) ts
 end
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -1394,7 +1392,7 @@ struct
       let max_ys = maximal ys |> Option.get in
       let min_range,max_range = range ik in
       let threshold = get_interval_threshold_widening () in
-      let min = if min_xs =. min_range || threshold && min_ys <. min_xs && IArith.is_lower_threshold min_xs then min_ys else min_xs in
+      let min = if min_xs =. min_range || threshold && min_ys >. min_xs && IArith.is_lower_threshold min_xs then min_ys else min_xs in
       let max = if max_xs =. max_range || threshold && max_ys <. max_xs && IArith.is_upper_threshold max_xs then max_ys else max_xs in
       xs
       |> (function (_, y)::z -> (min, y)::z | _ -> [])
