@@ -682,15 +682,18 @@ struct
     ctx.local
 
   let event ctx e octx =
+    let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
-    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      if addr = UnknownPtr then
-        M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
+      CommonPriv.lift_lock ask (fun st m ->
+          Priv.lock ask ctx.global st m
+        ) st addr
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
       WideningTokens.with_local_side_tokens (fun () ->
-          Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
+          CommonPriv.lift_unlock ask (fun st m ->
+              Priv.unlock ask ctx.global ctx.sideg st m
+            ) st addr
         )
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
