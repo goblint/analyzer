@@ -364,7 +364,7 @@ struct
         entries
     in
 
-    (* Generate flow-insensitive invariants *)
+    (* Generate flow-insensitive entries (ghost variables and ghost updates) *)
     let entries =
       if true then (
         GHT.fold (fun g v acc ->
