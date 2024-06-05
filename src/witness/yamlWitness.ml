@@ -325,7 +325,7 @@ struct
     (* Generate flow-insensitive invariants *)
     let entries =
       if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
-        let ns = R.ask_global InvariantGlobalNodes in
+        let ns = lazy (R.ask_global InvariantGlobalNodes) in
         GHT.fold (fun g v acc ->
             match g with
             | `Left g -> (* Spec global *)
@@ -352,7 +352,7 @@ struct
                             entry :: acc
                           ) acc invs
                       | None -> acc
-                    ) ns acc
+                    ) (Lazy.force ns) acc
                 | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc
               end
