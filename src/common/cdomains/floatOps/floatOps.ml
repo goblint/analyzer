@@ -16,7 +16,6 @@ module type CFloatType = sig
   val pi : t
 
   val of_float: round_mode -> float -> t
-  val to_float: t -> float
   val to_big_int: t -> Z.t
 
   val is_finite: t -> bool
@@ -68,7 +67,6 @@ module CDouble = struct
   let pi = Float.pi
 
   let of_float _ x = x
-  let to_float x = x
   let to_big_int = big_int_of_float
 
   let is_finite = Float.is_finite
@@ -112,7 +110,6 @@ module CFloat : CFloatType = struct
   let smallest = smallest' ()
   let pi = pi' ()
 
-  let to_float x = x
   let to_big_int = big_int_of_float
 
   let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound
