@@ -978,8 +978,9 @@ struct
                 let blob_size_opt = ID.to_int s in
                 not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
-                && Option.is_some blob_size_opt (* Size of blob is known *)
-                && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+                && GobOption.exists (fun blob_size -> (* Size of blob is known *)
+                    Z.equal blob_size (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+                  ) blob_size_opt
               | _ -> false
             in
             if do_strong_update then
@@ -997,11 +998,11 @@ struct
                 | (Var var, _) ->
                   let blob_size_opt = ID.to_int s in
                   not @@ ask.is_multiple var
-                  && Option.is_some blob_size_opt (* Size of blob is known *)
-                  && ((
-                      not @@ Cil.isVoidType t     (* Size of value is known *)
-                      && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.alignOf_int t)
-                    ) || blob_destructive)
+                  && GobOption.exists (fun blob_size -> (* Size of blob is known *)
+                      (not @@ Cil.isVoidType t     (* Size of value is known *)
+                       && Z.equal blob_size (Z.of_int @@ Cil.alignOf_int t))
+                      || blob_destructive
+                    ) blob_size_opt
                 | _ -> false
               end
             in
