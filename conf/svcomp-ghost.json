@@ -116,7 +116,9 @@
       "enabled": true,
       "format-version": "0.1",
       "entry-types": [
-        "flow_insensitive_invariant"
+        "flow_insensitive_invariant",
+        "ghost_variable",
+        "ghost_update"
       ]
     },
     "invariant": {

@@ -1,4 +1,4 @@
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -84,7 +84,7 @@
 
 Flow-insensitive invariants as location invariants.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' --enable witness.invariant.flow_insensitive-as-location 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' --enable witness.invariant.flow_insensitive-as-location 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -150,7 +150,7 @@ Earlyglobs shouldn't cause protected writes in multithreaded mode from being imm
 
 Same with mutex-meet.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)

@@ -1,5 +1,8 @@
 (** Ghost variables for YAML witnesses. *)
 
+let enabled () =
+  YamlWitness.entry_type_enabled YamlWitnessType.GhostVariable.entry_type && YamlWitness.entry_type_enabled YamlWitnessType.GhostUpdate.entry_type
+
 module Var = WitnessGhostVar
 
 include Var

@@ -96,6 +96,9 @@ struct
     | Locked _ -> false
     | Multithreaded -> true
 
+  let ghost_var_available ctx v =
+    WitnessGhost.enabled () && ghost_var_available ctx v
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | GhostVarAvailable v -> ghost_var_available ctx v

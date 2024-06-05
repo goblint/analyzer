@@ -1,4 +1,4 @@
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 16-atomic_priv.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 16-atomic_priv.c
   [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:12:3-12:33)
   [Success][Assert] Assertion "myglobal == 6" will succeed (16-atomic_priv.c:14:3-14:33)
   [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:16:3-16:33)
@@ -43,7 +43,7 @@
 
 Non-atomic privatization:
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 16-atomic_priv.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 16-atomic_priv.c
   [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:12:3-12:33)
   [Success][Assert] Assertion "myglobal == 6" will succeed (16-atomic_priv.c:14:3-14:33)
   [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:16:3-16:33)

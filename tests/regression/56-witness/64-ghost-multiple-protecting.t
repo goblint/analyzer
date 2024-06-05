@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -144,7 +144,7 @@ protection doesn't have precise protected invariant for g2.
       type: assertion
       format: C
 
-  $ goblint --set ana.base.privatization protection-read --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization protection-read --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -295,7 +295,7 @@ protection-read has precise protected invariant for g2.
       type: assertion
       format: C
 
-  $ goblint --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0

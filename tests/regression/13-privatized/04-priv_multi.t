@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' 04-priv_multi.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 04-priv_multi.c
   [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
   [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
   [Warning][Deadcode] Function 'dispose' has dead code:
@@ -174,7 +174,7 @@
 
 Flow-insensitive invariants as location invariants.
 
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant"]' --enable witness.invariant.flow_insensitive-as-location 04-priv_multi.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' --enable witness.invariant.flow_insensitive-as-location 04-priv_multi.c
   [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
   [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
   [Warning][Deadcode] Function 'dispose' has dead code:
