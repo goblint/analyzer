@@ -10,4 +10,6 @@
  (action (chdir ../../.. (run %{update_suite} group apron2))))
 
 (cram
+ (alias runaprontest)
+ (enabled_if %{lib-available:apron})
  (deps (glob_files *.c)))
