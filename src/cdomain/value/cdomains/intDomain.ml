@@ -2256,9 +2256,8 @@ struct
       shift_op a b
     in
     (* If one of the parameters of the shift is negative, the result is undefined *)
-    let x_min = minimal x in
-    let y_min = minimal y in
-    if x_min = None || y_min = None || Z.compare (Option.get x_min) Z.zero < 0 || Z.compare (Option.get y_min) Z.zero < 0 then
+    let is_negative = Stdlib.Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
+    if is_negative (minimal x) || is_negative (minimal y) then
       top_of ik
     else
       norm ik @@ lift2 shift_op_big_int ik x y
@@ -2616,9 +2615,8 @@ module Enums : S with type int_t = Z.t = struct
           shift_op a b
         in
         (* If one of the parameters of the shift is negative, the result is undefined *)
-        let x_min = minimal x in
-        let y_min = minimal y in
-        if x_min = None || y_min = None || Z.compare (Option.get x_min) Z.zero < 0 || Z.compare (Option.get y_min) Z.zero < 0 then
+        let is_negative = Stdlib.Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
+        if is_negative (minimal x) || is_negative (minimal y) then
           top_of ik
         else
           lift2 shift_op_big_int ik x y)
