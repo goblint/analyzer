@@ -2256,7 +2256,7 @@ struct
       shift_op a b
     in
     (* If one of the parameters of the shift is negative, the result is undefined *)
-    let is_negative = Stdlib.Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
+    let is_negative = Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
     if is_negative (minimal x) || is_negative (minimal y) then
       top_of ik
     else
@@ -2403,7 +2403,6 @@ module Booleans = MakeBooleans (
 
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S with type int_t = Z.t = struct
-  open Batteries
   module R = Interval32 (* range for exclusion *)
 
   let range_ikind = Cil.IInt
@@ -2513,7 +2512,8 @@ module Enums : S with type int_t = Z.t = struct
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
-  let join ik = curry @@ function
+  let join _ x y =
+    match x, y with
     | Inc x, Inc y -> Inc (BISet.union x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (BISet.inter x y, R.join r1 r2)
     | Exc (x,r), Inc y
@@ -2521,13 +2521,14 @@ module Enums : S with type int_t = Z.t = struct
       let r = if BISet.is_empty y
         then r
         else
-          let (min_el_range, max_el_range) = Tuple2.mapn (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (BISet.min_elt y, BISet.max_elt y) in
+          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (BISet.min_elt y, BISet.max_elt y) in
           let range = R.join min_el_range max_el_range in
           R.join r range
       in
       Exc (BISet.diff x y, r)
 
-  let meet ikind = curry @@ function
+  let meet _ x y =
+    match x, y with
     | Inc x, Inc y -> Inc (BISet.inter x y)
     | Exc (x,r1), Exc (y,r2) ->
       let r = R.meet r1 r2 in
@@ -2581,7 +2582,8 @@ module Enums : S with type int_t = Z.t = struct
     try lift2 f ikind a b with Division_by_zero -> top_of ikind
 
   let neg ?no_ov = lift1 Z.neg
-  let add ?no_ov ikind = curry @@ function
+  let add ?no_ov ikind a b =
+    match a, b with
     | Inc z,x when BISet.is_singleton z && BISet.choose z = Z.zero -> x
     | x,Inc z when BISet.is_singleton z && BISet.choose z = Z.zero -> x
     | x,y -> lift2 Z.add ikind x y
@@ -2615,7 +2617,7 @@ module Enums : S with type int_t = Z.t = struct
           shift_op a b
         in
         (* If one of the parameters of the shift is negative, the result is undefined *)
-        let is_negative = Stdlib.Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
+        let is_negative = Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
         if is_negative (minimal x) || is_negative (minimal y) then
           top_of ik
         else
