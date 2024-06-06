@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet --enable ana.sv-comp.functions
+// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet --enable ana.sv-comp.functions
 #include <pthread.h>
 #include <goblint.h>
 

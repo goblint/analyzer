@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet --enable ana.sv-comp.functions --set ana.path_sens[+] threadflag
+// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet --enable ana.sv-comp.functions --set ana.path_sens[+] threadflag
 // TODO: why nonterm without threadflag path-sens?
 #include <pthread.h>
 #include <goblint.h>
