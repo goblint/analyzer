@@ -1,25 +1,18 @@
-(** domain of the base analysis *)
+(** Full domain of {!Base} analysis. *)
 
 open GoblintCil
 module VD = ValueDomain.Compound
-module BI = IntOps.BigIntOps
 
 module CPA =
 struct
+  module M0 = MapDomain.MapBot (Basetype.Variables) (VD)
   module M =
   struct
-    include MapDomain.LiftTop (VD) (MapDomain.HashCached (MapDomain.MapBot (Basetype.Variables) (VD)))
-    let name () = "value domain"
+    include M0
+    include MapDomain.PrintGroupable (Basetype.Variables) (VD) (M0)
   end
-
-  include M
-end
-
-
-module Glob =
-struct
-  module Var = Basetype.Variables
-  module Val = VD
+  include MapDomain.LiftTop (VD) (MapDomain.HashCached (M))
+  let name () = "value domain"
 end
 
 (* Keeps track of which arrays are potentially partitioned according to an expression containing a specific variable *)
@@ -99,7 +92,7 @@ struct
 
   let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); weak = WeakUpdates.bot (); priv = PrivD.bot ()}
   let is_bot {cpa; deps; weak; priv} = CPA.is_bot cpa && PartDeps.is_bot deps && WeakUpdates.is_bot weak && PrivD.is_bot priv
-  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.bot ()}
+  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.top ()}
   let is_top {cpa; deps; weak; priv} = CPA.is_top cpa && PartDeps.is_top deps && WeakUpdates.is_top weak && PrivD.is_top priv
 
   let leq {cpa=x1; deps=x2; weak=x3; priv=x4 } {cpa=y1; deps=y2; weak=y3; priv=y4} =
@@ -129,7 +122,7 @@ end
 module type ExpEvaluator =
 sig
   type t
-  val eval_exp: t  ->  Cil.exp -> IntOps.BigIntOps.t option
+  val eval_exp: t  ->  Cil.exp -> Z.t option
 end
 
 (* Takes a module for privatization component and a module specifying how expressions can be evaluated inside the domain and returns the domain *)
@@ -160,7 +153,7 @@ module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
     | Lval (Var v, NoOffset) ->
       begin
         match CPA.find v r.cpa with
-        | `Int i -> ValueDomain.ID.to_int i
+        | Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end
     | _ -> None

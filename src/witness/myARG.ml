@@ -1,3 +1,5 @@
+(** Abstract reachability graph. *)
+
 open MyCFG
 open GoblintCil
 
@@ -139,7 +141,7 @@ struct
   let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
-module Stack (Cfg:CfgForward) (Arg: S):
+module Stack (Arg: S with module Edge = InlineEdge):
   S with module Node = StackNode (Arg.Node) and module Edge = Arg.Edge =
 struct
   module Node = StackNode (Arg.Node)
@@ -154,45 +156,30 @@ struct
     | n :: stack ->
       let cfgnode = Arg.Node.cfgnode n in
       match cfgnode with
-      | Function _ -> (* TODO: can this be done without Cfg? *)
+      | Function _ -> (* TODO: can this be done without cfgnode? *)
         begin match stack with
           (* | [] -> failwith "StackArg.next: return stack empty" *)
           | [] -> [] (* main return *)
           | call_n :: call_stack ->
-            let call_cfgnode = Arg.Node.cfgnode call_n in
             let call_next =
-              Cfg.next call_cfgnode
+              Arg.next call_n
               (* filter because infinite loops starting with function call
                  will have another Neg(1) edge from the head *)
-              |> List.filter (fun (locedges, to_node) ->
-                  List.exists (function
-                      | (_, Proc _) -> true
-                      | (_, _) -> false
-                    ) locedges
+              |> List.filter_map (fun (edge, to_n) ->
+                  match edge with
+                  | InlinedEdge _ -> Some to_n
+                  | _ -> None
                 )
             in
-            begin match call_next with
-              | [] -> failwith "StackArg.next: call next empty"
-              | [(_, return_node)] ->
-                begin match Arg.Node.move_opt call_n return_node with
-                  (* TODO: Is it possible to have a calling node without a returning node? *)
-                  (* | None -> [] *)
-                  | None -> failwith "StackArg.next: no return node"
-                  | Some return_n ->
-                    (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
-                    Arg.next n
-                    |> List.filter (fun (edge, to_n) ->
-                        (* let to_cfgnode = Arg.Node.cfgnode to_n in
-                        MyCFG.Node.equal to_cfgnode return_node *)
-                        Arg.Node.equal_node_context to_n return_n
-                      )
-                    |> List.map (fun (edge, to_n) ->
-                        let to_n' = to_n :: call_stack in
-                        (edge, to_n')
-                      )
-                end
-              | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
-            end
+            Arg.next n
+            |> List.filter_map (fun (edge, to_n) ->
+                if BatList.mem_cmp Arg.Node.compare to_n call_next then (
+                  let to_n' = to_n :: call_stack in
+                  Some (edge, to_n')
+                )
+                else
+                  None
+              )
         end
       | _ ->
         let+ (edge, to_n) = Arg.next n in
@@ -318,14 +305,15 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.uncil" -> (* TODO: use elocs instead? *)
+    | Statement {sid; skind=If _; _} when GobConfig.get_bool "witness.graphml.uncil" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
       (* TODO: need to handle longer loops? *)
+      let loc = Node.location n in
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {sid=sid2; skind=If (_, _, _, loc2, eloc2); _}, _ when sid <> sid2 && loc = loc2 ->
+        | Statement {sid=sid2; skind=If _; _}, _ when sid <> sid2 && CilType.Location.equal loc (Node.location if_true_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -337,7 +325,7 @@ struct
           else
             None
         (* || *)
-        | _, Statement {sid=sid2; skind=If (_, _, _, loc2, eloc2); _} when sid <> sid2 && loc = loc2 ->
+        | _, Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_false_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
@@ -371,9 +359,10 @@ struct
       Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.uncil" -> (* TODO: use eloc instead? *)
+    | Statement {skind=If _; _} when GobConfig.get_bool "witness.graphml.uncil" ->
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
-      if Node.location if_true_next_n = loc && Node.location if_false_next_n = loc then
+      let loc = Node.location n in
+      if CilType.Location.equal (Node.location if_true_next_n) loc && CilType.Location.equal (Node.location if_false_next_n) loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
         | [(Assign (v_true, e_true), if_true_next_next_n)], [(Assign (v_false, e_false), if_false_next_next_n)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in

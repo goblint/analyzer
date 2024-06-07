@@ -1,4 +1,4 @@
-(** Thread returning analysis. *)
+(** Thread returning analysis which abstracts a thread's call stack by a boolean, indicating whether it is at the topmost call stack frame or not ([threadreturn]). *)
 
 open GoblintCil
 open Analyses
@@ -13,7 +13,7 @@ struct
 
   let name () = "threadreturn"
   module D = IntDomain.Booleans
-  module C = D
+  include Analyses.ValueContexts(D)
 
   (* transfer functions *)
 
@@ -28,7 +28,7 @@ struct
     ctx.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = true
-  let threadenter ctx lval f args = [true]
+  let threadenter ctx ~multiple lval f args = [true]
   let exitstate  v = D.top ()
 
   let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =

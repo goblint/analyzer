@@ -1,3 +1,5 @@
+(** Utilities for witness generation and witness invariants. *)
+
 open MyCFG
 open GoblintCil
 
@@ -77,7 +79,64 @@ struct
       emit_after_lock
     else
       emit_other
+
+  let find_syntactic_loop_head = function
+    | Statement s ->
+      let n' = Statement (LoopUnrolling.find_original s) in
+      let prevs = Cfg.prev n' in
+      List.find_map (fun (edges, prev) ->
+          let stmts = Cfg.skippedByEdge prev edges n' in
+          List.find_map (fun s' ->
+              match s'.GoblintCil.skind with
+              | Loop (_, loc, _, _, _) -> Some loc
+              | _ -> None
+            ) stmts
+        ) prevs
+    | FunctionEntry _ | Function _ -> None
 end
+
+module YamlInvariant (FileCfg: MyCFG.FileCfg) =
+struct
+  include Invariant (FileCfg)
+
+  let is_stub_node n =
+    let fundec = Node.find_fundec n in
+    Cil.hasAttribute "goblint_stub" fundec.svar.vattr
+
+  let location_location (n : Node.t) = (* great naming... *)
+    match n with
+    | Statement s ->
+      let {loc; _}: CilLocation.locs = CilLocation.get_stmtLoc s in
+      if not loc.synthetic && is_invariant_node n && not (is_stub_node n) then (* TODO: remove is_invariant_node? i.e. exclude witness.invariant.loop-head check *)
+        Some loc
+      else
+        None
+    | FunctionEntry _ | Function _ ->
+      (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
+      None
+
+  let is_invariant_node n = Option.is_some (location_location n)
+
+  let loop_location n =
+    find_syntactic_loop_head n
+    |> BatOption.filter (fun _loc -> not (is_stub_node n))
+
+  let is_loop_head_node n = Option.is_some (loop_location n)
+end
+
+module YamlInvariantValidate (FileCfg: MyCFG.FileCfg) =
+struct
+  include Invariant (FileCfg)
+
+  (* TODO: filter synthetic?
+
+     Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
+     Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
+     I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
+
+  let is_loop_head_node = NH.mem loop_heads
+end
+[@@deprecated]
 
 module InvariantExp =
 struct
@@ -104,9 +163,20 @@ struct
     | e -> to_conjunct_set e
 
   let process_exp inv =
-    let inv' = InvariantCil.exp_replace_original_name inv in
+    let exp_deep_unroll_types =
+      if GobConfig.get_bool "witness.invariant.typedefs" then
+        Fun.id
+      else
+        InvariantCil.exp_deep_unroll_types
+    in
+    let inv' =
+      inv
+      |> exp_deep_unroll_types
+      |> InvariantCil.exp_replace_original_name
+    in
     if GobConfig.get_bool "witness.invariant.split-conjunction" then
       ES.elements (pullOutCommonConjuncts inv')
+      |> List.filter (Fun.negate InvariantCil.exp_contains_anon_type)
     else
       [inv']
 end

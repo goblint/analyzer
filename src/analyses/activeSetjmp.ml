@@ -1,4 +1,4 @@
-(** Analysis tracking which setjmp(s) are currently active *)
+(** Analysis of active [setjmp] buffers ([activeSetjmp]). *)
 
 open GoblintCil
 open Analyses
@@ -10,9 +10,8 @@ struct
   let name () = "activeSetjmp"
 
   module D = JmpBufDomain.JmpBufSet
-  module C = JmpBufDomain.JmpBufSet
-
-  let should_join a b = D.equal a b
+  include Analyses.ValueContexts(D)
+  module P = IdentityP (D)
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask): D.t =
     ctx.local (* keep local as opposed to IdentitySpec *)
@@ -26,7 +25,7 @@ struct
     | _ -> ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+  let threadenter ctx ~multiple lval f args = [D.bot ()]
   let exitstate v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

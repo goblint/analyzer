@@ -1,6 +1,7 @@
-(** Unassume analysis.
+(** Unassume analysis ([unassume]).
 
     Emits unassume events for other analyses based on YAML witness invariants. *)
+
 open Analyses
 
 module Cil = GoblintCil.Cil
@@ -11,23 +12,19 @@ module EH = Hashtbl.Make (CilType.Exp)
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  (* TODO: Should be context-sensitive? Some spurious widening in knot_comb fails self-validation after self-unassume. *)
+  include Analyses.IdentityUnitContextsSpec
   let name () = "unassume"
 
-  (* TODO: Should be context-sensitive? Some spurious widening in knot_comb fails self-validation after self-unassume. *)
-  module C = Printable.Unit
   module D = SetDomain.Make (CilType.Exp)
 
   let startstate _ = D.empty ()
   let morphstate _ _ = D.empty ()
   let exitstate _ = D.empty ()
 
-  let context _ _ = ()
-  let should_join _ _ = false
-
   module Locator = WitnessUtil.Locator (Node)
 
-  let locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
+  let location_locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
   let loop_locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
 
   type inv = {
@@ -41,26 +38,26 @@ struct
   let pre_invs: inv EH.t NH.t = NH.create 100
 
   let init _ =
-    Locator.clear locator;
+    Locator.clear location_locator;
     Locator.clear loop_locator;
     let module FileCfg =
     struct
       let file = !Cilfacade.current_file
       module Cfg = (val !MyCFG.current_cfg)
     end  in
-    let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
+    let module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
 
     (* DFS, copied from CfgTools.find_backwards_reachable *)
     let reachable = NH.create 100 in
     let rec iter_node node =
       if not (NH.mem reachable node) then begin
         NH.replace reachable node ();
-        (* TODO: filter synthetic?
-           See YamlWitness. *)
-        if WitnessInvariant.is_invariant_node node then
-          Locator.add locator (Node.location node) node;
-        if WitnessUtil.NH.mem WitnessInvariant.loop_heads node then
-          Locator.add loop_locator (Node.location node) node;
+        Option.iter (fun loc ->
+            Locator.add location_locator loc node
+          ) (WitnessInvariant.location_location node);
+        Option.iter (fun loc ->
+            Locator.add loop_locator loc node
+          ) (WitnessInvariant.loop_location node);
         List.iter (fun (_, prev_node) ->
             iter_node prev_node
           ) (FileCfg.Cfg.prev node)
@@ -77,7 +74,7 @@ struct
     let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
       file = location.file_name;
       line = location.line;
-      column = location.column + 1;
+      column = location.column;
       byte = -1;
       endLine = -1;
       endColumn = -1;
@@ -111,7 +108,7 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                 NH.add invs n {exp = inv_exp; uuid}
@@ -130,7 +127,7 @@ struct
         let inv = location_invariant.location_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt location_locator loc with
         | Some nodes ->
           unassume_nodes_invariant ~loc ~nodes inv
         | None ->
@@ -157,12 +154,12 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc pre_cabs with
               | Ok pre_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located precondition to %a: %a" CilType.Fundec.pretty fundec Cil.d_exp pre_exp;
                 FH.add fun_pres fundec pre_exp;
 
-                begin match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                begin match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
                   | Ok inv_exp ->
                     M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
@@ -193,11 +190,51 @@ struct
         let inv = precondition_loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some nodes ->
           unassume_precondition_nodes_invariant ~loc ~nodes pre inv
         | None ->
           M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
+      in
+
+      let unassume_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
+
+        let unassume_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
+          let loc = loc_of_location location_invariant.location in
+          let inv = location_invariant.value in
+          let msgLoc: M.Location.t = CilLocation loc in
+
+          match Locator.find_opt location_locator loc with
+          | Some nodes ->
+            unassume_nodes_invariant ~loc ~nodes inv
+          | None ->
+            M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
+        in
+
+        let unassume_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
+          let loc = loc_of_location loop_invariant.location in
+          let inv = loop_invariant.value in
+          let msgLoc: M.Location.t = CilLocation loc in
+
+          match Locator.find_opt loop_locator loc with
+          | Some nodes ->
+            unassume_nodes_invariant ~loc ~nodes inv
+          | None ->
+            M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
+        in
+
+        let validate_invariant (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
+          match YamlWitness.invariant_type_enabled target_type, invariant.invariant_type with
+          | true, LocationInvariant x ->
+            unassume_location_invariant x
+          | true, LoopInvariant x ->
+            unassume_loop_invariant x
+          | false, (LocationInvariant _ | LoopInvariant _) ->
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type
+        in
+
+        List.iter validate_invariant invariant_set.content
       in
 
       match YamlWitness.entry_type_enabled target_type, entry.entry_type with
@@ -207,7 +244,9 @@ struct
         unassume_loop_invariant x
       | true, PreconditionLoopInvariant x ->
         unassume_precondition_loop_invariant x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _) ->
+      | true, InvariantSet x ->
+        unassume_invariant_set x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
         M.info_noloc ~category:Witness "cannot unassume entry of type %s" target_type

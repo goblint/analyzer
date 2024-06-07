@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
+// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true --set lib.activated[+] sv-comp
 #include<pthread.h>
 #include<stdlib.h>
 #include "racemacros.h"

@@ -1,3 +1,5 @@
+(** YAML witness generation and validation. *)
+
 open Analyses
 open GoblintCil
 
@@ -15,7 +17,7 @@ struct
   (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
   let producer: Producer.t = {
     name = "Goblint";
-    version = Version.goblint;
+    version = Goblint_build_info.version;
     command_line = Some GobSys.command_line;
   }
 
@@ -23,7 +25,7 @@ struct
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let creation_time = TimeUtil.iso8601_now () in
     {
-      format_version = "0.1";
+      format_version = GobConfig.get_string "witness.yaml.format-version";
       uuid = Uuidm.to_string uuid;
       creation_time;
       producer;
@@ -45,7 +47,7 @@ struct
     file_name = loc.file;
     file_hash = sha256_file loc.file;
     line = loc.line;
-    column = loc.column - 1;
+    column = loc.column;
     function_ = location_function;
   }
 
@@ -89,6 +91,29 @@ struct
     metadata = metadata ~task ();
   }
 
+  let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+    invariant_type = LocationInvariant {
+        location;
+        value = invariant;
+        format = "c_expression";
+      };
+  }
+
+  let loop_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+    invariant_type = LoopInvariant {
+        location;
+        value = invariant;
+        format = "c_expression";
+      };
+  }
+
+  let invariant_set ~task ~(invariants): Entry.t = {
+    entry_type = InvariantSet {
+        content = invariants;
+      };
+    metadata = metadata ~task ();
+  }
+
   let target ~uuid ~type_ ~(file_name): Target.t = {
     uuid;
     type_;
@@ -111,9 +136,9 @@ struct
 
   let precondition_loop_invariant_certificate ~target ~(certification): Entry.t = {
     entry_type = PreconditionLoopInvariantCertificate {
-      target;
-      certification;
-    };
+        target;
+        certification;
+      };
     metadata = metadata ();
   }
 end
@@ -122,8 +147,7 @@ let yaml_entries_to_file yaml_entries file =
   let yaml = `A yaml_entries in
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
-  (* estimate how big it should be + extra in case empty *)
-  let text = match Yaml.to_string ~len:(List.length yaml_entries * 4096 + 2048) yaml with
+  let text = match GobYaml.to_string' yaml with
     | Ok text -> text
     | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
   in
@@ -132,16 +156,40 @@ let yaml_entries_to_file yaml_entries file =
 let entry_type_enabled entry_type =
   List.mem entry_type (GobConfig.get_string_list "witness.yaml.entry-types")
 
+let invariant_type_enabled invariant_type =
+  List.mem invariant_type (GobConfig.get_string_list "witness.yaml.invariant-types")
+
 module Make (R: ResultQuery.SpecSysSol2) =
 struct
   open R
   open SpecSys
 
   module NH = BatHashtbl.Make (Node)
-  module WitnessInvariant = WitnessUtil.Invariant (FileCfg)
+  module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module FMap = BatHashtbl.Make (CilType.Fundec)
   module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
   type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
+
+  (* TODO: fix location hack *)
+  module LH = BatHashtbl.Make (CilType.Location)
+  let location_nodes: Node.t list LH.t Lazy.t = lazy (
+    let lh = LH.create 113 in
+    NH.iter (fun n _ ->
+        Option.iter (fun loc ->
+            LH.modify_def [] loc (List.cons n) lh
+          ) (WitnessInvariant.location_location n)
+      ) (Lazy.force nh);
+    lh
+  )
+  let loop_nodes: Node.t list LH.t Lazy.t = lazy (
+    let lh = LH.create 113 in
+    NH.iter (fun n _ ->
+        Option.iter (fun loc ->
+            LH.modify_def [] loc (List.cons n) lh
+          ) (WitnessInvariant.loop_location n)
+      ) (Lazy.force nh);
+    lh
+  )
 
   let write () =
     let input_files = GobConfig.get_string_list "files" in
@@ -156,28 +204,19 @@ struct
     in
     let task = Entry.task ~input_files ~data_model ~specification in
 
-    let is_invariant_node (n : Node.t) =
-      let loc = Node.location n in
-      match n with
-      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n -> true
-      | _ ->
-        (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
-        false
-    in
-
     let local_lvals n local =
       if GobConfig.get_bool "witness.invariant.accessed" then (
         match R.ask_local_node n ~local MayAccessed with
         | `Top ->
-          CilLval.Set.top ()
+          Lval.Set.top ()
         | (`Lifted _) as es ->
           let lvals = AccessDomain.EventSet.fold (fun e lvals ->
               match e with
               | {var_opt = Some var; offs_opt = Some offs; kind = Write} ->
-                CilLval.Set.add (Var var, offs) lvals
+                Lval.Set.add (Var var, offs) lvals
               | _ ->
                 lvals
-            ) es (CilLval.Set.empty ())
+            ) es (Lval.Set.empty ())
           in
           let lvals =
             FileCfg.Cfg.next n
@@ -190,7 +229,7 @@ struct
             |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
                 match e with
                 | {var_opt = Some var; offs_opt = Some offs; kind = Read} ->
-                  CilLval.Set.add (Var var, offs) lvals
+                  Lval.Set.add (Var var, offs) lvals
                 | _ ->
                   lvals
               ) es lvals
@@ -198,7 +237,7 @@ struct
           lvals
       )
       else
-        CilLval.Set.top ()
+        Lval.Set.top ()
     in
 
     let entries = [] in
@@ -206,26 +245,27 @@ struct
     (* Generate location invariants (without precondition) *)
     let entries =
       if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
-        NH.fold (fun n local acc ->
-            let loc = Node.location n in
-            if is_invariant_node n then (
-              let lvals = local_lvals n local in
-              match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
-              | `Lifted inv ->
-                let invs = WitnessUtil.InvariantExp.process_exp inv in
-                List.fold_left (fun acc inv ->
-                    let location_function = (Node.find_fundec n).svar.vname in
-                    let location = Entry.location ~location:loc ~location_function in
-                    let invariant = Entry.invariant (CilType.Exp.show inv) in
-                    let entry = Entry.location_invariant ~task ~location ~invariant in
-                    entry :: acc
-                  ) acc invs
-              | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
-                acc
-            )
-            else
+        LH.fold (fun loc ns acc ->
+            let inv = List.fold_left (fun acc n ->
+                let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                let lvals = local_lvals n local in
+                Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+              ) (Invariant.bot ()) ns
+            in
+            match inv with
+            | `Lifted inv ->
+              let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+              let location_function = fundec.svar.vname in
+              let location = Entry.location ~location:loc ~location_function in
+              let invs = WitnessUtil.InvariantExp.process_exp inv in
+              List.fold_left (fun acc inv ->
+                  let invariant = Entry.invariant (CilType.Exp.show inv) in
+                  let entry = Entry.location_invariant ~task ~location ~invariant in
+                  entry :: acc
+                ) acc invs
+            | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
               acc
-          ) (Lazy.force nh) entries
+          ) (Lazy.force location_nodes) entries
       )
       else
         entries
@@ -234,15 +274,20 @@ struct
     (* Generate loop invariants (without precondition) *)
     let entries =
       if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
-        NH.fold (fun n local acc ->
-            let loc = Node.location n in
-            if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
-              match R.ask_local_node n ~local (Invariant Invariant.default_context) with
+        LH.fold (fun loc ns acc ->
+            if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? needs both loop_invariant entry enabled and witness.invariant.loop-head option enabled *)
+              let inv = List.fold_left (fun acc n ->
+                  let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                  Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                ) (Invariant.bot ()) ns
+              in
+              match inv with
               | `Lifted inv ->
+                let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                let location_function = fundec.svar.vname in
+                let location = Entry.location ~location:loc ~location_function in
                 let invs = WitnessUtil.InvariantExp.process_exp inv in
                 List.fold_left (fun acc inv ->
-                    let location_function = (Node.find_fundec n).svar.vname in
-                    let location = Entry.location ~location:loc ~location_function in
                     let invariant = Entry.invariant (CilType.Exp.show inv) in
                     let entry = Entry.loop_invariant ~task ~location ~invariant in
                     entry :: acc
@@ -252,7 +297,7 @@ struct
             )
             else
               acc
-          ) (Lazy.force nh) entries
+          ) (Lazy.force loop_nodes) entries
       )
       else
         entries
@@ -283,11 +328,11 @@ struct
         entries
     in
 
-    (* Generate precondition invariants.
+    (* Generate precondition loop invariants.
        We do this in three steps:
        1. Collect contexts for each function
        2. For each function context, find "matching"/"weaker" contexts that may satisfy its invariant
-       3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states. *)
+       3. Generate precondition loop invariants. The postcondition is a disjunction over the invariants for matching states. *)
     let entries =
       if entry_type_enabled YamlWitnessType.PreconditionLoopInvariant.entry_type then (
         (* 1. Collect contexts for each function *)
@@ -335,49 +380,123 @@ struct
 
         (* 3. Generate precondition invariants *)
         LHT.fold (fun ((n, c) as lvar) local acc ->
-            if is_invariant_node n then (
+            match WitnessInvariant.loop_location n with
+            | Some loc ->
               let fundec = Node.find_fundec n in
               let pre_lvar = (Node.FunctionEntry fundec, c) in
               let query = Queries.Invariant Invariant.default_context in
-              match R.ask_local pre_lvar query with
-              | `Lifted c_inv ->
-                let loc = Node.location n in
-                (* Find unknowns for which the preceding start state satisfies the precondtion *)
-                let xs = find_matching_states lvar in
+              begin match R.ask_local pre_lvar query with
+                | `Lifted c_inv ->
+                  (* Find unknowns for which the preceding start state satisfies the precondtion *)
+                  let xs = find_matching_states lvar in
 
-                (* Generate invariants. Give up in case one invariant could not be generated. *)
-                let invs = GobList.fold_while_some (fun acc local ->
-                    let lvals = local_lvals n local in
-                    match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
-                    | `Lifted c -> Some ((`Lifted c)::acc)
-                    | `Bot | `Top -> None
-                  ) [] xs
-                in
-                begin match invs with
-                  | None
-                  | Some [] -> acc
-                  | Some (x::xs) ->
-                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
-                      | `Lifted inv ->
-                        let invs = WitnessUtil.InvariantExp.process_exp inv in
-                        let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-                        List.fold_left (fun acc inv ->
-                            let location_function = (Node.find_fundec n).svar.vname in
-                            let location = Entry.location ~location:loc ~location_function in
-                            let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                            let invariant = Entry.invariant (CilType.Exp.show inv) in
-                            let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                            entry :: acc
-                          ) acc invs
-                      | `Bot | `Top -> acc
-                    end
-                end
-              | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
-                acc
-            )
-            else
+                  (* Generate invariants. Give up in case one invariant could not be generated. *)
+                  let invs = GobList.fold_while_some (fun acc local ->
+                      let lvals = local_lvals n local in
+                      match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
+                      | `Lifted c -> Some ((`Lifted c)::acc)
+                      | `Bot | `Top -> None
+                    ) [] xs
+                  in
+                  begin match invs with
+                    | None
+                    | Some [] -> acc
+                    | Some (x::xs) ->
+                      begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with (* bisect_ppx cannot handle redefined (||) *)
+                        | `Lifted inv ->
+                          let invs = WitnessUtil.InvariantExp.process_exp inv in
+                          let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+                          List.fold_left (fun acc inv ->
+                              let location_function = (Node.find_fundec n).svar.vname in
+                              let location = Entry.location ~location:loc ~location_function in
+                              let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                              let invariant = Entry.invariant (CilType.Exp.show inv) in
+                              let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                              entry :: acc
+                            ) acc invs
+                        | `Bot | `Top -> acc
+                      end
+                  end
+                | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
+                  acc
+              end
+            | None ->
               acc
           ) lh entries
+      )
+      else
+        entries
+    in
+
+    (* Generate invariant set *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
+        let invariants = [] in
+
+        (* Generate location invariants *)
+        let invariants =
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
+            LH.fold (fun loc ns acc ->
+                let inv = List.fold_left (fun acc n ->
+                    let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                    let lvals = local_lvals n local in
+                    Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                  ) (Invariant.bot ()) ns
+                in
+                match inv with
+                | `Lifted inv ->
+                  let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                  let location_function = fundec.svar.vname in
+                  let location = Entry.location ~location:loc ~location_function in
+                  let invs = WitnessUtil.InvariantExp.process_exp inv in
+                  List.fold_left (fun acc inv ->
+                      let invariant = CilType.Exp.show inv in
+                      let invariant = Entry.location_invariant' ~location ~invariant in
+                      invariant :: acc
+                    ) acc invs
+                | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                  acc
+              ) (Lazy.force location_nodes) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate loop invariants *)
+        let invariants =
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
+            LH.fold (fun loc ns acc ->
+                if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
+                  let inv = List.fold_left (fun acc n ->
+                      let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                      Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                    ) (Invariant.bot ()) ns
+                  in
+                  match inv with
+                  | `Lifted inv ->
+                    let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                    let location_function = fundec.svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
+                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    List.fold_left (fun acc inv ->
+                        let invariant = CilType.Exp.show inv in
+                        let invariant = Entry.loop_invariant' ~location ~invariant in
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force loop_nodes) invariants
+          )
+          else
+            invariants
+        in
+
+        let invariants = List.rev invariants in
+        let entry = Entry.invariant_set ~task ~invariants in
+        entry :: entries
       )
       else
         entries
@@ -390,6 +509,9 @@ struct
     ];
 
     yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+
+  let write () =
+    Timing.wrap "yaml witness" write ()
 end
 
 
@@ -427,14 +549,14 @@ struct
 
   module Locator = WitnessUtil.Locator (EQSys.LVar)
   module LvarS = Locator.ES
-  module WitnessInvariant = WitnessUtil.Invariant (FileCfg)
+  module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
 
   let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
     file = location.file_name;
     line = location.line;
-    column = location.column + 1;
+    column = location.column;
     byte = -1;
     endLine = -1;
     endColumn = -1;
@@ -443,19 +565,16 @@ struct
   }
 
   let validate () =
-    let locator = Locator.create () in
+    let location_locator = Locator.create () in
     let loop_locator = Locator.create () in
+    (* TODO: add all CFG nodes, not just live ones from lh, like UnassumeAnalysis *)
     LHT.iter (fun ((n, _) as lvar) _ ->
-        let loc = Node.location n in
-        (* TODO: filter synthetic?
-
-           Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
-           Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
-           I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
-        if WitnessInvariant.is_invariant_node n then
-          Locator.add locator loc lvar;
-        if WitnessUtil.NH.mem WitnessInvariant.loop_heads n then
-          Locator.add loop_locator loc lvar
+        Option.iter (fun loc ->
+            Locator.add location_locator loc lvar
+          ) (WitnessInvariant.location_location n);
+        Option.iter (fun loc ->
+            Locator.add loop_locator loc lvar
+          ) (WitnessInvariant.loop_location n)
       ) lh;
 
     let inv_parser = InvariantParser.create FileCfg.file in
@@ -549,7 +668,7 @@ struct
             None
         in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt location_locator loc with
         | Some lvars ->
           validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
         | None ->
@@ -589,7 +708,7 @@ struct
         in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some lvars ->
           begin match InvariantParser.parse_cabs pre with
             | Ok pre_cabs ->
@@ -634,6 +753,48 @@ struct
           None
       in
 
+      let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
+
+        let validate_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
+          let loc = loc_of_location location_invariant.location in
+          let inv = location_invariant.value in
+
+          match Locator.find_opt location_locator loc with
+          | Some lvars ->
+            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+          | None ->
+            incr cnt_error;
+            M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
+        in
+
+        let validate_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
+          let loc = loc_of_location loop_invariant.location in
+          let inv = loop_invariant.value in
+
+          match Locator.find_opt loop_locator loc with
+          | Some lvars ->
+            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+          | None ->
+            incr cnt_error;
+            M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
+        in
+
+        let validate_invariant (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
+          match invariant_type_enabled target_type, invariant.invariant_type with
+          | true, LocationInvariant x ->
+            validate_location_invariant x
+          | true, LoopInvariant x ->
+            validate_loop_invariant x
+          | false, (LocationInvariant _ | LoopInvariant _) ->
+            incr cnt_disabled;
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type;
+        in
+
+        List.iter validate_invariant invariant_set.content;
+        None
+      in
+
       match entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         validate_location_invariant x
@@ -641,7 +802,9 @@ struct
         validate_loop_invariant x
       | true, PreconditionLoopInvariant x ->
         validate_precondition_loop_invariant x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _) ->
+      | true, InvariantSet x ->
+        validate_invariant_set x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
         None

@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.malloc.unique_address_count 1
+// PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.malloc.unique_address_count 1
 // Copied from 06-symbeq/14-list_entry_rc, proven safe thanks to unique address
 #include<pthread.h>
 #include<stdlib.h>

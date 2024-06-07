@@ -15,10 +15,10 @@ struct
   let name () = "lockset"
 
   module D = D
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let startstate v = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
+  let threadenter ctx ~multiple lval f args = [D.empty ()]
   let exitstate  v = D.empty ()
 end
 
@@ -29,7 +29,7 @@ sig
   module G: Lattice.S
   module V: SpecSysVar
 
-  val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
+  val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.AddrRW.t -> D.t
   val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
 end
 

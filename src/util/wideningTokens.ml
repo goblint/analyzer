@@ -1,4 +1,5 @@
 (** Widening tokens are a generic and dynamic mechanism for delaying widening.
+
     All abstract elements carry a set of tokens, which analyses can add into.
     Lifted abstract elements are only widened if the token set does not increase,
     i.e. adding a widening token delays a widening.
@@ -109,6 +110,11 @@ struct
   end
   module C = S.C
   module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt (x, _) = of_elt x
+  end
 
   let name () = S.name ()^" with widening tokens"
 
@@ -116,13 +122,9 @@ struct
   let init = S.init
   let finalize = S.finalize
 
-  let should_join (x, _) (y, _) = S.should_join x y
-
   let startstate v = (S.startstate v, TS.bot ())
   let exitstate  v = (S.exitstate  v, TS.bot ())
   let morphstate v (d, t) = (S.morphstate v d, t)
-
-  let context fd = S.context fd % D.unlift
 
   let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
     { ctx with local = D.unlift ctx.local
@@ -130,6 +132,9 @@ struct
              ; global = (fun g -> G.unlift (ctx.global g))
              ; sideg = (fun v g -> ctx.sideg v (g, !side_tokens)) (* Using side_tokens for side effect. *)
     }
+
+  let context ctx fd = S.context (conv ctx) fd % D.unlift
+  let startcontext () = S.startcontext ()
 
   let lift_fun ctx f g h =
     let new_tokens = ref (snd ctx.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)
@@ -175,7 +180,7 @@ struct
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
 
-  let threadenter ctx lval f args = lift_fun ctx (fun l ts -> List.map (Fun.flip lift' ts) l) S.threadenter ((|>) args % (|>) f % (|>) lval)
-  let threadspawn ctx lval f args fctx = lift_fun ctx lift' S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
+  let threadenter ctx  ~multiple lval f args = lift_fun ctx (fun l ts -> List.map (Fun.flip lift' ts) l) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval )
+  let threadspawn ctx ~multiple lval f args fctx = lift_fun ctx lift' (S.threadspawn ~multiple) ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
   let event ctx e octx = lift_fun ctx lift' S.event ((|>) (conv octx) % (|>) e)
 end

@@ -1,3 +1,4 @@
+(** {{!Analyses.MCPA} Memory access metadata module} for MCP. *)
 
 open MCPRegistry
 module Pretty = GoblintCil.Pretty
@@ -8,7 +9,6 @@ module A =
 struct
   open AccListSpec
   open List
-  open Obj
 
   include DomListPrintable (PrintableOfMCPASpec (AccListSpec))
 
@@ -19,14 +19,14 @@ struct
     GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
   let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
-      S.may_race (obj x) (obj y)
+      S.may_race (Obj.obj x) (Obj.obj y)
     ) x y
 
   let pretty () a =
     (* filter with should_print *)
     let xs = unop_fold (fun acc n (module S: Analyses.MCPA) x ->
-        if S.should_print (obj x) then
-          Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: acc
+        if S.should_print (Obj.obj x) then
+          Pretty.dprintf "%s:%a" (S.name ()) S.pretty (Obj.obj x) :: acc
         else
           acc
       ) [] a

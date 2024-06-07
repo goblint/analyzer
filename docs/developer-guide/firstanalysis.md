@@ -35,7 +35,7 @@ This program is in the Goblint repository: `tests/regression/99-tutorials/01-fir
 But if you run Goblint out of the box on this example, it will not work:
 
 ```console
-./goblint --enable warn.debug tests/regression/99-tutorials/01-first.c
+./goblint tests/regression/99-tutorials/01-first.c
 ```
 
 This will claim that the assertion in unknown.
@@ -67,17 +67,17 @@ The key part now is to define transfer functions for assignment. We only handle 
 There is no need to implement the transfer functions for branching for this example; it only relies on lattice join operations to correctly take both paths into account.
 
 The assignment relies on the function `eval`, which is almost there. It just needs you to fix the evaluation of constants! Unless you jumped straight to this line, it should not be too complicated to fix this.
-With this in place, we should have sufficient information to tell Goblint that the assertion does hold.
+With this in place, we should have sufficient information to tell Goblint that the assertion does hold (run `make` to compile the updated analysis in Goblint).
 
 For more information on the signature of the individual transfer functions, please check out `module type Spec` documentation in [`src/framework/analyses.ml`](https://github.com/goblint/analyzer/blob/master/src/framework/analyses.ml).
 
 ## Extending the domain
 
 You could now enrich the lattice to also have a representation for non-negative (i.e., zero or positive) values.
-Then the join of `Zero` and `Pos` would be "non-negative" instead of `Top`, allowing you to prove that such join is greated than `Neg`.
+Then the join of `Zero` and `Pos` would be "non-negative" instead of `Top`, allowing you to prove that such join is greater than `Neg`.
 For example, have a look at the following program: `tests/regression/99-tutorials/02-first-extend.c`.
 
 _Hint:_
 The easiest way to do this is to use the powerset lattice of `{-, 0, +}`.
 For example, "non-negative" is represented by `{0, +}`, while negative is represented by `{-}`.
-To do this, modify `SL` by using `SetDomain.FiniteSet` (takes a `struct` with a list of finite elements as second parameter) instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.
+To do this, modify `SL` by using `SetDomain.FiniteSet` (which needs a finite list of elements to be added to `Signs`) instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.

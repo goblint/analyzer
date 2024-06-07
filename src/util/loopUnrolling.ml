@@ -1,6 +1,8 @@
 open GobConfig
 open GoblintCil
 
+module M = Messages
+
 (*loop unroll heuristics*)
 (*used if AutoTune is activated*)
 
@@ -152,7 +154,7 @@ let constBefore var loop f =
   let targetLocation = loopLocation loop
   in let rec lastAssignmentToVarBeforeLoop (current: (Z.t option)) (statements: stmt list) = match statements with
       | st::stmts -> (
-          let current' = if st.labels <> [] then (print_endline "has Label"; (None)) else current in
+          let current' = if st.labels <> [] then (Logs.debug "has Label"; (None)) else current in
           match st.skind with
           | Instr list -> (
               match lastAssignToVar var list with
@@ -272,32 +274,32 @@ let fixedLoopSize loopStatement func =
   else
     constBefore var loopStatement func >>= fun start ->
     assignmentDifference loopStatement var >>= fun diff ->
-    print_endline "comparison: ";
-    Pretty.fprint stdout (dn_exp () comparison) ~width:max_int;
-    print_endline "";
-    print_endline "variable: ";
-    print_endline var.vname;
-    print_endline "start:";
-    print_endline @@ Z.to_string start;
-    print_endline "diff:";
-    print_endline @@ Z.to_string diff;
+    Logs.debug "comparison: ";
+    Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
+    Logs.debug "";
+    Logs.debug "variable: ";
+    Logs.debug "%s" var.vname;
+    Logs.debug "start:";
+    Logs.debug "%s" @@ Z.to_string start;
+    Logs.debug "diff:";
+    Logs.debug "%s" @@ Z.to_string diff;
     let iterations = loopIterations start diff comparison in
     match iterations with
-    | None -> print_endline "iterations failed"; None
+    | None -> Logs.debug "iterations failed"; None
     | Some s ->
       try
         let s' = Z.to_int s in
-        print_endline "iterations:";
-        print_endline @@ string_of_int s';
+        Logs.debug "iterations:";
+        Logs.debug "%d" s';
         Some s'
-      with  _ -> print_endline "iterations too big for integer"; None
+      with Z.Overflow -> Logs.debug "iterations too big for integer"; None
 
 
 class arrayVisitor = object
   inherit nopCilVisitor
 
   method! vvrbl info =
-    if not @@ (hasAttribute "goblint_array_domain" info.vattr || AutoTune0.is_large_array info.vtype) then
+    if Cil.isArrayType info.vtype && not @@ (hasAttribute "goblint_array_domain" info.vattr || AutoTune0.is_large_array info.vtype) then
       info.vattr <- addAttribute (Attr ("goblint_array_domain", [AStr "unroll"]) ) info.vattr;
     DoChildren
 end
@@ -314,17 +316,18 @@ class loopUnrollingCallVisitor = object
         | Malloc _
         | Calloc _
         | Realloc _
+        | Alloca _
         | Lock _
         | Unlock _
         | ThreadCreate _
         | Assert _
+        | Bounded _
         | ThreadJoin _ ->
           raise Found;
         | _ ->
           if List.mem "specification" @@ get_string_list "ana.autotune.activated" && get_string "ana.specification" <> "" then (
-            match SvcompSpec.of_option () with
-            | UnreachCall s -> if info.vname = s then raise Found
-            | _ -> ()
+            if Svcomp.is_error_function' info (SvcompSpec.of_option ()) then
+              raise Found
           );
           DoChildren
       )
@@ -350,7 +353,7 @@ let loop_unrolling_factor loopStatement func totalLoops =
       (* Unroll at least 10 times if there are only few (17?) loops *)
       let unroll_min = if totalLoops < 17 && AutoTune0.isActivated "forceLoopUnrollForFewLoops" then 10 else 0 in
       match fixedLoop with
-      | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
+      | Some i -> if i * loopStats.instructions < 100 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
       | _ -> max unroll_min (targetInstructions / loopStats.instructions)
     else
       (* Don't unroll empty (= while(1){}) loops*)
@@ -381,55 +384,44 @@ class patchLabelsGotosVisitor(newtarget) = object
     | _ -> DoChildren
 end
 
+include LoopUnrolling0
+
 (*
   Makes a copy, replacing top-level breaks with goto loopEnd and top-level continues with
   goto currentIterationEnd
   Also assigns fresh names to all labels and patches gotos for labels appearing in the current
   fragment to their new name
 *)
-class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
+class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos) = object
   inherit nopCilVisitor
 
-  val mutable depth = 0
   val mutable loopNestingDepth = 0
 
-  val gotos = StatementHashTable.create 20
-
   method! vstmt s =
-    let after x =
-      depth <- depth-1;
-      if depth = 0 then
-        (* the labels can only be patched once the entire part of the AST we want has been transformed, and *)
-        (* we know all lables appear in the hash table *)
-        let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
-        let x  = visitCilStmt patchLabelsVisitor x in
-        StatementHashTable.clear gotos;
-        x
-      else
-        x
-    in
+    let after x = x in
     let rename_labels sn =
       let new_labels = List.map (function Label(str,loc,b) -> Label (Cil.freshLabel str,loc,b) | x -> x) sn.labels in
       (* this makes new physical copy*)
       let new_s = {sn with labels = new_labels} in
+      CopyOfHashTable.replace copyof new_s s;
+      if M.tracing then M.trace "cfg" "Marking %a as copy of %a" CilType.Stmt.pretty new_s CilType.Stmt.pretty s;
       if new_s.labels <> [] then
         (* Use original s, ns might be temporay e.g. if the type of statement changed *)
         (* record that goto s; appearing in the current fragment should later be patched to goto new_s *)
         StatementHashTable.add gotos s new_s;
       new_s
     in
-    depth <- depth+1;
     match s.skind with
     | Continue loc ->
       if loopNestingDepth = 0 then
         (* turn top-level continues into gotos to end of current unrolling *)
-        ChangeDoChildrenPost(rename_labels {s with skind = Goto (!currentIterationEnd, loc)}, after)
+        ChangeDoChildrenPost(rename_labels {s with skind = Goto (ref currentIterationEnd, loc)}, after)
       else
         ChangeDoChildrenPost(rename_labels s, after)
     | Break loc ->
       if loopNestingDepth = 0 then
         (* turn top-level breaks into gotos to end of current unrolling *)
-        ChangeDoChildrenPost(rename_labels {s with skind = Goto (loopEnd,loc)}, after)
+        ChangeDoChildrenPost(rename_labels {s with skind = Goto (ref loopEnd,loc)}, after)
       else
         ChangeDoChildrenPost(rename_labels s, after)
     | Loop _ -> loopNestingDepth <- loopNestingDepth+1;
@@ -437,37 +429,41 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
     | _ -> ChangeDoChildrenPost(rename_labels s, after)
 end
 
+let copy_and_patch_labels break_target current_continue_target stmts =
+  let gotos = StatementHashTable.create 20 in
+  let patcher = new copyandPatchLabelsVisitor (break_target, current_continue_target, gotos) in
+  let stmts' = List.map (visitCilStmt patcher) stmts in
+  (* the labels can only be patched once the entire part of the AST we want has been transformed, and *)
+  (* we know all lables appear in the hash table *)
+  let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
+  List.map (visitCilStmt patchLabelsVisitor) stmts'
+
 class loopUnrollingVisitor(func, totalLoops) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
   inherit nopCilVisitor
 
   method! vstmt s =
-    match s.skind with
-    | Loop (b,loc, loc2, break , continue) ->
-      let duplicate_and_rem_labels s =
+    let duplicate_and_rem_labels s =
+      match s.skind with
+      | Loop (b,loc, loc2, break , continue) ->
         let factor = loop_unrolling_factor s func totalLoops in
         if(factor > 0) then (
-          print_endline @@ "unrolling loop at " ^ CilType.Location.show loc ^" with factor " ^ string_of_int factor;
+          Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
-          match s.skind with
-          | Loop (b,loc, loc2, break , continue) ->
-            (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
-            let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
-            (* continues should go to the next unrolling *)
-            let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, true)]} in
-            (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
-            let current_continue_target = ref dummyStmt in
-            let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in
-            let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
-            let copies = List.init (factor) (fun i ->
-                current_continue_target := continue_target i;
-                mkStmt (Block (mkBlock [one_copy (); !current_continue_target])))
-            in
-            mkStmt (Block (mkBlock (copies@[s]@[break_target])))
-          | _ -> failwith "invariant broken"
+          (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
+          let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, false)]} in
+          let copies = List.init factor (fun i ->
+              (* continues should go to the next unrolling *)
+              let current_continue_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
+              let one_copy_stmts = copy_and_patch_labels break_target current_continue_target b.bstmts in
+              one_copy_stmts @ [current_continue_target]
+            )
+          in
+          mkStmt (Block (mkBlock (List.flatten copies @ [s; break_target])))
         ) else s (*no change*)
-      in ChangeDoChildrenPost(s, duplicate_and_rem_labels);
-    | _ -> DoChildren
+      | _ -> s
+    in
+    ChangeDoChildrenPost(s, duplicate_and_rem_labels)
 end
 
 let unroll_loops fd totalLoops =

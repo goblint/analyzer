@@ -1,8 +1,10 @@
+(** May-happen-in-parallel (MHP) domain. *)
+
 include Printable.Std
 
 let name () = "mhp"
 
-module TID = ThreadIdDomain.FlagConfiguredTID
+module TID = ThreadIdDomain.Thread
 module Pretty = GoblintCil.Pretty
 
 type t = {
@@ -22,7 +24,12 @@ let current (ask:Queries.ask) =
   }
 
 let pretty () {tid; created; must_joined} =
-  let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in
+  let tid_doc = 
+    if GobConfig.get_bool "dbg.full-output" then
+      Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid)
+    else
+      None
+  in
   (* avoid useless empty sets in race output *)
   let created_doc =
     if ConcDomain.ThreadSet.is_empty created then

@@ -1,0 +1,71 @@
+{0 Library goblint.cdomain.value}
+This library is unwrapped and provides the following top-level modules.
+For better context, see {!Goblint_lib} which also documents these modules.
+
+
+{1 Domains}
+
+{2 Analysis-specific}
+
+{3 Value}
+
+{4 Non-relational}
+
+{5 Numeric}
+{!modules:
+IntDomain
+FloatDomain
+}
+
+{5 Addresses}
+{!modules:
+Mval
+Offset
+StringDomain
+AddressDomain
+}
+
+{5 Complex}
+{!modules:
+StructDomain
+UnionDomain
+ArrayDomain
+NullByteSet
+JmpBufDomain
+}
+
+{5 Combined}
+{!modules:
+ValueDomain
+ValueDomainQueries
+}
+
+{3 Concurrency}
+{!modules:
+MutexAttrDomain
+ThreadIdDomain
+ConcDomain
+}
+
+{3 Other}
+{!modules:
+Lval
+}
+
+
+{1 I/O}
+
+{2 Witnesses}
+{!modules:
+Invariant
+InvariantCil
+}
+
+
+{1 Utilities}
+
+{2 Analysis-specific}
+{!modules:
+PrecisionUtil
+WideningThresholds
+}

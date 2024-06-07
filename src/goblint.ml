@@ -1,7 +1,6 @@
 open Goblint_lib
 open GobConfig
 open Maingoblint
-open Printf
 
 (** the main function *)
 let main () =
@@ -34,10 +33,11 @@ let main () =
     handle_extraspecials ();
     GoblintDir.init ();
 
-    if get_bool "dbg.verbose" then (
-      print_endline (GobUnix.localtime ());
-      print_endline GobSys.command_line;
-    );
+    Logs.debug "%s" (GobUnix.localtime ());
+    Logs.debug "%s" GobSys.command_line;
+    (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
+    if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForTerminationSpecification ();
+    if AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =
@@ -56,8 +56,9 @@ let main () =
         else
           None
       in
-      (* This is run independant of the autotuner being enabled or not be sound for programs with longjmp *)
-      AutoTune.activateLongjmpAnalysesWhenRequired ();
+      (* This is run independant of the autotuner being enabled or not to be sound for programs with longjmp *)
+      AutoSoundConfig.activateLongjmpAnalysesWhenRequired ();
+      if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
       do_html_output ();
@@ -73,13 +74,13 @@ let main () =
     exit 1
   | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
     do_stats ();
-    (* Printexc.print_backtrace BatInnerIO.stderr *)
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+    Printexc.print_backtrace stderr;
+    Logs.error "%s" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
   | Timeout.Timeout ->
     do_stats ();
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+    Logs.error "%s" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();
     exit 124
 
