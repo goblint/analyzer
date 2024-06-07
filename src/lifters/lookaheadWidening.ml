@@ -46,11 +46,7 @@ struct
 end
 
 
-module Lifter (S:Spec)
-  : Spec with module D = Dom (S.D)
-          and module G = S.G
-          and module C = S.C
-=
+module Lifter (S: Spec): Spec =
 struct
   module D =
   struct
@@ -68,78 +64,67 @@ struct
     let of_elt (x, _) = of_elt x
   end
 
-  let name () = S.name ()^" lookahead"
+  let name () = S.name () ^ " with lookahead widening"
 
-  let start_level = ref (`Top)
-
-  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
-  let init marshal =
-    S.init marshal
-
+  type marshal = S.marshal
+  let init = S.init
   let finalize = S.finalize
 
   let startstate v = (S.startstate v, S.startstate v)
   let exitstate  v = (S.exitstate  v, S.exitstate  v)
-  let morphstate v (d,l) = (S.morphstate v d, S.morphstate v l)
+  let morphstate v (m, p) = (S.morphstate v m, S.morphstate v p)
 
-  let conv1 (ctx: (D.t, G.t, C.t, V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+  let convm (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
     { ctx with local = fst ctx.local
-             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
+             ; split = (fun d es -> ctx.split (d, snd ctx.local) es)
     }
-  let conv2 (ctx: (D.t, G.t, C.t, V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+  let convp (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
     { ctx with local = snd ctx.local
-             ; split = (fun d es -> ctx.split (fst ctx.local, d) es )
+             ; split = (fun d es -> ctx.split (fst ctx.local, d) es)
     }
 
-  let context ctx fd (d,_) = S.context (conv1 ctx) fd d
+  let context ctx fd (m, _) = S.context (convm ctx) fd m
   let startcontext () = S.startcontext ()
 
-  let lift_fun (ctx: (D.t, G.t, C.t, V.t) ctx) f g h =
-    let main = h (g (conv1 ctx)) in
+  let lift_fun (ctx: (D.t, G.t, C.t, V.t) ctx) g h =
+    let main = h (g (convm ctx)) in
     if S.D.is_bot main then D.bot () else
-      (main, h (g (conv2 ctx)))
-  let lift_fun' (ctx: (D.t, G.t, C.t, V.t) ctx) f g h =
-    let main = h (g (conv1 ctx)) in
-    (main, h (g (conv2 ctx)))
-  let lift_fun2 (ctx: (D.t, G.t, C.t, V.t) ctx) f g h1 h2 =
-    let main = h1 (g (conv1 ctx)) in
+      (main, h (g (convp ctx)))
+  let lift_fun' (ctx: (D.t, G.t, C.t, V.t) ctx) g h =
+    let main = h (g (convm ctx)) in
+    (main, h (g (convp ctx)))
+  let lift_fun2 (ctx: (D.t, G.t, C.t, V.t) ctx) g h1 h2 =
+    let main = h1 (g (convm ctx)) in
     if S.D.is_bot main then D.bot () else
-      (main, h2 (g (conv2 ctx)))
+      (main, h2 (g (convp ctx)))
+
+  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
+  let query ctx (type a) (q: a Queries.t): a Queries.result = S.query (convm ctx) q
+  let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
+  let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
+  let body ctx f      = lift_fun ctx S.body   ((|>) f)
+  let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
+  let asm ctx         = lift_fun ctx S.asm    identity
+  let skip ctx        = lift_fun ctx S.skip identity
+  let special ctx r f args = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let enter ctx r f args =
-    let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (fst ctx.local, y)) in
-    let (l1, l2) = lift_fun' ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) in
-    List.map2 (fun (x1, y1) (x2, y2) -> ((x1, x2), (y1, y2))) l1 l2
-
-  let lift ctx d = (d, snd ctx.local)
-  let rec lift' ctx dl =
-    match dl with
-    | [] -> []
-    | d::l -> (d, snd ctx.local)::(lift' ctx l)
-  let lift_start_level d = (d, !start_level)
-
-  let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
-  let query ctx (type a) (q: a Queries.t): a Queries.result = S.query (conv1 ctx) q
-  let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
-  let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
-  let skip ctx        = lift_fun ctx (lift ctx) S.skip identity
-  let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
-  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
-  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
+    let (l1, l2) = lift_fun' ctx S.enter ((|>) args % (|>) f % (|>) r) in
+    List.map2 (fun (m1, m2) (p1, p2) -> ((m1, p1), (m2, p2))) l1 l2
+  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
   let threadenter ctx ~multiple lval f args =
-    let (l1, l2) = lift_fun' ctx Fun.id (S.threadenter~multiple) ((|>) args % (|>) f % (|>) lval) in
+    let (l1, l2) = lift_fun' ctx (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval) in
     List.combine l1 l2
-  let threadspawn ctx ~multiple lval f args fctx = lift_fun2 ctx (lift ctx) (S.threadspawn ~multiple) ((|>) (conv1 fctx) % (|>) args % (|>) f % (|>) lval) ((|>) (conv2 fctx) % (|>) args % (|>) f % (|>) lval)
+  let threadspawn ctx ~multiple lval f args fctx =
+    lift_fun2 ctx (S.threadspawn ~multiple) ((|>) (convm fctx) % (|>) args % (|>) f % (|>) lval) ((|>) (convp fctx) % (|>) args % (|>) f % (|>) lval)
 
-  let paths_as_set ctx = (*[ctx.local]*) (** Trivial, may be incorrect. *)
-    let (l1, l2) = lift_fun' ctx Fun.id S.paths_as_set Fun.id in
+  let paths_as_set ctx =
+    let (l1, l2) = lift_fun' ctx S.paths_as_set Fun.id in
     List.combine l1 l2
 
   let event ctx e octx =
-    lift_fun2 ctx (lift ctx) S.event ((|>) (conv1 octx) % (|>) e) ((|>) (conv2 octx) % (|>) e)
+    lift_fun2 ctx S.event ((|>) (convm octx) % (|>) e) ((|>) (convp octx) % (|>) e)
 end
