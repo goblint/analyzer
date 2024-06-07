@@ -1,0 +1,27 @@
+(rule
+ (aliases runtest runaprontest)
+ (enabled_if %{lib-available:apron})
+ (deps
+   (package goblint)
+   ../../../goblint ; update_suite calls local goblint
+   (:update_suite ../../../scripts/update_suite.rb)
+   (glob_files ??-*.c)
+   (glob_files ??-*.yml)) ; excluding witness.yml, etc. which might exist due to running update_suite outside of dune
+ (locks /update_suite)
+ (action
+  (chdir ../../..
+   (progn
+     (run %{update_suite} apron-unassume-interval -q)
+     (run %{update_suite} apron-unassume-branch -q)
+     (run %{update_suite} apron-unassume-global -q)
+     (run %{update_suite} apron-unassume-priv -q)
+     (run %{update_suite} apron-unassume-priv2 -q)
+     (run %{update_suite} apron-unassume-strengthening -q)
+     (run %{update_suite} mine-tutorial-ex4.10 -q)
+     (run %{update_suite} hh-ex3 -q)
+     (run %{update_suite} bh-ex1-poly -q)
+     (run %{update_suite} apron-unassume-precheck -q)
+     (run %{update_suite} apron-tracked-global-annot -q)))))
+
+(cram
+ (deps (glob_files *.c) (glob_files ??-*.yml)))

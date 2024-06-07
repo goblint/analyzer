@@ -1,3 +1,5 @@
+(** Input program from a real-world project using a Makefile. *)
+
 open Unix
 
 let buff_size = 1024
@@ -13,7 +15,7 @@ let exec_command ?path (command: string) =
      if Sys.file_exists path_str && Sys.is_directory path_str then Sys.chdir path_str
      else failwith ("Directory " ^ path_str ^ " does not exist!")
    | None -> ());
-  if GobConfig.get_bool "dbg.verbose" then print_endline ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
+  Logs.debug "%s" ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
   let (std_out, std_in) = open_process command in
   let output = Buffer.create buff_size in
   try
@@ -49,7 +51,7 @@ let remove_comb_files path =
   try
     while true do
       let comb = Fpath.to_string (find_file_by_suffix path comb_suffix) in
-      if GobConfig.get_bool "dbg.verbose" then print_endline ("deleting " ^ comb);
+      Logs.debug "deleting %s" comb;
       Sys.remove comb;
     done
   with Failure e -> ()
@@ -65,7 +67,7 @@ let run_cilly (path: Fpath.t) ~all_cppflags =
     let cflags = if all_cppflags = [] then "" else " CFLAGS+=" ^ Filename.quote (BatString.join " " all_cppflags) in
     let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"" ^cflags ^ " " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
-    print_string output;
+    Logs.debug "%s" output;
     (* fail if make failed *)
     if exit_code <> WEXITED 0 then
       failwith ("Failed combining files. Make was " ^ (GobUnix.string_of_process_status exit_code) ^ ".")
@@ -76,14 +78,14 @@ let generate_and_combine makefile ~all_cppflags =
   let makefile_str = Fpath.to_string makefile in
   (* make sure the Makefile exists or try to generate it *)
   if not (Sys.file_exists makefile_str) then (
-    print_endline ("Given " ^ makefile_str ^ " does not exist! Try to generate it.");
+    Logs.error "Given %s does not exist! Try to generate it." makefile_str;
     let configure = ("configure", "./configure", Fpath.(path / "configure")) in
     let autogen = ("autogen", "sh autogen.sh && ./configure", Fpath.(path / "autogen.sh")) in
     let exception MakefileNotGenerated in
     let generate_makefile_with (name, command, file) = if Sys.file_exists (Fpath.to_string file) then (
-        print_endline ("Trying to run " ^ name ^ " to generate Makefile");
+        Logs.debug "Trying to run %s to generate Makefile" name;
         let exit_code, output = exec_command ~path command in
-        print_endline (command ^ " " ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
+        Logs.debug "%s" (command ^ " " ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
         if not (Sys.file_exists makefile_str) then raise MakefileNotGenerated
       ) else raise MakefileNotGenerated in
     try generate_makefile_with configure

@@ -10,6 +10,7 @@ goblint
 goblint.byte
 goblint.json
 goblint.domaintest
+goblint_http.exe
 src/config*.ml
 tests/bench.txt
 .DS_Store
@@ -29,7 +30,6 @@ linux-headers
 .goblint*/
 goblint_temp_*/
 
-src/spec/graph
 .vagrant
 
 g2html.jar
@@ -61,6 +61,7 @@ privPrecCompareRes
 apronPrecCompare
 messagesCompare
 tests/regression/*/run
+tests/suite_result
 
 # csmith
 runtime/*
@@ -94,3 +95,10 @@ transformed.c
 
 # docs
 site/
+
+# coverage
+
+# bisect_ppx
+*.coverage
+# bisect-ppx-report
+_coverage/*

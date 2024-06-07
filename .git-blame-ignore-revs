@@ -28,3 +28,9 @@ ec8611a3a72ae0d95ec82ffee16c5c4785111aa1
 
 # Set up end-of-line normalization.
 78fd79e7f4d15c4412221b155971fac2e0616b90
+
+# fix indentation in baseInvariant
+f3ffd5e45c034574020f56519ccdb021da2a1479
+
+# Fix indentation in various non-legacy code
+c3e2cc848479ae86de5542b6ab0e75a74e9cf8c9

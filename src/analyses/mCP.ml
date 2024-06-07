@@ -1,4 +1,4 @@
-(** Master Control Program *)
+(** MCP analysis specification. *)
 
 open Batteries
 open GoblintCil
@@ -11,12 +11,14 @@ module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
-   and module V = DomVariantSysVar (VarListSpec) =
+   and module V = DomVariantSysVar (VarListSpec)
+   and module P = DomListRepresentative (PathListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
   module V = DomVariantSysVar (VarListSpec)
+  module P = DomListRepresentative (PathListSpec)
 
   open List open Obj
   let v_of n v = (n, repr v)
@@ -34,7 +36,7 @@ struct
   let name () = "MCP2"
 
   let path_sens = ref []
-  let cont_inse = ref []
+  let act_cont_sens = ref Set.empty
   let base_id   = ref (-1)
 
 
@@ -56,7 +58,7 @@ struct
       let y = find_id yn in
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = find_spec_name x in
-        Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
+        Logs.error "Activated analysis '%s' depends on '%s' and '%s' is not activated." xn yn yn;
         raise Stdlib.Exit
       end
     in
@@ -78,10 +80,19 @@ struct
     base_id := find_id "base";
     activated := map (fun s -> s, find_spec s) xs;
     path_sens := map' find_id @@ get_string_list "ana.path_sens";
-    cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
     check_deps !activated;
     activated := topo_sort_an !activated;
-    activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
+    begin
+      match get_string_list "ana.ctx_sens" with 
+      | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
+        let cont_inse = map' find_id @@ get_string_list "ana.ctx_insens" in
+        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n cont_inse)) !activated;      
+      | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
+        let cont_sens = map' find_id @@ sens in
+        activated_ctx_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
+    end;
+    act_cont_sens := Set.of_list (List.map (fun (n,p) -> n) !activated_ctx_sens);
+    activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
       iter2 (fun (_,{spec=(module S:MCPSpec); _}) marshal -> S.init (Some (Obj.obj marshal))) !activated marshal
@@ -105,27 +116,11 @@ struct
   let context fd x =
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
-        if mem n !cont_inse then
+        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
           None
         else
           Some (n, repr @@ S.context fd (obj d))
       ) x
-
-  let should_join x y =
-    (* TODO: GobList.for_all3 *)
-    let rec zip3 lst1 lst2 lst3 = match lst1,lst2,lst3 with
-      | [],_, _ -> []
-      | _,[], _ -> []
-      | _,_ , []-> []
-      | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
-    in
-    let should_join ((_,(module S:Analyses.MCPSpec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
-    (* obtain all analyses specs that are path sensitive and their values both in x and y *)
-    let specs = filter (fun (x,_,_) -> mem x !path_sens) (spec_list x) in
-    let xs = filter (fun (x,_) -> mem x !path_sens) x in
-    let ys = filter (fun (x,_) -> mem x !path_sens) y in
-    let zipped = zip3 specs xs ys in
-    List.for_all should_join zipped
 
   let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
@@ -153,11 +148,13 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
+  let do_spawns ctx (xs:(varinfo * (lval option * exp list * bool)) list) =
     let spawn_one v d =
-      List.iter (fun (lval, args) -> ctx.spawn lval v args) d
+      List.iter (fun (lval, args, multiple) -> ctx.spawn ~multiple lval v args) d
     in
-    if not (get_bool "exp.single-threaded") then
+    if get_bool "exp.single-threaded" then
+      M.msg_final Error ~category:Unsound "Thread not spawned"
+    else
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
   let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
@@ -217,16 +214,16 @@ struct
           let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
           n, repr @@ S.event ctx' e octx'
         in
-        if M.tracing then M.traceli "event" "%a\n  before: %a\n" Events.pretty e D.pretty ctx.local;
+        if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pretty e D.pretty ctx.local;
         let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
-        if M.tracing then M.traceu "event" "%a\n  after:%a\n" Events.pretty e D.pretty d;
+        if M.tracing then M.traceu "event" "%a\n  after:%a" Events.pretty e D.pretty d;
         do_sideg ctx !sides;
         do_spawns ctx !spawns;
         do_splits ctx d !splits !emits;
         let d = do_emits ctx !emits d q in
         if q then raise Deadcode else ctx_with_local ctx d
     in
-    if M.tracing then M.traceli "event" "do_emits:\n";
+    if M.tracing then M.traceli "event" "do_emits:";
     let emits =
       if dead then
         List.filter Events.emit_on_deadcode emits
@@ -235,7 +232,7 @@ struct
     in
     (* [emits] is in reverse order. *)
     let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) (List.rev emits) in
-    if M.tracing then M.traceu "event" "\n";
+    if M.tracing then M.traceu "event" "";
     ctx'.local
 
   and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
@@ -258,15 +255,15 @@ struct
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
     let anyq = Queries.Any q in
-    if M.tracing then M.traceli "query" "query %a\n" Queries.Any.pretty anyq;
+    if M.tracing then M.traceli "query" "query %a" Queries.Any.pretty anyq;
     let r = match Queries.Hashtbl.find_option querycache anyq with
       | Some r ->
-        if M.tracing then M.trace "query" "cached\n";
+        if M.tracing then M.trace "query" "cached";
         Obj.obj r
       | None ->
         let module Result = (val Queries.Result.lattice q) in
         if Queries.Set.mem anyq asked then (
-          if M.tracing then M.trace "query" "cycle\n";
+          if M.tracing then M.trace "query" "cycle";
           Result.top () (* query cycle *)
         )
         else
@@ -283,7 +280,9 @@ struct
               }
             in
             (* meet results so that precision from all analyses is combined *)
-            Result.meet a @@ S.query ctx' q
+            let res = S.query ctx' q in
+            if M.tracing then M.trace "queryanswers" "analysis %s query %a -> answer %a" (S.name ()) Queries.Any.pretty anyq Result.pretty res;
+            Result.meet a @@ res
           in
           match q with
           | Queries.WarnGlobal g ->
@@ -317,7 +316,7 @@ struct
     in
     if M.tracing then (
       let module Result = (val Queries.Result.lattice q) in
-      M.traceu "query" "-> %a\n" Result.pretty r
+      M.traceu "query" "-> %a" Result.pretty r
     );
     r
 
@@ -335,8 +334,8 @@ struct
 
   and outer_ctx tfname ?spawns ?sides ?emits ctx =
     let spawn = match spawns with
-      | Some spawns -> (fun l v a  -> spawns := (v,(l,a)) :: !spawns)
-      | None -> (fun v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
+      | Some spawns -> (fun ?(multiple=false) l v a  -> spawns := (v,(l,a,multiple)) :: !spawns)
+      | None -> (fun ?(multiple=false) v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
       | Some sides -> (fun v g    -> sides  := (v, (!WideningTokens.side_tokens, g)) :: !sides)
@@ -578,20 +577,20 @@ struct
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
+  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a =
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in
     let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadenter" ctx'' n d in
-      map (fun d -> (n, repr d)) @@ S.threadenter ctx' lval f a
+      map (fun d -> (n, repr d)) @@ (S.threadenter ~multiple) ctx' lval f a
     in
     let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     (* TODO: this do_emits is now different from everything else *)
     map (fun d -> do_emits ctx !emits d false) @@ map topo_sort_an @@ n_cartesian_product css
 
-  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
+  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a fctx =
     let sides  = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "threadspawn" ~sides ~emits ctx in
@@ -599,7 +598,7 @@ struct
     let f post_all (n,(module S:MCPSpec),(d,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all ctx'' n d in
       let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all fctx'' n fd in
-      n, repr @@ S.threadspawn ctx' lval f a fctx'
+      n, repr @@ S.threadspawn ~multiple ctx' lval f a fctx'
     in
     let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
     do_sideg ctx !sides;

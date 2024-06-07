@@ -1,3 +1,5 @@
+(** Path-sensitive analysis according to values of arbitrary given expressions ([expsplit]). *)
+
 open Batteries
 open GoblintCil
 open Analyses
@@ -17,8 +19,7 @@ struct
   let exitstate = startstate
 
   include Analyses.DefaultSpec
-
-  let should_join = D.equal
+  module P = IdentityP (D)
 
   let emit_splits ctx d =
     D.iter (fun e _ ->
@@ -83,9 +84,9 @@ struct
     in
     emit_splits ctx d
 
-  let threadenter ctx lval f args = [ctx.local]
+  let threadenter ctx ~multiple lval f args = [ctx.local]
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     emit_splits_ctx ctx
 
   let event ctx (event: Events.t) octx =

@@ -1,3 +1,5 @@
+(** Autotuning of the configuration based on syntactic heuristics. *)
+
 open GobConfig
 open GoblintCil
 open AutoTune0
@@ -83,7 +85,7 @@ let findMallocWrappers () =
   |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10)
   |> FunctionCallMap.bindings
   |> List.map (fun (v,_) -> v.vname)
-  |> List.iter (fun n -> print_endline ("malloc wrapper: " ^ n); GobConfig.set_auto "ana.malloc.wrappers[+]" n)
+  |> List.iter (fun n -> Logs.info "malloc wrapper: %s" n; GobConfig.set_auto "ana.malloc.wrappers[+]" n)
 
 
 (*Functions for determining if the congruence analysis should be enabled *)
@@ -96,8 +98,10 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
     fd.svar.vattr <- addAttributes (fd.svar.vattr) [Attr ("goblint_precision",[AStr "congruence"])];
     FunctionSet.iter
       (fun vinfo ->
-         print_endline ("    " ^ vinfo.vname);
-         setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
+         Logs.info "    %s" vinfo.vname;
+         match Cilfacade.find_varinfo_fundec vinfo with
+         | fd -> setCongruenceRecursive fd (depth -1) neigbourFunction
+         | exception Not_found -> () (* Happens for __goblint_bounded *)
       )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
          (fun x -> not (isExtern x.vstorage || BatString.starts_with x.vname "__builtin"))
@@ -123,10 +127,10 @@ class modFunctionAnnotatorVisitor = object
     let thisVisitor = new modVisitor in
     try ignore (visitCilFunction thisVisitor fd) with
     | ModFound ->
-      print_endline ("function " ^ (CilType.Fundec.show fd) ^" uses mod, enable congruence domain recursively for:");
-      print_endline ("  \"down\":");
+      Logs.info "function %a uses mod, enable congruence domain recursively for:" CilType.Fundec.pretty fd;
+      Logs.info "  \"down\":";
       setCongruenceRecursive fd 6 calledFunctions;
-      print_endline ("  \"up\":");
+      Logs.info "  \"up\":";
       setCongruenceRecursive fd 3 callingFunctions;
       ;
       SkipChildren
@@ -142,7 +146,7 @@ let disableIntervalContextsInRecursiveFunctions () =
   (ResettableLazy.force functionCallMaps).calling |> FunctionCallMap.iter (fun f set ->
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
-        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval and interval_set contexts");
+        Logs.info "function %s is recursive, disable interval and interval_set contexts" f.vname;
         f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "base.no-interval_set"; AStr "relation.no-context"])];
       )
     )
@@ -178,11 +182,11 @@ let enableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[+]") anas
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
-(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
+(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
-let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
+let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"]
 let reduceThreadAnalyses () =
   let isThreadCreate = function
     | LibraryDesc.ThreadCreate _ -> true
@@ -190,33 +194,79 @@ let reduceThreadAnalyses () =
   in
   let hasThreadCreate = hasFunction isThreadCreate in
   if not @@ hasThreadCreate then (
-    print_endline @@ "no thread creation -> disabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    Logs.info "no thread creation -> disabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     disableAnalyses notNeccessaryThreadAnalyses;
   )
 
 (* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
 (* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
-let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceLongjmp"; "poisonVariables"; "expsplit"; "vla"]
+let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceSetjmp"; "poisonVariables"; "expsplit"; "vla"]
 
 let activateLongjmpAnalysesWhenRequired () =
   let isLongjmp = function
     | LibraryDesc.Longjmp _ -> true
     | _ -> false
-in
+  in
   if hasFunction isLongjmp  then (
-    print_endline @@ "longjmp -> enabling longjmp analyses \"" ^ (String.concat ", " longjmpAnalyses) ^ "\"";
+    Logs.info "longjmp -> enabling longjmp analyses \"%s\"" (String.concat ", " longjmpAnalyses);
     enableAnalyses longjmpAnalyses;
   )
 
-let focusOnSpecification () =
-  match Svcomp.Specification.of_option () with
+let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
+  match spec with
+  | ValidFree -> (* Enable the useAfterFree analysis *)
+    let uafAna = ["useAfterFree"] in
+    Logs.info "Specification: ValidFree -> enabling useAfterFree analysis \"%s\"" (String.concat ", " uafAna);
+    enableAnalyses uafAna
+  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
+    let memOobAna = ["memOutOfBounds"] in
+    set_bool "ana.arrayoob" true;
+    Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
+    set_bool "cil.addNestedScopeAttr" true;
+    Logs.info "Specification: ValidDeref -> enabling memOutOfBounds analysis \"%s\"" (String.concat ", " memOobAna);
+    enableAnalyses memOobAna;
+  | ValidMemtrack
+  | ValidMemcleanup -> (* Enable the memLeak analysis *)
+    let memLeakAna = ["memLeak"] in
+    if (get_int "ana.malloc.unique_address_count") < 1 then (
+      Logs.info "Setting \"ana.malloc.unique_address_count\" to 5";
+      set_int "ana.malloc.unique_address_count" 5;
+    );
+    Logs.info "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"%s\"" (String.concat ", " memLeakAna);
+    enableAnalyses memLeakAna
+  | _ -> ()
+
+let focusOnMemSafetySpecification () =
+  List.iter focusOnMemSafetySpecification (Svcomp.Specification.of_option ())
+
+let focusOnTermination (spec: Svcomp.Specification.t) =
+  match spec with
+  | Termination ->
+    let terminationAnas = ["termination"; "threadflag"; "apron"] in
+    Logs.info "Specification: Termination -> enabling termination analyses \"%s\"" (String.concat ", " terminationAnas);
+    enableAnalyses terminationAnas;
+    set_string "sem.int.signed_overflow" "assume_none";
+    set_bool "ana.int.interval" true;
+    set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
+    ()
+  | _ -> ()
+
+let focusOnTermination () =
+  List.iter focusOnTermination (Svcomp.Specification.of_option ())
+
+let focusOnSpecification (spec: Svcomp.Specification.t) =
+  match spec with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
-    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true
+  | _ -> ()
+
+let focusOnSpecification () =
+  List.iter focusOnSpecification (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -361,9 +411,9 @@ let congruenceOption factors file =
   let cost = (locals + globals) * (factors.instructions / 12) + 5 * factors.functionCalls in
   let value = 5 * locals + globals in
   let activate () =
-    print_endline @@ "Congruence: " ^ string_of_int cost;
+    Logs.debug "Congruence: %d" cost;
     set_bool "ana.int.congruence" true;
-    print_endline "Enabled congruence domain.";
+    Logs.info "Enabled congruence domain.";
   in
   {
     value;
@@ -374,9 +424,10 @@ let congruenceOption factors file =
 let apronOctagonOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
-      match Svcomp.Specification.of_option () with
-      | NoOverflow -> 12
-      | _ -> 8
+      if List.mem Svcomp.Specification.NoOverflow (Svcomp.Specification.of_option ()) then
+        12
+      else
+        8
     else 8
   in let globals = 2 in
   let selectedLocals =
@@ -394,14 +445,14 @@ let apronOctagonOption factors file =
   let allVars = (selectedGlobals @ selectedLocals) in
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
-    print_endline @@ "Octagon: " ^ string_of_int cost;
+    Logs.debug "Octagon: %d" cost;
     set_bool "annotation.goblint_relation_track" true;
     set_string "ana.apron.domain" "octagon";
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;
     set_string "ana.apron.threshold_widening_constants" "comparisons";
-    print_endline "Enabled octagon domain for:";
-    print_endline @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
+    Logs.info "Enabled octagon domain for:";
+    Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
     List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
   in
   {
@@ -418,12 +469,23 @@ let wideningOption factors file =
     value = amountConsts * (factors.loops * 5 + factors.controlFlowStatements);
     cost = cost;
     activate = fun () ->
-      print_endline @@ "Widening: " ^ string_of_int cost;
+      Logs.debug "Widening: %d" cost;
       set_bool "ana.int.interval_threshold_widening" true;
       set_string "ana.int.interval_threshold_widening_constants" "comparisons";
-      print_endline "Enabled widening thresholds";
+      Logs.info "Enabled widening thresholds";
   }
 
+let activateTmpSpecialAnalysis () =
+  let isMathFun = function
+    | LibraryDesc.Math _ -> true
+    | _ -> false
+  in
+  let hasMathFunctions = hasFunction isMathFun in
+  if hasMathFunctions then (
+    Logs.info "math function -> enabling tmpSpecial analysis and floating-point domain";
+    enableAnalyses ["tmpSpecial"];
+    set_bool "ana.float.interval" true;
+  )
 
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
@@ -441,27 +503,35 @@ let chooseFromOptions costTarget options =
   let ratio o = Float.of_int o.value /. Float.of_int o.cost in
   let compareRatio o1 o2 = Float.compare (ratio o1) (ratio o2) in
   let rec takeFitting remainingTarget options =
-    if remainingTarget < 0 then (print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); [] ) else match options with
+    if remainingTarget < 0 then (Logs.debug "Total: %d" (totalTarget - remainingTarget); [] ) else match options with
       | o::os ->
         if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow overshooting *)
           o::takeFitting (remainingTarget - o.cost) os
         else
           takeFitting (remainingTarget - o.cost) os
-      | [] -> print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); []
+      | [] -> Logs.debug "Total: %d" (totalTarget - remainingTarget); []
   in
   takeFitting costTarget @@ List.sort compareRatio options
 
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
 
+let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
+
+let specificationIsActivated () =
+  isActivated "specification" && get_string "ana.specification" <> ""
+
+let specificationTerminationIsActivated () =
+  isActivated "termination"
+
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
 
-  print_endline "Collected factors:";
+  Logs.debug "Collected factors:";
   printFactors factors;
-  print_endline "";
-  print_endline "Complexity estimates:";
-  print_endline @@ "File: " ^ string_of_int fileCompplexity;
+  Logs.debug "";
+  Logs.debug "Complexity estimates:";
+  Logs.debug "File: %d" fileCompplexity;
 
   if fileCompplexity < totalTarget && isActivated "congruence" then
     addModAttributes file;
@@ -472,7 +542,7 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "specification" && get_string "ana.specification" <> "" then
+  if specificationIsActivated () then
     focusOnSpecification ();
 
   if isActivated "enums" && hasEnums file then
@@ -484,12 +554,15 @@ let chooseConfig file =
   if isActivated "arrayDomain" then
     selectArrayDomains file;
 
+  if isActivated "tmpSpecialAnalysis" then
+    activateTmpSpecialAnalysis ();
+
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
-  let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
+  (* Termination analysis uses apron in a different configuration. *)
+  let options = if isActivated "octagon" && not (isTerminationTask ()) then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
   List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options
-
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps

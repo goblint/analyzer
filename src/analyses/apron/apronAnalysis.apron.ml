@@ -1,4 +1,5 @@
-(** Analysis using Apron for integer variables. *)
+(** {{!RelationAnalysis} Relational integer value analysis} using {!Apron} domains ([apron]). *)
+
 open Analyses
 
 include RelationAnalysis
@@ -8,19 +9,11 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module Man = (val ApronDomain.get_manager ()) in
     let module AD = ApronDomain.D2 (Man) in
     let diff_box = GobConfig.get_bool "ana.apron.invariant.diff-box" in
-    let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): ApronDomain.S3) else (module AD)) in
-    let module RD: RelationDomain.RD =
-    struct
-      module Var = ApronDomain.Var
-      module V = ApronDomain.V
-      include AD
-      type var = ApronDomain.Var.t
-    end
-    in
+    let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): RelationDomain.RD) else (module AD)) in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct
-      include SpecFunctor (Priv) (RD) (ApronPrecCompareUtil.Util)
+      include SpecFunctor (Priv) (AD) (ApronPrecCompareUtil.Util)
       let name () = "apron"
     end
     in

@@ -1,3 +1,5 @@
+(** Symbolic lockset domain. *)
+
 open GoblintCil
 
 module M = Messages
@@ -97,11 +99,11 @@ struct
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
-    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Offset.Exp.to_cil offs))
     | Lval (Mem e,o)                       -> Lval (Mem (replace_base (v,offs) q e), o)
-    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | AddrOf (Mem e,o)                     -> AddrOf (Mem (replace_base (v,offs) q e), o)
-    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
 
@@ -235,7 +237,7 @@ struct
     | _            ,             _ -> raise (Invalid_argument "")
 
   let from_exps a l : t option =
-    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)\n" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
+    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
     let a, l = toEl a, toEl l in
     (* ignore (printf "from_exps:\n %s\n %s\n" (ees_to_str a) (ees_to_str l)); *)
     (*let rec fold_left2 f a xs ys =
@@ -300,9 +302,11 @@ struct
 
     let equal_to _ _ = `Top
     let to_int _ = None
+    let top () = Unknown
   end
 
-  include Lval.Normal (Idx)
+  include AddressDomain.AddressPrintable (Mval.MakePrintable (Offset.MakePrintable (Idx)))
+  let name () = "i-lock"
 
   let rec conv_const_offset x =
     match x with
@@ -311,5 +315,5 @@ struct
     | Index (_,o) -> `Index (Idx.Unknown, conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
-  let from_var_offset (v, o) = from_var_offset (v, conv_const_offset o)
+  let of_mval (v, o) = of_mval (v, conv_const_offset o)
 end

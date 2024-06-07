@@ -1,3 +1,4 @@
+(** Simple intraprocedural integer constants analysis example ([constants]). *)
 
 open GoblintCil
 open Analyses
@@ -13,11 +14,9 @@ struct
 
   (* Map of (local int) variables to flat integers *)
   module D = MapDomain.MapBot (Basetype.Variables) (I)
-  (* No contexts*)
-  module C = Lattice.Unit
 
-  include Analyses.IdentitySpec
-  let context _ _ = ()
+  (* No contexts *)
+  include Analyses.IdentityUnitContextsSpec
 
   let is_integer_var (v: varinfo) =
     match v.vtype with

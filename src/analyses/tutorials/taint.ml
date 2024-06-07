@@ -1,6 +1,8 @@
+(** Simple interprocedural taint analysis template ([taint]). *)
+
 (** An analysis specification for didactic purposes. *)
-(* Helpful link on CIL: https://goblint.in.tum.de/assets/goblint-cil/ *)
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
+(* Helpful link on CIL: https://goblint.github.io/cil/ *)
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
 
@@ -23,7 +25,7 @@ struct
 
   let name () = "taint"
   module D = Lattice.Unit (* TODO: Change such that you have a fitting local domain *)
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
   (* We are context insensitive in this analysis *)
   let context _ _ = ()
@@ -127,8 +129,8 @@ struct
 
   (* You may leave these alone *)
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 end
 

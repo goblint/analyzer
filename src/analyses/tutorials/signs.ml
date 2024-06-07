@@ -1,4 +1,6 @@
-(** An analysis specification for didactic purposes. *)
+(** Simple intraprocedural integer signs analysis template ([signs]).
+
+    @see <https://goblint.readthedocs.io/en/latest/developer-guide/firstanalysis/> *)
 
 open GoblintCil
 open Analyses
@@ -34,7 +36,7 @@ end
  * We then lift the above operations to the lattice. *)
 module SL =
 struct
-  include Lattice.Flat (Signs) (Printable.DefaultNames)
+  include Lattice.Flat (Signs)
   let of_int i = `Lifted (Signs.of_int i)
 
   let lt x y = match x, y with

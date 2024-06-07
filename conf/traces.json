@@ -3,7 +3,8 @@
     "int": {
       "def_exc": true,
       "interval": false,
-      "enums": true
+      "enums": true,
+      "def_exc_widen_by_join": true
     },
     "malloc": {
       "wrappers": [

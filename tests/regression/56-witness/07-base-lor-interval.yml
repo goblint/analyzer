@@ -4,13 +4,8 @@
     uuid: b000a41c-b7eb-4187-92ea-40530a44479c
     creation_time: 2023-01-24T09:33:20Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-bench-0-g22403e387-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''07-base-lor-interval.c''
-        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--enable''
-        ''witness.invariant.other'' ''--disable'' ''witness.invariant.accessed'' ''--set''
-        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
-        ''.goblint-56-07'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 07-base-lor-interval.c
@@ -22,7 +17,7 @@
     file_name: 07-base-lor-interval.c
     file_hash: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
     line: 8
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: r || 2 <= x
@@ -34,13 +29,8 @@
     uuid: b000a41c-b7eb-4187-92ea-40530a44479c
     creation_time: 2023-01-24T09:33:20Z
     producer:
-      name: Goblint
-      version: heads/yaml-witness-unassume-bench-0-g22403e387-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''07-base-lor-interval.c''
-        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--enable''
-        ''witness.invariant.other'' ''--disable'' ''witness.invariant.accessed'' ''--set''
-        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
-        ''.goblint-56-07'''
+      name: Simmo Saan
+      version: n/a
     task:
       input_files:
       - 07-base-lor-interval.c
@@ -52,7 +42,7 @@
     file_name: 07-base-lor-interval.c
     file_hash: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
     line: 9
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 2 <= x || r

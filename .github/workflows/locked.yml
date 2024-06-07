@@ -18,7 +18,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
         ocaml-compiler:
           - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -40,6 +40,11 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
+
+      - name: Install graph-easy # TODO: remove if depext --with-test works
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
@@ -47,40 +52,17 @@ jobs:
       - name: Build
         run: ./make.sh nat
 
-      - name: Test regression
-        run: ./make.sh headers testci
+      - name: Download Linux headers
+        run: ./make.sh headers
 
-      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: |
-          ruby scripts/update_suite.rb group apron -s
-          ruby scripts/update_suite.rb group apron2 -s
+      - name: Test
+        run: opam exec -- dune runtest
 
-      - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group octagon -s
-
-      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group affeq -s
-
-      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group apron-mukherjee -s
-
-      - name: Test regression cram
-        run: opam exec -- dune runtest tests/regression
-
-      - name: Test unit
-        run: opam exec -- dune runtest unittest
-
-      - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
-
-      - name: Test incremental regression with cfg comparison
-        run: ruby scripts/update_suite.rb -c
-
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: suite_result
-          path: tests/suite_result/
+          name: suite_result-${{ matrix.os }}
+          path: _build/default/tests/suite_result/
 
   extraction:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
@@ -98,7 +80,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -108,6 +90,11 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
+
+      - name: Install graph-easy # TODO: remove if depext --with-test works
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: sudo apt install -y libgraph-easy-perl
 
       - name: Install spin
         run: sudo apt-get -y install spin
@@ -138,7 +125,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -150,7 +137,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -164,12 +151,11 @@ jobs:
         run: ./make.sh nat
 
       - name: Build Gobview
-        run: opam exec -- dune build gobview
+        run: ./make.sh view
 
       - name: Install selenium
         run: pip3 install selenium webdriver-manager
 
       - name: Test Gobview
         run: |
-          ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
           python3 scripts/test-gobview.py

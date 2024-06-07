@@ -22,6 +22,7 @@ nav:
     - ▶️ Running: user-guide/running.md
     - 🔧 Configuring: user-guide/configuring.md
     - 🗂️ Options reference: jsfh/options.schema.html
+    - ⚠️ Assumptions: user-guide/assumptions.md
     - 🔍 Inspecting: user-guide/inspecting.md
     - 📝 Annotating: user-guide/annotating.md
     - 🐎 Benchmarking: user-guide/benchmarking.md
@@ -30,6 +31,7 @@ nav:
     - 👶 Your first analysis: developer-guide/firstanalysis.md
     - 🏫 Extending library: developer-guide/extending-library.md
     - 📢 Messaging: developer-guide/messaging.md
+    - 🗃️ API reference: https://goblint.github.io/analyzer/goblint/
     - 🚨 Testing: developer-guide/testing.md
     - 🪲 Debugging: developer-guide/debugging.md
     - 📉 Profiling: developer-guide/profiling.md
@@ -38,3 +40,4 @@ nav:
   - '📦 Artifact descriptions':
     - "🇸 SAS '21": artifact-descriptions/sas21.md
     - "🇪 ESOP '23": artifact-descriptions/esop23.md
+    - "🇻 VMCAI '24": artifact-descriptions/vmcai24.md
