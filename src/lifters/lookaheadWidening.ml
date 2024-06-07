@@ -6,47 +6,59 @@ open Batteries
 open Lattice
 open Analyses
 
-module LookaheadConf (C: Printable.ProdConfiguration) (Base: S) =
+module Dom (Base: S) =
 struct
-  include Printable.ProdConf (C) (Base) (Base)
+  include Printable.Prod (Base) (Base)
 
-  let bot () = (Base.bot (), Base.bot())
+  let bot () = (Base.bot (), Base.bot ())
   let is_bot (m, p) = Base.is_bot m
   let top () = (Base.top (), Base.top ())
   let is_top (m, p) = Base.is_top m && Base.is_top p
 
-  let leq (m1,p1) (m2,p2) = Base.leq m1 m2 && (not (Base.equal m1 m2) || Base.leq p1 p2)
+  let leq (m1, p1) (m2, p2) = Base.leq m1 m2 && (not (Base.equal m1 m2) || Base.leq p1 p2)
 
-  let pretty_diff () ((m1,p1:t),(m2,p2:t)): Pretty.doc =
-    if Base.leq m1 m2 then
-      Base.pretty_diff () (p1,p2)
+  let op_scheme mop pop (m1, p1) (m2, p2) = (mop m1 m2, pop p1 p2)
+  let join x y =
+    if !AnalysisState.widening then
+      y
     else
-      Base.pretty_diff () (m1,m2)
+      op_scheme Base.join Base.join x y
+  let meet = op_scheme Base.meet Base.meet (** TODO: Might not be correct *)
+  let widen ((m1, p1) as x) ((m2, p2) as y) =
+    if leq y x then
+      x
+    else if Base.leq p2 p1 then
+      (p2, p2)
+    else
+      op_scheme Base.join (fun p1 p2 ->
+          if Base.leq p2 p1 then
+            p1
+          else
+            Base.widen p1 (Base.join p1 p2)
+        ) x y
+  let narrow = op_scheme Base.narrow Base.narrow (** TODO: Might not be correct *)
 
-  let op_scheme op1 op2 (m1,p1) (m2,p2) = (op1 m1 m2, op2 p1 p2)
-  let join x y = if !AnalysisState.widening then y else op_scheme Base.join Base.join x y
-  let meet = op_scheme Base.meet Base.meet (** Might not be correct *)
-  let narrow = op_scheme Base.narrow Base.narrow (** Might not be correct *)
-  let widen (m1,p1) (m2,p2) =
-    if leq (m2,p2) (m1,p1) then (m1,p1)
-    else if Base.leq p2 p1 then (p2,p2)
-    else op_scheme Base.join (fun y x -> if Base.leq x y then y else Base.widen y (Base.join x y)) (m1,p1) (m2,p2)
-
-  let printXml f (x,y) =
-    BatPrintf.fprintf f "%a%a" Base.printXml x Base.printXml y
+  let pretty_diff () ((m1, p1), (m2, p2)) =
+    if Base.leq m1 m2 then
+      Base.pretty_diff () (p1, p2)
+    else
+      Base.pretty_diff () (m1, m2)
 end
-
-module Lookahead = LookaheadConf (struct let expand_fst = true let expand_snd = true end)
-module LookaheadSimple = LookaheadConf (struct let expand_fst = false let expand_snd = false end)
 
 
 module Lifter (S:Spec)
-  : Spec with module D = Lookahead (S.D)
+  : Spec with module D = Dom (S.D)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lookahead (S.D)
+  module D =
+  struct
+    include Dom (S.D)
+
+    let printXml f (m, p) =
+      BatPrintf.fprintf f "%a%a" S.D.printXml m S.D.printXml p
+  end
   module G = S.G
   module C = S.C
   module V = S.V
