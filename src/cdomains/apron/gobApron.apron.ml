@@ -12,7 +12,9 @@ struct
   include Lincons1
 
   let show = Format.asprintf "%a" print
-  let compare x y = String.compare (show x) (show y) (* HACK *)
+  let compare x y =
+    (* TODO: implement proper total Lincons1 order *)
+    String.compare (show x) (show y) (* HACK *)
 
   let num_vars x =
     (* Apron.Linexpr0.get_size returns some internal nonsense, so we count ourselves. *)
