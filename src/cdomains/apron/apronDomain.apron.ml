@@ -451,9 +451,9 @@ struct
   let hash (x:t) =
     A.hash Man.mgr x
 
-  let compare (x:t) y: int =
-    (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
-    Stdlib.compare x y
+  let compare (x: t) (y: t): int =
+    failwith "Apron.Abstract1 doesn't have total order" (* https://github.com/antoinemine/apron/issues/99 *)
+
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
 
   let to_yojson (x: t) =

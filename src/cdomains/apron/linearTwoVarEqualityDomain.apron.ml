@@ -386,7 +386,7 @@ struct
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
-    let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
+    let env_comp = Environment.cmp t1.env t2.env in (* Apron's Environment.cmp has defined return values. *)
     let implies ts i (var, b) =
       let tuple_cmp = Tuple2.eq (Option.eq ~eq:Int.equal) (Z.equal) in
       match var with
@@ -450,7 +450,7 @@ struct
     | Some x, Some y when is_top a || is_top b ->
       let new_env = Environment.lce a.env b.env in
       top_of new_env
-    | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
+    | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
       let sup_env = Environment.lce a.env b.env in
       let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
       let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
