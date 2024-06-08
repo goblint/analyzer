@@ -51,7 +51,10 @@ depends: [
   "benchmark" {with-test}
   "conf-gcc"
 ]
-depopts: ["apron" "z3"]
+depopts: [
+  "apron" {>= "v0.9.15"}
+  "z3"
+]
 conflicts: [
   "result" {< "1.5"}
   "ez-conf-lib" {= "1"}
@@ -81,6 +84,7 @@ pin-depends: [
   [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#ae3a4949d478fad77e004c6fe15a7c83427df59f" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+  [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#b3172bd51e4bb0135716a300cab424a56970d96f" ]
 ]
 depexts: [
   ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}

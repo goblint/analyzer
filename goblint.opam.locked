@@ -22,7 +22,7 @@ doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
-  "apron" {= "v0.9.14~beta.2"}
+  "apron" {= "v0.9.15"}
   "arg-complete" {= "0.1.0"}
   "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
@@ -139,6 +139,10 @@ pin-depends: [
   [
     "ppx_deriving.5.2.1"
     "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
+  ]
+  [
+    "apron.v0.9.15"
+    "git+https://github.com/antoinemine/apron.git#b3172bd51e4bb0135716a300cab424a56970d96f"
   ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
