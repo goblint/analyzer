@@ -42,6 +42,10 @@ module Environment =
 struct
   include Environment
 
+  let compare (x: t) (y: t): int =
+    (* TODO: implement total Environment order in OCaml *)
+    failwith "Apron.Environment doesn't have total order" (* https://github.com/antoinemine/apron/issues/99 *)
+
   let ivars_only env =
     let ivs, fvs = Environment.vars env in
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
