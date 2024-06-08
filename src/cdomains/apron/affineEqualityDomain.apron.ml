@@ -257,7 +257,7 @@ struct
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
-    let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
+    let env_comp = Environment.cmp t1.env t2.env in (* Apron's Environment.cmp has defined return values. *)
     if env_comp = -2 || env_comp > 0 then
       (* -2:  environments are not compatible (a variable has different types in the 2 environements *)
       (* -1: if env1 is a subset of env2,  (OK)  *)
@@ -334,7 +334,7 @@ struct
     else
       match Option.get a.d, Option.get b.d with
       | x, y when is_top_env a || is_top_env b -> {d = Some (Matrix.empty ()); env = Environment.lce a.env b.env}
-      | x, y when (Environment.compare a.env b.env <> 0) ->
+      | x, y when (Environment.cmp a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
