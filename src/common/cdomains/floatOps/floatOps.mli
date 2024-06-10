@@ -17,6 +17,7 @@ module type CFloatType = sig
   val pi : t
 
   val of_float: round_mode -> float -> t
+  val to_float: t -> float
   val to_big_int: t -> Z.t
 
   val is_finite: t -> bool

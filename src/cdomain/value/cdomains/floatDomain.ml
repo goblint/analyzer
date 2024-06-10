@@ -241,12 +241,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let minimal = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "minimal %s" (show Bot)))
-    | Interval (l, _) -> Some l
+    | Interval (l, _) -> Some (Float_t.to_float l)
     | _ -> None
 
   let maximal = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "maximal %s" (show Bot)))
-    | Interval (_, h) -> Some h
+    | Interval (_, h) -> Some (Float_t.to_float h)
     | _ -> None
 
   let is_exact = function
