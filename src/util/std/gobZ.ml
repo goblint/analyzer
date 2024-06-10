@@ -1,4 +1,4 @@
-type t = Z.t
+type t = Z.t [@@deriving eq, ord, hash]
 
 let to_yojson z =
   `Intlit (Z.to_string z)
