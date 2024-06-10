@@ -104,12 +104,13 @@ struct
   let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
     let conv exp  =
       let query e ik =
+        if M.tracing then M.trace "relation-query" "before: texpr1_expr_of_cil_exp/query: %a" d_plainexp e;
         let res =
           match ask.f (EvalInt e) with
           | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
-        if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
+        if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
         res
       in
       (* recurse without env and ask arguments *)
@@ -138,10 +139,12 @@ struct
                   this query is answered by the 2 var equalities domain itself. This normalizes arbitrary expressions to a point where they
                   might be able to be represented by means of 2 var equalities *)
               let simplify e =
+                AnalysisState.executing_speculative_computations := true;
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
+                AnalysisState.executing_speculative_computations := false;
                 BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
               in
               let texpr1 e = texpr1_expr_of_cil_exp (simplify e) in
