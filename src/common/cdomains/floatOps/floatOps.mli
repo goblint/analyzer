@@ -7,7 +7,7 @@ type round_mode =
   | Down
 
 module type CFloatType = sig
-  type t = float
+  type t
 
   val name: string
   val zero: t

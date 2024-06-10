@@ -6,7 +6,7 @@ type round_mode =
   | Down
 
 module type CFloatType = sig
-  type t = float
+  type t
 
   val name: string
   val zero: t
@@ -95,7 +95,7 @@ module CDouble = struct
   external atof: round_mode -> string -> t = "atof_double"
 end
 
-module CFloat : CFloatType = struct
+module CFloat = struct
   type t = float [@@deriving eq, ord, hash, to_yojson]
 
   let name = "float"
