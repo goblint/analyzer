@@ -32,7 +32,8 @@ int main() {
     __goblint_check(51 * y >= 51 - 2 * (x - 1)); // needs lookahead
   }
   // n_x
-  __goblint_check(x == 102); // TODO (needs lookahead)
+  __goblint_check(x >= 51); // needs lookahead
+  __goblint_check(x <= 102); // needs lookahead
   __goblint_check(y == -1); // needs lookahead
   return 0;
 }
