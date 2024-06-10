@@ -916,6 +916,13 @@ module CongruenceClosure = struct
       | None -> Deref (t, z, T.dereference_exp exp z)
       | Some t -> t
 
+    let deref_term_even_if_its_not_possible min_term z set =
+      match deref_term min_term z set with
+      | result -> result
+      | exception (T.UnsupportedCilExpression _) ->
+        let random_type = (TPtr (TPtr (TInt (ILong,[]),[]),[])) in (*the type is not so important for min_repr and get_normal_form*)
+        Deref (min_term, z, Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), T.to_cil_constant z random_type, random_type)), NoOffset))
+
   end
 
   (** Minimal representatives map.
@@ -946,11 +953,7 @@ module CongruenceClosure = struct
             let next_state, next_z, uf = TUF.find uf next_term in
             let (min_term, min_z) = find state min_representatives in
             let next_min =
-              match (SSet.deref_term min_term Z.(edge_z - min_z) set, next_z) with
-              | exception (T.UnsupportedCilExpression _) ->
-                let random_type = (TPtr (TPtr (TInt (ILong,[]),[]),[])) in (*the type is not so important for min_repr*)
-                Deref (min_term, Z.(edge_z - min_z), Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), T.to_cil_constant Z.(edge_z - min_z) random_type, random_type)), NoOffset)), next_z
-              | next_min -> next_min in
+              (SSet.deref_term_even_if_its_not_possible min_term Z.(edge_z - min_z) set, next_z) in
             match TMap.find_opt next_state min_representatives
             with
             | None ->
@@ -1068,9 +1071,7 @@ module CongruenceClosure = struct
       List.filter_map (fun (z,s,_ (*size is not important for normal form?*),(s',z')) ->
           let (min_state, min_z) = MRMap.find s cc.min_repr in
           let (min_state', min_z') = MRMap.find s' cc.min_repr in
-          match normalize_equality (SSet.deref_term min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z')) with
-          | exception (T.UnsupportedCilExpression _) -> None
-          | eq -> eq
+          normalize_equality (SSet.deref_term_even_if_its_not_possible min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
         ) transitions in
     (*disequalities*)
     let disequalities = Disequalities.get_disequalities cc.diseq
@@ -1307,8 +1308,9 @@ module CongruenceClosure = struct
 
   (** Throws "Unsat" if a contradiction is found. *)
   let meet_conjs cc pos_conjs =
-    let cc = insert_set_opt cc (fst (SSet.subterms_of_conj pos_conjs)) in
-    Option.map (fun cc -> closure cc pos_conjs) cc
+    let res = let cc = insert_set_opt cc (fst (SSet.subterms_of_conj pos_conjs)) in
+      Option.map (fun cc -> closure cc pos_conjs) cc
+    in if M.tracing then M.trace "wrpointer-meet" "MEET_CONJS RESULT: %s\n" (Option.map_default (fun res -> show_conj (get_normal_form res)) "None" res);res
 
   let meet_conjs_opt conjs cc =
     let pos_conjs, neg_conjs = split conjs in
