@@ -7,6 +7,8 @@ module M = Messages
 
 exception Unsat
 
+let bitsSizeOfPtr = Z.of_int @@ bitsSizeOf (TPtr (TVoid [],[]))
+
 type ('v, 't) term = Addr of 'v | Deref of ('v, 't) term * Z.t * 't [@@deriving eq, ord, hash]
 type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('v, 't) term * ('v, 't) term * Z.t [@@deriving eq, ord, hash]
 
@@ -205,7 +207,9 @@ module T = struct
         | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
     in match typeOf res with (* we want to make sure that the expression is valid *)
     | exception GoblintCil__Errormsg.Error -> raise (UnsupportedCilExpression "this expression is not coherent")
-    | _ -> res
+    | typ -> (* we only track equalties between pointers (variable of size 64)*)
+      if get_size_in_bits typ <> bitsSizeOfPtr then raise (UnsupportedCilExpression "not a pointer variable")
+      else res
 
   let get_size = get_size_in_bits % type_of_term
 
@@ -855,13 +859,13 @@ module CongruenceClosure = struct
           List.flatten % List.filter_map
             (fun (z, zmap) -> Option.map
                 (fun l -> List.cartesian_product [z] (TSet.to_list l))
-                (ZMap.find_opt (T.get_size_in_bits (TPtr (TVoid [], []))) zmap)) in
+                (ZMap.find_opt bitsSizeOfPtr zmap)) in
         let comp_closure_zmap bindings1 bindings2 =
           List.map (fun ((z1, nt1),(z2, nt2)) ->
               (nt1, nt2, Z.(-z2+z+z1)))
             (List.cartesian_product (find_size_64 bindings1) (find_size_64 bindings2))
         in
-        let singleton term = [Z.zero, ZMap.add (Z.of_int 64) (TSet.singleton term) ZMap.empty] in
+        let singleton term = [Z.zero, ZMap.add bitsSizeOfPtr (TSet.singleton term) ZMap.empty] in
         begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
           | None, None -> [(r1,r2,z)]
           | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
