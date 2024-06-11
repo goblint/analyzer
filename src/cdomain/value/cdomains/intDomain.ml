@@ -2256,7 +2256,7 @@ struct
       shift_op a b
     in
     (* If one of the parameters of the shift is negative, the result is undefined *)
-    let is_negative = Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
+    let is_negative = GobOption.for_all (fun x -> Z.compare x Z.zero < 0) in
     if is_negative (minimal x) || is_negative (minimal y) then
       top_of ik
     else
@@ -2617,7 +2617,7 @@ module Enums : S with type int_t = Z.t = struct
           shift_op a b
         in
         (* If one of the parameters of the shift is negative, the result is undefined *)
-        let is_negative = Option.fold ~none:true ~some:(fun x -> Z.compare x Z.zero < 0) in
+        let is_negative = GobOption.for_all (fun x -> Z.compare x Z.zero < 0) in
         if is_negative (minimal x) || is_negative (minimal y) then
           top_of ik
         else
