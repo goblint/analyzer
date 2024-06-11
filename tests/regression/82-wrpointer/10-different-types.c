@@ -7,7 +7,7 @@ void main(void) {
   int *ipt = (int *)malloc(sizeof(int));
   int *ipt2;
   int i;
-  *ipt = i;
+  ipt = &i;
   // *ipt: 0; i: 0
   __goblint_check(*ipt == i);
   ipt2 = (int *)ipt;
