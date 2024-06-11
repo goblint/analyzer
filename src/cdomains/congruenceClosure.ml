@@ -7,8 +7,6 @@ module M = Messages
 
 exception Unsat
 
-let bitsSizeOfPtr = Z.of_int @@ bitsSizeOf (TPtr (TVoid [],[]))
-
 type ('v, 't) term = Addr of 'v | Deref of ('v, 't) term * Z.t * 't [@@deriving eq, ord, hash]
 type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('v, 't) term * ('v, 't) term * Z.t [@@deriving eq, ord, hash]
 
@@ -19,6 +17,9 @@ type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('
 *)
 module T = struct
   type exp = Cil.exp
+
+  let bitsSizeOfPtr () = Z.of_int @@ bitsSizeOf (TPtr (TVoid [],[]))
+
   (* equality of terms should not depend on the expression *)
   let compare_exp _ _ = 0
   let equal_exp _ _ = true
@@ -192,7 +193,7 @@ module T = struct
     match typeOf term with (* we want to make sure that the expression is valid *)
     | exception GoblintCil__Errormsg.Error -> raise (UnsupportedCilExpression "this expression is not coherent")
     | typ -> (* we only track equalties between pointers (variable of size 64)*)
-      if get_size_in_bits typ <> bitsSizeOfPtr then raise (UnsupportedCilExpression "not a pointer variable")
+      if get_size_in_bits typ <> bitsSizeOfPtr () then raise (UnsupportedCilExpression "not a pointer variable")
       else term
 
   let dereference_exp exp offset =
@@ -547,8 +548,8 @@ end
 (** For each representative t' of an equivalence class, the LookupMap maps t' to a map that maps z to a set containing
     all terms in the data structure that are equal to *(z + t').*)
 module LookupMap = struct
-  (* map: term -> z -> size of typ -> *(z + (typ * )t)*)
-  type t = TSet.t ZMap.t ZMap.t TMap.t [@@deriving eq, ord, hash]
+  (* map: term -> z -> *(z + (typ * )t)*)
+  type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash]
 
   let bindings = TMap.bindings
   let add = TMap.add
@@ -557,54 +558,41 @@ module LookupMap = struct
   let find_opt = TMap.find_opt
   let find = TMap.find
 
-  let zmap_bindings zmap =
-    let distribute_pair (a, xs) = List.map (fun (x,y) -> (a,x,y)) xs in
-    (List.concat_map distribute_pair
-       (List.map (Tuple2.map2 ZMap.bindings) (ZMap.bindings zmap)))
-
-  let zmap_bindings_of_size s zmap =
-    List.filter_map (fun (off, zmap1) ->
-        Option.map (fun x -> (off, x)) @@ ZMap.find_opt s zmap1
-      ) (ZMap.bindings zmap)
+  let zmap_bindings = ZMap.bindings
 
   (** Returns the bindings of a map, but it transforms the mapped value (which is a set) to a single value (an element in the set).
-      It returns a list of (offset, size, term) *)
-  let zmap_bindings_one_successor (zmap:TSet.t ZMap.t ZMap.t)  =
-    List.map (Tuple3.map3 TSet.any) (zmap_bindings zmap)
-  let zmap_find_opt t size = Option.map_default (ZMap.find_opt size) None % ZMap.find_opt t
+      It returns a list of (offset, term) *)
+  let zmap_bindings_one_successor zmap = List.map (Tuple2.map2 TSet.any) (zmap_bindings zmap)
+  let zmap_find_opt = ZMap.find_opt
   let set_any = TSet.any
 
-  (** Merges the set "m" with the set that is already present in the data structure.
-      Params: x, size, set m, map.*)
-  let zmap_add x size y m = match ZMap.find_opt x m with
-    | None -> ZMap.add x (ZMap.add size y ZMap.empty) m
-    | Some zmap2 -> match ZMap.find_opt size zmap2 with
-      | None -> ZMap.add x (ZMap.add size y zmap2) m
-      | Some set -> ZMap.add x (ZMap.add size (TSet.union y set) zmap2) m
+  (** Merges the set "m" with the set that is already present in the data structure. *)
+  let zmap_add x y m = match zmap_find_opt x m with
+    | None -> ZMap.add x y m
+    | Some set -> ZMap.add x (TSet.union y set) m
 
   (** Returns the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
-  let map_find_opt_set (v,r) size map = match find_opt v map with
+  let map_find_opt_set (v,r) map = match find_opt v map with
     | None -> None
-    | Some zmap -> zmap_find_opt r size zmap
+    | Some zmap -> zmap_find_opt r zmap
 
   (** Returns one element of the set to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
-  let map_find_opt (v,r) size map = Option.map TSet.any (map_find_opt_set (v,r) size map)
+  let map_find_opt (v,r) map = Option.map TSet.any (map_find_opt_set (v,r) map)
 
   (** Adds the term "v'" to the set that is already present in the data structure. *)
   let map_add (v,r) v' map =
-    let size = T.get_size v' in
     let zmap = match find_opt v map with
       | None -> ZMap.empty
       | Some zmap -> zmap
-    in add v (zmap_add r size (TSet.singleton v') zmap) map
+    in add v (zmap_add r (TSet.singleton v') zmap) map
 
   let show_map map =
     List.fold_left
       (fun s (v, zmap) ->
          s ^ T.show v ^ "\t:\n" ^
          List.fold_left
-           (fun s (r, size, v) ->
-              s ^ "\t" ^ Z.to_string r ^ "(" ^ Z.to_string size ^ "bits): " ^ List.fold_left
+           (fun s (r, v) ->
+              s ^ "\t" ^ Z.to_string r ^ ": " ^ List.fold_left
                 (fun s k -> s ^ T.show k ^ ";")
                 "" (TSet.elements v) ^ ";; ")
            "" (zmap_bindings zmap) ^ "\n")
@@ -616,8 +604,8 @@ module LookupMap = struct
     match find_opt v' map with
     | None -> map
     | Some zmap -> let infl = zmap_bindings zmap in
-      let zmap = List.fold_left (fun zmap (r', s', v') ->
-          zmap_add Z.(r' + r) s' v' zmap) ZMap.empty infl in
+      let zmap = List.fold_left (fun zmap (r', v') ->
+          zmap_add Z.(r' + r) v' zmap) ZMap.empty infl in
       remove v' (add v zmap map)
 
   (** Find all outgoing edges of v in the automata.*)
@@ -629,18 +617,15 @@ module LookupMap = struct
   (** Filters elements from the mapped values which fulfil the predicate p. *)
   let filter_if map p =
     TMap.filter_map (fun _ zmap ->
-        let zmap = ZMap.filter_map (fun _ zmap2 ->
-            let zmap2 = ZMap.filter_map
-                (fun _ t_set -> let filtered_set = TSet.filter p t_set in
-                  if TSet.is_empty filtered_set then None else Some filtered_set) zmap2
-            in if ZMap.is_empty zmap2 then None else Some zmap2) zmap
-        in if ZMap.is_empty zmap then None else Some zmap)
-      map
+        let zmap = ZMap.filter_map
+            (fun _ t_set -> let filtered_set = TSet.filter p t_set in
+              if TSet.is_empty filtered_set then None else Some filtered_set) zmap
+        in if ZMap.is_empty zmap then None else Some zmap) map
 
   (** Maps elements from the mapped values by applying the function f to them. *)
   let map_values map f =
     TMap.map (fun zmap ->
-        ZMap.map (fun zmap2 -> ZMap.map (fun t_set -> TSet.map f t_set) zmap2) zmap) map
+        ZMap.map (fun t_set -> TSet.map f t_set) zmap) map
 end
 
 (** Quantitative congruence closure on terms *)
@@ -652,11 +637,11 @@ module CongruenceClosure = struct
   module Disequalities = struct
 
     (* disequality map:
-       if t_1 -> z -> size of typ -> {t_2, t_3}
-       then we know that (typ)t_1 + z != (typ)t_2
-       and also that (typ)t_1 + z != (typ)t_3
+       if t_1 -> z -> {t_2, t_3}
+       then we know that t_1 + z != t_2
+       and also that t_1 + z != t_3
     *)
-    type t = TSet.t ZMap.t ZMap.t TMap.t [@@deriving eq, ord, hash] (* disequalitites *)
+    type t = TSet.t ZMap.t TMap.t [@@deriving eq, ord, hash] (* disequalitites *)
     type arg_t = (T.t * Z.t) ZMap.t TMap.t (* maps each state in the automata to its predecessors *)
 
     let empty = TMap.empty
@@ -664,14 +649,12 @@ module CongruenceClosure = struct
     (** Returns a list of tuples, which each represent a disequality *)
     let bindings =
       List.flatten %
-      List.flatten %
-      List.concat_map (fun (t, zmap) ->
-          List.map (fun (z, smap) ->
-              List.map (fun (size, tset) ->
-                  List.map (fun term ->
-                      (t,z,size,term)) (TSet.elements tset))
-                (ZMap.bindings smap)
-            ) (ZMap.bindings zmap)
+      List.concat_map
+        (fun (t, smap) ->
+           List.map (fun (z, tset) ->
+               List.map (fun term ->
+                   (t,z,term)) (TSet.elements tset))
+             (ZMap.bindings smap)
         ) % TMap.bindings
 
     (** adds a mapping v -> r -> size -> { v' } to the map,
@@ -684,13 +667,9 @@ module CongruenceClosure = struct
       | None -> false
       | Some imap -> (match ZMap.find_opt r imap with
           | None -> false
-          | Some imap ->
-            (let size = (T.get_size v') in
-             match ZMap.find_opt size imap with
-             | None -> false
-             | Some set -> TSet.mem v' set
-            )
+          | Some set -> TSet.mem v' set
         )
+
 
     (** Map of partition, transform union find to a map
         of type V -> Z -> V set
@@ -703,9 +682,6 @@ module CongruenceClosure = struct
       ZMap.map (fun zmap -> List.fold_left
                    (fun set (_,mapped) -> TSet.union set mapped) TSet.empty (ZMap.bindings zmap))
 
-    let flatten_args =
-      ZMap.map (fun zmap -> List.fold_left
-                   (fun set (_,mapped) -> set @ mapped) [] (ZMap.bindings zmap))
     (** arg:
 
         maps each representative term t to a map that maps an integer Z to
@@ -716,23 +692,16 @@ module CongruenceClosure = struct
     let get_args uf =
       let cmap  = comp_map uf in
       let clist = TMap.bindings cmap in
-      let arg = List.fold_left (fun arg (v, imap) ->
+      let arg =  List.fold_left (fun arg (v, imap) ->
           let ilist = ZMap.bindings imap in
-          let imap_sizes = flatten_args
-              (List.fold_left
-                 (fun imap_sizes (size, map) ->
-                    let iarg = List.fold_left (fun iarg (r,set) ->
-                        let list = List.filter_map (function
-                            | Deref (v',r',_) ->
-                              let (v0,r0) = TUF.find_no_pc uf v' in
-                              Some (v0,Z.(r0+r'))
-                            | _ -> None) (TSet.elements set) in
-                        ZMap.add r list iarg
-                      ) ZMap.empty (ZMap.bindings map) in
-                    ZMap.add size iarg imap_sizes)
-                 ZMap.empty ilist) in
-          TMap.add v imap_sizes arg)
-          TMap.empty clist in
+          let iarg = List.fold_left (fun iarg (r,set) ->
+              let list = List.filter_map (function
+                  | Deref (v', r', _) ->
+                    let (v0,r0) = TUF.find_no_pc uf v' in
+                    Some (v0,Z.(r0+r'))
+                  | _ -> None) (TSet.elements set) in
+              ZMap.add r list iarg) ZMap.empty ilist in
+          TMap.add v iarg arg) TMap.empty clist in
       (uf,cmap,arg)
 
     let fold_left2 f acc l1 l2 =
@@ -750,8 +719,7 @@ module CongruenceClosure = struct
           | Some v -> Some v
         )
 
-    let check_neq (_,arg) rest (v,imapmap) =
-      let imap = flatten_map imapmap in
+    let check_neq (_,arg) rest (v,imap) =
       let ilist = ZMap.bindings imap in
       fold_left2 (fun rest (r1,_) (r2,_) ->
           if Z.equal r1 r2 then rest
@@ -793,7 +761,7 @@ module CongruenceClosure = struct
 
         Returns: map `neq` where each representative is mapped to a set of representatives it is not equal to.
     *)
-    let rec propagate_neq (uf,cmap,arg,neq) = function (* v1, v2 are distinct roots with v1 != v2+r   *)
+    let rec propagate_neq (uf,(cmap: TSet.t ZMap.t TMap.t),arg,neq) = function (* v1, v2 are distinct roots with v1 != v2+r   *)
       | [] -> neq (* uf need not be returned: has been flattened during constr. of cmap *)
       | (v1,v2,r) :: rest -> (* v1, v2 are roots; v2 -> r,v1 not yet contained in neq *)
         if T.equal v1 v2 then  (* should not happen *)
@@ -840,7 +808,7 @@ module CongruenceClosure = struct
 
     let show_neq neq =
       let clist = bindings neq in
-      List.fold_left (fun s (v,r,size,v') ->
+      List.fold_left (fun s (v,r,v') ->
           s ^ "\t" ^ T.show v' ^ " != " ^ (if r = Z.zero then "" else (Z.to_string r) ^" + ")
           ^ T.show v ^  "\n") "" clist
 
@@ -848,32 +816,27 @@ module CongruenceClosure = struct
       TMap.filter_map
         (fun _ zmap ->
            let zmap = ZMap.filter_map
-               (fun _ zmap ->
-                  let zmap = ZMap.filter_map
-                      (fun _ s -> let set = TSet.filter_map f s in
-                        if TSet.is_empty set then None else Some set)
-                      zmap in if ZMap.is_empty zmap then None else Some zmap)
+               (fun _ s -> let set = TSet.filter_map f s in
+                 if TSet.is_empty set then None else Some set)
                zmap in if ZMap.is_empty zmap then None else Some zmap) diseq
 
     let get_disequalities = List.map
-        (fun (t1, z, _, t2) ->
+        (fun (t1, z, t2) ->
            Nequal (t1,t2,z)
         ) % bindings
 
     let element_closure diseqs uf =
       let cmap = comp_map uf in
       let comp_closure (r1,r2,z) =
-        let find_size_64 =  (*TODO this is not the best solution*)
-          List.flatten % List.filter_map
-            (fun (z, zmap) -> Option.map
-                (fun l -> List.cartesian_product [z] (TSet.to_list l))
-                (ZMap.find_opt bitsSizeOfPtr zmap)) in
+        let to_tuple_list =  (*TODO this is not the best solution*)
+          List.flatten % List.map
+            (fun (z, set) -> List.cartesian_product [z] (TSet.to_list set)) in
         let comp_closure_zmap bindings1 bindings2 =
           List.map (fun ((z1, nt1),(z2, nt2)) ->
               (nt1, nt2, Z.(-z2+z+z1)))
-            (List.cartesian_product (find_size_64 bindings1) (find_size_64 bindings2))
+            (List.cartesian_product (to_tuple_list bindings1) (to_tuple_list bindings2))
         in
-        let singleton term = [Z.zero, ZMap.add bitsSizeOfPtr (TSet.singleton term) ZMap.empty] in
+        let singleton term = [Z.zero, TSet.singleton term] in
         begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
           | None, None -> [(r1,r2,z)]
           | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
@@ -961,7 +924,7 @@ module CongruenceClosure = struct
       | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
         match LMap.successors state map with
         | edges ->
-          let process_edge (min_representatives, queue, uf) (edge_z, _(*min_repr is independent of the size*), next_term) =
+          let process_edge (min_representatives, queue, uf) (edge_z, next_term) =
             let next_state, next_z, uf = TUF.find uf next_term in
             let (min_term, min_z) = find state min_representatives in
             let next_min =
@@ -1058,8 +1021,8 @@ module CongruenceClosure = struct
   (** Returns a list of all the transition that are present in the automata. *)
   let get_transitions (uf, map) =
     List.concat_map (fun (t, zmap) ->
-        (List.map (fun (edge_z, edge_size, res_t) ->
-             (edge_z, t, edge_size, TUF.find_no_pc uf (LMap.set_any res_t))) @@
+        (List.map (fun (edge_z, res_t) ->
+             (edge_z, t, TUF.find_no_pc uf (LMap.set_any res_t))) @@
          (LMap.zmap_bindings zmap)))
       (LMap.bindings map)
 
@@ -1080,7 +1043,7 @@ module CongruenceClosure = struct
     in
     let conjunctions_of_transitions =
       let transitions = get_transitions (cc.uf, cc.map) in
-      List.filter_map (fun (z,s,_ (*size is not important for normal form?*),(s',z')) ->
+      List.filter_map (fun (z,s,(s',z')) ->
           let (min_state, min_z) = MRMap.find s cc.min_repr in
           let (min_state', min_z') = MRMap.find s' cc.min_repr in
           normalize_equality (SSet.deref_term_even_if_its_not_possible min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
@@ -1159,23 +1122,23 @@ module CongruenceClosure = struct
              (* zmap describes args of Deref *)
              let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
              (* we move all entries of imap2 to imap1 *)
-             let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings_of_size sizet1 imap2) in
+             let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings imap2) in
              let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-                 let rest = match LMap.zmap_find_opt r' sizet1 zmap with
+                 let rest = match LMap.zmap_find_opt r' zmap with
                    | None -> rest
                    | Some v'' -> (LMap.set_any v', LMap.set_any v'',Z.zero)::rest
-                 in LMap.zmap_add r' sizet1 v' zmap, rest)
+                 in LMap.zmap_add r' v' zmap, rest)
                  (imap1,rest) infl2 in
              LMap.remove v2 (LMap.add v zmap map), rest
            | Some imap1, Some imap2, false -> (* v2 is new root *)
              let r0 = Z.(r1-r2-r) in
-             let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings_of_size sizet1 imap1) in
+             let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap1) in
              let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
                  let rest =
-                   match LMap.zmap_find_opt r' sizet1 zmap with
+                   match LMap.zmap_find_opt r' zmap with
                    | None -> rest
                    | Some v'' -> (LMap.set_any v',LMap.set_any v'',Z.zero)::rest
-                 in LMap.zmap_add r' sizet1 v' zmap, rest) (imap2, rest) infl1 in
+                 in LMap.zmap_add r' v' zmap, rest) (imap2, rest) infl1 in
              LMap.remove v1 (LMap.add v zmap map), rest
          in
          (* update min_repr *)
@@ -1251,7 +1214,7 @@ module CongruenceClosure = struct
         let (v, r), cc, queue = insert_no_min_repr cc t' in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
-        match LMap.map_find_opt (v, Z.(r + z)) (T.get_size_in_bits (typeOf exp)) cc.map with
+        match LMap.map_find_opt (v, Z.(r + z)) cc.map with
         | Some v' -> let v2,z2,uf = TUF.find cc.uf v' in
           let uf = LMap.add t ((t, Z.zero),1) uf in
           (v2,z2), closure {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr; diseq = cc.diseq} [(t, v', Z.zero)], v::queue
@@ -1299,10 +1262,20 @@ module CongruenceClosure = struct
       with Unsat -> None
 
   (**  Returns true if t1 and t2 are equivalent. *)
-  let eq_query cc (t1,t2,r) =
+  let rec eq_query cc (t1,t2,r) =
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
-    (T.equal v1 v2 && Z.equal r1 Z.(r2 + r), cc)
+    if T.equal v1 v2 && Z.equal r1 Z.(r2 + r) then (true, cc)
+    else
+      (*if the equality is *(t1' + z1) = *(t2' + z2), then we check if the two pointers are equal,
+        i.e. if t1' + z1 = t2' + z2 *)
+    if Z.equal r Z.zero then
+      match t1,t2 with
+      | Deref (t1', z1, _),  Deref (t2', z2, _) ->
+        eq_query cc (t1', t2', Z.(z2 - z1))
+      | _ -> (false, cc)
+    else (false,cc)
+
 
   let eq_query_opt cc (t1,t2,r) =
     match cc with
@@ -1364,7 +1337,7 @@ module CongruenceClosure = struct
         detect_cyclic_dependencies t1 t2 cc
 
   let add_successor_terms cc t =
-    let add_one_successor (cc, successors) (edge_z, _, _) =
+    let add_one_successor (cc, successors) (edge_z, _) =
       let _, uf_offset, uf = TUF.find cc.uf t in
       let cc = {cc with uf = uf} in
       match SSet.deref_term t Z.(edge_z - uf_offset) cc.set with
@@ -1541,9 +1514,9 @@ module CongruenceClosure = struct
     let pmap = List.fold_left (fun pmap (x1,x2) -> Map.add x1 x2 pmap) Map.empty mappings in
     let working_set = List.map fst mappings in
     let cc = init_cc [] in
-    let add_one_edge y t t1_off diff (pmap, cc, new_pairs) (offset, size, a) =
+    let add_one_edge y t t1_off diff (pmap, cc, new_pairs) (offset, a) =
       let a', a_off = TUF.find_no_pc cc1.uf a in
-      match LMap.map_find_opt (y, Z.(diff + offset)) size cc2.map with
+      match LMap.map_find_opt (y, Z.(diff + offset)) cc2.map with
       | None -> pmap,cc,new_pairs
       | Some b -> let b', b_off = TUF.find_no_pc cc2.uf b in
         match SSet.deref_term t Z.(offset - t1_off) cc1.set with
