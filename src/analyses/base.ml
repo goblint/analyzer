@@ -17,6 +17,7 @@ module IdxDom = ValueDomain.IndexDomain
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
+module ZeroInit = ValueDomain.ZeroInit
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module PU = PrecisionUtil
@@ -2652,7 +2653,7 @@ struct
         | Some lv ->
           let heap_var = AD.of_var (heap_var true ctx) in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~ctx size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, true));
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, ZeroInit.malloc));
                             (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2665,7 +2666,7 @@ struct
             else AD.of_var (heap_var false ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ~ctx size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, true));
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, ZeroInit.malloc));
                             (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2682,7 +2683,7 @@ struct
           let countval = eval_int ~ctx st n in
           if ID.to_int countval = Some Z.one then (
             set_many ~ctx st [
-              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
+              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, ZeroInit.calloc));
               (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
             ]
           )
@@ -2690,7 +2691,7 @@ struct
             let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             set_many ~ctx st [
-              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, false))));
+              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc))));
               (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset)))))
             ]
           )
@@ -2713,7 +2714,7 @@ struct
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
           let p_addr_get = get ~ctx st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ~ctx st size in
-          let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
+          let heap_val:value = Blob (p_addr_get, size_int, ZeroInit.malloc) in (* copy old contents with new size *)
           let heap_addr = AD.of_var (heap_var false ctx) in
           let heap_addr' =
             if get_bool "sem.malloc.fail" then
