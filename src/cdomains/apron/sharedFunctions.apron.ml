@@ -6,6 +6,14 @@ open GobApron
 
 module M = Messages
 
+let frac_of_scalar scalar =
+  if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
+    None
+  else match scalar with
+    | Float f -> if Stdlib.Float.is_integer f then Some (Q.of_float f) else None
+    | Mpqf f -> Some (Z_mlgmpidl.q_of_mpqf f)
+    | _ -> failwith "frac_of_scalar: unsupported"
+
 let int_of_scalar ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
     None
@@ -20,21 +28,21 @@ let int_of_scalar ?round (scalar: Scalar.t) =
         | None when Stdlib.Float.is_integer f -> Some f
         | None -> None
       in
-      Q.make (Z.of_float f) Z.one
+      Z.of_float f
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
-      let+ (n,d) =
+      let+ z =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
-          Some (n,Mpzf.of_int 1)
+          Some n
         else
           begin match round with
-            | Some `Floor -> Some (Mpzf.fdiv_q n d, Mpzf.of_int 1) (* floor division *)
-            | Some `Ceil -> Some (Mpzf.cdiv_q n d, Mpzf.of_int 1) (* ceiling division *)
-            | None -> Some (n,d)
+            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
+            | Some `Ceil ->  Some (Mpzf.cdiv_q n d) (* ceiling division *)
+            | None -> None
           end
       in
-      Q.make (Z_mlgmpidl.z_of_mpzf n) (Z_mlgmpidl.z_of_mpzf d)
+      Z_mlgmpidl.z_of_mpzf z
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
