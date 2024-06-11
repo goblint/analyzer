@@ -36,17 +36,17 @@ module Rhs = struct
     let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
     if not (Z.equal d Z.one) then "(" ^ rhs ^ ")/" ^ (Z.to_string d) else rhs
 
-  (** factor out gcd from all terms, i.e. ax=by+c is the canonical form for adx+bdy+cd *)
+  (** factor out gcd from all terms, i.e. ax=by+c with a positive is the canonical form for adx+bdy+cd *)
   let canonicalize (v,o,d) =
     let gcd = Z.gcd o d in (* gcd of coefficients *)
     let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in (* include monomial in gcd computation *)
-    let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* cannonical form dictates d being positive *)
-    (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v,Z.div o commondivisor, Z.div d commondivisor)
+    let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* canonical form dictates d being positive *)
+    (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v, Z.div o commondivisor, Z.div d commondivisor)
 
   (** Substitute rhs for varx in rhs' *)
   let subst rhs varx rhs' =
     match rhs,rhs' with
-    | (monom,o,d),(Some (c',x'),o',d') when x'=varx -> canonicalize (Option.map (fun (c,x) -> (Z.mul c c',x)) monom,Z.((o*c')+(d*o')),Z.mul d d')
+    | (monom, o, d), (Some (c', x'), o', d') when x'=varx -> canonicalize (Option.map (fun (c,x) -> (Z.mul c c',x)) monom, Z.((o*c')+(d*o')), Z.mul d d')
     | _ -> rhs'
 
 end
@@ -59,7 +59,7 @@ module EqualitiesConjunction = struct
   let show_formatted formatter econ =
     if IntMap.is_empty econ then "{}"
     else
-      let str = IntMap.fold (fun i (ref,off,divi) acc -> Printf.sprintf "%s%s=%s ∧ %s" (Rhs.show_coeff divi) (formatter i) (Rhs.show_rhs_formatted formatter (ref,off,divi)) acc) econ "" in
+      let str = IntMap.fold (fun i (refmonom,off,divi) acc -> Printf.sprintf "%s%s=%s ∧ %s" (Rhs.show_coeff divi) (formatter i) (Rhs.show_rhs_formatted formatter (refmonom,off,divi)) acc) econ "" in
       "{" ^ String.sub str 0 (String.length str - 4) ^ "}"
 
   let show econ = show_formatted (Printf.sprintf "var_%d") econ
@@ -76,7 +76,7 @@ module EqualitiesConjunction = struct
   let nontrivial (_,econmap) lhs = IntMap.mem lhs econmap
 
   (** turn x = (cy+o)/d   into  y = (dx-o)/c*)
-  let inverse x (c,y,o,d) = (y,(Some (d,x),Z.neg o,c)) 
+  let inverse x (c,y,o,d) = (y, (Some (d, x), Z.neg o, c))
 
   (** sparse implementation of get rhs for lhs, but will default to no mapping for sparse entries *)
   let get_rhs (_,econmap) lhs = IntMap.find_default (Rhs.var_zero lhs) lhs econmap
@@ -89,10 +89,9 @@ module EqualitiesConjunction = struct
                                      IntMap.add lhs rhs map
                                   )
 
-  (** canonicalize equation, and set_rhs, staying loyal to immutable, sparse map underneath,*)
+  (** canonicalize equation, and set_rhs, staying loyal to immutable, sparse map underneath *)
   let canonicalize_and_set (dim,map) lhs rhs = set_rhs (dim,map) lhs (Rhs.canonicalize rhs)
 
-  (** add a new equality to the domain *)
   let copy = identity
 
 
@@ -104,7 +103,7 @@ module EqualitiesConjunction = struct
       let offsetlist = Array.to_list indexes in
       let rec bumpvar delta i = function (* bump the variable i by delta; find delta by counting indices in offsetlist until we reach a larger index then our current parameter *)
         | head::rest when i>=head -> bumpvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
-        | _ (* i<head or _=[] *) -> let res = op i delta in res
+        | _ (* i<head or _=[] *) -> op i delta
       in
       let memobumpvar = (* Memoized version of bumpvar *)
         let module IntHash = struct type t = int [@@deriving eq,hash] end in
@@ -117,7 +116,8 @@ module EqualitiesConjunction = struct
                IntHashtbl.add h x r;
                r)
       in
-      let rec bumpentry k (refvar,offset,divi) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitely with a new lookup in indexes *)
+      let rec bumpentry k (refvar,offset,divi) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitly with a new lookup in indexes *)
+
         | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset,divi) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
         | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (fun (c,v) -> (c,memobumpvar v)) refvar,offset,divi) tbl, delta, lyst)
       in
@@ -148,7 +148,7 @@ module EqualitiesConjunction = struct
          if M.tracing then M.trace "forget" "headvar var_%d" var;
          (* var is the reference variable of its connected component *)
          (let cluster = List.sort (Int.compare) @@ IntMap.fold
-              (fun i (ref,_,_) l -> BatOption.map_default (fun (coeff,ref) -> if (ref=ref_var) then i::l else l) l ref) (snd d) [] in
+              (fun i (refe,_,_) l -> BatOption.map_default (fun (coeff,refe) -> if (refe=ref_var) then i::l else l) l refe) (snd d) [] in
           if M.tracing then M.trace "forget" "cluster varindices: [%s]" (String.concat ", " (List.map (string_of_int) cluster));
           (* obtain cluster with common reference variable ref_var*)
           match cluster with (* new ref_var is taken from head of the cluster *)
@@ -157,7 +157,7 @@ module EqualitiesConjunction = struct
             (* divi*x = coeff*y + offs   =inverse=>    y =( divi*x - offs)/coeff     *)
             let (newref,offs,divi) = (get_rhs d head) in
             let (coeff,y) = BatOption.get newref in
-            let (y,yrhs)= inverse head (coeff,y,offs,divi) in (* reassemble yrhs out of components *)
+            let (y,yrhs) = inverse head (coeff,y,offs,divi) in (* reassemble yrhs out of components *)
             let shifted_cluster =  (List.fold (fun map i -> 
                 let irhs = (get_rhs d i) in (* old entry is i = irhs *)
                 Rhs.subst yrhs y irhs |>    (* new entry for i is irhs [yrhs/y] *)
@@ -198,14 +198,15 @@ module EqualitiesConjunction = struct
   let meet_with_one_conj ts i (var, offs, divi) =
     let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
     let res =
-      let subst_var tsi x (vary, o, d) =
+      let subst_var (dim,econj) x (vary, o, d) =
         (* [[x substby (cy+o)/d ]] ((c'x+o')/d')             *)
         (* =====>   (c'cy + c'o+o'd)/(dd')                   *)
         let adjust = function
-          | (Some (c',varx), o',d') when varx = x -> Rhs.canonicalize (BatOption.map (fun (c,y)->(Z.mul c c',y)) vary, Z.((c'*o)+(o'*d)),Z.(d'*d))
+          | (Some (c',varx), o',d') when varx = x ->
+            let open Z in Rhs.canonicalize (BatOption.map (fun (c, y)-> (c * c', y)) vary, c'*o + o'*d, d'*d)
           | e -> e
         in
-        (fst tsi, IntMap.add x (vary, o, d) @@ IntMap.map adjust (snd tsi)) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj) (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
       in
       (match var, (get_rhs ts i) with
        (*| new conj      , old conj          *)
@@ -230,8 +231,8 @@ module EqualitiesConjunction = struct
           | (Some (coeff2,h2), o2, divi2) as normalizedj ->
             if h1 = h2 then (* this is the case where x_i and x_j already where in the same equivalence class; let's see whether the new equality contradicts the old one *)
               let normalizedi= Rhs.subst normalizedj j (Some(coeff,j),offs,divi) in
-              (if not @@ Rhs.equal normalizedi oldi then raise Contradiction else ts)
-            else if h1 < h2 (* good, we no unite the two equvalence classes; let's decide upon the representant *)
+              if not @@ Rhs.equal normalizedi oldi then raise Contradiction else ts
+            else if h1 < h2 (* good, we now unite the two equvalence classes; let's decide upon the representative *)
             then (* express h2 in terms of h1: *)
               let (_,newh2)= inverse j (coeff2,h2,o2,divi2) in
               let newh2 = Rhs.subst oldi i (Rhs.subst (snd @@ inverse i (coeff,j,offs,divi)) j newh2) in
@@ -244,13 +245,10 @@ module EqualitiesConjunction = struct
   ; res
 
   (** affine transform variable i allover conj with transformer (Some (coeff,i)+offs)/divi *)
-  let affine_transform econ i (var,offs,divi) =
-    if nontrivial econ i then (** i cannot occur on any other rhs apart from itself *)
-      set_rhs econ i (Rhs.subst (get_rhs econ i) i (var,offs,divi))
+  let affine_transform econ i (coeff, j, offs, divi) =
+    if nontrivial econ i then (* i cannot occur on any other rhs apart from itself *)
+      set_rhs econ i (Rhs.subst (get_rhs econ i) i (Some (coeff,j), offs, divi))
     else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
-      match var with
-      | None -> failwith "this is not a valid affine transformation"
-      | Some (coeff,j) -> 
         (* so now, we transform with the inverse of the transformer: *)
         let inv = snd (inverse i (coeff,j,offs,divi)) in
         IntMap.fold (fun k v acc -> 
@@ -276,12 +274,10 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
     let exception ScalarIsInfinity in
-    let negate coeff_var_list = List.map (function
-        | (Some(coeff,i),offs,divi) -> (Some(Z.neg coeff,i),Z.neg offs,divi)
-        | (None         ,offs,divi) -> (None               ,Z.neg offs,divi)) coeff_var_list in
-    let multiply_with_Q dividend divisor coeff_var_list = List.map (function
-        | (Some (coeff, var),offs,divi) -> Rhs.canonicalize (Some(Z.mul dividend coeff,var),Z.(dividend * offs),Z.mul divi divisor)
-        | (None,offs,divi)              -> Rhs.canonicalize (None,Z.mul dividend offs,Z.mul divi divisor)) coeff_var_list in
+    let negate coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Z.(BatOption.map (fun (coeff,i) -> (neg coeff, i)) monom, neg offs, divi)) coeff_var_list in
+    let multiply_with_Q dividend divisor coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Rhs.canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, divi*divisor) ) coeff_var_list in
     let multiply a b =
       (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
       match a, b with
@@ -614,7 +610,7 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConj.affine_transform d var_i (Some (coeff_var, var_i), off, divi)); env=t.env }
+          {d=Some (EConj.affine_transform d var_i (coeff_var, var_i, off, divi)); env=t.env }
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
@@ -742,10 +738,11 @@ struct
               | EQ -> (* c1*var1/d1 + c2*var2/d2 +constant/divisor = 0*)
                 (* ======>  c1*divisor*d2 * var1 = -c2*divisor*d1 * var2 +constant*-d1*d2*)
                 (*   \/     c2*divisor*d1 * var2 = -c1*divisor*d2 * var1 +constant*-d1*d2*)
+                let open Z in
                 if var1 < var2 then
-                  meet_with_one_conj t var2 (Rhs.canonicalize (Some (Z.neg @@ Z.(c1*divisor),var1),Z.neg @@ Z.(constant*d2*d1),Z.(c2*divisor*d1)))
+                  meet_with_one_conj t var2 (Rhs.canonicalize (Some (neg @@ c1*divisor,var1),neg @@ constant*d2*d1,c2*divisor*d1))
                 else
-                  meet_with_one_conj t var1 (Rhs.canonicalize (Some (Z.neg @@ Z.(c2*divisor),var2),Z.neg @@ Z.(constant*d2*d1),Z.(c1*divisor*d2)))
+                  meet_with_one_conj t var1 (Rhs.canonicalize (Some (neg @@ c2*divisor,var2),neg @@ constant*d2*d1,c1*divisor*d2))
               | _-> t (* Not supported in equality based 2vars without coeffiients *)
             end
           | _ -> t (* For equalities of more then 2 vars we just return t *))
