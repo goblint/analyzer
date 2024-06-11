@@ -136,7 +136,13 @@ struct
             let expr =
               (** simplify asks for a constant value of some subexpression e, similar to a constant fold. In particular but not exclusively
                   this query is answered by the 2 var equalities domain itself. This normalizes arbitrary expressions to a point where they
-                  might be able to be represented by means of 2 var equalities *)
+                  might be able to be represented by means of 2 var equalities 
+
+                  This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
+                  but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
+                  mode is a stop-gap measure to avoid flagging overflows. We however should address simplification in a more generally useful way.
+                  outside of the apron-related expression conversion.
+              *)
               let simplify e =
                 GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
