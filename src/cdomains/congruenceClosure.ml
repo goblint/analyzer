@@ -299,19 +299,23 @@ module T = struct
   let of_cil_neg ask neg e = let res = match of_cil_neg ask neg (Cil.constFold false e) with
       | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
         None, None
-      | None, z -> None, Some z
-      | Some t, z ->
-        (* check if t is a valid pointer *)
-        match check_valid_pointer (to_cil t) with
-        |  exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "invalid exp: %a\n%s --> %s + %s\n" d_plainexp e s (show t) (Z.to_string z);
-          None, None
-        | _ ->  Some t, Some z
+      | t, z -> t, Some z
     in (if M.tracing && not neg then match res with
         | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
         | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
         | _ -> ()); res
 
-  let of_cil ask e = of_cil_neg ask false e
+  (** Convert the expression to a term,
+      and additionally check that the term is 64 bits *)
+  let of_cil ask e =
+    match of_cil_neg ask false e with
+    | Some t, Some z ->
+      (* check if t is a valid pointer *)
+      begin match check_valid_pointer (to_cil t) with
+        |  exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "invalid exp: %a\n%s --> %s + %s\n" d_plainexp e s (show t) (Z.to_string z);
+          None, None
+        | _ ->  Some t, Some z end
+    | t, z -> t, z
 
   let map_z_opt op z = Tuple2.map2 (Option.map (op z))
 
@@ -322,7 +326,7 @@ module T = struct
       | BinOp (binop, exp1, exp2, typ)-> begin match binop with
           | PlusA
           | PlusPI
-          | IndexPI -> begin match of_cil ask exp1 with
+          | IndexPI -> begin match of_cil_neg ask false exp1 with
               | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil ask true exp2 in
                 map_z_opt Z.(+) off1 pos_t, neg_t
               | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg ask true exp2
@@ -330,15 +334,15 @@ module T = struct
             end
           | MinusA
           | MinusPI
-          | MinusPP -> begin match of_cil ask exp1 with
+          | MinusPP -> begin match of_cil_neg ask false exp1 with
               | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil ask false exp2 in
                 map_z_opt Z.(+) off1 pos_t, neg_t
               | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg ask false exp2
-              | _ -> of_cil ask e, (None, Some Z.zero)
+              | _ -> of_cil_neg ask false e, (None, Some Z.zero)
             end
-          | _ -> of_cil ask e, (None, Some Z.zero)
+          | _ -> of_cil_neg ask false e, (None, Some Z.zero)
         end
-      | _ -> of_cil ask e, (None, Some Z.zero)
+      | _ -> of_cil_neg ask false e, (None, Some Z.zero)
     in if neg then neg_t, pos_t else pos_t, neg_t
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
