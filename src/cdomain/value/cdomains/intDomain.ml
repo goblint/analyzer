@@ -572,6 +572,14 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let min_ik' = Ints_t.to_bigint min_ik in
     let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x min_ik' >= 0) ts in
     BatOption.map_default Ints_t.of_bigint min_ik t
+  let is_upper_threshold u =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+    let u = Ints_t.to_bigint u in
+    List.exists (Z.equal u) ts
+  let is_lower_threshold l =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+    let l = Ints_t.to_bigint l in
+    List.exists (Z.equal l) ts
 end
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -702,9 +710,10 @@ struct
     match x, y with
     | _,None | None, _ -> None
     | Some (x1,x2), Some (y1,y2) ->
+      let threshold = get_interval_threshold_widening () in
       let (min_ik, max_ik) = range ik in
-      let lr = if Ints_t.compare min_ik x1 = 0 then y1 else x1 in
-      let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
+      let lr = if Ints_t.compare min_ik x1 = 0 || threshold && Ints_t.compare y1 x1 > 0 && IArith.is_lower_threshold x1 then y1 else x1 in
+      let ur = if Ints_t.compare max_ik x2 = 0 || threshold && Ints_t.compare y2 x2 < 0 && IArith.is_upper_threshold x2 then y2 else x2 in
       norm ik @@ Some (lr,ur) |> fst
 
 
@@ -1382,8 +1391,9 @@ struct
       let min_ys = minimal ys |> Option.get in
       let max_ys = maximal ys |> Option.get in
       let min_range,max_range = range ik in
-      let min = if min_xs =. min_range then min_ys else min_xs in
-      let max = if max_xs =. max_range then max_ys else max_xs in
+      let threshold = get_interval_threshold_widening () in
+      let min = if min_xs =. min_range || threshold && min_ys >. min_xs && IArith.is_lower_threshold min_xs then min_ys else min_xs in
+      let max = if max_xs =. max_range || threshold && max_ys <. max_xs && IArith.is_upper_threshold max_xs then max_ys else max_xs in
       xs
       |> (function (_, y)::z -> (min, y)::z | _ -> [])
       |> List.rev
