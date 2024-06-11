@@ -188,6 +188,13 @@ module T = struct
       | _ -> raise (UnsupportedCilExpression "not supported yet")
     end
 
+  let check_valid_pointer term =
+    match typeOf term with (* we want to make sure that the expression is valid *)
+    | exception GoblintCil__Errormsg.Error -> raise (UnsupportedCilExpression "this expression is not coherent")
+    | typ -> (* we only track equalties between pointers (variable of size 64)*)
+      if get_size_in_bits typ <> bitsSizeOfPtr then raise (UnsupportedCilExpression "not a pointer variable")
+      else term
+
   let dereference_exp exp offset =
     let find_field cinfo = Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset) in
     let res = match exp with
@@ -205,11 +212,7 @@ module T = struct
           end
         | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
         | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
-    in match typeOf res with (* we want to make sure that the expression is valid *)
-    | exception GoblintCil__Errormsg.Error -> raise (UnsupportedCilExpression "this expression is not coherent")
-    | typ -> (* we only track equalties between pointers (variable of size 64)*)
-      if get_size_in_bits typ <> bitsSizeOfPtr then raise (UnsupportedCilExpression "not a pointer variable")
-      else res
+    in check_valid_pointer res
 
   let get_size = get_size_in_bits % type_of_term
 
@@ -295,12 +298,17 @@ module T = struct
   let of_cil_neg ask neg e = let res = match of_cil_neg ask neg (Cil.constFold false e) with
       | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
         None, None
-      | t, z -> t, Some z
+      | None, z -> None, Some z
+      | Some t, z ->
+        (* check if t is a valid pointer *)
+        match check_valid_pointer (to_cil t) with
+        |  exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "invalid exp: %a\n%s --> %s + %s\n" d_plainexp e s (show t) (Z.to_string z);
+          None, None
+        | _ ->  Some t, Some z
     in (if M.tracing && not neg then match res with
         | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-        | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z)
-        | None, None -> ()
-        | _ -> M.trace "wrpointer-cil-conversion" "This is impossible. exp: %a\n" d_plainexp e); res
+        | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+        | _ -> ()); res
 
   let of_cil ask e = of_cil_neg ask false e
 
