@@ -1151,7 +1151,7 @@ module CongruenceClosure = struct
          (* update min_repr *)
          let min_v1, min_v2 = MRMap.find v1 min_repr, MRMap.find v2 min_repr in
          (* 'changed' is true if the new_min is different than the old min *)
-         let new_min, changed = if fst min_v1 < fst min_v2 then (min_v1, not b) else (min_v2, b) in
+         let new_min, changed = if T.compare (fst min_v1) (fst min_v2) < 0 then (min_v1, not b) else (min_v2, b) in
          let new_min = (fst new_min, if b then Z.(snd new_min - diff_r) else Z.(snd new_min + diff_r)) in
          let removed_v = if b then v2 else v1 in
          let min_repr = MRMap.remove removed_v (if changed then MRMap.add v new_min min_repr else min_repr) in
@@ -1353,7 +1353,7 @@ module CongruenceClosure = struct
       | successor ->
         let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
         let _, cc, _ = if subterm_already_present then (t, Z.zero), cc, []
-          else insert_no_min_repr cc successor in
+          else (if M.tracing then M.trace "wrpointer" "insert successor: %s. Map: %s\n" (T.show successor) (LMap.show_map cc.map);insert_no_min_repr cc successor) in
         (cc, if subterm_already_present then successors else successor::successors) in
     List.fold_left add_one_successor (cc, []) (LMap.successors (Tuple3.first (TUF.find cc.uf t)) cc.map)
 
@@ -1497,8 +1497,10 @@ module CongruenceClosure = struct
     (* first find all terms that need to be removed *)
     let set, removed_terms, map_of_children, cc =
       remove_terms_from_set cc predicate
-    in let uf, new_parents_map, _ =
-         remove_terms_from_uf cc.uf removed_terms map_of_children predicate
+    in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
+        (show_all old_cc);
+    let uf, new_parents_map, _ =
+      remove_terms_from_uf cc.uf removed_terms map_of_children predicate
     in let map =
          remove_terms_from_mapped_values cc.map (predicate cc.uf)
     in let map, uf =
