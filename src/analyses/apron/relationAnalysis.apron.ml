@@ -768,7 +768,7 @@ struct
       PCU.RH.replace results ctx.node new_value;
     end;
     WideningTokens.with_local_side_tokens (fun () ->
-        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread])
       )
 
   let init marshal =

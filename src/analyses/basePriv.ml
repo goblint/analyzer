@@ -31,7 +31,7 @@ sig
   val lock: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
   val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
 
-  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t
+  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread] -> BaseComponents (D).t
 
   val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
@@ -306,8 +306,8 @@ struct
     st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    match reason with
-    | `Join when ConfCheck.branched_thread_creation () -> (* required for branched thread creation *)
+    let branched_sync () =
+      (* required for branched thread creation *)
       let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
       sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
       (* TODO: this makes mutex-oplus less precise in 28-race_reach/10-ptrmunge_racefree and 28-race_reach/trylock2_racefree, why? *)
@@ -318,7 +318,14 @@ struct
             sideg (V.global x) (CPA.singleton x v)
         ) st.cpa;
       st
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+      branched_sync ()
     | `Join
+    | `JoinCall
     | `Return
     | `Normal
     | `Init
@@ -404,8 +411,8 @@ struct
     {st with cpa = cpa'}
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    match reason with
-    | `Join when ConfCheck.branched_thread_creation () -> (* required for branched thread creation *)
+    let branched_sync () =
+      (* required for branched thread creation *)
       let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
       sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
 
@@ -422,7 +429,14 @@ struct
         ) st.cpa st.cpa
       in
       {st with cpa = cpa'}
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+      branched_sync ()
     | `Join
+    | `JoinCall
     | `Return
     | `Normal
     | `Init
@@ -772,9 +786,9 @@ struct
       ) st.cpa st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    let sideg = Wrapper.sideg ask sideg in
-    match reason with
-    | `Join when ConfCheck.branched_thread_creation () -> (* required for branched thread creation *)
+    let branched_sync () =
+      (* required for branched thread creation *)
+      let sideg = Wrapper.sideg ask sideg in
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x && is_unprotected ask x then (
             sideg (V.unprotected x) v;
@@ -784,7 +798,14 @@ struct
           else
             st
         ) st.cpa st
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+      branched_sync ()
     | `Join
+    | `JoinCall
     | `Return
     | `Normal
     | `Init
@@ -1034,6 +1055,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
+    | `JoinCall
     | `Init
     | `Thread ->
       st
@@ -1089,6 +1111,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
+    | `JoinCall
     | `Init
     | `Thread ->
       st
@@ -1160,6 +1183,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
+    | `JoinCall
     | `Init
     | `Thread ->
       st
@@ -1318,6 +1342,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
+    | `JoinCall
     | `Init
     | `Thread ->
       st
@@ -1496,6 +1521,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
+    | `JoinCall
     | `Init
     | `Thread ->
       st
@@ -1678,6 +1704,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
+    | `JoinCall
     | `Init
     | `Thread ->
       st

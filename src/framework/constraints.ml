@@ -528,9 +528,10 @@ struct
 
   let sync ctx =
     match ctx.prev_node, Cfg.prev ctx.prev_node with
-    | _, _ :: _ :: _ (* Join in CFG. *)
-    | FunctionEntry _, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
+    | _, _ :: _ :: _ -> (* Join in CFG. *)
       S.sync ctx `Join
+    | FunctionEntry _, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
+      S.sync ctx `JoinCall
     | _, _ -> S.sync ctx `Normal
 
   let side_context sideg f c =

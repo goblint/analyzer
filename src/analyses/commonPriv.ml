@@ -59,6 +59,15 @@ struct
       not threadflag_path_sens
     else
       true
+
+  (** Whether branched thread creation at start nodes of procedures needs to be handled by [sync `JoinCall] of privatization. *)
+  let branched_thread_creation_at_call () =
+    let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
+    if threadflag_active then
+      let threadflag_ctx_sens = not (List.mem "threadflag" @@ GobConfig.get_string_list "ana.ctx_insens") in
+      not threadflag_ctx_sens
+    else
+      true
 end
 
 module Protection =
