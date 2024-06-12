@@ -249,13 +249,13 @@ module EqualitiesConjunction = struct
     if nontrivial econ i then (* i cannot occur on any other rhs apart from itself *)
       set_rhs econ i (Rhs.subst (get_rhs econ i) i (Some (coeff,j), offs, divi))
     else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
-        (* so now, we transform with the inverse of the transformer: *)
-        let inv = snd (inverse i (coeff,j,offs,divi)) in
-        IntMap.fold (fun k v acc -> 
-            match v with
-            | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
-            | _ -> acc
-          ) (snd econ) econ
+      (* so now, we transform with the inverse of the transformer: *)
+      let inv = snd (inverse i (coeff,j,offs,divi)) in
+      IntMap.fold (fun k v acc -> 
+          match v with
+          | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
+          | _ -> acc
+        ) (snd econ) econ
 
 end
 
