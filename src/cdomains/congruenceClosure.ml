@@ -47,6 +47,7 @@ module T = struct
   let props_equal = List.equal equal_v_prop
 
   let show_type exp =
+    try
     let typ = typeOf exp in
     "[" ^ (match typ with
         | TPtr _ -> "Ptr"
@@ -57,6 +58,8 @@ module T = struct
         | TComp (_, _) -> "TCo"
         | TFun (_, _, _, _)|TNamed (_, _)|TEnum (_, _)|TBuiltin_va_list _ -> "?"
       )^string_of_int (bitsSizeOf typ) ^ "]"
+    with
+    | GoblintCil__Cil.SizeOfError _ -> "[?]"
 
   let rec show : t -> string = function
     | Addr v -> "&" ^ Var.show v
