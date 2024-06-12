@@ -137,7 +137,7 @@ module T = struct
       | NoOffset -> `NoOffset
       | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
       | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
-        `Index (ValueDomain.ID.top (), convert_offset ofs)
+        `Index (ValueDomain.ID.top_of (Cilfacade.get_ikind_exp exp), convert_offset ofs)
       | Index (exp, ofs) ->
         let i = match ask.f (Queries.EvalInt exp) with
           | `Lifted x -> IntDomain.IntDomTuple.cast_to  (Cilfacade.ptrdiff_ikind ()) @@ x
