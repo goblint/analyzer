@@ -1,6 +1,13 @@
 open Batteries
 include Apron
 
+module Coeff =
+struct
+  include Coeff
+
+  let s_of_z z = Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z z))
+end
+
 module Var =
 struct
   include Var
