@@ -46,18 +46,23 @@ module T = struct
 
   let props_equal = List.equal equal_v_prop
 
+  let rec get_size_in_bits typ = match typ with
+    | TArray (typ, _, _) -> (* we treat arrays like pointers *)
+      get_size_in_bits (TPtr (typ,[]))
+    | _ -> Z.of_int (bitsSizeOf typ)
+
   let show_type exp =
     try
-    let typ = typeOf exp in
-    "[" ^ (match typ with
-        | TPtr _ -> "Ptr"
-        | TInt _ -> "Int"
-        | TArray _ -> "Arr"
-        | TVoid _ -> "Voi"
-        | TFloat (_, _)-> "Flo"
-        | TComp (_, _) -> "TCo"
-        | TFun (_, _, _, _)|TNamed (_, _)|TEnum (_, _)|TBuiltin_va_list _ -> "?"
-      )^string_of_int (bitsSizeOf typ) ^ "]"
+      let typ = typeOf exp in
+      "[" ^ (match typ with
+          | TPtr _ -> "Ptr"
+          | TInt _ -> "Int"
+          | TArray _ -> "Arr"
+          | TVoid _ -> "Voi"
+          | TFloat (_, _)-> "Flo"
+          | TComp (_, _) -> "TCo"
+          | TFun (_, _, _, _)|TNamed (_, _)|TEnum (_, _)|TBuiltin_va_list _ -> "?"
+        )^ Z.to_string (get_size_in_bits typ) ^ "]"
     with
     | GoblintCil__Cil.SizeOfError _ -> "[?]"
 
@@ -102,11 +107,6 @@ module T = struct
     match eval_int ask exp with
     | i -> Some i
     | exception (UnsupportedCilExpression _) -> None
-
-  let rec get_size_in_bits typ = match typ with
-    | TArray (typ, _, _) -> (* we treat arrays like pointers *)
-      get_size_in_bits (TPtr (typ,[]))
-    | _ -> Z.of_int (bitsSizeOf typ)
 
   let rec type_of_element typ =
     match typ with
