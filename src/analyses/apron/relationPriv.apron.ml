@@ -36,7 +36,7 @@ module type S =
     val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.Addr.t -> relation_components_t
     val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.Addr.t -> relation_components_t
 
-    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `Return | `Init | `Thread] -> relation_components_t
+    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread] -> relation_components_t
 
     val escape: Node.t -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> EscapeDomain.EscapedVars.t -> relation_components_t
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> relation_components_t
@@ -96,8 +96,7 @@ struct
     { st with rel = rel_local }
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Join when ConfCheck.branched_thread_creation () ->
+    let branched_sync () =
       if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
@@ -110,7 +109,14 @@ struct
           )
         in
         {st with rel = rel_local}
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
     | `Join
+    | `JoinCall
     | `Normal
     | `Init
     | `Thread
@@ -337,17 +343,8 @@ struct
   let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
-  let sync ask getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
-    | `Join when ConfCheck.branched_thread_creation () ->
+  let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
+    let branched_sync () =
       if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
         st
       else
@@ -376,7 +373,22 @@ struct
            let rel_local' = RD.meet rel_local (getg ()) in
            {st with rel = rel_local'} *)
         st
+    in
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+      branched_sync ()
     | `Join
+    | `JoinCall
     | `Normal
     | `Init
     | `Thread ->
@@ -626,17 +638,8 @@ struct
   let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
-  let sync ask getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
-    | `Join when ConfCheck.branched_thread_creation () ->
+  let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
+    let branched_sync () =
       if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
@@ -659,7 +662,22 @@ struct
           )
         in
         {st with rel = rel_local}
+    in
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+      branched_sync ()
     | `Join
+    | `JoinCall
     | `Normal
     | `Init
     | `Thread ->
@@ -1192,9 +1210,7 @@ struct
     st
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Return -> st (* TODO: implement? *)
-    | `Join when ConfCheck.branched_thread_creation () ->
+    let branched_sync () =
       if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
@@ -1209,7 +1225,15 @@ struct
           )
         in
         {st with rel = rel_local}
+    in
+    match reason with
+    | `Return -> st (* TODO: implement? *)
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+      branched_sync ()
     | `Join
+    | `JoinCall
     | `Normal
     | `Init
     | `Thread ->
