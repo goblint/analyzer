@@ -575,8 +575,14 @@ struct
     let liftmap f = List.map (fun (x) -> (x, max 0 (cg_val ctx - 1))) f in
     liftmap (S.threadenter (conv ctx) ~multiple lval f args)
 
+  let query ctx (type a) (q: a Queries.t):a Queries.result =
+    match q with
+    | Queries.GasExhausted ->
+      let (d,i) = ctx.local in
+      (i <= 0)
+    | _ -> S.query (conv ctx) q
+
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
-  let query ctx q                                 = S.query (conv ctx) q
   let assign ctx lval expr                        = S.assign (conv ctx) lval expr, cg_val ctx
   let vdecl ctx v                                 = S.vdecl (conv ctx) v, cg_val ctx
   let body ctx fundec                             = S.body (conv ctx) fundec, cg_val ctx

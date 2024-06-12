@@ -322,7 +322,7 @@ struct
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
       branched_sync ()
     | `Join
     | `JoinCall
@@ -433,7 +433,7 @@ struct
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
       branched_sync ()
     | `Join
     | `JoinCall
@@ -802,7 +802,7 @@ struct
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call () ->
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
       branched_sync ()
     | `Join
     | `JoinCall

@@ -1,4 +1,4 @@
-// PARAM: --set ana.context.gas_value 1
+// PARAM: --set ana.context.gas_value 4
 // Like 00/35 but with gas this time!
 // Misbehaves for gas <= 3
 #include <goblint.h>
@@ -7,12 +7,13 @@
 int g = 1;
 
 void foo() {
-  // Single-threaded: g = 1 in local state
-  // Multi-threaded: g = 2 in global unprotected invariant
-  // Joined contexts: g is unprotected, so read g = 2 from global unprotected invariant (only)
-  // Was soundly claiming that check will succeed!
+  // Check that we don't lose precision due to JoinCall
   int x = g;
-  __goblint_check(x == 2); // UNKNOWN!
+  int x2 = g;
+  // A hack: In both contexts g has a single possible value, so we check that x = x2
+  // to verify there is no precision loss
+
+  __goblint_check(x == x2);
 }
 
 void *t_fun(void *arg) {
