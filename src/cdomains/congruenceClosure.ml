@@ -186,7 +186,10 @@ module T = struct
 
   let default_int_type = ILong
   (** Returns a Cil expression which is the constant z divided by the size of the elements of t.*)
-  let to_cil_constant z t = let z = Z.(z/ get_element_size_in_bits t) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
+  let to_cil_constant z t =
+    let typ_size = get_element_size_in_bits t in
+    let z = if Z.equal z Z.zero || Z.equal typ_size Z.zero then Z.zero else
+        Z.(z /typ_size) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
   let to_cil_sum off cil_t =
     if Z.(equal zero off) then cil_t else
@@ -786,7 +789,7 @@ module CongruenceClosure = struct
       List.filter_map (fun (v1,v2,r) ->
           let (v1,r1) = TUF.find_no_pc uf v1 in
           let (v2,r2) = TUF.find_no_pc uf v2 in
-          if T.compare v1 v2 = 0 then if r1 = Z.(r2+r) then raise Unsat
+          if T.equal v1 v2 then if Z.(equal r1 (r2+r)) then raise Unsat
             else None
           else Some (v1,v2,Z.(r2-r1+r))) neg
 
@@ -822,7 +825,7 @@ module CongruenceClosure = struct
                     with None -> []
                        | Some list -> list in
                   fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
-                      if v1 = v2 then if r'1 = r'2 then raise Unsat
+                      if T.equal v1 v2 then if Z.equal r'1 r'2 then raise Unsat
                         else rest
                         (* disequalities propagate only if the terms have same size*)
                       else if Z.equal (T.get_size v1) (T.get_size v2) then
@@ -842,7 +845,7 @@ module CongruenceClosure = struct
     let show_neq neq =
       let clist = bindings neq in
       List.fold_left (fun s (v,r,v') ->
-          s ^ "\t" ^ T.show v' ^ " != " ^ (if r = Z.zero then "" else (Z.to_string r) ^" + ")
+          s ^ "\t" ^ T.show v' ^ " != " ^ (if Z.equal r Z.zero then "" else (Z.to_string r) ^" + ")
           ^ T.show v ^  "\n") "" clist
 
     let filter_map f (diseq:t) =

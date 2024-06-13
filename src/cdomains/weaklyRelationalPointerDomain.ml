@@ -157,8 +157,8 @@ module D = struct
       It removes all terms for which "var" is a subterm,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variable var cc =
-    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show var);
-    Option.map (remove_terms (fun _ -> T.is_subterm var)) cc
+    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show (Addr var));
+    Option.map (remove_terms (fun _ -> T.is_subterm (Addr var))) cc
 
   (** Remove terms from the data structure.
       It removes all terms which contain one of the "vars",
