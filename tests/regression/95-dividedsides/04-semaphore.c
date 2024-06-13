@@ -43,12 +43,13 @@ void worker(void *data) {
 }
 
 int main(void) {
-  pthread_t id;
   semaphore_t sem;
   semaphor_init(&sem, 10);
 
-  pthread_create(&id, NULL, worker, &sem);
-  pthread_create(&id, NULL, worker, &sem);
+  pthread_t id1;
+  pthread_create(&id1, NULL, worker, &sem);
+  pthread_t id2;
+  pthread_create(&id2, NULL, worker, &sem);
 
   __goblint_check(sem.count <= 1000);
   pthread_mutex_lock(&sem.mutex);
@@ -59,5 +60,8 @@ int main(void) {
   pthread_mutex_lock(&sem.mutex);
   __goblint_check(sem.count >= 0);
   pthread_mutex_unlock(&sem.mutex);
+
+  pthread_join(&id1, NULL);
+  pthread_join(&id2, NULL);
   return 0;
 }
