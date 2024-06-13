@@ -182,7 +182,6 @@ module D = struct
     let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
     Option.map (remove_terms (fun uf -> MayBeEqual.may_be_equal ask uf s term)) cc
 
-
   (** Remove terms from the data structure.
       It removes all terms that may point to the same address as "tainted".*)
   let remove_tainted_terms ask address cc =

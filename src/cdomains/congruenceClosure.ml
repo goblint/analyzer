@@ -1530,7 +1530,7 @@ module CongruenceClosure = struct
     in let min_repr, uf = MRMap.compute_minimal_representatives (uf, set, map)
     in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\nRESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
         (show_all old_cc) (show_all {uf; set; map; min_repr; diseq});
-    {uf; set; map; min_repr; diseq = cc.diseq}
+    {uf; set; map; min_repr; diseq}
 
   (* join *)
 
