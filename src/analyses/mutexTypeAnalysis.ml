@@ -15,8 +15,9 @@ struct
   (* Removing indexes here avoids complicated lookups and allows to have the LVals as vars here, at the price that different types of mutexes in arrays are not dinstinguished *)
   module O = Offset.Unit
 
-  module V = struct
-    include Printable.Prod(CilType.Varinfo)(O) (* TODO: use Mval.Unit *)
+  module V =
+  struct
+    include Mval.Unit
     let is_write_only _ = false
   end
 
