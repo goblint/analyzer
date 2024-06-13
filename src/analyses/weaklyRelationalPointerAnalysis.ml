@@ -65,7 +65,7 @@ struct
       t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable dummy_var
+      D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo (typeOfLval lval)
     (* invertibe assignment *)
     | exception (T.UnsupportedCilExpression _) -> D.top () (* the assigned variables couldn't be parsed, so we don't know which addresses were written to. We have to forget all the information we had. This should almost never happen. *)
     | _ -> D.top ()
