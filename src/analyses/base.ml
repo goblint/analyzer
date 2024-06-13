@@ -885,11 +885,7 @@ struct
           | None -> evalbinop ~ctx st LOr ~e1 ~e2 typ (* fallback to general case *)
         end
       | BinOp (op,e1,e2,typ) ->
-        begin match typ with
-          | TPtr _ -> (* Binary operations on pointer types should not generate warnings in SV-COMP *)
-            GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () -> evalbinop ~ctx st op ~e1 ~e2 typ
-          | _ -> evalbinop ~ctx st op ~e1 ~e2 typ
-        end
+        evalbinop ~ctx st op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv ~ctx st arg1 in
