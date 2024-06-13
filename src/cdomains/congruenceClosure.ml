@@ -165,7 +165,10 @@ module T = struct
   let z_of_offset ask offs typ =
     match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
     | Some i -> i
-    | None -> raise (UnsupportedCilExpression "unknown offset")
+    | None
+    | exception GoblintCil__Cil.SizeOfError _ ->
+      (* there is an array for which we don't know the length *)
+      raise (UnsupportedCilExpression "unknown offset")
 
   let can_be_dereferenced = function
     | TPtr _| TArray _| TComp _ -> true
@@ -212,7 +215,10 @@ module T = struct
       else term
 
   let dereference_exp exp offset =
-    let find_field cinfo = Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset) in
+    let find_field cinfo = try
+        Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset)
+      with | Not_found -> raise (UnsupportedCilExpression "invalid field offset")
+    in
     let res = match exp with
       | AddrOf lval -> Lval lval
       | _ ->
