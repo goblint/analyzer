@@ -60,6 +60,7 @@ Comments at the end of other lines indicate the behavior on that line:
 | `DEADLOCK` | Deadlock warning | Deadlock is possible | Soundness |
 | `NOWARN` | No warning | — | Precision |
 | `WARN` | Some warning | — | Soundness |
+| `NOFAIL` | Assertion is unknown <br> or succeeds | Everything except fail | Incremental analysis |
 
 #### Other
 Other useful constructs are the following:
@@ -149,6 +150,9 @@ git diff --no-prefix relative/path/to/test.c relative/path/to/test.json > relati
 ```
 
 The comparison input and the metadata in the patch headers are not necessary and can be removed.
+
+### Test Automation for Incremental Analysis - TAIA
+The "Test Automation for Incremental Analysis" in the bench repository (`bench/incremental-analysis-test-toolchain`) enables you to generate and run incremental tests based on one single c file as input. You find more details in the readme file in the repository (`bench/incremental-analysis-test-toolchain/README.md`).
 
 ## Unit tests
 
