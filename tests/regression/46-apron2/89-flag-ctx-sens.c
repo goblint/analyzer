@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization mutex-meet
 // NOTIMEOUT
+// See https://github.com/goblint/analyzer/pull/1508
 #include <pthread.h>
 #include <goblint.h>
 
