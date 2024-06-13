@@ -426,6 +426,200 @@ struct
   let entry_type = "precondition_loop_invariant_certificate"
 end
 
+module ViolationSequence =
+struct
+
+  module Constraint =
+  struct
+    type t = {
+      value: string;
+      format: string;
+    }
+    [@@deriving ord]
+
+    let to_yaml {value; format} =
+      `O [
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {value; format}
+  end
+
+  module Assumption =
+  struct
+    type t = {
+      location: Location.t;
+      action: string;
+      constraint_: Constraint.t;
+    }
+    [@@deriving ord]
+
+    let waypoint_type = "assumption"
+
+    let to_yaml' {location; action; constraint_} =
+      [
+        ("location", Location.to_yaml location);
+        ("action", `String action);
+        ("constraint", Constraint.to_yaml constraint_);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ location = y |> find "location" >>= Location.of_yaml
+      and+ action = y |> find "action" >>= to_string
+      and+ constraint_ = y |> find "constraint" >>= Constraint.of_yaml in
+      {location; action; constraint_}
+  end
+
+  module Target =
+  struct
+    type t = {
+      location: Location.t;
+      action: string;
+    }
+    [@@deriving ord]
+
+    let waypoint_type = "target"
+
+    let to_yaml' {location; action} =
+      [
+        ("location", Location.to_yaml location);
+        ("action", `String action);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ location = y |> find "location" >>= Location.of_yaml
+      and+ action = y |> find "action" >>= to_string in
+      {location; action}
+  end
+
+  module FunctionEnter =
+  struct
+    include Target
+
+    let waypoint_type = "function_enter"
+  end
+
+  module FunctionReturn =
+  struct
+    include Assumption
+
+    let waypoint_type = "function_return"
+  end
+
+  module Branching =
+  struct
+    include Assumption
+
+    let waypoint_type = "branching"
+  end
+
+  (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
+  module WaypointType =
+  struct
+    type t =
+      | Assumption of Assumption.t
+      | Target of Target.t
+      | FunctionEnter of FunctionEnter.t
+      | FunctionReturn of FunctionReturn.t
+      | Branching of Branching.t
+    [@@deriving ord]
+
+    let waypoint_type = function
+      | Assumption _ -> Assumption.waypoint_type
+      | Target _ -> Target.waypoint_type
+      | FunctionEnter _ -> FunctionEnter.waypoint_type
+      | FunctionReturn _ -> FunctionReturn.waypoint_type
+      | Branching _ -> Branching.waypoint_type
+
+    let to_yaml' = function
+      | Assumption x -> Assumption.to_yaml' x
+      | Target x -> Target.to_yaml' x
+      | FunctionEnter x -> FunctionEnter.to_yaml' x
+      | FunctionReturn x -> FunctionReturn.to_yaml' x
+      | Branching x -> Branching.to_yaml' x
+
+    let of_yaml y =
+      let open GobYaml in
+      let* waypoint_type = y |> find "type" >>= to_string in
+      if waypoint_type = Assumption.waypoint_type then
+        let+ x = y |> Assumption.of_yaml in
+        Assumption x
+      else if waypoint_type = Target.waypoint_type then
+        let+ x = y |> Target.of_yaml in
+        Target x
+      else if waypoint_type = FunctionEnter.waypoint_type then
+        let+ x = y |> FunctionEnter.of_yaml in
+        FunctionEnter x
+      else if waypoint_type = FunctionReturn.waypoint_type then
+        let+ x = y |> FunctionReturn.of_yaml in
+        FunctionReturn x
+      else if waypoint_type = Branching.waypoint_type then
+        let+ x = y |> Branching.of_yaml in
+        Branching x
+      else
+        Error (`Msg "type")
+  end
+
+  module Waypoint =
+  struct
+    type t = {
+      waypoint_type: WaypointType.t;
+    }
+    [@@deriving ord]
+
+    let to_yaml {waypoint_type} =
+      `O [
+        ("waypoint", `O ([
+            ("type", `String (WaypointType.waypoint_type waypoint_type));
+          ] @ WaypointType.to_yaml' waypoint_type)
+        )
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ waypoint_type = y |> find "waypoint" >>= WaypointType.of_yaml in
+      {waypoint_type}
+  end
+
+  module Segment =
+  struct
+    type t = {
+      segment: Waypoint.t list;
+    }
+    [@@deriving ord]
+
+    let to_yaml {segment} =
+      `O [("segment", `A (List.map Waypoint.to_yaml segment))]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ segment = y |> find "segment" >>= list >>= list_map Waypoint.of_yaml in
+      {segment}
+  end
+
+  type t = {
+    content: Segment.t list;
+  }
+  [@@deriving ord]
+
+  let entry_type = "violation_sequence"
+
+  let to_yaml' {content} =
+    [("content", `A (List.map Segment.to_yaml content))]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ content = y |> find "content" >>= list >>= list_map Segment.of_yaml in
+    {content}
+end
+
 (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
 module EntryType =
 struct
@@ -437,6 +631,7 @@ struct
     | LoopInvariantCertificate of LoopInvariantCertificate.t
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
     | InvariantSet of InvariantSet.t
+    | ViolationSequence of ViolationSequence.t
   [@@deriving ord]
 
   let entry_type = function
@@ -447,6 +642,7 @@ struct
     | LoopInvariantCertificate _ -> LoopInvariantCertificate.entry_type
     | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
+    | ViolationSequence _ -> ViolationSequence.entry_type
 
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -456,6 +652,7 @@ struct
     | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
     | PreconditionLoopInvariantCertificate x -> PreconditionLoopInvariantCertificate.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
+    | ViolationSequence x -> ViolationSequence.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -481,6 +678,9 @@ struct
     else if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
+    else if entry_type = ViolationSequence.entry_type then
+      let+ x = y |> ViolationSequence.of_yaml in
+      ViolationSequence x
     else
       Error (`Msg "entry_type")
 end
