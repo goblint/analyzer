@@ -148,7 +148,19 @@ module T = struct
         in
         `Index (i, convert_offset ofs)
     in
-    PreValueDomain.Offs.to_index ?typ:(Some typ) (convert_offset offs)
+    let to_constant exp = try let z = eval_int ask exp in
+        Const (CInt (z, Cilfacade.get_ikind_exp exp, Some (Z.to_string z)))
+      with Invalid_argument _ | UnsupportedCilExpression _ -> exp
+    in
+    let rec convert_type typ = (* compute length of arrays when it is known*)
+      match typ with
+      | TArray (typ, exp, attr) -> TArray (convert_type typ, Option.map to_constant exp, attr)
+      | TPtr (typ, attr) -> TPtr (convert_type typ, attr)
+      | TFun (typ, form, var_arg, attr) -> TFun (convert_type typ, form, var_arg, attr)
+      | TNamed (typeinfo, attr) -> TNamed ({typeinfo with ttype=convert_type typeinfo.ttype}, attr)
+      | TVoid _| TInt (_, _)| TFloat (_, _)| TComp (_, _)| TEnum (_, _)| TBuiltin_va_list _ -> typ
+    in
+    PreValueDomain.Offs.to_index ?typ:(Some (convert_type typ)) (convert_offset offs)
 
   let z_of_offset ask offs typ =
     match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
@@ -269,21 +281,29 @@ module T = struct
         | t, z -> t, z
       end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
-  and of_lval ask lval = let res = match lval with
-      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
-        else of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
-      | (Mem exp, off) ->
-        begin match of_cil ask exp with
-          | (Some term, offset) ->
-            let typ = typeOf exp in
-            if is_struct_ptr_type typ then
-              match of_offset ask term off typ (Lval lval) with
-              | Addr x -> Addr x
-              | Deref (x, z, exp) -> Deref (x, Z.(z+offset), exp)
-            else
-              of_offset ask (Deref (term, offset, Lval(Mem exp, NoOffset))) off (typeOfLval (Mem exp, NoOffset)) (Lval lval)
-          | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
-        end in
+  and of_lval ask lval =
+    let res =
+      try
+        match lval with
+        | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
+          else of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
+        | (Mem exp, off) ->
+          begin match of_cil ask exp with
+            | (Some term, offset) ->
+              let typ = typeOf exp in
+              if is_struct_ptr_type typ then
+                match of_offset ask term off typ (Lval lval) with
+                | Addr x -> Addr x
+                | Deref (x, z, exp) -> Deref (x, Z.(z+offset), exp)
+              else
+                of_offset ask (Deref (term, offset, Lval(Mem exp, NoOffset))) off (typeOfLval (Mem exp, NoOffset)) (Lval lval)
+            | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
+          end
+      with
+      | GoblintCil__Cil.SizeOfError _ ->
+        (* There was an array of unknown length *)
+        raise (UnsupportedCilExpression "array non-constant length")
+    in
     (if M.tracing then match res with
         | exception (UnsupportedCilExpression s) -> M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
         | t -> M.trace "wrpointer-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t))
