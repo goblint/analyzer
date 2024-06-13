@@ -126,6 +126,7 @@ type _ t =
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
+  | GasExhausted: MustBool.t t
 
 type 'a result = 'a
 
@@ -196,6 +197,7 @@ struct
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
     | MaySignedOverflow  _ -> (module MayBool)
+    | GasExhausted -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -265,6 +267,7 @@ struct
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
     | MaySignedOverflow _ -> MayBool.top ()
+    | GasExhausted -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -331,6 +334,7 @@ struct
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
     | Any (MaySignedOverflow _) -> 58
+    | Any GasExhausted -> 59
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -490,6 +494,7 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
+    | Any GasExhausted -> Pretty.dprintf "GasExhausted"
 end
 
 let to_value_domain_ask (ask: ask) =
