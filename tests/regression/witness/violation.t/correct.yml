@@ -1,0 +1,26 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: "2.0"
+    uuid: 4412af70-389a-475e-849c-e57e5b92019d
+    creation_time: 2024-06-14T15:35:00+03:00
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - correct.c
+      input_file_hashes:
+        correct.c: 6f760cf7f33fc152738bf3514fe623cc94e52cad9ddc2f0e744595ce0de07530
+      specification: G ! call(reach_error())
+      data_model: ILP32
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: correct.c
+          line: 4
+          column: 3
+          function: main
