@@ -43,13 +43,20 @@ struct
       specification
     }
 
-  let location ~location:(loc: Cil.location) ~(location_function): Location.t = {
-    file_name = loc.file;
-    file_hash = sha256_file loc.file;
-    line = loc.line;
-    column = loc.column;
-    function_ = location_function;
-  }
+  let location ~location:(loc: Cil.location) ~(location_function): Location.t =
+    let file_hash =
+      match GobConfig.get_string "witness.yaml.format-version" with
+      | "0.1" -> Some (sha256_file loc.file)
+      | "2.0" -> None
+      | _ -> assert false
+    in
+    {
+      file_name = loc.file;
+      file_hash;
+      line = loc.line;
+      column = Some loc.column;
+      function_ = Some location_function;
+    }
 
   let invariant invariant: Invariant.t = {
     string = invariant;
@@ -515,6 +522,17 @@ struct
 end
 
 
+let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
+  file = location.file_name;
+  line = location.line;
+  column = Option.value location.column ~default:1;
+  byte = -1;
+  endLine = -1;
+  endColumn = -1;
+  endByte = -1;
+  synthetic = false;
+}
+
 module ValidationResult =
 struct
   (* constructor order is important for the chain lattice *)
@@ -552,17 +570,6 @@ struct
   module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
-
-  let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
-    file = location.file_name;
-    line = location.line;
-    column = location.column;
-    byte = -1;
-    endLine = -1;
-    endColumn = -1;
-    endByte = -1;
-    synthetic = false;
-  }
 
   let validate () =
     let location_locator = Locator.create () in

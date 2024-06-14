@@ -71,18 +71,6 @@ struct
         | _ -> ()
       );
 
-    let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
-      file = location.file_name;
-      line = location.line;
-      column = location.column;
-      byte = -1;
-      endLine = -1;
-      endColumn = -1;
-      endByte = -1;
-      synthetic = false;
-    }
-    in
-
     let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.unassume")) with
       | Ok yaml -> yaml
       | Error (`Msg m) -> failwith ("Yaml_unix.of_file: " ^ m)
@@ -123,7 +111,7 @@ struct
       in
 
       let unassume_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
-        let loc = loc_of_location location_invariant.location in
+        let loc = YamlWitness.loc_of_location location_invariant.location in
         let inv = location_invariant.location_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
@@ -135,7 +123,7 @@ struct
       in
 
       let unassume_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
-        let loc = loc_of_location loop_invariant.location in
+        let loc = YamlWitness.loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
@@ -185,7 +173,7 @@ struct
       in
 
       let unassume_precondition_loop_invariant (precondition_loop_invariant: YamlWitnessType.PreconditionLoopInvariant.t) =
-        let loc = loc_of_location precondition_loop_invariant.location in
+        let loc = YamlWitness.loc_of_location precondition_loop_invariant.location in
         let pre = precondition_loop_invariant.precondition.string in
         let inv = precondition_loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
@@ -200,7 +188,7 @@ struct
       let unassume_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
 
         let unassume_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
-          let loc = loc_of_location location_invariant.location in
+          let loc = YamlWitness.loc_of_location location_invariant.location in
           let inv = location_invariant.value in
           let msgLoc: M.Location.t = CilLocation loc in
 
@@ -212,7 +200,7 @@ struct
         in
 
         let unassume_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
-          let loc = loc_of_location loop_invariant.location in
+          let loc = YamlWitness.loc_of_location loop_invariant.location in
           let inv = loop_invariant.value in
           let msgLoc: M.Location.t = CilLocation loc in
 
