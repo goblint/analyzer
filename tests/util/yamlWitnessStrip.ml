@@ -10,8 +10,13 @@ struct
 
   let strip_file_hashes {entry_type} =
     let stripped_file_hash = "$FILE_HASH" in
-    let location_strip_file_hash location: Location.t =
-      {location with file_hash = stripped_file_hash}
+    let location_strip_file_hash (location: Location.t): Location.t =
+      let file_hash =
+        match location.file_hash with
+        | Some _ -> Some stripped_file_hash (* TODO: or just map to None always? *)
+        | None -> None
+      in
+      {location with file_hash}
     in
     let target_strip_file_hash target: Target.t =
       {target with file_hash = stripped_file_hash}

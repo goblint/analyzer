@@ -106,7 +106,7 @@ module Location =
 struct
   type t = {
     file_name: string;
-    file_hash: string;
+    file_hash: string option;
     line: int;
     column: int option;
     function_: string option;
@@ -116,9 +116,15 @@ struct
   let to_yaml {file_name; file_hash; line; column; function_} =
     `O ([
         ("file_name", `String file_name);
-        ("file_hash", `String file_hash);
-        ("line", `Float (float_of_int line));
-      ] @ (match column with
+      ] @ (match file_hash with
+        | Some file_hash -> [
+            ("file_hash", `String file_hash);
+          ]
+        | None ->
+          []
+      ) @ [
+          ("line", `Float (float_of_int line));
+        ] @ (match column with
         | Some column -> [
             ("column", `Float (float_of_int column));
           ]
@@ -135,7 +141,7 @@ struct
   let of_yaml y =
     let open GobYaml in
     let+ file_name = y |> find "file_name" >>= to_string
-    and+ file_hash = y |> find "file_hash" >>= to_string
+    and+ file_hash = y |> Yaml.Util.find "file_hash" >>= option_map to_string
     and+ line = y |> find "line" >>= to_int
     and+ column = y |> Yaml.Util.find "column" >>= option_map to_int
     and+ function_ = y |> Yaml.Util.find "function" >>= option_map to_string in

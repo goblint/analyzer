@@ -43,13 +43,20 @@ struct
       specification
     }
 
-  let location ~location:(loc: Cil.location) ~(location_function): Location.t = {
-    file_name = loc.file;
-    file_hash = sha256_file loc.file;
-    line = loc.line;
-    column = Some loc.column;
-    function_ = Some location_function;
-  }
+  let location ~location:(loc: Cil.location) ~(location_function): Location.t =
+    let file_hash =
+      match GobConfig.get_string "witness.yaml.format-version" with
+      | "0.1" -> Some (sha256_file loc.file)
+      | "2.0" -> None
+      | _ -> assert false
+    in
+    {
+      file_name = loc.file;
+      file_hash;
+      line = loc.line;
+      column = Some loc.column;
+      function_ = Some location_function;
+    }
 
   let invariant invariant: Invariant.t = {
     string = invariant;
