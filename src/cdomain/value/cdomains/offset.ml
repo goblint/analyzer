@@ -223,9 +223,10 @@ struct
           | _ ->
             (None, Idx.top ())
         in
-        let bits_offset = Idx.mul item_size_in_bits x in
+        (* Binary operations on offsets should not generate overflow warnings in SV-COMP *)
+        let bits_offset = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () -> Idx.mul item_size_in_bits x in
         let remaining_offset = offset_to_index_offset ?typ:item_typ o in
-        Idx.add bits_offset remaining_offset
+        GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () -> Idx.add bits_offset remaining_offset
     in
     offset_to_index_offset ?typ offs
 
