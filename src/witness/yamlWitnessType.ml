@@ -109,18 +109,23 @@ struct
     file_hash: string;
     line: int;
     column: int;
-    function_: string;
+    function_: string option;
   }
   [@@deriving ord]
 
   let to_yaml {file_name; file_hash; line; column; function_} =
-    `O [
-      ("file_name", `String file_name);
-      ("file_hash", `String file_hash);
-      ("line", `Float (float_of_int line));
-      ("column", `Float (float_of_int column));
-      ("function", `String function_);
-    ]
+    `O ([
+        ("file_name", `String file_name);
+        ("file_hash", `String file_hash);
+        ("line", `Float (float_of_int line));
+        ("column", `Float (float_of_int column));
+      ] @ match function_ with
+      | Some function_ -> [
+          ("function", `String function_);
+        ]
+      | None ->
+        []
+      )
 
   let of_yaml y =
     let open GobYaml in
@@ -128,7 +133,7 @@ struct
     and+ file_hash = y |> find "file_hash" >>= to_string
     and+ line = y |> find "line" >>= to_int
     and+ column = y |> find "column" >>= to_int
-    and+ function_ = y |> find "function" >>= to_string in
+    and+ function_ = y |> Yaml.Util.find "function" >>= option_map to_string in
     {file_name; file_hash; line; column; function_}
 end
 

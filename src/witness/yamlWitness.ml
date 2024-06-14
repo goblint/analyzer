@@ -48,7 +48,7 @@ struct
     file_hash = sha256_file loc.file;
     line = loc.line;
     column = loc.column;
-    function_ = location_function;
+    function_ = Some location_function;
   }
 
   let invariant invariant: Invariant.t = {
