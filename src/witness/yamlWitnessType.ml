@@ -449,20 +449,25 @@ struct
   struct
     type t = {
       value: string;
-      format: string;
+      format: string option;
     }
     [@@deriving ord]
 
     let to_yaml {value; format} =
-      `O [
-        ("value", `String value);
-        ("format", `String format);
-      ]
+      `O ([
+          ("value", `String value);
+        ] @ (match format with
+          | Some format -> [
+              ("format", `String format);
+            ]
+          | None ->
+            []
+        ))
 
     let of_yaml y =
       let open GobYaml in
       let+ value = y |> find "value" >>= to_string
-      and+ format = y |> find "format" >>= to_string in
+      and+ format = y |> Yaml.Util.find "format" >>= option_map to_string in
       {value; format}
   end
 
@@ -593,8 +598,8 @@ struct
     let to_yaml {waypoint_type} =
       `O [
         ("waypoint", `O ([
-            ("type", `String (WaypointType.waypoint_type waypoint_type));
-          ] @ WaypointType.to_yaml' waypoint_type)
+             ("type", `String (WaypointType.waypoint_type waypoint_type));
+           ] @ WaypointType.to_yaml' waypoint_type)
         )
       ]
 
