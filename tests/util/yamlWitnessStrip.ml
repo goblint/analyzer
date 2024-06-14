@@ -26,6 +26,25 @@ struct
       in
       {invariant_type}
     in
+    let waypoint_strip_file_hash ({waypoint_type}: ViolationSequence.Waypoint.t): ViolationSequence.Waypoint.t =
+      let waypoint_type: ViolationSequence.WaypointType.t =
+        match waypoint_type with
+        | Assumption x ->
+          Assumption {x with location = location_strip_file_hash x.location}
+        | Target x ->
+          Target {x with location = location_strip_file_hash x.location}
+        | FunctionEnter x ->
+          FunctionEnter {x with location = location_strip_file_hash x.location}
+        | FunctionReturn x ->
+          FunctionReturn {x with location = location_strip_file_hash x.location}
+        | Branching x ->
+          Branching {x with location = location_strip_file_hash x.location}
+      in
+      {waypoint_type}
+    in
+    let segment_strip_file_hash ({segment}: ViolationSequence.Segment.t): ViolationSequence.Segment.t =
+      {segment = List.map waypoint_strip_file_hash segment}
+    in
     let entry_type: EntryType.t =
       match entry_type with
       | LocationInvariant x ->
@@ -42,6 +61,8 @@ struct
         PreconditionLoopInvariantCertificate {x with target = target_strip_file_hash x.target}
       | InvariantSet x ->
         InvariantSet {content = List.map invariant_strip_file_hash x.content}
+      | ViolationSequence x ->
+        ViolationSequence {content = List.map segment_strip_file_hash x.content}
     in
     {entry_type}
 
