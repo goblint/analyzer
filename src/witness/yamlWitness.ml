@@ -802,6 +802,15 @@ struct
         None
       in
 
+      let validate_violation_sequence (violation_sequence: YamlWitnessType.ViolationSequence.t) =
+        (* TODO: update cnt-s appropriately (needs access to SV-COMP result pre-witness validation) *)
+        (* Nothing needs to be checked here!
+           If program is correct and we can prove it, we output true, which counts as refutation of violation witness.
+           If program is correct and we cannot prove it, we output unknown.
+           If program is incorrect, we output unknown. *)
+        None
+      in
+
       match entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         validate_location_invariant x
@@ -811,7 +820,9 @@ struct
         validate_precondition_loop_invariant x
       | true, InvariantSet x ->
         validate_invariant_set x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
+      | true, ViolationSequence x ->
+        validate_violation_sequence x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
         None
