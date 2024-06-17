@@ -13,7 +13,7 @@ struct
 
   let name () = "threadreturn"
   module D = IntDomain.Booleans
-  module C = D
+  include Analyses.ValueContexts(D)
 
   (* transfer functions *)
 

@@ -15,7 +15,7 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg" in
+  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
   let open Batteries in
   (* apply functor F on module X if opt is true *)
@@ -23,7 +23,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   let module S1 =
     (val
       (module MCP.MCP2 : Spec)
-      |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter) 
+      |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter)
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
@@ -404,8 +404,8 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "enter_func has no context.")
-        ; context = (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+        ; context = Spec.startcontext
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
@@ -458,14 +458,29 @@ struct
 
     AnalysisState.global_initialization := false;
 
+    let ctx e =
+      { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
+      ; node    = MyCFG.dummy_node
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+      ; context = Spec.startcontext
+      ; edge    = MyCFG.Skip
+      ; local   = e
+      ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
+      ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+      ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
+      ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
+      }
+    in
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e)) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context (ctx e) n e)) startvars
     in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in
@@ -745,12 +760,23 @@ struct
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;
 
-    if get_bool "exp.arg" then (
+    if get_bool "exp.arg.enabled" then (
       let module ArgTool = ArgTools.Make (R) in
       let module Arg = (val ArgTool.create entrystates) in
-      if get_bool "exp.argdot" then (
-        let module ArgDot = ArgTools.Dot (Arg) in
-        let oc = Batteries.open_out "arg.dot" in
+      let arg_dot_path = get_string "exp.arg.dot.path" in
+      if arg_dot_path <> "" then (
+        let module NoLabelNodeStyle =
+        struct
+          type node = Arg.Node.t
+          let extra_node_styles node =
+            match GobConfig.get_string "exp.arg.dot.node-label" with
+            | "node" -> []
+            | "empty" -> ["label=\"_\""] (* can't have empty string because graph-easy will default to node ID then... *)
+            | _ -> assert false
+        end
+        in
+        let module ArgDot = ArgTools.Dot (Arg) (NoLabelNodeStyle) in
+        let oc = Batteries.open_out arg_dot_path in
         Fun.protect (fun () ->
             let ppf = Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;

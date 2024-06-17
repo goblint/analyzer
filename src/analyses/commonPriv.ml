@@ -50,6 +50,33 @@ struct
         if not threadflag_path_sens then failwith "The activated privatization requires the 'threadflag' analysis to be path sensitive if it is enabled (it is currently enabled, but not path sensitive)";
         ()
   end
+
+  (** Whether branched thread creation needs to be handled by [sync `Join] of privatization. *)
+  let branched_thread_creation () =
+    let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
+    if threadflag_active then
+      let threadflag_path_sens = List.mem "threadflag" (GobConfig.get_string_list "ana.path_sens") in
+      not threadflag_path_sens
+    else
+      true
+
+  (** Whether branched thread creation at start nodes of procedures needs to be handled by [sync `JoinCall] of privatization. *)
+  let branched_thread_creation_at_call (ask:Queries.ask) =
+    let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
+    if threadflag_active then
+      let sens = GobConfig.get_string_list "ana.ctx_sens" in
+      let threadflag_ctx_sens = match sens with
+        | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
+          not (List.mem "threadflag" @@ GobConfig.get_string_list "ana.ctx_insens")
+        | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
+          List.mem "threadflag" sens
+      in
+      if not threadflag_ctx_sens then
+        true
+      else
+        ask.f (Queries.GasExhausted)
+    else
+      true
 end
 
 module Protection =
@@ -73,8 +100,8 @@ struct
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
-    Q.AD.fold (fun m acc ->
-        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+    LockDomain.MustLockset.fold (fun ml acc ->
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; write = true})) acc
       ) (ask.f Q.MustLockset) (Q.VS.empty ())
     |> Q.VS.elements
 end
@@ -136,8 +163,8 @@ struct
     if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
-      let ad = ask.f Queries.MustLockset in
-      Q.AD.fold (fun mls acc -> Lockset.add mls acc) ad (Lockset.empty ()) (* TODO: use AD as Lockset *)
+      let mls = ask.f Queries.MustLockset in
+      LockDomain.MustLockset.fold (fun ml acc -> Lockset.add (Addr (LockDomain.MustLock.to_mval ml)) acc) mls (Lockset.empty ()) (* TODO: use MustLockset as Lockset *)
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
@@ -296,3 +323,41 @@ struct
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end
+
+
+let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
+  (* Should be in sync with:
+     1. LocksetAnalysis.MakeMust.event
+     2. MutexAnalysis.Spec.Arg.add
+     3. LockDomain.MustLocksetRW.add_mval_rw *)
+  match addr with
+  | UnknownPtr -> st
+  | Addr (v, _) when ask.f (IsMultiple v) -> st
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr _
+  | NullPtr
+  | StrPtr _ -> st
+
+let lift_unlock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
+  (* Should be in sync with:
+     1. LocksetAnalysis.MakeMust.event
+     2. MutexAnalysis.Spec.Arg.remove
+     3. MutexAnalysis.Spec.Arg.remove_all
+     4. LockDomain.MustLocksetRW.remove_mval_rw *)
+  match addr with
+  | UnknownPtr ->
+    LockDomain.MustLockset.fold (fun ml st ->
+        (* call privatization's unlock only with definite lock *)
+        f st (LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+      ) (ask.f MustLockset) st
+  | StrPtr _
+  | NullPtr -> st
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv ->
+    LockDomain.MustLockset.fold (fun ml st ->
+        if LockDomain.MustLock.semantic_equal_mval ml mv = Some false then
+          st
+        else
+          (* call privatization's unlock only with definite lock *)
+          f st (Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+      ) (ask.f MustLockset) st

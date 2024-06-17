@@ -14,22 +14,35 @@ sig
   val query: Node.t -> 'a Queries.t -> 'a Queries.result
 end
 
-module Dot (Arg: BiArg) =
+module type NodeStyles =
+sig
+  type node
+  val extra_node_styles: node -> string list
+end
+
+module Dot (Arg: BiArg) (NodeStyles: NodeStyles with type node = Arg.Node.t) =
 struct
   let dot_node_name ppf node =
     Format.fprintf ppf "\"%s\"" (Arg.Node.to_string node)
 
   let dot_edge ppf from_node (edge, to_node) =
-    Format.fprintf ppf "@,%a -> %a [label=\"%s\"];" dot_node_name from_node dot_node_name to_node (String.escaped (Arg.Edge.to_string edge))
+    let label = [Format.sprintf "label=\"%s\"" (String.escaped (Arg.Edge.to_string edge))] in
+    let style = match edge with
+      | MyARG.InlinedEdge _ -> ["style=dotted"]
+      | _ -> []
+    in
+    let styles = String.concat "," (label @ style) in
+    Format.fprintf ppf "@,%a -> %a [%s];" dot_node_name from_node dot_node_name to_node styles
 
   let dot_node ppf node =
     let shape = match Arg.Node.cfgnode node with
-      | Statement {skind=If (_,_,_,_,_); _}  -> "diamond"
-      | Statement _     -> "oval"
+      | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
+      | Statement _ -> [] (* use default shape *)
       | Function _
-      | FunctionEntry _ -> "box"
+      | FunctionEntry _ -> ["shape=box"]
     in
-    Format.fprintf ppf "@,%a [shape=%s];" dot_node_name node shape;
+    let styles = String.concat "," (shape @ NodeStyles.extra_node_styles node) in
+    Format.fprintf ppf "@,%a [%s];" dot_node_name node styles;
     List.iter (dot_edge ppf node) (Arg.next node)
 
   let dot_nodes ppf =
@@ -149,11 +162,23 @@ struct
       include Intra (ArgIntra) (Arg)
 
       let prev = witness_prev
-      let iter_nodes f =
-        f main_entry;
-        NHT.iter (fun n _ ->
-            f n
-          ) witness_prev_map
+
+      (** Iterate over {e reachable} nodes. *)
+      let iter_nodes (f: Node.t -> unit): unit =
+        let reachable = NHT.create (NHT.length witness_prev_map) in
+
+        (* DFS *)
+        let rec iter_node node =
+          if not (NHT.mem reachable node) then (
+            NHT.replace reachable node ();
+            f node;
+            List.iter (fun (edge, to_node) ->
+                iter_node to_node
+              ) (next node) (* use included next, not Arg.next, to prune uncilled nodes *)
+          )
+        in
+
+        iter_node main_entry
 
       let query ((n, c, i): Node.t) q =
         R.ask_local (n, c) (PathQuery (i, q))

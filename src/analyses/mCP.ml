@@ -83,10 +83,10 @@ struct
     check_deps !activated;
     activated := topo_sort_an !activated;
     begin
-      match get_string_list "ana.ctx_sens" with 
+      match get_string_list "ana.ctx_sens" with
       | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
         let cont_inse = map' find_id @@ get_string_list "ana.ctx_insens" in
-        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n cont_inse)) !activated;      
+        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n cont_inse)) !activated;
       | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
         let cont_sens = map' find_id @@ sens in
         activated_ctx_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
@@ -113,18 +113,17 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let context fd x =
-    let x = spec_list x in
-    filter_map (fun (n,(module S:MCPSpec),d) ->
-        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
-          None
-        else
-          Some (n, Obj.repr @@ S.context fd (Obj.obj d))
-      ) x
-
   let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, Obj.repr @@ S.exitstate  v) !activated
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, Obj.repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, Obj.repr @@ S.morphstate v (Obj.obj d)) (spec_list x)
+
+  let startcontext () =
+    filter_map (fun (n,{spec=(module S:MCPSpec); _}) ->
+        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
+          None
+        else
+          Some (n, Obj.repr @@ S.startcontext ())
+      ) !activated
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
@@ -235,6 +234,17 @@ struct
     if M.tracing then M.traceu "event" "";
     ctx'.local
 
+  and context ctx fd x =
+    let ctx'' = outer_ctx "context_computation" ctx in
+    let x = spec_list x in
+    filter_map (fun (n,(module S:MCPSpec),d) ->
+        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
+          None
+        else
+          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "context_computation" ctx'' n d in
+          Some (n, Obj.repr @@ S.context ctx' fd (Obj.obj d))
+      ) x
+
   and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
     let spawns = ref [] in
     let splits = ref [] in
@@ -308,6 +318,13 @@ struct
              f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
           | Queries.DYojson ->
             `Lifted (D.to_yojson ctx.local)
+          | Queries.GasExhausted ->
+            if (get_int "ana.context.gas_value" >= 0) then
+              (* There is a lifter above this that will answer it, save to ask *)
+              ctx.ask (Queries.GasExhausted)
+            else
+              (* Abort to avoid infinite recursion *)
+              false
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;

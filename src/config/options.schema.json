@@ -980,7 +980,7 @@
             },
             "gas_value": {
               "title": "ana.context.gas_value",
-              "description": "Denotes the gas value x for the ContextGasLifter. Negative values deactivate the context gas, zero yields a context-insensitve analysis. If enabled, the first x recursive calls of the call stack are analyzed context-sensitively. Any calls deeper in the call stack are analyzed with the same (empty) context.",
+              "description": "Denotes the gas value x for the ContextGasLifter. Negative values deactivate the context gas, zero yields a context-insensitive analysis. If enabled, the first x recursive calls of the call stack are analyzed context-sensitively. Any calls deeper in the call stack are analyzed with the same (empty) context.",
               "type": "integer",
               "default": -1
             },
@@ -1344,7 +1344,8 @@
               "zstd",
               "pcre",
               "zlib",
-              "liblzma"
+              "liblzma",
+              "legacy"
             ]
           },
           "default": [
@@ -1355,7 +1356,8 @@
             "glibc",
             "linux-userspace",
             "goblint",
-            "ncurses"
+            "ncurses",
+            "legacy"
           ]
         }
       },
@@ -1817,15 +1819,38 @@
         },
         "arg": {
           "title": "exp.arg",
-          "description": "Construct abstract reachability graph (ARG).",
-          "type": "boolean",
-          "default": false
-        },
-        "argdot": {
-          "title": "exp.argdot",
-          "description": "Output ARG as dot file.",
-          "type": "boolean",
-          "default": false
+          "description": "Abstract reachability graph (ARG) options",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "exp.arg.enabled",
+              "description": "Construct ARG.",
+              "type": "boolean",
+              "default": false
+            },
+            "dot": {
+              "title": "exp.arg.dot",
+              "description": "ARG output as .dot file",
+              "type": "object",
+              "properties": {
+                "path": {
+                  "title": "exp.arg.dot.path",
+                  "description": "ARG .dot file output path. Disabled if empty.",
+                  "type": "string",
+                  "default": ""
+                },
+                "node-label": {
+                  "title": "exp.arg.dot.node-label",
+                  "description": "Which ARG node labels to use? node/empty",
+                  "type": "string",
+                  "enum": ["node", "empty"],
+                  "default": "node"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

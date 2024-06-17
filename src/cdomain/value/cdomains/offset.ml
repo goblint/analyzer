@@ -41,11 +41,29 @@ struct
 
     let equal_to _ _ = `Top (* TODO: more precise for definite indices *)
     let to_int _ = None (* TODO: more precise for definite indices *)
-    let top () = Lazy.force any
+  end
+
+  module Z =
+  struct
+    include Printable.Z
+    let name () = "Z index"
+    let to_int z = Some z
+    let equal_to z1 z2 =
+      if Z.equal z2 z2 then
+        `Eq
+      else
+        `Neq
   end
 end
 
 
+module Poly =
+struct
+  let rec map_indices g: 'a t -> 'b t = function
+    | `NoOffset -> `NoOffset
+    | `Field (f, o) -> `Field (f, map_indices g o)
+    | `Index (i, o) -> `Index (g i, map_indices g o)
+end
 
 module MakePrintable (Idx: Index.Printable): Printable with type idx = Idx.t =
 struct
@@ -79,6 +97,8 @@ struct
     end
     )
 
+  include Poly
+
   let rec is_definite: t -> bool = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
@@ -103,7 +123,7 @@ struct
     | `Field(f,o) -> Field(f, to_cil_offset o)
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 
-  let rec to_exp: t -> exp offs = function
+  let rec to_exp: t -> exp offs = function (* TODO: Poly.map_indices *)
     | `NoOffset    -> `NoOffset
     | `Index (i,o) ->
       let i_exp = match Idx.to_int i with
@@ -127,13 +147,6 @@ struct
     | `NoOffset -> false
     | `Field (_, os) -> contains_index os
     | `Index _ -> true
-
-  let rec map_indices g: t -> t = function
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, map_indices g o)
-    | `Index (i, o) -> `Index (g i, map_indices g o)
-
-  let top_indices = map_indices (fun _ -> Idx.top ())
 
   (* tries to follow o in t *)
   let rec type_of ~base:t o = match unrollType t, o with (* resolves TNamed *)
@@ -179,9 +192,11 @@ struct
   let widen x y = merge `Widen x y
   let narrow x y = merge `Narrow x y
 
+  let top_indices = map_indices (fun _ -> Idx.top ())
+
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with any_index_exp on all non-concrete cases. *)
-  let rec of_exp: exp offs -> t = function
+  let rec of_exp: exp offs -> t = function (* TODO: Poly.map_indices *)
     | `NoOffset    -> `NoOffset
     | `Index (Const (CInt (i,ik,s)),o) -> `Index (Idx.of_int ik i, of_exp o)
     | `Index (_,o) -> `Index (Idx.top (), of_exp o)
@@ -231,7 +246,7 @@ struct
   include MakePrintable (Index.Unit)
 
   (* TODO: rename to of_poly? *)
-  let rec of_offs: 'i offs -> t = function
+  let rec of_offs: 'i offs -> t = function (* TODO: Poly.map_indices *)
     | `NoOffset -> `NoOffset
     | `Field (f,o) -> `Field (f, of_offs o)
     | `Index (i,o) -> `Index ((), of_offs o)
@@ -246,6 +261,8 @@ module Exp =
 struct
   include MakePrintable (Index.Exp)
 
+  let top_indices = map_indices (fun _ -> Lazy.force Index.Exp.any)
+
   let rec of_cil: offset -> t = function
     | NoOffset    -> `NoOffset
     | Index (i,o) -> `Index (i, of_cil o)
@@ -256,6 +273,13 @@ struct
     | `NoOffset    -> NoOffset
     | `Index (i,o) -> Index (i, to_cil o)
     | `Field (f,o) -> Field (f, to_cil o)
+end
+
+module Z =
+struct
+  include MakePrintable (Index.Z)
+
+  let is_definite _ = true (* override to avoid iterating over offset *)
 end
 
 

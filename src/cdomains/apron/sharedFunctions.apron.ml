@@ -111,7 +111,7 @@ struct
           | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
-        if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
+        if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
         res
       in
       (* recurse without env and ask arguments *)
@@ -138,8 +138,15 @@ struct
             let expr =
               (** simplify asks for a constant value of some subexpression e, similar to a constant fold. In particular but not exclusively
                   this query is answered by the 2 var equalities domain itself. This normalizes arbitrary expressions to a point where they
-                  might be able to be represented by means of 2 var equalities *)
+                  might be able to be represented by means of 2 var equalities 
+
+                  This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
+                  but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
+                  mode is a stop-gap measure to avoid flagging overflows. We however should address simplification in a more generally useful way.
+                  outside of the apron-related expression conversion.
+              *)
               let simplify e =
+                GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
