@@ -46,10 +46,14 @@ module T = struct
 
   let props_equal = List.equal equal_v_prop
 
+  exception UnsupportedCilExpression of string
+
   let rec get_size_in_bits typ = match typ with
     | TArray (typ, _, _) -> (* we treat arrays like pointers *)
       get_size_in_bits (TPtr (typ,[]))
-    | _ -> Z.of_int (bitsSizeOf typ)
+    | _ -> match Z.of_int (bitsSizeOf typ) with
+      | exception GoblintCil__Cil.SizeOfError (msg,_) -> raise (UnsupportedCilExpression msg)
+      | s -> s
 
   let show_type exp =
     try
@@ -64,7 +68,7 @@ module T = struct
           | TFun (_, _, _, _)|TNamed (_, _)|TEnum (_, _)|TBuiltin_va_list _ -> "?"
         )^ Z.to_string (get_size_in_bits typ) ^ "]"
     with
-    | GoblintCil__Cil.SizeOfError _ -> "[?]"
+    | UnsupportedCilExpression _ -> "[?]"
 
   let rec show : t -> string = function
     | Addr v -> "&" ^ Var.show v
@@ -86,8 +90,6 @@ module T = struct
 
   let term_of_varinfo vinfo =
     Deref (Addr vinfo, Z.zero, Lval (Var vinfo, NoOffset))
-
-  exception UnsupportedCilExpression of string
 
   let eval_int (ask:Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
@@ -165,10 +167,7 @@ module T = struct
   let z_of_offset ask offs typ =
     match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
     | Some i -> i
-    | None
-    | exception GoblintCil__Cil.SizeOfError _ ->
-      (* there is an array for which we don't know the length *)
-      raise (UnsupportedCilExpression "unknown offset")
+    | None -> raise (UnsupportedCilExpression "unknown offset")
 
   let can_be_dereferenced = function
     | TPtr _| TArray _| TComp _ -> true
@@ -292,26 +291,21 @@ module T = struct
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval =
     let res =
-      try
-        match lval with
-        | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
-          else of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
-        | (Mem exp, off) ->
-          begin match of_cil ask exp with
-            | (Some term, offset) ->
-              let typ = typeOf exp in
-              if is_struct_ptr_type typ then
-                match of_offset ask term off typ (Lval lval) with
-                | Addr x -> Addr x
-                | Deref (x, z, exp) -> Deref (x, Z.(z+offset), exp)
-              else
-                of_offset ask (Deref (term, offset, Lval(Mem exp, NoOffset))) off (typeOfLval (Mem exp, NoOffset)) (Lval lval)
-            | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
-          end
-      with
-      | GoblintCil__Cil.SizeOfError _ ->
-        (* There was an array of unknown length *)
-        raise (UnsupportedCilExpression "array non-constant length")
+      match lval with
+      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
+        else of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
+      | (Mem exp, off) ->
+        begin match of_cil ask exp with
+          | (Some term, offset) ->
+            let typ = typeOf exp in
+            if is_struct_ptr_type typ then
+              match of_offset ask term off typ (Lval lval) with
+              | Addr x -> Addr x
+              | Deref (x, z, exp) -> Deref (x, Z.(z+offset), exp)
+            else
+              of_offset ask (Deref (term, offset, Lval(Mem exp, NoOffset))) off (typeOfLval (Mem exp, NoOffset)) (Lval lval)
+          | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
+        end
     in
     (if M.tracing then match res with
         | exception (UnsupportedCilExpression s) -> M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
