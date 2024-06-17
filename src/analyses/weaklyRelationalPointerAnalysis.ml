@@ -29,16 +29,13 @@ struct
      and Some false if we know for sure that it is false,
      and None if we don't know anyhing. *)
   let eval_guard ask t e =
-    match t with
-      None -> Some false
-    | Some t ->
-      let prop_list = T.prop_of_cil ask e true in
-      let res = match split prop_list with
-        | [], [] -> None
-        | x::xs, _ -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
-        | _, y::ys ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
-      in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
-          d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
+    let prop_list = T.prop_of_cil ask e true in
+    let res = match split prop_list with
+      | [], [] -> None
+      | x::xs, _ -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
+      | _, y::ys ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
+    in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
+        d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in

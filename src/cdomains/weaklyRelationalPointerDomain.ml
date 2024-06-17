@@ -179,7 +179,7 @@ module D = struct
       It removes all terms that may be changed after an assignment to "term".*)
   let remove_may_equal_terms ask s term cc =
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
-    let cc = Option.map (fun cc -> (snd(insert cc term))) cc in
+    let cc = snd (insert cc term) in
     Option.map (remove_terms (fun uf -> MayBeEqual.may_be_equal ask uf s term)) cc
 
   (** Remove terms from the data structure.
