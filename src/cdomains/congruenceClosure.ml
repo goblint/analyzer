@@ -86,7 +86,7 @@ module T = struct
     | Deref (t, _, _) -> get_var t
 
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
-  let rec contains_variable variables term = List.mem (get_var term) variables
+  let rec contains_variable variables term = List.mem_cmp Var.compare (get_var term) variables
 
   let term_of_varinfo vinfo =
     Deref (Addr vinfo, Z.zero, Lval (Var vinfo, NoOffset))
