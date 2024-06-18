@@ -167,7 +167,8 @@ module T = struct
   let z_of_offset ask offs typ =
     match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
     | Some i -> i
-    | None -> raise (UnsupportedCilExpression "unknown offset")
+    | None
+    | exception (SizeOfError _) -> raise (UnsupportedCilExpression "unknown offset")
 
   let can_be_dereferenced = function
     | TPtr _| TArray _| TComp _ -> true
