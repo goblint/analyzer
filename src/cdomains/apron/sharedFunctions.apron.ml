@@ -247,7 +247,7 @@ module CilOfApron (V: SV) =
 struct
   exception Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 ?(scalewith=Z.one) (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
     let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
