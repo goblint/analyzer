@@ -648,7 +648,7 @@ struct
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
       ; spawn   = spawn
-      ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
+      ; split   = (fun (d:D.t) es -> assert (List.is_empty es); Logs.debug "split %a" S.D.pretty d; r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
       }
     and spawn ?(multiple=false) lval f args =
@@ -675,7 +675,11 @@ struct
   let rec bigsqcup = function
     | []    -> D.bot ()
     | [x]   -> x
-    | x::xs -> D.join x (bigsqcup xs)
+    | x::xs ->
+      let y = bigsqcup xs in
+      let r = D.join x y in
+      Logs.debug "bigcup %a %a -> %a" S.D.pretty x S.D.pretty y S.D.pretty r;
+      r
 
   let thread_spawns ctx d spawns =
     if List.is_empty spawns then
@@ -744,7 +748,8 @@ struct
 
   let tf_test var edge prev_node e tv getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.branch ctx e tv) !r !spawns
+    let a = S.branch ctx e tv in
+    common_join ctx (a) !r !spawns
 
   let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =

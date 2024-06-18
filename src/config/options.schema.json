@@ -2627,6 +2627,12 @@
               "type": "string",
               "default": ""
             },
+            "observe": {
+              "title": "witness.yaml.observe",
+              "description": "YAML witness input path",
+              "type": "string",
+              "default": ""
+            },
             "certificate": {
               "title": "witness.yaml.certificate",
               "description": "YAML witness certificate output path",
