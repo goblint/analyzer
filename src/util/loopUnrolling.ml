@@ -274,8 +274,7 @@ let fixedLoopSize loopStatement func =
   else
     constBefore var loopStatement func >>= fun start ->
     assignmentDifference loopStatement var >>= fun diff ->
-    Logs.debug "comparison: ";
-    Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
+    Logs.debug "comparison: %a" CilType.Exp.pretty comparison;
     Logs.debug "";
     Logs.debug "variable: ";
     Logs.debug "%s" var.vname;
