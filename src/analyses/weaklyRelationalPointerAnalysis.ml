@@ -16,8 +16,6 @@ struct
 
   let name () = "wrpointer"
   let startcontext () = D.empty ()
-  let startstate v = D.empty()
-  let exitstate v = D.empty()
 
   (* find reachable variables in a function *)
   let reachable_from_args ctx args =
@@ -157,8 +155,10 @@ struct
       D.remove_terms_containing_variables (MayBeEqual.return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
     in if M.tracing then M.trace "wrpointer-function" "COMBINE_ASSIGN3: result: %s\n" (D.show t); t
 
-  let threadenter ctx ~multiple var_opt v exprs = [ctx.local]
-  let threadspawn ctx ~multiple var_opt v exprs ctx2 = ctx.local
+  let startstate v = D.top ()
+  let threadenter ctx ~multiple lval f args = [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx = D.top()
+  let exitstate  v = D.top ()
 
 end
 
