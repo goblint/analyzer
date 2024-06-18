@@ -251,7 +251,7 @@ struct
     let longlong = TInt(ILongLong,[]) in
     let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
-        (match int_of_scalar ~scalewith:scalewith c with
+        (match int_of_scalar ?scalewith c with
          | Some i ->
            let ci,truncation = truncateCilint ILongLong i in
            if truncation = NoTruncation then
