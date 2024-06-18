@@ -797,7 +797,7 @@ module CongruenceClosure = struct
         if T.equal v1 v2 then  (* should not happen *)
           if Z.equal r Z.zero then raise Unsat else propagate_neq (uf,cmap,arg,neq) rest
         else (* check whether it is already in neq *)
-        if map_set_mem (v1,r) v2 neq then propagate_neq (uf,cmap,arg,neq) rest
+        if map_set_mem (v1,Z.(-r)) v2 neq then propagate_neq (uf,cmap,arg,neq) rest
         else let neq = map_set_add (v1,Z.(-r)) v2 neq |>
                        map_set_add (v2,r) v1 in
         (*
@@ -839,7 +839,7 @@ module CongruenceClosure = struct
     let show_neq neq =
       let clist = bindings neq in
       List.fold_left (fun s (v,r,v') ->
-          s ^ "\t" ^ T.show v' ^ " != " ^ (if Z.equal r Z.zero then "" else (Z.to_string r) ^" + ")
+          s ^ "\t" ^ T.show v' ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " != "
           ^ T.show v ^  "\n") "" clist
 
     let filter_map f (diseq:t) =
@@ -852,7 +852,7 @@ module CongruenceClosure = struct
 
     let get_disequalities = List.map
         (fun (t1, z, t2) ->
-           Nequal (t1,t2,z)
+           Nequal (t1,t2,Z.(-z))
         ) % bindings
 
     let element_closure diseqs uf =
@@ -1083,9 +1083,12 @@ module CongruenceClosure = struct
     (* find disequalities between min_repr *)
     let normalize_disequality (t1, t2, z) =
       let (min_state1, min_z1) = MRMap.find t1 cc.min_repr in
-      let (min_state2, min_z2) = MRMap.find t2 cc.min_repr
-      in Nequal (min_state1, min_state2, Z.(z - (min_z1 - min_z2))) in (*TODO + o - *)
-    let disequalities = List.map (function | Equal (t1,t2,z)| Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)) disequalities
+      let (min_state2, min_z2) = MRMap.find t2 cc.min_repr in
+      let new_offset = Z.(min_z2 - min_z1 + z) in
+      if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
+      else Nequal (min_state2, min_state1, Z.(-new_offset))
+    in
+    let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)) disequalities
     in BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities)
 
   let show_all x = "Normal form:\n" ^
@@ -1332,7 +1335,7 @@ module CongruenceClosure = struct
       else true
     else match cc with
       | None -> true
-      | Some cc -> Disequalities.map_set_mem (v1,Z.(r2-r1+r)) v2 cc.diseq
+      | Some cc -> Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
 
   (** Throws "Unsat" if a contradiction is found. *)
   let meet_conjs cc pos_conjs =
@@ -1594,6 +1597,6 @@ module CongruenceClosure = struct
     let diseq2 = List.filter (neq_query (Some cc1)) (Disequalities.element_closure diseq2 cc2.uf) in
     let cc = Option.get (insert_set cc (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2))) in
     let res = congruence_neq cc (diseq1 @ diseq2)
-    in (if M.tracing then match res with | Some r -> M.trace "wrpointer-neq" "join_neq: %s\n; Union find: %s\n" (Disequalities.show_neq r.diseq) (TUF.show_uf r.uf)| None -> ()); res
+    in (if M.tracing then match res with | Some r -> M.trace "wrpointer-neq" "join_neq: %s\n\n" (Disequalities.show_neq r.diseq) | None -> ()); res
 
 end

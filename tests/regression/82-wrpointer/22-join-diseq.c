@@ -13,24 +13,24 @@ void main(void) {
 
   int top;
 
-  if (a != b && e != c && c != d) {
-    __goblint_check(a != b);
+  if (a != b + 4 && e != c && c != d) {
+    __goblint_check(a != b + 4);
     __goblint_check(e != c);
     __goblint_check(c != d);
     if (top) {
       d = unknown;
-      __goblint_check(a != b);
+      __goblint_check(a != b + 4);
       __goblint_check(e != c);
       __goblint_check(c != d); // UNKNOWN!
 
     } else {
       e = unknown;
-      __goblint_check(a != b);
+      __goblint_check(a != b + 4);
       __goblint_check(e != c); // UNKNOWN!
       __goblint_check(c != d);
     }
     // JOIN
-    __goblint_check(a != b);
+    __goblint_check(a != b + 4);
     __goblint_check(e != c); // UNKNOWN!
     __goblint_check(c != d); // UNKNOWN!
   }
