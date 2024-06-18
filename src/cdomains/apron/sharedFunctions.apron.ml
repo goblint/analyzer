@@ -300,7 +300,7 @@ struct
     in
     let extract_den (c:Coeff.union_5) _ =
       match c with
-      | Scalar c -> BatOption.map (fun q -> Q.den q) (frac_of_scalar c)
+      | Scalar c -> BatOption.map Q.den (frac_of_scalar c)
       | _ -> None
     in
     let lcm_denom = ref (BatOption.default Z.one (extract_den (Linexpr1.get_cst linexpr1) ())) in
