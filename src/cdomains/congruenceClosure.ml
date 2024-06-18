@@ -200,14 +200,21 @@ module T = struct
     | Some i -> i
     | None -> raise (UnsupportedCilExpression "unknown offset")
 
+  let is_field = function
+    | Field _ -> true
+    | _ -> false
+
   let rec add_index_to_exp exp index =
-    begin match exp with
-      | Lval (Var v, NoOffset) -> Lval (Var v, index)
-      | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
-      | BinOp (PlusPI, exp1, Const (CInt (z, _ , _ )), _)when Z.equal z Z.zero ->
-        add_index_to_exp exp1 index
-      | _ -> raise (UnsupportedCilExpression "not supported yet")
-    end
+    try if is_struct_type (typeOf exp) || not (is_field index) then
+        begin match exp with
+          | Lval (Var v, NoOffset) -> Lval (Var v, index)
+          | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
+          | BinOp (PlusPI, exp1, Const (CInt (z, _ , _ )), _)when Z.equal z Z.zero ->
+            add_index_to_exp exp1 index
+          | _ -> raise (UnsupportedCilExpression "not supported yet")
+        end
+      else raise (UnsupportedCilExpression "Field on a non-compound")
+    with | Cilfacade.TypeOfError _ -> raise (UnsupportedCilExpression "typeOf error")
 
   let check_valid_pointer term =
     match typeOf term with (* we want to make sure that the expression is valid *)
