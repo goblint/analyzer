@@ -275,21 +275,16 @@ let fixedLoopSize loopStatement func =
     constBefore var loopStatement func >>= fun start ->
     assignmentDifference loopStatement var >>= fun diff ->
     Logs.debug "comparison: %a" CilType.Exp.pretty comparison;
-    Logs.debug "";
-    Logs.debug "variable: ";
-    Logs.debug "%s" var.vname;
-    Logs.debug "start:";
-    Logs.debug "%s" @@ Z.to_string start;
-    Logs.debug "diff:";
-    Logs.debug "%s" @@ Z.to_string diff;
+    Logs.debug "variable: %s" var.vname;
+    Logs.debug "start: %s" @@ Z.to_string start;
+    Logs.debug "diff: %s" @@ Z.to_string diff;
     let iterations = loopIterations start diff comparison in
     match iterations with
     | None -> Logs.debug "iterations failed"; None
     | Some s ->
       try
         let s' = Z.to_int s in
-        Logs.debug "iterations:";
-        Logs.debug "%d" s';
+        Logs.debug "iterations: %d" s';
         Some s'
       with Z.Overflow -> Logs.debug "iterations too big for integer"; None
 
