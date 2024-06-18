@@ -51,11 +51,13 @@ module Base =
     module VS = Set.Make (S.Var)
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
+    type divided_side_phase = D_Widen | D_Narrow [@@deriving show]
+
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       infl: VS.t HM.t;
       sides: VS.t HM.t;
-      divided_side_effects: ((S.Dom.t * int option) HM.t) HM.t;
+      divided_side_effects: ((S.Dom.t * (int *  divided_side_phase) option) HM.t) HM.t;
       orphan_side_effects: S.Dom.t HM.t;
       rho: S.Dom.t HM.t;
       wpoint: unit HM.t;
@@ -210,7 +212,6 @@ module Base =
       {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
-    type divided_side_phase = D_Widen | D_Narrow [@@deriving show]
 
     module CurrentVarS = ConstrSys.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
@@ -271,7 +272,7 @@ module Base =
       let divided_narrow_stable = GobConfig.get_bool "solvers.td3.narrow-sides.stable" in
       let divided_narrow_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-sides.conservative-widen" in
       let divided_narrow_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
-      let divided_narrow_gas_default = if divided_narrow_gas_default < 0 then None else Some divided_narrow_gas_default in
+      let divided_narrow_gas_default = if divided_narrow_gas_default < 0 then None else Some (divided_narrow_gas_default, D_Widen) in
 
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
@@ -442,15 +443,22 @@ module Base =
             let y_sides = HM.find divided_side_effects y in
             let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), divided_narrow_gas_default) in
             (* Potential optimization: don't widen locally if joining does not affect the combined value *)
-            if not (phase = D_Narrow && narrow_gas = Some 0) then (
+            if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
               let (new_side, narrow_gas) = match phase with
                 | D_Widen -> (if not @@ S.Dom.leq d old_side then
                                 if divided_narrow_conservative_widen && (S.Dom.leq d (HM.find rho y)) then
                                   S.Dom.join old_side d
                                 else
                                   S.Dom.widen old_side (S.Dom.join old_side d)
-                              else old_side), narrow_gas
-                | D_Narrow -> S.Dom.narrow old_side d, Option.map (fun x -> x - 1) narrow_gas
+                              else old_side), Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas
+                | D_Narrow ->
+                  let result = S.Dom.narrow old_side d in
+                  let narrow_gas = if not @@ S.Dom.equal result old_side then 
+                      Option.map (fun (x, phase) -> if phase = D_Widen then x - 1, D_Narrow else (x, phase)) narrow_gas
+                    else
+                      narrow_gas
+                  in
+                  result, narrow_gas
               in
 
               if not (S.Dom.equal old_side new_side) then (
