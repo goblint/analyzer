@@ -262,7 +262,7 @@ let fixedLoopSize loopStatement func =
   in let assignmentDifference loop var = try
          let diff = ref None in
          let visitor = new findAssignmentConstDiff(diff, var) in
-         ignore @@ visitCilStmt visitor loop;
+         ignore @@ visitCilBlock visitor loop;
          !diff
        with | WrongOrMultiple ->  None
   in
@@ -273,7 +273,7 @@ let fixedLoopSize loopStatement func =
     None
   else
     constBefore var loopStatement func >>= fun start ->
-    assignmentDifference loopStatement var >>= fun diff ->
+    assignmentDifference (loopBody loopStatement) var >>= fun diff ->
     Logs.debug "comparison: ";
     Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
     Logs.debug "";
