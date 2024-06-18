@@ -55,3 +55,20 @@ Violation witness for an incorrect program cannot be proven correct, so return `
     disabled: 0
     total validation entries: 0
   SV-COMP result: unknown
+
+  $ goblint --enable ana.sv-comp.enabled --set ana.activated[+] violationSequence --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" incorrect-follow-branching.c --set witness.yaml.validate incorrect-follow-branching.yml --set witness.yaml.observe incorrect-follow-branching.yml
+  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 4
+    dead: 0
+    total lines: 4
+  [Info][Witness] witness validation summary:
+    confirmed: 0
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 0
+  SV-COMP result: unknown
