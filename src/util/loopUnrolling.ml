@@ -262,7 +262,7 @@ let fixedLoopSize loopStatement func =
   in let assignmentDifference loop var = try
          let diff = ref None in
          let visitor = new findAssignmentConstDiff(diff, var) in
-         ignore @@ visitCilStmt visitor loop;
+         ignore @@ visitCilBlock visitor loop;
          !diff
        with | WrongOrMultiple ->  None
   in
@@ -277,7 +277,7 @@ let fixedLoopSize loopStatement func =
       | Some i -> i
       | _ -> Z.zero (* Assume var value to be 0 if there was no assignment to the var before loop *)
     in
-    assignmentDifference loopStatement var >>= fun diff ->
+    assignmentDifference (loopBody loopStatement) var >>= fun diff ->
     Logs.debug "comparison: ";
     Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
     Logs.debug "";
@@ -357,7 +357,7 @@ let loop_unrolling_factor loopStatement func totalLoops =
       (* Unroll at least 10 times if there are only few (17?) loops *)
       let unroll_min = if totalLoops < 17 && AutoTune0.isActivated "forceLoopUnrollForFewLoops" then 10 else 0 in
       match fixedLoop with
-      | Some i -> if i * loopStats.instructions < 100 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
+      | Some i -> if i * loopStats.instructions < 100 || totalLoops < 10 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
       | _ -> max unroll_min (targetInstructions / loopStats.instructions)
     else
       (* Don't unroll empty (= while(1){}) loops*)
