@@ -272,7 +272,11 @@ let fixedLoopSize loopStatement func =
   if getsPointedAt var then
     None
   else
-    constBefore var loopStatement func >>= fun start ->
+    let start =
+      match constBefore var loopStatement func with
+      | Some i -> i
+      | _ -> Z.zero (* Assume var value to be 0 if there was no assignment to the var before loop *)
+    in
     assignmentDifference loopStatement var >>= fun diff ->
     Logs.debug "comparison: ";
     Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
