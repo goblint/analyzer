@@ -12,11 +12,11 @@ module T = CC.T
 module MayBeEqual = struct
 
   module AD = ValueDomain.AD
-  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ}
+  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="wrpointer__@dummy"}
   let dummy_var var = T.term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
 
-  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="@return"}
+  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="wrpointer__@return"}
   let return_var var = T.term_of_varinfo (return_varinfo var)
   let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 

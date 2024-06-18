@@ -106,8 +106,8 @@ struct
         branch ctx exp true
     | _, _ -> ctx.local
 
-  let duplicated_variable var = { var with vid = - var.vid - 4; vname = var.vname ^ "'" }
-  let original_variable var = { var with vid = - (var.vid + 4); vname = String.rchop var.vname }
+  let duplicated_variable var = { var with vid = - var.vid - 4; vname = "wrpointer__" ^ var.vname ^ "'" }
+  let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
 
   (*First all local variables of the function are duplicated (by negating their ID),
     then we remember the value of each local variable at the beginning of the function

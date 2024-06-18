@@ -21,9 +21,11 @@ struct
   include Analyses.IdentitySpec
 
 
-  let duplicated_variable var = { var with vid = - var.vid - 4; vname = var.vname ^ "'" }
-  let original_variable var = { var with vid = - (var.vid + 4); vname = String.rchop var.vname }
-  let return_varinfo = {dummyFunDec.svar with vid=(-2);vname="@return"}
+  let duplicated_variable var = { var with vid = - var.vid - 4; vname = "wrpointer__" ^ var.vname ^ "'" }
+  let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
+  let return_varinfo = {dummyFunDec.svar with vid=(-2);vname="wrpointer__@return"}
+  let is_wrpointer_ghost_variable x = x.vid < 0 && String.starts_with x.vname "wrpointer__"
+
 
   let get_value (ask: Queries.ask) exp = ask.f (MayPointTo exp)
 
@@ -35,7 +37,7 @@ struct
         | Some v -> if M.tracing then M.trace "wrpointer-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty v;v
         | None -> Value.top()
       end
-    | AddrOf (Var x, NoOffset) -> if x.vid < -1 then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "wrpointer-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty res;res) else Value.top()
+    | AddrOf (Var x, NoOffset) -> if is_wrpointer_ghost_variable x then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "wrpointer-tainted" "QUERY %a, id: %d : res = %a\n" d_exp exp x.vid AD.pretty res;res) else Value.top()
     | _ -> Value.top ()
 
   let startcontext () = D.empty ()
