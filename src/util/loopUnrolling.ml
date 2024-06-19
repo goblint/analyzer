@@ -45,20 +45,19 @@ class findBreakVisitor(compOption: exp option ref) = object
   method! vstmt stmt =
     match stmt.skind with
     | Block _ -> DoChildren
-    | Break _ -> raise WrongOrMultiple
+    | Break _ -> SkipChildren
     | If (cond, t, e, _, _) ->  (
-        checkNoBreakBlock t;
         match e.bstmts with
         | [s] -> (
             match s.skind with
             | Break _ -> (
                 match !compOption with
-                | Some _ -> raise WrongOrMultiple (*more than one loop break*)
+                | Some _ -> SkipChildren (*more than one loop break*)
                 | _ -> compOption := Some cond; SkipChildren
               )
-            | _ -> checkNoBreakStmt stmt; SkipChildren
+            | _ -> SkipChildren
           )
-        | _ -> checkNoBreakStmt stmt; SkipChildren
+        | _ -> SkipChildren
       )
     | _ ->  SkipChildren
 
