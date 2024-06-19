@@ -584,6 +584,12 @@ end
 
 module IntInvariant =
 struct
+  let of_int e ik x =
+    if get_bool "witness.invariant.exact" then
+      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
+    else
+      Invariant.none
+
   let of_incl_list e ik ps =
     match ps with
     | [_; _] when ik = IBool && not (get_bool "witness.invariant.inexact-type-bounds") ->
@@ -936,11 +942,7 @@ struct
   let invariant_ikind e ik x =
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      if get_bool "witness.invariant.exact" then
-        let x1 = Ints_t.to_bigint x1 in
-        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
-      else
-        Invariant.top ()
+      IntInvariant.of_int e ik (Ints_t.to_bigint x1)
     | Some (x1, x2) ->
       let (min_ik, max_ik) = range ik in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
@@ -2315,10 +2317,7 @@ struct
   let invariant_ikind e ik (x:t) =
     match x with
     | `Definite x ->
-      if get_bool "witness.invariant.exact" then
-        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
-      else
-        Invariant.top ()
+      IntInvariant.of_int e ik x
     | `Excluded (s, r) ->
       (* Emit range invariant if tighter than ikind bounds.
          This can be more precise than interval, which has been widened. *)
@@ -3253,10 +3252,7 @@ struct
     match x with
     | x when is_top x -> Invariant.top ()
     | Some (c, m) when m =: Z.zero ->
-      if get_bool "witness.invariant.exact" then
-        Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
-      else
-        Invariant.top ()
+      IntInvariant.of_int e ik c
     | Some (c, m) ->
       let open Cil in
       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik a) (c, m) in
@@ -3791,11 +3787,8 @@ module IntDomTupleImpl = struct
   let invariant_ikind e ik x =
     match to_int x with
     | Some v ->
-      if get_bool "witness.invariant.exact" then
-        (* If definite, output single equality instead of every subdomain repeating same equality *)
-        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
-      else
-        Invariant.top ()
+      (* If definite, output single equality instead of every subdomain repeating same equality *)
+      IntInvariant.of_int e ik v
     | None ->
       match to_incl_list x with
       | Some ps ->
