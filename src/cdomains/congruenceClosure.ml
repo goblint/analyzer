@@ -1216,6 +1216,13 @@ module CongruenceClosure = struct
          closure (uf, map, min_repr) queue rest
       )
 
+  let closure_no_min_repr cc conjs =
+    match cc with
+    | None -> None
+    | Some cc ->
+      let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
+      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq} []
+
   (**
      Parameters: cc conjunctions.
 
@@ -1363,174 +1370,89 @@ module CongruenceClosure = struct
 
   (* Remove variables: *)
 
-  let add_to_map_of_children value map term =
-    if T.equal term value then map else
-      match TMap.find_opt term map with
-      | None -> TMap.add term [value] map
-      | Some list -> TMap.add term (value::list) map
-
-  let remove_from_map_of_children parent child map =
-    match List.remove_if (T.equal child) (TMap.find parent map) with
-    | [] -> TMap.remove parent map
-    | new_children -> TMap.add parent new_children map
-
-  (* Returns true if any (strict) subterm of t1 is already present in
-     the same equivalence class as t2. *)
-  let rec detect_cyclic_dependencies t1 t2 cc =
-    match t1 with
-    | Addr v -> false
-    | Deref (t1, _, _) ->
-      let v1, o1 = TUF.find_no_pc cc.uf t1 in
-      let v2, o2 = TUF.find_no_pc cc.uf t2 in
-      if T.equal v1 v2 then true else
-        detect_cyclic_dependencies t1 t2 cc
-
-  let add_successor_terms cc t =
-    let add_one_successor (cc, successors) (edge_z, _) =
-      let _, uf_offset, uf = TUF.find cc.uf t in
-      let cc = {cc with uf = uf} in
-      match SSet.deref_term t Z.(edge_z - uf_offset) cc.set with
-      | exception (T.UnsupportedCilExpression _) ->
-        (cc, successors)
-      | successor ->
-        let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
-        let _, cc, _ = if subterm_already_present then (t, Z.zero), cc, []
-          else (if M.tracing then M.trace "wrpointer" "insert successor: %s. Map: %s\n" (T.show successor) (LMap.show_map cc.map); Tuple3.map2 Option.get (insert_no_min_repr cc successor)) in
-        (cc, if subterm_already_present then successors else successor::successors) in
-    List.fold_left add_one_successor (cc, []) (LMap.successors (Tuple3.first (TUF.find cc.uf t)) cc.map)
-
-  (** Parameters:
-      - `cc`: congruence closure data structure
-      - `predicate`: predicate that returns true for terms which need to be removed from the data structure.
-        It takes `uf` as a parameter.
-
-      Returns:
-      - `new_set`: subset of `set` which contains the terms that do not have to be removed.
-      - `removed_terms`: list of all elements of `set` which contains the terms that have to be removed.
-      - `map_of_children`: maps each element of union find to its children in the union find tree. It is used in order to later remove these elements from the union find data structure.
-      - `cc`: updated congruence closure data structure.
-  *)
-  let remove_terms_from_set cc predicate =
-    let rec remove_terms_recursive (new_set, removed_terms, map_of_children, cc) = function
-      | [] -> (new_set, removed_terms, map_of_children, cc)
-      | el::rest ->
-        let new_set, removed_terms = if predicate cc.uf el then new_set, el::removed_terms else SSet.add el new_set, removed_terms in
-        let uf_parent = TUF.parent cc.uf el in
-        let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent) in
-        (* in order to not lose information by removing some elements, we add dereferences values to the union find.*)
-        let cc, successors = add_successor_terms cc el in
-        remove_terms_recursive (new_set, removed_terms, map_of_children, cc) (rest @ successors)
+  let remove_terms_from_eq predicate cc =
+    let rec insert_terms cc =
+      function | [] -> cc | t::ts -> insert_terms (Option.bind cc (fun cc -> Tuple3.second (insert_no_min_repr cc t))) ts in
+    (* start from all initial states that are still valid and find new representatives if necessary *)
+    (* new_reps maps each representative term to the new representative of the equivalence class *)
+    (*but new_reps contains an element but not necessarily the representative!!*)
+    let find_new_repr state old_rep old_z new_reps =
+      match LMap.find_opt old_rep new_reps with
+      | Some (new_rep,z) -> new_rep, Z.(old_z - z), new_reps
+      | None -> if not @@ predicate old_rep then
+          old_rep, old_z, TMap.add old_rep (old_rep, Z.zero) new_reps else (*we keep the same representative as before*)
+          (* the representative need to be removed from the data structure: state is the new repr.*)
+          state, Z.zero, TMap.add old_rep (state, old_z) new_reps in
+    let add_atom (new_reps, new_cc, reachable_old_reps) state =
+      let old_rep, old_z = TUF.find_no_pc cc.uf state in
+      let new_rep, new_z, new_reps = find_new_repr state old_rep old_z new_reps in
+      let new_cc = insert_terms new_cc [state; new_rep] in
+      let new_cc = closure_no_min_repr new_cc [(state, new_rep, new_z)] in
+      (new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
     in
-    remove_terms_recursive (SSet.empty, [], TMap.empty, cc) (SSet.to_list cc.set)
-
-  let show_map_of_children map_of_children =
-    List.fold_left
-      (fun s (v, list) ->
-         s ^ T.show v ^ "\t:\n" ^
-         List.fold_left
-           (fun s v ->
-              s ^ T.show v ^ "; ")
-           "\t" list ^ "\n")
-      "" (TMap.bindings map_of_children)
-
-  (** Removes all terms in "removed_terms" from the union find data structure.
-
-      Returns:
-      - `uf`: the updated union find tree
-      - `new_parents_map`: maps each removed term t to another term which was in the same equivalence class as t at the time when t was deleted.
-  *)
-  let remove_terms_from_uf uf removed_terms map_of_children predicate =
-    let find_not_removed_element set = match List.find (fun el -> not (predicate uf el)) set with
-      | exception Not_found -> List.first set
-      | t -> t
-    in
-    let remove_term (uf, new_parents_map, map_of_children) t =
-      match LMap.find_opt t map_of_children with
-      | None ->
-        (* t has no children, so we can safely delete the element from the data structure *)
-        (* we just need to update the size on the whole path from here to the root *)
-        let new_parents_map = if TUF.is_root uf t then new_parents_map else LMap.add t (TUF.parent uf t) new_parents_map in
-        let parent = fst (TUF.parent uf t) in
-        let map_of_children = if TUF.is_root uf t then map_of_children else remove_from_map_of_children parent t map_of_children in
-        (TUF.ValMap.remove t (TUF.modify_size t uf pred), new_parents_map, map_of_children)
-      | Some children ->
-        let map_of_children = LMap.remove t map_of_children in
-        if TUF.is_root uf t then
-          (* t is a root and it has some children:
-             1. choose new root.
-             The new_root is in any case one of the children of the old root.
-             If possible, we choose one of the children that is not going to be deleted.  *)
-          let new_root = find_not_removed_element children in
-          let remaining_children = List.remove_if (T.equal new_root) children in
-          let offset_new_root = TUF.parent_offset uf new_root in
-          (* We set the parent of all the other children to the new root and adjust the offset accodingly. *)
-          let new_size, map_of_children, uf = List.fold
-              (fun (total_size, map_of_children, uf) child ->
-                 (* update parent and offset *)
-                 let uf = TUF.modify_parent uf child (new_root, Z.(TUF.parent_offset uf child - offset_new_root)) in
-                 total_size + TUF.subtree_size uf child, add_to_map_of_children child map_of_children new_root, uf
-              ) (0, map_of_children, uf) remaining_children in
-          (* Update new root -> set itself as new parent. *)
-          let uf = TUF.modify_parent uf new_root (new_root, Z.zero) in
-          (* update size of equivalence class *)
-          let uf = TUF.modify_size new_root uf ((+) new_size) in
-          (TUF.ValMap.remove t uf, LMap.add t (new_root, Z.(-offset_new_root)) new_parents_map, map_of_children)
+    let new_reps, new_cc, reachable_old_reps =
+      List.fold add_atom (TMap.empty, (Some(init_cc [])),[]) (List.filter (not % predicate) @@ SSet.get_atoms cc.set) in
+    let cmap = Disequalities.comp_map cc.uf in
+    (* breadth-first search of reachable states *)
+    let add_transition (old_rep, new_rep, z1) (new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
+      let old_rep_s, old_z_s = TUF.find_no_pc cc.uf s_t in
+      let find_successor z t =
+        match SSet.deref_term t Z.(s_z-z) cc.set with
+        | exception (T.UnsupportedCilExpression _) -> None
+        | successor -> if (not @@ predicate successor) then Some successor else None in
+      let find_successor_in_set (z, term_set) =
+        TSet.choose_opt @@ TSet.filter_map (find_successor z) term_set in
+      (* find successor term -> find any  element in equivalence class that can be dereferenced *)
+      match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
+      | Some successor_term -> if (not @@ predicate successor_term) then
+          let new_cc = insert_terms new_cc [successor_term] in
+          match LMap.find_opt old_rep_s new_reps with
+          | Some (new_rep_s,z2) -> (* the successor already has a new representative, therefore we can just add it to the lookup map*)
+            new_reps, closure_no_min_repr new_cc [(successor_term, new_rep_s, Z.(old_z_s-z2))], reachable_old_reps
+          | None -> (* the successor state was not visited yet, therefore we need to find the new representative of the state.
+                       -> we choose a successor term *(t+z) for any
+                       -> we need add the successor state to the list of states that still need to be visited
+                    *)
+            TMap.add old_rep_s (successor_term, old_z_s) new_reps, new_cc, (old_rep_s, successor_term, old_z_s)::reachable_old_reps
         else
-          (* t is NOT a root -> the old parent of t becomes the new parent of the children of t. *)
-          let (new_root, new_offset) = TUF.parent uf t in
-          let remaining_children = List.remove_if (T.equal new_root) children in
-          (* update all parents of the children of t *)
-          let map_of_children, uf = List.fold
-              (fun (map_of_children, uf) child ->
-                 (* update parent and offset *)
-                 add_to_map_of_children child map_of_children new_root,
-                 TUF.modify_parent uf child (new_root, Z.(TUF.parent_offset uf t + new_offset))
-              ) (map_of_children, uf) remaining_children in
-          (* update size of equivalence class *)
-          let uf = TUF.modify_size new_root uf pred in
-          (TUF.ValMap.remove t uf, LMap.add t (new_root, new_offset) new_parents_map, map_of_children)
+          (new_reps, new_cc, reachable_old_reps)
+      | None ->
+        (* the term cannot be dereferenced, so we won't add this transition. *)
+        (new_reps, new_cc, reachable_old_reps)
     in
-    List.fold_left remove_term (uf, LMap.empty, map_of_children) removed_terms
-
-  let show_new_parents_map new_parents_map = List.fold_left
-      (fun s (v1, (v2, o2)) ->
-         s ^ T.show v1 ^ "\t: " ^ T.show v2 ^ ", " ^ Z.to_string o2 ^"\n")
-      "" (TMap.bindings new_parents_map)
+    (* find all successors that are still reachable *)
+    let rec add_transitions new_reps new_cc = function
+      | [] -> new_reps, new_cc
+      | (old_rep, new_rep, z)::rest ->
+        let successors = LMap.successors old_rep cc.map in
+        let new_reps, new_cc, reachable_old_reps =
+          List.fold (add_transition (old_rep, new_rep,z)) (new_reps, new_cc, []) successors in
+        add_transitions new_reps new_cc (rest@reachable_old_reps)
+    in add_transitions new_reps new_cc
+      (List.unique_cmp ~cmp:(Tuple3.compare ~cmp1:(T.compare) ~cmp2:(T.compare) ~cmp3:(Z.compare)) reachable_old_reps)
 
   (** Find the representative term of the equivalence classes of an element that has already been deleted from the data structure.
       Returns None if there are no elements in the same equivalence class as t before it was deleted.*)
-  let rec find_new_root new_parents_map uf v =
-    match LMap.find_opt v new_parents_map with
-    | None -> TUF.find_opt uf v
-    | Some (new_parent, new_offset) ->
-      match find_new_root new_parents_map uf new_parent with
-      | None -> None
-      | Some (r, o, uf) -> Some (r, Z.(o + new_offset), uf)
+  let rec find_new_root new_reps uf v =
+    match TMap.find_opt v new_reps with
+    | None -> None
+    | Some (new_t, z1) ->
+      let t_rep, z2 = TUF.find_no_pc uf new_t in
+      Some (t_rep, Z.(z2-z1))
 
-  (** Removes all terms from the mapped values of this map,
-      for which "predicate" is false. *)
-  let remove_terms_from_mapped_values map predicate =
-    LMap.filter_if map (not % predicate)
-
-  (** For all the elements in the removed terms set, it moves the mapped value to the new root.
-      Returns new map and new union-find. *)
-  let remove_terms_from_map (uf, map) removed_terms new_parents_map =
-    let remove_from_map (map, uf) term =
-      match LMap.find_opt term map with
-      | None -> map, uf
-      | Some _ -> (* move this entry in the map to the new representative of the equivalence class where term was before. If it still exists. *)
-        match find_new_root new_parents_map uf term with
-        | None -> LMap.remove term map, uf
-        | Some (new_root, new_offset, uf) -> LMap.shift new_root new_offset term map, uf
-    in List.fold_left remove_from_map (map, uf) removed_terms
-
-  let remove_terms_from_diseq (diseq: Disequalities.t) removed_terms predicate new_parents_map uf =
-    (* modify mapped values
-       -> change terms to their new representatives or remove them, if the representative class was completely removed. *)
-    let diseq = Disequalities.filter_map (Option.map Tuple3.first % find_new_root new_parents_map uf) (Disequalities.filter_if diseq (not % predicate))  in
-    (* modify left hand side of map *)
-    let res, uf = remove_terms_from_map (uf, diseq) removed_terms new_parents_map in
-    if M.tracing then M.trace "wrpointer-neq" "remove_terms_from_diseq: %s\nUnion find: %s\n" (Disequalities.show_neq res) (TUF.show_uf uf); res, uf
+  let remove_terms_from_diseq diseq new_reps cc =
+    let disequalities = Disequalities.get_disequalities diseq
+    in
+    let add_disequality new_diseq = function
+      | Nequal(t1,t2,z) ->
+        begin match find_new_root new_reps cc.uf t1,find_new_root new_reps cc.uf t2 with
+          | Some (t1',z1'), Some (t2', z2') -> (t1', t2', Z.(z2'+z-z1'))::new_diseq
+          | _ -> new_diseq
+        end
+      | _-> new_diseq
+    in
+    let new_diseq = List.fold add_disequality [] disequalities
+    in congruence_neq cc new_diseq
 
   (** Remove terms from the data structure.
       It removes all terms for which "predicate" is false,
@@ -1538,22 +1460,17 @@ module CongruenceClosure = struct
   let remove_terms predicate cc =
     let old_cc = cc in
     (* first find all terms that need to be removed *)
-    let set, removed_terms, map_of_children, cc =
-      remove_terms_from_set cc predicate
-    in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
-        (show_all old_cc);
-    let uf, new_parents_map, _ =
-      remove_terms_from_uf cc.uf removed_terms map_of_children predicate
-    in let map =
-         remove_terms_from_mapped_values cc.map (predicate cc.uf)
-    in let map, uf =
-         remove_terms_from_map (uf, map) removed_terms new_parents_map
-    in let diseq, uf =
-         remove_terms_from_diseq cc.diseq removed_terms (predicate cc.uf) new_parents_map uf
-    in let min_repr, uf = MRMap.compute_minimal_representatives (uf, set, map)
-    in if M.tracing then M.trace "wrpointer" "REMOVE TERMS: %s\n BEFORE: %s\nRESULT: %s\n" (List.fold_left (fun s t -> s ^ "; " ^ T.show t) "" removed_terms)
-        (show_all old_cc) (show_all {uf; set; map; min_repr; diseq});
-    {uf; set; map; min_repr; diseq}
+    match remove_terms_from_eq (predicate cc.uf) cc with
+    | new_reps, Some cc ->
+      begin match remove_terms_from_diseq old_cc.diseq new_reps cc with
+        | Some cc ->
+          let min_repr, uf = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map)
+          in if M.tracing then M.trace "wrpointer" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
+              (show_all old_cc) (show_all {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq});
+          Some {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq}
+        | None -> None
+      end
+    | _,None -> None
 
   (* join *)
 
