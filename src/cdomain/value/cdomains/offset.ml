@@ -213,7 +213,7 @@ struct
         let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
         let bits_offset = idx_of_int bits_offset in
         let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
-        Idx.add bits_offset remaining_offset
+        GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () -> Idx.add bits_offset remaining_offset
       | `Index (x, o) ->
         let (item_typ, item_size_in_bits) =
           match Option.map unrollType typ with
