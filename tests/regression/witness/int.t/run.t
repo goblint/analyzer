@@ -18,8 +18,7 @@
       column: 5
       function: main
     location_invariant:
-      string: ((((0 <= i && i <= 127) && i != 0) && (5 <= i && i <= 101)) && ((i ==
-        5 || i == 42) || i == 101)) && ((i == 5 || i == 42) || i == 101)
+      string: (i == 5 || i == 42) || i == 101
       type: assertion
       format: C
   - entry_type: location_invariant

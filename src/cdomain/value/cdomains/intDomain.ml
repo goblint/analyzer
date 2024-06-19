@@ -3797,10 +3797,14 @@ module IntDomTupleImpl = struct
       else
         Invariant.top ()
     | None ->
-      let is = to_list (mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.invariant_ikind e ik } x)
-      in List.fold_left (fun a i ->
-          Invariant.(a && i)
-        ) (Invariant.top ()) is
+      match to_incl_list x with
+      | Some ps ->
+        IntInvariant.of_incl_list e ik ps
+      | None ->
+        let is = to_list (mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.invariant_ikind e ik } x)
+        in List.fold_left (fun a i ->
+            Invariant.(a && i)
+          ) (Invariant.top ()) is
 
   let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
 
