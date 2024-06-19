@@ -615,6 +615,12 @@ struct
       let i2 = if inexact_type_bounds || Z.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2, intType)) else Invariant.none in
       Invariant.(i1 && i2)
     )
+
+  let of_excl_list e ik ns =
+    List.fold_left (fun a x ->
+        let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
+        Invariant.(a && i)
+      ) (Invariant.top ()) ns
 end
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -2327,10 +2333,8 @@ struct
          This can be more precise than interval, which has been widened. *)
       let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
       let ri = IntInvariant.of_interval e ik (rmin, rmax) in
-      S.fold (fun x a ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
-          Invariant.(a && i)
-        ) s ri
+      let si = IntInvariant.of_excl_list e ik (S.elements s) in
+      Invariant.(ri && si)
     | `Bot -> Invariant.none
 
   let arbitrary ik =
@@ -2754,10 +2758,8 @@ module Enums : S with type int_t = Z.t = struct
          This can be more precise than interval, which has been widened. *)
       let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
       let ri = IntInvariant.of_interval e ik (rmin, rmax) in
-      BISet.fold (fun x a ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
-          Invariant.(a && i)
-        ) ns ri
+      let nsi = IntInvariant.of_excl_list e ik (BISet.elements ns) in
+      Invariant.(ri && nsi)
 
 
   let arbitrary ik =
