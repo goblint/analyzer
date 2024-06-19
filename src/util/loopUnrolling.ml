@@ -31,14 +31,6 @@ class checkNoBreakVisitor = object
 
 end
 
-let checkNoBreakStmt stmt =
-  let visitor = new checkNoBreakVisitor in
-  ignore @@ visitCilStmt visitor stmt
-
-let checkNoBreakBlock block =
-  let visitor = new checkNoBreakVisitor in
-  ignore @@ visitCilBlock visitor block
-
 class findBreakVisitor(compOption: exp option ref) = object
   inherit nopCilVisitor
 
