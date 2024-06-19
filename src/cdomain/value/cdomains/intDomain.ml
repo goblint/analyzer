@@ -3793,23 +3793,26 @@ module IntDomTupleImpl = struct
   let invariant_ikind e ik ((_, _, _, x_cong, x_intset) as x) =
     match to_int x with
     | Some v ->
-      (* If definite, output single equality instead of every subdomain repeating same equality *)
+      (* If definite, output single equality instead of every subdomain repeating same equality (or something less precise). *)
       IntInvariant.of_int e ik v
     | None ->
       match to_incl_list x with
       | Some ps ->
+        (* If inclusion set, output disjunction of equalities because it subsumes interval(s), exclusion set and congruence. *)
         IntInvariant.of_incl_list e ik ps
       | None ->
+        (* Get interval bounds from all domains (intervals and exclusion set ranges). *)
         let min = minimal x in
         let max = maximal x in
-        let ns = Option.map fst (to_excl_list x) |? [] in
+        let ns = Option.map fst (to_excl_list x) |? [] in (* Ignore exclusion set bit range, known via interval bounds already. *)
+        (* "Refine" out-of-bounds exclusions for simpler output. *)
         let ns = Option.map_default (fun min -> List.filter (Z.leq min) ns) ns min in
         let ns = Option.map_default (fun max -> List.filter (Z.geq max) ns) ns max in
         Invariant.(
-          IntInvariant.of_interval_opt e ik (min, max) &&
+          IntInvariant.of_interval_opt e ik (min, max) && (* Output best interval bounds once instead of multiple subdomains repeating them (or less precise ones). *)
           IntInvariant.of_excl_list e ik ns &&
-          Option.map_default (I4.invariant_ikind e ik) Invariant.none x_cong &&
-          Option.map_default (I5.invariant_ikind e ik) Invariant.none x_intset
+          Option.map_default (I4.invariant_ikind e ik) Invariant.none x_cong && (* Output congruence as is. *)
+          Option.map_default (I5.invariant_ikind e ik) Invariant.none x_intset (* Output interval sets as is. *)
         )
 
   let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
