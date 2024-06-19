@@ -3536,7 +3536,7 @@ module IntDomTupleImpl = struct
     let merge ps =
       let (vs, rs) = List.split ps in
       let (mins, maxs) = List.split rs in
-      (List.concat vs, (List.min mins, List.max maxs))
+      (List.concat vs |> List.sort_uniq Z.compare, (List.min mins, List.max maxs))
     in
     mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat merge
 
