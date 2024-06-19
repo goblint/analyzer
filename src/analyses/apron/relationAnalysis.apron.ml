@@ -388,11 +388,11 @@ struct
     let st = ctx.local in
     let reachable_from_args = reachable_from_args ctx args in
     let fundec = Node.find_fundec ctx.node in
-    if M.tracing then M.tracel "combine" "relation f: %a" CilType.Varinfo.pretty f.svar;
-    if M.tracing then M.tracel "combine" "relation formals: %a" (d_list "," CilType.Varinfo.pretty) f.sformals;
-    if M.tracing then M.tracel "combine" "relation args: %a" (d_list "," d_exp) args;
-    if M.tracing then M.tracel "combine" "relation st: %a" D.pretty st;
-    if M.tracing then M.tracel "combine" "relation fun_st: %a" D.pretty fun_st;
+    if M.tracing then M.tracel "combine-rel" "relation f: %a" CilType.Varinfo.pretty f.svar;
+    if M.tracing then M.tracel "combine-rel" "relation formals: %a" (d_list "," CilType.Varinfo.pretty) f.sformals;
+    if M.tracing then M.tracel "combine-rel" "relation args: %a" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine-rel" "relation st: %a" D.pretty st;
+    if M.tracing then M.tracel "combine-rel" "relation fun_st: %a" D.pretty fun_st;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
       let filter_actuals (x,e) =
@@ -418,7 +418,7 @@ struct
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
-    if M.tracing then M.tracel "combine" "relation remove vars: %a" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine-rel" "relation remove vars: %a" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
@@ -432,7 +432,7 @@ struct
       )
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
-    if M.tracing then M.tracel "combine" "relation unifying %a %a = %a" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
+    if M.tracing then M.tracel "combine-rel" "relation unifying %a %a = %a" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
     {fun_st with rel = unify_rel}
 
   let combine_assign ctx r fe f args fc fun_st (f_ask : Queries.ask) =
@@ -694,15 +694,18 @@ struct
     ctx.local
 
   let event ctx e octx =
+    let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
-    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      if addr = UnknownPtr then
-        M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
+      CommonPriv.lift_lock ask (fun st m ->
+          Priv.lock ask ctx.global st m
+        ) st addr
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
       WideningTokens.with_local_side_tokens (fun () ->
-          Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
+          CommonPriv.lift_unlock ask (fun st m ->
+              Priv.unlock ask ctx.global ctx.sideg st m
+            ) st addr
         )
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
@@ -781,7 +784,7 @@ struct
       PCU.RH.replace results ctx.node new_value;
     end;
     WideningTokens.with_local_side_tokens (fun () ->
-        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread])
       )
 
   let init marshal =

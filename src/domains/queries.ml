@@ -130,6 +130,7 @@ type _ t =
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
+  | GasExhausted: MustBool.t t
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (* TODO: V.t argument? *)
@@ -204,6 +205,7 @@ struct
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
     | MaySignedOverflow  _ -> (module MayBool)
+    | GasExhausted -> (module MustBool)
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
     | InvariantGlobalNodes -> (module NS)
@@ -277,6 +279,7 @@ struct
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
     | MaySignedOverflow _ -> MayBool.top ()
+    | GasExhausted -> MustBool.top ()
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
     | InvariantGlobalNodes -> NS.top ()
@@ -346,10 +349,11 @@ struct
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
     | Any (MaySignedOverflow _) -> 58
-    | Any (YamlEntryGlobal _) -> 59
-    | Any (MustProtectingLocks _) -> 60
-    | Any (GhostVarAvailable _) -> 61
-    | Any InvariantGlobalNodes -> 62
+    | Any GasExhausted -> 59
+    | Any (YamlEntryGlobal _) -> 60
+    | Any (MustProtectingLocks _) -> 61
+    | Any (GhostVarAvailable _) -> 62
+    | Any InvariantGlobalNodes -> 63
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -517,6 +521,7 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
+    | Any GasExhausted -> Pretty.dprintf "GasExhausted"
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
 end

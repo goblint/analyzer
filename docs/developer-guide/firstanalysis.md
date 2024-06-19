@@ -35,7 +35,7 @@ This program is in the Goblint repository: `tests/regression/99-tutorials/01-fir
 But if you run Goblint out of the box on this example, it will not work:
 
 ```console
-./goblint --enable warn.debug tests/regression/99-tutorials/01-first.c
+./goblint tests/regression/99-tutorials/01-first.c
 ```
 
 This will claim that the assertion in unknown.
@@ -74,10 +74,10 @@ For more information on the signature of the individual transfer functions, plea
 ## Extending the domain
 
 You could now enrich the lattice to also have a representation for non-negative (i.e., zero or positive) values.
-Then the join of `Zero` and `Pos` would be "non-negative" instead of `Top`, allowing you to prove that such join is greated than `Neg`.
+Then the join of `Zero` and `Pos` would be "non-negative" instead of `Top`, allowing you to prove that such join is greater than `Neg`.
 For example, have a look at the following program: `tests/regression/99-tutorials/02-first-extend.c`.
 
 _Hint:_
 The easiest way to do this is to use the powerset lattice of `{-, 0, +}`.
 For example, "non-negative" is represented by `{0, +}`, while negative is represented by `{-}`.
-To do this, modify `SL` by using `SetDomain.FiniteSet` (takes a `struct` with a list of finite elements as second parameter) instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.
+To do this, modify `SL` by using `SetDomain.FiniteSet` (which needs a finite list of elements to be added to `Signs`) instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.
