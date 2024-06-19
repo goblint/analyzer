@@ -605,16 +605,28 @@ struct
           Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
         ) (Invariant.bot ()) ps
 
-  let of_interval e ik (x1, x2) =
-    if Z.equal x1 x2 then
+  let of_interval_opt e ik = function
+    | (Some x1, Some x2) when Z.equal x1 x2 ->
       of_int e ik x1
-    else (
+    | x1_opt, x2_opt ->
       let (min_ik, max_ik) = Size.range ik in
       let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
-      let i1 = if inexact_type_bounds || Z.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1, e, intType)) else Invariant.none in
-      let i2 = if inexact_type_bounds || Z.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2, intType)) else Invariant.none in
+      let i1 =
+        match x1_opt, inexact_type_bounds with
+        | Some x1, false when Z.equal min_ik x1 -> Invariant.none
+        | Some x1, _ -> Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1, e, intType))
+        | None, _ -> Invariant.none
+      in
+      let i2 =
+        match x2_opt, inexact_type_bounds with
+        | Some x2, false when Z.equal x2 max_ik -> Invariant.none
+        | Some x2, _ -> Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2, intType))
+        | None, _ -> Invariant.none
+      in
       Invariant.(i1 && i2)
-    )
+
+  let of_interval e ik (x1, x2) =
+    of_interval_opt e ik (Some x1, Some x2)
 
   let of_excl_list e ik ns =
     List.fold_left (fun a x ->
@@ -3778,7 +3790,7 @@ module IntDomTupleImpl = struct
     | Some v when not (GobConfig.get_bool "dbg.full-output") -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Z.to_string v)
     | _ -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
-  let invariant_ikind e ik x =
+  let invariant_ikind e ik ((_, _, _, x_cong, x_intset) as x) =
     match to_int x with
     | Some v ->
       (* If definite, output single equality instead of every subdomain repeating same equality *)
@@ -3788,10 +3800,15 @@ module IntDomTupleImpl = struct
       | Some ps ->
         IntInvariant.of_incl_list e ik ps
       | None ->
-        let is = to_list (mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.invariant_ikind e ik } x)
-        in List.fold_left (fun a i ->
-            Invariant.(a && i)
-          ) (Invariant.top ()) is
+        let min = minimal x in
+        let max = maximal x in
+        let ns = Option.map fst (to_excl_list x) |? [] in
+        Invariant.(
+          IntInvariant.of_interval_opt e ik (min, max) &&
+          IntInvariant.of_excl_list e ik ns &&
+          Option.map_default (I4.invariant_ikind e ik) Invariant.none x_cong &&
+          Option.map_default (I5.invariant_ikind e ik) Invariant.none x_intset
+        )
 
   let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
 

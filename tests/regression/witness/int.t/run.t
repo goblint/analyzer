@@ -29,8 +29,7 @@
       column: 5
       function: main
     location_invariant:
-      string: (((0 <= i && i != 0) && (51 <= i && i <= 99)) && (0 <= i && i != 0)) &&
-        (51 <= i && i <= 99)
+      string: (51 <= i && i <= 99) && ((i != 0 && i != 0) && (51 <= i && i <= 99))
       type: assertion
       format: C
   - entry_type: location_invariant
