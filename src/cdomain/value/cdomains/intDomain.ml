@@ -582,6 +582,24 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     List.exists (Z.equal l) ts
 end
 
+module IntInvariant =
+struct
+  let of_incl_list e ik ps =
+    match ps with
+    | [_; _] when ik = IBool && not (get_bool "witness.invariant.inexact-type-bounds") ->
+      assert (List.mem Z.zero ps);
+      assert (List.mem Z.one ps);
+      Invariant.none
+    | [_] when get_bool "witness.invariant.exact" ->
+      Invariant.none
+    | _ :: _ :: _
+    | [_] | [] ->
+      List.fold_left (fun a x ->
+          let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
+          Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        ) (Invariant.bot ()) ps
+end
+
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
   let name () = "intervals"
@@ -2731,19 +2749,11 @@ module Enums : S with type int_t = Z.t = struct
   let ne ik x y = c_lognot ik (eq ik x y)
 
   let invariant_ikind e ik x =
-    let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
     match x with
-    | Inc ps when not inexact_type_bounds && ik = IBool && is_top_of ik x ->
-      Invariant.none
     | Inc ps ->
-      if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
-        BISet.fold (fun x a ->
-            let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
-            Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-          ) ps (Invariant.bot ())
-      else
-        Invariant.top ()
+      IntInvariant.of_incl_list e ik (BISet.elements ps)
     | Exc (ns, r) ->
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
       (* Emit range invariant if tighter than ikind bounds.
          This can be more precise than interval, which has been widened. *)
       let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
