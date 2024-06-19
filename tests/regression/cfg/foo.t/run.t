@@ -67,7 +67,7 @@
     total lines: 6
   [Warning][Deadcode][CWE-571] condition 'a > 0' (possibly inserted by CIL) is always true (foo.c:3:10-3:20)
   [Info][Witness] witness generation summary:
-    total generation entries: 13
+    total generation entries: 10
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: loop_invariant
@@ -111,17 +111,6 @@
       column: 3
       function: main
     location_invariant:
-      string: a != 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      file_hash: $FILE_HASH
-      line: 7
-      column: 3
-      function: main
-    location_invariant:
       string: 1 <= a
       type: assertion
       format: C
@@ -155,17 +144,6 @@
       column: 5
       function: main
     location_invariant:
-      string: a != 1
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      file_hash: $FILE_HASH
-      line: 5
-      column: 5
-      function: main
-    location_invariant:
       string: 2 <= a
       type: assertion
       format: C
@@ -189,17 +167,6 @@
       function: main
     location_invariant:
       string: b != 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      file_hash: $FILE_HASH
-      line: 4
-      column: 5
-      function: main
-    location_invariant:
-      string: a != 0
       type: assertion
       format: C
   - entry_type: location_invariant

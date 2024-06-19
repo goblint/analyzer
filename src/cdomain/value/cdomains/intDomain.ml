@@ -3803,6 +3803,8 @@ module IntDomTupleImpl = struct
         let min = minimal x in
         let max = maximal x in
         let ns = Option.map fst (to_excl_list x) |? [] in
+        let ns = Option.map_default (fun min -> List.filter (Z.leq min) ns) ns min in
+        let ns = Option.map_default (fun max -> List.filter (Z.geq max) ns) ns max in
         Invariant.(
           IntInvariant.of_interval_opt e ik (min, max) &&
           IntInvariant.of_excl_list e ik ns &&
