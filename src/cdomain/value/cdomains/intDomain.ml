@@ -604,6 +604,17 @@ struct
           let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
           Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
         ) (Invariant.bot ()) ps
+
+  let of_interval e ik (x1, x2) =
+    if Z.equal x1 x2 then
+      of_int e ik x1
+    else (
+      let (min_ik, max_ik) = Size.range ik in
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
+      let i1 = if inexact_type_bounds || Z.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1, e, intType)) else Invariant.none in
+      let i2 = if inexact_type_bounds || Z.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2, intType)) else Invariant.none in
+      Invariant.(i1 && i2)
+    )
 end
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -939,17 +950,10 @@ struct
       else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
       else top_bool
 
-  let invariant_ikind e ik x =
-    match x with
-    | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      IntInvariant.of_int e ik (Ints_t.to_bigint x1)
+  let invariant_ikind e ik = function
     | Some (x1, x2) ->
-      let (min_ik, max_ik) = range ik in
-      let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
-      let i1 = if inexact_type_bounds || Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
-      let i2 = if inexact_type_bounds || Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
-      Invariant.(i1 && i2)
+      let (x1', x2') = BatTuple.Tuple2.mapn Ints_t.to_bigint (x1, x2) in
+      IntInvariant.of_interval e ik (x1', x2')
     | None -> Invariant.none
 
   let arbitrary ik =
@@ -2322,17 +2326,11 @@ struct
       (* Emit range invariant if tighter than ikind bounds.
          This can be more precise than interval, which has been widened. *)
       let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
-      let (ikmin, ikmax) =
-        let ikr = size ik in
-        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
-      in
-      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
-      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
-      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
+      let ri = IntInvariant.of_interval e ik (rmin, rmax) in
       S.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) s Invariant.(imin && imax)
+        ) s ri
     | `Bot -> Invariant.none
 
   let arbitrary ik =
@@ -2752,20 +2750,14 @@ module Enums : S with type int_t = Z.t = struct
     | Inc ps ->
       IntInvariant.of_incl_list e ik (BISet.elements ps)
     | Exc (ns, r) ->
-      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
       (* Emit range invariant if tighter than ikind bounds.
          This can be more precise than interval, which has been widened. *)
       let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
-      let (ikmin, ikmax) =
-        let ikr = size ik in
-        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
-      in
-      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
-      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
+      let ri = IntInvariant.of_interval e ik (rmin, rmax) in
       BISet.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) ns Invariant.(imin && imax)
+        ) ns ri
 
 
   let arbitrary ik =
