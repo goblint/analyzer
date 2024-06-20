@@ -8,16 +8,16 @@ int main() {
     {
         if (imaxabs(data) < 100)
         {
-            __goblint_check(data < 100); // TODO
-            __goblint_check(-100 < data); // TODO
-            int64_t result = data * data; // TODO NOWARN
+            __goblint_check(data < 100);
+            __goblint_check(-100 < data);
+            int64_t result = data * data; // NOWARN
         }
 
         if(imaxabs(data) <= 100)
         {
-            __goblint_check(data <= 100); // TODO
-            __goblint_check(-100 <= data); // TODO
-            int64_t result = data * data; // TODO NOWARN
+            __goblint_check(data <= 100);
+            __goblint_check(-100 <= data);
+            int64_t result = data * data; // NOWARN
         }
     }
     return 8;
