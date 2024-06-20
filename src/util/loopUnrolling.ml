@@ -264,11 +264,8 @@ let fixedLoopSize loopStatement func =
     None
   else
     constBefore var loopStatement func >>= fun start ->
-    let diff =
-      match assignmentDifference (loopBody loopStatement) var with
-      | Some d -> d
-      | None -> Z.one (* When we find a fixed loop and its start, but cannot detect the increment within the loop, we assume the increment is 1 *)
-    in
+    (* When we find a fixed loop and its start, but cannot detect the increment within the loop, we assume the increment is 1 *)
+    let diff = Option.value (assignmentDifference (loopBody loopStatement) var) ~default:Z.one in
     Logs.debug "comparison: ";
     Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
     Logs.debug "";
