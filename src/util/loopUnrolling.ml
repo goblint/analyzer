@@ -345,7 +345,7 @@ let loop_unrolling_factor loopStatement func totalLoops =
       (* Unroll at least 10 times if there are only few (17?) loops *)
       let unroll_min = if totalLoops < 17 && AutoTune0.isActivated "forceLoopUnrollForFewLoops" then 10 else 0 in
       match fixedLoop with
-      | Some i -> if i * loopStats.instructions < 100 || totalLoops < 10 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
+      | Some i when i <= 100 -> Logs.debug "fixed loop size"; i
       | _ -> max unroll_min (targetInstructions / loopStats.instructions)
     else
       (* Don't unroll empty (= while(1){}) loops*)
