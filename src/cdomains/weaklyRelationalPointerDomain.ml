@@ -22,12 +22,14 @@ module MayBeEqual = struct
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
   let may_point_to_address (ask:Queries.ask) adresses t2 off =
-    let exp2 = T.to_cil_sum off (T.to_cil t2) in
-    let mpt1 = adresses in
-    let mpt2 = ask.f (MayPointTo exp2) in
-    let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-    if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
-        AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
+    match T.to_cil_sum off (T.to_cil t2) with
+    | exception (T.UnsupportedCilExpression _) -> true
+    | exp2 ->
+      let mpt1 = adresses in
+      let mpt2 = ask.f (MayPointTo exp2) in
+      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+      if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
 
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
     if T.equal t1 t2 then true else

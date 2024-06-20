@@ -187,9 +187,10 @@ module T = struct
   let default_int_type = ILong
   (** Returns a Cil expression which is the constant z divided by the size of the elements of t.*)
   let to_cil_constant z t =
-    let typ_size = get_element_size_in_bits t in
-    let z = if Z.equal z Z.zero || Z.equal typ_size Z.zero then Z.zero else
-        Z.(z /typ_size) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
+    let z = if Z.equal z Z.zero then Z.zero else
+        let typ_size = get_element_size_in_bits t in
+        if Z.equal typ_size Z.zero then Z.zero else
+          Z.(z /typ_size) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
   let to_cil_sum off cil_t =
     if Z.(equal zero off) then cil_t else
@@ -217,11 +218,15 @@ module T = struct
       else raise (UnsupportedCilExpression "Field on a non-compound")
     with | Cilfacade.TypeOfError _ -> raise (UnsupportedCilExpression "typeOf error")
 
+  let is_float = function
+    | TFloat _ -> true
+    | _ -> false
+
   let check_valid_pointer term =
     match typeOf term with (* we want to make sure that the expression is valid *)
     | exception GoblintCil__Errormsg.Error -> raise (UnsupportedCilExpression "this expression is not coherent")
     | typ -> (* we only track equalties between pointers (variable of size 64)*)
-      if get_size_in_bits typ <> bitsSizeOfPtr () then raise (UnsupportedCilExpression "not a pointer variable")
+      if get_size_in_bits typ <> bitsSizeOfPtr () || is_float typ then raise (UnsupportedCilExpression "not a pointer variable")
       else term
 
   let dereference_exp exp offset =
@@ -330,14 +335,16 @@ module T = struct
       end
     | _ -> if neg then raise (UnsupportedCilExpression "unsupported UnOp Neg") else of_cil ask e
 
-  let of_cil_neg ask neg e = let res = match of_cil_neg ask neg (Cil.constFold false e) with
-      | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
-        None, None
-      | t, z -> t, Some z
-    in (if M.tracing && not neg then match res with
-        | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-        | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
-        | _ -> ()); res
+  let of_cil_neg ask neg e =
+    if is_float (typeOf e) then None, None else
+      let res = match of_cil_neg ask neg (Cil.constFold false e) with
+        | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
+          None, None
+        | t, z -> t, Some z
+      in (if M.tracing && not neg then match res with
+          | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
+          | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+          | _ -> ()); res
 
   (** Convert the expression to a term,
       and additionally check that the term is 64 bits *)
