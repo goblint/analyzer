@@ -276,8 +276,8 @@ let fixedLoopSize loopStatement func =
     assignmentDifference loopStatement var >>= fun diff ->
     Logs.debug "comparison: %a" CilType.Exp.pretty comparison;
     Logs.debug "variable: %s" var.vname;
-    Logs.debug "start: %s" @@ Z.to_string start;
-    Logs.debug "diff: %s" @@ Z.to_string diff;
+    Logs.debug "start: %a" GobZ.pretty start;
+    Logs.debug "diff: %a" GobZ.pretty diff;
     let iterations = loopIterations start diff comparison in
     match iterations with
     | None -> Logs.debug "iterations failed"; None
