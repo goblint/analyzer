@@ -10,7 +10,8 @@
       "interval": true
     },
     "float": {
-      "interval": true
+      "interval": true,
+      "evaluate_math_functions": true
     },
     "activated": [
       "base",
