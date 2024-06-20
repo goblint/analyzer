@@ -840,5 +840,19 @@ struct
 
     let certificate_path = GobConfig.get_string "witness.yaml.certificate" in
     if certificate_path <> "" then
-      yaml_entries_to_file (List.rev yaml_entries') (Fpath.v certificate_path)
+      yaml_entries_to_file (List.rev yaml_entries') (Fpath.v certificate_path);
+
+    match GobConfig.get_bool "witness.yaml.strict" with
+    | true when !cnt_error > 0 ->
+      Error "witness error"
+    | true when !cnt_unsupported > 0 ->
+      Error "witness unsupported"
+    | true when !cnt_disabled > 0 ->
+      Error "witness disabled"
+    | _ when !cnt_refuted > 0 ->
+      Ok (Svcomp.Result.False None)
+    | _ when !cnt_unconfirmed > 0 ->
+      Ok Unknown
+    | _ ->
+      Ok True
 end

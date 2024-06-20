@@ -690,25 +690,16 @@ struct
       Timing.wrap "graphml witness" (write_file witness_path (module Task)) (module TaskResult)
     )
 
-  let write entrystates =
+  let write yaml_validate_result entrystates =
     match !AnalysisState.verified with
     | Some false -> print_svcomp_result "ERROR (verify)"
     | _ ->
-      if get_string "witness.yaml.validate" <> "" then (
-        match get_bool "witness.yaml.strict" with
-        | true when !YamlWitness.cnt_error > 0 ->
-          print_svcomp_result "ERROR (witness error)"
-        | true when !YamlWitness.cnt_unsupported > 0 ->
-          print_svcomp_result "ERROR (witness unsupported)"
-        | true when !YamlWitness.cnt_disabled > 0 ->
-          print_svcomp_result "ERROR (witness disabled)"
-        | _ when !YamlWitness.cnt_refuted > 0 ->
-          print_svcomp_result (Result.to_string (False None))
-        | _ when !YamlWitness.cnt_unconfirmed > 0 ->
-          print_svcomp_result (Result.to_string Unknown)
-        | _ ->
-          write entrystates
-      )
-      else
+      match yaml_validate_result with
+      | Some (Error msg) ->
+        print_svcomp_result ("ERROR (" ^ msg ^ ")")
+      | Some (Ok (Svcomp.Result.False _ | Unknown as result)) ->
+        print_svcomp_result (Result.to_string result)
+      | Some (Ok True)
+      | None ->
         write entrystates
 end
