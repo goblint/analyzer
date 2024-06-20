@@ -277,7 +277,8 @@ let fixedLoopSize loopStatement func =
   if getsPointedAt var func then
     None
   else
-    let* start = constBefore var loopStatement func in
+    (* Assume var value to be 0 if there was no constant assignment to the var before loop *)
+    let start = Option.value (constBefore var loopStatement func) ~default:Z.zero in
     let* diff = assignmentDifference (loopBody loopStatement) var in
     let* goal = adjustGoal diff goal op in
     let iterations = loopIterations start diff goal (op=Ne) in
