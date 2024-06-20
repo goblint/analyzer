@@ -272,11 +272,8 @@ let fixedLoopSize loopStatement func =
   if getsPointedAt var then
     None
   else
-    let start =
-      match constBefore var loopStatement func with
-      | Some i -> i
-      | _ -> Z.zero (* Assume var value to be 0 if there was no assignment to the var before loop *)
-    in
+    (* Assume var value to be 0 if there was no constant assignment to the var before loop *)
+    let start = Option.value (constBefore var loopStatement func) ~default:Z.zero in
     assignmentDifference (loopBody loopStatement) var >>= fun diff ->
     Logs.debug "comparison: %a" CilType.Exp.pretty comparison;
     Logs.debug "variable: %s" var.vname;
