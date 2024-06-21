@@ -1,6 +1,5 @@
 (** Memory accesses and their manipulation. *)
 
-open Batteries
 open GoblintCil
 open Pretty
 open GobConfig
@@ -12,7 +11,7 @@ module M = Messages
 
 let is_ignorable_comp_name = function
   | "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE" -> true
-  | cname when String.starts_with_stdlib ~prefix:"__anon" cname ->
+  | cname when String.starts_with ~prefix:"__anon" cname ->
     begin match Cilfacade.split_anoncomp_name cname with
       | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
       | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
@@ -385,7 +384,7 @@ and distribute_access_exp f = function
 
 and distribute_access_type f = function
   | TArray (et, len, _) ->
-    Option.may (distribute_access_exp f) len;
+    Option.iter (distribute_access_exp f) len;
     distribute_access_type f et
 
   | TVoid _
@@ -434,7 +433,7 @@ struct
   include SetDomain.Make (A)
 
   let max_conf accs =
-    accs |> elements |> List.map (fun {A.conf; _} -> conf) |> (List.max ~cmp:Int.compare)
+    accs |> elements |> List.map (fun {A.conf; _} -> conf) |> (BatList.max ~cmp:Int.compare)
 end
 
 
@@ -583,7 +582,7 @@ let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
     |> List.filter_map race_conf
     |> (function
         | [] -> None
-        | confs -> Some (List.max confs)
+        | confs -> Some (BatList.max confs)
       )
   in
   match safety with

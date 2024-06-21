@@ -39,7 +39,7 @@ let find_file_by_suffix (dir: Fpath.t) (file_name_suffix: string) =
     | (h::t) -> let f = Fpath.to_string h in
       if Sys.file_exists f && Sys.is_directory f
       then (Queue.add h dirs; search dir t)
-      else if Batteries.String.ends_with (Fpath.filename h) file_name_suffix then h else search dir t
+      else if String.ends_with (Fpath.filename h) ~suffix:file_name_suffix then h else search dir t
     | [] ->
       if Queue.is_empty dirs then failwith ("find_file_by_suffix found no files with suffix "^file_name_suffix^" in "^ Fpath.to_string dir)
       else let d = Queue.take dirs in search d (list_files d)
