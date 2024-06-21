@@ -702,6 +702,16 @@ module CongruenceClosure = struct
              (ZMap.bindings smap)
         ) % TMap.bindings
 
+    let bindings_args =
+      List.flatten %
+      List.concat_map
+        (fun (t, smap) ->
+           List.map (fun (z, arglist) ->
+               List.map (fun (a,b) ->
+                   (t,z,a,b)) arglist)
+             (ZMap.bindings smap)
+        ) % TMap.bindings
+
     (** adds a mapping v -> r -> size -> { v' } to the map,
         or if there are already elements
         in v -> r -> {..} then v' is added to the previous set *)
@@ -824,21 +834,20 @@ module CongruenceClosure = struct
           | Some imap1, Some imap2 ->
             let ilist1 = ZMap.bindings imap1 in
             let rest = List.fold_left (fun rest (r1,_) ->
-                match ZMap.find_opt Z.(r1-r) imap2 with
+                match ZMap.find_opt Z.(r1+r) imap2 with
                 | None -> rest
                 | Some _ ->
                   let l1 = match map_find_opt (v1,r1) arg
                     with None -> []
                        | Some list -> list in
-                  let l2 = match map_find_opt (v2,Z.(r1-r)) arg
+                  let l2 = match map_find_opt (v2,Z.(r1+r)) arg
                     with None -> []
                        | Some list -> list in
-                  fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
-                      if T.equal v1 v2 then if Z.equal r'1 r'2 then raise Unsat
+                  fold_left2 (fun rest (v1',r'1) (v2',r'2) ->
+                      if T.equal v1' v2' then if Z.equal r'1 r'2 then raise Unsat
                         else rest
-                        (* disequalities propagate only if the terms have same size*)
-                      else if Z.equal (T.get_size v1) (T.get_size v2) then
-                        (v1,v2,Z.(r'2-r'1))::rest else rest ) rest l1 l2)
+                      else
+                        (v1',v2',Z.(r'2-r'1))::rest ) rest l1 l2)
                 rest ilist1 in
             propagate_neq (uf,cmap,arg,neq) rest
         (*
@@ -854,8 +863,20 @@ module CongruenceClosure = struct
     let show_neq neq =
       let clist = bindings neq in
       List.fold_left (fun s (v,r,v') ->
-          s ^ "\t" ^ T.show v' ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " != "
-          ^ T.show v ^  "\n") "" clist
+          s ^ "\t" ^ T.show v ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " != "
+          ^ T.show v' ^  "\n") "" clist
+
+    let show_cmap neq =
+      let clist = bindings neq in
+      List.fold_left (fun s (v,r,v') ->
+          s ^ "\t" ^ T.show v ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " = "
+          ^ T.show v' ^  "\n") "" clist
+
+    let show_arg arg =
+      let clist = bindings_args arg in
+      List.fold_left (fun s (v,z,v',r) ->
+          s ^ "\t" ^ T.show v' ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " --> "
+          ^ T.show v^ "+"^ Z.to_string z ^  "\n") "" clist
 
     let filter_map f (diseq:t) =
       TMap.filter_map
@@ -946,7 +967,8 @@ module CongruenceClosure = struct
   end
 
   (** Minimal representatives map.
-      It maps each representative term of an equivalence class to the minimal term of this representative class. *)
+      It maps each representative term of an equivalence class to the minimal term of this representative class.
+      rep -> (t, z) means that t = rep + z *)
   module MRMap = struct
     type t = (T.t * Z.t) TMap.t [@@deriving eq, ord, hash]
 
@@ -1099,7 +1121,7 @@ module CongruenceClosure = struct
     let normalize_disequality (t1, t2, z) =
       let (min_state1, min_z1) = MRMap.find t1 cc.min_repr in
       let (min_state2, min_z2) = MRMap.find t2 cc.min_repr in
-      let new_offset = Z.(min_z2 - min_z1 + z) in
+      let new_offset = Z.(-min_z2 + min_z1 + z) in
       if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
       else Nequal (min_state2, min_state1, Z.(-new_offset))
     in
