@@ -2368,6 +2368,12 @@
                   "type": "boolean",
                   "default": true
                 },
+                "immediate-growth": {
+                  "title": "solvers.td3.narrow-sides.immediate-growth",
+                  "description": "Controls when growing side-effects are applied. true: immediately when they are triggered. false: after the source unknown has been fully evaluated",
+                  "type": "boolean",
+                  "default": true
+                },
                 "narrow-gas": {
                   "title": "solvers.td3.narrow-sides.narrow-gas",
                   "description": "Limits the number of times a side-effect can switch from widening to narrowing to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",

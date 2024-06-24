@@ -51,7 +51,7 @@ module Base =
     module VS = Set.Make (S.Var)
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
-    type divided_side_phase = D_Widen | D_Narrow [@@deriving show]
+    type divided_side_phase = D_Widen | D_Narrow | D_Box [@@deriving show]
 
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
@@ -271,6 +271,7 @@ module Base =
       let narrow_sides = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
       let narrow_sides_stable = GobConfig.get_bool "solvers.td3.narrow-sides.stable" in
       let narrow_sides_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-sides.conservative-widen" in
+      let narrow_sides_immediate_growth = GobConfig.get_bool "solvers.td3.narrow-sides.immediate-growth" in
       let narrow_sides_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
       let narrow_sides_gas_default = if narrow_sides_gas_default < 0 then None else Some (narrow_sides_gas_default, D_Widen) in
 
@@ -347,7 +348,9 @@ module Base =
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
-                      if narrow_sides_stable then (
+                      if not narrow_sides_immediate_growth then
+                        HM.iter (fun y acc -> ignore @@ divided_side D_Box ~x y acc) acc
+                      else if narrow_sides_stable then (
                         if HM.mem stable x then HM.iter (fun y acc -> ignore @@ divided_side D_Narrow ~x y acc) acc
                       )
                       else HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
@@ -415,9 +418,11 @@ module Base =
         match new_acc with
         | Some new_acc -> (
             HM.replace acc y new_acc;
-            let y_changed = divided_side D_Widen ~x y new_acc in
-            if y_changed && not @@ narrow_sides_stable then
-              HM.replace changed y ();
+            if narrow_sides_immediate_growth then (
+              let y_changed = divided_side D_Widen ~x y new_acc in
+              if y_changed && not @@ narrow_sides_stable then
+                HM.replace changed y ();
+            )
           )
         | _ -> ()
       and divided_side (phase:divided_side_phase) ?(do_destabilize=true) ?x y d : bool =
@@ -444,6 +449,11 @@ module Base =
             let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_sides_gas_default) in
             (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
+              let phase = if phase == D_Box then
+                  if S.Dom.leq d old_side then D_Narrow else D_Widen
+                else
+                  phase
+              in
               let (new_side, narrow_gas) = match phase with
                 | D_Widen -> (if not @@ S.Dom.leq d old_side then
                                 if narrow_sides_conservative_widen && (S.Dom.leq d (HM.find rho y)) then
@@ -459,10 +469,11 @@ module Base =
                       narrow_gas
                   in
                   result, narrow_gas
+                | _ -> failwith "unreachable"
               in
 
               if not (S.Dom.equal old_side new_side) then (
-                if tracing then trace "side" "divided side to %a from %a changed (accumulation phase: %b) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (phase == D_Widen) S.Dom.pretty old_side S.Dom.pretty new_side;
+                if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_phase phase) S.Dom.pretty old_side S.Dom.pretty new_side;
 
                 HM.replace y_sides x (new_side, narrow_gas);
                 let y_oldval = HM.find rho y in
@@ -472,8 +483,8 @@ module Base =
                   else
                     combined_side y in
                 if not (S.Dom.equal y_newval y_oldval) then (
-                  if tracing then trace "side" "value of %a changed by side from %a (accumulation phase: %b, grew: %b, shrank: %b) Old value: %a ## New value: %a"
-                      S.Var.pretty_trace y S.Var.pretty_trace x (phase == D_Widen) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
+                  if tracing then trace "side" "value of %a changed by side from %a (phase: %s, grew: %b, shrank: %b) Old value: %a ## New value: %a"
+                      S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_phase phase) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
                   HM.replace rho y y_newval;
                   if do_destabilize then
                     destabilize y;
@@ -491,7 +502,7 @@ module Base =
             if tracing then trace "side" "orphaned side to %a" S.Var.pretty_trace y;
             let y_oldval = HM.find rho y in
             if not (S.Dom.leq wd y_oldval) then (
-              if tracing then trace "side" "orphaned side changed %a (accumulation phase: %b)" S.Var.pretty_trace y (phase == D_Widen);
+              if tracing then trace "side" "orphaned side changed %a (phase: %s)" S.Var.pretty_trace y (show_divided_side_phase phase);
               HM.replace rho y (S.Dom.join wd y_oldval);
               if do_destabilize then
                 destabilize y;
