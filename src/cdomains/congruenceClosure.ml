@@ -1125,6 +1125,7 @@ module CongruenceClosure = struct
       if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
       else Nequal (min_state2, min_state1, Z.(-new_offset))
     in
+    if M.tracing then M.trace "wrpointer-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep cc.min_repr) (LMap.show_map cc.map);
     let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)) disequalities
     in BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities)
 
