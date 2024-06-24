@@ -348,12 +348,16 @@ module Base =
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
-                      if not narrow_sides_immediate_growth then
-                        HM.iter (fun y acc -> ignore @@ divided_side D_Box ~x y acc) acc
-                      else if narrow_sides_stable then (
-                        if HM.mem stable x then HM.iter (fun y acc -> ignore @@ divided_side D_Narrow ~x y acc) acc
+                      if narrow_sides_immediate_growth && not narrow_sides_stable then
+                        HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
+                      else (
+                        begin if not narrow_sides_immediate_growth then
+                            let op = if narrow_sides_stable then D_Widen else D_Box in
+                            HM.iter (fun y acc -> ignore @@ divided_side op ~x y acc) acc
+                        end;
+                        if narrow_sides_stable && HM.mem stable x then
+                          HM.iter (fun y acc -> ignore @@ divided_side D_Narrow ~x y acc) acc
                       )
-                      else HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
                     )) (fun () -> eq x (eval l x) (side_acc acc changed x))
               else
                 eq x (eval l x) (side ~x)
