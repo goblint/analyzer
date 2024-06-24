@@ -224,10 +224,13 @@ module T = struct
 
   let check_valid_pointer term =
     match typeOf term with (* we want to make sure that the expression is valid *)
-    | exception GoblintCil__Errormsg.Error -> raise (UnsupportedCilExpression "this expression is not coherent")
+    | exception GoblintCil__Errormsg.Error -> false
     | typ -> (* we only track equalties between pointers (variable of size 64)*)
-      if get_size_in_bits typ <> bitsSizeOfPtr () || is_float typ then raise (UnsupportedCilExpression "not a pointer variable")
-      else term
+      if get_size_in_bits typ <> bitsSizeOfPtr () || is_float typ then false
+      else true
+
+  let filter_valid_pointers =
+    List.filter (function | Equal(t1,t2,z)| Nequal(t1,t2,z) -> check_valid_pointer (to_cil t1) && check_valid_pointer (to_cil t2))
 
   let dereference_exp exp offset =
     let find_field cinfo = try
@@ -249,7 +252,7 @@ module T = struct
           end
         | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
         | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
-    in check_valid_pointer res
+    in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
 
   let get_size = get_size_in_bits % type_of_term
 
@@ -347,16 +350,19 @@ module T = struct
           | _ -> ()); res
 
   (** Convert the expression to a term,
-      and additionally check that the term is 64 bits *)
+      and additionally check that the term is 64 bits.
+      If it's not a 64bit pointer, it returns None, None. *)
   let of_cil ask e =
     match of_cil_neg ask false e with
     | Some t, Some z ->
       (* check if t is a valid pointer *)
-      begin match check_valid_pointer (to_cil t) with
-        |  exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "invalid exp: %a\n%s --> %s + %s\n" d_plainexp e s (show t) (Z.to_string z);
-          None, None
-        | _ ->  Some t, Some z end
+      let exp = to_cil t in
+      if check_valid_pointer exp then
+        Some t, Some z
+      else (if M.tracing then M.trace "wrpointer-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+            None, None)
     | t, z -> t, z
+
 
   let map_z_opt op z = Tuple2.map2 (Option.map (op z))
 
@@ -1198,7 +1204,7 @@ module CongruenceClosure = struct
        let v2, r2, uf = TUF.find uf t2 in
        let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
        if not (Z.equal sizet1 sizet2) then
-         (if M.tracing then M.trace "wrpointer" "ignoring equality because the sizes are not the same";
+         (if M.tracing then M.trace "wrpointer" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
           closure (uf, map, min_repr) queue rest) else
        if T.equal v1 v2 then
          (* t1 and t2 are in the same equivalence class *)

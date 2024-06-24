@@ -49,24 +49,26 @@ struct
     | _ -> Result.top q
 
   let assign_lval t ask lval expr =
-    match T.get_element_size_in_bits (typeOfLval lval), T.of_lval ask lval, T.of_cil ask expr with
-    (* Indefinite assignment *)
-    | s, lterm, (None, _) -> D.remove_may_equal_terms ask s lterm t
-    (* Definite assignment *)
-    | s, lterm, (Some term, Some offset) ->
-      let dummy_var = MayBeEqual.dummy_var (typeOfLval lval) in
-      if M.tracing then M.trace "wrpointer-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
-      t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
-      D.remove_may_equal_terms ask s lterm |>
-      meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo (typeOfLval lval)
-    (* invertibe assignment *)
-    | exception (T.UnsupportedCilExpression _) -> D.top ()
-    (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
-       We have to forget all the information we had.
-       This should almost never happen.
-       Except if the left hand side is an abstract type, then we don't know the size of the lvalue. *)
-    | _ -> D.top ()
+    (* ignore assignments to values that are not 64 bits *) (*TODO what if there is a cast*)
+    if T.check_valid_pointer expr then
+      match T.get_element_size_in_bits (typeOfLval lval), T.of_lval ask lval, T.of_cil ask expr with
+      (* Indefinite assignment *)
+      | s, lterm, (None, _) -> D.remove_may_equal_terms ask s lterm t
+      (* Definite assignment *)
+      | s, lterm, (Some term, Some offset) ->
+        let dummy_var = MayBeEqual.dummy_var (typeOfLval lval) in
+        if M.tracing then M.trace "wrpointer-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
+        t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
+        D.remove_may_equal_terms ask s lterm |>
+        meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
+        D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo (typeOfLval lval)
+      | exception (T.UnsupportedCilExpression _) -> D.top ()
+      (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
+         We have to forget all the information we had.
+         This should almost never happen.
+         Except if the left hand side is an abstract type, then we don't know the size of the lvalue. *)
+      | _ -> D.top ()
+    else t
 
   let assign ctx lval expr =
     let res = assign_lval ctx.local (ask_of_ctx ctx) lval expr in
@@ -74,10 +76,11 @@ struct
 
   let branch ctx e pos =
     let props = T.prop_of_cil (ask_of_ctx ctx) e pos in
-    let res = meet_conjs_opt props ctx.local in
+    let valid_props = T.filter_valid_pointers props in
+    let res = meet_conjs_opt valid_props ctx.local in
     if D.is_bot res then raise Deadcode;
-    if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; pos: %b; prop_list: %s\n"
-        d_exp e pos (show_conj props);
+    if M.tracing then M.trace "wrpointer" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s\n"
+        d_exp e pos (show_conj valid_props);
     res
 
   let body ctx f = ctx.local (*DONE*)
@@ -113,7 +116,7 @@ struct
     local variables of the caller and the pointers that were modified by the function. *)
   let enter ctx var_opt f args =
     (* add duplicated variables, and set them equal to the original variables *)
-    let added_equalities = (List.map (fun v -> CC.Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
+    let added_equalities = T.filter_valid_pointers (List.map (fun v -> CC.Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities ctx.local in
     if M.tracing then M.trace "wrpointer-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars that are not reachable and not global *)
