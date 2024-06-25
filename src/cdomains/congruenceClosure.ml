@@ -138,6 +138,10 @@ module T = struct
     | TPtr(TComp _,_) -> true
     | _ -> false
 
+  let is_ptr_type = function
+    | TPtr _ -> true
+    | _ -> false
+
   let cil_offs_to_idx (ask: Queries.ask) offs typ =
     (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml,
        unclear how to immediately get more reuse *)
@@ -346,7 +350,9 @@ module T = struct
     | _ -> if neg then raise (UnsupportedCilExpression "unsupported UnOp Neg") else of_cil ask e
 
   let of_cil_neg ask neg e =
-    if is_float (typeOf e) then None, None else
+    match is_float (typeOf e) with
+    | exception GoblintCil__Errormsg.Error | true -> None, None
+    | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
         | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
           None, None
@@ -733,6 +739,16 @@ module CongruenceClosure = struct
     let comp_map uf = List.fold_left (fun comp (v,_) ->
         map_set_add (TUF.find_no_pc uf v) v comp)
         TMap.empty (TMap.bindings uf)
+
+    (* find all elements that are in the same equivalence class as t
+       except t*)
+    let comp_t uf t =
+      let (t',z') = TUF.find_no_pc uf t in
+      List.fold_left (fun comp (v,((p,z),_)) ->
+          let (v', z'') = TUF.find_no_pc uf v in
+          if T.equal v' t' && not (T.equal v t) then (v, Z.(z'-z''))::comp else comp
+        )
+        [] (TMap.bindings uf)
 
     let flatten_map =
       ZMap.map (fun zmap -> List.fold_left

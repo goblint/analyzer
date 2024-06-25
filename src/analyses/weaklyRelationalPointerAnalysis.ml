@@ -35,6 +35,24 @@ struct
     in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
         d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
+  let query_may_point_to (ask:Queries.ask) t e =
+    match T.of_cil ask e with
+    | Some term, Some offset ->
+      begin match insert t term with
+        | _,None -> MayBeEqual.AD.top()
+        | _,Some cc ->
+          let comp = Disequalities.comp_t cc.uf term in
+          let valid_term (t,z) =
+            T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+          let equal_terms = List.filter valid_term comp in
+          let intersect_query_result res (term,z) =
+            let next_query = ask.f (MayPointTo (T.to_cil_sum z (T.to_cil term))) in
+            MayBeEqual.AD.meet res next_query in
+          List.fold intersect_query_result (MayBeEqual.AD.top()) equal_terms
+      end
+    | _ ->
+      MayBeEqual.AD.top()
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
@@ -46,6 +64,7 @@ struct
       end
     (* TODO Invariant.
        | Queries.Invariant context -> get_normal_form context*)
+    | MayPointTo e -> query_may_point_to (ask_of_ctx ctx) ctx.local e
     | _ -> Result.top q
 
   let assign_lval t ask lval expr =
