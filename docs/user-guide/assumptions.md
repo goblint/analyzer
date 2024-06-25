@@ -17,12 +17,22 @@ _NB! This list is likely incomplete._
 
     See [PR #1414](https://github.com/goblint/analyzer/pull/1414).
 
-2. Goblint's does not give any guarantees about overflows not happening during pointer arithmetics.
+2.  Pointer arithmetic does not overflow.
 
-    Although the analysis can detect and warn about overflows that might happen during operations with pointer offsets,
-    the analysis does not warn about overflows from operations with the possible addresses (as integers) of the pointers themselves.
+    [C11's N1570][n1570] at 6.5.6.8 states that
 
-    This affects the `no-overflows` analysis from `ana.int.interval` analysis.
+    > When an expression that has integer type is added to or subtracted from a pointer, the result has the type of the pointer operand.
+    > [...]
+    > the evaluation shall not produce an overflow; otherwise, the behavior is undefined.
 
-    See further discussion from [PR #1511](https://github.com/goblint/analyzer/pull/1511).
+    after a long list of defined behaviors.
 
+    Goblint does not report overflow and out-of-bounds pointer arithmetic (when the pointer _is not dereferenced_).
+    This affects the overflow analysis (SV-COMP no-overflow property) in the `base` analysis.
+
+    This _does not_ affect the `memOutOfBounds` analysis (SV-COMP valid-memsafety property), which is for undefined behavior from _dereferencing_ such out-of-bounds pointers.
+
+    See [PR #1511](https://github.com/goblint/analyzer/pull/1511).
+
+
+[n1570]: https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf
