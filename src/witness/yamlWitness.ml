@@ -514,6 +514,15 @@ struct
     Timing.wrap "yaml witness" write ()
 end
 
+let init () =
+  match GobConfig.get_string "witness.yaml.validate" with
+  | "" -> ()
+  | path ->
+    (* Check witness existence before doing the analysis. *)
+    if not (Sys.file_exists path) then (
+      Logs.error "witness.yaml.validate: %s not found" path;
+      Svcomp.errorwith "witness missing"
+    )
 
 module ValidationResult =
 struct
@@ -581,7 +590,9 @@ struct
 
     let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.validate")) with
       | Ok yaml -> yaml
-      | Error (`Msg m) -> failwith ("Yaml_unix.of_file: " ^ m)
+      | Error (`Msg m) ->
+        Logs.error "Yaml_unix.of_file: %s" m;
+        Svcomp.errorwith "witness missing"
     in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
@@ -840,5 +851,19 @@ struct
 
     let certificate_path = GobConfig.get_string "witness.yaml.certificate" in
     if certificate_path <> "" then
-      yaml_entries_to_file (List.rev yaml_entries') (Fpath.v certificate_path)
+      yaml_entries_to_file (List.rev yaml_entries') (Fpath.v certificate_path);
+
+    match GobConfig.get_bool "witness.yaml.strict" with
+    | true when !cnt_error > 0 ->
+      Error "witness error"
+    | true when !cnt_unsupported > 0 ->
+      Error "witness unsupported"
+    | true when !cnt_disabled > 0 ->
+      Error "witness disabled"
+    | _ when !cnt_refuted > 0 ->
+      Ok (Svcomp.Result.False None)
+    | _ when !cnt_unconfirmed > 0 ->
+      Ok Unknown
+    | _ ->
+      Ok True
 end
