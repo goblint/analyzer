@@ -3,8 +3,8 @@
 #include <stdlib.h>
 
 void main(void) {
-  int *i;
-  int **j;
+  long *i;
+  long **j;
   j = (int **)malloc(sizeof(int *) + 7);
   *(j + 3) = (int *)malloc(sizeof(int));
   int *k;
