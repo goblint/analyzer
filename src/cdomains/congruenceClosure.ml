@@ -124,7 +124,7 @@ module T = struct
   let rec get_element_size_in_bits typ =
     match type_of_element typ with
     | Some typ -> get_size_in_bits typ
-    | None -> Z.of_int 1
+    | None -> Z.one
 
   let is_array_type = function
     | TArray _ -> true
@@ -194,7 +194,7 @@ module T = struct
     let z = if Z.equal z Z.zero then Z.zero else
         let typ_size = match t with
           | Some t -> get_element_size_in_bits t
-          | None -> Z.of_int 1
+          | None -> Z.one
         in
         if Z.equal typ_size Z.zero then Z.zero else
           Z.(z /typ_size) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
