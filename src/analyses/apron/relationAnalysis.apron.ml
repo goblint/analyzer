@@ -509,6 +509,35 @@ struct
       if RD.is_bot_env res then raise Deadcode;
       {st with rel = res}
 
+  let special_unknown_invalidate ctx f args =
+    (* No warning here, base already prodcues the appropriate warnings *)
+    let desc = LibraryFunctions.find f in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let deep_addrs =
+      if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+            match global with
+            | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+              mkAddrOf (Var vi, NoOffset) :: acc
+            (* TODO: what about GVarDecl? *)
+            | _ -> acc
+          ) deep_addrs
+      )
+      else
+        deep_addrs
+    in
+    let lvallist e =
+      match ctx.ask (Queries.MayPointTo e) with
+      | ad when Queries.AD.is_top ad -> []
+      | ad ->
+        Queries.AD.to_mval ad
+        |> List.map ValueDomain.Addr.Mval.to_cil
+    in
+    let st' = forget_reachable ctx ctx.local deep_addrs in
+    let shallow_lvals = List.concat_map lvallist shallow_addrs in
+    List.fold_left (invalidate_one (Analyses.ask_of_ctx ctx) ctx) st' shallow_lvals
+
   let special ctx r f args =
     let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
@@ -544,31 +573,7 @@ struct
          assert_fn {ctx with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
        | None -> st)
     | _, _ ->
-      let lvallist e =
-        match ask.f (Queries.MayPointTo e) with
-        | ad when Queries.AD.is_top ad -> []
-        | ad ->
-          Queries.AD.to_mval ad
-          |> List.map ValueDomain.Addr.Mval.to_cil
-      in
-      let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-      let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
-      let deep_addrs =
-        if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
-          foldGlobals !Cilfacade.current_file (fun acc global ->
-              match global with
-              | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                mkAddrOf (Var vi, NoOffset) :: acc
-              (* TODO: what about GVarDecl? *)
-              | _ -> acc
-            ) deep_addrs
-        )
-        else
-          deep_addrs
-      in
-      let st' = forget_reachable ctx st deep_addrs in
-      let shallow_lvals = List.concat_map lvallist shallow_addrs in
-      let st' = List.fold_left (invalidate_one ask ctx) st' shallow_lvals in
+      let st' = special_unknown_invalidate ctx f args in
       (* invalidate lval if present *)
       match r with
       | Some lv -> invalidate_one ask ctx st' lv
@@ -670,9 +675,7 @@ struct
       let new_rel = make_callee_rel ~thread:true ctx fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
-      (* Unknown functions *)
-      (* TODO: do something like base? *)
-      failwith "relation.threadenter: unknown function"
+      [special_unknown_invalidate ctx f args]
 
   let threadspawn ctx ~multiple lval f args fctx =
     ctx.local
