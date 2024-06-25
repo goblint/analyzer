@@ -581,7 +581,9 @@ struct
 
     let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.validate")) with
       | Ok yaml -> yaml
-      | Error (`Msg m) -> failwith ("Yaml_unix.of_file: " ^ m)
+      | Error (`Msg m) ->
+        Logs.error "Yaml_unix.of_file: %s" m;
+        Svcomp.errorwith "witness missing"
     in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 

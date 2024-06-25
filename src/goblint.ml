@@ -83,6 +83,11 @@ let main () =
     Logs.error "%s" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();
     exit 124
+  | Svcomp.Error msg ->
+    do_stats ();
+    Witness.print_svcomp_result ("ERROR (" ^ msg ^ ")");
+    Goblint_timing.teardown_tef ();
+    exit 1
 
 (* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)
 let () = at_exit main

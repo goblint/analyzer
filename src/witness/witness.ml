@@ -695,7 +695,7 @@ struct
     | Some false -> print_svcomp_result "ERROR (verify)"
     | _ ->
       match yaml_validate_result with
-      | Some (Error msg) ->
+      | Some (Stdlib.Error msg) ->
         print_svcomp_result ("ERROR (" ^ msg ^ ")")
       | Some (Ok (Svcomp.Result.False _ | Unknown as result)) ->
         print_svcomp_result (Result.to_string result)
