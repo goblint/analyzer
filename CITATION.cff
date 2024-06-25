@@ -21,6 +21,10 @@ authors: # same authors as in .zenodo.json and dune-project
     family-names: Tilscher
     affiliation: "Technische Universität München"
     orcid: "https://orcid.org/0009-0009-9644-7475"
+  - given-names: Karoliine
+    family-names: Holter
+    affiliation: "University of Tartu"
+    orcid: "https://orcid.org/0009-0008-3725-4131"
   - given-names: Ralf
     family-names: Vogler
     affiliation: "Technische Universität München"
