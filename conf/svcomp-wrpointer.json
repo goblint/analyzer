@@ -26,7 +26,6 @@
         "expRelation",
         "mhp",
         "assert",
-        "var_eq",
         "symb_locks",
         "region",
         "thread",
