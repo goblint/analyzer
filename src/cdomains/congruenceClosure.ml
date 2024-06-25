@@ -515,7 +515,7 @@ module UnionFind = struct
         let (v',r') = parent uf v in
         if is_root uf v' then
           (* perform path compresion *)
-          let (_,uf) = List.fold_left (fun (r0, uf) v ->
+          let (r',uf) = List.fold_left (fun (r0, uf) v ->
               let (parent_v, r''), size_v = ValMap.find v uf in
               let uf = modify_parent uf v (v',Z.(r0+r'')) in
               let uf = modify_size parent_v uf (fun s -> s - size_v) in
