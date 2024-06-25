@@ -72,13 +72,13 @@ module Base =
     type marshal = solver_data
 
     let create_empty_data () =
-      let divided_narrow = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
+      let narrow_sides = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
       {
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
-      divided_side_effects = HM.create (if divided_narrow then 10 else 0);
-      orphan_side_effects = HM.create (if divided_narrow then 10 else 0);
+      divided_side_effects = HM.create (if narrow_sides then 10 else 0);
+      orphan_side_effects = HM.create (if narrow_sides then 10 else 0);
       rho = HM.create 10;
       wpoint = HM.create 10;
       stable = HM.create 10;
@@ -268,11 +268,11 @@ module Base =
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
 
-      let divided_narrow = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
-      let divided_narrow_stable = GobConfig.get_bool "solvers.td3.narrow-sides.stable" in
-      let divided_narrow_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-sides.conservative-widen" in
-      let divided_narrow_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
-      let divided_narrow_gas_default = if divided_narrow_gas_default < 0 then None else Some (divided_narrow_gas_default, D_Widen) in
+      let narrow_sides = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
+      let narrow_sides_stable = GobConfig.get_bool "solvers.td3.narrow-sides.stable" in
+      let narrow_sides_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-sides.conservative-widen" in
+      let narrow_sides_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
+      let narrow_sides_gas_default = if narrow_sides_gas_default < 0 then None else Some (narrow_sides_gas_default, D_Widen) in
 
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
@@ -343,11 +343,11 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              if divided_narrow then
+              if narrow_sides then
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
-                      if divided_narrow_stable then (
+                      if narrow_sides_stable then (
                         if HM.mem stable x then HM.iter (fun y acc -> ignore @@ divided_side D_Narrow ~x y acc) acc
                       )
                       else HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
@@ -416,7 +416,7 @@ module Base =
         | Some new_acc -> (
             HM.replace acc y new_acc;
             let y_changed = divided_side D_Widen ~x y new_acc in
-            if y_changed && not @@ divided_narrow_stable then
+            if y_changed && not @@ narrow_sides_stable then
               HM.replace changed y ();
           )
         | _ -> ()
@@ -441,12 +441,12 @@ module Base =
             init_divided_side_effects y;
 
             let y_sides = HM.find divided_side_effects y in
-            let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), divided_narrow_gas_default) in
+            let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_sides_gas_default) in
             (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
               let (new_side, narrow_gas) = match phase with
                 | D_Widen -> (if not @@ S.Dom.leq d old_side then
-                                if divided_narrow_conservative_widen && (S.Dom.leq d (HM.find rho y)) then
+                                if narrow_sides_conservative_widen && (S.Dom.leq d (HM.find rho y)) then
                                   S.Dom.join old_side d
                                 else
                                   S.Dom.widen old_side (S.Dom.join old_side d)
@@ -514,8 +514,8 @@ module Base =
         else (
           HM.replace called y ();
           let eqd =
-            if divided_narrow then
-              failwith "divided narrow not yet implemented for simple solve"
+            if narrow_sides then
+              failwith "narrow-sides not yet implemented for simple solve"
             else
               eq y (eval l x) (side ~x)
             in
@@ -636,7 +636,7 @@ module Base =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
         (* TODO: SIDE make this change-proof *)
-        if divided_narrow then
+        if narrow_sides then
           ignore @@ divided_side ~do_destabilize:false D_Widen x d
         else
           HM.replace rho x d;
