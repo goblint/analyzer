@@ -110,17 +110,21 @@ module T = struct
     | i -> Some i
     | exception (UnsupportedCilExpression _) -> None
 
+  (*returns Some type for a pointer to a type
+    and None if the result is not a pointer*)
   let rec type_of_element typ =
     match typ with
     | TArray (typ, _, _) -> type_of_element typ
-    | TPtr (typ, _) -> typ
-    | _ -> typ
+    | TPtr (typ, _) -> Some typ
+    | _ -> None
 
   (** Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the size of the
       elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int\[]\[]\[] = sizeof(int)). *)
   let rec get_element_size_in_bits typ =
-    get_size_in_bits (type_of_element typ)
+    match type_of_element typ with
+    | Some typ -> get_size_in_bits typ
+    | None -> Z.of_int 1
 
   let is_array_type = function
     | TArray _ -> true
@@ -188,7 +192,10 @@ module T = struct
   (** Returns a Cil expression which is the constant z divided by the size of the elements of t.*)
   let to_cil_constant z t =
     let z = if Z.equal z Z.zero then Z.zero else
-        let typ_size = get_element_size_in_bits t in
+        let typ_size = match t with
+          | Some t -> get_element_size_in_bits t
+          | None -> Z.of_int 1
+        in
         if Z.equal typ_size Z.zero then Z.zero else
           Z.(z /typ_size) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
@@ -244,7 +251,7 @@ module T = struct
         | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
         | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
         | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
-          let index = Index (to_cil_constant offset typ, NoOffset) in
+          let index = Index (to_cil_constant offset (Some typ), NoOffset) in
           begin match exp with
             | Lval (Var v, NoOffset) ->  Lval (Var v, index)
             | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
@@ -963,7 +970,7 @@ module CongruenceClosure = struct
       | result -> result
       | exception (T.UnsupportedCilExpression _) ->
         let random_type = (TPtr (TPtr (TInt (ILong,[]),[]),[])) in (*the type is not so important for min_repr and get_normal_form*)
-        Deref (min_term, z, Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), T.to_cil_constant z random_type, random_type)), NoOffset))
+        Deref (min_term, z, Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), T.to_cil_constant z (Some random_type), random_type)), NoOffset))
 
   end
 
