@@ -357,6 +357,7 @@ struct
     (* real beginning of the [analyze] function *)
     if get_bool "ana.sv-comp.enabled" then
       Witness.init (module FileCfg); (* TODO: move this out of analyze_loop *)
+    YamlWitness.init ();
 
     AnalysisState.global_initialization := true;
     GobConfig.earlyglobs := get_bool "exp.earlyglobs";

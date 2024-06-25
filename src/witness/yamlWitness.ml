@@ -514,6 +514,15 @@ struct
     Timing.wrap "yaml witness" write ()
 end
 
+let init () =
+  match GobConfig.get_string "witness.yaml.validate" with
+  | "" -> ()
+  | path ->
+    (* Check witness existence before doing the analysis. *)
+    if not (Sys.file_exists path) then (
+      Logs.error "witness.yaml.validate: %s not found" path;
+      Svcomp.errorwith "witness missing"
+    )
 
 module ValidationResult =
 struct
