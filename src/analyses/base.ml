@@ -261,6 +261,8 @@ struct
       (* adds n to the last offset *)
       let rec addToOffset n (t:typ option) = function
         | `Index (i, `NoOffset) ->
+          (* Binary operations on pointer types should not generate warnings in SV-COMP *)
+          GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
         | `Field (f, `NoOffset) ->
