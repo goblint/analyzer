@@ -43,6 +43,7 @@ void *thread(void *) {
 int main(void) {
     int id;
     pthread_create(&id, NULL, thread, NULL);
-    __goblint_check(state != -1);
+    __goblint_check(state >= -1);
+    __goblint_check(state <= 5);
     pthread_join(&id, NULL);
 }
