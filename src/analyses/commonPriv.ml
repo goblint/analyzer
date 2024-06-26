@@ -110,7 +110,7 @@ module MutexGlobals =
 struct
   module VMutex =
   struct
-    include LockDomain.Addr
+    include LockDomain.MustLock
     let name () = "mutex"
   end
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
@@ -148,23 +148,14 @@ end
 
 module Locksets =
 struct
-  module Lock =
-  struct
-    include LockDomain.Addr
-    let name () = "lock"
-  end
+  module MustLockset = LockDomain.MustLockset
 
-  module Lockset = SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-
-  module MustLockset = SetDomain.Reverse (Lockset)
-
-  let current_lockset (ask: Q.ask): Lockset.t =
+  let current_lockset (ask: Q.ask): MustLockset.t =
     (* TODO: remove this global_init workaround *)
     if !AnalysisState.global_initialization then
-      Lockset.empty ()
+      MustLockset.empty ()
     else
-      let mls = ask.f Queries.MustLockset in
-      LockDomain.MustLockset.fold (fun ml acc -> Lockset.add (Addr (LockDomain.MustLock.to_mval ml)) acc) mls (Lockset.empty ()) (* TODO: use MustLockset as Lockset *)
+      ask.f Queries.MustLockset
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
@@ -189,7 +180,7 @@ struct
     let name () = "P"
 
     (* TODO: change MinLocksets.exists/top instead? *)
-    let find x p = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) (* ensure exists has something to check for thread returns *)
+    let find x p = find_opt x p |? MinLocksets.singleton (MustLockset.empty ()) (* ensure exists has something to check for thread returns *)
   end
 end
 
@@ -270,7 +261,7 @@ struct
 
   module LLock =
   struct
-    include Printable.Either (Locksets.Lock) (struct include CilType.Varinfo let name () = "global" end)
+    include Printable.Either (LockDomain.MustLock) (struct include CilType.Varinfo let name () = "global" end)
     let mutex m = `Left m
     let global x = `Right x
   end
@@ -333,7 +324,7 @@ let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   match addr with
   | UnknownPtr -> st
   | Addr (v, _) when ask.f (IsMultiple v) -> st
-  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st (LockDomain.MustLock.of_mval mv)
   | Addr _
   | NullPtr
   | StrPtr _ -> st
@@ -348,16 +339,16 @@ let lift_unlock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   | UnknownPtr ->
     LockDomain.MustLockset.fold (fun ml st ->
         (* call privatization's unlock only with definite lock *)
-        f st (LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+        f st ml
       ) (ask.f MustLockset) st
   | StrPtr _
   | NullPtr -> st
-  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st (LockDomain.MustLock.of_mval mv)
   | Addr mv ->
     LockDomain.MustLockset.fold (fun ml st ->
         if LockDomain.MustLock.semantic_equal_mval ml mv = Some false then
           st
         else
           (* call privatization's unlock only with definite lock *)
-          f st (Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+          f st ml
       ) (ask.f MustLockset) st
