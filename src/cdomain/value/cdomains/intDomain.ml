@@ -3791,11 +3791,15 @@ module IntDomTupleImpl = struct
     | _ -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant_ikind e ik ((_, _, _, x_cong, x_intset) as x) =
-    match to_int x with
-    | Some v ->
-      (* If definite, output single equality instead of every subdomain repeating same equality (or something less precise). *)
-      IntInvariant.of_int e ik v
-    | None ->
+    let simplify_int fallback =
+      match to_int x with
+      | Some v ->
+        (* If definite, output single equality instead of every subdomain repeating same equality (or something less precise). *)
+        IntInvariant.of_int e ik v
+      | None ->
+        fallback ()
+    in
+    let simplify_all () =
       match to_incl_list x with
       | Some ps ->
         (* If inclusion set, output disjunction of equalities because it subsumes interval(s), exclusion set and congruence. *)
@@ -3814,6 +3818,18 @@ module IntDomTupleImpl = struct
           Option.map_default (I4.invariant_ikind e ik) Invariant.none x_cong && (* Output congruence as is. *)
           Option.map_default (I5.invariant_ikind e ik) Invariant.none x_intset (* Output interval sets as is. *)
         )
+    in
+    let simplify_none () =
+      let is = to_list (mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.invariant_ikind e ik } x) in
+      List.fold_left (fun a i ->
+          Invariant.(a && i)
+        ) (Invariant.top ()) is
+    in
+    match GobConfig.get_string "ana.base.invariant.int.simplify" with
+    | "none" -> simplify_none ()
+    | "int" -> simplify_int simplify_none
+    | "all" -> simplify_int simplify_all
+    | _ -> assert false
 
   let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
 
