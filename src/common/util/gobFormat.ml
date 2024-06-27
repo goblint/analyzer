@@ -23,3 +23,8 @@ let pp_print_nothing (ppf: Format.formatter) () = ()
 let pp_infinity = 1000000001 (* Exact value not exposed before OCaml 5.2, but use the smallest value permitted by documentation. *)
 
 let pp_set_infinite_geometry = Format.pp_set_geometry ~max_indent:(pp_infinity - 2) ~margin:(pp_infinity - 1)
+
+let asprintf (fmt: ('a, Format.formatter, unit, string) format4): 'a =
+  Format.asprintf ("%t" ^^ fmt) pp_set_infinite_geometry
+
+let asprint pp x = asprintf "%a" pp x (* eta-expanded to bypass value restriction *)

@@ -442,7 +442,7 @@ struct
   let invariant _ = []
 
   let show (x:t) =
-    Format.asprintf "%t%a (env: %a)" GobFormat.pp_set_infinite_geometry A.print x Environment.pp (A.env x)
+    GobFormat.asprintf "%a (env: %a)" A.print x Environment.pp (A.env x)
   let pretty () (x:t) = text (show x)
 
   let equal x y =
@@ -454,7 +454,7 @@ struct
   let compare (x:t) y: int =
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) Environment.printXml (A.env x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (GobFormat.asprint A.print x)) Environment.printXml (A.env x)
 
   let to_yojson (x: t) =
     let constraints =

@@ -96,7 +96,7 @@ end
 
 module SimpleFormat (P: Formatable) =
 struct
-  let show x = Format.asprintf "%t%a" GobFormat.pp_set_infinite_geometry P.pp x
+  let show x = GobFormat.asprint P.pp x
   let pretty () x = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
