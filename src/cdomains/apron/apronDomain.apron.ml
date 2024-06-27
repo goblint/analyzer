@@ -443,7 +443,18 @@ struct
 
   let show (x:t) =
     Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
-  let pretty () (x:t) = text (show x)
+
+  (* HACK: Hotfix for https://github.com/goblint/cil/issues/169, remove once that is resolved and dependencies updated *)
+  let custom_text (s:string) =
+    let lines = String.split_on_char '\n' s in
+    let rec doit = function
+      | [] -> nil
+      | [x1] -> text x1
+      | x1::xs -> (text x1) ++ line ++ doit xs
+    in
+    doit lines
+
+  let pretty () (x:t) = custom_text (show x)
 
   let equal x y =
     Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
