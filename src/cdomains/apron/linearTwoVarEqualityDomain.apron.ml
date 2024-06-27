@@ -11,7 +11,7 @@ open Batteries
 open GoblintCil
 open Pretty
 module M = Messages
-open Apron
+open GobApron
 open VectorMatrix
 
 module Mpqf = SharedFunctions.Mpqf
@@ -331,7 +331,7 @@ struct
 
   let simplified_monomials_from_texp (t: t) texp =
     let res = simplified_monomials_from_texp t texp in
-    if M.tracing then M.tracel "from_texp" "%s %s -> %s" (EConj.show @@ snd @@ BatOption.get t.d) (Format.asprintf "%a" Texpr1.print_expr texp)
+    if M.tracing then M.tracel "from_texp" "%s %a -> %s" (EConj.show @@ snd @@ BatOption.get t.d) Texpr1.Expr.pretty texp
         (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
     res
 
@@ -424,7 +424,7 @@ struct
         EConj.show_formatted (show_var varM.env) (snd arr) ^ (to_subscript @@ fst arr)
 
   let pretty () (x:t) = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
   let meet_with_one_conj t i (var, o, divi) =

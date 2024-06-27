@@ -18,7 +18,14 @@ module Lincons1 =
 struct
   include Lincons1
 
-  let show = Format.asprintf "%a" print
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
   let compare x y = String.compare (show x) (show y) (* HACK *)
 
   let num_vars x =
@@ -43,11 +50,58 @@ struct
     |> of_enum
 end
 
+module Texpr1 =
+struct
+  include Texpr1
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
+  module Expr =
+  struct
+    type t = expr
+
+    let pp = print_expr
+    include Printable.SimpleFormat (
+      struct
+        type nonrec t = t
+        let pp = pp
+      end
+      )
+  end
+end
+
+module Tcons1 =
+struct
+  include Tcons1
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+end
+
 (** A few code elements for environment changes from functions as remove_vars etc. have been moved to sharedFunctions as they are needed in a similar way inside affineEqualityDomain.
     A module that includes various methods used by variable handling operations such as add_vars, remove_vars etc. in apronDomain and affineEqualityDomain. *)
 module Environment =
 struct
   include Environment
+
+  let pp: Format.formatter -> Environment.t -> unit = Environment.print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
 
   let ivars_only env =
     let ivs, fvs = Environment.vars env in
