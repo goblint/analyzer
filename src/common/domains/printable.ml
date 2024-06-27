@@ -88,6 +88,20 @@ struct
   let to_yojson x = `String (show x)
 end
 
+module type Formatable =
+sig
+  type t
+  val pp: Format.formatter -> t -> unit
+end
+
+module SimpleFormat (P: Formatable) =
+struct
+  let show x = Format.asprintf "%t%a" GobFormat.pp_set_infinite_geometry P.pp x
+  let pretty () x = text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
