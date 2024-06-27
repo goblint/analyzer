@@ -203,10 +203,10 @@ struct
     | Some m when Matrix.is_empty m -> "⊤"
     | Some m ->
       let constraint_list = List.init (Matrix.num_rows m) (fun i -> vec_to_constraint (conv_to_ints @@ Matrix.get_row m i) t.env) in
-      Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]")
+      "[|"^ (String.concat "; " constraint_list) ^"|]"
 
   let pretty () (x:t) = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) Environment.printXml x.env
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
   let name () = "affeq"

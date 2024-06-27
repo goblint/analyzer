@@ -424,7 +424,7 @@ struct
         EConj.show_formatted (show_var varM.env) (snd arr) ^ (to_subscript @@ fst arr)
 
   let pretty () (x:t) = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) Environment.printXml x.env
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
   let meet_with_one_conj t i (var, o, divi) =
