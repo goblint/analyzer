@@ -442,7 +442,7 @@ struct
   let invariant _ = []
 
   let show (x:t) =
-    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
+    Format.asprintf "%t%a (env: %a)" GobFormat.pp_set_infinite_geometry A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
   let pretty () (x:t) = text (show x)
 
   let equal x y =
