@@ -22,6 +22,15 @@ authors: [
   "Vesal Vojdani"
 ]
 license: "MIT"
+tags: [
+  "program analysis"
+  "program verification"
+  "static analysis"
+  "abstract interpretation"
+  "C"
+  "data race analysis"
+  "concurrency"
+]
 homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
