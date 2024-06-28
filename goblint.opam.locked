@@ -143,3 +143,7 @@ pin-depends: [
   ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
+description: """\
+Goblint is a sound static analysis framework for C programs using abstract interpretation.
+It specializes in thread-modular verification of multi-threaded programs, especially regarding data races.
+Goblint includes analyses for assertions, overflows, deadlocks, etc and can be extended with new analyses."""
