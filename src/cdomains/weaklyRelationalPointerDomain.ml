@@ -13,11 +13,11 @@ module MayBeEqual = struct
 
   module AD = ValueDomain.AD
   let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="wrpointer__@dummy"}
-  let dummy_var var = T.term_of_varinfo (dummy_varinfo var)
+  let dummy_var var = T.aux_term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
 
   let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="wrpointer__@return"}
-  let return_var var = T.term_of_varinfo (return_varinfo var)
+  let return_var var = T.aux_term_of_varinfo (return_varinfo var)
   let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
@@ -33,40 +33,28 @@ module MayBeEqual = struct
 
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
     if T.equal t1 t2 then true else
-      (* two local arrays can never point to the same array *)
-      let are_different_arrays = match t1, t2 with
-        | Deref (Addr x1, z1,_), Deref (Addr x2, z2,_) -> if T.is_array_type x1.vtype && T.is_array_type x2.vtype && not (Var.equal x1 x2) then true else false
-        | _ -> false in
-      if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t2)) (T.get_var t2) then false else
-        let exp1 = T.to_cil t1 in
-        let mpt1 = ask.f (MayPointTo exp1) in
-        may_point_to_address ask mpt1 t2 off
+      let exp1 = T.to_cil t1 in
+      let mpt1 = ask.f (MayPointTo exp1) in
+      may_point_to_address ask mpt1 t2 off
 
   (**Returns true iff by assigning to t1, the value of t2 could change.
       The parameter s is the size in bits of the variable t1 we are assigning to. *)
-  let rec may_be_equal ask uf s t1 t2 =
-    let there_is_an_overlap s s' diff =
-      if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
-    in
+  let rec may_be_equal ask cc s t1 t2 =
     match t1, t2 with
     | CC.Deref (t, z,_), CC.Deref (v, z',_) ->
-      let (q', z1') = TUF.find_no_pc uf v in
-      let (q, z1) = TUF.find_no_pc uf t in
-      let s' = T.get_size t2 in
-      let diff = Z.(-z' - z1 + z1' + z) in
-      (* If they are in the same equivalence class but with a different offset, then they are not equal *)
+      (* If we have a disequality, then they are not equal *)
       (
-        (not (T.equal q' q) || there_is_an_overlap s s' diff)
+        not (neq_query cc (t,v,Z.(z'-z)))
         (* or if we know that they are not equal according to the query MayPointTo*)
         &&
-        (may_point_to_same_address ask q q' Z.(z' - z + z1 - z1'))
+        (may_point_to_same_address ask t v Z.(z' - z))
       )
-      || (may_be_equal ask uf s t1 v)
-    | CC.Deref _, _ -> false (*The value of addresses never change when we overwrite the memory*)
-    | CC.Addr _ , _ -> T.is_subterm t1 t2
+      || (may_be_equal ask cc s t1 v)
+    | CC.Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
+    | CC.Addr _ , _ | CC.Aux _, _ -> T.is_subterm t1 t2
 
-  let may_be_equal ask uf s t1 t2 =
-    let res = (may_be_equal ask uf s t1 t2) in
+  let may_be_equal ask cc s t1 t2 =
+    let res = (may_be_equal ask cc s t1 t2) in
     if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 
@@ -75,7 +63,7 @@ module MayBeEqual = struct
     |  CC.Deref (v, z',_) ->
       (may_point_to_address ask adresses v z')
       || (may_point_to_one_of_these_adresses ask adresses v)
-    | CC.Addr _ -> false
+    | CC.Addr _ | CC.Aux _ -> false
 
 end
 
@@ -160,14 +148,14 @@ module D = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variable var cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show (Addr var));
-    Option.bind cc (remove_terms (fun _ -> T.is_subterm (Addr var)))
+    Option.bind cc (remove_terms (fun t -> Var.equal (T.get_var t) var))
 
   (** Remove terms from the data structure.
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variables vars cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-    Option.bind cc (remove_terms (fun _ -> T.contains_variable vars))
+    Option.bind cc (remove_terms (T.contains_variable vars))
 
   (** Remove terms from the data structure.
       It removes all terms which do not contain one of the "vars",
@@ -175,19 +163,19 @@ module D = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
     if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-    Option.bind cc (remove_terms (fun _ t -> (not (T.get_var t).vglob) && not (T.contains_variable vars t)))
+    Option.bind cc (remove_terms (fun t -> (not (T.get_var t).vglob) && not (T.contains_variable vars t)))
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
   let remove_may_equal_terms ask s term cc =
     if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = snd (insert cc term) in
-    Option.bind cc (remove_terms (fun uf -> MayBeEqual.may_be_equal ask uf s term))
+    Option.bind cc (remove_terms (MayBeEqual.may_be_equal ask cc s term))
 
   (** Remove terms from the data structure.
       It removes all terms that may point to the same address as "tainted".*)
   let remove_tainted_terms ask address cc =
     if M.tracing then M.tracel "wrpointer-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
-    Option.bind cc (remove_terms (fun uf -> MayBeEqual.may_point_to_one_of_these_adresses ask address))
+    Option.bind cc (remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address))
 
 end

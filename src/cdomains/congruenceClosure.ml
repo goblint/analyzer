@@ -7,7 +7,7 @@ module M = Messages
 
 exception Unsat
 
-type ('v, 't) term = Addr of 'v | Deref of ('v, 't) term * Z.t * 't [@@deriving eq, ord, hash]
+type ('v, 't) term = Addr of 'v | Aux of 'v * 't | Deref of ('v, 't) term * Z.t * 't [@@deriving eq, ord, hash]
 type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('v, 't) term * ('v, 't) term * Z.t [@@deriving eq, ord, hash]
 
 (** The terms consist of address constants and dereferencing function with sum of an integer.
@@ -32,11 +32,13 @@ module T = struct
 
   let compare t1 t2 =
     match t1,t2 with
-    | Addr v1, Addr v2 -> Var.compare v1 v2
+    | Addr v1, Addr v2
+    | Aux (v1,_), Aux (v2,_) -> Var.compare v1 v2
     | Deref (t1,z1,_), Deref (t2,z2,_) -> let c = compare t1 t2 in
       if c = 0 then Z.compare z1 z2 else c
-    | Addr _, Deref _ -> -1
-    | Deref _, Addr _ -> 1
+    | Addr _, _
+    | _, Deref _ -> -1
+    | _ -> 1
 
   (** Two propositions are equal if they are syntactically equal
       or if one is t_1 = z + t_2 and the other t_2 = - z + t_1. *)
@@ -84,6 +86,7 @@ module T = struct
 
   let rec show : t -> string = function
     | Addr v -> "&" ^ Var.show v
+    | Aux (v,exp) ->  Var.show v ^ show_type exp
     | Deref (Addr v, z, exp) when Z.equal z Z.zero -> Var.show v ^ show_type exp
     | Deref (t, z, exp) when Z.equal z Z.zero -> "*" ^ show t^ show_type exp
     | Deref (t, z, exp) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
@@ -94,14 +97,17 @@ module T = struct
     | _ -> false
 
   let rec get_var = function
-    | Addr v -> v
+    | Addr v | Aux (v,_) -> v
     | Deref (t, _, _) -> get_var t
 
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
   let rec contains_variable variables term = List.mem_cmp Var.compare (get_var term) variables
 
-  let term_of_varinfo vinfo =
+  let term_of_varinfo vinfo = (*TODO is this still needed?*)
     Deref (Addr vinfo, Z.zero, Lval (Var vinfo, NoOffset))
+
+  let aux_term_of_varinfo vinfo =
+    Aux (vinfo, Lval (Var vinfo, NoOffset))
 
   let eval_int (ask:Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
@@ -196,13 +202,13 @@ module T = struct
 
   let rec type_of_term =
     function
-    | (Addr v) -> TPtr (v.vtype, [])
-    | (Deref (_, _, exp)) -> typeOf exp
+    | Addr v -> TPtr (v.vtype, [])
+    | Aux (_, exp) | Deref (_, _, exp) -> typeOf exp
 
   let to_cil =
     function
     | (Addr v) -> AddrOf (Var v, NoOffset)
-    | (Deref (_, _, exp)) -> exp
+    | Aux (_, exp) | (Deref (_, _, exp)) -> exp
 
   let default_int_type = ILong
   (** Returns a Cil expression which is the constant z divided by the size of the elements of t.*)
@@ -340,6 +346,7 @@ module T = struct
             if is_struct_ptr_type typ then
               match of_offset ask term off typ (Lval lval) with
               | Addr x -> Addr x
+              | Aux (v,exp) -> Aux (v,exp)
               | Deref (x, z, exp) -> Deref (x, Z.(z+offset), exp)
             else
               of_offset ask (Deref (term, offset, Lval(Mem exp, NoOffset))) off (typeOfLval (Mem exp, NoOffset)) (Lval lval)
@@ -973,7 +980,7 @@ module CongruenceClosure = struct
 
     (** Adds all subterms of t to the SSet and the LookupMap*)
     let rec subterms_of_term (set,map) t = match t with
-      | Addr _ -> (add t set, map)
+      | Addr _ | Aux _ -> (add t set, map)
       | Deref (t',z,_) ->
         let set = add t set in
         let map = LMap.map_add (t',z) t map in
@@ -988,7 +995,7 @@ module CongruenceClosure = struct
     let get_atoms set =
       (* `elements set` returns a sorted list of the elements. The atoms are always smaller that other terms,
          according to our comparison function. Therefore take_while is enough. *)
-      BatList.take_while (function Addr _ -> true | _ -> false) (elements set)
+      BatList.take_while (function Addr _ | Aux _ -> true | _ -> false) (elements set)
 
     (** We try to find the dereferenced term between the already existing terms, in order to remember the information about the exp. *)
     let deref_term t z set =
@@ -1349,10 +1356,10 @@ module CongruenceClosure = struct
       (v,z), Some {cc with uf}, []
     else
       match t with
-      | Addr a -> let uf = TUF.ValMap.add t ((t, Z.zero),1) cc.uf in
+      | Addr _ | Aux _ -> let uf = TUF.ValMap.add t ((t, Z.zero),1) cc.uf in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
-        (t, Z.zero), Some {uf; set; map = cc.map; min_repr; diseq = cc.diseq}, [Addr a]
+        (t, Z.zero), Some {uf; set; map = cc.map; min_repr; diseq = cc.diseq}, [t]
       | Deref (t', z, exp) ->
         match insert_no_min_repr cc t' with
         | (v, r), None, queue -> (v, r), None, []
@@ -1537,7 +1544,7 @@ module CongruenceClosure = struct
   let remove_terms predicate cc =
     let old_cc = cc in
     (* first find all terms that need to be removed *)
-    match remove_terms_from_eq (predicate cc.uf) cc with
+    match remove_terms_from_eq predicate cc with
     | new_reps, Some cc ->
       begin match remove_terms_from_diseq old_cc.diseq new_reps cc with
         | Some cc ->
