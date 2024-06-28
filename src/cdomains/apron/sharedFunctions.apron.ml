@@ -33,7 +33,9 @@ let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
           begin match round with
             | Some `Floor -> Some (Mpzf.mul scale (Mpzf.fdiv_q n d)) (* floor division *)
             | Some `Ceil ->  Some (Mpzf.mul scale (Mpzf.cdiv_q n d)) (* ceiling division *)
-            | None -> Some (Mpzf.divexact (Mpzf.mul scale n ) d) (* scale, preferably with common denominator *)
+            | None -> if Mpz.divisible_p (Mpzf.mul scale n ) d then
+                Some (Mpzf.divexact (Mpzf.mul scale n ) d) (* scale, preferably with common denominator *)
+              else None
           end
       in
       Z_mlgmpidl.z_of_mpzf z
