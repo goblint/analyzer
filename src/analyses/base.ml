@@ -1735,21 +1735,16 @@ struct
       match Addr.to_mval x with
       | Some x -> update_one_addr x store
       | None -> store
-    in try
-      (* We start from the current state and an empty list of global deltas,
-       * and we assign to all the the different possible places: *)
-      let nst = AD.fold update_one lval st in
-      (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a" CPA.pretty nst; *)
-      (* If the address was definite, then we just return it. If the address
-       * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then D.join st nst else nst in
-      (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a" CPA.pretty nst; *)
-      nst
-    with
-    (* If any of the addresses are unknown, we ignore it!?! *)
-    | SetDomain.Unsupported x ->
-      (* if M.tracing then M.tracel "set" ~var:firstvar "set got an exception '%s'" x; *)
-      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
+    in 
+    (* We start from the current state and an empty list of global deltas,
+      * and we assign to all the the different possible places: *)
+    let nst = AD.fold update_one lval st in
+    (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a" CPA.pretty nst; *)
+    (* If the address was definite, then we just return it. If the address
+      * was ambiguous, we have to join it with the initial state. *)
+    let nst = if AD.cardinal lval > 1 then D.join st nst else nst in
+    (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a" CPA.pretty nst; *)
+    nst
 
   let set_many ~ctx (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
