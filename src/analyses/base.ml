@@ -1731,10 +1731,12 @@ struct
           effect_on_arrays ask with_dep
       end
     in
-    let update_one x store =
-      match Addr.to_mval x with
-      | Some x -> update_one_addr x store
-      | None -> store
+    let update_one (x : Addr.t) store =
+      match x with
+      | Addr x -> update_one_addr x store
+      | NullPtr
+      | UnknownPtr
+      | StrPtr _ -> store
     in 
     if AD.is_empty lval then
       st
