@@ -11,7 +11,7 @@ module T = CC.T
 (**Find out if two addresses are not equal by using the MayPointTo query*)
 module MayBeEqual = struct
 
-  module AD = ValueDomain.AD
+  module AD = Queries.AD
   let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="wrpointer__@dummy"}
   let dummy_var var = T.term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
@@ -20,13 +20,18 @@ module MayBeEqual = struct
   let return_var var = T.term_of_varinfo (return_varinfo var)
   let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 
+  let ask_may_point_to (ask: Queries.ask) exp =
+    match ask.f (MayPointTo exp) with
+    | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top ()
+    | res -> res
+
   (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
   let may_point_to_address (ask:Queries.ask) adresses t2 off =
     match T.to_cil_sum off (T.to_cil t2) with
     | exception (T.UnsupportedCilExpression _) -> true
     | exp2 ->
       let mpt1 = adresses in
-      let mpt2 = ask.f (MayPointTo exp2) in
+      let mpt2 = ask_may_point_to ask exp2 in
       let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
       if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
           AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
@@ -39,7 +44,7 @@ module MayBeEqual = struct
         | _ -> false in
       if are_different_arrays || Var.equal (dummy_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t1)) (T.get_var t1) || Var.equal (return_varinfo (T.type_of_term t2)) (T.get_var t2) then false else
         let exp1 = T.to_cil t1 in
-        let mpt1 = ask.f (MayPointTo exp1) in
+        let mpt1 = ask_may_point_to ask exp1 in
         may_point_to_address ask mpt1 t2 off
 
   (**Returns true iff by assigning to t1, the value of t2 could change.

@@ -218,8 +218,7 @@ module T = struct
   let to_cil_sum off cil_t =
     if Z.(equal zero off) then cil_t else
       let typ = typeOf cil_t in
-      let el_typ = type_of_element typ in
-      BinOp (PlusPI, cil_t, to_cil_constant off el_typ, typ)
+      BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
 
   let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
     | Some i -> i
