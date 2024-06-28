@@ -93,7 +93,7 @@ module D = struct
 
   let show_all = function
     | None -> "⊥\n"
-    | Some x ->  show_all x
+    | Some x -> show_all x
 
   include Printable.SimpleShow(struct type t = domain let show = show end)
 

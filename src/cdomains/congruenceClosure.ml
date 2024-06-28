@@ -30,6 +30,14 @@ module T = struct
   type t = (Var.t, exp) term [@@deriving eq, ord, hash]
   type v_prop = (Var.t, exp) prop [@@deriving ord, hash]
 
+  let compare t1 t2 =
+    match t1,t2 with
+    | Addr v1, Addr v2 -> Var.compare v1 v2
+    | Deref (t1,z1,_), Deref (t2,z2,_) -> let c = compare t1 t2 in
+      if c = 0 then Z.compare z1 z2 else c
+    | Addr _, Deref _ -> -1
+    | Deref _, Addr _ -> 1
+
   (** Two propositions are equal if they are syntactically equal
       or if one is t_1 = z + t_2 and the other t_2 = - z + t_1. *)
   let equal_v_prop p1 p2 =
@@ -45,6 +53,10 @@ module T = struct
     if equal_v_prop p1 p2 then 0 else compare_v_prop p1 p2
 
   let props_equal = List.equal equal_v_prop
+
+  let is_addr = function
+    | Addr _ -> true
+    | _ -> false
 
   exception UnsupportedCilExpression of string
 
@@ -835,7 +847,11 @@ module CongruenceClosure = struct
     *)
     let rec propagate_neq (uf,(cmap: TSet.t ZMap.t TMap.t),arg,neq) = function (* v1, v2 are distinct roots with v1 != v2+r   *)
       | [] -> neq (* uf need not be returned: has been flattened during constr. of cmap *)
-      | (v1,v2,r) :: rest -> (* v1, v2 are roots; v2 -> r,v1 not yet contained in neq *)
+      | (v1,v2,r) :: rest ->
+        (* we don't want to explicitly store disequalities of the kind &x != &y *)
+        if T.is_addr v1 && T.is_addr v2 then
+          propagate_neq (uf,cmap,arg,neq) rest else
+          (* v1, v2 are roots; v2 -> r,v1 not yet contained in neq *)
         if T.equal v1 v2 then  (* should not happen *)
           if Z.equal r Z.zero then raise Unsat else propagate_neq (uf,cmap,arg,neq) rest
         else (* check whether it is already in neq *)
@@ -1397,14 +1413,16 @@ module CongruenceClosure = struct
 
   (** Returns true if t1 and t2 are not equivalent. *)
   let neq_query cc (t1,t2,r) =
-    let (v1,r1),cc = insert cc t1 in
-    let (v2,r2),cc = insert cc t2 in
-    if T.equal v1 v2 then
-      if Z.(equal r1 (r2 + r)) then false
-      else true
-    else match cc with
-      | None -> true
-      | Some cc -> Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
+    (* we implicitly assume that &x != &y + z *)
+    if T.is_addr t1 && T.is_addr t2 then true else
+      let (v1,r1),cc = insert cc t1 in
+      let (v2,r2),cc = insert cc t2 in
+      if T.equal v1 v2 then
+        if Z.(equal r1 (r2 + r)) then false
+        else true
+      else match cc with
+        | None -> true
+        | Some cc -> Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
 
   (** Throws "Unsat" if a contradiction is found. *)
   let meet_conjs cc pos_conjs =
