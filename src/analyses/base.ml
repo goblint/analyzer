@@ -1736,15 +1736,10 @@ struct
       | Some x -> update_one_addr x store
       | None -> store
     in 
-    (* We start from the current state and an empty list of global deltas,
-      * and we assign to all the the different possible places: *)
-    let nst = AD.fold update_one lval st in
-    (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a" CPA.pretty nst; *)
-    (* If the address was definite, then we just return it. If the address
-      * was ambiguous, we have to join it with the initial state. *)
-    let nst = if AD.cardinal lval > 1 then D.join st nst else nst in
-    (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a" CPA.pretty nst; *)
-    nst
+    if AD.is_empty lval then
+      st
+    else
+      AD.fold (fun addr acc -> D.join (update_one addr st) acc) lval (D.bot ())
 
   let set_many ~ctx (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
