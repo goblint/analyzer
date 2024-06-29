@@ -338,7 +338,7 @@ let () =
       try
         GobConfig.set_auto conf (Yojson.Safe.to_string json);
         Maingoblint.handle_options ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -350,7 +350,7 @@ let () =
       try
         GobConfig.set_conf Options.defaults;
         Maingoblint.parse_arguments ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -362,7 +362,7 @@ let () =
       try
         GobConfig.merge json;
         Maingoblint.handle_options ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -374,7 +374,7 @@ let () =
       try
         GobConfig.merge_file (Fpath.v fname);
         Maingoblint.handle_options ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -554,7 +554,13 @@ let () =
     } [@@deriving to_yojson]
     let process () serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
-      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) in
+      let module NoExtraNodeStyle =
+      struct
+        type node = ArgWrapper.Arg.Node.t
+        let extra_node_styles node = []
+      end
+      in
+      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) (NoExtraNodeStyle) in
       let arg = Format.asprintf "%t" ArgDot.dot in
       {arg}
   end);

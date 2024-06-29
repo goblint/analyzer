@@ -24,7 +24,8 @@ sig
   val affecting_vars: t -> varinfo list
   val invalidate_value: VDQ.t -> typ -> t -> t
   val invalidate_abstract_value: t -> t
-  val is_safe_cast: typ -> typ -> bool
+  val is_statically_safe_cast: typ -> typ -> bool
+  val is_dynamically_safe_cast: typ -> typ -> t -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t ->  t
   val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) ->  t -> t -> t
@@ -48,19 +49,32 @@ module type Blob =
 sig
   type value
   type size
-  type origin
-  include Lattice.S with type t = value * size * origin
+  type zeroinit
+  include Lattice.S with type t = value * size * zeroinit
 
   val map: (value -> value) -> t -> t
   val value: t -> value
   val invalidate_value: VDQ.t -> typ -> t -> t
 end
 
-(* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
-module ZeroInit =
+module type ZeroInit =
+sig
+  include Lattice.S
+
+  val is_malloc : t -> bool
+  val malloc : t
+  val calloc : t
+end
+
+(* ZeroInit is false if malloc was used to allocate memory and true if calloc was used *)
+module ZeroInit : ZeroInit =
 struct
   include Lattice.Fake(Basetype.RawBools)
-  let name () = "no zeroinit"
+  let name () = "zeroinit"
+
+  let is_malloc x = not x
+  let malloc = false
+  let calloc = true
 end
 
 module Blob (Value: S) (Size: IntDomain.Z)=
@@ -69,7 +83,7 @@ struct
   let name () = "blob"
   type value = Value.t
   type size = Size.t
-  type origin = ZeroInit.t
+  type zeroinit = ZeroInit.t
 
   let map f (v, s, o) = f v, s, o
   let value (a, b, c) = a
@@ -334,8 +348,8 @@ struct
    * Functions for getting state out of a compound:
    ************************************************************)
 
-  (* is a cast t1 to t2 invertible, i.e., content-preserving? TODO also use abstract value? *)
-  let is_safe_cast t2 t1 = match t2, t1 with
+  (* is a cast t1 to t2 invertible, i.e., content-preserving in general? *)
+  let is_statically_safe_cast t2 t1 = match t2, t1 with
     (*| TPtr _, t -> bitsSizeOf t <= bitsSizeOf !upointType
       | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
     | TFloat (fk1,_), TFloat (fk2,_) when fk1 = fk2 -> true
@@ -352,6 +366,21 @@ struct
     | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
     | _ -> false
+
+  (* is a cast t1 to t2 invertible, i.e., content-preserving for the given value of v? *)
+  let is_dynamically_safe_cast t2 t1 v =
+    if is_statically_safe_cast t2 t1 then
+      true
+    else
+      match t2, t1, v with
+      | (TInt (ik2,_) | TEnum ({ekind=ik2; _},_)) , (TInt (ik1,_) | TEnum ({ekind=ik1; _},_)), Int v ->
+        let cl, cu = IntDomain.Size.range ik2 in
+        let l, u = ID.minimal v, ID.maximal v in
+        (match l, u with
+         | Some l, Some u when Z.leq cl l && Z.leq u cu -> true
+         | _ -> false)
+      | _ -> false
+
 
   exception CastError of string
 
@@ -846,8 +875,8 @@ struct
       end
     | _, _ ->  None
 
-  let zero_init_calloced_memory orig x t =
-    if orig then
+  let zero_init_calloced_memory zeroinit x t =
+    if ZeroInit.is_malloc zeroinit then
       (* This Blob came from malloc *)
       x
     else if x = Bot then
@@ -862,23 +891,23 @@ struct
       if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
       let r =
         match x, offs with
-        | Blob((va, _, orig) as c), `Index (_, ox) ->
+        | Blob((va, _, zeroinit) as c), `Index (_, ox) ->
           begin
             let l', o' = shift_one_over l o in
             let ev = do_eval_offset ask f (Blobs.value c) ox exp l' o' v t in
-            zero_init_calloced_memory orig ev t
+            zero_init_calloced_memory zeroinit ev t
           end
-        | Blob((va, _, orig) as c), `Field _ ->
+        | Blob((va, _, zeroinit) as c), `Field _ ->
           begin
             let l', o' = shift_one_over l o in
             let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-            zero_init_calloced_memory orig ev t
+            zero_init_calloced_memory zeroinit ev t
           end
-        | Blob((va, _, orig) as c), `NoOffset ->
+        | Blob((va, _, zeroinit) as c), `NoOffset ->
           begin
             let l', o' = shift_one_over l o in
             let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-            zero_init_calloced_memory orig ev t
+            zero_init_calloced_memory zeroinit ev t
           end
         | Bot, _ -> Bot
         | _ ->
@@ -936,24 +965,24 @@ struct
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
-      let mu = function Blob (Blob (y, s', orig), s, orig2) -> Blob (y, ID.join s s',orig) | x -> x in
+      let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, ID.join s s', zeroinit) | x -> x in
       let r =
         match x, offs with
         | Mutex, _ -> (* hide mutex structure contents, not updated anyway *)
           Mutex
-        | Blob (x,s,orig), `Index (_,ofs) ->
+        | Blob (x,s,zeroinit), `Index (_,ofs) ->
           begin
             let l', o' = shift_one_over l o in
-            let x = zero_init_calloced_memory orig x t in
-            mu (Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
+            let x = zero_init_calloced_memory zeroinit x t in
+            mu (Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, zeroinit))
           end
-        | Blob (x,s,orig), `Field(f, _) ->
+        | Blob (x,s,zeroinit), `Field(f, _) ->
           begin
             (* We only have Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
             (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
             (* consider them in VD *)
             let l', o' = shift_one_over l o in
-            let x = zero_init_calloced_memory orig x (TComp (f.fcomp, [])) in
+            let x = zero_init_calloced_memory zeroinit x (TComp (f.fcomp, [])) in
             (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
             let do_strong_update =
               match v with
@@ -962,37 +991,38 @@ struct
                 let blob_size_opt = ID.to_int s in
                 not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
-                && Option.is_some blob_size_opt (* Size of blob is known *)
-                && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+                && GobOption.exists (fun blob_size -> (* Size of blob is known *)
+                    Z.equal blob_size (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+                  ) blob_size_opt
               | _ -> false
             in
             if do_strong_update then
-              Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+              Blob ((do_update_offset ask x offs value exp l' o' v t), s, zeroinit)
             else
-              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
           end
-        | Blob (x,s,orig), _ ->
+        | Blob (x,s,zeroinit), _ ->
           begin
             let l', o' = shift_one_over l o in
-            let x = zero_init_calloced_memory orig x t in
+            let x = zero_init_calloced_memory zeroinit x t in
             (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
             let do_strong_update =
               begin match v with
                 | (Var var, _) ->
                   let blob_size_opt = ID.to_int s in
                   not @@ ask.is_multiple var
-                  && Option.is_some blob_size_opt (* Size of blob is known *)
-                  && ((
-                      not @@ Cil.isVoidType t     (* Size of value is known *)
-                      && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.alignOf_int t)
-                    ) || blob_destructive)
+                  && GobOption.exists (fun blob_size -> (* Size of blob is known *)
+                      (not @@ Cil.isVoidType t     (* Size of value is known *)
+                       && Z.equal blob_size (Z.of_int @@ Cil.alignOf_int t))
+                      || blob_destructive
+                    ) blob_size_opt
                 | _ -> false
               end
             in
             if do_strong_update then
-              Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+              Blob ((do_update_offset ask x offs value exp l' o' v t), s, zeroinit)
             else
-              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
           end
         | Thread _, _ ->
           (* hack for pthread_t variables *)
@@ -1020,7 +1050,7 @@ struct
             match offs with
             | `NoOffset -> begin
                 match value with
-                | Blob (y, s, orig) -> mu (Blob (join x y, s, orig))
+                | Blob (y, s, zeroinit) -> mu (Blob (join x y, s, zeroinit))
                 | Int _ -> cast t value
                 | _ -> value
               end
@@ -1273,7 +1303,7 @@ and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and typ
 
 and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)(ArrIdxDomain)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
+and Blobs: Blob with type size = ID.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound) (ID)
 
 
 module type InvariantArg =

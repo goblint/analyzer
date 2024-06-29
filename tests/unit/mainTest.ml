@@ -15,4 +15,6 @@ let all_tests =
     IntOpsTest.tests;
   ]
 
-let () = run_test_tt_main all_tests
+let () =
+  print_string "\027[0;1munit: \027[0;0;00m";
+  run_test_tt_main all_tests

@@ -38,7 +38,7 @@ struct
         ) ss (Invariant.top ())
   end
 
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let name () = "var_eq"
 

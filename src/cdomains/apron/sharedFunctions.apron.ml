@@ -109,7 +109,7 @@ struct
           | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
-        if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
+        if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
         res
       in
       (* recurse without env and ask arguments *)
@@ -136,8 +136,15 @@ struct
             let expr =
               (** simplify asks for a constant value of some subexpression e, similar to a constant fold. In particular but not exclusively
                   this query is answered by the 2 var equalities domain itself. This normalizes arbitrary expressions to a point where they
-                  might be able to be represented by means of 2 var equalities *)
+                  might be able to be represented by means of 2 var equalities
+
+                  This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
+                  but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
+                  mode is a stop-gap measure to avoid flagging overflows. We however should address simplification in a more generally useful way.
+                  outside of the apron-related expression conversion.
+              *)
               let simplify e =
+                GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
@@ -309,8 +316,12 @@ sig
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val hash : t -> int
-  val empty : unit -> t
   val copy : t -> t
+
+  (** empty creates a domain representation of dimension 0 *)
+  val empty : unit -> t
+
+  (** is_empty is true, if the domain representation has a dimension size of zero *)
   val is_empty : t -> bool
   val dim_add : Apron.Dim.change -> t -> t
   val dim_remove : Apron.Dim.change -> t -> del:bool-> t
@@ -345,7 +356,14 @@ struct
       match t.d with
       | None -> bot_env
       | Some m ->
-        let dim_change =
+        let dim_change = (* using Environment.dimchange with swapped parameters is not the originally inteded way for APRON dimchanges if keeping to the spec;
+                            instead, we should make use of Environment.dimchange2, which explicitely provides different format for diff arrays for adding and removing.
+                            We here however produce add_dimension format in both cases.
+                            Weirdly, affineEqualities needs an overhaul of its dim_add and dim_remove before this can be migrated to APRON standard, since it internally
+                            ironically converts from add_dimensions format into remove_dimensions format in both cases;
+                            lin2var already has the correct implementation that can handle the respective diff arrays,
+                            but as a stopgap transforms add_dimensions into remove_dimension format itself for the dim_remove case to be compatible to change_d
+                         *)
           if add then
             Environment.dimchange t.env new_env
           else

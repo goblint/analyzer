@@ -29,6 +29,7 @@ class String
   def cyan; colorize(36) end
   def white; colorize(37) end
   def bg_black; colorize(40) end # gray for me
+  def bold; colorize(1) end
   def gray; colorize("38;5;240") end
 end
 class Array
@@ -63,6 +64,7 @@ has_linux_headers = File.exist? "linux-headers" # skip kernel tests if make head
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
+quiet = ARGV.last == "-q" && ARGV.pop
 $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
@@ -85,9 +87,23 @@ elsif only == "group" then
   future = thegroup.start_with?"-"
   future = !future # why does negation above fail?
   only = nil
+  descr = " group #{thegroup}"
 else
   future = false
+  if only.nil? then
+    descr = ""
+  else
+    descr = " #{only}"
+  end
 end
+
+if cfg then
+  descr = " incremental cfg"
+elsif incremental then
+  descr = " incremental ast"
+end
+
+print "update_suite#{descr}: ".bold
 
 $testresults = File.expand_path("tests/suite_result")
 begin
@@ -608,9 +624,10 @@ doproject = lambda do |p|
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  clearline
+  clearline unless quiet
   id = "#{p.id} #{p.group}/#{p.name}"
-  print "Testing #{id}"
+  print "Testing #{id}" unless quiet
+  print "." if quiet
   begin
     Dir.mkdir(File.join($testresults, p.group)) unless Dir.exist?(File.join($testresults, p.group))
   rescue
@@ -688,7 +705,7 @@ if report then
   puts ("Results: " + theresultfile)
 end
 if $alliswell then
-  puts "No errors :)".green
+  puts "No errors :)".green unless quiet
 else
   puts "#{$failed.length} test(s) failed: #{$failed}".red
 end

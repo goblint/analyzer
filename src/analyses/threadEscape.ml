@@ -21,7 +21,7 @@ struct
 
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
-  module C = EscapeDomain.EscapedVars
+  include Analyses.ValueContexts(D)
   module V = VarinfoV
   module G = ThreadIdSet
 

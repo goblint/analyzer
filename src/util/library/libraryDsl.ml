@@ -102,3 +102,5 @@ let f = Access.{ kind = Free; deep = false; }
 let f_deep = Access.{ kind = Free; deep = true; }
 let s = Access.{ kind = Spawn; deep = false; }
 let s_deep = Access.{ kind = Spawn; deep = true; }
+let c = Access.{ kind = Spawn; deep = false; } (* TODO: Sound, but very imprecise hack for calls to function pointers given as arguments. *)
+let c_deep = Access.{ kind = Spawn; deep = true; }

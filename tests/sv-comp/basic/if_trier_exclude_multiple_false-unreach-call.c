@@ -25,5 +25,6 @@ int main()
             __VERIFIER_assert(x != 1);
         }
     }
+    // TODO: double InlineReturn edge in two first cases?
     return 0;
 }

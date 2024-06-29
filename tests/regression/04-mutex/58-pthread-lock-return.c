@@ -68,9 +68,10 @@ void *t_fun(void *arg) {
     __goblint_check(1); // reachable
   }
 
+  int reach1 = 0, reach2 = 0, reach3 = 0;
 #ifndef __APPLE__
   if (!pthread_spin_lock(&spin)) {
-    __goblint_check(1); // TODO reachable (TODO for OSX)
+    reach1 = 1;
     g_spin++; // NORACE
     pthread_spin_unlock(&spin);
   }
@@ -79,14 +80,25 @@ void *t_fun(void *arg) {
   }
 
   if (!pthread_spin_trylock(&spin)) {
-    __goblint_check(1); // TODO reachable (TODO for OSX)
+    reach2 = 1;
     g_spin++; // NORACE
     pthread_spin_unlock(&spin);
   }
   else {
-    __goblint_check(1); // TODO reachable (TODO for OSX)
+    reach3 = 1;
   }
+#else
+  // fake values so test passes on OSX
+  reach1 = 1;
+  int r;
+  if (r)
+    reach2 = 1;
+  else
+    reach3 = 1;
 #endif
+  __goblint_check(reach1); // always reached
+  __goblint_check(reach2); // UNKNOWN! (sometimes reached)
+  __goblint_check(reach3); // UNKNOWN! (sometimes reached)
 
   return NULL;
 }
