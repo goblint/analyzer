@@ -1483,7 +1483,7 @@ module CongruenceClosure = struct
         TSet.choose_opt @@ TSet.filter_map (find_successor z) term_set in
       (* find successor term -> find any  element in equivalence class that can be dereferenced *)
       match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
-      | Some successor_term -> if (not @@ predicate successor_term) then
+      | Some successor_term -> if (not @@ predicate successor_term && T.check_valid_pointer (T.to_cil successor_term)) then
           let new_cc = insert_terms new_cc [successor_term] in
           match LMap.find_opt old_rep_s new_reps with
           | Some (new_rep_s,z2) -> (* the successor already has a new representative, therefore we can just add it to the lookup map*)
