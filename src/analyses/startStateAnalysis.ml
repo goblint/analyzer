@@ -28,7 +28,7 @@ struct
 
   let ask_may_point_to (ask: Queries.ask) exp =
     match ask.f (MayPointTo exp) with
-    (* | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top() *)
+    | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top()
     | res -> res
 
   let get_value (ask: Queries.ask) exp = ask_may_point_to ask exp
