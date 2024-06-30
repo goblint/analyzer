@@ -7,6 +7,8 @@ open Pretty
 open GobApron
 open RelationDomain
 open SharedFunctions
+(* Apron/Elina selector *)
+open ApronElinaSelector
 
 module M = Messages
 
@@ -347,38 +349,12 @@ struct
     in
     A.assign_texpr_array Man.mgr d vs texpr1s None
     
-    (*
-    This is supposed to implement the same functionality as Abstract1.substitute_texpr_with
-    which for some reason doesn't seem to work correctly in elina?
-    
-    We do not use the last argument for substitute_texpr_with, so it is ignored.
 
-    This is achieved with the following steps
-    1) Create a new expression "old val-new val"
-    2) Create a new constraint "old val-new val=0" (equal to "old val = new val")
-    3) Intersect, ending up with "old val" being replaced by "new val"
-    *)
-    let substitute_texpr_with_alt man av ov nv _ =
-        (* Create expressions which are just the original and new value *)
-        let oe = Texpr1.Var ov in
-        let ne = Texpr1.to_expr nv in
-        (* Create a new expression which is "old value - new value" *)
-        let oe_min_ne = Texpr1.Binop (Texpr1.Sub, oe, ne, Texpr1.Real, Texpr1.Rnd) in
-        let oe_min_ne_expr = Texpr1.of_expr (A.env av) oe_min_ne in
-        (* Create the new constraint *)
-        let sub_constraint = Tcons1.make oe_min_ne_expr Tcons1.EQ in
-
-        (* Create a constraint array to be used by meet_tcons_array_with *)
-        let tcons_ar = Tcons1.array_make (A.env av) 1 in
-        (* Add our new constraint to the array *)
-        Tcons1.array_set tcons_ar 0 sub_constraint;
-        (* Intersect? *)
-        A.meet_tcons_array_with man av tcons_ar
 
   let substitute_exp_with ask nd v e no_ov =
     match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
-      substitute_texpr_with_alt Man.mgr nd v texpr1 None
+      ApronElinaSelector.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
       forget_vars_with nd [v]
 
