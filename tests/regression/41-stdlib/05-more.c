@@ -2,6 +2,7 @@
 #include<goblint.h>
 #include <wchar.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int g = 8;
 
