@@ -1486,13 +1486,9 @@ struct
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars ~ctx ctx.local [a'] in
-          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
-          if AD.may_be_unknown a then
-            AD.add UnknownPtr addrs' (* add unknown back *)
-          else
-            addrs'
+          [a]
+          |> reachable_vars ~ctx ctx.local
+          |> List.fold_left (AD.join) (AD.empty ())
         | Int i ->
           begin match Cilfacade.typeOf e with
             | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
