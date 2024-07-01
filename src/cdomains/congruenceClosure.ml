@@ -63,9 +63,9 @@ module T = struct
   let rec get_size_in_bits typ = match typ with
     | TArray (typ, _, _) -> (* we treat arrays like pointers *)
       get_size_in_bits (TPtr (typ,[]))
-    | TComp (compinfo, _) ->
+    (* | TComp (compinfo, _) ->
       if List.is_empty compinfo.cfields then Z.zero else
-        get_size_in_bits (List.first compinfo.cfields).ftype
+        get_size_in_bits (List.first compinfo.cfields).ftype *)
     | _ -> match Z.of_int (bitsSizeOf typ) with
       | exception GoblintCil__Cil.SizeOfError (msg,_) -> raise (UnsupportedCilExpression msg)
       | s -> s
