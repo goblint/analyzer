@@ -540,9 +540,9 @@ struct
       if not (VD.is_immediate_type t) then M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
     | Bot -> (*M.debug ~category:Analyzer "A bottom value when computing reachable addresses!";*) empty
     | Address adrs when AD.is_top adrs ->
-      M.info ~category:Unsound "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.info ~category:Unsound "Unknown address in %s has escaped." description; adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
-    | Address adrs -> AD.remove Addr.NullPtr adrs
+    | Address adrs -> adrs
     (* Unions are easy, I just ingore the type info. *)
     | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
@@ -2029,7 +2029,7 @@ struct
       collect_funargs ~ctx ~warn st exps
     else (
       let mpt e = match eval_rv_address ~ctx st e with
-        | Address a -> AD.remove NullPtr a
+        | Address a -> a
         | _ -> AD.empty ()
       in
       List.map mpt exps
