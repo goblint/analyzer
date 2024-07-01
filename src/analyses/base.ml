@@ -1737,11 +1737,9 @@ struct
       | NullPtr
       | UnknownPtr
       | StrPtr _ -> store
-    in 
-    if AD.is_empty lval then
-      st
-    else
-      AD.fold (fun addr acc -> D.join (update_one addr st) acc) lval (D.bot ())
+    in
+    assert (not @@ AD.is_empty lval);
+    AD.fold (fun addr acc -> D.join (update_one addr st) acc) lval (D.bot ())
 
   let set_many ~ctx (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
