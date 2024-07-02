@@ -6,7 +6,6 @@
     Matrices are modeled as proposed by Karr: Each variable is assigned to a column and each row represents a linear affine relationship that must hold at the corresponding program point.
     The apron environment is hereby used to organize the order of columns and variables. *)
 
-open Batteries
 open GoblintCil
 open Pretty
 module M = Messages
@@ -193,7 +192,7 @@ struct
       in
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
                 ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in
-      if String.starts_with res "+" then
+      if String.starts_with res ~prefix:"+" then
         Str.string_after res 1
       else
         res
@@ -370,7 +369,7 @@ struct
   let remove_rels_with_var x var env inplace = timing_wrap "remove_rels_with_var" (remove_rels_with_var x var env) inplace
 
   let forget_vars t vars =
-    if is_bot t || is_top_env t || List.is_empty vars then
+    if is_bot t || is_top_env t || vars = [] then
       t
     else
       let m = Option.get t.d in

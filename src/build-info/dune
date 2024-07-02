@@ -8,7 +8,6 @@
 (library
   (name goblint_build_info)
   (public_name goblint.build-info)
-  (libraries batteries.unthreaded)
   (virtual_modules dune_build_info))
 
 (rule

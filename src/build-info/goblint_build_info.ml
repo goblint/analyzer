@@ -18,7 +18,7 @@ let release_commit = "%%VCS_COMMIT_ID%%"
 (** Goblint version. *)
 let version =
   let commit = ConfigVersion.version in
-  if BatString.starts_with release_version "%" then
+  if String.starts_with release_version ~prefix:"%" then
     commit
   else (
     let commit =
