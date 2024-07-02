@@ -81,6 +81,7 @@ module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
+module StartStateAnalysis = StartStateAnalysis
 
 (** {2 Heap}
 
@@ -92,6 +93,7 @@ module Malloc_null = Malloc_null
 module MemLeak = MemLeak
 module UseAfterFree = UseAfterFree
 module MemOutOfBounds = MemOutOfBounds
+module WeaklyRelationalPointerAnalysis = WeaklyRelationalPointerAnalysis
 
 (** {2 Concurrency}
 
@@ -271,6 +273,9 @@ module AccessDomain = AccessDomain
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
 module StackDomain = StackDomain
+
+module CongruenceClosure = CongruenceClosure
+module WeaklyRelationalPointerDomain = WeaklyRelationalPointerDomain
 
 (** {2 Testing}
 
