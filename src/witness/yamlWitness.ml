@@ -220,12 +220,12 @@ struct
           in
           let lvals =
             FileCfg.Cfg.next n
-            |> BatList.enum
-            |> BatEnum.filter_map (fun (_, next_n) ->
+            |> List.to_seq
+            |> Seq.filter_map (fun (_, next_n) ->
                 match R.ask_local_node next_n MayAccessed with
                 | `Top -> None
                 | `Lifted _ as es -> Some es)
-            |> BatEnum.fold AccessDomain.EventSet.union (AccessDomain.EventSet.empty ())
+            |> Seq.fold_left AccessDomain.EventSet.union (AccessDomain.EventSet.empty ())
             |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
                 match e with
                 | {var_opt = Some var; offs_opt = Some offs; kind = Read} ->

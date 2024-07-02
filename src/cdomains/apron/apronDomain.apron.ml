@@ -295,27 +295,27 @@ struct
     (* partition assigns with supported and unsupported exps *)
     let (supported, unsupported) =
       ves
-      |> List.enum
-      |> Enum.map (Tuple2.map2 (fun e ->
+      |> List.to_seq
+      |> Seq.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp ask nd env e (Lazy.from_val no_ov) with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
-      |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
+      |> Seq.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
     (* parallel assign supported *)
     let (supported_vs, texpr1s) =
       supported
-      |> Enum.map (Tuple2.map2 Option.get)
-      |> Enum.uncombine
-      |> Tuple2.map Array.of_enum Array.of_enum
+      |> Seq.map (Tuple2.map2 Option.get)
+      |> Seq.unzip
+      |> Tuple2.map Array.of_seq Array.of_seq
     in
     A.assign_texpr_array_with Man.mgr nd supported_vs texpr1s None;
     (* forget unsupported *)
     let unsupported_vs =
       unsupported
-      |> Enum.map fst
-      |> Array.of_enum
+      |> Seq.map fst
+      |> Array.of_seq
     in
     A.forget_array_with Man.mgr nd unsupported_vs false
 
@@ -328,10 +328,10 @@ struct
     let env = A.env nd in
     let (vs, texpr1s) =
       vv's
-      |> List.enum
-      |> Enum.map (Tuple2.map2 (Texpr1.var env))
-      |> Enum.uncombine
-      |> Tuple2.map Array.of_enum Array.of_enum
+      |> List.to_seq
+      |> Seq.map (Tuple2.map2 (Texpr1.var env))
+      |> Seq.unzip
+      |> Tuple2.map Array.of_seq Array.of_seq
     in
     A.assign_texpr_array_with Man.mgr nd vs texpr1s None
 
@@ -341,9 +341,9 @@ struct
     let vs = Array.of_list vs in
     let texpr1s =
       v's
-      |> List.enum
-      |> Enum.map (Texpr1.var env)
-      |> Array.of_enum
+      |> List.to_seq
+      |> Seq.map (Texpr1.var env)
+      |> Array.of_seq
     in
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
@@ -360,27 +360,27 @@ struct
     (* partition substitutes with supported and unsupported exps *)
     let (supported, unsupported) =
       ves
-      |> List.enum
-      |> Enum.map (Tuple2.map2 (fun e ->
+      |> List.to_seq
+      |> Seq.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp ask nd env e no_ov with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
-      |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
+      |> Seq.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
     (* parallel substitute supported *)
     let (supported_vs, texpr1s) =
       supported
-      |> Enum.map (Tuple2.map2 Option.get)
-      |> Enum.uncombine
-      |> Tuple2.map Array.of_enum Array.of_enum
+      |> Seq.map (Tuple2.map2 Option.get)
+      |> Seq.unzip
+      |> Tuple2.map Array.of_seq Array.of_seq
     in
     A.substitute_texpr_array_with Man.mgr nd supported_vs texpr1s None;
     (* forget unsupported *)
     let unsupported_vs =
       unsupported
-      |> Enum.map fst
-      |> Array.of_enum
+      |> Seq.map fst
+      |> Array.of_seq
     in
     A.forget_array_with Man.mgr nd unsupported_vs false
 
@@ -550,11 +550,11 @@ struct
     (* let x = A.copy Man.mgr x in
        A.minimize Man.mgr x; *)
     let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
-    Array.enum lincons0_array
-    |> Enum.map (fun (lincons0: Lincons0.t) ->
+    Array.to_seq lincons0_array
+    |> Seq.map (fun (lincons0: Lincons0.t) ->
         Lincons1.{lincons0; env = array_env}
       )
-    |> List.of_enum
+    |> List.of_seq
 end
 
 (** With heterogeneous environments. *)
@@ -738,7 +738,7 @@ struct
           in
           let tcons1_earray: Tcons1.earray = {
             array_env = y_env;
-            tcons0_array = tcons1s |> List.enum |> Enum.map Tcons1.get_tcons0 |> Array.of_enum
+            tcons0_array = tcons1s |> List.to_seq |> Seq.map Tcons1.get_tcons0 |> Array.of_seq
           }
           in
           let w = A.widening Man.mgr x y in
