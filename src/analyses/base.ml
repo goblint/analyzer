@@ -540,9 +540,9 @@ struct
       if not (VD.is_immediate_type t) then M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
     | Bot -> (*M.debug ~category:Analyzer "A bottom value when computing reachable addresses!";*) empty
     | Address adrs when AD.is_top adrs ->
-      M.info ~category:Unsound "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.info ~category:Unsound "Unknown address in %s has escaped." description; adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
-    | Address adrs -> AD.remove Addr.NullPtr adrs
+    | Address adrs -> adrs
     (* Unions are easy, I just ingore the type info. *)
     | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
@@ -1486,13 +1486,9 @@ struct
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars ~ctx ctx.local [a'] in
-          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
-          if AD.may_be_unknown a then
-            AD.add UnknownPtr addrs' (* add unknown back *)
-          else
-            addrs'
+          [a]
+          |> reachable_vars ~ctx ctx.local
+          |> List.fold_left (AD.join) (AD.empty ())
         | Int i ->
           begin match Cilfacade.typeOf e with
             | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
@@ -1731,25 +1727,15 @@ struct
           effect_on_arrays ask with_dep
       end
     in
-    let update_one x store =
-      match Addr.to_mval x with
-      | Some x -> update_one_addr x store
-      | None -> store
-    in try
-      (* We start from the current state and an empty list of global deltas,
-       * and we assign to all the the different possible places: *)
-      let nst = AD.fold update_one lval st in
-      (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a" CPA.pretty nst; *)
-      (* If the address was definite, then we just return it. If the address
-       * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then D.join st nst else nst in
-      (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a" CPA.pretty nst; *)
-      nst
-    with
-    (* If any of the addresses are unknown, we ignore it!?! *)
-    | SetDomain.Unsupported x ->
-      (* if M.tracing then M.tracel "set" ~var:firstvar "set got an exception '%s'" x; *)
-      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
+    let update_one (x : Addr.t) store =
+      match x with
+      | Addr x -> update_one_addr x store
+      | NullPtr
+      | UnknownPtr
+      | StrPtr _ -> store
+    in
+    assert (not @@ AD.is_empty lval);
+    AD.fold (fun addr acc -> D.join (update_one addr st) acc) lval (D.bot ())
 
   let set_many ~ctx (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -2039,7 +2025,7 @@ struct
       collect_funargs ~ctx ~warn st exps
     else (
       let mpt e = match eval_rv_address ~ctx st e with
-        | Address a -> AD.remove NullPtr a
+        | Address a -> a
         | _ -> AD.empty ()
       in
       List.map mpt exps
