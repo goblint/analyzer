@@ -31,34 +31,25 @@ class checkNoBreakVisitor = object
 
 end
 
-let checkNoBreakStmt stmt =
-  let visitor = new checkNoBreakVisitor in
-  ignore @@ visitCilStmt visitor stmt
-
-let checkNoBreakBlock block =
-  let visitor = new checkNoBreakVisitor in
-  ignore @@ visitCilBlock visitor block
-
 class findBreakVisitor(compOption: exp option ref) = object
   inherit nopCilVisitor
 
   method! vstmt stmt =
     match stmt.skind with
     | Block _ -> DoChildren
-    | Break _ -> raise WrongOrMultiple
+    | Break _ -> SkipChildren
     | If (cond, t, e, _, _) ->  (
-        checkNoBreakBlock t;
         match e.bstmts with
         | [s] -> (
             match s.skind with
             | Break _ -> (
                 match !compOption with
-                | Some _ -> raise WrongOrMultiple (*more than one loop break*)
+                | Some _ -> SkipChildren (*more than one loop break*)
                 | _ -> compOption := Some cond; SkipChildren
               )
-            | _ -> checkNoBreakStmt stmt; SkipChildren
+            | _ -> SkipChildren
           )
-        | _ -> checkNoBreakStmt stmt; SkipChildren
+        | _ -> SkipChildren
       )
     | _ ->  SkipChildren
 
@@ -262,7 +253,7 @@ let fixedLoopSize loopStatement func =
   in let assignmentDifference loop var = try
          let diff = ref None in
          let visitor = new findAssignmentConstDiff(diff, var) in
-         ignore @@ visitCilStmt visitor loop;
+         ignore @@ visitCilBlock visitor loop;
          !diff
        with | WrongOrMultiple ->  None
   in
@@ -273,7 +264,8 @@ let fixedLoopSize loopStatement func =
     None
   else
     constBefore var loopStatement func >>= fun start ->
-    assignmentDifference loopStatement var >>= fun diff ->
+    (* When we find a fixed loop and its start, but cannot detect the increment within the loop, we assume the increment is 1 *)
+    let diff = Option.value (assignmentDifference (loopBody loopStatement) var) ~default:Z.one in
     Logs.debug "comparison: ";
     Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
     Logs.debug "";
@@ -353,7 +345,7 @@ let loop_unrolling_factor loopStatement func totalLoops =
       (* Unroll at least 10 times if there are only few (17?) loops *)
       let unroll_min = if totalLoops < 17 && AutoTune0.isActivated "forceLoopUnrollForFewLoops" then 10 else 0 in
       match fixedLoop with
-      | Some i -> if i * loopStats.instructions < 100 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
+      | Some i when i <= 100 -> Logs.debug "fixed loop size"; i
       | _ -> max unroll_min (targetInstructions / loopStats.instructions)
     else
       (* Don't unroll empty (= while(1){}) loops*)
