@@ -344,7 +344,7 @@
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
             "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
-            "assert"
+            "assert", "pthreadMutexType"
           ]
         },
         "path_sens": {
