@@ -26,7 +26,7 @@ module T = struct
   let hash_exp _ = 1
 
 
-  (* we store the varinfo and the Cil expression corresponding to thi term in the data type *)
+  (* we store the varinfo and the Cil expression corresponding to the term in the data type *)
   type t = (Var.t, exp) term [@@deriving eq, ord, hash]
   type v_prop = (Var.t, exp) prop [@@deriving ord, hash]
 
@@ -40,19 +40,26 @@ module T = struct
     | _, Deref _ -> -1
     | _ -> 1
 
+  let normal_form_prop = function
+    | Equal (t1,t2,z) | Nequal (t1,t2,z) ->
+      if compare t1 t2 < 0 || (compare t1 t2 = 0 && Z.geq z Z.zero) then (t1,t2,z) else
+        (t2,t1,Z.(-z))
+
   (** Two propositions are equal if they are syntactically equal
       or if one is t_1 = z + t_2 and the other t_2 = - z + t_1. *)
   let equal_v_prop p1 p2 =
-    let equivalent_triple (t1,t2,o1) (t3,t4,o2) =
-      (equal t1 t3 && equal t2 t4 && Z.equal o1 o2) ||
-      (equal t1 t4 && equal t2 t3 && Z.(equal o1 (-o2)))
-    in match p1, p2 with
-    | Equal (a,b,c), Equal (a',b',c') -> equivalent_triple (a,b,c) (a',b',c')
-    | Nequal (a,b,c), Nequal (a',b',c') -> equivalent_triple (a,b,c) (a',b',c')
+    match p1, p2 with
+    | Equal (a,b,c), Equal (a',b',c') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
+    | Nequal (a,b,c), Nequal (a',b',c') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
     | _ -> false
 
   let compare_v_prop p1 p2 =
-    if equal_v_prop p1 p2 then 0 else compare_v_prop p1 p2
+    match p1, p2 with
+    | Equal (a,b,c), Equal (a',b',c') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
+    | Nequal (a,b,c), Nequal (a',b',c') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
+    | Equal _, Nequal _ -> -1
+    | Nequal _, Equal _ -> 1
+
 
   let props_equal = List.equal equal_v_prop
 
@@ -65,6 +72,9 @@ module T = struct
   let rec get_size_in_bits typ = match typ with
     | TArray (typ, _, _) -> (* we treat arrays like pointers *)
       get_size_in_bits (TPtr (typ,[]))
+    (* | TComp (compinfo, _) ->
+       if List.is_empty compinfo.cfields then Z.zero else
+        get_size_in_bits (List.first compinfo.cfields).ftype *)
     | _ -> match Z.of_int (bitsSizeOf typ) with
       | exception GoblintCil__Cil.SizeOfError (msg,_) -> raise (UnsupportedCilExpression msg)
       | s -> s
@@ -144,19 +154,23 @@ module T = struct
     | Some typ -> get_size_in_bits typ
     | None -> Z.one
 
-  let is_array_type = function
+  let rec is_array_type = function
+    | TNamed (typinfo, _) -> is_array_type typinfo.ttype
     | TArray _ -> true
     | _ -> false
 
-  let is_struct_type = function
+  let rec is_struct_type = function
+    | TNamed (typinfo, _) -> is_struct_type typinfo.ttype
     | TComp _ -> true
     | _ -> false
 
-  let is_struct_ptr_type = function
-    | TPtr(TComp _,_) -> true
+  let rec is_struct_ptr_type = function
+    | TNamed (typinfo, _) -> is_struct_ptr_type typinfo.ttype
+    | TPtr(typ,_) -> is_struct_type typ
     | _ -> false
 
-  let is_ptr_type = function
+  let rec is_ptr_type = function
+    | TNamed (typinfo, _) -> is_ptr_type typinfo.ttype
     | TPtr _ -> true
     | _ -> false
 
@@ -224,8 +238,7 @@ module T = struct
   let to_cil_sum off cil_t =
     if Z.(equal zero off) then cil_t else
       let typ = typeOf cil_t in
-      let el_typ = type_of_element typ in
-      BinOp (PlusPI, cil_t, to_cil_constant off el_typ, typ)
+      BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
 
   let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
     | Some i -> i
@@ -1488,7 +1501,7 @@ module CongruenceClosure = struct
         TSet.choose_opt @@ TSet.filter_map (find_successor z) term_set in
       (* find successor term -> find any  element in equivalence class that can be dereferenced *)
       match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
-      | Some successor_term -> if (not @@ predicate successor_term) then
+      | Some successor_term -> if (not @@ predicate successor_term && T.check_valid_pointer (T.to_cil successor_term)) then
           let new_cc = insert_terms new_cc [successor_term] in
           match LMap.find_opt old_rep_s new_reps with
           | Some (new_rep_s,z2) -> (* the successor already has a new representative, therefore we can just add it to the lookup map*)

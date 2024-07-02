@@ -26,8 +26,12 @@ struct
   let return_varinfo = {dummyFunDec.svar with vid=(-2);vname="wrpointer__@return"}
   let is_wrpointer_ghost_variable x = x.vid < 0 && String.starts_with x.vname "wrpointer__"
 
+  let ask_may_point_to (ask: Queries.ask) exp =
+    match ask.f (MayPointTo exp) with
+    | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top()
+    | res -> res
 
-  let get_value (ask: Queries.ask) exp = ask.f (MayPointTo exp)
+  let get_value (ask: Queries.ask) exp = ask_may_point_to ask exp
 
   (** If e is a known variable, then it returns the value for this variable.
       If e is &x' for a duplicated variable x' of x, then it returns MayPointTo of &x.

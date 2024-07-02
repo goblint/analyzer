@@ -35,23 +35,34 @@ struct
     in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
         d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
-  let query_may_point_to (ask:Queries.ask) t e =
-    match T.of_cil ask e with
+  (* let query_may_point_to ctx t e =
+    if M.tracing then M.trace "wrpointer-query" "may-point-to %a!"
+        d_exp e;
+    match T.of_cil (ask_of_ctx ctx) e with
     | Some term, Some offset ->
       begin match insert t term with
         | _,None -> MayBeEqual.AD.top()
         | _,Some cc ->
-          let comp = Disequalities.comp_t cc.uf term in
-          let valid_term (t,z) =
-            T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
-          let equal_terms = List.filter valid_term comp in
-          let intersect_query_result res (term,z) =
-            let next_query = ask.f (MayPointTo (T.to_cil_sum z (T.to_cil term))) in
-            MayBeEqual.AD.meet res next_query in
-          List.fold intersect_query_result (MayBeEqual.AD.top()) equal_terms
+          let res = let comp = Disequalities.comp_t cc.uf term in
+            let valid_term (t,z) =
+              T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+            let equal_terms = List.filter valid_term comp in
+            if M.tracing then M.trace "wrpointer-query" "may-point-to %a -> equal terms: %s"
+                d_exp e (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
+            let intersect_query_result res (term,z) =
+              let next_query =
+                let ctx = {ctx with local=Some (init_cc [])} in
+                match MayBeEqual.ask_may_point_to (ask_of_ctx ctx) (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
+                | exception (T.UnsupportedCilExpression _) -> MayBeEqual.AD.top()
+                | res ->  if MayBeEqual.AD.is_bot res then MayBeEqual.AD.top() else res
+              in
+              MayBeEqual.AD.meet res next_query in
+            List.fold intersect_query_result (MayBeEqual.AD.top()) equal_terms
+          in if M.tracing then M.trace "wrpointer-query" "may-point-to %a : %a. Is bot: %b\n"
+              d_exp e MayBeEqual.AD.pretty res (MayBeEqual.AD.is_bot res); res
       end
     | _ ->
-      MayBeEqual.AD.top()
+      MayBeEqual.AD.top() *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
@@ -64,7 +75,7 @@ struct
       end
     (* TODO Invariant.
        | Queries.Invariant context -> get_normal_form context*)
-    | MayPointTo e -> query_may_point_to (ask_of_ctx ctx) ctx.local e
+    (* | MayPointTo e -> query_may_point_to ctx ctx.local e *)
     | _ -> Result.top q
 
   let assign_lval t ask lval expr =
