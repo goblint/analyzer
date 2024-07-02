@@ -57,6 +57,7 @@ module Base =
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       infl: VS.t HM.t;
       sides: VS.t HM.t;
+      sides_inv: VS.t HM.t;
       divided_side_effects: ((S.Dom.t * (int *  divided_side_phase) option) HM.t) HM.t;
       orphan_side_effects: S.Dom.t HM.t;
       rho: S.Dom.t HM.t;
@@ -77,6 +78,7 @@ module Base =
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
+      sides_inv = HM.create 10;
       divided_side_effects = HM.create (if narrow_sides then 10 else 0);
       orphan_side_effects = HM.create (if narrow_sides then 10 else 0);
       rho = HM.create 10;
@@ -127,6 +129,7 @@ module Base =
         wpoint = HM.copy data.wpoint;
         infl = HM.copy data.infl;
         sides = HM.copy data.sides;
+        sides_inv = HM.copy data.sides_inv;
         divided_side_effects = HM.copy data.divided_side_effects;
         orphan_side_effects = HM.copy data.orphan_side_effects;
         side_infl = HM.copy data.side_infl;
@@ -174,6 +177,10 @@ module Base =
       HM.iter (fun k v ->
           HM.replace sides (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.sides;
+      let sides_inv = HM.create (HM.length data.sides) in
+      HM.iter (fun k v ->
+          HM.replace sides_inv (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.sides_inv;
       let divided_side_effects = HM.create (HM.length data.divided_side_effects) in
       HM.iter (fun k v ->
           let inner_copy = HM.create (HM.length v) in
@@ -181,7 +188,7 @@ module Base =
           HM.replace divided_side_effects (S.Var.relift k) inner_copy
         ) data.divided_side_effects;
       let orphan_side_effects = HM.create (HM.length data.orphan_side_effects) in
-      HM.iter (fun k v -> 
+      HM.iter (fun k v ->
           HM.replace orphan_side_effects (S.Var.relift k) (S.Dom.relift v)
         ) data.orphan_side_effects;
       let side_infl = HM.create (HM.length data.side_infl) in
@@ -209,7 +216,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; sides_inv; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -244,6 +251,7 @@ module Base =
 
       let infl = data.infl in
       let sides = data.sides in
+      let sides_inv = data.sides_inv in
       let divided_side_effects = data.divided_side_effects in
       let orphan_side_effects = data.orphan_side_effects in
       let rho = data.rho in
@@ -274,6 +282,7 @@ module Base =
       let narrow_sides_immediate_growth = GobConfig.get_bool "solvers.td3.narrow-sides.immediate-growth" in
       let narrow_sides_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
       let narrow_sides_gas_default = if narrow_sides_gas_default < 0 then None else Some (narrow_sides_gas_default, D_Widen) in
+      let narrow_sides_eliminate_dead = GobConfig.get_bool "solvers.td3.narrow-sides.eliminate-dead" in
 
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
@@ -348,6 +357,19 @@ module Base =
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
+                      if narrow_sides_eliminate_dead then begin
+                        let prev_sides = HM.find_option sides_inv x in
+                        begin match prev_sides with
+                          | Some prev_sides -> VS.iter (fun y ->
+                              if Option.is_none @@ HM.find_option acc y then begin
+                                remove_side x y;
+                              end;
+                            ) prev_sides
+                          | None -> () end;
+                        let new_sides = ref VS.empty in
+                        HM.iter (fun y _ -> new_sides := VS.add y !new_sides) acc;
+                        HM.replace sides_inv x !new_sides;
+                      end;
                       if narrow_sides_immediate_growth && not narrow_sides_stable then
                         HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
                       else (
@@ -429,6 +451,8 @@ module Base =
             )
           )
         | _ -> ()
+      and reduce_side_narrow_gas (gas, phase) =
+        if phase = D_Widen then gas - 1, D_Narrow else (gas, phase)
       and divided_side (phase:divided_side_phase) ?(do_destabilize=true) ?x y d : bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
@@ -467,8 +491,8 @@ module Base =
                               else old_side), Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas
                 | D_Narrow ->
                   let result = S.Dom.narrow old_side d in
-                  let narrow_gas = if not @@ S.Dom.equal result old_side then 
-                      Option.map (fun (x, phase) -> if phase = D_Widen then x - 1, D_Narrow else (x, phase)) narrow_gas
+                  let narrow_gas = if not @@ S.Dom.equal result old_side then
+                      Option.map reduce_side_narrow_gas narrow_gas
                     else
                       narrow_gas
                   in
@@ -514,6 +538,32 @@ module Base =
             ) else
               false
           )
+      and remove_side x y =
+        let y_sides = HM.find_option divided_side_effects y in
+        begin match y_sides with
+          | Some y_sides ->
+            let side = HM.find_option y_sides x in
+            let recompute = begin match side with
+              | Some (_, Some gas) ->
+                HM.replace y_sides x (S.Dom.bot (), Some (reduce_side_narrow_gas gas));
+                true
+              | Some _ ->
+                HM.remove y_sides x;
+                true
+              | None -> false;
+            end in
+            if recompute then begin
+              let y_oldval = HM.find rho y in
+              let y_newval = combined_side y in
+              if not (S.Dom.equal y_newval y_oldval) then (
+                if tracing then trace "side" "value of %a changed by removed side from %a Old value: %a ## New value: %a"
+                    S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty y_oldval S.Dom.pretty y_newval;
+                HM.replace rho y y_newval;
+                destabilize y;
+              );
+            end
+          | None -> ();
+        end;
       and eq x get set =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         match Hooks.system x with
@@ -1206,7 +1256,7 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; sides_inv; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 (** TD3 with no hooks. *)

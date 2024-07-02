@@ -2379,6 +2379,12 @@
                   "description": "Limits the number of times a side-effect can switch from widening to narrowing to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
                   "type": "integer",
                   "default": -1
+                },
+                "eliminate-dead": {
+                  "title": "solvers.td3.narrow-sides.eliminate-dead",
+                  "description": "side-effects that no longer occur are narrowed with bot.",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
