@@ -300,14 +300,14 @@ struct
         | Mpqf f -> Some (Z_mlgmpidl.q_of_mpqf f)
         | _ -> raise UnsupportedScalar
     in
-    let extract_den (c:Coeff.union_5) _ =
+    let extract_den (c:Coeff.union_5) =
       match c with
       | Scalar c -> BatOption.map Q.den (frac_of_scalar c)
       | _ -> None
     in
-    let lcm_denom = ref (BatOption.default Z.one (extract_den (Linexpr1.get_cst linexpr1) ())) in
-    let lcm_coeff (c:Coeff.union_5) v =
-      match (extract_den c v) with
+    let lcm_denom = ref (BatOption.default Z.one (extract_den (Linexpr1.get_cst linexpr1))) in
+    let lcm_coeff (c:Coeff.union_5) _ =
+      match (extract_den c) with
       | Some z -> lcm_denom := Z.lcm z !lcm_denom
       | _      -> ()
     in
