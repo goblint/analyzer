@@ -807,6 +807,20 @@
                   "type": "string",
                   "enum": ["once", "fixpoint"],
                   "default": "once"
+                },
+                "int": {
+                  "title": "ana.base.invariant.int",
+                  "type": "object",
+                  "properties": {
+                    "simplify": {
+                      "title": "ana.base.invariant.int.simplify",
+                      "description": "How much to simplify int domain invariants. Value \"int\" only simplifies definite integers. Without int domain refinement \"all\" might not be maximally precise.",
+                      "type": "string",
+                      "enum": ["none", "int", "all"],
+                      "default": "all"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
               "additionalProperties": false
