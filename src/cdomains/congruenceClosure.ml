@@ -96,7 +96,7 @@ module T = struct
 
   let rec show : t -> string = function
     | Addr v -> "&" ^ Var.show v
-    | Aux (v,exp) ->  Var.show v ^ show_type exp
+    | Aux (v,exp) ->  "~" ^ Var.show v ^ show_type exp
     | Deref (Addr v, z, exp) when Z.equal z Z.zero -> Var.show v ^ show_type exp
     | Deref (t, z, exp) when Z.equal z Z.zero -> "*" ^ show t^ show_type exp
     | Deref (t, z, exp) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
@@ -112,12 +112,6 @@ module T = struct
 
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
   let rec contains_variable variables term = List.mem_cmp Var.compare (get_var term) variables
-
-  let term_of_varinfo vinfo = (*TODO is this still needed?*)
-    Deref (Addr vinfo, Z.zero, Lval (Var vinfo, NoOffset))
-
-  let aux_term_of_varinfo vinfo =
-    Aux (vinfo, Lval (Var vinfo, NoOffset))
 
   let eval_int (ask:Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
@@ -173,6 +167,15 @@ module T = struct
     | TNamed (typinfo, _) -> is_ptr_type typinfo.ttype
     | TPtr _ -> true
     | _ -> false
+
+  let aux_term_of_varinfo vinfo =
+    Aux (vinfo, Lval (Var vinfo, NoOffset))
+
+  let term_of_varinfo vinfo =
+    if is_struct_type vinfo.vtype || vinfo.vaddrof then
+      Deref (Addr vinfo, Z.zero, Lval (Var vinfo, NoOffset))
+    else
+      aux_term_of_varinfo vinfo
 
   let cil_offs_to_idx (ask: Queries.ask) offs typ =
     (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml,
@@ -351,7 +354,10 @@ module T = struct
     let res =
       match lval with
       | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
-        else of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
+        else if var.vaddrof then
+          of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
+        else
+          of_offset ask (Aux (var,Lval (Var var, NoOffset))) off var.vtype (Lval lval)
       | (Mem exp, off) ->
         begin match of_cil ask exp with
           | (Some term, offset) ->
