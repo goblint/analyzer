@@ -1495,12 +1495,20 @@ module CongruenceClosure = struct
     (* breadth-first search of reachable states *)
     let add_transition (old_rep, new_rep, z1) (new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
       let old_rep_s, old_z_s = TUF.find_no_pc cc.uf s_t in
-      let find_successor z t =
-        match SSet.deref_term t Z.(s_z-z) cc.set with
-        | exception (T.UnsupportedCilExpression _) -> None
-        | successor -> if (not @@ predicate successor) then Some successor else None in
       let find_successor_in_set (z, term_set) =
-        TSet.choose_opt @@ TSet.filter_map (find_successor z) term_set in
+        let exception Found in
+        let res = ref None in
+        try
+          TSet.iter (fun t ->
+              match SSet.deref_term t Z.(s_z-z) cc.set with
+              | exception (T.UnsupportedCilExpression _) -> ()
+              | successor -> if (not @@ predicate successor) then
+                  (res := Some successor; raise Found)
+              else
+              ()
+          ) term_set; !res
+        with Found -> !res
+      in
       (* find successor term -> find any  element in equivalence class that can be dereferenced *)
       match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
       | Some successor_term -> if (not @@ predicate successor_term && T.check_valid_pointer (T.to_cil successor_term)) then
