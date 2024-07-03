@@ -8,7 +8,7 @@ int a = 0;
 int b = 0;
 int c = 0;
 
-void f(void *) {
+void f(void *d) {
     for(int i = 0; i < 15; i++) {
       pthread_mutex_lock(&mutex);
       c = i;

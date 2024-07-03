@@ -3,7 +3,7 @@
 
 int state = 0;
 
-void *thread(void *) {
+void *thread(void *d) {
     while (1) {
         int input;
         int next_state;

@@ -7,7 +7,7 @@
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int a = 0;
 int b = 0;
-void* g(void *) {
+void* g(void *d) {
     pthread_mutex_lock(&mutex);
     b = a + 1;
     pthread_mutex_unlock(&mutex);
@@ -15,7 +15,7 @@ void* g(void *) {
 }
 
 
-void* f(void *) {
+void* f(void *d) {
     pthread_mutex_lock(&mutex);
     a = b + 1;
     pthread_mutex_unlock(&mutex);

@@ -5,7 +5,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int glob = 0;
 int glob2 = 0;
 
-void *thread(void *) {    
+void *thread(void *d) {    
     for(int i = 0; i < 10; i++) {
         pthread_mutex_lock(&mutex);
         glob = i;

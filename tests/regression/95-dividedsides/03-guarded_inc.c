@@ -6,7 +6,7 @@
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int a = 0;
 
-void f(void *) {
+void f(void *d) {
     pthread_mutex_lock(&mutex);
     if (a < 10)
         a++;

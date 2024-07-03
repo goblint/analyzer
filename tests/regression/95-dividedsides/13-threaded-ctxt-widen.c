@@ -5,7 +5,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int glob = 0;
 int glob2 = 0;
 
-void *thread(void *) {    
+void *thread(void *d) {    
     f(10);
     return NULL;
 }
@@ -19,7 +19,7 @@ void f(int i) {
     }
 }
 
-void *thread2(void *) {
+void *thread2(void *d) {
     g(10);
     return NULL;
 }
