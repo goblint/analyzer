@@ -57,7 +57,7 @@ module Base =
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       infl: VS.t HM.t;
       sides: VS.t HM.t;
-      sides_inv: VS.t HM.t;
+      prev_sides: VS.t HM.t;
       divided_side_effects: ((S.Dom.t * (int *  divided_side_phase) option) HM.t) HM.t;
       orphan_side_effects: S.Dom.t HM.t;
       rho: S.Dom.t HM.t;
@@ -78,7 +78,7 @@ module Base =
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
-      sides_inv = HM.create 10;
+      prev_sides = HM.create 10;
       divided_side_effects = HM.create (if narrow_sides then 10 else 0);
       orphan_side_effects = HM.create (if narrow_sides then 10 else 0);
       rho = HM.create 10;
@@ -129,8 +129,8 @@ module Base =
         wpoint = HM.copy data.wpoint;
         infl = HM.copy data.infl;
         sides = HM.copy data.sides;
-        sides_inv = HM.copy data.sides_inv;
-        divided_side_effects = HM.copy data.divided_side_effects;
+        prev_sides = HM.copy data.prev_sides;
+        divided_side_effects = HM.map (fun k v -> HM.copy v) data.divided_side_effects;
         orphan_side_effects = HM.copy data.orphan_side_effects;
         side_infl = HM.copy data.side_infl;
         side_dep = HM.copy data.side_dep;
@@ -177,10 +177,10 @@ module Base =
       HM.iter (fun k v ->
           HM.replace sides (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.sides;
-      let sides_inv = HM.create (HM.length data.sides) in
+      let prev_sides = HM.create (HM.length data.prev_sides) in
       HM.iter (fun k v ->
-          HM.replace sides_inv (S.Var.relift k) (VS.map S.Var.relift v)
-        ) data.sides_inv;
+          HM.replace prev_sides (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.prev_sides;
       let divided_side_effects = HM.create (HM.length data.divided_side_effects) in
       HM.iter (fun k v ->
           let inner_copy = HM.create (HM.length v) in
@@ -216,7 +216,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; sides_inv; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; prev_sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -251,7 +251,7 @@ module Base =
 
       let infl = data.infl in
       let sides = data.sides in
-      let sides_inv = data.sides_inv in
+      let prev_sides = data.prev_sides in
       let divided_side_effects = data.divided_side_effects in
       let orphan_side_effects = data.orphan_side_effects in
       let rho = data.rho in
@@ -358,17 +358,19 @@ module Base =
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
                       if narrow_sides_eliminate_dead then begin
-                        let prev_sides = HM.find_option sides_inv x in
-                        begin match prev_sides with
-                          | Some prev_sides -> VS.iter (fun y ->
+                        let prev_sides_x = HM.find_option prev_sides x in
+                        begin match prev_sides_x with
+                          | Some prev_sides_x -> VS.iter (fun y ->
                               if Option.is_none @@ HM.find_option acc y then begin
-                                remove_side x y;
+                                if remove_side x y then
+                                  let casualties = S.postmortem y in
+                                  List.iter (fun x -> solve x Widen) casualties
                               end;
-                            ) prev_sides
+                            ) prev_sides_x
                           | None -> () end;
                         let new_sides = ref VS.empty in
                         HM.iter (fun y _ -> new_sides := VS.add y !new_sides) acc;
-                        HM.replace sides_inv x !new_sides;
+                        HM.replace prev_sides x !new_sides;
                       end;
                       if narrow_sides_immediate_growth && not narrow_sides_stable then
                         HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
@@ -538,7 +540,8 @@ module Base =
             ) else
               false
           )
-      and remove_side x y =
+      (* removes a side-effect and returns whether the global is now bot *)
+      and remove_side x y: bool =
         let y_sides = HM.find_option divided_side_effects y in
         begin match y_sides with
           | Some y_sides ->
@@ -560,9 +563,10 @@ module Base =
                     S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty y_oldval S.Dom.pretty y_newval;
                 HM.replace rho y y_newval;
                 destabilize y;
-              );
-            end
-          | None -> ();
+                S.Dom.is_bot y_newval
+              ) else false
+            end else false
+          | None -> false
         end;
       and eq x get set =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
@@ -1256,7 +1260,7 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; sides_inv; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; prev_sides; divided_side_effects; orphan_side_effects; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 (** TD3 with no hooks. *)
