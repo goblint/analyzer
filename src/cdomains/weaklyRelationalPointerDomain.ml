@@ -105,6 +105,9 @@ module D = struct
   let name () = "wrpointer"
 
   let equal x y =
+    if x == y then
+      true
+    else
     let res = match x, y with
       | Some x, Some y ->
         (T.props_equal (get_normal_form x) (get_normal_form y))
