@@ -998,6 +998,15 @@ module CongruenceClosure = struct
 
     let subterms_of_conj list = List.fold_left subterms_of_prop (TSet.empty, LMap.empty) list
 
+    let fold_atoms f (acc:'a) set:'a =
+      let exception AtomsDone in
+      let res = ref acc in
+      try
+        TSet.fold (fun (v:T.t) acc -> match v with
+            | Addr _ -> f acc v
+            | _ -> res := acc; raise AtomsDone) set acc
+      with AtomsDone -> !res
+
     let get_atoms set =
       (* `elements set` returns a sorted list of the elements. The atoms are always smaller that other terms,
          according to our comparison function. Therefore take_while is enough. *)
@@ -1481,7 +1490,7 @@ module CongruenceClosure = struct
       (new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
     in
     let new_reps, new_cc, reachable_old_reps =
-      List.fold add_atom (TMap.empty, (Some(init_cc [])),[]) (List.filter (not % predicate) @@ SSet.get_atoms cc.set) in
+      SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (TMap.empty, (Some(init_cc [])),[]) cc.set in
     let cmap = Disequalities.comp_map cc.uf in
     (* breadth-first search of reachable states *)
     let add_transition (old_rep, new_rep, z1) (new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
