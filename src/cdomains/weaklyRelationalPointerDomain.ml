@@ -126,6 +126,9 @@ module D = struct
                       | Some cc -> TUF.is_empty cc.uf
 
   let join a b =
+    if  a == b then
+      a
+    else
     let res =
       match a,b with
       | None, b -> b
