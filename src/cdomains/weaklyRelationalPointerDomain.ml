@@ -108,14 +108,14 @@ module D = struct
     if x == y then
       true
     else
-    let res = match x, y with
-      | Some x, Some y ->
-        (T.props_equal (get_normal_form x) (get_normal_form y))
-      | None, None -> true
-      | _ -> false
-    in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
+      let res = match x, y with
+        | Some x, Some y ->
+          (T.props_equal (get_normal_form x) (get_normal_form y))
+        | None, None -> true
+        | _ -> false
+      in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
-  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty; diseq = Disequalities.empty; bldis=BlDis.empty}
+  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
 
   let init () = init_congruence []
 
@@ -129,16 +129,18 @@ module D = struct
     if  a == b then
       a
     else
-    let res =
-      match a,b with
-      | None, b -> b
-      | a, None -> a
-      | Some a, Some b -> let cc = fst(join_eq a b)
-        in join_neq a.diseq b.diseq a b cc
-    in
-    if M.tracing then M.tracel "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\nJOIN: %s\n"
-        (show a) (show b) (show res);
-    res
+      let res =
+        match a,b with
+        | None, b -> b
+        | a, None -> a
+        | Some a, Some b -> let cc = fst(join_eq a b) in
+          let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+          in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
+          Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
+      in
+      if M.tracing then M.tracel "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\nJOIN: %s\n"
+          (show a) (show b) (show res);
+      res
 
   let widen a b = if M.tracing then M.trace "wrpointer-join" "WIDEN\n";join a b
 
@@ -146,12 +148,12 @@ module D = struct
     if a == b then
       a
     else
-    match a,b with
-    | None, _ -> None
-    | _, None -> None
-    | Some a, b ->
-      let a_conj = get_normal_form a in
-      meet_conjs_opt a_conj b
+      match a,b with
+      | None, _ -> None
+      | _, None -> None
+      | Some a, b ->
+        let a_conj = get_normal_form a in
+        meet_conjs_opt a_conj b
 
   let leq x y = equal (meet x y) x
 
