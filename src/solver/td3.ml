@@ -362,7 +362,8 @@ module Base =
                         begin match prev_sides_x with
                           | Some prev_sides_x -> VS.iter (fun y ->
                               if Option.is_none @@ HM.find_option acc y then begin
-                                if remove_side x y then
+                                ignore @@ divided_side D_Narrow ~x y (S.Dom.bot ());
+                                if S.Dom.is_bot @@ HM.find rho y then
                                   let casualties = S.postmortem y in
                                   List.iter (fun x -> solve x Widen) casualties
                               end;
@@ -492,7 +493,11 @@ module Base =
                                   S.Dom.widen old_side (S.Dom.join old_side d)), Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas
                               else old_side, narrow_gas)
                 | D_Narrow ->
-                  let result = S.Dom.narrow old_side d in
+                  (* TODO: This manual "narrowing" to bot is not nice!
+                     Also, it could break analyses that rely on non-identity addons to values,
+                     like wideningThresholds. Remove this, once domains are fixed so narrowing
+                     with bottom produces bottom. *)
+                  let result = if S.Dom.is_bot d then d else S.Dom.narrow old_side d in
                   let narrow_gas = if not @@ S.Dom.equal result old_side then
                       Option.map reduce_side_narrow_gas narrow_gas
                     else
@@ -505,7 +510,10 @@ module Base =
               if not (S.Dom.equal old_side new_side) then (
                 if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_phase phase) S.Dom.pretty old_side S.Dom.pretty new_side;
 
-                HM.replace y_sides x (new_side, narrow_gas);
+                if S.Dom.is_bot new_side && narrow_gas = None then
+                  HM.remove y_sides x
+                else
+                  HM.replace y_sides x (new_side, narrow_gas);
                 let y_oldval = HM.find rho y in
                 let y_newval = if S.Dom.leq old_side new_side then
                     (* If new side is strictly greater than the old one, the value of y can only increase. *)
@@ -540,34 +548,6 @@ module Base =
             ) else
               false
           )
-      (* removes a side-effect and returns whether the global is now bot *)
-      and remove_side x y: bool =
-        let y_sides = HM.find_option divided_side_effects y in
-        begin match y_sides with
-          | Some y_sides ->
-            let side = HM.find_option y_sides x in
-            let recompute = begin match side with
-              | Some (_, Some gas) ->
-                HM.replace y_sides x (S.Dom.bot (), Some (reduce_side_narrow_gas gas));
-                true
-              | Some _ ->
-                HM.remove y_sides x;
-                true
-              | None -> false;
-            end in
-            if recompute then begin
-              let y_oldval = HM.find rho y in
-              let y_newval = combined_side y in
-              if not (S.Dom.equal y_newval y_oldval) then (
-                if tracing then trace "side" "value of %a changed by removed side from %a Old value: %a ## New value: %a"
-                    S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty y_oldval S.Dom.pretty y_newval;
-                HM.replace rho y y_newval;
-                destabilize y;
-                S.Dom.is_bot y_newval
-              ) else false
-            end else false
-          | None -> false
-        end;
       and eq x get set =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         match Hooks.system x with
