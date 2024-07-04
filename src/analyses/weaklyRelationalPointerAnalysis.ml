@@ -80,17 +80,19 @@ struct
 
   let assign_lval t ask lval expr =
     (* ignore assignments to values that are not 64 bits *) (*TODO what if there is a cast*)
-    match T.get_element_size_in_bits (typeOfLval lval), T.of_lval ask lval, T.of_cil ask expr with
+    let lval_t = typeOfLval lval in
+    match T.get_element_size_in_bits lval_t, T.of_lval ask lval, T.of_cil ask expr with
     (* Indefinite assignment *)
     | s, lterm, (None, _) -> D.remove_may_equal_terms ask s lterm t
     (* Definite assignment *)
     | s, lterm, (Some term, Some offset) ->
       let dummy_var = MayBeEqual.dummy_var (typeOfLval lval) in
+      let dummy_var = MayBeEqual.dummy_var lval_t in
       if M.tracing then M.trace "wrpointer-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
       t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo (typeOfLval lval)
+      D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo lval_t
     | exception (T.UnsupportedCilExpression _) -> D.top ()
     (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
        We have to forget all the information we had.

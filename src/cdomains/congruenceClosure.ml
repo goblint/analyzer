@@ -1002,6 +1002,15 @@ module CongruenceClosure = struct
 
     let subterms_of_conj list = List.fold_left subterms_of_prop (TSet.empty, LMap.empty) list
 
+    let fold_atoms f (acc:'a) set:'a =
+      let exception AtomsDone in
+      let res = ref acc in
+      try
+        TSet.fold (fun (v:T.t) acc -> match v with
+            | Addr _ -> f acc v
+            | _ -> res := acc; raise AtomsDone) set acc
+      with AtomsDone -> !res
+
     let get_atoms set =
       (* `elements set` returns a sorted list of the elements. The atoms are always smaller that other terms,
          according to our comparison function. Therefore take_while is enough. *)
@@ -1485,17 +1494,25 @@ module CongruenceClosure = struct
       (new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
     in
     let new_reps, new_cc, reachable_old_reps =
-      List.fold add_atom (TMap.empty, (Some(init_cc [])),[]) (List.filter (not % predicate) @@ SSet.get_atoms cc.set) in
+      SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (TMap.empty, (Some(init_cc [])),[]) cc.set in
     let cmap = Disequalities.comp_map cc.uf in
     (* breadth-first search of reachable states *)
     let add_transition (old_rep, new_rep, z1) (new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
       let old_rep_s, old_z_s = TUF.find_no_pc cc.uf s_t in
-      let find_successor z t =
-        match SSet.deref_term t Z.(s_z-z) cc.set with
-        | exception (T.UnsupportedCilExpression _) -> None
-        | successor -> if (not @@ predicate successor) then Some successor else None in
       let find_successor_in_set (z, term_set) =
-        TSet.choose_opt @@ TSet.filter_map (find_successor z) term_set in
+        let exception Found in
+        let res = ref None in
+        try
+          TSet.iter (fun t ->
+              match SSet.deref_term t Z.(s_z-z) cc.set with
+              | exception (T.UnsupportedCilExpression _) -> ()
+              | successor -> if (not @@ predicate successor) then
+                  (res := Some successor; raise Found)
+              else
+              ()
+          ) term_set; !res
+        with Found -> !res
+      in
       (* find successor term -> find any  element in equivalence class that can be dereferenced *)
       match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
       | Some successor_term -> if (not @@ predicate successor_term && T.check_valid_pointer (T.to_cil successor_term)) then

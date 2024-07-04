@@ -105,6 +105,9 @@ module D = struct
   let name () = "wrpointer"
 
   let equal x y =
+    if x == y then
+      true
+    else
     let res = match x, y with
       | Some x, Some y ->
         (T.props_equal (get_normal_form x) (get_normal_form y))
@@ -123,6 +126,9 @@ module D = struct
                       | Some cc -> TUF.is_empty cc.uf
 
   let join a b =
+    if  a == b then
+      a
+    else
     let res =
       match a,b with
       | None, b -> b
@@ -136,7 +142,11 @@ module D = struct
 
   let widen a b = if M.tracing then M.trace "wrpointer-join" "WIDEN\n";join a b
 
-  let meet a b = match a,b with
+  let meet a b =
+    if a == b then
+      a
+    else
+    match a,b with
     | None, _ -> None
     | _, None -> None
     | Some a, b ->
