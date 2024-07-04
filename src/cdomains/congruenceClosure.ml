@@ -1117,6 +1117,7 @@ module CongruenceClosure = struct
 
     let bindings = TMap.bindings
     let find = TMap.find
+    let find_opt = TMap.find_opt
     let add = TMap.add
     let remove = TMap.remove
     let mem = TMap.mem
@@ -1273,7 +1274,23 @@ module CongruenceClosure = struct
     if M.tracing then M.trace "wrpointer-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep cc.min_repr) (LMap.show_map cc.map);
     let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
     (* block disequalities *)
-    let conjunctions_of_bl_diseqs = BlDis.to_conjs cc.bldis in
+    let normalize_bldis t = match t with
+      | BlNequal (t1,t2) ->
+        let min_state1 =
+          begin match MRMap.find_opt t1 cc.min_repr with
+            | None -> t1
+            | Some (a,_) -> a
+          end in
+        let min_state2 =
+          begin match MRMap.find_opt t2 cc.min_repr with
+            | None -> t2
+            | Some (a,_) -> a
+          end in
+        if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
+        else BlNequal (min_state2, min_state1)
+      | _ -> t
+    in
+    let conjunctions_of_bl_diseqs = List.map normalize_bldis @@ BlDis.to_conjs cc.bldis in
     (* all propositions *)
     BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs)
 
@@ -1289,6 +1306,8 @@ module CongruenceClosure = struct
                    ^ (MRMap.show_min_rep x.min_repr)
                    ^ "\nNeq:\n"
                    ^ (Disequalities.show_neq x.diseq)
+                   ^ "\nBlock diseqs:\n"
+                   ^ show_conj(BlDis.to_conjs x.bldis)
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
       and the second one contains all inequality propositions.  *)
