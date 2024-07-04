@@ -611,7 +611,7 @@ module UnionFind = struct
 
      returns v,uf,b where
 
-     - `v` is the new reference variable of the merged equivalence class. It is either the old reference variable of v1 or of v2, depending on which equivalence class is bigger.
+     - `v` is the new reference term of the merged equivalence class. It is either the old reference term of v1 or of v2, depending on which equivalence class is bigger.
 
      - `uf` is the new union find data structure
 
@@ -1387,23 +1387,27 @@ module CongruenceClosure = struct
      `queue` is a list of equivalence classes (represented by their representative) that have a new representative after the execution of this function.
      It can be given as a parameter to `update_min_repr` in order to update the representatives in the representative map.
 
+     `new_repr` -> maps each representative to its new representative after the union
+
      Throws "Unsat" if a contradiction is found.
   *)
-  let rec closure (uf, map, min_repr) queue = function
-    | [] -> (uf, map, queue, min_repr)
+  let rec closure (uf, map, min_repr, new_repr) queue = function
+    | [] -> (uf, map, queue, min_repr, new_repr)
     | (t1, t2, r)::rest ->
       (let v1, r1, uf = TUF.find uf t1 in
        let v2, r2, uf = TUF.find uf t2 in
        let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
        if not (Z.equal sizet1 sizet2) then
          (if M.tracing then M.trace "wrpointer" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
-          closure (uf, map, min_repr) queue rest) else
+          closure (uf, map, min_repr, new_repr) queue rest) else
        if T.equal v1 v2 then
          (* t1 and t2 are in the same equivalence class *)
-         if Z.equal r1 Z.(r2 + r) then closure (uf, map, min_repr) queue rest
+         if Z.equal r1 Z.(r2 + r) then closure (uf, map, min_repr, new_repr) queue rest
          else raise Unsat
        else let diff_r = Z.(r2 - r1 + r) in
          let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
+         (* update new_representative *)
+         let new_repr = if T.equal v v1 then TMap.add v2 v new_repr else TMap.add v1 v new_repr in
          (* update map *)
          let map, rest = match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
            | None, _, false -> map, rest
@@ -1441,15 +1445,30 @@ module CongruenceClosure = struct
          let removed_v = if b then v2 else v1 in
          let min_repr = MRMap.remove removed_v (if changed then MRMap.add v new_min min_repr else min_repr) in
          let queue = v :: queue in
-         closure (uf, map, min_repr) queue rest
+         closure (uf, map, min_repr, new_repr) queue rest
       )
+
+  let update_bldis  new_repr bldis=
+    (* update block disequalities with the new representatives *)
+    let find_new_root t1 = match TMap.find_opt t1 new_repr with
+      | None -> t1
+      | Some v -> v
+    in
+    let disequalities = BlDis.to_conj bldis
+    in (*TODO maybe optimize?, and maybe use this also for removing terms *)
+    let add_bl_dis new_diseq = function
+      | BlNequal (t1,t2) ->BlDis.add_block_diseq new_diseq (find_new_root t1,find_new_root t2)
+      | _-> new_diseq
+    in
+    List.fold add_bl_dis BlDis.empty disequalities
 
   let closure_no_min_repr cc conjs =
     match cc with
     | None -> None
     | Some cc ->
-      let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
-      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=cc.bldis} []
+      let (uf, map, queue, min_repr, new_repr) = closure (cc.uf, cc.map, cc.min_repr, TMap.empty) [] conjs in
+      let bldis = update_bldis new_repr cc.bldis in
+      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=bldis} []
 
   (**
      Parameters: cc conjunctions.
@@ -1470,11 +1489,12 @@ module CongruenceClosure = struct
     match cc with
     | None -> None
     | Some cc ->
-      let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
+      let (uf, map, queue, min_repr, new_repr) = closure (cc.uf, cc.map, cc.min_repr, TMap.empty) [] conjs in
+      let bldis = update_bldis new_repr cc.bldis in
       (* let min_repr, uf = MRMap.update_min_repr (uf, cc.set, map) min_repr queue in *)
       let min_repr, uf = MRMap.compute_minimal_representatives (uf, cc.set, map) in
       if M.tracing then M.trace "wrpointer" "closure minrepr: %s\n" (MRMap.show_min_rep min_repr);
-      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=cc.bldis} []
+      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=bldis} []
 
   (** Throws Unsat if the congruence is unsatisfiable.*)
   let init_congruence conj =
@@ -1598,6 +1618,8 @@ module CongruenceClosure = struct
       closure cc pos_conjs
     in if M.tracing then M.trace "wrpointer-meet" "MEET_CONJS RESULT: %s\n" (Option.map_default (fun res -> show_conj (get_normal_form res)) "None" res);res
 
+  (** This does not add any block disequality that may be in conjs
+      (because we never add them using this function)*)
   let meet_conjs_opt conjs cc =
     let pos_conjs, neg_conjs = split conjs in
     match insert_set (meet_conjs cc pos_conjs) (fst (SSet.subterms_of_conj neg_conjs)) with
