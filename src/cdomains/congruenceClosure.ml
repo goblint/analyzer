@@ -272,27 +272,29 @@ module T = struct
 
   let dereference_exp exp offset =
     if M.tracing then M.trace "wrpointer-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
-    let res = let find_field cinfo = try
-        Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset)
-      with | Not_found -> raise (UnsupportedCilExpression "invalid field offset")
-    in
-    let res = match exp with
-      | AddrOf lval -> Lval lval
-      | _ ->
-        match typeOf exp with
-        | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
-        | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
-        | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
-          let index = Index (to_cil_constant offset (Some typ), NoOffset) in
-          begin match exp with
-            | Lval (Var v, NoOffset) ->  Lval (Var v, index)
-            | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
-            | _ -> raise (UnsupportedCilExpression "not supported yet")
-          end
-        | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
-        | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
-    in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
-  in if M.tracing then M.trace "wrpointer-deref" "deref result: %a" d_exp res;res
+    let res =
+      let find_field cinfo =
+        try
+          Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset)
+        with | Not_found -> raise (UnsupportedCilExpression "invalid field offset")
+      in
+      let res = match exp with
+        | AddrOf lval -> Lval lval
+        | _ ->
+          match typeOf exp with
+          | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
+          | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
+          | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
+            let index = Index (to_cil_constant offset (Some typ), NoOffset) in
+            begin match exp with
+              | Lval (Var v, NoOffset) ->  Lval (Var v, index)
+              | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
+              | _ -> raise (UnsupportedCilExpression "not supported yet")
+            end
+          | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
+          | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
+      in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
+    in if M.tracing then M.trace "wrpointer-deref" "deref result: %a" d_exp res;res
 
   let get_size = get_size_in_bits % type_of_term
 
@@ -1508,9 +1510,9 @@ module CongruenceClosure = struct
               | exception (T.UnsupportedCilExpression _) -> ()
               | successor -> if (not @@ predicate successor) then
                   (res := Some successor; raise Found)
-              else
-              ()
-          ) term_set; !res
+                else
+                  ()
+            ) term_set; !res
         with Found -> !res
       in
       (* find successor term -> find any  element in equivalence class that can be dereferenced *)
