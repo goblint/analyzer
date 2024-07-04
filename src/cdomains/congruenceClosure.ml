@@ -243,7 +243,7 @@ module T = struct
     | _ -> false
 
   let rec add_index_to_exp exp index =
-    try if is_struct_type (typeOf exp) || not (is_field index) then
+    try if is_struct_type (typeOf exp) = (is_field index) then
         begin match exp with
           | Lval (Var v, NoOffset) -> Lval (Var v, index)
           | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
@@ -251,6 +251,8 @@ module T = struct
             add_index_to_exp exp1 index
           | _ -> raise (UnsupportedCilExpression "not supported yet")
         end
+      else if is_struct_ptr_type (typeOf exp) && (is_field index) then
+        Lval(Mem (exp), index)
       else raise (UnsupportedCilExpression "Field on a non-compound")
     with | Cilfacade.TypeOfError _ -> raise (UnsupportedCilExpression "typeOf error")
 
@@ -269,7 +271,8 @@ module T = struct
     List.filter (function | Equal(t1,t2,z)| Nequal(t1,t2,z) -> check_valid_pointer (to_cil t1) && check_valid_pointer (to_cil t2))
 
   let dereference_exp exp offset =
-    let find_field cinfo = try
+    if M.tracing then M.trace "wrpointer-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
+    let res = let find_field cinfo = try
         Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset)
       with | Not_found -> raise (UnsupportedCilExpression "invalid field offset")
     in
@@ -289,6 +292,7 @@ module T = struct
         | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
         | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
     in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
+  in if M.tracing then M.trace "wrpointer-deref" "deref result: %a" d_exp res;res
 
   let get_size = get_size_in_bits % type_of_term
 
