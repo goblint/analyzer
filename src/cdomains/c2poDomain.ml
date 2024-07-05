@@ -675,10 +675,7 @@ module CongruenceClosure = struct
 
   (** Add a term to the data structure.
 
-      Returns (reference variable, offset), updated (uf, set, map, min_repr),
-      and queue, that needs to be passed as a parameter to `update_min_repr`.
-
-      `queue` is a list which contains all atoms that are present as subterms of t and that are not already present in the data structure. *)
+      Returns (reference variable, offset), updated congruence closure *)
   let rec insert cc t =
     if SSet.mem t cc.set then
       let v,z,uf = TUF.find cc.uf t in
@@ -703,7 +700,7 @@ module CongruenceClosure = struct
 
   (** Add a term to the data structure.
 
-        Returns (reference variable, offset), updated (uf, set, map, min_repr) *)
+        Returns (reference variable, offset), updated congruence closure *)
   let insert cc t =
     match cc with
     | None -> (t, Z.zero), None
@@ -926,40 +923,21 @@ module CongruenceClosure = struct
     List.fold_left (fun s ((r1,r2,z1),(t,z2)) ->
         s ^ ";; " ^ "("^T.show r1^","^T.show r2 ^ ","^Z.to_string z1^") --> ("^ T.show t ^ Z.to_string z2 ^ ")") ""(Map.bindings pmap)
 
+  (** Here we do the join without using the automata, because apparently
+      we don't want to describe the automaton in the paper...*)
   let join_eq cc1 cc2 =
-    let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
+    let terms = SSet.union cc1.set cc2.set in
+    let cc1, cc2 = Option.get (insert_set (Some cc1) cc2.set), Option.get (insert_set (Some cc2) cc1.set) in
     let mappings = List.map
         (fun a -> let r1, off1 = TUF.find_no_pc cc1.uf a in
           let r2, off2 = TUF.find_no_pc cc2.uf a in
-          (r1,r2,Z.(off2 - off1)), (a,off1)) atoms in
-    let add_term (pmap, cc, new_pairs) (new_element, (new_term, a_off)) =
+          (r1,r2,Z.(off2 - off1)), (a,off1)) (SSet.to_list terms) in
+    let add_term (cc, pmap) (new_element, (new_term, a_off)) =
       match Map.find_opt new_element pmap with
-      | None -> Map.add new_element (new_term, a_off) pmap, cc, new_element::new_pairs
+      | None -> cc, Map.add new_element (new_term, a_off) pmap
       | Some (c, c1_off) ->
-        pmap, add_eq cc (new_term, c, Z.(-c1_off + a_off)),new_pairs in
-    let pmap,cc,working_set = List.fold_left add_term (Map.empty, Some (init_cc []),[]) mappings in
-    (* add equalities that make sure that all atoms that have the same
-       representative are equal. *)
-    let add_one_edge y t t1_off diff (pmap, cc, new_pairs) (offset, a) =
-      let a', a_off = TUF.find_no_pc cc1.uf a in
-      match LMap.map_find_opt (y, Z.(diff + offset)) cc2.map with
-      | None -> pmap,cc,new_pairs
-      | Some b -> let b', b_off = TUF.find_no_pc cc2.uf b in
-        match SSet.deref_term t Z.(offset - t1_off) cc1.set with
-        | exception (T.UnsupportedCilExpression _) -> pmap,cc,new_pairs
-        | new_term ->
-          let _ , cc = insert cc new_term in
-          let new_element = a',b',Z.(b_off - a_off) in
-          add_term (pmap, cc, new_pairs) (new_element, (new_term, a_off))
-    in
-    let rec add_edges_to_map pmap cc = function
-      | [] -> cc, pmap
-      | (x,y,diff)::rest ->
-        let t,t1_off = Map.find (x,y,diff) pmap in
-        let pmap,cc,new_pairs = List.fold_left (add_one_edge y t t1_off diff) (pmap, cc, []) (LMap.successors x cc1.map) in
-        add_edges_to_map pmap cc (rest@new_pairs)
-    in
-    add_edges_to_map pmap cc working_set
+        add_eq cc (new_term, c, Z.(-c1_off + a_off)), pmap in
+    List.fold_left add_term (Some (init_cc []), Map.empty) mappings
 
   (** Joins the disequalities diseq1 and diseq2, given a congruence closure data structure. *)
   let join_neq diseq1 diseq2 cc1 cc2 cc cmap1 cmap2 =
@@ -1103,15 +1081,11 @@ module D = struct
 
   let name () = "c2po"
 
-  let equal x y =
+  let equal x y = (*TODO*)
     if x == y then
       true
     else
-      let res = match x, y with
-        | Some x, Some y ->
-          (T.props_equal (get_normal_form x) (get_normal_form y))
-        | None, None -> true
-        | _ -> false
+      let res = true
       in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
   let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
