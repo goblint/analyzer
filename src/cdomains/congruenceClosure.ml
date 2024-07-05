@@ -30,7 +30,7 @@ module T = struct
 
   (* we store the varinfo and the Cil expression corresponding to the term in the data type *)
   type t = (Var.t, exp) term [@@deriving eq, ord, hash]
-  type v_prop = (Var.t, exp) prop [@@deriving ord, hash]
+  type v_prop = (Var.t, exp) prop [@@deriving hash]
 
   let compare t1 t2 =
     match t1,t2 with
@@ -119,7 +119,7 @@ module T = struct
     | Deref (t, _, _) -> get_var t
 
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
-  let rec contains_variable variables term = List.mem_cmp Var.compare (get_var term) variables
+  let contains_variable variables term = List.mem_cmp Var.compare (get_var term) variables
 
   let eval_int (ask:Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
@@ -151,7 +151,7 @@ module T = struct
   (** Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the size of the
       elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int\[]\[]\[] = sizeof(int)). *)
-  let rec get_element_size_in_bits typ =
+  let get_element_size_in_bits typ =
     match type_of_element typ with
     | Some typ -> get_size_in_bits typ
     | None -> Z.one
@@ -225,7 +225,7 @@ module T = struct
     | TPtr _| TArray _| TComp _ -> true
     | _ -> false
 
-  let rec type_of_term =
+  let type_of_term =
     function
     | Addr v -> TPtr (v.vtype, [])
     | Aux (_, exp) | Deref (_, _, exp) -> typeOf exp
@@ -315,7 +315,7 @@ module T = struct
 
   let get_size = get_size_in_bits % type_of_term
 
-  let rec of_offset ask t off typ exp =
+  let of_offset ask t off typ exp =
     if off = NoOffset then t else
       let z = z_of_offset ask off typ in
       Deref (t, z, exp)
@@ -611,7 +611,7 @@ module UnionFind = struct
 
     (** Returns find of v if v is in the union find data structure.
       Otherwise it just returns v. *)
-  let rec find_no_pc_if_possible uf v =
+  let find_no_pc_if_possible uf v =
     match find_no_pc uf v with
     | exception (UnknownValue _)
     | exception Not_found
@@ -1747,7 +1747,7 @@ module CongruenceClosure = struct
 
   (** Find the representative term of the equivalence classes of an element that has already been deleted from the data structure.
       Returns None if there are no elements in the same equivalence class as t before it was deleted.*)
-  let rec find_new_root new_reps uf v =
+  let find_new_root new_reps uf v =
     match TMap.find_opt v new_reps with
     | None -> None
     | Some (new_t, z1) ->
