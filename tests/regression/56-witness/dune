@@ -25,3 +25,7 @@
 
 (cram
  (deps (glob_files *.c) (glob_files ??-*.yml)))
+
+(cram
+ (applies_to 54-witness-lifter-abortUnless)
+ (enabled_if %{bin-available:graph-easy}))

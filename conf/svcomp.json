@@ -30,7 +30,8 @@
       "symb_locks",
       "region",
       "thread",
-      "threadJoins"
+      "threadJoins",
+      "abortUnless"
     ],
     "path_sens": [
       "mutex",

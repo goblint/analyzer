@@ -554,7 +554,13 @@ let () =
     } [@@deriving to_yojson]
     let process () serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
-      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) in
+      let module NoExtraNodeStyle =
+      struct
+        type node = ArgWrapper.Arg.Node.t
+        let extra_node_styles node = []
+      end
+      in
+      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) (NoExtraNodeStyle) in
       let arg = Format.asprintf "%t" ArgDot.dot in
       {arg}
   end);
