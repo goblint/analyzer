@@ -609,6 +609,15 @@ module UnionFind = struct
       else raise (InvalidUnionFind "non-zero self-distance!")
     else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
 
+    (** Returns find of v if v is in the union find data structure.
+      Otherwise it just returns v. *)
+  let rec find_no_pc_if_possible uf v =
+    match find_no_pc uf v with
+    | exception (UnknownValue _)
+    | exception Not_found
+    | exception (InvalidUnionFind _) -> v, Z.zero
+    | res -> res
+
   let compare_repr = Tuple2.compare ~cmp1:T.compare ~cmp2:Z.compare
 
   (** Compare only first element of the tuples (= the parent term).
@@ -870,7 +879,8 @@ module CongruenceClosure = struct
 
     let check_neq_bl (uf,arg) rest (t1, tset) =
       List.fold (fun rest t2 ->
-          if T.equal (fst@@TUF.find_no_pc uf t1) (fst@@TUF.find_no_pc uf t2) then raise Unsat
+          if T.equal (fst@@TUF.find_no_pc_if_possible uf t1) (fst@@TUF.find_no_pc_if_possible uf t2)
+          then raise Unsat
           else (* r1 <> r2 *)
             let l1 = map_find_all t1 arg in
             let l2 = map_find_all t2 arg in
