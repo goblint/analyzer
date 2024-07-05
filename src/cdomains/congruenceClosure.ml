@@ -368,10 +368,8 @@ module T = struct
     let res =
       match lval with
       | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
-        else if var.vaddrof then
-          of_offset ask (Deref (Addr var, Z.zero, Lval (Var var, NoOffset))) off var.vtype (Lval lval)
         else
-          of_offset ask (Aux (var,Lval (Var var, NoOffset))) off var.vtype (Lval lval)
+          of_offset ask (term_of_varinfo var) off var.vtype (Lval lval)
       | (Mem exp, off) ->
         begin match of_cil ask exp with
           | (Some term, offset) ->
@@ -795,12 +793,12 @@ module CongruenceClosure = struct
         TMap.empty (TMap.bindings uf)
 
     (* find all elements that are in the same equivalence class as t
-       except t*)
+       except t *)
     let comp_t uf t =
       let (t',z') = TUF.find_no_pc uf t in
       List.fold_left (fun comp (v,((p,z),_)) ->
           let (v', z'') = TUF.find_no_pc uf v in
-          if T.equal v' t' && not (T.equal v t) then (v, Z.(z'-z''))::comp else comp
+          if T.equal v' t' then (v, Z.(z'-z''))::comp else comp
         )
         [] (TMap.bindings uf)
 
@@ -1119,7 +1117,7 @@ module CongruenceClosure = struct
       let res = ref acc in
       try
         TSet.fold (fun (v:T.t) acc -> match v with
-            | Addr _ -> f acc v
+            | Addr _| Aux _ -> f acc v
             | _ -> res := acc; raise AtomsDone) set acc
       with AtomsDone -> !res
 
@@ -1778,7 +1776,6 @@ module CongruenceClosure = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms predicate cc =
     let old_cc = cc in
-    (* first find all terms that need to be removed *)
     match remove_terms_from_eq predicate cc with
     | new_reps, Some cc ->
       begin match remove_terms_from_diseq old_cc.diseq new_reps cc with

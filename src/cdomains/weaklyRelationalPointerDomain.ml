@@ -25,34 +25,57 @@ module MayBeEqual = struct
     | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top ()
     | res -> res
 
+  let may_point_to_all_equal_terms ask exp cc term offset =
+    match cc with
+    | None -> AD.top()
+    | Some cc ->
+      let comp = Disequalities.comp_t cc.uf term in
+      let valid_term (t,z) =
+        T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+      let equal_terms = List.filter valid_term comp in
+      if M.tracing then M.trace "wrpointer-query" "may-point-to %a -> equal terms: %s"
+          d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
+      let intersect_query_result res (term,z) =
+        let next_query =
+          match ask_may_point_to ask (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
+          | exception (T.UnsupportedCilExpression _) -> AD.top()
+          | res ->  if AD.is_bot res then AD.top() else res
+        in
+        AD.meet res next_query in
+      List.fold intersect_query_result (AD.top()) equal_terms
+
   (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
-  let may_point_to_address (ask:Queries.ask) adresses t2 off =
+  let may_point_to_address (ask:Queries.ask) adresses t2 off cc =
     match T.to_cil_sum off (T.to_cil t2) with
     | exception (T.UnsupportedCilExpression _) -> true
     | exp2 ->
       let mpt1 = adresses in
-      let mpt2 = ask_may_point_to ask exp2 in
+      let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
       let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
       if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
           AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
 
-  let may_point_to_same_address (ask:Queries.ask) t1 t2 off =
+  let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
     if T.equal t1 t2 then true else
       let exp1 = T.to_cil t1 in
-      let mpt1 = ask_may_point_to ask exp1 in
-      may_point_to_address ask mpt1 t2 off
+      let mpt1 = may_point_to_all_equal_terms ask exp1 cc t1 Z.zero in
+      let res = may_point_to_address ask mpt1 t2 off cc in
+      if M.tracing && res then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
+          AD.pretty mpt1 (T.show t1) d_plainexp exp1; res
+
 
   (**Returns true iff by assigning to t1, the value of t2 could change.
       The parameter s is the size in bits of the variable t1 we are assigning to. *)
   let rec may_be_equal ask cc s t1 t2 =
     match t1, t2 with
     | CC.Deref (t, z,_), CC.Deref (v, z',_) ->
+      fst(eq_query cc (t,v,Z.(z'-z))) ||
       (* If we have a disequality, then they are not equal *)
       (
         not (neq_query cc (t,v,Z.(z'-z)))
         (* or if we know that they are not equal according to the query MayPointTo*)
         &&
-        (may_point_to_same_address ask t v Z.(z' - z))
+        (may_point_to_same_address ask t v Z.(z' - z) cc)
       )
       || (may_be_equal ask cc s t1 v)
     | CC.Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
@@ -63,11 +86,11 @@ module MayBeEqual = struct
     if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 
-  let rec may_point_to_one_of_these_adresses ask adresses t2 =
+  let rec may_point_to_one_of_these_adresses ask adresses cc t2 =
     match t2 with
     |  CC.Deref (v, z',_) ->
-      (may_point_to_address ask adresses v z')
-      || (may_point_to_one_of_these_adresses ask adresses v)
+      (may_point_to_address ask adresses v z' cc)
+      || (may_point_to_one_of_these_adresses ask adresses cc v)
     | CC.Addr _ | CC.Aux _ -> false
 
 end
@@ -193,6 +216,6 @@ module D = struct
       It removes all terms that may point to the same address as "tainted".*)
   let remove_tainted_terms ask address cc =
     if M.tracing then M.tracel "wrpointer-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
-    Option.bind cc (remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address))
+    Option.bind cc (remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address cc))
 
 end
