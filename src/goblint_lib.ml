@@ -275,6 +275,7 @@ module RegionDomain = RegionDomain
 module StackDomain = StackDomain
 
 module CongruenceClosure = CongruenceClosure
+module UnionFind = UnionFind
 module WeaklyRelationalPointerDomain = WeaklyRelationalPointerDomain
 
 (** {2 Testing}
