@@ -29,9 +29,10 @@ struct
   let eval_guard ask t e =
     let prop_list = T.prop_of_cil ask e true in
     let res = match split prop_list with
-      | [], [] -> None
-      | x::xs, _ -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
-      | _, y::ys ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
+      | [], [], [] -> None
+      | x::xs, _, [] -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
+      | _, y::ys, [] ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
+      | _ -> None (*there should never be block disequalities here...*)
     in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
         d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
