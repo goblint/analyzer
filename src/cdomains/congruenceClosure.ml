@@ -8,7 +8,9 @@ module M = Messages
 exception Unsat
 
 type ('v, 't) term = Addr of 'v | Aux of 'v * 't | Deref of ('v, 't) term * Z.t * 't [@@deriving eq, ord, hash]
-type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('v, 't) term * ('v, 't) term * Z.t [@@deriving eq, ord, hash]
+type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('v, 't) term * ('v, 't) term * Z.t
+                   | BlNequal of ('v, 't) term * ('v, 't) term
+[@@deriving eq, ord, hash]
 
 (** The terms consist of address constants and dereferencing function with sum of an integer.
     The dereferencing function is parametrized by the size of the element in the memory.
@@ -44,6 +46,9 @@ module T = struct
     | Equal (t1,t2,z) | Nequal (t1,t2,z) ->
       if compare t1 t2 < 0 || (compare t1 t2 = 0 && Z.geq z Z.zero) then (t1,t2,z) else
         (t2,t1,Z.(-z))
+    | BlNequal (t1,t2) ->
+      if compare t1 t2 < 0 then (t1,t2,Z.zero) else
+        (t2,t1,Z.zero)
 
   (** Two propositions are equal if they are syntactically equal
       or if one is t_1 = z + t_2 and the other t_2 = - z + t_1. *)
@@ -51,15 +56,18 @@ module T = struct
     match p1, p2 with
     | Equal (a,b,c), Equal (a',b',c') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
     | Nequal (a,b,c), Nequal (a',b',c') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
+    | BlNequal (a,b), BlNequal (a',b') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
     | _ -> false
 
   let compare_v_prop p1 p2 =
     match p1, p2 with
     | Equal (a,b,c), Equal (a',b',c') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
     | Nequal (a,b,c), Nequal (a',b',c') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
-    | Equal _, Nequal _ -> -1
-    | Nequal _, Equal _ -> 1
-
+    | BlNequal (a,b), BlNequal (a',b') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
+    | Equal _, _ -> -1
+    | _, Equal _ -> 1
+    | _, BlNequal _ -> -1
+    | BlNequal _ , _ -> 1
 
   let props_equal = List.equal equal_v_prop
 
@@ -252,7 +260,7 @@ module T = struct
     | _ -> false
 
   let rec add_index_to_exp exp index =
-    try if is_struct_type (typeOf exp) || not (is_field index) then
+    try if is_struct_type (typeOf exp) = (is_field index) then
         begin match exp with
           | Lval (Var v, NoOffset) -> Lval (Var v, index)
           | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
@@ -260,6 +268,8 @@ module T = struct
             add_index_to_exp exp1 index
           | _ -> raise (UnsupportedCilExpression "not supported yet")
         end
+      else if is_struct_ptr_type (typeOf exp) && (is_field index) then
+        Lval(Mem (exp), index)
       else raise (UnsupportedCilExpression "Field on a non-compound")
     with | Cilfacade.TypeOfError _ -> raise (UnsupportedCilExpression "typeOf error")
 
@@ -275,29 +285,33 @@ module T = struct
       else true
 
   let filter_valid_pointers =
-    List.filter (function | Equal(t1,t2,z)| Nequal(t1,t2,z) -> check_valid_pointer (to_cil t1) && check_valid_pointer (to_cil t2))
+    List.filter (function | Equal(t1,t2,_)| Nequal(t1,t2,_) |BlNequal(t1,t2)-> check_valid_pointer (to_cil t1) && check_valid_pointer (to_cil t2))
 
   let dereference_exp exp offset =
-    let find_field cinfo = try
-        Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset)
-      with | Not_found -> raise (UnsupportedCilExpression "invalid field offset")
-    in
-    let res = match exp with
-      | AddrOf lval -> Lval lval
-      | _ ->
-        match typeOf exp with
-        | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
-        | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
-        | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
-          let index = Index (to_cil_constant offset (Some typ), NoOffset) in
-          begin match exp with
-            | Lval (Var v, NoOffset) ->  Lval (Var v, index)
-            | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
-            | _ -> raise (UnsupportedCilExpression "not supported yet")
-          end
-        | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
-        | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
-    in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
+    if M.tracing then M.trace "wrpointer-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
+    let res =
+      let find_field cinfo =
+        try
+          Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset)
+        with | Not_found -> raise (UnsupportedCilExpression "invalid field offset")
+      in
+      let res = match exp with
+        | AddrOf lval -> Lval lval
+        | _ ->
+          match typeOf exp with
+          | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
+          | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
+          | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
+            let index = Index (to_cil_constant offset (Some typ), NoOffset) in
+            begin match exp with
+              | Lval (Var v, NoOffset) ->  Lval (Var v, index)
+              | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
+              | _ -> raise (UnsupportedCilExpression "not supported yet")
+            end
+          | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
+          | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
+      in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
+    in if M.tracing then M.trace "wrpointer-deref" "deref result: %a" d_exp res;res
 
   let get_size = get_size_in_bits % type_of_term
 
@@ -610,7 +624,7 @@ module UnionFind = struct
 
      returns v,uf,b where
 
-     - `v` is the new reference variable of the merged equivalence class. It is either the old reference variable of v1 or of v2, depending on which equivalence class is bigger.
+     - `v` is the new reference term of the merged equivalence class. It is either the old reference term of v1 or of v2, depending on which equivalence class is bigger.
 
      - `uf` is the new union find data structure
 
@@ -640,6 +654,8 @@ module UnionFind = struct
           "; o: " ^ Z.to_string (snd t) ^ "; s: " ^ string_of_int size ^")\n") "" eq_class
       ^ "----\n") "" (get_eq_classes uf) ^ "\n"
 
+  let get_representatives uf =
+    List.filter_map (fun (el,_) -> if is_root uf el then Some el else None) (TMap.bindings uf)
 end
 
 module ZMap = struct
@@ -829,6 +845,13 @@ module CongruenceClosure = struct
           | Some v -> Some v
         )
 
+    let map_find_all t map =
+      match TMap.find_opt t map with
+      | None -> []
+      | Some imap -> List.fold (fun list (z,list2) ->
+          list@list2
+        ) [] (ZMap.bindings imap)
+
     let check_neq (_,arg) rest (v,zmap) =
       let zlist = ZMap.bindings zmap in
       fold_left2 (fun rest (r1,_) (r2,_) ->
@@ -848,11 +871,27 @@ module CongruenceClosure = struct
                 else (v1,v2,Z.(r'2-r'1))::rest) rest l1 l2
         ) rest zlist zlist
 
+    let check_neq_bl (uf,arg) rest (t1, tset) =
+      List.fold (fun rest t2 ->
+          if T.equal (fst@@TUF.find_no_pc uf t1) (fst@@TUF.find_no_pc uf t2) then raise Unsat
+          else (* r1 <> r2 *)
+            let l1 = map_find_all t1 arg in
+            let l2 = map_find_all t2 arg in
+            fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
+                if T.equal v1 v2 then if Z.equal r'1 r'2
+                  then raise Unsat
+                  else rest
+                else (v1,v2,Z.(r'2-r'1))::rest) rest l1 l2
+        ) rest (TSet.to_list tset)
+
     (** Initialize the list of disequalities taking only implicit dis-equalities into account.
 
         Returns: List of non-trivially implied dis-equalities *)
     let init_neq (uf,cmap,arg) =
       List.fold_left (check_neq (uf,arg)) [] (TMap.bindings cmap)
+
+    let init_neg_block_diseq (uf, bldis, cmap, arg) =
+      List.fold_left (check_neq_bl (uf,arg)) [] (TMap.bindings bldis)
 
     (** Initialize the list of disequalities taking explicit dis-equalities into account.
 
@@ -957,8 +996,7 @@ module CongruenceClosure = struct
            Nequal (t1,t2,Z.(-z))
         ) % bindings
 
-    let element_closure diseqs uf =
-      let cmap = comp_map uf in
+    let element_closure diseqs cmap =
       let comp_closure (r1,r2,z) =
         let to_tuple_list =  (*TODO this is not the best solution*)
           List.flatten % List.map
@@ -978,6 +1016,71 @@ module CongruenceClosure = struct
         end
       in
       List.concat_map comp_closure diseqs
+  end
+
+  (* block disequalities *)
+  module BlDis = struct
+    type t = TSet.t TMap.t [@@deriving eq, ord, hash] (* block disequalitites *)
+
+    let bindings = TMap.bindings
+    let empty = TMap.empty
+
+    let to_conj bldiseq = List.fold
+        (fun list (t1, tset) ->
+           TSet.fold (fun t2 bldiseqs -> BlNequal(t1, t2)::bldiseqs) tset [] @ list
+        ) [] (bindings bldiseq)
+
+    let add bldiseq t1 t2 =
+      match TMap.find_opt t1 bldiseq with
+      | None -> TMap.add t1 (TSet.singleton t2) bldiseq
+      | Some tset -> TMap.add t1 (TSet.add t2 tset) bldiseq
+
+    let add_block_diseq bldiseq (t1, t2) =
+      add (add bldiseq t1 t2) t2 t1
+
+    (**
+       params:
+
+       t1-> any term
+
+       tlist: a list of representative terms
+
+       For each term t2 in tlist, it adds the disequality t1' != t2 to diseqs
+       where t1' is the representative of t1.
+       Except the block disequality t1' = t1' will not be added, even
+       if t1' is in tlist.
+    *)
+    let add_block_diseqs bldiseq uf t1 tlist =
+      let t1',_ = t1, t1 in
+      (* TODO: not a good idea: TUF.find_no_pc uf t1 in *)
+      List.fold (fun bldiseq t2 ->
+          if T.equal t1' t2 then bldiseq
+          else add_block_diseq bldiseq (t1', t2)) bldiseq tlist
+
+    let element_closure bldis cmap =
+      let comp_closure = function
+        | BlNequal (r1,r2) ->
+          let to_list =  (*TODO this is not the best solution*)
+            List.flatten % List.map
+              (fun (z, set) -> (TSet.to_list set)) in
+          let comp_closure_zmap bindings1 bindings2 =
+            List.cartesian_product (to_list bindings1) (to_list bindings2)
+          in
+          let singleton term = [(Z.zero, TSet.singleton term)] in
+          begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
+            | None, None -> [(r1,r2)]
+            | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
+            | Some zmap1, None -> comp_closure_zmap (ZMap.bindings zmap1) (singleton r2)
+            | Some zmap1, Some zmap2 ->
+              comp_closure_zmap (ZMap.bindings zmap1) (ZMap.bindings zmap2)
+          end
+        | _ -> []
+      in
+      List.concat_map comp_closure bldis
+
+    let map_set_mem v v' (map:t) = match TMap.find_opt v map with
+      | None -> false
+      | Some set -> TSet.mem v' set
   end
 
   (** Set of subterms which are present in the current data structure. *)
@@ -1011,6 +1114,15 @@ module CongruenceClosure = struct
 
     let subterms_of_conj list = List.fold_left subterms_of_prop (TSet.empty, LMap.empty) list
 
+    let fold_atoms f (acc:'a) set:'a =
+      let exception AtomsDone in
+      let res = ref acc in
+      try
+        TSet.fold (fun (v:T.t) acc -> match v with
+            | Addr _ -> f acc v
+            | _ -> res := acc; raise AtomsDone) set acc
+      with AtomsDone -> !res
+
     let get_atoms set =
       (* `elements set` returns a sorted list of the elements. The atoms are always smaller that other terms,
          according to our comparison function. Therefore take_while is enough. *)
@@ -1040,6 +1152,7 @@ module CongruenceClosure = struct
 
     let bindings = TMap.bindings
     let find = TMap.find
+    let find_opt = TMap.find_opt
     let add = TMap.add
     let remove = TMap.remove
     let mem = TMap.mem
@@ -1139,7 +1252,8 @@ module CongruenceClosure = struct
             set: SSet.t;
             map: LMap.t;
             min_repr: MRMap.t;
-            diseq: Disequalities.t}
+            diseq: Disequalities.t;
+            bldis: BlDis.t}
   [@@deriving eq, ord, hash]
 
   let string_of_prop = function
@@ -1147,6 +1261,7 @@ module CongruenceClosure = struct
     | Equal (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
     | Nequal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " != " ^ T.show t2
     | Nequal (t1,t2,r) -> T.show t1 ^ " != " ^ Z.to_string r ^ "+" ^ T.show t2
+    | BlNequal (t1,t2) -> "bl(" ^ T.show t1 ^ ") != bl(" ^ T.show t2 ^ ")"
 
   let show_conj list = List.fold_left
       (fun s d -> s ^ "\t" ^ string_of_prop d ^ ";\n") "" list
@@ -1192,8 +1307,27 @@ module CongruenceClosure = struct
       else Nequal (min_state2, min_state1, Z.(-new_offset))
     in
     if M.tracing then M.trace "wrpointer-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep cc.min_repr) (LMap.show_map cc.map);
-    let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)) disequalities
-    in BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities)
+    let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
+    (* block disequalities *)
+    let normalize_bldis t = match t with
+      | BlNequal (t1,t2) ->
+        let min_state1 =
+          begin match MRMap.find_opt t1 cc.min_repr with
+            | None -> t1
+            | Some (a,_) -> a
+          end in
+        let min_state2 =
+          begin match MRMap.find_opt t2 cc.min_repr with
+            | None -> t2
+            | Some (a,_) -> a
+          end in
+        if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
+        else BlNequal (min_state2, min_state1)
+      | _ -> t
+    in
+    let conjunctions_of_bl_diseqs = List.map normalize_bldis @@ BlDis.to_conj cc.bldis in
+    (* all propositions *)
+    BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs)
 
   let show_all x = "Normal form:\n" ^
                    show_conj((get_normal_form x)) ^
@@ -1207,12 +1341,15 @@ module CongruenceClosure = struct
                    ^ (MRMap.show_min_rep x.min_repr)
                    ^ "\nNeq:\n"
                    ^ (Disequalities.show_neq x.diseq)
+                   ^ "\nBlock diseqs:\n"
+                   ^ show_conj(BlDis.to_conj x.bldis)
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
       and the second one contains all inequality propositions.  *)
-  let split conj = List.fold_left (fun (pos,neg) -> function
-      | Equal (t1,t2,r) -> ((t1,t2,r)::pos,neg)
-      | Nequal(t1,t2,r) -> (pos,(t1,t2,r)::neg)) ([],[]) conj
+  let split conj = List.fold_left (fun (pos,neg,bld) -> function
+      | Equal (t1,t2,r) -> ((t1,t2,r)::pos,neg,bld)
+      | Nequal(t1,t2,r) -> (pos,(t1,t2,r)::neg,bld)
+      | BlNequal (t1,t2) -> (pos,neg,(t1,t2)::bld)) ([],[],[]) conj
 
   (**
      returns {uf, set, map, min_repr}, where:
@@ -1230,22 +1367,22 @@ module CongruenceClosure = struct
     let uf = SSet.elements set |>
              TUF.init in
     let min_repr = MRMap.initial_minimal_representatives set in
-    {uf; set; map; min_repr; diseq = Disequalities.empty}
+    {uf; set; map; min_repr; diseq = Disequalities.empty; bldis=BlDis.empty}
 
   (** closure of disequalities *)
   let congruence_neq cc neg =
     try
-      let neg = snd(split(Disequalities.get_disequalities cc.diseq)) @ neg in
+      let neg = Tuple3.second (split(Disequalities.get_disequalities cc.diseq)) @ neg in
       (* getting args of dereferences *)
       let uf,cmap,arg = Disequalities.get_args cc.uf in
       (* taking implicit dis-equalities into account *)
-      let neq_list = Disequalities.init_neq (uf,cmap,arg) in
+      let neq_list = Disequalities.init_neq (uf,cmap,arg) @ Disequalities.init_neg_block_diseq (uf, cc.bldis, cmap,arg) in
       let neq = Disequalities.propagate_neq (uf,cmap,arg,Disequalities.empty) neq_list in
       (* taking explicit dis-equalities into account *)
       let neq_list = Disequalities.init_list_neq uf neg in
       let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) neq_list in
       if M.tracing then M.trace "wrpointer-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
-      Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq}
+      Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq; bldis=cc.bldis}
     with Unsat -> None
 
   (**
@@ -1260,23 +1397,27 @@ module CongruenceClosure = struct
      `queue` is a list of equivalence classes (represented by their representative) that have a new representative after the execution of this function.
      It can be given as a parameter to `update_min_repr` in order to update the representatives in the representative map.
 
+     `new_repr` -> maps each representative to its new representative after the union
+
      Throws "Unsat" if a contradiction is found.
   *)
-  let rec closure (uf, map, min_repr) queue = function
-    | [] -> (uf, map, queue, min_repr)
+  let rec closure (uf, map, min_repr, new_repr) queue = function
+    | [] -> (uf, map, queue, min_repr, new_repr)
     | (t1, t2, r)::rest ->
       (let v1, r1, uf = TUF.find uf t1 in
        let v2, r2, uf = TUF.find uf t2 in
        let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
        if not (Z.equal sizet1 sizet2) then
          (if M.tracing then M.trace "wrpointer" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
-          closure (uf, map, min_repr) queue rest) else
+          closure (uf, map, min_repr, new_repr) queue rest) else
        if T.equal v1 v2 then
          (* t1 and t2 are in the same equivalence class *)
-         if Z.equal r1 Z.(r2 + r) then closure (uf, map, min_repr) queue rest
+         if Z.equal r1 Z.(r2 + r) then closure (uf, map, min_repr, new_repr) queue rest
          else raise Unsat
        else let diff_r = Z.(r2 - r1 + r) in
          let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
+         (* update new_representative *)
+         let new_repr = if T.equal v v1 then TMap.add v2 v new_repr else TMap.add v1 v new_repr in
          (* update map *)
          let map, rest = match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
            | None, _, false -> map, rest
@@ -1314,15 +1455,42 @@ module CongruenceClosure = struct
          let removed_v = if b then v2 else v1 in
          let min_repr = MRMap.remove removed_v (if changed then MRMap.add v new_min min_repr else min_repr) in
          let queue = v :: queue in
-         closure (uf, map, min_repr) queue rest
+         closure (uf, map, min_repr, new_repr) queue rest
       )
+
+  let update_bldis new_repr bldis =
+    (* update block disequalities with the new representatives *)
+    let find_new_root t1 = match TMap.find_opt t1 new_repr with
+      | None -> t1
+      | Some v -> v
+    in
+    let disequalities = BlDis.to_conj bldis
+    in (*TODO maybe optimize?, and maybe use this also for removing terms *)
+    let add_bl_dis new_diseq = function
+      | BlNequal (t1,t2) ->BlDis.add_block_diseq new_diseq (find_new_root t1,find_new_root t2)
+      | _-> new_diseq
+    in
+    List.fold add_bl_dis BlDis.empty disequalities
+
+  let rec add_normalized_bl_diseqs cc = function
+    | [] -> cc
+    | (t1,t2)::bl_conjs ->
+      match cc with
+      | None -> None
+      | Some cc ->
+        let t1' = fst (TUF.find_no_pc cc.uf t1) in
+        let t2' = fst (TUF.find_no_pc cc.uf t2) in
+        if T.equal t1' t2' then None (*unsatisfiable*)
+        else let bldis = BlDis.add_block_diseq cc.bldis (t1',t2') in
+          add_normalized_bl_diseqs (Some {cc with bldis}) bl_conjs
 
   let closure_no_min_repr cc conjs =
     match cc with
     | None -> None
     | Some cc ->
-      let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
-      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq} []
+      let (uf, map, queue, min_repr, new_repr) = closure (cc.uf, cc.map, cc.min_repr, TMap.empty) [] conjs in
+      let bldis = update_bldis new_repr cc.bldis in
+      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=bldis} []
 
   (**
      Parameters: cc conjunctions.
@@ -1343,11 +1511,12 @@ module CongruenceClosure = struct
     match cc with
     | None -> None
     | Some cc ->
-      let (uf, map, queue, min_repr) = closure (cc.uf, cc.map, cc.min_repr) [] conjs in
+      let (uf, map, queue, min_repr, new_repr) = closure (cc.uf, cc.map, cc.min_repr, TMap.empty) [] conjs in
+      let bldis = update_bldis new_repr cc.bldis in
       (* let min_repr, uf = MRMap.update_min_repr (uf, cc.set, map) min_repr queue in *)
       let min_repr, uf = MRMap.compute_minimal_representatives (uf, cc.set, map) in
       if M.tracing then M.trace "wrpointer" "closure minrepr: %s\n" (MRMap.show_min_rep min_repr);
-      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq} []
+      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=bldis} []
 
   (** Throws Unsat if the congruence is unsatisfiable.*)
   let init_congruence conj =
@@ -1378,7 +1547,7 @@ module CongruenceClosure = struct
       | Addr _ | Aux _ -> let uf = TUF.ValMap.add t ((t, Z.zero),1) cc.uf in
         let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
-        (t, Z.zero), Some {uf; set; map = cc.map; min_repr; diseq = cc.diseq}, [t]
+        (t, Z.zero), Some {cc with uf; set; min_repr;}, [t]
       | Deref (t', z, exp) ->
         match insert_no_min_repr cc t' with
         | (v, r), None, queue -> (v, r), None, []
@@ -1388,10 +1557,10 @@ module CongruenceClosure = struct
           match LMap.map_find_opt (v, Z.(r + z)) cc.map with
           | Some v' -> let v2,z2,uf = TUF.find cc.uf v' in
             let uf = LMap.add t ((t, Z.zero),1) uf in
-            (v2,z2), closure (Some {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr; diseq = cc.diseq}) [(t, v', Z.zero)], v::queue
+            (v2,z2), closure (Some {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr; diseq = cc.diseq; bldis=cc.bldis}) [(t, v', Z.zero)], v::queue
           | None -> let map = LMap.map_add (v, Z.(r + z)) t cc.map in
             let uf = LMap.add t ((t, Z.zero),1) cc.uf in
-            (t, Z.zero), Some {uf; set; map; min_repr; diseq = cc.diseq}, v::queue
+            (t, Z.zero), Some {uf; set; map; min_repr; diseq = cc.diseq; bldis=cc.bldis}, v::queue
 
   (** Add a term to the data structure.
 
@@ -1404,7 +1573,7 @@ module CongruenceClosure = struct
       | v, None, queue -> v, None
       | v, Some cc, queue ->
         let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
-        v, Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq}
+        v, Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq; bldis=cc.bldis}
 
   (** Add all terms in a specific set to the data structure.
 
@@ -1415,7 +1584,7 @@ module CongruenceClosure = struct
     | Some cc, queue ->
       (* update min_repr at the end for more efficiency *)
       let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
-      Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq}
+      Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq; bldis=cc.bldis}
 
   (**  Returns true if t1 and t2 are equivalent. *)
   let rec eq_query cc (t1,t2,r) =
@@ -1437,30 +1606,48 @@ module CongruenceClosure = struct
     | None -> false
     | Some cc -> fst (eq_query cc (t1,t2,r))
 
+  (*TODO there could be less code duplication *)
+  let block_neq_query cc (t1,t2) =
+    (* we implicitly assume that &x != &y + z *)
+    if T.is_addr t1 && T.is_addr t2 then true else
+      let (v1,r1),cc = insert cc t1 in
+      let (v2,r2),cc = insert cc t2 in
+      match cc with
+      | None -> true
+      | Some cc -> BlDis.map_set_mem t1 t2 cc.bldis
+
   (** Returns true if t1 and t2 are not equivalent. *)
   let neq_query cc (t1,t2,r) =
     (* we implicitly assume that &x != &y + z *)
     if T.is_addr t1 && T.is_addr t2 then true else
       let (v1,r1),cc = insert cc t1 in
       let (v2,r2),cc = insert cc t2 in
+      (* implicit disequalities following from equalities *)
       if T.equal v1 v2 then
         if Z.(equal r1 (r2 + r)) then false
         else true
-      else match cc with
+      else
+        match cc with
         | None -> true
-        | Some cc -> Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
+        | Some cc -> (* implicit disequalities following from block disequalities *)
+          BlDis.map_set_mem t1 t2 cc.bldis ||
+          (*explicit dsequalities*)
+          Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
 
-  (** Throws "Unsat" if a contradiction is found. *)
+  (** Adds equalities to the data structure.
+      Throws "Unsat" if a contradiction is found. *)
   let meet_conjs cc pos_conjs =
     let res = let cc = insert_set cc (fst (SSet.subterms_of_conj pos_conjs)) in
       closure cc pos_conjs
     in if M.tracing then M.trace "wrpointer-meet" "MEET_CONJS RESULT: %s\n" (Option.map_default (fun res -> show_conj (get_normal_form res)) "None" res);res
 
   let meet_conjs_opt conjs cc =
-    let pos_conjs, neg_conjs = split conjs in
-    match insert_set (meet_conjs cc pos_conjs) (fst (SSet.subterms_of_conj neg_conjs)) with
+    let pos_conjs, neg_conjs, bl_conjs = split conjs in
+    let terms_to_add = (fst (SSet.subterms_of_conj (neg_conjs @ List.map(fun (t1,t2)->(t1,t2,Z.zero)) bl_conjs))) in
+    match insert_set (meet_conjs cc pos_conjs) terms_to_add with
     | exception Unsat -> None
-    | Some cc -> congruence_neq cc neg_conjs
+    | Some cc -> let cc = congruence_neq cc neg_conjs in
+      add_normalized_bl_diseqs cc bl_conjs
     | None -> None
 
   (** Add proposition t1 = t2 + r to the data structure. *)
@@ -1470,6 +1657,14 @@ module CongruenceClosure = struct
     let cc = closure cc [v1, v2, Z.(r2 - r1 + r)] in
     cc
 
+  (** adds block disequalities to cc:
+      fo each representative t in cc it adds the disequality bl(lterm)!=bl(t)*)
+  let add_block_diseqs cc lterm =
+    match cc with
+    | None -> cc
+    | Some cc ->
+      let bldis = BlDis.add_block_diseqs cc.bldis cc.uf lterm (TUF.get_representatives cc.uf) in
+      Some {cc with bldis}
 
   (* Remove variables: *)
 
@@ -1494,17 +1689,25 @@ module CongruenceClosure = struct
       (new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
     in
     let new_reps, new_cc, reachable_old_reps =
-      List.fold add_atom (TMap.empty, (Some(init_cc [])),[]) (List.filter (not % predicate) @@ SSet.get_atoms cc.set) in
+      SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (TMap.empty, (Some(init_cc [])),[]) cc.set in
     let cmap = Disequalities.comp_map cc.uf in
     (* breadth-first search of reachable states *)
     let add_transition (old_rep, new_rep, z1) (new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
       let old_rep_s, old_z_s = TUF.find_no_pc cc.uf s_t in
-      let find_successor z t =
-        match SSet.deref_term t Z.(s_z-z) cc.set with
-        | exception (T.UnsupportedCilExpression _) -> None
-        | successor -> if (not @@ predicate successor) then Some successor else None in
       let find_successor_in_set (z, term_set) =
-        TSet.choose_opt @@ TSet.filter_map (find_successor z) term_set in
+        let exception Found in
+        let res = ref None in
+        try
+          TSet.iter (fun t ->
+              match SSet.deref_term t Z.(s_z-z) cc.set with
+              | exception (T.UnsupportedCilExpression _) -> ()
+              | successor -> if (not @@ predicate successor) then
+                  (res := Some successor; raise Found)
+                else
+                  ()
+            ) term_set; !res
+        with Found -> !res
+      in
       (* find successor term -> find any  element in equivalence class that can be dereferenced *)
       match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
       | Some successor_term -> if (not @@ predicate successor_term && T.check_valid_pointer (T.to_cil successor_term)) then
@@ -1557,6 +1760,19 @@ module CongruenceClosure = struct
     let new_diseq = List.fold add_disequality [] disequalities
     in congruence_neq cc new_diseq
 
+  let remove_terms_from_bldis bldis new_reps cc =
+    let disequalities = BlDis.to_conj bldis
+    in
+    let add_bl_dis new_diseq = function
+      | BlNequal (t1,t2) ->
+        begin match find_new_root new_reps cc.uf t1,find_new_root new_reps cc.uf t2 with
+          | Some (t1',z1'), Some (t2', z2') -> BlDis.add_block_diseq new_diseq (t1', t2')
+          | _ -> new_diseq
+        end
+      | _-> new_diseq
+    in
+    List.fold add_bl_dis BlDis.empty disequalities
+
   (** Remove terms from the data structure.
       It removes all terms for which "predicate" is false,
       while maintaining all equalities about variables that are not being removed.*)
@@ -1567,10 +1783,11 @@ module CongruenceClosure = struct
     | new_reps, Some cc ->
       begin match remove_terms_from_diseq old_cc.diseq new_reps cc with
         | Some cc ->
+          let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
           let min_repr, uf = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map)
           in if M.tracing then M.trace "wrpointer" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
-              (show_all old_cc) (show_all {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq});
-          Some {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq}
+              (show_all old_cc) (show_all {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq; bldis});
+          Some {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq; bldis}
         | None -> None
       end
     | _,None -> None
@@ -1611,15 +1828,29 @@ module CongruenceClosure = struct
     add_edges_to_map pmap (Some cc) working_set
 
   (** Joins the disequalities diseq1 and diseq2, given a congruence closure data structure. *)
-  let join_neq diseq1 diseq2 cc1 cc2 cc =
-    let _,diseq1 = split (Disequalities.get_disequalities diseq1) in
-    let _,diseq2 = split (Disequalities.get_disequalities diseq2) in
+  let join_neq diseq1 diseq2 cc1 cc2 cc cmap1 cmap2 =
+    let _,diseq1,_ = split (Disequalities.get_disequalities diseq1) in
+    let _,diseq2,_ = split (Disequalities.get_disequalities diseq2) in
     (* keep all disequalities from diseq1 that are implied by cc2 and
        those from diseq2 that are implied by cc1 *)
-    let diseq1 = List.filter (neq_query (Some cc2)) (Disequalities.element_closure diseq1 cc1.uf) in
-    let diseq2 = List.filter (neq_query (Some cc1)) (Disequalities.element_closure diseq2 cc2.uf) in
+    let diseq1 = List.filter (neq_query (Some cc2)) (Disequalities.element_closure diseq1 cmap1) in
+    let diseq2 = List.filter (neq_query (Some cc1)) (Disequalities.element_closure diseq2 cmap2) in
     let cc = Option.get (insert_set cc (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2))) in
     let res = congruence_neq cc (diseq1 @ diseq2)
     in (if M.tracing then match res with | Some r -> M.trace "wrpointer-neq" "join_neq: %s\n\n" (Disequalities.show_neq r.diseq) | None -> ()); res
+
+  (** Joins the block disequalities bldiseq1 and bldiseq2, given a congruence closure data structure. *)
+  let join_bldis bldiseq1 bldiseq2 cc1 cc2 cc cmap1 cmap2 =
+    let bldiseq1 = BlDis.to_conj bldiseq1 in
+    let bldiseq2 = BlDis.to_conj bldiseq2 in
+    (* keep all disequalities from diseq1 that are implied by cc2 and
+       those from diseq2 that are implied by cc1 *)
+    let diseq1 = List.filter (block_neq_query (Some cc2)) (BlDis.element_closure bldiseq1 cmap1) in
+    let diseq2 = List.filter (block_neq_query (Some cc1)) (BlDis.element_closure bldiseq2 cmap2) in
+    let cc = Option.get (insert_set cc (fst @@ SSet.subterms_of_conj (List.map (fun (a,b) -> (a,b,Z.zero)) (diseq1 @ diseq2)))) in
+    let diseqs_ref_terms = List.filter (fun (t1,t2) -> TUF.is_root cc.uf t1 && TUF.is_root cc.uf t2) (diseq1 @ diseq2) in
+    let bldis = List.fold BlDis.add_block_diseq BlDis.empty diseqs_ref_terms
+    in (if M.tracing then M.trace "wrpointer-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
+    {cc with bldis}
 
 end

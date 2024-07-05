@@ -29,17 +29,18 @@ struct
   let eval_guard ask t e =
     let prop_list = T.prop_of_cil ask e true in
     let res = match split prop_list with
-      | [], [] -> None
-      | x::xs, _ -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
-      | _, y::ys ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
+      | [], [], [] -> None
+      | x::xs, _, [] -> if fst (eq_query t x) then Some true else if neq_query t x then Some false else None
+      | _, y::ys, [] ->  if neq_query t y then Some true else if fst (eq_query t y) then Some false else None
+      | _ -> None (*there should never be block disequalities here...*)
     in if M.tracing then M.trace "wrpointer" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
         d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
   (* let query_may_point_to ctx t e =
-    if M.tracing then M.trace "wrpointer-query" "may-point-to %a!"
+     if M.tracing then M.trace "wrpointer-query" "may-point-to %a!"
         d_exp e;
-    match T.of_cil (ask_of_ctx ctx) e with
-    | Some term, Some offset ->
+     match T.of_cil (ask_of_ctx ctx) e with
+     | Some term, Some offset ->
       begin match insert t term with
         | _,None -> MayBeEqual.AD.top()
         | _,Some cc ->
@@ -61,7 +62,7 @@ struct
           in if M.tracing then M.trace "wrpointer-query" "may-point-to %a : %a. Is bot: %b\n"
               d_exp e MayBeEqual.AD.pretty res (MayBeEqual.AD.is_bot res); res
       end
-    | _ ->
+     | _ ->
       MayBeEqual.AD.top() *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -80,17 +81,18 @@ struct
 
   let assign_lval t ask lval expr =
     (* ignore assignments to values that are not 64 bits *) (*TODO what if there is a cast*)
-    match T.get_element_size_in_bits (typeOfLval lval), T.of_lval ask lval, T.of_cil ask expr with
+    let lval_t = typeOfLval lval in
+    match T.get_element_size_in_bits lval_t, T.of_lval ask lval, T.of_cil ask expr with
     (* Indefinite assignment *)
     | s, lterm, (None, _) -> D.remove_may_equal_terms ask s lterm t
     (* Definite assignment *)
     | s, lterm, (Some term, Some offset) ->
-      let dummy_var = MayBeEqual.dummy_var (typeOfLval lval) in
+      let dummy_var = MayBeEqual.dummy_var lval_t in
       if M.tracing then M.trace "wrpointer-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
       t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo (typeOfLval lval)
+      D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo lval_t
     | exception (T.UnsupportedCilExpression _) -> D.top ()
     (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
        We have to forget all the information we had.
@@ -126,14 +128,37 @@ struct
       | None -> ctx.local
     in if M.tracing then M.trace "wrpointer-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
 
-  let special ctx var_opt v exprs  =
+
+  let add_new_block t ask lval =
+    (* ignore assignments to values that are not 64 bits *)
+    let lval_t = typeOfLval lval in
+    match T.get_element_size_in_bits lval_t, T.of_lval ask lval with
+    (* Indefinite assignment *)
+    | s, lterm ->
+      (* let t = D.remove_may_equal_terms ask s lterm t in
+               -> not necessary because this is always a new fresh variable in goblint *)
+      add_block_diseqs t lterm
+    (* Definite assignment *)
+    | exception (T.UnsupportedCilExpression _) -> D.top ()
+
+  (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
+  let special ctx var_opt v exprs =
     let desc = LibraryFunctions.find v in
-    match desc.special exprs, v.vname with
-    | Assert { exp; refine; _ }, _ -> if not refine then
+    match desc.special exprs with
+    | Assert { exp; refine; _ } -> if not refine then
         ctx.local
       else
         branch ctx exp true
-    | _, _ -> ctx.local
+    | Malloc exp -> (*exp is the size of the malloc'ed block*)
+      begin match var_opt with
+        | None ->
+          ctx.local
+        | Some varin ->
+          if M.tracing then M.trace "wrpointer-malloc"
+              "SPECIAL MALLOC: exp = %a; var_opt = Some (%a); v = %a; " d_exp exp d_lval varin d_lval (Var v, NoOffset);
+          add_new_block ctx.local (ask_of_ctx ctx) varin
+      end
+    | _ -> ctx.local
 
   let duplicated_variable var = { var with vid = - var.vid - 4; vname = "wrpointer__" ^ var.vname ^ "'" }
   let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
