@@ -360,7 +360,8 @@ module T = struct
       end
     | CastE (typ, exp)-> begin match of_cil ask exp with
         | Some (Addr x), z -> Some (Addr x), z
-        | Some (Deref (x, z, old_exp)), z' -> Some (Deref (x, z, CastE (typ, exp))), z'
+        | Some (Aux (x, _)), z -> Some (Aux (x, CastE (typ, exp))), z
+        | Some (Deref (x, z, _)), z' -> Some (Deref (x, z, CastE (typ, exp))), z'
         | t, z -> t, z
       end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
@@ -425,7 +426,6 @@ module T = struct
       else (if M.tracing then M.trace "wrpointer-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
             None, None)
     | t, z -> t, z
-
 
   let map_z_opt op z = Tuple2.map2 (Option.map (op z))
 
@@ -792,8 +792,7 @@ module CongruenceClosure = struct
         map_set_add (TUF.find_no_pc uf v) v comp)
         TMap.empty (TMap.bindings uf)
 
-    (* find all elements that are in the same equivalence class as t
-       except t *)
+    (** Find all elements that are in the same equivalence class as t. *)
     let comp_t uf t =
       let (t',z') = TUF.find_no_pc uf t in
       List.fold_left (fun comp (v,((p,z),_)) ->
@@ -1590,8 +1589,9 @@ module CongruenceClosure = struct
     let (v2,r2),cc = insert cc t2 in
     if T.equal v1 v2 && Z.equal r1 Z.(r2 + r) then (true, cc)
     else
-      (*if the equality is *(t1' + z1) = *(t2' + z2), then we check if the two pointers are equal,
-        i.e. if t1' + z1 = t2' + z2 *)
+      (* If the equality is *(t1' + z1) = *(t2' + z2), then we check if the two pointers are equal,
+         i.e. if t1' + z1 = t2' + z2.
+          This is useful when the dereferenced elements are not pointers. *)
     if Z.equal r Z.zero then
       match t1,t2 with
       | Deref (t1', z1, _),  Deref (t2', z2, _) ->
@@ -1791,15 +1791,24 @@ module CongruenceClosure = struct
 
   (* join *)
 
+  let show_pmap pmap=
+    List.fold_left (fun s ((r1,r2,z1),(t,z2)) ->
+        s ^ ";; " ^ "("^T.show r1^","^T.show r2 ^ ","^Z.to_string z1^") --> ("^ T.show t ^ Z.to_string z2 ^ ")") ""(Map.bindings pmap)
+
   let join_eq cc1 cc2 =
     let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
     let mappings = List.map
         (fun a -> let r1, off1 = TUF.find_no_pc cc1.uf a in
           let r2, off2 = TUF.find_no_pc cc2.uf a in
           (r1,r2,Z.(off2 - off1)), (a,off1)) atoms in
-    let pmap = List.fold_left (fun pmap (x1,x2) -> Map.add x1 x2 pmap) Map.empty mappings in
-    let working_set = List.map fst mappings in
-    let cc = init_cc [] in
+    let add_term (pmap, cc, new_pairs) (new_element, (new_term, a_off)) =
+      match Map.find_opt new_element pmap with
+      | None -> Map.add new_element (new_term, a_off) pmap, cc, new_element::new_pairs
+      | Some (c, c1_off) ->
+        pmap, add_eq cc (new_term, c, Z.(-c1_off + a_off)),new_pairs in
+    let pmap,cc,working_set = List.fold_left add_term (Map.empty, Some (init_cc []),[]) mappings in
+    (* add equalities that make sure that all atoms that have the same
+       representative are equal. *)
     let add_one_edge y t t1_off diff (pmap, cc, new_pairs) (offset, a) =
       let a', a_off = TUF.find_no_pc cc1.uf a in
       match LMap.map_find_opt (y, Z.(diff + offset)) cc2.map with
@@ -1810,10 +1819,7 @@ module CongruenceClosure = struct
         | new_term ->
           let _ , cc = insert cc new_term in
           let new_element = a',b',Z.(b_off - a_off) in
-          match Map.find_opt new_element pmap with
-          | None -> Map.add new_element (new_term, a_off) pmap, cc, new_element::new_pairs
-          | Some (c, c1_off) ->
-            pmap, add_eq cc (new_term, c, Z.(-c1_off + a_off)),new_pairs
+          add_term (pmap, cc, new_pairs) (new_element, (new_term, a_off))
     in
     let rec add_edges_to_map pmap cc = function
       | [] -> cc, pmap
@@ -1822,7 +1828,7 @@ module CongruenceClosure = struct
         let pmap,cc,new_pairs = List.fold_left (add_one_edge y t t1_off diff) (pmap, cc, []) (LMap.successors x cc1.map) in
         add_edges_to_map pmap cc (rest@new_pairs)
     in
-    add_edges_to_map pmap (Some cc) working_set
+    add_edges_to_map pmap cc working_set
 
   (** Joins the disequalities diseq1 and diseq2, given a congruence closure data structure. *)
   let join_neq diseq1 diseq2 cc1 cc2 cc cmap1 cmap2 =
