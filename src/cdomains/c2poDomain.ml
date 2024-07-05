@@ -420,114 +420,9 @@ module CongruenceClosure = struct
 
   end
 
-  (** Minimal representatives map.
-      It maps each representative term of an equivalence class to the minimal term of this representative class.
-      rep -> (t, z) means that t = rep + z *)
-  module MRMap = struct
-    type t = (T.t * Z.t) TMap.t [@@deriving eq, ord, hash]
-
-    let bindings = TMap.bindings
-    let find = TMap.find
-    let find_opt = TMap.find_opt
-    let add = TMap.add
-    let remove = TMap.remove
-    let mem = TMap.mem
-    let empty = TMap.empty
-
-    let show_min_rep min_representatives =
-      let show_one_rep s (state, (rep, z)) =
-        s ^ "\tState: " ^ T.show state ^
-        "\n\tMin: (" ^ T.show rep ^ ", " ^ Z.to_string z ^ ")--\n\n"
-      in
-      List.fold_left show_one_rep "" (bindings min_representatives)
-
-    let rec update_min_repr (uf, set, map) min_representatives = function
-      | [] -> min_representatives, uf
-      | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
-        match LMap.successors state map with
-        | edges ->
-          let process_edge (min_representatives, queue, uf) (edge_z, next_term) =
-            let next_state, next_z, uf = TUF.find uf next_term in
-            let (min_term, min_z) = find state min_representatives in
-            let next_min =
-              (SSet.deref_term_even_if_its_not_possible min_term Z.(edge_z - min_z) set, next_z) in
-            match TMap.find_opt next_state min_representatives
-            with
-            | None ->
-              (add next_state next_min min_representatives, queue @ [next_state], uf)
-            | Some current_min when T.compare (fst next_min) (fst current_min) < 0 ->
-              (add next_state next_min min_representatives, queue @ [next_state], uf)
-            | _ -> (min_representatives, queue, uf)
-          in
-          let (min_representatives, queue, uf) = List.fold_left process_edge (min_representatives, queue, uf) edges
-          in update_min_repr (uf, set, map) min_representatives queue
-
-    (** Uses dijkstra algorithm to update the minimal representatives of
-          the successor nodes of all edges in the queue
-          and if necessary it recursively updates the minimal representatives of the successor nodes.
-          The states in the queue must already have an updated min_repr.
-          This function visits only the successor nodes of the nodes in queue, not the nodes themselves.
-          Before visiting the nodes, it sorts the queue by the size of the current mininmal representative.
-
-          parameters:
-
-        - `(uf, map)` represent the union find data structure and the corresponding lookup map.
-        - `min_representatives` maps each representative of the union find data structure to the minimal representative of the equivalence class.
-        - `queue` contains the states that need to be processed.
-          The states of the automata are the equivalence classes and each state of the automata is represented by the representative term.
-          Therefore the queue is a list of representative terms.
-
-        Returns:
-        - The map with the minimal representatives
-        - The union find tree. This might have changed because of path compression. *)
-    let update_min_repr (uf, set, map) min_representatives queue =
-      (* order queue by size of the current min representative *)
-      let queue =
-        List.sort_unique (fun el1 el2 -> let compare_repr = TUF.compare_repr (find el1 min_representatives) (find el2 min_representatives) in
-                           if compare_repr = 0 then T.compare el1 el2 else compare_repr) (List.filter (TUF.is_root uf) queue)
-      in update_min_repr (uf, set, map) min_representatives queue
-
-    (**
-       Computes a map that maps each representative of an equivalence class to the minimal representative of the equivalence class.
-       It's used for now when removing elements, then the min_repr map gets recomputed.
-
-       Returns:
-       - The map with the minimal representatives
-       - The union find tree. This might have changed because of path compression. *)
-    let compute_minimal_representatives (uf, set, map) =
-      if M.tracing then M.trace "wrpointer" "compute_minimal_representatives\n";
-      let atoms = SSet.get_atoms set in
-      (* process all atoms in increasing order *)
-      let uf_ref = ref uf in
-      let atoms =
-        List.sort (fun el1 el2 ->
-            let v1, z1, new_uf = TUF.find !uf_ref el1 in
-            uf_ref := new_uf;
-            let v2, z2, new_uf = TUF.find !uf_ref el2 in
-            uf_ref := new_uf;
-            let repr_compare = TUF.compare_repr (v1, z1) (v2, z2)
-            in
-            if repr_compare = 0 then T.compare el1 el2 else repr_compare) atoms in
-      let add_atom_to_map (min_representatives, queue, uf) a =
-        let (rep, offs, uf) = TUF.find uf a in
-        if not (mem rep min_representatives) then
-          (add rep (a, offs) min_representatives, queue @ [rep], uf)
-        else (min_representatives, queue, uf)
-      in
-      let (min_representatives, queue, uf) = List.fold_left add_atom_to_map (empty, [], uf) atoms
-      (* compute the minimal representative of all remaining edges *)
-      in update_min_repr (uf, set, map) min_representatives queue
-
-    (** Computes the initial map of minimal representatives.
-          It maps each element `e` in the set to `(e, 0)`. *)
-    let initial_minimal_representatives set =
-      List.fold_left (fun map element -> add element (element, Z.zero) map) empty (SSet.elements set)
-  end
-
   type t = {uf: TUF.t;
             set: SSet.t;
             map: LMap.t;
-            min_repr: MRMap.t;
             diseq: Disequalities.t;
             bldis: BlDis.t}
   [@@deriving eq, ord, hash]
@@ -561,44 +456,28 @@ module CongruenceClosure = struct
       let atoms = SSet.get_atoms cc.set in
       List.filter_map (fun atom ->
           let (rep_state, rep_z) = TUF.find_no_pc cc.uf atom in
-          let (min_state, min_z) = MRMap.find rep_state cc.min_repr in
-          normalize_equality (atom, min_state, Z.(rep_z - min_z))
+          normalize_equality (atom, rep_state, rep_z)
         ) atoms
     in
     let conjunctions_of_transitions =
       let transitions = get_transitions (cc.uf, cc.map) in
       List.filter_map (fun (z,s,(s',z')) ->
-          let (min_state, min_z) = MRMap.find s cc.min_repr in
-          let (min_state', min_z') = MRMap.find s' cc.min_repr in
-          normalize_equality (SSet.deref_term_even_if_its_not_possible min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
+          normalize_equality (SSet.deref_term_even_if_its_not_possible s z cc.set, s', z')
         ) transitions in
     (*disequalities*)
     let disequalities = Disequalities.get_disequalities cc.diseq in
     (* find disequalities between min_repr *)
     let normalize_disequality (t1, t2, z) =
-      let (min_state1, min_z1) = MRMap.find t1 cc.min_repr in
-      let (min_state2, min_z2) = MRMap.find t2 cc.min_repr in
-      let new_offset = Z.(-min_z2 + min_z1 + z) in
-      if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
-      else Nequal (min_state2, min_state1, Z.(-new_offset))
+      if T.compare t1 t2 < 0 then Nequal (t1, t2, z)
+      else Nequal (t2, t1, Z.(-z))
     in
-    if M.tracing then M.trace "wrpointer-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep cc.min_repr) (LMap.show_map cc.map);
+    if M.tracing then M.trace "wrpointer-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (LMap.show_map cc.map);
     let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
     (* block disequalities *)
     let normalize_bldis t = match t with
       | BlNequal (t1,t2) ->
-        let min_state1 =
-          begin match MRMap.find_opt t1 cc.min_repr with
-            | None -> t1
-            | Some (a,_) -> a
-          end in
-        let min_state2 =
-          begin match MRMap.find_opt t2 cc.min_repr with
-            | None -> t2
-            | Some (a,_) -> a
-          end in
-        if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
-        else BlNequal (min_state2, min_state1)
+        if T.compare t1 t2 < 0 then BlNequal (t1, t2)
+        else BlNequal (t2, t1)
       | _ -> t
     in
     let conjunctions_of_bl_diseqs = List.map normalize_bldis @@ BlDis.to_conj cc.bldis in
@@ -613,8 +492,6 @@ module CongruenceClosure = struct
                    ^ (SSet.show_set x.set)
                    ^ "\nLookup map/transitions:\n"
                    ^ (LMap.show_map x.map)
-                   ^ "\nMinimal representatives:\n"
-                   ^ (MRMap.show_min_rep x.min_repr)
                    ^ "\nNeq:\n"
                    ^ (Disequalities.show_neq x.diseq)
                    ^ "\nBlock diseqs:\n"
@@ -642,8 +519,7 @@ module CongruenceClosure = struct
     let (set, map) = SSet.subterms_of_conj conj in
     let uf = SSet.elements set |>
              TUF.init in
-    let min_repr = MRMap.initial_minimal_representatives set in
-    {uf; set; map; min_repr; diseq = Disequalities.empty; bldis=BlDis.empty}
+    {uf; set; map; diseq = Disequalities.empty; bldis=BlDis.empty}
 
   (** closure of disequalities *)
   let congruence_neq cc neg =
@@ -658,7 +534,7 @@ module CongruenceClosure = struct
       let neq_list = Disequalities.init_list_neq uf neg in
       let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) neq_list in
       if M.tracing then M.trace "wrpointer-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
-      Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq; bldis=cc.bldis}
+      Some {uf; set=cc.set; map=cc.map; diseq=neq; bldis=cc.bldis}
     with Unsat -> None
 
   (**
@@ -677,18 +553,18 @@ module CongruenceClosure = struct
 
      Throws "Unsat" if a contradiction is found.
   *)
-  let rec closure (uf, map, min_repr, new_repr) queue = function
-    | [] -> (uf, map, queue, min_repr, new_repr)
+  let rec closure (uf, map, new_repr) = function
+    | [] -> (uf, map, new_repr)
     | (t1, t2, r)::rest ->
       (let v1, r1, uf = TUF.find uf t1 in
        let v2, r2, uf = TUF.find uf t2 in
        let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
        if not (Z.equal sizet1 sizet2) then
          (if M.tracing then M.trace "wrpointer" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
-          closure (uf, map, min_repr, new_repr) queue rest) else
+          closure (uf, map, new_repr) rest) else
        if T.equal v1 v2 then
          (* t1 and t2 are in the same equivalence class *)
-         if Z.equal r1 Z.(r2 + r) then closure (uf, map, min_repr, new_repr) queue rest
+         if Z.equal r1 Z.(r2 + r) then closure (uf, map, new_repr) rest
          else raise Unsat
        else let diff_r = Z.(r2 - r1 + r) in
          let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
@@ -723,15 +599,7 @@ module CongruenceClosure = struct
                  in LMap.zmap_add r' v' zmap, rest) (imap2, rest) infl1 in
              LMap.remove v1 (LMap.add v zmap map), rest
          in
-         (* update min_repr *)
-         let min_v1, min_v2 = MRMap.find v1 min_repr, MRMap.find v2 min_repr in
-         (* 'changed' is true if the new_min is different than the old min *)
-         let new_min, changed = if T.compare (fst min_v1) (fst min_v2) < 0 then (min_v1, not b) else (min_v2, b) in
-         let new_min = (fst new_min, if b then Z.(snd new_min - diff_r) else Z.(snd new_min + diff_r)) in
-         let removed_v = if b then v2 else v1 in
-         let min_repr = MRMap.remove removed_v (if changed then MRMap.add v new_min min_repr else min_repr) in
-         let queue = v :: queue in
-         closure (uf, map, min_repr, new_repr) queue rest
+         closure (uf, map, new_repr) rest
       )
 
   let update_bldis new_repr bldis =
@@ -764,9 +632,9 @@ module CongruenceClosure = struct
     match cc with
     | None -> None
     | Some cc ->
-      let (uf, map, queue, min_repr, new_repr) = closure (cc.uf, cc.map, cc.min_repr, TMap.empty) [] conjs in
+      let (uf, map, new_repr) = closure (cc.uf, cc.map, TMap.empty) conjs in
       let bldis = update_bldis new_repr cc.bldis in
-      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=bldis} []
+      congruence_neq {uf; set = cc.set; map; diseq=cc.diseq; bldis=bldis} []
 
   (**
      Parameters: cc conjunctions.
@@ -787,12 +655,9 @@ module CongruenceClosure = struct
     match cc with
     | None -> None
     | Some cc ->
-      let (uf, map, queue, min_repr, new_repr) = closure (cc.uf, cc.map, cc.min_repr, TMap.empty) [] conjs in
+      let (uf, map, new_repr) = closure (cc.uf, cc.map, TMap.empty) conjs in
       let bldis = update_bldis new_repr cc.bldis in
-      (* let min_repr, uf = MRMap.update_min_repr (uf, cc.set, map) min_repr queue in *)
-      let min_repr, uf = MRMap.compute_minimal_representatives (uf, cc.set, map) in
-      if M.tracing then M.trace "wrpointer" "closure minrepr: %s\n" (MRMap.show_min_rep min_repr);
-      congruence_neq {uf; set = cc.set; map; min_repr; diseq=cc.diseq; bldis=bldis} []
+      congruence_neq {uf; set = cc.set; map; diseq=cc.diseq; bldis=bldis} []
 
   (** Throws Unsat if the congruence is unsatisfiable.*)
   let init_congruence conj =
@@ -814,29 +679,27 @@ module CongruenceClosure = struct
       and queue, that needs to be passed as a parameter to `update_min_repr`.
 
       `queue` is a list which contains all atoms that are present as subterms of t and that are not already present in the data structure. *)
-  let rec insert_no_min_repr cc t =
+  let rec insert cc t =
     if SSet.mem t cc.set then
       let v,z,uf = TUF.find cc.uf t in
-      (v,z), Some {cc with uf}, []
+      (v,z), Some {cc with uf}
     else
       match t with
       | Addr _ | Aux _ -> let uf = TUF.ValMap.add t ((t, Z.zero),1) cc.uf in
-        let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
         let set = SSet.add t cc.set in
-        (t, Z.zero), Some {cc with uf; set; min_repr;}, [t]
+        (t, Z.zero), Some {cc with uf; set;}
       | Deref (t', z, exp) ->
-        match insert_no_min_repr cc t' with
-        | (v, r), None, queue -> (v, r), None, []
-        | (v, r), Some cc, queue ->
-          let min_repr = MRMap.add t (t, Z.zero) cc.min_repr in
+        match insert cc t' with
+        | (v, r), None -> (v, r), None
+        | (v, r), Some cc ->
           let set = SSet.add t cc.set in
           match LMap.map_find_opt (v, Z.(r + z)) cc.map with
           | Some v' -> let v2,z2,uf = TUF.find cc.uf v' in
             let uf = LMap.add t ((t, Z.zero),1) uf in
-            (v2,z2), closure (Some {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; min_repr; diseq = cc.diseq; bldis=cc.bldis}) [(t, v', Z.zero)], v::queue
+            (v2,z2), closure (Some {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map; diseq = cc.diseq; bldis=cc.bldis}) [(t, v', Z.zero)]
           | None -> let map = LMap.map_add (v, Z.(r + z)) t cc.map in
             let uf = LMap.add t ((t, Z.zero),1) cc.uf in
-            (t, Z.zero), Some {uf; set; map; min_repr; diseq = cc.diseq; bldis=cc.bldis}, v::queue
+            (t, Z.zero), Some {uf; set; map; diseq = cc.diseq; bldis=cc.bldis}
 
   (** Add a term to the data structure.
 
@@ -844,23 +707,13 @@ module CongruenceClosure = struct
   let insert cc t =
     match cc with
     | None -> (t, Z.zero), None
-    | Some cc ->
-      match insert_no_min_repr cc t with
-      | v, None, queue -> v, None
-      | v, Some cc, queue ->
-        let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
-        v, Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq; bldis=cc.bldis}
+    | Some cc -> insert cc t
 
   (** Add all terms in a specific set to the data structure.
 
       Returns updated (uf, set, map, min_repr). *)
   let insert_set cc t_set =
-    match SSet.fold (fun t (cc, a_queue) -> let _, cc, queue = Option.map_default (fun cc -> insert_no_min_repr cc t) ((t, Z.zero), None, []) cc in (cc, queue @ a_queue) ) t_set (cc, []) with
-    | None, queue -> None
-    | Some cc, queue ->
-      (* update min_repr at the end for more efficiency *)
-      let min_repr, uf = MRMap.update_min_repr (cc.uf, cc.set, cc.map) cc.min_repr queue in
-      Some {uf; set = cc.set; map = cc.map; min_repr; diseq = cc.diseq; bldis=cc.bldis}
+    SSet.fold (fun t cc -> snd (insert cc t)) t_set cc
 
   (**  Returns true if t1 and t2 are equivalent. *)
   let rec eq_query cc (t1,t2,r) =
@@ -947,7 +800,7 @@ module CongruenceClosure = struct
 
   let remove_terms_from_eq predicate cc =
     let rec insert_terms cc =
-      function | [] -> cc | t::ts -> insert_terms (Option.bind cc (fun cc -> Tuple3.second (insert_no_min_repr cc t))) ts in
+      function | [] -> cc | t::ts -> insert_terms (snd (insert cc t)) ts in
     (* start from all initial states that are still valid and find new representatives if necessary *)
     (* new_reps maps each representative term to the new representative of the equivalence class *)
     (*but new_reps contains an element but not necessarily the representative!!*)
@@ -1060,10 +913,9 @@ module CongruenceClosure = struct
       begin match remove_terms_from_diseq old_cc.diseq new_reps cc with
         | Some cc ->
           let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
-          let min_repr, uf = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map)
-          in if M.tracing then M.trace "wrpointer" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
-              (show_all old_cc) (show_all {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq; bldis});
-          Some {uf; set = cc.set; map = cc.map; min_repr; diseq=cc.diseq; bldis}
+          if M.tracing then M.trace "wrpointer" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
+              (show_all old_cc) (show_all {cc with bldis});
+          Some {cc with bldis}
         | None -> None
       end
     | _,None -> None
@@ -1140,221 +992,220 @@ end
 include CongruenceClosure
 
 (**Find out if two addresses are not equal by using the MayPointTo query*)
-  module MayBeEqual = struct
+module MayBeEqual = struct
 
-    module AD = Queries.AD
-    let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="wrpointer__@dummy"}
-    let dummy_var var = T.aux_term_of_varinfo (dummy_varinfo var)
-    let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
+  module AD = Queries.AD
+  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="wrpointer__@dummy"}
+  let dummy_var var = T.aux_term_of_varinfo (dummy_varinfo var)
+  let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
 
-    let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="wrpointer__@return"}
-    let return_var var = T.aux_term_of_varinfo (return_varinfo var)
-    let return_lval var = Lval (Var (return_varinfo var), NoOffset)
+  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="wrpointer__@return"}
+  let return_var var = T.aux_term_of_varinfo (return_varinfo var)
+  let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 
-    let ask_may_point_to (ask: Queries.ask) exp =
-      match ask.f (MayPointTo exp) with
-      | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top ()
-      | res -> res
+  let ask_may_point_to (ask: Queries.ask) exp =
+    match ask.f (MayPointTo exp) with
+    | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top ()
+    | res -> res
 
-    let may_point_to_all_equal_terms ask exp cc term offset =
-      let comp = Disequalities.comp_t cc.uf term in
-      let valid_term (t,z) =
-        T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
-      let equal_terms = List.filter valid_term comp in
-      if M.tracing then M.trace "wrpointer-query" "may-point-to %a -> equal terms: %s"
-          d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
-      let intersect_query_result res (term,z) =
-        let next_query =
-          match ask_may_point_to ask (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
-          | exception (T.UnsupportedCilExpression _) -> AD.top()
-          | res ->  if AD.is_bot res then AD.top() else res
-        in
-        AD.meet res next_query in
-      List.fold intersect_query_result (AD.top()) equal_terms
-
-    (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
-    let may_point_to_address (ask:Queries.ask) adresses t2 off cc =
-      match T.to_cil_sum off (T.to_cil t2) with
-      | exception (T.UnsupportedCilExpression _) -> true
-      | exp2 ->
-        let mpt1 = adresses in
-        let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
-        let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-        if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
-            AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
-
-    let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
-      if T.equal t1 t2 then true else
-        let exp1 = T.to_cil t1 in
-        let mpt1 = may_point_to_all_equal_terms ask exp1 cc t1 Z.zero in
-        let res = may_point_to_address ask mpt1 t2 off cc in
-        if M.tracing && res then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
-            AD.pretty mpt1 (T.show t1) d_plainexp exp1; res
-
-    let rec may_be_equal ask cc s t1 t2 =
-      let there_is_an_overlap s s' diff =
-        if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
+  let may_point_to_all_equal_terms ask exp cc term offset =
+    let comp = Disequalities.comp_t cc.uf term in
+    let valid_term (t,z) =
+      T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+    let equal_terms = List.filter valid_term comp in
+    if M.tracing then M.trace "wrpointer-query" "may-point-to %a -> equal terms: %s"
+        d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
+    let intersect_query_result res (term,z) =
+      let next_query =
+        match ask_may_point_to ask (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
+        | exception (T.UnsupportedCilExpression _) -> AD.top()
+        | res ->  if AD.is_bot res then AD.top() else res
       in
-      match t1, t2 with
-      | Deref (t, z,_), Deref (v, z',_) ->
-        let (q', z1') = TUF.find_no_pc cc.uf v in
-        let (q, z1) = TUF.find_no_pc cc.uf t in
-        let s' = T.get_size t2 in
-        let diff = Z.(-z' - z1 + z1' + z) in
-        (* If they are in the same equivalence class and they overlap, then they are equal *)
-        (if T.equal q' q && there_is_an_overlap s s' diff then true
-         else
-           (* If we have a disequality, then they are not equal *)
-         if neq_query (Some cc) (t,v,Z.(z'-z)) then false else
-           (* or if we know that they are not equal according to the query MayPointTo*)
-           (may_point_to_same_address ask t v Z.(z' - z) cc))
-        || (may_be_equal ask cc s t1 v)
-      | Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
-      | Addr _ , _ | Aux _, _ -> T.is_subterm t1 t2
+      AD.meet res next_query in
+    List.fold intersect_query_result (AD.top()) equal_terms
 
-    (**Returns true iff by assigning to t1, the value of t2 could change.
-       The parameter s is the size in bits of the variable t1 we are assigning to. *)
-    let may_be_equal ask cc s t1 t2 =
-      match cc with
-      | None -> false
-      | Some cc ->
-        let res = (may_be_equal ask cc s t1 t2) in
-        if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
-        res
+  (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
+  let may_point_to_address (ask:Queries.ask) adresses t2 off cc =
+    match T.to_cil_sum off (T.to_cil t2) with
+    | exception (T.UnsupportedCilExpression _) -> true
+    | exp2 ->
+      let mpt1 = adresses in
+      let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
+      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+      if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
 
-    let rec may_point_to_one_of_these_adresses ask adresses cc t2 =
-      match t2 with
-      | Deref (v, z',_) ->
-        (may_point_to_address ask adresses v z' cc)
-        || (may_point_to_one_of_these_adresses ask adresses cc v)
-      | Addr _ | Aux _ -> false
+  let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
+    if T.equal t1 t2 then true else
+      let exp1 = T.to_cil t1 in
+      let mpt1 = may_point_to_all_equal_terms ask exp1 cc t1 Z.zero in
+      let res = may_point_to_address ask mpt1 t2 off cc in
+      if M.tracing && res then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
+          AD.pretty mpt1 (T.show t1) d_plainexp exp1; res
 
-  end
+  let rec may_be_equal ask cc s t1 t2 =
+    let there_is_an_overlap s s' diff =
+      if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
+    in
+    match t1, t2 with
+    | Deref (t, z,_), Deref (v, z',_) ->
+      let (q', z1') = TUF.find_no_pc cc.uf v in
+      let (q, z1) = TUF.find_no_pc cc.uf t in
+      let s' = T.get_size t2 in
+      let diff = Z.(-z' - z1 + z1' + z) in
+      (* If they are in the same equivalence class and they overlap, then they are equal *)
+      (if T.equal q' q && there_is_an_overlap s s' diff then true
+       else
+         (* If we have a disequality, then they are not equal *)
+       if neq_query (Some cc) (t,v,Z.(z'-z)) then false else
+         (* or if we know that they are not equal according to the query MayPointTo*)
+         (may_point_to_same_address ask t v Z.(z' - z) cc))
+      || (may_be_equal ask cc s t1 v)
+    | Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
+    | Addr _ , _ | Aux _, _ -> T.is_subterm t1 t2
 
-  module D = struct
+  (**Returns true iff by assigning to t1, the value of t2 could change.
+     The parameter s is the size in bits of the variable t1 we are assigning to. *)
+  let may_be_equal ask cc s t1 t2 =
+    match cc with
+    | None -> false
+    | Some cc ->
+      let res = (may_be_equal ask cc s t1 t2) in
+      if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
+      res
 
-    include Printable.StdLeaf
+  let rec may_point_to_one_of_these_adresses ask adresses cc t2 =
+    match t2 with
+    | Deref (v, z',_) ->
+      (may_point_to_address ask adresses v z' cc)
+      || (may_point_to_one_of_these_adresses ask adresses cc v)
+    | Addr _ | Aux _ -> false
 
-    type domain = t option [@@deriving ord, hash]
-    type t = domain [@@deriving ord, hash]
+end
 
-    (** Convert to string *)
-    let show x = match x with
-      | None -> "⊥\n"
-      | Some x -> show_conj (get_normal_form x)
+module D = struct
 
-    let show_all = function
-      | None -> "⊥\n"
-      | Some x -> show_all x
+  include Printable.StdLeaf
 
-    include Printable.SimpleShow(struct type t = domain let show = show end)
+  type domain = t option [@@deriving ord, hash]
+  type t = domain [@@deriving ord, hash]
 
-    let name () = "c2po"
+  (** Convert to string *)
+  let show x = match x with
+    | None -> "⊥\n"
+    | Some x -> show_conj (get_normal_form x)
 
-    let equal x y =
-      if x == y then
-        true
-      else
-        let res = match x, y with
-          | Some x, Some y ->
-            (T.props_equal (get_normal_form x) (get_normal_form y))
-          | None, None -> true
-          | _ -> false
-        in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
+  let show_all = function
+    | None -> "⊥\n"
+    | Some x -> show_all x
 
-    let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
+  include Printable.SimpleShow(struct type t = domain let show = show end)
 
-    let init () = init_congruence []
+  let name () = "c2po"
 
-    let bot () = None
-    let is_bot x = Option.is_none x
-    let top () = empty ()
-    let is_top = function None -> false
-                        | Some cc -> TUF.is_empty cc.uf
+  let equal x y =
+    if x == y then
+      true
+    else
+      let res = match x, y with
+        | Some x, Some y ->
+          (T.props_equal (get_normal_form x) (get_normal_form y))
+        | None, None -> true
+        | _ -> false
+      in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
-    let join a b =
-      if  a == b then
-        a
-      else
-        let res =
-          match a,b with
-          | None, b -> b
-          | a, None -> a
-          | Some a, Some b ->
-            if M.tracing then M.tracel "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
-                (show_all (Some a)) (show_all (Some b));
-            let cc = fst(join_eq a b) in
-            let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
-            in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
-            Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
-        in
-        if M.tracing then M.tracel "wrpointer-join" "JOIN. JOIN: %s\n"
-            (show_all res);
-        res
+  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
 
-    let widen a b = if M.tracing then M.trace "wrpointer-join" "WIDEN\n";join a b
+  let init () = init_congruence []
 
-    let meet a b =
-      if a == b then
-        a
-      else
+  let bot () = None
+  let is_bot x = Option.is_none x
+  let top () = empty ()
+  let is_top = function None -> false
+                      | Some cc -> TUF.is_empty cc.uf
+
+  let join a b =
+    if  a == b then
+      a
+    else
+      let res =
         match a,b with
-        | None, _ -> None
-        | _, None -> None
-        | Some a, b ->
-          let a_conj = get_normal_form a in
-          meet_conjs_opt a_conj b
+        | None, b -> b
+        | a, None -> a
+        | Some a, Some b ->
+          if M.tracing then M.tracel "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+              (show_all (Some a)) (show_all (Some b));
+          let cc = fst(join_eq a b) in
+          let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+          in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
+          Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
+      in
+      if M.tracing then M.tracel "wrpointer-join" "JOIN. JOIN: %s\n"
+          (show_all res);
+      res
 
-    let leq x y = equal (meet x y) x
+  let widen a b = if M.tracing then M.trace "wrpointer-join" "WIDEN\n";join a b
 
-    let narrow = meet
+  let meet a b =
+    if a == b then
+      a
+    else
+      match a,b with
+      | None, _ -> None
+      | _, None -> None
+      | Some a, b ->
+        let a_conj = get_normal_form a in
+        meet_conjs_opt a_conj b
 
-    let pretty_diff () (x,y) = Pretty.dprintf ""
+  let leq x y = equal (meet x y) x
 
-    let printXml f x = match x with
-      | Some x ->
-        BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\nmin. repr\n</key>\n<value>\n%s</value>\n<key>\ndiseq\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
-          (XmlUtil.escape (Format.asprintf "%s" (show (Some x))))
-          (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
-          (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
-          (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
-          (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep x.min_repr)))
-          (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.diseq)))
-      | None ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
+  let narrow = meet
 
-    (** Remove terms from the data structure.
-        It removes all terms for which "var" is a subterm,
-        while maintaining all equalities about variables that are not being removed.*)
-    let remove_terms_containing_variable var cc =
-      if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show (Addr var));
-      Option.bind cc (remove_terms (fun t -> Var.equal (T.get_var t) var))
+  let pretty_diff () (x,y) = Pretty.dprintf ""
 
-    (** Remove terms from the data structure.
-        It removes all terms which contain one of the "vars",
-        while maintaining all equalities about variables that are not being removed.*)
-    let remove_terms_containing_variables vars cc =
-      if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-      Option.bind cc (remove_terms (T.contains_variable vars))
+  let printXml f x = match x with
+    | Some x ->
+      BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\ndiseq\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
+        (XmlUtil.escape (Format.asprintf "%s" (show (Some x))))
+        (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
+        (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
+        (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
+        (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.diseq)))
+    | None ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 
-    (** Remove terms from the data structure.
-        It removes all terms which do not contain one of the "vars",
-        except the global vars are also keeped (when vstorage = static),
-        while maintaining all equalities about variables that are not being removed.*)
-    let remove_terms_not_containing_variables vars cc =
-      if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-      Option.bind cc (remove_terms (fun t -> (not (T.get_var t).vglob) && not (T.contains_variable vars t)))
+  (** Remove terms from the data structure.
+      It removes all terms for which "var" is a subterm,
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms_containing_variable var cc =
+    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show (Addr var));
+    Option.bind cc (remove_terms (fun t -> Var.equal (T.get_var t) var))
 
-    (** Remove terms from the data structure.
-        It removes all terms that may be changed after an assignment to "term".*)
-    let remove_may_equal_terms ask s term cc =
-      if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
-      let cc = snd (insert cc term) in
-      Option.bind cc (remove_terms (MayBeEqual.may_be_equal ask cc s term))
+  (** Remove terms from the data structure.
+      It removes all terms which contain one of the "vars",
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms_containing_variables vars cc =
+    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
+    Option.bind cc (remove_terms (T.contains_variable vars))
 
-    (** Remove terms from the data structure.
-        It removes all terms that may point to the same address as "tainted".*)
-    let remove_tainted_terms ask address cc =
-      if M.tracing then M.tracel "wrpointer-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
-      Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address cc) cc)
+  (** Remove terms from the data structure.
+      It removes all terms which do not contain one of the "vars",
+      except the global vars are also keeped (when vstorage = static),
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms_not_containing_variables vars cc =
+    if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
+    Option.bind cc (remove_terms (fun t -> (not (T.get_var t).vglob) && not (T.contains_variable vars t)))
 
-  end
+  (** Remove terms from the data structure.
+      It removes all terms that may be changed after an assignment to "term".*)
+  let remove_may_equal_terms ask s term cc =
+    if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
+    let cc = snd (insert cc term) in
+    Option.bind cc (remove_terms (MayBeEqual.may_be_equal ask cc s term))
+
+  (** Remove terms from the data structure.
+      It removes all terms that may point to the same address as "tainted".*)
+  let remove_tainted_terms ask address cc =
+    if M.tracing then M.tracel "wrpointer-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
+    Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address cc) cc)
+
+end
