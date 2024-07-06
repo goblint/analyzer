@@ -388,6 +388,9 @@ module CongruenceClosure = struct
       | None -> map
       | Some tset ->
         TMap.remove v' (TMap.add v tset map)
+
+    let term_set bldis =
+      TSet.of_enum (TMap.keys bldis)
   end
 
   (** Set of subterms which are present in the current data structure.
@@ -1065,8 +1068,6 @@ module CongruenceClosure = struct
 
   (** Compares the equivalence classes of cc1 and those of cc2. *)
   let equal_eq_classes cc1 cc2 =
-    (* add all terms to both elements *)
-    let cc1, cc2 = Option.get (insert_set (Some cc1) cc2.set), Option.get (insert_set (Some cc2) cc1.set) in
     let comp1, comp2 = Disequalities.comp_map cc1.uf, Disequalities.comp_map cc2.uf in
     (* they should have the same number of equivalence classes *)
     if TMap.cardinal comp1 <> TMap.cardinal comp2 then false else
@@ -1085,27 +1086,39 @@ module CongruenceClosure = struct
       List.for_all compare_with_cc2_eq_class (TMap.bindings comp1)
 
   let equal_diseqs cc1 cc2 =
+    let normalize_diseqs (min_state1, min_state2, new_offset) =
+      if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
+      else Nequal (min_state2, min_state1, Z.(-new_offset)) in
     let rename_diseqs dis = match dis with
       | Nequal (t1,t2,z) ->
         let (min_state1, min_z1) = TUF.find_no_pc cc2.uf t1 in
         let (min_state2, min_z2) = TUF.find_no_pc cc2.uf t2 in
         let new_offset = Z.(-min_z2 + min_z1 + z) in
-        if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
-        else Nequal (min_state2, min_state1, Z.(-new_offset))
+        normalize_diseqs (min_state1, min_state2, new_offset)
       | _ -> dis in
-    let renamed_diseqs = List.map rename_diseqs (Disequalities.get_disequalities cc1.diseq) in
-    Set.equal (Set.of_list renamed_diseqs) (Set.of_list (Disequalities.get_disequalities cc2.diseq))
+    let renamed_diseqs = BatList.sort_unique (T.compare_v_prop) @@
+      List.map rename_diseqs (Disequalities.get_disequalities cc1.diseq) in
+    let normalized_diseqs = BatList.sort_unique (T.compare_v_prop) @@
+      List.filter_map (function | Nequal (t1,t2,z) -> Some (normalize_diseqs(t1,t2,z))
+                                | _ -> None) (Disequalities.get_disequalities cc2.diseq) in
+    List.equal T.equal_v_prop renamed_diseqs normalized_diseqs
 
   let equal_bldis cc1 cc2 =
+    let normalize_bldis (min_state1, min_state2) =
+      if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
+      else BlNequal (min_state2, min_state1) in
     let rename_bldis dis = match dis with
       | BlNequal (t1,t2) ->
         let min_state1, _ = TUF.find_no_pc cc2.uf t1 in
         let min_state2, _ = TUF.find_no_pc cc2.uf t2 in
-        if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
-        else BlNequal (min_state2, min_state1)
+        normalize_bldis (min_state1, min_state2)
       | _ -> dis in
-    let renamed_diseqs = List.map rename_bldis (BlDis.to_conj cc1.bldis) in
-    Set.equal (Set.of_list renamed_diseqs) (Set.of_list (BlDis.to_conj cc2.bldis))
+    let renamed_diseqs = BatList.sort_unique (T.compare_v_prop) @@
+      List.map rename_bldis (BlDis.to_conj cc1.bldis) in
+    let normalized_diseqs = BatList.sort_unique (T.compare_v_prop) @@
+      List.map (function | Nequal (t1,t2,_) | Equal(t1,t2,_) | BlNequal (t1,t2)
+          -> (normalize_bldis(t1,t2))) (BlDis.to_conj cc2.bldis) in
+    List.equal T.equal_v_prop renamed_diseqs normalized_diseqs
 end
 
 include CongruenceClosure
@@ -1231,7 +1244,13 @@ module D = struct
         match x,y with
         | None, None -> true
         | Some cc1, Some cc2 ->
-          equal_eq_classes cc1 cc2 && equal_diseqs cc1 cc2 && equal_bldis cc1 cc2
+          (* add all terms to both elements *)
+          let terms = SSet.union (SSet.union cc1.set (BlDis.term_set cc1.bldis))
+              (SSet.union cc2.set (BlDis.term_set cc2.bldis)) in
+          let cc1, cc2 = Option.get (insert_set (Some cc1) terms), Option.get (insert_set (Some cc2) terms) in
+          equal_eq_classes cc1 cc2
+          && equal_diseqs cc1 cc2
+          && equal_bldis cc1 cc2
         | _ -> false
       in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
