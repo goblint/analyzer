@@ -136,7 +136,7 @@ struct
     (* Indefinite assignment *)
     | s, lterm ->
       (* let t = D.remove_may_equal_terms ask s lterm t in
-               -> not necessary because this is always a new fresh variable in goblint *)
+               -> not necessary because lterm is always a new fresh variable in goblint *)
       add_block_diseqs t lterm
     (* Definite assignment *)
     | exception (T.UnsupportedCilExpression _) -> D.top ()
