@@ -469,10 +469,9 @@ struct
       | None -> None
       | Some st ->
         let ad = ask.f (Queries.ReachableFrom e) in
-        if Queries.AD.is_top ad then
-          None
-        else
-          Some (Queries.AD.join ad st)
+        (* See https://github.com/goblint/analyzer/issues/1535 *)
+        let ad = Queries.AD.remove UnknownPtr ad in
+        Some (Queries.AD.join ad st)
     in
     List.fold_right reachable es (Some (Queries.AD.empty ()))
 
