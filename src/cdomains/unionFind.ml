@@ -543,7 +543,10 @@ module UnionFind = struct
   (** Returns true if v is the representative value of its equivalence class.
 
       Throws "Unknown value" if v is not present in the data structure. *)
-  let is_root uf v = let (parent_t, _) = parent uf v in T.equal v parent_t
+  let is_root uf v =
+    match parent_opt uf v with
+    | None -> true
+    | Some (parent_t, _) -> T.equal v parent_t
 
   (** The difference between `show_uf` and `show_uf_ugly` is that `show_uf` prints the elements
       grouped by equivalence classes, while this function just prints them in any order.
@@ -608,7 +611,7 @@ module UnionFind = struct
       else raise (InvalidUnionFind "non-zero self-distance!")
     else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
 
-    (** Returns find of v if v is in the union find data structure.
+  (** Returns find of v if v is in the union find data structure.
       Otherwise it just returns v. *)
   let find_no_pc_if_possible uf v =
     match find_no_pc uf v with
