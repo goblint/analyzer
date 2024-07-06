@@ -1079,7 +1079,8 @@ module CongruenceClosure = struct
       let compare_with_cc2_eq_class (rep1, zmap1) =
         let rep2, offset = TUF.find_no_pc cc2.uf rep1 in
         let zmap2 = TMap.find rep2 comp2 in
-        List.for_all (compare_zmap_entry offset zmap2) (ZMap.bindings zmap1)
+        if ZMap.cardinal zmap2 <> ZMap.cardinal zmap1 then false else
+          List.for_all (compare_zmap_entry offset zmap2) (ZMap.bindings zmap1)
       in
       List.for_all compare_with_cc2_eq_class (TMap.bindings comp1)
 
@@ -1177,8 +1178,8 @@ module MayBeEqual = struct
          (* If we have a disequality, then they are not equal *)
        if neq_query (Some cc) (t,v,Z.(z'-z)) then false else
          (* or if we know that they are not equal according to the query MayPointTo*)
-          if GobConfig.get_bool "ana.c2po.askbase" then (may_point_to_same_address ask t v Z.(z' - z) cc)
-          else true)
+       if GobConfig.get_bool "ana.c2po.askbase" then (may_point_to_same_address ask t v Z.(z' - z) cc)
+       else true)
       || (may_be_equal ask cc s t1 v)
     | Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
     | Addr _ , _ | Aux _, _ -> T.is_subterm t1 t2
@@ -1230,7 +1231,7 @@ module D = struct
         match x,y with
         | None, None -> true
         | Some cc1, Some cc2 ->
-          equal_eq_classes cc1 cc2
+          equal_eq_classes cc1 cc2 && equal_diseqs cc1 cc2 && equal_bldis cc1 cc2
         | _ -> false
       in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
