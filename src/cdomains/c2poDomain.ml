@@ -1038,6 +1038,50 @@ module CongruenceClosure = struct
     in (if M.tracing then M.trace "wrpointer-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
     {cc with bldis}
 
+  (* check for equality *)
+
+  (** Compares the equivalence classes of cc1 and those of cc2. *)
+  let equal_eq_classes cc1 cc2 =
+    (* add all terms to both elements *)
+    let cc1, cc2 = Option.get (insert_set (Some cc1) cc2.set), Option.get (insert_set (Some cc2) cc1.set) in
+    let comp1, comp2 = Disequalities.comp_map cc1.uf, Disequalities.comp_map cc2.uf in
+    (* they should have the same number of equivalence classes *)
+    if TMap.cardinal comp1 <> TMap.cardinal comp2 then false else
+      (* compare each equivalence class of cc1 with the corresponding eq. class of cc2 *)
+      let compare_zmap_entry offset zmap2 (z, tset1) =
+        match ZMap.find_opt Z.(z+offset) zmap2 with
+        | None -> false
+        | Some tset2 -> SSet.equal tset1 tset2
+      in
+      let compare_with_cc2_eq_class (rep1, zmap1) =
+        let rep2, offset = TUF.find_no_pc cc2.uf rep1 in
+        let zmap2 = TMap.find rep2 comp2 in
+        List.for_all (compare_zmap_entry offset zmap2) (ZMap.bindings zmap1)
+      in
+      List.for_all compare_with_cc2_eq_class (TMap.bindings comp1)
+
+  let equal_diseqs cc1 cc2 =
+    let rename_diseqs dis = match dis with
+      | Nequal (t1,t2,z) ->
+        let (min_state1, min_z1) = TUF.find_no_pc cc2.uf t1 in
+        let (min_state2, min_z2) = TUF.find_no_pc cc2.uf t2 in
+        let new_offset = Z.(-min_z2 + min_z1 + z) in
+        if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
+        else Nequal (min_state2, min_state1, Z.(-new_offset))
+      | _ -> dis in
+    let renamed_diseqs = List.map rename_diseqs (Disequalities.get_disequalities cc1.diseq) in
+    Set.equal (Set.of_list renamed_diseqs) (Set.of_list (Disequalities.get_disequalities cc2.diseq))
+
+  let equal_bldis cc1 cc2 =
+    let rename_bldis dis = match dis with
+      | BlNequal (t1,t2) ->
+        let min_state1, _ = TUF.find_no_pc cc2.uf t1 in
+        let min_state2, _ = TUF.find_no_pc cc2.uf t2 in
+        if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
+        else BlNequal (min_state2, min_state1)
+      | _ -> dis in
+    let renamed_diseqs = List.map rename_bldis (BlDis.to_conj cc1.bldis) in
+    Set.equal (Set.of_list renamed_diseqs) (Set.of_list (BlDis.to_conj cc2.bldis))
 end
 
 include CongruenceClosure
@@ -1154,12 +1198,17 @@ module D = struct
 
   let name () = "c2po"
 
-  let equal x y = (*TODO*)
+  let equal x y =
     if x == y then
       true
     else
-      let res = true
-      in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
+      let res =
+        match x,y with
+        | None, None -> true
+        | Some cc1, Some cc2 ->
+          equal_eq_classes cc1 cc2
+        | _ -> false
+      in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
   let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
 
