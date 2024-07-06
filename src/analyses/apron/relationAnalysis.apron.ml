@@ -465,10 +465,9 @@ struct
       | None -> None
       | Some st ->
         let ad = ask.f (Queries.ReachableFrom e) in
-        if Queries.AD.is_top ad then
-          None
-        else
-          Some (Queries.AD.join ad st)
+        (* See https://github.com/goblint/analyzer/issues/1535 *)
+        let ad = Queries.AD.remove UnknownPtr ad in
+        Some (Queries.AD.join ad st)
     in
     List.fold_right reachable es (Some (Queries.AD.empty ()))
 
@@ -510,7 +509,7 @@ struct
       {st with rel = res}
 
   let special_unknown_invalidate ctx f args =
-    (* No warning here, base already prodcues the appropriate warnings *)
+    (* No warning here, base already produces the appropriate warnings *)
     let desc = LibraryFunctions.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
