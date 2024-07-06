@@ -20,5 +20,5 @@ void main(void) {
     __goblint_check(******y == (long **)y);
   }
   // This does not work any more because the analysis is not precise enough
-  //  __goblint_check(******y == (long**)y);
+  __goblint_check(******y == (long **)y); // UNKNOWN
 }
