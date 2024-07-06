@@ -6,6 +6,7 @@ open WeaklyRelationalPointerDomain
 module CC = CongruenceClosure
 open CC.CongruenceClosure
 open Batteries
+open SingleThreadedLifter
 
 module Spec =
 struct
@@ -219,4 +220,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~dep:["startState"; "taintPartialContexts"] (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["startState"; "taintPartialContexts"] (module SingleThreadedLifter(Spec) : MCPSpec)

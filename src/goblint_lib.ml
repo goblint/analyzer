@@ -81,7 +81,6 @@ module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
-module StartStateAnalysis = StartStateAnalysis
 
 (** {2 Heap}
 
@@ -172,6 +171,8 @@ module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
+module StartStateAnalysis = StartStateAnalysis
+module SingleThreadedLifter = SingleThreadedLifter
 
 
 (** {1 Domains}
