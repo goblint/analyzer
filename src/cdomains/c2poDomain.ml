@@ -842,6 +842,31 @@ module CongruenceClosure = struct
     | [] -> TMap.remove parent map
     | new_children -> TMap.add parent new_children map
 
+  (* Returns true if any (strict) subterm of t1 is already present in
+     the same equivalence class as t2. *)
+  let rec detect_cyclic_dependencies t1 t2 cc =
+    match t1 with
+    | Addr _ | Aux _ -> false
+    | Deref (t1, _, _) ->
+      let v1, o1 = TUF.find_no_pc cc.uf t1 in
+      let v2, o2 = TUF.find_no_pc cc.uf t2 in
+      if T.equal v1 v2 then true else
+        detect_cyclic_dependencies t1 t2 cc
+
+  let add_successor_terms cc t =
+    let add_one_successor (cc, successors) (edge_z, _) =
+      let _, uf_offset, uf = TUF.find cc.uf t in
+      let cc = {cc with uf = uf} in
+      match SSet.deref_term t Z.(edge_z - uf_offset) cc.set with
+      | exception (T.UnsupportedCilExpression _) ->
+        (cc, successors)
+      | successor ->
+        let subterm_already_present = SSet.mem successor cc.set || detect_cyclic_dependencies t t cc in
+        let _, cc = if subterm_already_present then (t, Z.zero), cc
+          else (if M.tracing then M.trace "wrpointer" "insert successor: %s. Map: %s\n" (T.show successor) (LMap.show_map cc.map); Tuple2.map2 Option.get (insert (Some cc) successor)) in
+        (cc, if subterm_already_present then successors else successor::successors) in
+    List.fold_left add_one_successor (cc, []) (LMap.successors (Tuple3.first (TUF.find cc.uf t)) cc.map)
+
   (** Variables:
       - `cc`: congruence closure data structure
       - `predicate`: predicate that returns true for terms which need to be removed from the data structure.
@@ -853,14 +878,18 @@ module CongruenceClosure = struct
       - `cc`: updated congruence closure data structure.
   *)
   let remove_terms_from_set cc predicate =
-    let remove_term (new_set, removed_terms, map_of_children, cc) el =
-      let new_set, removed_terms =
-        if predicate cc el then new_set, el::removed_terms else SSet.add el new_set, removed_terms in
-      let uf_parent = TUF.parent cc.uf el in
-      let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent) in
-      (new_set, removed_terms, map_of_children, cc)
+    let rec remove_terms_recursive (new_set, removed_terms, map_of_children, cc) = function
+      | [] -> (new_set, removed_terms, map_of_children, cc)
+      | el::rest ->
+        let new_set, removed_terms = if predicate cc el then new_set, el::removed_terms else SSet.add el new_set, removed_terms in
+        let uf_parent = TUF.parent cc.uf el in
+        let map_of_children = add_to_map_of_children el map_of_children (fst uf_parent) in
+        (* in order to not lose information by removing some elements, we add dereferences values to the union find.
+           This is what is referred as with "substitution" in the paper. *)
+        let cc, successors = add_successor_terms cc el in
+        remove_terms_recursive (new_set, removed_terms, map_of_children, cc) (rest @ successors)
     in
-    List.fold remove_term (SSet.empty, [], TMap.empty, cc) (SSet.to_list cc.set)
+    remove_terms_recursive (SSet.empty, [], TMap.empty, cc) (SSet.to_list cc.set)
 
   let show_map_of_children map_of_children =
     List.fold_left
@@ -934,6 +963,7 @@ module CongruenceClosure = struct
       (fun s (v1, (v2, o2)) ->
          s ^ T.show v1 ^ "\t: " ^ T.show v2 ^ ", " ^ Z.to_string o2 ^"\n")
       "" (TMap.bindings new_parents_map)
+
   (** Find the representative term of the equivalence classes of an element that has already been deleted from the data structure.
       Returns None if there are no elements in the same equivalence class as t before it was deleted.*)
   let rec find_new_root new_parents_map uf v =
