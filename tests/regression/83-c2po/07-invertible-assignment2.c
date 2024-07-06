@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] c2po --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts
+// PARAM: --set ana.activated[+] c2po --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts --set ana.c2po.askbase false
 // example of the paper "2-Pointer Logic" by Seidl et al., Example 9, pag. 22
 #include <stdlib.h>
 #include <goblint.h>

@@ -1177,7 +1177,8 @@ module MayBeEqual = struct
          (* If we have a disequality, then they are not equal *)
        if neq_query (Some cc) (t,v,Z.(z'-z)) then false else
          (* or if we know that they are not equal according to the query MayPointTo*)
-         (may_point_to_same_address ask t v Z.(z' - z) cc))
+          if GobConfig.get_bool "ana.c2po.askbase" then (may_point_to_same_address ask t v Z.(z' - z) cc)
+          else true)
       || (may_be_equal ask cc s t1 v)
     | Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
     | Addr _ , _ | Aux _, _ -> T.is_subterm t1 t2

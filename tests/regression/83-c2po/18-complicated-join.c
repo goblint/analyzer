@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] c2po --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts
+// PARAM: --set ana.activated[+] c2po --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts --set ana.c2po.askbase false
 // Example 1 from the paper Join Algorithms for the Theory of Uninterpreted Functions by Gulwani et al.
 
 #include <goblint.h>

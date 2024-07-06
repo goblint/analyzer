@@ -1130,6 +1130,19 @@
           },
           "additionalProperties": false
         },
+        "c2po": {
+          "title": "ana.c2po",
+          "type": "object",
+          "properties": {
+            "askbase": {
+              "title": "ana.c2po.askbase",
+              "description": "If true, the C-2PO Analysis uses the MayPointTo query to infer additional disequalities.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
         "unassume": {
           "title": "ana.unassume",
           "type": "object",
