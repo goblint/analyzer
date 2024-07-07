@@ -76,7 +76,7 @@ struct
           ID.of_bool ik res
       end
     (* TODO Invariant.
-       | Queries.Invariant context -> get_normal_form context*)
+       | Queries.Invariant context -> get_conjunction context*)
     (* | MayPointTo e -> query_may_point_to ctx ctx.local e *)
     | _ -> Result.top q
 
