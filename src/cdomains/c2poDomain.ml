@@ -1044,15 +1044,8 @@ module CongruenceClosure = struct
     List.fold_left (fun s ((r1,r2,z1),(t,z2)) ->
         s ^ ";; " ^ "("^T.show r1^","^T.show r2 ^ ","^Z.to_string z1^") --> ("^ T.show t ^ Z.to_string z2 ^ ")") ""(Map.bindings pmap)
 
-  (** Here we do the join without using the automata, because apparently
-      we don't want to describe the automaton in the paper...
-
-      We construct a new cc that contains the elements of cc1.set U cc2.set
-      and two elements are in the same equivalence class iff they are in the same eq. class
-      both in cc1 and in cc2. *)
-  let join_eq cc1 cc2 =
-    let terms = SSet.union cc1.set cc2.set in
-    let cc1, cc2 = Option.get (insert_set (Some cc1) cc2.set), Option.get (insert_set (Some cc2) cc1.set) in
+  let product_no_automata_over_terms cc1 cc2 terms =
+    let cc1, cc2 = Option.get (insert_set (Some cc1) terms), Option.get (insert_set (Some cc2) terms) in
     let mappings = List.map
         (fun a -> let r1, off1 = TUF.find_no_pc cc1.uf a in
           let r2, off2 = TUF.find_no_pc cc2.uf a in
@@ -1063,6 +1056,20 @@ module CongruenceClosure = struct
       | Some (c, c1_off) ->
         add_eq cc (new_term, c, Z.(-c1_off + a_off)), pmap in
     List.fold_left add_term (Some (init_cc []), Map.empty) mappings
+
+  (** Here we do the join without using the automata, because apparently
+      we don't want to describe the automaton in the paper...
+
+      We construct a new cc that contains the elements of cc1.set U cc2.set
+      and two elements are in the same equivalence class iff they are in the same eq. class
+      both in cc1 and in cc2. *)
+  let join_eq cc1 cc2 =
+    let terms = SSet.union cc1.set cc2.set in
+    product_no_automata_over_terms cc1 cc2 terms
+
+  (** Same as join, but we only take the terms from the left argument. *)
+  let widen_eq cc1 cc2 =
+    product_no_automata_over_terms cc1 cc2 cc1.set
 
   (** Joins the disequalities diseq1 and diseq2, given a congruence closure data structure.
 
@@ -1314,7 +1321,25 @@ module D = struct
           (show_all res);
       res
 
-  let widen a b = if M.tracing then M.trace "c2po-join" "WIDEN\n";join a b
+  let widen a b =
+    if  a == b then
+      a
+    else
+      let res =
+        match a,b with
+        | None, b -> b
+        | a, None -> a
+        | Some a, Some b ->
+          if M.tracing then M.tracel "c2po-join" "WIDEN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+              (show_all (Some a)) (show_all (Some b));
+          let cc = fst(widen_eq a b) in
+          let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+          in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
+          Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
+      in
+      if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
+          (show_all res);
+      res
 
   let meet a b =
     if a == b then
@@ -1329,7 +1354,18 @@ module D = struct
 
   let leq x y = equal (meet x y) x
 
-  let narrow = meet
+  let narrow a b =
+    if a == b then
+      a
+    else
+      match a,b with
+      | None, _ -> None
+      | _, None -> None
+      | Some a, Some b ->
+        let b_conj = List.filter
+            (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set)
+            (get_normal_form b) in
+        meet_conjs_opt b_conj (Some a)
 
   let pretty_diff () (x,y) = Pretty.dprintf ""
 
