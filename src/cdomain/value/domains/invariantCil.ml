@@ -29,7 +29,7 @@ let exp_deep_unroll_types =
 
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
-  | None -> vi.vstorage <> Static (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+  | None ->  true (* vi.vstorage <> Static  CIL pulls static locals into globals, but they aren't syntactically in global scope *)
   | Some fd ->
     if CilType.Fundec.equal fd scope then
       GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr)
