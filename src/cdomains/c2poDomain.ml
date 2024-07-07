@@ -1278,7 +1278,7 @@ module D = struct
     | _, None -> None
     | Some a, Some b ->
       if a == b then
-        a
+        a'
       else
         let b_conj = List.filter
             (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set)
