@@ -22,6 +22,7 @@ module CongruenceClosure = struct
     type arg_t = (T.t * Z.t) ZMap.t TMap.t (* maps each state in the automata to its predecessors *)
 
     let empty = TMap.empty
+    let is_empty = TMap.is_empty
     let remove = TMap.remove
     (** Returns a list of tuples, which each represent a disequality *)
     let bindings =
@@ -316,6 +317,8 @@ module CongruenceClosure = struct
 
     let bindings = TMap.bindings
     let empty = TMap.empty
+
+    let is_empty = TMap.is_empty
 
     let to_conj bldiseq = List.fold
         (fun list (t1, tset) ->
@@ -1212,7 +1215,8 @@ module D = struct
   let is_bot x = Option.is_none x
   let top () = empty ()
   let is_top = function None -> false
-                      | Some cc -> TUF.is_empty cc.uf
+                      | Some cc ->
+                        TUF.is_empty cc.uf && Disequalities.is_empty cc.diseq && BlDis.is_empty cc.bldis
 
   let join a' b' =
     let res =
