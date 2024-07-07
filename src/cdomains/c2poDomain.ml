@@ -1281,13 +1281,16 @@ module D = struct
         match x,y with
         | None, None -> true
         | Some cc1, Some cc2 ->
-          (* add all terms to both elements *)
-          let terms = SSet.union (SSet.union cc1.set (BlDis.term_set cc1.bldis))
-              (SSet.union cc2.set (BlDis.term_set cc2.bldis)) in
-          let cc1, cc2 = Option.get (insert_set (Some cc1) terms), Option.get (insert_set (Some cc2) terms) in
-          equal_eq_classes cc1 cc2
-          && equal_diseqs cc1 cc2
-          && equal_bldis cc1 cc2
+          if cc1 == cc2 then
+            true
+          else
+            (* add all terms to both elements *)
+            let terms = SSet.union (SSet.union cc1.set (BlDis.term_set cc1.bldis))
+                (SSet.union cc2.set (BlDis.term_set cc2.bldis)) in
+            let cc1, cc2 = Option.get (insert_set (Some cc1) terms), Option.get (insert_set (Some cc2) terms) in
+            equal_eq_classes cc1 cc2
+            && equal_diseqs cc1 cc2
+            && equal_bldis cc1 cc2
         | _ -> false
       in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
@@ -1301,21 +1304,24 @@ module D = struct
   let is_top = function None -> false
                       | Some cc -> TUF.is_empty cc.uf
 
-  let join a b =
-    if  a == b then
-      a
+  let join a' b' =
+    if  a' == b' then
+      a'
     else
       let res =
-        match a,b with
+        match a',b' with
         | None, b -> b
         | a, None -> a
         | Some a, Some b ->
-          if M.tracing then M.tracel "c2po-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
-              (show_all (Some a)) (show_all (Some b));
-          let cc = fst(join_eq a b) in
-          let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
-          in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
-          Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
+          if  a == b then
+            a'
+          else
+            (if M.tracing then M.tracel "c2po-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+                 (show_all (Some a)) (show_all (Some b));
+             let cc = fst(join_eq a b) in
+             let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+             in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
+             Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2))
       in
       if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
           (show_all res);
@@ -1349,8 +1355,9 @@ module D = struct
       | None, _ -> None
       | _, None -> None
       | Some a, b ->
-        let a_conj = get_normal_form a in
-        meet_conjs_opt a_conj b
+        match get_normal_form a with
+        | [] -> b
+        | a_conj -> meet_conjs_opt a_conj b
 
   let leq x y = equal (meet x y) x
 
