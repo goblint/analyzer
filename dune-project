@@ -67,7 +67,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
   )
   (depopts
-    apron
+    (apron (>= v0.9.15))
     z3
   )
   (conflicts
