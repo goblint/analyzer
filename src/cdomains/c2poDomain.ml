@@ -59,7 +59,7 @@ module D = struct
         | _ -> false
       in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
-  let equal = if GobConfig.get_bool "ana.c2po.normal_form" then equal_min_repr else equal_standard
+  let equal a b = if GobConfig.get_bool "ana.c2po.normal_form" then equal_min_repr a b else equal_standard a b
 
   let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
 
@@ -114,8 +114,8 @@ module D = struct
           (show_all res);
       res
 
-  let join = if GobConfig.get_bool "ana.c2po.precise_join" then
-      (if M.tracing then M.trace "c2po-join" "Join Automaton"; join_automaton) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join_eq_classes)
+  let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
+      (if M.tracing then M.trace "c2po-join" "Join Automaton"; join_automaton a b) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join_eq_classes a b)
 
   let widen_eq_classes a b =
     if  a == b then
@@ -137,8 +137,8 @@ module D = struct
           (show_all res);
       res
 
-  let widen = if M.tracing then M.trace "c2po-join" "WIDEN\n";
-    if GobConfig.get_bool "ana.c2po.precise_join" then join (*TODO*) else widen_eq_classes
+  let widen a b = if M.tracing then M.trace "c2po-join" "WIDEN\n";
+    if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
 
   let meet a b =
     if a == b then
