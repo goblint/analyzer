@@ -65,6 +65,7 @@ depends: [
   "conf-ruby" {with-test}
   "benchmark" {with-test}
   "conf-gcc"
+  "elina"
 ]
 depopts: [
   "apron" {>= "v0.9.15"}
