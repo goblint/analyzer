@@ -2,7 +2,6 @@
 
 open Batteries
 open GoblintCil
-module Var = CilType.Varinfo
 open CongruenceClosure
 open CongruenceClosure
 module M = Messages
@@ -28,7 +27,6 @@ module D = struct
 
   let name () = "c2po"
 
-
   let equal_standard x y =
     if x == y then
       true
@@ -50,7 +48,6 @@ module D = struct
         | _ -> false
       in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
 
-
   let equal_min_repr x y =
     if x == y then
       true
@@ -62,7 +59,7 @@ module D = struct
         | _ -> false
       in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
-  let equal = if (*TODO*) true then equal_standard else equal_min_repr
+  let equal = if GobConfig.get_bool "ana.c2po.normal_form" then equal_min_repr else equal_standard
 
   let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
 
@@ -117,7 +114,7 @@ module D = struct
           (show_all res);
       res
 
-  let join = if (*TODO*) true then join_eq_classes else join_automaton
+  let join = if GobConfig.get_bool "ana.c2po.precise_join" then join_automaton else join_eq_classes
 
   let widen_eq_classes a b =
     if  a == b then
@@ -139,7 +136,8 @@ module D = struct
           (show_all res);
       res
 
-  let widen = if M.tracing then M.trace "c2po-join" "WIDEN\n";if (*TODO*) true then join else widen_eq_classes
+  let widen = if M.tracing then M.trace "c2po-join" "WIDEN\n";
+    if GobConfig.get_bool "ana.c2po.precise_join" then join (*TODO*) else widen_eq_classes
 
   let meet a b =
     if a == b then
