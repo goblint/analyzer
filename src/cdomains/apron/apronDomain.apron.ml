@@ -31,7 +31,7 @@ sig
 end
 
 let interface =
-    if false then
+    if GobConfig.get_string "ana.apron.implementation" = "elina" then
       (module ElinaInterface : Interface)
     else
       (module ApronInterface : Interface)
