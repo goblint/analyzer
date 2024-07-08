@@ -1,5 +1,4 @@
-// PARAM: --set ana.activated[+] c2po --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts
-// TODO add configuration to use the join with automata
+// PARAM: --set ana.activated[+] c2po --set ana.activated[+] startState --set ana.activated[+] taintPartialContexts --enable ana.c2po.precise_join
 // Example 1 from the paper Join Algorithms for the Theory of Uninterpreted
 // Functions by Gulwani et al.
 
