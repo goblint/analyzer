@@ -287,7 +287,7 @@ module T = struct
     List.filter (function | Equal(t1,t2,_)| Nequal(t1,t2,_) |BlNequal(t1,t2)-> check_valid_pointer (to_cil t1) && check_valid_pointer (to_cil t2))
 
   let dereference_exp exp offset =
-    if M.tracing then M.trace "wrpointer-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
+    if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
     let res =
       let find_field cinfo =
         try
@@ -310,7 +310,7 @@ module T = struct
           | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
           | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
       in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
-    in if M.tracing then M.trace "wrpointer-deref" "deref result: %a" d_exp res;res
+    in if M.tracing then M.trace "c2po-deref" "deref result: %a" d_exp res;res
 
   let get_size = get_size_in_bits % type_of_term
 
@@ -385,8 +385,8 @@ module T = struct
         end
     in
     (if M.tracing then match res with
-        | exception (UnsupportedCilExpression s) -> M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
-        | t -> M.trace "wrpointer-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t))
+        | exception (UnsupportedCilExpression s) -> M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
+        | t -> M.trace "c2po-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t))
   ;res
 
   (** Converts the negated expresion to a term if neg = true.
@@ -404,12 +404,12 @@ module T = struct
     | exception GoblintCil__Errormsg.Error | true -> None, None
     | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
-        | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "wrpointer-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
+        | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
           None, None
         | t, z -> t, Some z
       in (if M.tracing && not neg then match res with
-          | None, Some z ->  M.trace "wrpointer-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-          | Some t, Some z -> M.trace "wrpointer-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+          | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
+          | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
           | _ -> ()); res
 
   (** Convert the expression to a term,
@@ -422,7 +422,7 @@ module T = struct
       let exp = to_cil t in
       if check_valid_pointer exp then
         Some t, Some z
-      else (if M.tracing then M.trace "wrpointer-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+      else (if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
             None, None)
     | t, z -> t, z
 

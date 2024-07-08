@@ -533,7 +533,7 @@ module CongruenceClosure = struct
        - The map with the minimal representatives
        - The union find tree. This might have changed because of path compression. *)
     let compute_minimal_representatives (uf, set, map) =
-      if M.tracing then M.trace "wrpointer" "compute_minimal_representatives\n";
+      if M.tracing then M.trace "c2po" "compute_minimal_representatives\n";
       let atoms = SSet.get_atoms set in
       (* process all atoms in increasing order *)
       let uf_ref = ref uf in
@@ -620,7 +620,7 @@ module CongruenceClosure = struct
       if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
       else Nequal (min_state2, min_state1, Z.(-new_offset))
     in
-    if M.tracing then M.trace "wrpointer-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep cc.min_repr) (LMap.show_map cc.map);
+    if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep cc.min_repr) (LMap.show_map cc.map);
     let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
     (* block disequalities *)
     let normalize_bldis t = match t with
@@ -669,7 +669,7 @@ module CongruenceClosure = struct
       if T.compare t1 t2 < 0 then Nequal (t1, t2, z)
       else Nequal (t2, t1, Z.(-z))
     in
-    if M.tracing then M.trace "wrpointer-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (LMap.show_map cc.map);
+    if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (LMap.show_map cc.map);
     let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
     (* block disequalities *)
     let normalize_bldis t = match t with
@@ -732,7 +732,7 @@ module CongruenceClosure = struct
       (* taking explicit dis-equalities into account *)
       let neq_list = Disequalities.init_list_neq uf neg in
       let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) neq_list in
-      if M.tracing then M.trace "wrpointer-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
+      if M.tracing then M.trace "c2po-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
       Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq; bldis=cc.bldis}
     with Unsat -> None
 
@@ -757,7 +757,7 @@ module CongruenceClosure = struct
        let v2, r2, uf = TUF.find uf t2 in
        let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
        if not (Z.equal sizet1 sizet2) then
-         (if M.tracing then M.trace "wrpointer" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
+         (if M.tracing then M.trace "c2po" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
           closure (uf, map, new_repr) rest) else
        if T.equal v1 v2 then
          (* t1 and t2 are in the same equivalence class *)
@@ -960,7 +960,7 @@ module CongruenceClosure = struct
   let meet_conjs cc pos_conjs =
     let res = let cc = insert_set cc (fst (SSet.subterms_of_conj pos_conjs)) in
       closure cc pos_conjs
-    in if M.tracing then M.trace "wrpointer-meet" "MEET_CONJS RESULT: %s\n" (Option.map_default (fun res -> show_conj (get_conjunction res)) "None" res);res
+    in if M.tracing then M.trace "c2po-meet" "MEET_CONJS RESULT: %s\n" (Option.map_default (fun res -> show_conj (get_conjunction res)) "None" res);res
 
   (** Adds propositions to the data structure.
       Returns None if a contradiction is found. *)
@@ -1104,7 +1104,7 @@ module CongruenceClosure = struct
       begin match remove_terms_from_diseq old_cc.diseq new_reps cc with
         | Some cc ->
           let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
-          if M.tracing then M.trace "wrpointer" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
+          if M.tracing then M.trace "c2po" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
               (show_all old_cc) (show_all {uf=cc.uf; set = cc.set; map = cc.map; min_repr=cc.min_repr; diseq=cc.diseq; bldis});
           Some {uf=cc.uf; set = cc.set; map = cc.map; min_repr=cc.min_repr; diseq=cc.diseq; bldis}
         | None -> None
@@ -1193,7 +1193,7 @@ module CongruenceClosure = struct
     let diseq2 = List.filter (neq_query (Some cc1)) (Disequalities.element_closure diseq2 cmap2) in
     let cc = Option.get (insert_set cc (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2))) in
     let res = congruence_neq cc (diseq1 @ diseq2)
-    in (if M.tracing then match res with | Some r -> M.trace "wrpointer-neq" "join_neq: %s\n\n" (Disequalities.show_neq r.diseq) | None -> ()); res
+    in (if M.tracing then match res with | Some r -> M.trace "c2po-neq" "join_neq: %s\n\n" (Disequalities.show_neq r.diseq) | None -> ()); res
 
   (** Joins the block disequalities bldiseq1 and bldiseq2, given a congruence closure data structure.
 
@@ -1208,7 +1208,7 @@ module CongruenceClosure = struct
     let cc = Option.get (insert_set cc (fst @@ SSet.subterms_of_conj (List.map (fun (a,b) -> (a,b,Z.zero)) (diseq1 @ diseq2)))) in
     let diseqs_ref_terms = List.filter (fun (t1,t2) -> TUF.is_root cc.uf t1 && TUF.is_root cc.uf t2) (diseq1 @ diseq2) in
     let bldis = List.fold BlDis.add_block_diseq BlDis.empty diseqs_ref_terms
-    in (if M.tracing then M.trace "wrpointer-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
+    in (if M.tracing then M.trace "c2po-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
     {cc with bldis}
 
   (* Check for equality of two congruence closures,
@@ -1275,11 +1275,11 @@ module MayBeEqual = struct
   open CongruenceClosure
 
   module AD = Queries.AD
-  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="wrpointer__@dummy"}
+  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="c2po__@dummy"}
   let dummy_var var = T.aux_term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
 
-  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="wrpointer__@return"}
+  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="c2po__@return"}
   let return_var var = T.aux_term_of_varinfo (return_varinfo var)
   let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 
@@ -1293,7 +1293,7 @@ module MayBeEqual = struct
     let valid_term (t,z) =
       T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
     let equal_terms = List.filter valid_term comp in
-    if M.tracing then M.trace "wrpointer-query" "may-point-to %a -> equal terms: %s"
+    if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %s"
         d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
     let intersect_query_result res (term,z) =
       let next_query =
@@ -1312,7 +1312,7 @@ module MayBeEqual = struct
       let mpt1 = adresses in
       let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
       let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
-      if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+      if M.tracing then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
           AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
 
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
@@ -1320,7 +1320,7 @@ module MayBeEqual = struct
       let exp1 = T.to_cil t1 in
       let mpt1 = may_point_to_all_equal_terms ask exp1 cc t1 Z.zero in
       let res = may_point_to_address ask mpt1 t2 off cc in
-      if M.tracing && res then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
+      if M.tracing && res then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
           AD.pretty mpt1 (T.show t1) d_plainexp exp1; res
 
   let rec may_be_equal ask cc s t1 t2 =
@@ -1352,7 +1352,7 @@ module MayBeEqual = struct
     | None -> false
     | Some cc ->
       let res = (may_be_equal ask cc s t1 t2) in
-      if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
+      if M.tracing then M.tracel "c2po-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
       res
 
   let rec may_point_to_one_of_these_adresses ask adresses cc t2 =

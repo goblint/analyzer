@@ -26,7 +26,7 @@ module D = struct
 
   include Printable.SimpleShow(struct type t = domain let show = show end)
 
-  let name () = "wrpointer"
+  let name () = "c2po"
 
 
   let equal_standard x y =
@@ -60,7 +60,7 @@ module D = struct
           (T.props_equal (get_normal_form x) (get_normal_form y))
         | None, None -> true
         | _ -> false
-      in if M.tracing then M.trace "wrpointer-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
+      in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
 
   let equal = if (*TODO*) true then equal_standard else equal_min_repr
 
@@ -83,14 +83,14 @@ module D = struct
         | None, b -> b
         | a, None -> a
         | Some a, Some b ->
-          if M.tracing then M.tracel "wrpointer-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+          if M.tracing then M.tracel "c2po-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
               (show_all (Some a)) (show_all (Some b));
           let cc = fst(join_eq a b) in
           let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
           in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
           Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
       in
-      if M.tracing then M.tracel "wrpointer-join" "JOIN. JOIN: %s\n"
+      if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
           (show_all res);
       res
 
@@ -139,7 +139,7 @@ module D = struct
           (show_all res);
       res
 
-  let widen = if M.tracing then M.trace "wrpointer-join" "WIDEN\n";if (*TODO*) true then join else widen_eq_classes
+  let widen = if M.tracing then M.trace "c2po-join" "WIDEN\n";if (*TODO*) true then join else widen_eq_classes
 
   let meet a b =
     if a == b then
@@ -185,14 +185,14 @@ module D = struct
       It removes all terms for which "var" is a subterm,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variable var cc =
-    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variable: %s\n" (T.show (Addr var));
+    if M.tracing then M.trace "c2po" "remove_terms_containing_variable: %s\n" (T.show (Addr var));
     Option.bind cc (remove_terms (fun t -> Var.equal (T.get_var t) var))
 
   (** Remove terms from the data structure.
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variables vars cc =
-    if M.tracing then M.trace "wrpointer" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
+    if M.tracing then M.trace "c2po" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
     Option.bind cc (remove_terms (T.contains_variable vars))
 
   (** Remove terms from the data structure.
@@ -200,20 +200,20 @@ module D = struct
       except the global vars are also keeped (when vstorage = static),
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
-    if M.tracing then M.trace "wrpointer" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
+    if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
     Option.bind cc (remove_terms (fun t -> (not (T.get_var t).vglob) && not (T.contains_variable vars t)))
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
   let remove_may_equal_terms ask s term cc =
-    if M.tracing then M.trace "wrpointer" "remove_may_equal_terms: %s\n" (T.show term);
+    if M.tracing then M.trace "c2po" "remove_may_equal_terms: %s\n" (T.show term);
     let cc = snd (insert cc term) in
     Option.bind cc (remove_terms (MayBeEqual.may_be_equal ask cc s term))
 
   (** Remove terms from the data structure.
       It removes all terms that may point to the same address as "tainted".*)
   let remove_tainted_terms ask address cc =
-    if M.tracing then M.tracel "wrpointer-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
+    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
     Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address cc) cc)
 
 end

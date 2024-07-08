@@ -92,7 +92,6 @@ module Malloc_null = Malloc_null
 module MemLeak = MemLeak
 module UseAfterFree = UseAfterFree
 module MemOutOfBounds = MemOutOfBounds
-module WeaklyRelationalPointerAnalysis = WeaklyRelationalPointerAnalysis
 module C2poAnalysis = C2poAnalysis
 
 (** {2 Concurrency}
@@ -278,7 +277,6 @@ module StackDomain = StackDomain
 
 module CongruenceClosure = CongruenceClosure
 module UnionFind = UnionFind
-module WeaklyRelationalPointerDomain = WeaklyRelationalPointerDomain
 module C2poDomain = C2poDomain
 
 (** {2 Testing}
