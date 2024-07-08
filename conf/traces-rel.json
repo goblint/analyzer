@@ -80,6 +80,9 @@
       "other": false,
       "loop-head": false,
       "after-lock": true
+    },
+    "yaml" : {
+      "entry-types": ["location_invariant"]
     }
   },
   "pre": {
