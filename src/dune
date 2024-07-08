@@ -15,9 +15,13 @@
       (apron -> gobApron.apron.ml)
       (-> gobApron.no-apron.ml)
     )
-    (select apronElinaSelector.ml from
-      (apron -> apronElinaSelector.apron.ml)
-      (-> apronElinaSelector.no-apron.ml)
+    (select apronInterface.ml from
+      (apron -> apronInterface.apron.ml)
+      (-> apronInterface.no-apron.ml)
+    )
+    (select elinaInterface.ml from
+      (apron -> elinaInterface.apron.ml)
+      (-> elinaInterface.no-apron.ml)
     )
     (select apronDomain.ml from
       (apron apron.octD apron.boxD apron.polkaMPQ zarith_mlgmpidl -> apronDomain.apron.ml)

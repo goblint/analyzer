@@ -7,8 +7,37 @@ open Pretty
 open GobApron
 open RelationDomain
 open SharedFunctions
+
+
 (* Apron/Elina selector *)
-open ApronElinaSelector
+open ApronInterface
+open ElinaInterface
+
+module type Interface =
+sig
+  (* Oct *)
+  type t
+  val to_oct : 'a Apron.Abstract1.t -> t Apron.Abstract1.t
+  val of_oct : t Apron.Abstract1.t -> 'a Apron.Abstract1.t
+  val widening_thresholds : t Apron.Manager.t -> t Apron.Abstract0.t -> t Apron.Abstract0.t -> Apron.Scalar.t array -> t Apron.Abstract0.t
+  val manager_is_oct : 'a Apron.Manager.t -> bool
+  val manager_to_oct : 'a Apron.Manager.t -> t Apron.Manager.t
+  val substitute_texpr_with : 'a Apron.Manager.t -> 'a Apron.Abstract1.t -> Apron.Var.t -> Apron.Texpr1.t -> 'a Apron.Abstract1.t option -> unit
+  val narrowing : t Apron.Manager.t -> t Apron.Abstract0.t -> t Apron.Abstract0.t -> t Apron.Abstract0.t
+  val manager_alloc : unit -> t Apron.Manager.t
+  (* Poly *)
+  type pt
+  val manager_alloc_loose : unit -> pt Apron.Manager.t
+end
+
+let interface =
+    if false then
+      (module ElinaInterface : Interface)
+    else
+      (module ApronInterface : Interface)
+
+module EitherInterface = (val interface : Interface)
+(* Selector End *)
 
 module M = Messages
 
@@ -43,13 +72,13 @@ end
     For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
 module OctagonManager =
 struct
-  type mt = Elina_oct.t
+  type mt = EitherInterface.t
 
   (* Type of the manager *)
   type t = mt Manager.t
 
   (* Create the manager *)
-  let mgr =  Elina_oct.manager_alloc ()
+  let mgr =  EitherInterface.manager_alloc ()
   let name () = "Octagon"
 end
 
@@ -58,10 +87,10 @@ end
 module PolyhedraManager =
 struct
   (** We chose a the loose polyhedra here, i.e. with polyhedra with no strict inequalities *)
-  type mt = Polka.loose Polka.t
+  type mt = EitherInterface.pt
   type t = mt Manager.t
   (* Create manager that fits to loose polyhedra *)
-  let mgr = Polka.manager_alloc_loose ()
+  let mgr = EitherInterface.manager_alloc_loose ()
   let name () = "Polyhedra"
 end
 
@@ -354,7 +383,7 @@ struct
   let substitute_exp_with ask nd v e no_ov =
     match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
-      ApronElinaSelector.substitute_texpr_with Man.mgr nd v texpr1 None
+      EitherInterface.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
       forget_vars_with nd [v]
 
@@ -708,13 +737,13 @@ struct
     let y_env = A.env y in
     if Environment.equal x_env y_env then (
       if GobConfig.get_bool "ana.apron.threshold_widening" then (
-        if Elina_oct.manager_is_opt_oct Man.mgr then (
-          let octmgr = Elina_oct.manager_to_opt_oct Man.mgr in
+        if EitherInterface.manager_is_oct Man.mgr then (
+          let octmgr = EitherInterface.manager_to_oct Man.mgr in
           let ts = ResettableLazy.force widening_thresholds_apron in
-          let x_oct = Elina_oct.Abstract1.to_opt_oct x in
-          let y_oct = Elina_oct.Abstract1.to_opt_oct y in
-          let r = Elina_oct.elina_abstract0_opt_oct_widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
-          Elina_oct.Abstract1.of_opt_oct {x_oct with abstract0 = r}
+          let x_oct = EitherInterface.to_oct x in
+          let y_oct = EitherInterface.to_oct y in
+          let r = EitherInterface.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+          EitherInterface.of_oct {x_oct with abstract0 = r}
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
@@ -767,12 +796,12 @@ struct
     let x_env = A.env x in
     let y_env = A.env y in
     if Environment.equal x_env y_env then (
-      if Elina_oct.manager_is_opt_oct Man.mgr then (
-        let octmgr = Elina_oct.manager_to_opt_oct Man.mgr in
-        let x_oct = Elina_oct.Abstract1.to_opt_oct x in
-        let y_oct = Elina_oct.Abstract1.to_opt_oct y in
-        let r = Elina_oct.elina_abstract0_opt_oct_narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
-        Elina_oct.Abstract1.of_opt_oct {env = x_env; abstract0 = r}
+      if EitherInterface.manager_is_oct Man.mgr then (
+        let octmgr = EitherInterface.manager_to_oct Man.mgr in
+        let x_oct = EitherInterface.to_oct x in
+        let y_oct = EitherInterface.to_oct y in
+        let r = EitherInterface.narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
+        EitherInterface.of_oct {env = x_env; abstract0 = r}
       )
       else
         x
@@ -827,17 +856,17 @@ struct
 
   type marshal = OctagonD.marshal
 
-  let marshal t : Elina_oct.t Abstract0.t * string array =
+  let marshal t : EitherInterface.t Abstract0.t * string array =
     let convert_single (a: t): OctagonD.t =
-      if Elina_oct.manager_is_opt_oct Man.mgr then
-        Elina_oct.Abstract1.to_opt_oct a
+      if EitherInterface.manager_is_oct Man.mgr then
+        EitherInterface.to_oct a
       else
         let generator = to_lincons_array a in
         OctagonD.of_lincons_array generator
     in
     OctagonD.marshal @@ convert_single t
 
-  let unmarshal (m: marshal) = Elina_oct.Abstract1.of_opt_oct @@ OctagonD.unmarshal m
+  let unmarshal (m: marshal) = EitherInterface.of_oct @@ OctagonD.unmarshal m
 end
 
 (** Lift [D] to a non-reduced product with box.
