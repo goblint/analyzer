@@ -1268,3 +1268,98 @@ module CongruenceClosure = struct
           -> (normalize_bldis(t1,t2))) (BlDis.to_conj cc2.bldis) in
     List.equal T.equal_v_prop renamed_diseqs normalized_diseqs
 end
+
+
+(**Find out if two addresses are not equal by using the MayPointTo query*)
+module MayBeEqual = struct
+  open CongruenceClosure
+
+  module AD = Queries.AD
+  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="wrpointer__@dummy"}
+  let dummy_var var = T.aux_term_of_varinfo (dummy_varinfo var)
+  let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
+
+  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="wrpointer__@return"}
+  let return_var var = T.aux_term_of_varinfo (return_varinfo var)
+  let return_lval var = Lval (Var (return_varinfo var), NoOffset)
+
+  let ask_may_point_to (ask: Queries.ask) exp =
+    match ask.f (MayPointTo exp) with
+    | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top ()
+    | res -> res
+
+  let may_point_to_all_equal_terms ask exp cc term offset =
+    let comp = Disequalities.comp_t cc.uf term in
+    let valid_term (t,z) =
+      T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+    let equal_terms = List.filter valid_term comp in
+    if M.tracing then M.trace "wrpointer-query" "may-point-to %a -> equal terms: %s"
+        d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
+    let intersect_query_result res (term,z) =
+      let next_query =
+        match ask_may_point_to ask (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
+        | exception (T.UnsupportedCilExpression _) -> AD.top()
+        | res ->  if AD.is_bot res then AD.top() else res
+      in
+      AD.meet res next_query in
+    List.fold intersect_query_result (AD.top()) equal_terms
+
+  (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
+  let may_point_to_address (ask:Queries.ask) adresses t2 off cc =
+    match T.to_cil_sum off (T.to_cil t2) with
+    | exception (T.UnsupportedCilExpression _) -> true
+    | exp2 ->
+      let mpt1 = adresses in
+      let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
+      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+      if M.tracing then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
+
+  let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
+    if T.equal t1 t2 then true else
+      let exp1 = T.to_cil t1 in
+      let mpt1 = may_point_to_all_equal_terms ask exp1 cc t1 Z.zero in
+      let res = may_point_to_address ask mpt1 t2 off cc in
+      if M.tracing && res then M.tracel "wrpointer-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
+          AD.pretty mpt1 (T.show t1) d_plainexp exp1; res
+
+  let rec may_be_equal ask cc s t1 t2 =
+    let there_is_an_overlap s s' diff =
+      if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
+    in
+    match t1, t2 with
+    | Deref (t, z,_), Deref (v, z',_) ->
+      let (q', z1') = TUF.find_no_pc cc.uf v in
+      let (q, z1) = TUF.find_no_pc cc.uf t in
+      let s' = T.get_size t2 in
+      let diff = Z.(-z' - z1 + z1' + z) in
+      (* If they are in the same equivalence class and they overlap, then they are equal *)
+      (if T.equal q' q && there_is_an_overlap s s' diff then true
+       else
+         (* If we have a disequality, then they are not equal *)
+       if neq_query (Some cc) (t,v,Z.(z'-z)) then false else
+         (* or if we know that they are not equal according to the query MayPointTo*)
+       if GobConfig.get_bool "ana.c2po.askbase" then (may_point_to_same_address ask t v Z.(z' - z) cc)
+       else true)
+      || (may_be_equal ask cc s t1 v)
+    | Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
+    | Addr _ , _ | Aux _, _ -> T.is_subterm t1 t2
+
+  (**Returns true iff by assigning to t1, the value of t2 could change.
+     The parameter s is the size in bits of the variable t1 we are assigning to. *)
+  let may_be_equal ask cc s t1 t2 =
+    match cc with
+    | None -> false
+    | Some cc ->
+      let res = (may_be_equal ask cc s t1 t2) in
+      if M.tracing then M.tracel "wrpointer-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
+      res
+
+  let rec may_point_to_one_of_these_adresses ask adresses cc t2 =
+    match t2 with
+    |  Deref (v, z',_) ->
+      (may_point_to_address ask adresses v z' cc)
+      || (may_point_to_one_of_these_adresses ask adresses cc v)
+    | Addr _ | Aux _ -> false
+
+end
