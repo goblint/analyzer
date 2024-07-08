@@ -80,7 +80,7 @@ module D = struct
         | None, b -> b
         | a, None -> a
         | Some a, Some b ->
-          if M.tracing then M.tracel "c2po-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+          if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
               (show_all (Some a)) (show_all (Some b));
           let cc = fst(join_eq a b) in
           let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
@@ -103,7 +103,7 @@ module D = struct
           if  a == b then
             a'
           else
-            (if M.tracing then M.tracel "c2po-join" "JOIN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+            (if M.tracing then M.tracel "c2po-join" "JOIN EQ CLASSES. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
                  (show_all (Some a)) (show_all (Some b));
              let cc = fst(join_eq_no_automata a b) in
              let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
@@ -114,7 +114,8 @@ module D = struct
           (show_all res);
       res
 
-  let join = if GobConfig.get_bool "ana.c2po.precise_join" then join_automaton else join_eq_classes
+  let join = if GobConfig.get_bool "ana.c2po.precise_join" then
+      (if M.tracing then M.trace "c2po-join" "Join Automaton"; join_automaton) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join_eq_classes)
 
   let widen_eq_classes a b =
     if  a == b then
@@ -132,7 +133,7 @@ module D = struct
           in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
           Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
       in
-      if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
+      if M.tracing then M.tracel "c2po-join" "WIDEN. WIDEN: %s\n"
           (show_all res);
       res
 
