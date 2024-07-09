@@ -778,7 +778,7 @@ module CongruenceClosure = struct
     let (v2,r2),cc = insert cc t2 in
     match cc with
     | None -> true
-    | Some cc -> BlDis.map_set_mem t1 t2 cc.bldis
+    | Some cc -> BlDis.map_set_mem v1 v2 cc.bldis
 
   (** Returns true if t1 and t2 are not equivalent. *)
   let neq_query cc (t1,t2,r) =
@@ -794,7 +794,7 @@ module CongruenceClosure = struct
         match cc with
         | None -> true
         | Some cc -> (* implicit disequalities following from block disequalities *)
-          BlDis.map_set_mem t1 t2 cc.bldis ||
+          BlDis.map_set_mem v1 v2 cc.bldis ||
           (*explicit dsequalities*)
           Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
 
