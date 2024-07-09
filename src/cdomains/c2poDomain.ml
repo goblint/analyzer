@@ -1046,7 +1046,7 @@ module CongruenceClosure = struct
       | Nequal (t1,t2,z) ->
         let (min_state1, min_z1) = TUF.find_no_pc cc2.uf t1 in
         let (min_state2, min_z2) = TUF.find_no_pc cc2.uf t2 in
-        let new_offset = Z.(-min_z2 + min_z1 + z) in
+        let new_offset = Z.(min_z2 - min_z1 + z) in
         normalize_diseqs (min_state1, min_state2, new_offset)
       | _ -> dis in
     let renamed_diseqs = BatList.sort_unique (T.compare_v_prop) @@
@@ -1107,9 +1107,12 @@ module MayBeEqual = struct
       let next_query =
         match ask_may_point_to ask (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
         | exception (T.UnsupportedCilExpression _) -> AD.top()
-        | res ->  if AD.is_bot res then AD.top() else res
+        | result -> if AD.is_bot result then AD.top() else result
       in
-      AD.meet res next_query in
+      match AD.meet res next_query with
+      | exception (IntDomain.ArithmeticOnIntegerBot _) -> res
+      | result -> result
+    in
     List.fold intersect_query_result (AD.top()) equal_terms
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
@@ -1119,9 +1122,11 @@ module MayBeEqual = struct
     | exp2 ->
       let mpt1 = adresses in
       let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
-      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+      let res = try not (AD.is_bot (AD.meet mpt1 mpt2))
+        with IntDomain.ArithmeticOnIntegerBot _ -> true
+      in
       if M.tracing then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
-          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
+          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (try AD.meet mpt1 mpt2 with IntDomain.ArithmeticOnIntegerBot _ -> AD.bot ()) (string_of_bool res); res
 
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
     if T.equal t1 t2 then true else
