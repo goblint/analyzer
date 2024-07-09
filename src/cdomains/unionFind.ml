@@ -472,6 +472,20 @@ module T = struct
       end
     | UnOp (LNot, e1, _) -> prop_of_cil ask e1 (not pos)
     | _ -> []
+
+  let prop_to_cil p =
+    let op,t1,t2,z = match p with
+      | Equal (t1,t2,z) -> Eq, t1, t2, z
+      | Nequal (t1,t2,z) -> Ne, t1, t2, z
+      | BlNequal (t1,t2) -> Ne, t1, t2, Z.zero
+    in
+    BinOp (op, to_cil t1, to_cil_sum z (to_cil t2), TInt (IBool,[]))
+
+  let conj_to_invariant conjs =
+    List.fold (fun a prop -> let exp = prop_to_cil prop in
+                if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
+                Invariant.(a && of_exp exp)) (Invariant.top()) conjs
+
 end
 
 module TMap = struct
