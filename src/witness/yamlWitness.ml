@@ -605,7 +605,7 @@ struct
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
               let fundec = Node.find_fundec n in
 
-              let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+              let result: VR.result = match InvariantParser.parse_cil ~check:false inv_parser ~fundec ~loc inv_cabs with
                 | Ok inv_exp ->
                   let x = ask_local lvar (Queries.EvalInt inv_exp) in
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
