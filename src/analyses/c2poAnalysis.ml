@@ -75,8 +75,13 @@ struct
           let ik = Cilfacade.get_ikind_exp e in
           ID.of_bool ik res
       end
-    (* TODO Invariant.
-       | Queries.Invariant context -> get_normal_form context*)
+    | Queries.Invariant context ->
+      let scope = Node.find_fundec ctx.node in
+      begin match D.remove_vars_not_in_scope scope ctx.local with
+        | None -> Invariant.top()
+        | Some t ->
+          T.conj_to_invariant (get_normal_form t)
+      end
     (* | MayPointTo e -> query_may_point_to ctx ctx.local e *)
     | _ -> Result.top q
 

@@ -1341,4 +1341,11 @@ module D = struct
     if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
     Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address cc) cc)
 
+  (** Remove terms from the data structure.
+      It removes all terms that are not in the scope, and also those that are tmp variables.*)
+  let remove_vars_not_in_scope scope cc =
+    Option.bind cc (fun cc -> remove_terms (fun t ->
+        let var = T.get_var t in
+        InvariantCil.var_is_tmp var || not (InvariantCil.var_is_in_scope scope var)) cc)
+
 end
