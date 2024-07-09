@@ -834,7 +834,7 @@ module CongruenceClosure = struct
 
   (* Remove variables: *)
   let remove_terms_from_eq predicate cc =
-    let rec insert_terms cc = List.fold (fun cc t -> snd (insert cc t)) cc in
+    let insert_terms cc = List.fold (fun cc t -> snd (insert cc t)) cc in
     (* start from all initial states that are still valid and find new representatives if necessary *)
     (* new_reps maps each representative term to the new representative of the equivalence class *)
     (*but new_reps contains an element but not necessarily the representative!!*)
