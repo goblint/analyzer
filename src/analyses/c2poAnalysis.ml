@@ -136,8 +136,7 @@ struct
     match T.get_element_size_in_bits lval_t, T.of_lval ask lval with
     (* Indefinite assignment *)
     | s, lterm ->
-      (* let t = D.remove_may_equal_terms ask s lterm t in
-               -> not necessary because lterm is always a new fresh variable in goblint *)
+      let t = D.remove_may_equal_terms ask s lterm t in
       add_block_diseqs t lterm
     (* Definite assignment *)
     | exception (T.UnsupportedCilExpression _) -> D.top ()

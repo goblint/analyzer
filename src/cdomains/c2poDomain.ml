@@ -1094,10 +1094,13 @@ module MayBeEqual = struct
     | res -> res
 
   let may_point_to_all_equal_terms ask exp cc term offset =
-    let comp = Disequalities.comp_t cc.uf term in
-    let valid_term (t,z) =
-      T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
-    let equal_terms = List.filter valid_term comp in
+    let equal_terms = if TMap.mem term cc.uf then
+        let comp = Disequalities.comp_t cc.uf term in
+        let valid_term (t,z) =
+          T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+        List.filter valid_term comp
+      else [(term,Z.zero)]
+    in
     if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %s"
         d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
     let intersect_query_result res (term,z) =
@@ -1165,7 +1168,8 @@ module MayBeEqual = struct
     | Deref (v, z',_) ->
       (may_point_to_address ask adresses v z' cc)
       || (may_point_to_one_of_these_adresses ask adresses cc v)
-    | Addr _ | Aux _ -> false
+    | Addr _ -> false
+    | Aux (v,e) -> may_point_to_address ask adresses (Addr v) Z.zero cc
 
 end
 
