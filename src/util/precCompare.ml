@@ -118,7 +118,7 @@ struct
         RH.filter_map (fun k v -> if Hashtbl.mem disregard1 (Key.to_location k) || Hashtbl.mem disregard2 (Key.to_location k) then None else Some v) lvh2
       | _ -> lvh2
     in
-    let (c, d) = CompareDump.compare ~verbose:false ~name1 lvh1 ~name2 lvh2 in
+    let (c, d) = CompareDump.compare ~verbose:true ~name1 lvh1 ~name2 lvh2 in
     comparisons := (name1, name2, c, d) :: !comparisons;
     (c, d)
 
