@@ -103,15 +103,15 @@ struct
 
   let assign ctx lval expr =
     let res = assign_lval ctx.local (ask_of_ctx ctx) lval expr in
-    if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval lval d_plainexp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.uf) "" res); res
+    if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval lval d_plainexp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.uf) "None" res); res
 
   let branch ctx e pos =
     let props = T.prop_of_cil (ask_of_ctx ctx) e pos in
     let valid_props = T.filter_valid_pointers props in
     let res = meet_conjs_opt valid_props ctx.local in
+    if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n"
+        d_exp e pos (show_conj valid_props) (D.is_bot res);
     if D.is_bot res then raise Deadcode;
-    if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s\n"
-        d_exp e pos (show_conj valid_props);
     res
 
   let body ctx f = ctx.local (*DONE*)
