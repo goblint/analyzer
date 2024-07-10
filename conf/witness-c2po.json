@@ -1,0 +1,28 @@
+{
+    "ana": {
+        "activated": [
+            "expRelation",
+            "base",
+            "threadid",
+            "threadflag",
+            "threadreturn",
+            "escape",
+            "mutexEvents",
+            "mutex",
+            "access",
+            "race",
+            "mallocWrapper",
+            "mhp",
+            "assert",
+            "pthreadMutexType",
+            "c2po",
+            "startState",
+            "taintPartialContexts"
+        ]
+    },
+    "witness": {
+        "yaml": {
+            "enabled": true
+        }
+    }
+}
