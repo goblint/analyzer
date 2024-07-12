@@ -15,4 +15,7 @@ module ApronImplementation = struct
   (* Poly *)
   type pt = Polka.loose Polka.t
   let manager_alloc_loose = Polka.manager_alloc_loose
+
+  (* Other *)
+  let hash mgr x = Abstract1.hash mgr x
 end

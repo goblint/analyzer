@@ -28,6 +28,8 @@ sig
   (* Poly *)
   type pt
   val manager_alloc_loose : unit -> pt Apron.Manager.t
+  (* Other *)
+  val hash : 'a Apron.Manager.t -> 'a Apron.Abstract1.t -> int
 end
 
 let implementation impl =
@@ -500,7 +502,7 @@ struct
     Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
 
   let hash (x:t) =
-    A.hash Man.mgr x
+    Man.RelImpl.hash Man.mgr x
 
   let compare (x:t) y: int =
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)

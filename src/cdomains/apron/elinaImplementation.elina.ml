@@ -43,4 +43,11 @@ module ElinaImplementation = struct
   (* Poly *)
   type pt = Elina_poly.loose Elina_poly.t
   let manager_alloc_loose = Elina_poly.manager_alloc_loose
+
+  (* Other *)
+  (*
+  Using Abstract1.hash like in the apron interface leads to segmentation faults,
+  so this is used as a workaround
+  *)
+  let hash _ x = Environment.hash (Abstract1.env x)
 end
