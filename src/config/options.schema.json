@@ -861,14 +861,6 @@
               "type": "boolean",
               "default": false
             },
-            "implementation": {
-              "title": "ana.apron.implementation",
-              "description":
-                "Which implementation should be used for the Apron analysis. Can be 'apron' or 'elina'",
-              "type": "string",
-              "enum": ["apron", "elina"],
-              "default": "apron"
-            },
             "domain": {
               "title": "ana.apron.domain",
               "description":

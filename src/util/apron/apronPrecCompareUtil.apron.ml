@@ -15,7 +15,7 @@ module Util =
 
     let init () =
       (* To Do *)
-      let module ApronImpl = (val ApronDomain.get_implementation ()) in
+      let module ApronImpl = (val ApronDomain.get_implementation "apron") in
       let module OctagonManagerInstance = OctagonManager (ApronImpl) in 
       Apron.Manager.set_deserialize OctagonManagerInstance.mgr
 

@@ -9,7 +9,7 @@ open RelationDomain
 open SharedFunctions
 
 
-(* Apron/Elina selector *)
+(* Relational anaylsis implementation selection *)
 open ApronImplementation
 open ElinaImplementation
 
@@ -30,17 +30,19 @@ sig
   val manager_alloc_loose : unit -> pt Apron.Manager.t
 end
 
-let implementation =
+let implementation impl =
   lazy (
-    if GobConfig.get_string "ana.apron.implementation" = "elina" then
+    if impl = "apron" then
+      (module ApronImplementation : Implementation)
+    else if impl = "elina" then
       (module ElinaImplementation : Implementation)
     else
-      (module ApronImplementation : Implementation)
+      failwith @@ "Relational analysis implementation " ^ impl ^ " is not supported."
   )
 
-let get_implementation (): (module Implementation) =
-  Lazy.force implementation
-(* Selector End *)
+let get_implementation impl: (module Implementation) =
+  Lazy.force (implementation impl)
+(* Relational anaylsis implementation selection End *)
 
 module M = Messages
 
