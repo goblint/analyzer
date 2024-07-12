@@ -65,9 +65,8 @@ depends: [
   "conf-ruby" {with-test}
   "benchmark" {with-test}
   "conf-gcc"
-  "elina"
 ]
-depopts: ["apron" "z3"]
+depopts: ["apron" "z3" "elina"]
 conflicts: [
   "result" {< "1.5"}
   "ez-conf-lib" {= "1"}
