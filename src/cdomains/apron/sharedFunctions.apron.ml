@@ -264,7 +264,6 @@ struct
     let append_summand (c:Coeff.union_5) v =
       match V.to_cil_varinfo v with
       | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
         let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
         let coeff, flip = coeff_to_const true c in
         let prod = BinOp(Mult, coeff, var, longlong) in
