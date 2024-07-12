@@ -10,10 +10,10 @@ open SharedFunctions
 
 
 (* Apron/Elina selector *)
-open ApronInterface
-open ElinaInterface
+open ApronImplementation
+open ElinaImplementation
 
-module type Interface =
+module type Implementation =
 sig
   (* Oct *)
   type t
@@ -30,13 +30,16 @@ sig
   val manager_alloc_loose : unit -> pt Apron.Manager.t
 end
 
-let interface =
+let implementation =
+  lazy (
     if GobConfig.get_string "ana.apron.implementation" = "elina" then
-      (module ElinaInterface : Interface)
+      (module ElinaImplementation : Implementation)
     else
-      (module ApronInterface : Interface)
+      (module ApronImplementation : Implementation)
+  )
 
-module EitherInterface = (val interface : Interface)
+let get_implementation (): (module Implementation) =
+  Lazy.force implementation
 (* Selector End *)
 
 module M = Messages
@@ -66,32 +69,39 @@ sig
   type t = mt Apron.Manager.t
   val mgr : mt Apron.Manager.t
   val name : unit -> string
+  module RelImpl : Implementation
 end
 
 (** Manager for the Oct domain, i.e. an octagon domain.
     For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
-module OctagonManager =
+module OctagonManager (RelImpl: Implementation) =
 struct
-  type mt = EitherInterface.t
+  type mt = RelImpl.t
 
   (* Type of the manager *)
   type t = mt Manager.t
 
   (* Create the manager *)
-  let mgr =  EitherInterface.manager_alloc ()
+  let mgr =  RelImpl.manager_alloc ()
   let name () = "Octagon"
+
+  (* Save the Relational Implementation Module *)
+  module RelImpl = RelImpl
 end
 
 (** Manager for the Polka domain, i.e. a polyhedra domain.
     For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Polka.html *)
-module PolyhedraManager =
+module PolyhedraManager (RelImpl: Implementation) =
 struct
   (** We chose a the loose polyhedra here, i.e. with polyhedra with no strict inequalities *)
-  type mt = EitherInterface.pt
+  type mt = RelImpl.pt
   type t = mt Manager.t
   (* Create manager that fits to loose polyhedra *)
-  let mgr = EitherInterface.manager_alloc_loose ()
+  let mgr = RelImpl.manager_alloc_loose ()
   let name () = "Polyhedra"
+
+  (* Save the Relational Implementation Module *)
+  module RelImpl = RelImpl
 end
 
 (** Another manager for the Polka domain but specifically for affine equalities.
@@ -103,6 +113,9 @@ struct
   type t = mt Manager.t
   let mgr = Polka.manager_alloc_equalities ()
   let name () = "ApronAffEq"
+
+  (* Save the Relational Implementation Module *)
+  module RelImpl = ApronImplementation
 end
 
 (** Manager for the Box domain, i.e. an interval domain.
@@ -113,14 +126,17 @@ struct
   type t = mt Manager.t
   let mgr = Box.manager_alloc ()
   let name () = "Interval"
+
+  (* Save the Relational Implementation Module *)
+  module RelImpl = ApronImplementation
 end
 
-let manager =
+let manager (module RelImpl : Implementation) =
   lazy (
     let options =
-      ["octagon", (module OctagonManager: Manager);
+      ["octagon", (module OctagonManager (RelImpl): Manager);
        "interval", (module IntervalManager: Manager);
-       "polyhedra", (module PolyhedraManager: Manager);
+       "polyhedra", (module PolyhedraManager (RelImpl): Manager);
        "affeq", (module AffEqManager: Manager)]
     in
     let domain = (GobConfig.get_string "ana.apron.domain") in
@@ -129,8 +145,8 @@ let manager =
     | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting."
   )
 
-let get_manager (): (module Manager) =
-  Lazy.force manager
+let get_manager (module RelImpl : Implementation): (module Manager) =
+  Lazy.force (manager (module RelImpl))
 
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
@@ -383,7 +399,7 @@ struct
   let substitute_exp_with ask nd v e no_ov =
     match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
-      EitherInterface.substitute_texpr_with Man.mgr nd v texpr1 None
+      Man.RelImpl.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
       forget_vars_with nd [v]
 
@@ -737,13 +753,13 @@ struct
     let y_env = A.env y in
     if Environment.equal x_env y_env then (
       if GobConfig.get_bool "ana.apron.threshold_widening" then (
-        if EitherInterface.manager_is_oct Man.mgr then (
-          let octmgr = EitherInterface.manager_to_oct Man.mgr in
+        if Man.RelImpl.manager_is_oct Man.mgr then (
+          let octmgr = Man.RelImpl.manager_to_oct Man.mgr in
           let ts = ResettableLazy.force widening_thresholds_apron in
-          let x_oct = EitherInterface.to_oct x in
-          let y_oct = EitherInterface.to_oct y in
-          let r = EitherInterface.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
-          EitherInterface.of_oct {x_oct with abstract0 = r}
+          let x_oct = Man.RelImpl.to_oct x in
+          let y_oct = Man.RelImpl.to_oct y in
+          let r = Man.RelImpl.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+          Man.RelImpl.of_oct {x_oct with abstract0 = r}
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
@@ -796,12 +812,12 @@ struct
     let x_env = A.env x in
     let y_env = A.env y in
     if Environment.equal x_env y_env then (
-      if EitherInterface.manager_is_oct Man.mgr then (
-        let octmgr = EitherInterface.manager_to_oct Man.mgr in
-        let x_oct = EitherInterface.to_oct x in
-        let y_oct = EitherInterface.to_oct y in
-        let r = EitherInterface.narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
-        EitherInterface.of_oct {env = x_env; abstract0 = r}
+      if Man.RelImpl.manager_is_oct Man.mgr then (
+        let octmgr = Man.RelImpl.manager_to_oct Man.mgr in
+        let x_oct = Man.RelImpl.to_oct x in
+        let y_oct = Man.RelImpl.to_oct y in
+        let r = Man.RelImpl.narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
+        Man.RelImpl.of_oct {env = x_env; abstract0 = r}
       )
       else
         x
@@ -834,7 +850,7 @@ struct
 end
 
 
-module OctagonD = D (OctagonManager)
+module OctagonD = D (OctagonManager (ApronImplementation))
 
 module type S3 =
 sig
@@ -853,20 +869,21 @@ module D2 (Man: Manager) : S2 with module Man = Man  =
 struct
   include D (Man)
   module V = RelationDomain.V
+  module OctagonD2 = D (OctagonManager (Man.RelImpl))
 
-  type marshal = OctagonD.marshal
+  type marshal = OctagonD2.marshal
 
-  let marshal t : EitherInterface.t Abstract0.t * string array =
-    let convert_single (a: t): OctagonD.t =
-      if EitherInterface.manager_is_oct Man.mgr then
-        EitherInterface.to_oct a
+  let marshal t : Man.RelImpl.t Abstract0.t * string array =
+    let convert_single (a: t): OctagonD2.t =
+      if Man.RelImpl.manager_is_oct Man.mgr then
+        Man.RelImpl.to_oct a
       else
         let generator = to_lincons_array a in
-        OctagonD.of_lincons_array generator
+        OctagonD2.of_lincons_array generator
     in
-    OctagonD.marshal @@ convert_single t
+    OctagonD2.marshal @@ convert_single t
 
-  let unmarshal (m: marshal) = EitherInterface.of_oct @@ OctagonD.unmarshal m
+  let unmarshal (m: marshal) = Man.RelImpl.of_oct @@ OctagonD2.unmarshal m
 end
 
 (** Lift [D] to a non-reduced product with box.

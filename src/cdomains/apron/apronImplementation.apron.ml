@@ -1,6 +1,6 @@
 open Apron
 
-module ApronInterface = struct
+module ApronImplementation = struct
   (* Oct *)
   type t = Oct.t
   let to_oct = Oct.Abstract1.to_oct

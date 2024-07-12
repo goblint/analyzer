@@ -1,6 +1,6 @@
 open Apron
 
-module ElinaInterface = struct
+module ElinaImplementation = struct
   (*
   This is supposed to implement the same functionality as Abstract1.substitute_texpr_with
   which for some reason doesn't seem to work correctly in elina?

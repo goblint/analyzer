@@ -14,7 +14,10 @@ module Util =
     type result = Dom.t RH.t result_gen
 
     let init () =
-      Apron.Manager.set_deserialize OctagonManager.mgr
+      (* To Do *)
+      let module ApronImpl = (val ApronDomain.get_implementation ()) in
+      let module OctagonManagerInstance = OctagonManager (ApronImpl) in 
+      Apron.Manager.set_deserialize OctagonManagerInstance.mgr
 
     let unmarshal (m: marshal): D2.t RH.t =
       RH.map (fun _ -> D2.unmarshal) m
