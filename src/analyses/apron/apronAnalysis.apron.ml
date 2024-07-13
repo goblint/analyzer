@@ -6,7 +6,8 @@ include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module Man = (val ApronDomain.get_manager ()) in
+    let module RelImpl = (val ApronDomain.get_implementation "apron") in
+    let module Man = (val ApronDomain.get_manager (module RelImpl)) in
     let module AD = ApronDomain.D2 (Man) in
     let diff_box = GobConfig.get_bool "ana.apron.invariant.diff-box" in
     let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): RelationDomain.RD) else (module AD)) in
