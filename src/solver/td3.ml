@@ -371,7 +371,10 @@ module Base =
                           | None -> () end;
                         let new_sides = ref VS.empty in
                         HM.iter (fun y _ -> new_sides := VS.add y !new_sides) acc;
-                        HM.replace prev_sides x !new_sides;
+                        if VS.is_empty !new_sides then
+                          HM.remove prev_sides x
+                        else
+                          HM.replace prev_sides x !new_sides;
                       end;
                       if narrow_sides_immediate_growth && not narrow_sides_stable then
                         HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
