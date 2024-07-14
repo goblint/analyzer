@@ -767,11 +767,6 @@ module CongruenceClosure = struct
       | _ -> (false, cc)
     else (false,cc)
 
-  let eq_query_opt cc (t1,t2,r) =
-    match cc with
-    | None -> false
-    | Some cc -> fst (eq_query cc (t1,t2,r))
-
   let block_neq_query cc (t1,t2) =
     (* we implicitly assume that &x != &y + z *)
     let (v1,r1),cc = insert cc t1 in

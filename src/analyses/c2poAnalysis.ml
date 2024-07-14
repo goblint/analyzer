@@ -66,6 +66,14 @@ struct
      | _ ->
       MayBeEqual.AD.top() *)
 
+      let conj_to_invariant ask conjs t =
+        List.fold (fun a prop -> let exp = T.prop_to_cil prop in
+                    if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
+                    match eval_guard ask t exp with
+                    | Some true -> Invariant.(a && of_exp exp)
+                    | _ -> a)
+          (Invariant.top()) conjs
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
@@ -80,7 +88,7 @@ struct
       begin match D.remove_vars_not_in_scope scope ctx.local with
         | None -> Invariant.top()
         | Some t ->
-          T.conj_to_invariant (get_normal_form t)
+            (conj_to_invariant (ask_of_ctx ctx) (get_normal_form t) (Some t))
       end
     (* | MayPointTo e -> query_may_point_to ctx ctx.local e *)
     | _ -> Result.top q
