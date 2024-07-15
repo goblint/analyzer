@@ -83,7 +83,9 @@ module T = struct
        if List.is_empty compinfo.cfields then Z.zero else
         get_size_in_bits (List.first compinfo.cfields).ftype *)
     | _ -> match Z.of_int (bitsSizeOf typ) with
-      | exception GoblintCil__Cil.SizeOfError (msg,_) -> raise (UnsupportedCilExpression msg)
+      | exception GoblintCil__Cil.SizeOfError (msg,_) when msg ="abstract type"-> Z.one
+      | exception GoblintCil__Cil.SizeOfError (msg,_) ->
+        raise (UnsupportedCilExpression msg)
       | s -> s
 
   let show_type exp =
@@ -246,9 +248,11 @@ module T = struct
           Z.(z /typ_size) in Const (CInt (z, default_int_type, Some (Z.to_string z)))
 
   let to_cil_sum off cil_t =
-    if Z.(equal zero off) then cil_t else
-      let typ = typeOf cil_t in
-      BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
+    let res =
+      if Z.(equal zero off) then cil_t else
+        let typ = typeOf cil_t in
+        BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
+    in if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;res
 
   let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
     | Some i -> i
