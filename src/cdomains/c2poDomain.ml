@@ -28,25 +28,22 @@ module D = struct
   let name () = "c2po"
 
   let equal_standard x y =
-    if x == y then
-      true
-    else
-      let res =
-        match x,y with
-        | None, None -> true
-        | Some cc1, Some cc2 ->
-          if cc1 == cc2 then
-            true
-          else
-            (* add all terms to both elements *)
-            let terms = SSet.union (SSet.union cc1.set (BlDis.term_set cc1.bldis))
-                (SSet.union cc2.set (BlDis.term_set cc2.bldis)) in
-            let cc1, cc2 = Option.get (insert_set (Some cc1) terms), Option.get (insert_set (Some cc2) terms) in
-            equal_eq_classes cc1 cc2
-            && equal_diseqs cc1 cc2
-            && equal_bldis cc1 cc2
-        | _ -> false
-      in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
+    let res =
+      match x,y with
+      | None, None -> true
+      | Some cc1, Some cc2 ->
+        if cc1 == cc2 then
+          true
+        else
+          (* add all terms to both elements *)
+          let terms = SSet.union (SSet.union cc1.set (BlDis.term_set cc1.bldis))
+              (SSet.union cc2.set (BlDis.term_set cc2.bldis)) in
+          let cc1, cc2 = Option.get (insert_set (Some cc1) terms), Option.get (insert_set (Some cc2) terms) in
+          equal_eq_classes cc1 cc2
+          && equal_diseqs cc1 cc2
+          && equal_bldis cc1 cc2
+      | _ -> false
+    in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
 
   let equal_min_repr x y =
     if x == y then
@@ -69,7 +66,8 @@ module D = struct
   let is_bot x = Option.is_none x
   let top () = empty ()
   let is_top = function None -> false
-                      | Some cc -> TUF.is_empty cc.uf
+                      | Some cc ->
+                        TUF.is_empty cc.uf && Disequalities.is_empty cc.diseq && BlDis.is_empty cc.bldis
 
   let join_automaton a b =
     if  a == b then
@@ -92,76 +90,72 @@ module D = struct
       res
 
   let join_eq_classes a' b' =
-    if  a' == b' then
-      a'
-    else
-      let res =
-        match a',b' with
-        | None, b -> b
-        | a, None -> a
-        | Some a, Some b ->
-          if  a == b then
-            a'
-          else
-            (if M.tracing then M.tracel "c2po-join" "JOIN EQ CLASSES. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
-                 (show_all (Some a)) (show_all (Some b));
-             let cc = fst(join_eq_no_automata a b) in
-             let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
-             in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
-             Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2))
-      in
-      if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
-          (show_all res);
-      res
-
+    let res =
+      match a',b' with
+      | None, b -> b
+      | a, None -> a
+      | Some a, Some b ->
+        if a == b then
+          a'
+        else
+          (if M.tracing then M.tracel "c2po-join" "JOIN EQ CLASSES. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+               (show_all (Some a)) (show_all (Some b));
+           let cc = fst(join_eq a b) in
+           let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+           in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
+           Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2))
+    in
+    if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
+        (show_all res);
+    res
   let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
       (if M.tracing then M.trace "c2po-join" "Join Automaton"; join_automaton a b) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join_eq_classes a b)
 
-  let widen_eq_classes a b =
-    if  a == b then
-      a
-    else
-      let res =
-        match a,b with
-        | None, b -> b
-        | a, None -> a
-        | Some a, Some b ->
-          if M.tracing then M.tracel "c2po-join" "WIDEN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
-              (show_all (Some a)) (show_all (Some b));
-          let cc = fst(widen_eq_no_automata a b) in
-          let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
-          in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
-          Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
-      in
-      if M.tracing then M.tracel "c2po-join" "WIDEN. WIDEN: %s\n"
-          (show_all res);
-      res
+  let widen_eq_classes a' b' =
+    let res =
+      match a',b' with
+      | None, b -> b
+      | a, None -> a
+      | Some a, Some b ->
+        if a == b then
+          a'
+        else
+          (if M.tracing then M.tracel "c2po-join" "WIDEN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+               (show_all (Some a)) (show_all (Some b));
+           let cc = fst(widen_eq a b) in
+           let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+           in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
+           Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2))
+    in
+    if M.tracing then M.tracel "c2po-join" "WIDEN. WIDEN: %s\n"
+        (show_all res);
+    res
 
   let widen a b = if M.tracing then M.trace "c2po-join" "WIDEN\n";
     if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
 
-  let meet a b =
-    if a == b then
-      a
-    else
-      match a,b with
-      | None, _ -> None
-      | _, None -> None
-      | Some a, b ->
-        match get_conjunction a with
-        | [] -> b
-        | a_conj -> meet_conjs_opt a_conj b
+  let meet a' b' =
+    match a',b' with
+    | None, _ -> None
+    | _, None -> None
+    | Some a, Some b ->
+      if a == b then
+        a'
+      else
+        match get_normal_form a with
+        | [] -> b'
+        | a_conj -> meet_conjs_opt a_conj b'
 
   let leq x y = equal (meet x y) x
 
-  let narrow a b =
-    if a == b then
-      a
-    else
-      match a,b with
-      | None, _ -> None
-      | _, None -> None
-      | Some a, Some b ->
+  let narrow a' b' =
+    match a',b' with
+    | None, _ -> None
+    | _, None -> None
+    | Some a, Some b ->
+      if a == b then
+        a'
+      else
         let b_conj = List.filter
             (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set)
             (get_conjunction b) in
@@ -215,4 +209,10 @@ module D = struct
     if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
     Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address cc) cc)
 
+  (** Remove terms from the data structure.
+      It removes all terms that are not in the scope, and also those that are tmp variables.*)
+  let remove_vars_not_in_scope scope cc =
+    Option.bind cc (fun cc -> remove_terms (fun t ->
+        let var = T.get_var t in
+        InvariantCil.var_is_tmp var || not (InvariantCil.var_is_in_scope scope var)) cc)
 end

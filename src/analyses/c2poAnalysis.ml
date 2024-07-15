@@ -66,6 +66,14 @@ struct
      | _ ->
       MayBeEqual.AD.top() *)
 
+  let conj_to_invariant ask conjs t =
+    List.fold (fun a prop -> let exp = T.prop_to_cil prop in
+                if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
+                match eval_guard ask t exp with
+                | Some true -> Invariant.(a && of_exp exp)
+                | _ -> a)
+      (Invariant.top()) conjs
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
@@ -75,8 +83,13 @@ struct
           let ik = Cilfacade.get_ikind_exp e in
           ID.of_bool ik res
       end
-    (* TODO Invariant.
-       | Queries.Invariant context -> get_conjunction context*)
+    | Queries.Invariant context ->
+      let scope = Node.find_fundec ctx.node in
+      begin match D.remove_vars_not_in_scope scope ctx.local with
+        | None -> Invariant.top()
+        | Some t ->
+          (conj_to_invariant (ask_of_ctx ctx) (get_conjunction t) (Some t))
+      end
     (* | MayPointTo e -> query_may_point_to ctx ctx.local e *)
     | _ -> Result.top q
 
@@ -103,15 +116,15 @@ struct
 
   let assign ctx lval expr =
     let res = assign_lval ctx.local (ask_of_ctx ctx) lval expr in
-    if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval lval d_plainexp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.uf) "" res); res
+    if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval lval d_plainexp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.uf) "None" res); res
 
   let branch ctx e pos =
     let props = T.prop_of_cil (ask_of_ctx ctx) e pos in
     let valid_props = T.filter_valid_pointers props in
     let res = meet_conjs_opt valid_props ctx.local in
+    if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n"
+        d_exp e pos (show_conj valid_props) (D.is_bot res);
     if D.is_bot res then raise Deadcode;
-    if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s\n"
-        d_exp e pos (show_conj valid_props);
     res
 
   let body ctx f = ctx.local (*DONE*)
@@ -136,8 +149,7 @@ struct
     match T.get_element_size_in_bits lval_t, T.of_lval ask lval with
     (* Indefinite assignment *)
     | s, lterm ->
-      (* let t = D.remove_may_equal_terms ask s lterm t in
-               -> not necessary because lterm is always a new fresh variable in goblint *)
+      let t = D.remove_may_equal_terms ask s lterm t in
       add_block_diseqs t lterm
     (* Definite assignment *)
     | exception (T.UnsupportedCilExpression _) -> D.top ()

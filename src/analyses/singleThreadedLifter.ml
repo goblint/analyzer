@@ -6,7 +6,7 @@ module SingleThreadedLifter (S: MCPSpec) =
 struct
   include S
 
-  let is_multithreaded (ask:Queries.ask) = ask.f IsEverMultiThreaded
+  let is_multithreaded (ask:Queries.ask) = not @@ ask.f (MustBeSingleThreaded {since_start = true})
 
   let query ctx =
     if is_multithreaded (ask_of_ctx ctx) then
@@ -43,14 +43,11 @@ struct
       [D.top (),D.top ()] else
       enter ctx var_opt f args
 
-  (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
-     expr funktionsaufruf*)
   let combine_env ctx var_opt expr f exprs t_context_opt t (ask: Queries.ask) =
     if is_multithreaded (ask_of_ctx ctx) then
       D.top () else
       combine_env ctx var_opt expr f exprs t_context_opt t ask
 
-  (*ctx.local is after combine_env, t callee*)
   let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     if is_multithreaded (ask_of_ctx ctx) then
       D.top () else

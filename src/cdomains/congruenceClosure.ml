@@ -22,6 +22,7 @@ module CongruenceClosure = struct
     type arg_t = (T.t * Z.t) ZMap.t TMap.t (* maps each state in the automata to its predecessors *)
 
     let empty = TMap.empty
+    let is_empty = TMap.is_empty
     let remove = TMap.remove
     (** Returns a list of tuples, which each represent a disequality *)
     let bindings =
@@ -314,6 +315,7 @@ module CongruenceClosure = struct
 
     let bindings = TMap.bindings
     let empty = TMap.empty
+    let is_empty = TMap.is_empty
 
     let to_conj bldiseq = List.fold
         (fun list (t1, tset) ->
@@ -924,18 +926,13 @@ module CongruenceClosure = struct
       | _ -> (false, cc)
     else (false,cc)
 
-  let eq_query_opt cc (t1,t2,r) =
-    match cc with
-    | None -> false
-    | Some cc -> fst (eq_query cc (t1,t2,r))
-
   let block_neq_query cc (t1,t2) =
     (* we implicitly assume that &x != &y + z *)
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
     match cc with
     | None -> true
-    | Some cc -> BlDis.map_set_mem t1 t2 cc.bldis
+    | Some cc -> BlDis.map_set_mem v1 v2 cc.bldis
 
   (** Returns true if t1 and t2 are not equivalent. *)
   let neq_query cc (t1,t2,r) =
@@ -951,7 +948,7 @@ module CongruenceClosure = struct
         match cc with
         | None -> true
         | Some cc -> (* implicit disequalities following from block disequalities *)
-          BlDis.map_set_mem t1 t2 cc.bldis ||
+          BlDis.map_set_mem v1 v2 cc.bldis ||
           (*explicit dsequalities*)
           Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
 
@@ -1241,7 +1238,7 @@ module CongruenceClosure = struct
       | Nequal (t1,t2,z) ->
         let (min_state1, min_z1) = TUF.find_no_pc cc2.uf t1 in
         let (min_state2, min_z2) = TUF.find_no_pc cc2.uf t2 in
-        let new_offset = Z.(-min_z2 + min_z1 + z) in
+        let new_offset = Z.(min_z2 - min_z1 + z) in
         normalize_diseqs (min_state1, min_state2, new_offset)
       | _ -> dis in
     let renamed_diseqs = BatList.sort_unique (T.compare_v_prop) @@
@@ -1289,19 +1286,25 @@ module MayBeEqual = struct
     | res -> res
 
   let may_point_to_all_equal_terms ask exp cc term offset =
-    let comp = Disequalities.comp_t cc.uf term in
-    let valid_term (t,z) =
-      T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
-    let equal_terms = List.filter valid_term comp in
+    let equal_terms = if TMap.mem term cc.uf then
+        let comp = Disequalities.comp_t cc.uf term in
+        let valid_term (t,z) =
+          T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+        List.filter valid_term comp
+      else [(term,Z.zero)]
+    in
     if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %s"
         d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
     let intersect_query_result res (term,z) =
       let next_query =
         match ask_may_point_to ask (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
         | exception (T.UnsupportedCilExpression _) -> AD.top()
-        | res ->  if AD.is_bot res then AD.top() else res
+        | res -> if AD.is_bot res then AD.top() else res
       in
-      AD.meet res next_query in
+      match AD.meet res next_query with
+      | exception (IntDomain.ArithmeticOnIntegerBot _) -> res
+      | result -> result
+    in
     List.fold intersect_query_result (AD.top()) equal_terms
 
   (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
@@ -1311,9 +1314,11 @@ module MayBeEqual = struct
     | exp2 ->
       let mpt1 = adresses in
       let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
-      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
+      let res = try not (AD.is_bot (AD.meet mpt1 mpt2))
+        with IntDomain.ArithmeticOnIntegerBot _ -> true
+      in
       if M.tracing then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
-          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (AD.meet mpt1 mpt2) (string_of_bool res); res
+          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (try AD.meet mpt1 mpt2 with IntDomain.ArithmeticOnIntegerBot _ -> AD.bot ()) (string_of_bool res); res
 
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
     if T.equal t1 t2 then true else
@@ -1360,6 +1365,7 @@ module MayBeEqual = struct
     |  Deref (v, z',_) ->
       (may_point_to_address ask adresses v z' cc)
       || (may_point_to_one_of_these_adresses ask adresses cc v)
-    | Addr _ | Aux _ -> false
+    | Addr _ -> false
+    | Aux (v,e) -> may_point_to_address ask adresses (Addr v) Z.zero cc
 
 end
