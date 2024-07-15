@@ -654,8 +654,7 @@ struct
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
-    | Queries.Invariant context -> Invariant.top()
-      (* query_invariant ctx context *)
+    | Queries.Invariant context -> query_invariant ctx context
     | _ -> Result.top q
 
 

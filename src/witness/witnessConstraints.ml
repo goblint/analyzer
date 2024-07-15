@@ -254,11 +254,11 @@ struct
       (* let (d, _) = List.at (S.elements s) i in *)
       let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
       Spec.query (conv ctx d) q
-    | Queries.Invariant ({path=Some i; _} as c) -> Invariant.top()
+    | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
-      (* let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
-      Spec.query (conv ctx d) (Invariant c) *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
+      Spec.query (conv ctx d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)
       let module Result = (val Queries.Result.lattice q) in

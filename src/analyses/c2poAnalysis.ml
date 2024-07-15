@@ -83,7 +83,7 @@ struct
           let ik = Cilfacade.get_ikind_exp e in
           ID.of_bool ik res
       end
-    | Invariant context ->
+    | Queries.Invariant context ->
       let scope = Node.find_fundec ctx.node in
       begin match D.remove_vars_not_in_scope scope ctx.local with
         | None -> Invariant.top()

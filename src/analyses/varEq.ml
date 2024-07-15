@@ -564,9 +564,9 @@ struct
       let r = eq_set_clos e ctx.local in
       if M.tracing then M.tracel "var_eq" "equalset %a = %a" d_plainexp e Queries.ES.pretty r;
       r
-    (* | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
+    | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
       let scope = Node.find_fundec ctx.node in
-      D.invariant ~scope ctx.local *)
+      D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
   let event ctx e octx =
