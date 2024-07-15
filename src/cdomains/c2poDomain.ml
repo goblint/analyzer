@@ -142,7 +142,7 @@ module D = struct
       if a == b then
         a'
       else
-        match get_normal_form a with
+        match get_conjunction a with
         | [] -> b'
         | a_conj -> meet_conjs_opt a_conj b'
 
