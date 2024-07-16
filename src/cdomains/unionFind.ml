@@ -516,9 +516,6 @@ module UnionFind = struct
 
   let empty = ValMap.empty
 
-  (** create empty union find map, given a list of elements *)
-  let init = List.fold_left (fun map v -> ValMap.add v ((v, Z.zero), 1) map) (ValMap.empty)
-
   (** `parent uf v` returns (p, z) where p is the parent element of
       v in the union find tree and z is the offset.
 

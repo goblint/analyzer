@@ -58,9 +58,9 @@ module D = struct
 
   let equal a b = if GobConfig.get_bool "ana.c2po.normal_form" then equal_min_repr a b else equal_standard a b
 
-  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = None; diseq = Disequalities.empty; bldis = BlDis.empty}
+  let empty () = Some init_cc
 
-  let init () = init_congruence []
+  let init () = empty ()
 
   let bot () = None
   let is_bot x = Option.is_none x

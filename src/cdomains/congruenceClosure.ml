@@ -737,11 +737,8 @@ module CongruenceClosure = struct
 
      - `min_repr` = maps each representative of an equivalence class to the minimal representative of the equivalence class.
   *)
-  let init_cc conj =
-    let (set, map) = SSet.subterms_of_conj conj in
-    let uf = SSet.elements set |>
-             TUF.init in
-    {uf; set; map; min_repr=None; diseq = Disequalities.empty; bldis=BlDis.empty}
+  let init_cc =
+    {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = None; diseq = Disequalities.empty; bldis = BlDis.empty}
 
   (** closure of disequalities *)
   let congruence_neq cc neg =
@@ -877,20 +874,6 @@ module CongruenceClosure = struct
         if T.equal t1' t2' then None (*unsatisfiable*)
         else let bldis = BlDis.add_block_diseq cc.bldis (t1',t2') in
           add_normalized_bl_diseqs (Some {cc with bldis}) bl_conjs
-
-  (** Throws Unsat if the congruence is unsatisfiable.*)
-  let init_congruence conj =
-    let cc = init_cc conj in
-    (* propagating equalities through derefs *)
-    closure (Some cc) conj
-
-  (** Returns None if the congruence is unsatisfiable.*)
-  let init_congruence_opt conj =
-    let cc = init_cc conj in
-    (* propagating equalities through derefs *)
-    match closure (Some cc) conj with
-    | exception Unsat -> None
-    | x -> Some x
 
   (** Add a term to the data structure.
 
@@ -1028,7 +1011,7 @@ module CongruenceClosure = struct
       (new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
     in
     let new_reps, new_cc, reachable_old_reps =
-      SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (TMap.empty, (Some(init_cc [])),[]) cc.set in
+      SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (TMap.empty, (Some init_cc),[]) cc.set in
     let cmap = Disequalities.comp_map cc.uf in
     (* breadth-first search of reachable states *)
     let add_transition (old_rep, new_rep, z1) (new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
@@ -1146,7 +1129,7 @@ module CongruenceClosure = struct
       | None -> Map.add new_element (new_term, a_off) pmap, cc, new_element::new_pairs
       | Some (c, c1_off) ->
         pmap, add_eq cc (new_term, c, Z.(-c1_off + a_off)),new_pairs in
-    let pmap,cc,working_set = List.fold_left add_term (Map.empty, Some (init_cc []),[]) mappings in
+    let pmap,cc,working_set = List.fold_left add_term (Map.empty, Some init_cc,[]) mappings in
     (* add equalities that make sure that all atoms that have the same
        representative are equal. *)
     let add_one_edge y t t1_off diff (pmap, cc, new_pairs) (offset, a) =
@@ -1183,7 +1166,7 @@ module CongruenceClosure = struct
       | None -> cc, Map.add new_element (new_term, a_off) pmap
       | Some (c, c1_off) ->
         add_eq cc (new_term, c, Z.(-c1_off + a_off)), pmap in
-    List.fold_left add_term (Some (init_cc []), Map.empty) mappings
+    List.fold_left add_term (Some init_cc, Map.empty) mappings
 
   (** Here we do the join without using the automata, because apparently
       we don't want to describe the automaton in the paper...
