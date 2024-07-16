@@ -165,31 +165,40 @@ module Bounds (Man: Manager) =
 struct
   type t = Man.mt A.t
 
+  (* Int bounds for float **)
+  let ibf fl =
+    if fl > 2147483647.0 then 2147483647.0 else if fl < -2147483648.0 then -2147483648.0 else fl
+
   (* Scalar to float *)
   let stf scal =
     match scal with
-    | Scalar.Float fl -> fl
-    | Scalar.Mpqf mpqf -> Mpqf.to_float mpqf
-    | Scalar.Mpfrf mpfrf -> Mpfrf.to_float mpfrf
-
-  (* Int bounds for float **)
-  let ibf fl =
-    if fl > 2147483647.0 then 2147483647.0 else if fl < -2147483648.0 then 2147483647.0 else fl
+    | Scalar.Float fl -> if M.tracing then M.trace "bounds-debug" "FLOAT "; ibf fl
+    | Scalar.Mpqf mpqf -> if M.tracing then M.trace "bounds-debug" "MPQF "; Format.printf "[%a]" Mpqf.print mpqf; Format.print_flush (); let x = Mpqf.to_float mpqf in if M.tracing then M.trace "bounds-debug" "D! "; ibf x
+    | Scalar.Mpfrf mpfrf -> if M.tracing then M.trace "bounds-debug" "MPFRF "; ibf (Mpfrf.to_float mpfrf)
 
   (* Float to scalar *)
   let fts fl1 fl2 =
+    if M.tracing then M.trace "bounds-debug" "Create Interval "; 
     let fl1b = ibf fl1 in
     let fl2b = ibf fl2 in
-    Interval.of_scalar (Scalar.of_int (Float.to_int fl1b)) (Scalar.of_int (Float.to_int fl2b))
+    let x = Interval.of_scalar (Scalar.of_int (Float.to_int fl1b)) (Scalar.of_int (Float.to_int fl2b)) in
+    if M.tracing then M.trace "bounds-debug" "Create Interval Done"; 
+    x
 
   let rec bound_texpr_alt d exprt1 orig =
+    if M.tracing then M.trace "bounds-debug" "REC";
     match exprt1 with
     (* Constant *)
     | Texpr1.Cst cst ->
       if M.tracing then M.trace "bounds-debug" "Constant Case";
       (match cst with
-      | Coeff.Scalar coeff -> Interval.of_scalar coeff coeff
-      | Coeff.Interval intv -> intv
+      | Coeff.Scalar coeff -> (
+          if M.tracing then M.trace "bounds-debug" "Const > Coeff";
+          Format.printf "PRINTED (%.10f)" (stf coeff);
+          if M.tracing then M.trace "bounds-debug" "Const > Coeff2";
+          Interval.of_scalar coeff coeff
+        )
+      | Coeff.Interval intv -> if M.tracing then M.trace "bounds-debug" "Const > Intv"; intv
       )
     (* Variable *)
     | Texpr1.Var var ->
@@ -200,12 +209,12 @@ struct
       if M.tracing then M.trace "bounds-debug" "Unary Case";
       let bounds = bound_texpr_alt d expr orig in
       (match unop with
-      | Texpr1.Neg -> Format.printf "NEG "; Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
+      | Texpr1.Neg -> if M.tracing then M.trace "bounds-debug" "NEG "; Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
       | Texpr1.Cast -> (
-        Format.printf "CAST ";
+      if M.tracing then M.trace "bounds-debug" "CAST ";
         bounds (* Unsure? *)
       )
-      | Texpr1.Sqrt -> Format.printf "SQRT "; fts (Float.sqrt (stf bounds.inf)) (Float.sqrt (stf bounds.sup))
+      | Texpr1.Sqrt -> if M.tracing then M.trace "bounds-debug" "SQRT "; fts (Float.sqrt (stf bounds.inf)) (Float.sqrt (stf bounds.sup))
       )
     (* Binary *)
     | Texpr1.Binop (binop,expr1,expr2,typ,round) ->
@@ -213,12 +222,12 @@ struct
       let bounds1 = bound_texpr_alt d expr1 orig in
       let bounds2 = bound_texpr_alt d expr2 orig in
       (match binop with
-      | Texpr1.Add -> Format.printf "ADD "; fts ((stf bounds1.inf) +. (stf bounds2.inf)) ((stf bounds1.sup) +. (stf bounds2.sup))
-      | Texpr1.Sub -> Format.printf "SUB "; Format.printf "%a %a %a %a" Scalar.print bounds1.inf Scalar.print bounds1.sup Scalar.print bounds2.inf Scalar.print bounds2.sup; fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
-      | Texpr1.Mul -> Format.printf "MUL "; fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
-      | Texpr1.Div -> Format.printf "DIV "; fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
+      | Texpr1.Add -> if M.tracing then M.trace "bounds-debug" "ADD "; fts ((stf bounds1.inf) +. (stf bounds2.inf)) ((stf bounds1.sup) +. (stf bounds2.sup))
+      | Texpr1.Sub -> if M.tracing then M.trace "bounds-debug" "SUB "; fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
+      | Texpr1.Mul -> if M.tracing then M.trace "bounds-debug" "MUL "; fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
+      | Texpr1.Div -> if M.tracing then M.trace "bounds-debug" "DIV "; fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
       | Texpr1.Mod -> (
-        Format.printf "MOD ";
+        if M.tracing then M.trace "bounds-debug" "MOD ";
         (* There seem to be SO many cases for mod, I dont quite get it *)
         let inf1 = stf bounds1.inf in  
         let sup1 = stf bounds1.sup in
@@ -236,7 +245,7 @@ struct
         would be in range [1;2] not [1;3], etc. Also I'm not even sure I understand the negative
         result thing correctly*)
       )
-      | Texpr1.Pow -> Format.printf "POW "; fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
+      | Texpr1.Pow -> if M.tracing then M.trace "bounds-debug" "POW "; fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
       )
     
   let bound_texpr d texpr1 =
@@ -255,18 +264,21 @@ struct
     let bounds = (
       if ((Man.name ()) = "Polyhedra") && ((Man.impl ()) = "Elina") then (
         M.trace "bounds-debug" "ELINA POLY\n";
-        bound_texpr_alt d (Texpr1.to_expr texpr1) texpr1
+        let x = bound_texpr_alt d (Texpr1.to_expr texpr1) texpr1 in 
+        M.trace "bounds-debug" "-=- custom bound done -=-";
+        x
       )
       else (
         M.trace "bounds-debug" "Normal\n";
-        Format.printf "NOP ";
+        (*Format.printf "NOP ";*)
         A.bound_texpr Man.mgr d texpr1
       )
     ) in
     let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
     let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
-    Format.printf "%a %a@" Scalar.print bounds.inf Scalar.print bounds.sup;
+    (*Format.printf "%a %a@" Scalar.print bounds.inf Scalar.print bounds.sup;*)
     (*failwith @@ "Nope" ^ "!";*)
+    Format.print_flush ();
     (min, max)
 end
 
