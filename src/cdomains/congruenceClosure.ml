@@ -481,6 +481,11 @@ module CongruenceClosure = struct
       in
       List.fold_left show_one_rep "" (bindings min_representatives)
 
+    let show_min_rep_opt min_repr_opt =
+      match min_repr_opt with
+      | None -> "None"
+      | Some min_repr -> show_min_rep min_repr
+
     let rec update_min_repr (uf, set, map) min_representatives = function
       | [] -> min_representatives, uf
       | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
@@ -567,7 +572,7 @@ module CongruenceClosure = struct
   type t = {uf: TUF.t;
             set: SSet.t;
             map: LMap.t;
-            min_repr: MRMap.t;
+            min_repr: MRMap.t option;
             diseq: Disequalities.t;
             bldis: BlDis.t}
   [@@deriving eq, ord, hash]
@@ -590,10 +595,25 @@ module CongruenceClosure = struct
          (LMap.zmap_bindings zmap)))
       (LMap.bindings map)
 
+  let compute_min_repr_if_necessary cc =
+    match cc.min_repr with
+    | None -> let min_repr, uf =
+                MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
+      {cc with min_repr = Some min_repr; uf}, min_repr
+    | Some min_repr -> cc, min_repr
+
+  let remove_min_repr = function
+    | None -> None
+    | Some cc -> Some {cc with min_repr=None}
+
+  let exactly_equal cc1 cc2 =
+    cc1.uf == cc2.uf && cc1.map == cc2.map && cc1.diseq == cc2.diseq && cc1.bldis == cc2.bldis
+
   (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
      Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
   (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
   let get_normal_form cc =
+    let cc, min_repr = compute_min_repr_if_necessary cc in
     let normalize_equality (t1, t2, z) =
       if T.equal t1 t2 && Z.(equal z zero) then None else
         Some (Equal (t1, t2, z)) in
@@ -601,39 +621,39 @@ module CongruenceClosure = struct
       let atoms = SSet.get_atoms cc.set in
       List.filter_map (fun atom ->
           let (rep_state, rep_z) = TUF.find_no_pc cc.uf atom in
-          let (min_state, min_z) = MRMap.find rep_state cc.min_repr in
+          let (min_state, min_z) = MRMap.find rep_state min_repr in
           normalize_equality (atom, min_state, Z.(rep_z - min_z))
         ) atoms
     in
     let conjunctions_of_transitions =
       let transitions = get_transitions (cc.uf, cc.map) in
       List.filter_map (fun (z,s,(s',z')) ->
-          let (min_state, min_z) = MRMap.find s cc.min_repr in
-          let (min_state', min_z') = MRMap.find s' cc.min_repr in
+          let (min_state, min_z) = MRMap.find s min_repr in
+          let (min_state', min_z') = MRMap.find s' min_repr in
           normalize_equality (SSet.deref_term_even_if_its_not_possible min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
         ) transitions in
     (*disequalities*)
     let disequalities = Disequalities.get_disequalities cc.diseq in
     (* find disequalities between min_repr *)
     let normalize_disequality (t1, t2, z) =
-      let (min_state1, min_z1) = MRMap.find t1 cc.min_repr in
-      let (min_state2, min_z2) = MRMap.find t2 cc.min_repr in
+      let (min_state1, min_z1) = MRMap.find t1 min_repr in
+      let (min_state2, min_z2) = MRMap.find t2 min_repr in
       let new_offset = Z.(-min_z2 + min_z1 + z) in
       if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
       else Nequal (min_state2, min_state1, Z.(-new_offset))
     in
-    if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep cc.min_repr) (LMap.show_map cc.map);
+    if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep min_repr) (LMap.show_map cc.map);
     let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
     (* block disequalities *)
     let normalize_bldis t = match t with
       | BlNequal (t1,t2) ->
         let min_state1 =
-          begin match MRMap.find_opt t1 cc.min_repr with
+          begin match MRMap.find_opt t1 min_repr with
             | None -> t1
             | Some (a,_) -> a
           end in
         let min_state2 =
-          begin match MRMap.find_opt t2 cc.min_repr with
+          begin match MRMap.find_opt t2 min_repr with
             | None -> t2
             | Some (a,_) -> a
           end in
@@ -696,6 +716,8 @@ module CongruenceClosure = struct
                    ^ (Disequalities.show_neq x.diseq)
                    ^ "\nBlock diseqs:\n"
                    ^ show_conj(BlDis.to_conj x.bldis)
+                   ^ "\nMin repr:\n"
+                   ^ MRMap.show_min_rep_opt x.min_repr
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
       and the second one contains all inequality propositions.  *)
@@ -719,8 +741,7 @@ module CongruenceClosure = struct
     let (set, map) = SSet.subterms_of_conj conj in
     let uf = SSet.elements set |>
              TUF.init in
-    let min_repr = MRMap.initial_minimal_representatives set in
-    {uf; set; map; min_repr; diseq = Disequalities.empty; bldis=BlDis.empty}
+    {uf; set; map; min_repr=None; diseq = Disequalities.empty; bldis=BlDis.empty}
 
   (** closure of disequalities *)
   let congruence_neq cc neg =
@@ -1103,7 +1124,7 @@ module CongruenceClosure = struct
           let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
           if M.tracing then M.trace "c2po" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
               (show_all old_cc) (show_all {uf=cc.uf; set = cc.set; map = cc.map; min_repr=cc.min_repr; diseq=cc.diseq; bldis});
-          Some {uf=cc.uf; set = cc.set; map = cc.map; min_repr=cc.min_repr; diseq=cc.diseq; bldis}
+          Some {uf=cc.uf; set = cc.set; map = cc.map; min_repr=None; diseq=cc.diseq; bldis}
         | None -> None
       end
     | _,None -> None

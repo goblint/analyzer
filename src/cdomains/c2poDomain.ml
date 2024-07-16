@@ -32,7 +32,7 @@ module D = struct
       match x,y with
       | None, None -> true
       | Some cc1, Some cc2 ->
-        if cc1 == cc2 then
+        if exactly_equal cc1 cc2 then
           true
         else
           (* add all terms to both elements *)
@@ -43,22 +43,22 @@ module D = struct
           && equal_diseqs cc1 cc2
           && equal_bldis cc1 cc2
       | _ -> false
-    in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
+    in if M.tracing then M.trace "c2po-equal" "equal eq classes. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
 
   let equal_min_repr x y =
-    if x == y then
-      true
-    else
-      let res = match x, y with
-        | Some x, Some y ->
+    let res = match x, y with
+      | Some x, Some y ->
+        if exactly_equal x y then
+          true
+        else
           (T.props_equal (get_normal_form x) (get_normal_form y))
-        | None, None -> true
-        | _ -> false
-      in if M.tracing then M.trace "c2po-equal" "equal. %b\nx=\n%s\ny=\n%s" res (show x) (show y);res
+      | None, None -> true
+      | _ -> false
+    in if M.tracing then M.trace "c2po-equal" "equal min repr. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
 
   let equal a b = if GobConfig.get_bool "ana.c2po.normal_form" then equal_min_repr a b else equal_standard a b
 
-  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = MRMap.empty; diseq = Disequalities.empty; bldis = BlDis.empty}
+  let empty () = Some {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = None; diseq = Disequalities.empty; bldis = BlDis.empty}
 
   let init () = init_congruence []
 
@@ -70,35 +70,15 @@ module D = struct
                         TUF.is_empty cc.uf && Disequalities.is_empty cc.diseq && BlDis.is_empty cc.bldis
 
   let join_automaton a b =
-    if  a == b then
-      a
-    else
-      let res =
-        match a,b with
-        | None, b -> b
-        | a, None -> a
-        | Some a, Some b ->
-          if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
-              (show_all (Some a)) (show_all (Some b));
-          let cc = fst(join_eq a b) in
-          let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
-          in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
-          Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2)
-      in
-      if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
-          (show_all res);
-      res
-
-  let join_eq_classes a' b' =
     let res =
-      match a',b' with
+      match a,b with
       | None, b -> b
       | a, None -> a
       | Some a, Some b ->
-        if a == b then
-          a'
+        if exactly_equal a b then
+          Some a
         else
-          (if M.tracing then M.tracel "c2po-join" "JOIN EQ CLASSES. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+          (if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
                (show_all (Some a)) (show_all (Some b));
            let cc = fst(join_eq a b) in
            let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
@@ -108,6 +88,27 @@ module D = struct
     if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
         (show_all res);
     res
+
+  let join_eq_classes a' b' =
+    let res =
+      match a',b' with
+      | None, b -> b
+      | a, None -> a
+      | Some a, Some b ->
+        if  exactly_equal a b then
+          a'
+        else
+          (if M.tracing then M.tracel "c2po-join" "JOIN EQ CLASSES. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
+               (show_all (Some a)) (show_all (Some b));
+           let cc = fst(join_eq_no_automata a b) in
+           let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+           in let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
+           Some (join_bldis a.bldis b.bldis a b cc cmap1 cmap2))
+    in
+    if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
+        (show_all res);
+    res
+
   let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
       (if M.tracing then M.trace "c2po-join" "Join Automaton"; join_automaton a b) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join_eq_classes a b)
 
@@ -117,7 +118,7 @@ module D = struct
       | None, b -> b
       | a, None -> a
       | Some a, Some b ->
-        if a == b then
+        if exactly_equal a b then
           a'
         else
           (if M.tracing then M.tracel "c2po-join" "WIDEN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
@@ -139,12 +140,12 @@ module D = struct
     | None, _ -> None
     | _, None -> None
     | Some a, Some b ->
-      if a == b then
+      if exactly_equal a b then
         a'
       else
         match get_conjunction a with
         | [] -> b'
-        | a_conj -> meet_conjs_opt a_conj b'
+        | a_conj -> remove_min_repr (meet_conjs_opt a_conj b')
 
   let leq x y = equal (meet x y) x
 
@@ -153,13 +154,12 @@ module D = struct
     | None, _ -> None
     | _, None -> None
     | Some a, Some b ->
-      if a == b then
+      if exactly_equal a b then
         a'
       else
         let b_conj = List.filter
-            (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set)
-            (get_conjunction b) in
-        meet_conjs_opt b_conj (Some a)
+            (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set) (get_conjunction b) in
+        remove_min_repr (meet_conjs_opt b_conj (Some a))
 
   let pretty_diff () (x,y) = Pretty.dprintf ""
 
@@ -170,7 +170,7 @@ module D = struct
         (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
         (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
         (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
-        (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep x.min_repr)))
+        (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep_opt x.min_repr)))
         (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.diseq)))
     | None ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 
