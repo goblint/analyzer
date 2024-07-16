@@ -379,6 +379,7 @@ class Project
     end
     if tests.empty? then
       puts "No automatic checks in #{@id} (maybe NOCRASH/FIXPOINT/NOTIMEOUT/CRAM?)"
+      exit 1
     end
     Tests.new(self, tests, tests_line, todo)
   end
