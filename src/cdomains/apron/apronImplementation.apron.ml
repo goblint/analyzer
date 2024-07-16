@@ -18,4 +18,5 @@ module ApronImplementation = struct
 
   (* Other *)
   let hash mgr x = Abstract1.hash mgr x
+  let impl () = "Apron"
 end

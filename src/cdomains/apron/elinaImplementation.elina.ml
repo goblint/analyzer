@@ -50,4 +50,5 @@ module ElinaImplementation = struct
   so this is used as a workaround
   *)
   let hash _ x = Environment.hash (Abstract1.env x)
+  let impl () = "Elina"
 end

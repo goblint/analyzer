@@ -30,6 +30,7 @@ sig
   val manager_alloc_loose : unit -> pt Apron.Manager.t
   (* Other *)
   val hash : 'a Apron.Manager.t -> 'a Apron.Abstract1.t -> int
+  val impl : unit -> string
 end
 
 let implementation impl =
@@ -73,6 +74,7 @@ sig
   type t = mt Apron.Manager.t
   val mgr : mt Apron.Manager.t
   val name : unit -> string
+  val impl : unit -> string
   module RelImpl : Implementation
 end
 
@@ -88,6 +90,7 @@ struct
   (* Create the manager *)
   let mgr =  RelImpl.manager_alloc ()
   let name () = "Octagon"
+  let impl () = RelImpl.impl ()
 
   (* Save the Relational Implementation Module *)
   module RelImpl = RelImpl
@@ -103,6 +106,7 @@ struct
   (* Create manager that fits to loose polyhedra *)
   let mgr = RelImpl.manager_alloc_loose ()
   let name () = "Polyhedra"
+  let impl () = RelImpl.impl ()
 
   (* Save the Relational Implementation Module *)
   module RelImpl = RelImpl
@@ -117,6 +121,7 @@ struct
   type t = mt Manager.t
   let mgr = Polka.manager_alloc_equalities ()
   let name () = "ApronAffEq"
+  let impl () = "Apron"
 
   (* Save the Relational Implementation Module *)
   module RelImpl = ApronImplementation
@@ -130,6 +135,7 @@ struct
   type t = mt Manager.t
   let mgr = Box.manager_alloc ()
   let name () = "Interval"
+  let impl () = "Apron"
 
   (* Save the Relational Implementation Module *)
   module RelImpl = ApronImplementation
@@ -159,10 +165,81 @@ module Bounds (Man: Manager) =
 struct
   type t = Man.mt A.t
 
+  (* Scalar to float *)
+  let stf scal =
+    match scal with
+    | Scalar.Float fl -> fl
+    | Scalar.Mpqf mpqf -> Mpqf.to_float mpqf
+    | Scalar.Mpfrf mpfrf -> 1.0
+
+  (* Float to scalar *)
+  let fts fl1 fl2 =
+    Interval.of_scalar (Scalar.of_float fl1) (Scalar.of_float fl2)
+
+  let rec bound_texpr_alt d exprt1 orig =
+    match exprt1 with
+    (* Constant *)
+    | Texpr1.Cst cst ->
+      if M.tracing then M.trace "test" "Constant Case";
+      (match cst with
+      | Coeff.Scalar coeff -> Interval.of_scalar coeff coeff
+      | Coeff.Interval intv -> intv
+      )
+    (* Variable *)
+    | Texpr1.Var var -> 
+      if M.tracing then M.trace "test" "Variable Case";
+      A.bound_variable Man.mgr d var
+    (* Unary *)
+    | Texpr1.Unop (unop,expr,typ,round) -> 
+      if M.tracing then M.trace "test" "Unary Case";
+      let bounds = bound_texpr_alt d expr orig in
+      (match unop with
+      | Texpr1.Neg -> Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
+      | Texpr1.Cast -> bounds
+      | Texpr1.Sqrt -> fts (Float.sqrt (stf bounds.inf)) (Float.sqrt (stf bounds.sup))
+      )
+    (* Binary *)
+    | Texpr1.Binop (binop,expr1,expr2,typ,round) ->
+      if M.tracing then M.trace "test" "Binary Case";
+      let bounds1 = bound_texpr_alt d expr1 orig in
+      let bounds2 = bound_texpr_alt d expr2 orig in
+      (match binop with
+      | Texpr1.Add -> fts ((stf bounds1.inf) +. (stf bounds2.inf)) ((stf bounds1.sup) +. (stf bounds2.sup))
+      | Texpr1.Sub -> fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
+      | Texpr1.Mul -> fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
+      | Texpr1.Div -> fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
+      | Texpr1.Mod -> bounds1
+      | Texpr1.Pow -> bounds1
+      )
+    
   let bound_texpr d texpr1 =
-    let bounds = A.bound_texpr Man.mgr d texpr1 in
+
+    (* Print out value and expr *)
+    if M.tracing then M.trace "test" "\nSTATE";
+    Abstract1.print Format.std_formatter d;
+    Format.print_flush ();
+    if M.tracing then M.trace "test" "\nTEXPR";
+    Texpr1.print Format.std_formatter texpr1;
+    Format.print_flush ();
+    if M.tracing then M.trace "test" "\n";
+
+    
+
+    let bounds = (
+      if ((Man.name ()) = "Polyhedra") && ((Man.impl ()) = "Elina") then (
+        M.trace "test" "ELINA POLY\n";
+        bound_texpr_alt d (Texpr1.to_expr texpr1) texpr1
+      )
+      else (
+        M.trace "test" "Normal\n";
+        A.bound_texpr Man.mgr d texpr1
+      )
+    ) in
     let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
     let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
+    Format.printf "%a@." Scalar.print bounds.inf;
+    Format.printf "%a@." Scalar.print bounds.sup;
+    (*failwith @@ "Nope" ^ "!";*)
     (min, max)
 end
 
