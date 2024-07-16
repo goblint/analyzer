@@ -1561,6 +1561,26 @@
           "description": "Output filename for transformations that output a transformed file.",
           "type":"string",
           "default": "transformed.c"
+        },
+        "assert" : {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "function": {
+              "title": "trans.assert.function",
+              "description": "Function to use for assertions in output.",
+              "type": "string",
+              "enum": ["assert", "__goblint_check", "__VERIFIER_assert"],
+              "default": "__VERIFIER_assert"
+            },
+            "wrap-atomic": {
+              "title": "trans.assert.wrap-atomic",
+              "description": "Wrap assertions in __VERIFIER_atomic_begin and __VERIFIER_atomic_end.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
