@@ -56,7 +56,8 @@ struct
       Priv.read_global ask getg st g x
     else (
       let rel = st.rel in
-      let g_var = RV.global g in
+      (* If it has escaped and we have never been multi-threaded, we can still refer to the local *)
+      let g_var = if g.vglob then RV.global g else RV.local g in
       let x_var = RV.local x in
       let rel' = RD.add_vars rel [g_var] in
       let rel' = RD.assign_var rel' x_var g_var in
@@ -87,7 +88,7 @@ struct
     let e' = visitCilExpr visitor e in
     let rel = RD.add_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
-        if M.tracing then M.trace "relation" "read_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
+        if M.tracing then M.trace "gurki" "read_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
       ) v_ins rel
     in
