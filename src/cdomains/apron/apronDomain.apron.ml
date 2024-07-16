@@ -186,16 +186,16 @@ struct
       | Coeff.Interval intv -> intv
       )
     (* Variable *)
-    | Texpr1.Var var -> 
+    | Texpr1.Var var ->
       if M.tracing then M.trace "test" "Variable Case";
       A.bound_variable Man.mgr d var
     (* Unary *)
-    | Texpr1.Unop (unop,expr,typ,round) -> 
+    | Texpr1.Unop (unop,expr,typ,round) ->
       if M.tracing then M.trace "test" "Unary Case";
       let bounds = bound_texpr_alt d expr orig in
       (match unop with
       | Texpr1.Neg -> Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
-      | Texpr1.Cast -> bounds
+      | Texpr1.Cast -> bounds (* Unsure? *)
       | Texpr1.Sqrt -> fts (Float.sqrt (stf bounds.inf)) (Float.sqrt (stf bounds.sup))
       )
     (* Binary *)
@@ -208,8 +208,8 @@ struct
       | Texpr1.Sub -> fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
       | Texpr1.Mul -> fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
       | Texpr1.Div -> fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
-      | Texpr1.Mod -> bounds1
-      | Texpr1.Pow -> bounds1
+      | Texpr1.Mod -> bounds1 (* Unsure? *)
+      | Texpr1.Pow -> fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
       )
     
   let bound_texpr d texpr1 =
