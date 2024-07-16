@@ -1,0 +1,26 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: "2.0"
+    uuid: 4412af70-389a-475e-849c-e57e5b92019c
+    creation_time: 2024-06-14T15:35:00+03:00
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - incorrect.c
+      input_file_hashes:
+        incorrect.c: 1af4fd9e76418e4b95af9950b58248127e7c2d9eb791e1c9b92da53952e0fca2
+      specification: G ! call(reach_error())
+      data_model: ILP32
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: incorrect.c
+          line: 4
+          column: 3
+          function: main
