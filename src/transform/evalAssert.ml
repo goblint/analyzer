@@ -22,15 +22,8 @@ open Formatcil
         will be removed and they will fail on the next iteration
 *)
 
-module EvalAssert = struct
-  (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
-  let surroundByAtomic = true
-
-  (* variable for generating __goblint_check(exp) instead of __VERIFIER_assert(exp) *)
-  let goblintCheck () = GobConfig.get_bool "trans.assert.goblint-check"
-
-  (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
-  let ass () = if goblintCheck () then makeVarinfo true "__goblint_check" (TVoid []) else makeVarinfo true "__VERIFIER_assert" (TVoid [])
+module EvalAssert =
+struct
   let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
@@ -41,6 +34,11 @@ module EvalAssert = struct
     (* TODO: handle witness.invariant.loop-head *)
     val emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
     val emit_other = GobConfig.get_bool "witness.invariant.other"
+
+    (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
+    val assert_function = makeVarinfo true (GobConfig.get_string "trans.assert.function") (TVoid [])
+    (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
+    val surroundByAtomic = GobConfig.get_bool "trans.assert.wrap-atomic"
 
     method! vstmt s =
       let is_lock exp args =
@@ -62,8 +60,8 @@ module EvalAssert = struct
         match (ask ~node loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in
-          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv (ass ())); ("exp", Fe e)]) es in
-          if surroundByAtomic && not (goblintCheck ()) then
+          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv assert_function); ("exp", Fe e)]) es in
+          if surroundByAtomic then
             let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in
             let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv atomicEnd)]) in
             abegin :: (asserts @ [aend])
