@@ -170,28 +170,34 @@ struct
     match scal with
     | Scalar.Float fl -> fl
     | Scalar.Mpqf mpqf -> Mpqf.to_float mpqf
-    | Scalar.Mpfrf mpfrf -> 1.0
+    | Scalar.Mpfrf mpfrf -> Mpfrf.to_float mpfrf
+
+  (* Int bounds for float **)
+  let ibf fl =
+    if fl > 2147483647.0 then 2147483647.0 else if fl < -2147483648.0 then 2147483647.0 else fl
 
   (* Float to scalar *)
   let fts fl1 fl2 =
-    Interval.of_scalar (Scalar.of_float fl1) (Scalar.of_float fl2)
+    let fl1b = ibf fl1 in
+    let fl2b = ibf fl2 in
+    Interval.of_scalar (Scalar.of_float fl1b) (Scalar.of_float fl2b)
 
   let rec bound_texpr_alt d exprt1 orig =
     match exprt1 with
     (* Constant *)
     | Texpr1.Cst cst ->
-      if M.tracing then M.trace "test" "Constant Case";
+      if M.tracing then M.trace "bounds-debug" "Constant Case";
       (match cst with
       | Coeff.Scalar coeff -> Interval.of_scalar coeff coeff
       | Coeff.Interval intv -> intv
       )
     (* Variable *)
     | Texpr1.Var var ->
-      if M.tracing then M.trace "test" "Variable Case";
+      if M.tracing then M.trace "bounds-debug" "Variable Case";
       A.bound_variable Man.mgr d var
     (* Unary *)
     | Texpr1.Unop (unop,expr,typ,round) ->
-      if M.tracing then M.trace "test" "Unary Case";
+      if M.tracing then M.trace "bounds-debug" "Unary Case";
       let bounds = bound_texpr_alt d expr orig in
       (match unop with
       | Texpr1.Neg -> Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
@@ -200,7 +206,7 @@ struct
       )
     (* Binary *)
     | Texpr1.Binop (binop,expr1,expr2,typ,round) ->
-      if M.tracing then M.trace "test" "Binary Case";
+      if M.tracing then M.trace "bounds-debug" "Binary Case";
       let bounds1 = bound_texpr_alt d expr1 orig in
       let bounds2 = bound_texpr_alt d expr2 orig in
       (match binop with
@@ -208,37 +214,54 @@ struct
       | Texpr1.Sub -> fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
       | Texpr1.Mul -> fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
       | Texpr1.Div -> fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
-      | Texpr1.Mod -> bounds1 (* Unsure? *)
+      | Texpr1.Mod -> (
+        Format.printf "MOD";
+        (* There seem to be SO many cases for mod, I dont quite get it *)
+        let inf1 = stf bounds1.inf in  
+        let sup1 = stf bounds1.sup in
+        let sup2 = stf bounds2.sup in
+        (* If dividend is always positive the range is [0;S2-1] or possibly a smaller range *)
+        if inf1 >= 0.0 && sup1 >= 0.0 then
+          fts 0.0 (sup2 -. 1.0)
+        (* If dividend is always negative the range is [-S2+1;0] or possibly a smaller range *)
+        else if inf1 <= 0.0 && sup1 <= 0.0 then
+          fts (0.0 -. (sup2 -. 1.0)) 0.0
+        (* If dividen could be both negative or positive the range could be [-S2+1;S2-1]*)
+        else
+          fts (0.0 -. (sup2 -. 1.0)) (sup2 -. 1.0)
+        (* This fails to consider many subcases such as the fact that [1;2]%[3;4]
+        would be in range [1;2] not [1;3], etc. Also I'm not even sure I understand the negative
+        result thing correctly*)
+      )
       | Texpr1.Pow -> fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
       )
     
   let bound_texpr d texpr1 =
 
-    (* Print out value and expr *)
-    if M.tracing then M.trace "test" "\nSTATE";
+    (* Print out value and expr
+    if M.tracing then M.trace "bounds-debug" "\nSTATE";
     Abstract1.print Format.std_formatter d;
     Format.print_flush ();
-    if M.tracing then M.trace "test" "\nTEXPR";
+    if M.tracing then M.trace "bounds-debug" "\nTEXPR";
     Texpr1.print Format.std_formatter texpr1;
     Format.print_flush ();
-    if M.tracing then M.trace "test" "\n";
+    if M.tracing then M.trace "bounds-debug" "\n"; *)
 
     
 
     let bounds = (
       if ((Man.name ()) = "Polyhedra") && ((Man.impl ()) = "Elina") then (
-        M.trace "test" "ELINA POLY\n";
+        M.trace "bounds-debug" "ELINA POLY\n";
         bound_texpr_alt d (Texpr1.to_expr texpr1) texpr1
       )
       else (
-        M.trace "test" "Normal\n";
+        M.trace "bounds-debug" "Normal\n";
         A.bound_texpr Man.mgr d texpr1
       )
     ) in
     let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
     let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
-    Format.printf "%a@." Scalar.print bounds.inf;
-    Format.printf "%a@." Scalar.print bounds.sup;
+    Format.printf "%a %a@" Scalar.print bounds.inf Scalar.print bounds.sup;
     (*failwith @@ "Nope" ^ "!";*)
     (min, max)
 end
