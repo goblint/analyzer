@@ -246,7 +246,7 @@ class Tests
         check.call warnings[idx] != "race"
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
-      when "nocrash", "fixpoint", "notimeout", "cram"
+      when "nocrash", "fixpoint", "notimeout", "cram", "nocheck"
         check.call true
       end
     end
@@ -334,6 +334,8 @@ class Project
         tests[-42] = "notimeout"
       elsif obj =~ /CRAM/ then
         tests[-42] = "cram"
+      elsif obj =~ /NOCHECK/ then
+        tests[-42] = "nocheck"
       end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
       todo << i if obj =~ /TODO|SKIP/
