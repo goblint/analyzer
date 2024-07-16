@@ -785,7 +785,8 @@ struct
            | TFloat (fk, _), FLongDouble
            | TFloat (FDouble as fk, _), FDouble
            | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
-           | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
+           | TInt (ik, _), _ -> inv_exp (Int (FD.to_int ik c)) e st (* TODO: is this cast refinement correct? *)
+           | t, fk -> fallback (fun () -> Pretty.dprintf "CastE: incompatible types %a and %a" CilType.Typ.pretty t CilType.Fkind.pretty fk) st)
         | CastE ((TInt (ik, _)) as t, e), Int c
         | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
           (match eval e st with
