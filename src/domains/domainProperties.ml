@@ -1,3 +1,5 @@
+(** QCheck properties for lattice properties. *)
+
 open QCheck
 
 module DomainTest (D: Lattice.S) =

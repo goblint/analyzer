@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq --set exp.extraspecials[+] ZSTD_customMalloc --set exp.extraspecials[+] ZSTD_customCalloc
+// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq --set lib.activated[+] zstd --set exp.extraspecials[+] ZSTD_customMalloc --set exp.extraspecials[+] ZSTD_customCalloc --disable ana.race.free
+// disabled free races because unsound: https://github.com/goblint/analyzer/pull/978
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.
@@ -10,7 +11,7 @@
 
 #include<stdlib.h>
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 #define ZSTD_pthread_mutex_t            pthread_mutex_t
 #define ZSTD_pthread_mutex_init(a, b)   pthread_mutex_init((a), (b))
 #define ZSTD_pthread_mutex_destroy(a)   pthread_mutex_destroy((a))

@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 void foo() {
   __goblint_check(1); // assert reachable

@@ -5,4 +5,4 @@ There should be no CIL warning about multiple definitions:
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 2
     dead: 1 (1 in uncalled functions)
-    total: 3
+    total lines: 3

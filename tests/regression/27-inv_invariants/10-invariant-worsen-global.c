@@ -1,5 +1,5 @@
 // modified from 27/09
-#include <assert.h>
+#include <goblint.h>
 #include <pthread.h>
 
 int a = 1;

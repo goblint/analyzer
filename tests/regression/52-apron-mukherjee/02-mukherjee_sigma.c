@@ -1,9 +1,9 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.apron.privatization mutex-meet-tid
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.relation.privatization mutex-meet-tid
 
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-#include <assert.h>
+#include <goblint.h>
 
 const int SIGMA = 4;
 

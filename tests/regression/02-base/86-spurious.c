@@ -1,6 +1,6 @@
 //PARAM: --disable warn.assert
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 int counter = 0;
 pthread_mutex_t lock1;
 

@@ -1,8 +1,9 @@
 // PARAM: --enable ana.float.interval --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 #include <math.h>
 #include <float.h>
-
+#include <fenv.h>
+int glob = 5;
 int main()
 {
     double dbl_min = 2.2250738585072014e-308;
@@ -11,45 +12,46 @@ int main()
 
     //__buitin_isfinite(x):
     __goblint_check(__builtin_isfinite(1.0)); // SUCCESS
-    __goblint_check(__builtin_isfinite(inf)); // UNKNOWN
-    __goblint_check(__builtin_isfinite(nan)); // UNKNOWN
+    __goblint_check(__builtin_isfinite(inf)); // FAIL
+    __goblint_check(__builtin_isfinite(nan)); // FAIL
 
     //__buitin_isinf(x):
     __goblint_check(__builtin_isinf(1.0)); // FAIL
-    __goblint_check(__builtin_isinf(inf)); // UNKNOWN
-    __goblint_check(__builtin_isinf(nan)); // UNKNOWN
+    __goblint_check(__builtin_isinf(inf)); // SUCCESS
+    __goblint_check(__builtin_isinf(nan)); // FAIL
 
     //__buitin_isinf_sign(x):
     __goblint_check(__builtin_isinf_sign(1.0));  // FAIL
-    __goblint_check(__builtin_isinf_sign(inf));  // UNKNOWN
-    __goblint_check(__builtin_isinf_sign(-inf)); // UNKNOWN
-    __goblint_check(__builtin_isinf_sign(nan));  // UNKNOWN
+    __goblint_check(__builtin_isinf_sign(inf));  // SUCCESS
+    __goblint_check(__builtin_isinf_sign(-inf)); // SUCCESS
+    __goblint_check(__builtin_isinf_sign(nan));  // FAIL
 
     //__buitin_isnan(x):
     __goblint_check(__builtin_isnan(1.0)); // FAIL
-    __goblint_check(__builtin_isnan(inf)); // UNKNOWN
-    __goblint_check(__builtin_isnan(nan)); // UNKNOWN
+    __goblint_check(__builtin_isnan(inf)); // FAIL
+    __goblint_check(__builtin_isnan(nan)); // SUCCESS
 
     //__buitin_isnormal(x):
     __goblint_check(__builtin_isnormal(dbl_min));     // SUCCESS
     __goblint_check(__builtin_isnormal(0.0));         // FAIL
     __goblint_check(__builtin_isnormal(dbl_min / 2)); // FAIL
-    __goblint_check(__builtin_isnormal(inf));         // UNKNOWN
-    __goblint_check(__builtin_isnormal(nan));         // UNKNOWN
+    __goblint_check(__builtin_isnormal(inf));         // FAIL
+    __goblint_check(__builtin_isnormal(nan));         // FAIL
 
     //__buitin_signbit(x):
     __goblint_check(__builtin_signbit(1.0));  // FAIL
     __goblint_check(__builtin_signbit(-1.0)); // SUCCESS
     __goblint_check(__builtin_signbit(0.0));  // UNKNOWN
-    __goblint_check(__builtin_signbit(inf));  // UNKNOWN
-    __goblint_check(__builtin_signbit(-inf)); // UNKNOWN
+    __goblint_check(__builtin_signbit(inf));  // FAIL
+    __goblint_check(__builtin_signbit(-inf)); // SUCCESS
     __goblint_check(__builtin_signbit(nan));  // UNKNOWN
 
     // fabs(x):
     __goblint_check(4. == fabs(-4.));         // SUCCESS
     __goblint_check(0. <= fabs(cos(0.1)));    // SUCCESS
-    __goblint_check(0. <= fabs(-inf));        // UNKNOWN
-    __goblint_check(0. <= fabs(nan));         // UNKNOWN
+    __goblint_check(0. <= fabs(-inf));        // SUCCESS
+    __goblint_check(0. <= fabs(nan));         // FAIL
+    __goblint_check(0. <= inf);
 
     double greater_than_pi = 3.142;
     // acos(x):
@@ -83,4 +85,10 @@ int main()
     // unimplemented math.h function, should not invalidate globals:
     j0(0.1);       // NOWARN
     ldexp(0.1, 1); // NOWARN
+
+    int save_round = fegetround();
+    fesetround(FE_TOWARDZERO);
+
+    // Should not invalidate
+    __goblint_check(glob == 5);
 }

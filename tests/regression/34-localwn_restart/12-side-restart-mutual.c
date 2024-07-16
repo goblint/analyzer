@@ -1,7 +1,7 @@
 // SKIP PARAM: --enable ana.int.interval
 // requires reuse of final local value for global restart
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g, h;
 

@@ -1,5 +1,5 @@
 // PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.int.congruence --set ana.int.refinement fixpoint
-#include <assert.h>
+#include <goblint.h>
 
 int main(){
     int r;

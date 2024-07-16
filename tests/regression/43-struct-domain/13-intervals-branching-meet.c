@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval --set ana.base.structs.domain "sets"
 
-#include<assert.h>
+#include <goblint.h>
 
 struct Pair {
     int first;

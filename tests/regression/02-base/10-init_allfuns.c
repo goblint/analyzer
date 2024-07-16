@@ -1,5 +1,5 @@
 // PARAM: --enable allfuns
-#include <assert.h>
+#include <goblint.h>
 
 int glob1 = 5;
 int glob2 = 7;

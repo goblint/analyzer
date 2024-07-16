@@ -1,6 +1,5 @@
 // PARAM: --set ana.activated[+] expsplit
 #include <stddef.h>
-#include <assert.h>
 #include <goblint.h>
 
 int i(int x) {

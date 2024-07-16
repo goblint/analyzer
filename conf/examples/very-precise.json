@@ -13,19 +13,26 @@
     "apron" : {
       "domain": "octagon",
       "threshold_widening": true,
-      "privatization": "mutex-meet-tid-cluster12",
       "strengthening": true
+    },
+    "relation" : {
+      "privatization": "mutex-meet-tid-cluster12"
     },
     "activated": [
       "base",
       "threadid",
       "threadflag",
+      "threadreturn",
       "mallocWrapper",
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
+      "mhp",
+      "assert",
+      "pthreadMutexType",
       "var_eq",
       "symb_locks",
       "region",
@@ -56,7 +63,9 @@
       "structs" : {
         "domain" : "combined-sk"
       },
-      "limit-string-addresses": false
+      "strings": {
+        "domain": "disjoint"
+      }
     }
   },
   "exp": {

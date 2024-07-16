@@ -1,4 +1,4 @@
-#include<assert.h>
+#include <goblint.h>
 
 int f(int in){
   while(in < 17) {

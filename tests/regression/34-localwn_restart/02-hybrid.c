@@ -3,7 +3,7 @@
 // Example from Amato-Scozzari, SAS 2013, based on Halbwachs-Henry, SAS 2012.
 // Localized narrowing with restart policy should be able to prove that
 // 0 <= i <= 10 inside the inner loop.
-#include <assert.h>
+#include <goblint.h>
 
 void main()
 {

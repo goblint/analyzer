@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int f() { return 3; }
 int add(int x, int y) { return x+y; }

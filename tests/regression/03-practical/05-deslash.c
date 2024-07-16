@@ -1,4 +1,3 @@
-// TERM.
 int deslash(unsigned char *str) {
     unsigned char *wp, *rp;
 
@@ -70,6 +69,7 @@ int main() {
   char *x = "kala";
   deslash(x);
   printf("%s",x);
+  __goblint_check(1); // reachable, formerly TERM
   return 0;
 }
 

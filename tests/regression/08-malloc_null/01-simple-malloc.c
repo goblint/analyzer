@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated[+] malloc_null
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 void *smalloc(size_t x){
         void * p = malloc(x);

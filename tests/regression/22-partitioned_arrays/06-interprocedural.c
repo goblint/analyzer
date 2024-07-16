@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
   example1();

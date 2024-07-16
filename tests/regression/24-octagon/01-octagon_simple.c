@@ -1,6 +1,6 @@
 // SKIP PARAM: --enable ana.int.interval --set ana.activated[+] apron
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
-#include <assert.h>
+#include <goblint.h>
 
 void main(void) {
   int X = 0;

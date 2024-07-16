@@ -1,0 +1,2 @@
+(cram
+ (deps (glob_files *.{c,json,patch}) (sandbox preserve_file_kind)))

@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 #include <unistd.h> // sleep
 
 

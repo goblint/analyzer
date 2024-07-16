@@ -1,5 +1,6 @@
-//PARAM: --enable ana.int.interval
+//PARAM: --enable witness.yaml.enabled --enable ana.int.interval --set witness.yaml.entry-types '["precondition_loop_invariant"]'
 #include <stdlib.h>
+#include <goblint.h>
 
 int foo(int* ptr1, int* ptr2){
     int result;
@@ -8,7 +9,8 @@ int foo(int* ptr1, int* ptr2){
     } else {
         result = 1;
     }
-    // cram test checks for precondition invariant soundness
+
+    while (0); // cram test checks for precondition invariant soundness
     return result;
 }
 

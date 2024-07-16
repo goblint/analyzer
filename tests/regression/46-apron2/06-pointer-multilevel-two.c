@@ -1,5 +1,5 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
-#include <assert.h>
+// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization top
+#include <goblint.h>
 
 extern int __VERIFIER_nondet_int();
 

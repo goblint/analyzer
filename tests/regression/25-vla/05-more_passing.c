@@ -1,6 +1,6 @@
 //PARAM: --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned
 #include<stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 void foo(int n, int a[n]) {
   int x = a[7];

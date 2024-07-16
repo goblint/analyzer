@@ -1,0 +1,25 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e17f9860-95af-4213-a767-ab4876ead27e
+    creation_time: 2022-10-07T10:33:01Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 27-mine-tutorial-ex4.7.c
+      input_file_hashes:
+        27-mine-tutorial-ex4.7.c: 4d06e38718d405171bd503e630f6c7a247bb3b0d3c1c6c951466e4989883b43c
+      data_model: LP64
+      language: C
+  location:
+    file_name: 27-mine-tutorial-ex4.7.c
+    file_hash: 4d06e38718d405171bd503e630f6c7a247bb3b0d3c1c6c951466e4989883b43c
+    line: 6
+    column: 3
+    function: main
+  loop_invariant:
+    string: 0 <= x && x <= 40
+    type: assertion
+    format: C

@@ -2,7 +2,7 @@
 
 Without diff-box:
 
-  $ goblint --enable witness.yaml.enabled --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.apron.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.apron.invariant.one-var --disable ana.apron.invariant.diff-box 52-queuesize.c
+  $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.relation.invariant.one-var --disable ana.apron.invariant.diff-box 52-queuesize.c
   [Success][Assert] Assertion "free >= 0" will succeed (52-queuesize.c:67:5-67:31)
   [Success][Assert] Assertion "free <= capacity" will succeed (52-queuesize.c:68:5-68:38)
   [Success][Assert] Assertion "used >= 0" will succeed (52-queuesize.c:69:5-69:31)
@@ -33,104 +33,104 @@ Without diff-box:
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 53
     dead: 1
-    total: 54
-  [Warning][Deadcode][CWE-571] condition '1' is always true (52-queuesize.c:56:10-56:11)
-  [Warning][Deadcode][CWE-571] condition '1' is always true (52-queuesize.c:78:12-78:13)
+    total lines: 54
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:56:10-56:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:78:12-78:13)
   [Info][Witness] witness generation summary:
-    total: 8
+    total generation entries: 8
   [Info][Race] Memory locations race summary:
     safe: 3
     vulnerable: 0
     unsafe: 0
-    total: 3
+    total memory locations: 3
 
   $ yamlWitnessStrip < witness.yml | tee witness-disable-diff-box.yml
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: push
-    loop_invariant:
+    location_invariant:
       string: 2147483647LL - (long long )capacity >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: push
-    loop_invariant:
+    location_invariant:
       string: (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: push
-    loop_invariant:
+    location_invariant:
       string: (long long )capacity - (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: push
-    loop_invariant:
+    location_invariant:
       string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
         0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 15
-      column: 2
+      column: 3
       function: pop
-    loop_invariant:
+    location_invariant:
       string: 2147483647LL - (long long )capacity >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 15
-      column: 2
+      column: 3
       function: pop
-    loop_invariant:
+    location_invariant:
       string: (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 15
-      column: 2
+      column: 3
       function: pop
-    loop_invariant:
+    location_invariant:
       string: (long long )capacity - (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 15
-      column: 2
+      column: 3
       function: pop
-    loop_invariant:
+    location_invariant:
       string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
         0LL
       type: assertion
@@ -138,7 +138,7 @@ Without diff-box:
 
 With diff-box:
 
-  $ goblint --enable witness.yaml.enabled --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.apron.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.apron.invariant.one-var --enable ana.apron.invariant.diff-box 52-queuesize.c
+  $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.relation.invariant.one-var --enable ana.apron.invariant.diff-box 52-queuesize.c
   [Success][Assert] Assertion "free >= 0" will succeed (52-queuesize.c:67:5-67:31)
   [Success][Assert] Assertion "free <= capacity" will succeed (52-queuesize.c:68:5-68:38)
   [Success][Assert] Assertion "used >= 0" will succeed (52-queuesize.c:69:5-69:31)
@@ -169,82 +169,82 @@ With diff-box:
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 53
     dead: 1
-    total: 54
-  [Warning][Deadcode][CWE-571] condition '1' is always true (52-queuesize.c:56:10-56:11)
-  [Warning][Deadcode][CWE-571] condition '1' is always true (52-queuesize.c:78:12-78:13)
+    total lines: 54
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:56:10-56:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:78:12-78:13)
   [Info][Witness] witness generation summary:
-    total: 6
+    total generation entries: 6
   [Info][Race] Memory locations race summary:
     safe: 3
     vulnerable: 0
     unsafe: 0
-    total: 3
+    total memory locations: 3
 
   $ yamlWitnessStrip < witness.yml | tee witness-enable-diff-box.yml
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: push
-    loop_invariant:
+    location_invariant:
       string: (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: push
-    loop_invariant:
+    location_invariant:
       string: (long long )capacity - (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 36
-      column: 2
+      column: 3
       function: push
-    loop_invariant:
+    location_invariant:
       string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
         0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 15
-      column: 2
+      column: 3
       function: pop
-    loop_invariant:
+    location_invariant:
       string: (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 15
-      column: 2
+      column: 3
       function: pop
-    loop_invariant:
+    location_invariant:
       string: (long long )capacity - (long long )free >= 0LL
       type: assertion
       format: C
-  - entry_type: loop_invariant
+  - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $STRIPPED_FILE_HASH
+      file_hash: $FILE_HASH
       line: 15
-      column: 2
+      column: 3
       function: pop
-    loop_invariant:
+    location_invariant:
       string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
         0LL
       type: assertion
@@ -257,24 +257,24 @@ Compare witnesses:
   <     string: 2147483647LL - (long long )capacity >= 0LL
   <     type: assertion
   <     format: C
-  < - entry_type: loop_invariant
+  < - entry_type: location_invariant
   <   location:
   <     file_name: 52-queuesize.c
-  <     file_hash: $STRIPPED_FILE_HASH
+  <     file_hash: $FILE_HASH
   <     line: 36
-  <     column: 2
+  <     column: 3
   <     function: push
-  <   loop_invariant:
+  <   location_invariant:
   44,54d32
   <     type: assertion
   <     format: C
-  < - entry_type: loop_invariant
+  < - entry_type: location_invariant
   <   location:
   <     file_name: 52-queuesize.c
-  <     file_hash: $STRIPPED_FILE_HASH
+  <     file_hash: $FILE_HASH
   <     line: 15
-  <     column: 2
+  <     column: 3
   <     function: pop
-  <   loop_invariant:
+  <   location_invariant:
   <     string: 2147483647LL - (long long )capacity >= 0LL
   [1]

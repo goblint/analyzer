@@ -1,3 +1,5 @@
+(** Violation checking in an ARG. *)
+
 module type ViolationArg =
 sig
   include MyARG.S with module Edge = MyARG.InlineEdge
@@ -68,9 +70,9 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
 
   let rec trace_path next_nodes node2 =
     if NHT.mem next_nodes node2 then begin
-      (* ignore (Pretty.printf "PATH: %s\n" (Arg.Node.to_string node2)); *)
+      (* Logs.debug "PATH: %s" (Arg.Node.to_string node2); *)
       let (edge, next_node) = NHT.find next_nodes node2 in
-      (* ignore (Pretty.printf "  %a\n" MyCFG.pretty_edge edge); *)
+      (* Logs.debug "  %a" MyCFG.pretty_edge edge; *)
       (node2, edge, next_node) :: trace_path next_nodes next_node
     end
     else
@@ -79,7 +81,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
 
   let print_path path =
     List.iter (fun (n1, e, n2) ->
-        ignore (GoblintCil.Pretty.printf "  %s =[%s]=> %s\n" (Arg.Node.to_string n1) (Arg.Edge.to_string e) (Arg.Node.to_string n2))
+        Logs.info "  %s =[%s]=> %s" (Arg.Node.to_string n1) (Arg.Edge.to_string e) (Arg.Node.to_string n2)
       ) path
   in
 
@@ -94,8 +96,14 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
         else if not (NHT.mem itered_nodes node) then begin
           NHT.replace itered_nodes node ();
           List.iter (fun (edge, prev_node) ->
-              if not (NHT.mem itered_nodes prev_node) then
-                NHT.replace next_nodes prev_node (edge, node)
+              match edge with
+              | MyARG.CFGEdge _
+              | InlineEntry _
+              | InlineReturn _ ->
+                if not (NHT.mem itered_nodes prev_node) then
+                  NHT.replace next_nodes prev_node (edge, node)
+              | InlinedEdge _
+              | ThreadEntry _ -> ()
             ) (Arg.prev node);
           bfs curs' (List.map snd (Arg.prev node) @ nexts)
         end
@@ -117,7 +125,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
       print_path path;
       begin match Feasibility.check_path path with
       | Feasibility.Feasible ->
-        print_endline "feasible";
+        Logs.debug "feasible";
 
         let module PathArg =
         struct
@@ -138,12 +146,12 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
         in
         Feasible (module PathArg)
       | Feasibility.Infeasible subpath ->
-        print_endline "infeasible";
+        Logs.debug "infeasible";
         print_path subpath;
 
         Infeasible subpath
       | Feasibility.Unknown ->
-        print_endline "unknown";
+        Logs.debug "unknown";
         Unknown
       end
     | None ->

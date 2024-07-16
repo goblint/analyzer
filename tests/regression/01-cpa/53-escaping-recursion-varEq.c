@@ -1,5 +1,5 @@
 // PARAM: --set ana.activated[+] "var_eq"
-#include <assert.h>
+#include <goblint.h>
 
 int rec(int i,int* ptr) {
     int top;

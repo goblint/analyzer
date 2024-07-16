@@ -1,8 +1,8 @@
-// PARAM: --enable ana.int.interval --enable exp.priv-distr-init
+// PARAM: --enable ana.int.interval --enable exp.priv-distr-init  --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 // protection priv succeeds
 // write fails due to [1,+inf] widen ([1,+inf] join [0,+inf]) -> [-inf,+inf]

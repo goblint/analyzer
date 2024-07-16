@@ -1,5 +1,5 @@
-// PARAM: --enable ana.int.interval --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5
-#include <assert.h>
+// PARAM: --enable ana.int.interval --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5  --enable dbg.run_cil_check
+#include <goblint.h>
 
 int global;
 

@@ -1,5 +1,5 @@
 // PARAM: --enable ana.float.interval
-#include <assert.h>
+#include <goblint.h>
 
 typedef int __int32_t;
 typedef unsigned int __uint32_t;

@@ -8,4 +8,5 @@
 (library
   (name goblint_sites)
   (public_name goblint.sites)
-  (virtual_modules goblint_sites))
+  (virtual_modules goblint_sites)
+  (libraries fpath))

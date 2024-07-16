@@ -1,7 +1,7 @@
 // PARAM: --set ana.int.interval true --set ana.base.arrays.domain partitioned
 
 #include<stdlib.h>
-#include<assert.h>
+#include <goblint.h>
 
 int main(void) {
     int (*r)[5] = calloc(2, sizeof(int[5]));

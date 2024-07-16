@@ -1,6 +1,6 @@
 //PARAM: --disable sem.unknown_function.spawn
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 pthread_once_t once = PTHREAD_ONCE_INIT;

@@ -1,0 +1,7 @@
+# override root goblint .gitignore
+!goblint
+
+# copied here by sv-com/archive.sh
+*.a
+*.so
+LICENSE.APRON

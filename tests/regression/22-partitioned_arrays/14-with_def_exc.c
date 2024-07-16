@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.def_exc  --set ana.base.arrays.domain partitioned
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
     // Minimal and maximal in def_exc were broken. They are not directly used, but used in the MayBeLess and MayBeEqual queries, that

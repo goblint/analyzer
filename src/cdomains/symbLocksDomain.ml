@@ -1,5 +1,6 @@
+(** Symbolic lockset domain. *)
+
 open GoblintCil
-open Pretty
 
 module M = Messages
 
@@ -54,7 +55,7 @@ struct
 
   let eq_const c1 c2 =
     match c1, c2 with
-    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
+    | CInt (i1,_,_), CInt (i2,_,_)     -> Z.compare i1 i2 = 0
     |	CStr (s1,_)        , CStr (s2,_)         -> s1=s2
     |	CWStr (s1,_)       , CWStr (s2,_)        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
@@ -98,11 +99,11 @@ struct
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
-    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Offset.Exp.to_cil offs))
     | Lval (Mem e,o)                       -> Lval (Mem (replace_base (v,offs) q e), o)
-    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | AddrOf (Mem e,o)                     -> AddrOf (Mem (replace_base (v,offs) q e), o)
-    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
 
@@ -113,7 +114,7 @@ struct
     | Index (i,o) -> isConstant i && conc o
     | Field (_,o) -> conc o
 
-  let star = Lval (Cil.var (Goblintutil.create_var (makeGlobalVar "*" intType)))
+  let star = Lval (Cil.var (Cilfacade.create_var (makeGlobalVar "*" intType)))
 
   let rec one_unknown_array_index exp =
     let rec separate_fields_index o =
@@ -162,12 +163,8 @@ end
 
 module LockingPattern =
 struct
-  include Printable.Std
-  type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, hash, to_yojson]
+  include Printable.Prod3 (Exp) (Exp) (Exp)
   let name () = "Per-Element locking triple"
-
-  let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
-  let show (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
 
   type ee = EVar of varinfo
           | EAddr
@@ -240,7 +237,7 @@ struct
     | _            ,             _ -> raise (Invalid_argument "")
 
   let from_exps a l : t option =
-    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)\n" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
+    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
     let a, l = toEl a, toEl l in
     (* ignore (printf "from_exps:\n %s\n %s\n" (ees_to_str a) (ees_to_str l)); *)
     (*let rec fold_left2 f a xs ys =
@@ -276,7 +273,6 @@ struct
         Some (elem, fromEl a dummy, fromEl l dummy)
       | _ -> None
     with Invalid_argument _ -> None
-  let printXml f (x,y,z) = BatPrintf.fprintf f "<value>\n<map>\n<key>1</key>\n%a<key>2</key>\n%a<key>3</key>\n%a</map>\n</value>\n" Exp.printXml x Exp.printXml y Exp.printXml z
 end
 
 (** Index-based symbolic lock *)
@@ -286,7 +282,7 @@ struct
   (** Index in index-based symbolic lock *)
   module Idx =
   struct
-    include Printable.Std
+    include Printable.StdLeaf
     type t =
       | Unknown (** Unknown index. Mutex index not synchronized with access index. *)
       | Star (** Star index. Mutex index synchronized with access index. Corresponds to star_0 in ASE16 paper, multiple star indices not supported in this implementation. *)
@@ -306,9 +302,11 @@ struct
 
     let equal_to _ _ = `Top
     let to_int _ = None
+    let top () = Unknown
   end
 
-  include Lval.Normal (Idx)
+  include AddressDomain.AddressPrintable (Mval.MakePrintable (Offset.MakePrintable (Idx)))
+  let name () = "i-lock"
 
   let rec conv_const_offset x =
     match x with
@@ -317,5 +315,56 @@ struct
     | Index (_,o) -> `Index (Idx.Unknown, conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
-  let from_var_offset (v, o) = from_var_offset (v, conv_const_offset o)
+  let of_mval (v, o) = of_mval (v, conv_const_offset o)
+end
+
+
+module Symbolic =
+struct
+  (* TODO: use SetDomain.Reverse *)
+  module S = SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All mutexes" end)
+  include Lattice.Reverse (S)
+
+  let rec eq_set (ask: Queries.ask) e =
+    S.union
+      (match ask.f (Queries.EqualSet e) with
+       | es when not (Queries.ES.is_bot es) ->
+         Queries.ES.fold S.add es (S.empty ())
+       | _ -> S.empty ())
+      (match e with
+       | SizeOf _
+       | SizeOfE _
+       | SizeOfStr _
+       | AlignOf _
+       | Const _
+       | AlignOfE _
+       | UnOp _
+       | BinOp _
+       | Question _
+       | Real _
+       | Imag _
+       | AddrOfLabel _ -> S.empty ()
+       | AddrOf  (Var _,_)
+       | StartOf (Var _,_)
+       | Lval    (Var _,_) -> S.singleton e
+       | AddrOf  (Mem e,ofs) -> S.map (fun e -> AddrOf  (Mem e,ofs)) (eq_set ask e)
+       | StartOf (Mem e,ofs) -> S.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e)
+       | Lval    (Mem e,ofs) -> S.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e)
+       | CastE (_,e)           -> eq_set ask e
+      )
+
+  let add (ask: Queries.ask) e st =
+    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
+    S.union addrs st
+  let remove ask e st =
+    (* TODO: Removing based on must-equality sets is not sound! *)
+    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
+    S.diff st addrs
+  let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
+
+  let filter = S.filter
+  let fold = S.fold
+
 end

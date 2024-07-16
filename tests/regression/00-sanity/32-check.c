@@ -1,4 +1,5 @@
 // just a few sanity checks on checks
+#include <goblint.h>
 
 int main() {
   int success = 1;

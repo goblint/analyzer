@@ -1,6 +1,6 @@
 // PARAM: --set ana.int.interval true
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 
 int main () {

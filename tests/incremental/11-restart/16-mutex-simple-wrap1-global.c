@@ -12,9 +12,13 @@ void *t_fun(void *arg) {
   return NULL;
 }
 
+void incr() {
+  myglobal=myglobal+1; // RACE!
+}
+
 void wrap() {
   pthread_mutex_lock(&mutex2);
-  myglobal=myglobal+1; // RACE!
+  incr();
   pthread_mutex_unlock(&mutex2);
 }
 

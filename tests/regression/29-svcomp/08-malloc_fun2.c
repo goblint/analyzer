@@ -2,7 +2,7 @@
 
 // Copied & modified from 02/20.
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 void *myalloc(size_t n) {
   return malloc(n);

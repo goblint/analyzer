@@ -1,6 +1,6 @@
 //PARAM: --enable ana.int.def_exc --disable ana.int.enums --disable ana.int.interval
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
 int main(){

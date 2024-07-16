@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int *r; // rand

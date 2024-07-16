@@ -17,8 +17,10 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
+      "assert",
       "var_eq",
       "symb_locks",
       "region",
@@ -62,6 +64,9 @@
     }
   },
   "witness": {
-    "id": "enumerate"
+    "graphml": {
+      "enabled": true,
+      "id": "enumerate"
+    }
   }
 }

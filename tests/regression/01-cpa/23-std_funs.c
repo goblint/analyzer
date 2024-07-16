@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 
 int main(void) {

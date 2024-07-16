@@ -2,7 +2,7 @@
 // Own version of 29/20
 #include <pthread.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int *global;
 

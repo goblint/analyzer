@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins  --enable ana.apron.threshold_widening
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 unsigned int a, b, c;
 

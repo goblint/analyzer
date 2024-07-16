@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated[-] escape --set ana.path_sens[+] threadflag --set ana.base.privatization mutex-meet-tid
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 

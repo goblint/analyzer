@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include <assert.h>
+#include <goblint.h>
 
 struct node {
   struct node *left;

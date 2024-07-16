@@ -2,7 +2,7 @@
 #include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/device.h>
-#include <assert.h>
+#include <goblint.h>
 
 static struct class *misc_class;
 

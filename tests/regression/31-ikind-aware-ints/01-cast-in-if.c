@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 int main(){
   int b = 0;
   if ((unsigned long )b == (unsigned long )((void *)0)) {

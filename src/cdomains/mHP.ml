@@ -1,6 +1,10 @@
+(** May-happen-in-parallel (MHP) domain. *)
+
 include Printable.Std
 
-module TID = ThreadIdDomain.FlagConfiguredTID
+let name () = "mhp"
+
+module TID = ThreadIdDomain.Thread
 module Pretty = GoblintCil.Pretty
 
 type t = {
@@ -8,6 +12,9 @@ type t = {
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash]
+
+let relift {tid; created; must_joined} =
+  {tid = ThreadIdDomain.ThreadLifted.relift tid; created = ConcDomain.ThreadSet.relift created; must_joined = ConcDomain.ThreadSet.relift must_joined}
 
 let current (ask:Queries.ask) =
   {
@@ -17,7 +24,12 @@ let current (ask:Queries.ask) =
   }
 
 let pretty () {tid; created; must_joined} =
-  let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in
+  let tid_doc = 
+    if GobConfig.get_bool "dbg.full-output" then
+      Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid)
+    else
+      None
+  in
   (* avoid useless empty sets in race output *)
   let created_doc =
     if ConcDomain.ThreadSet.is_empty created then
@@ -64,7 +76,7 @@ let must_be_joined other joined =
   if ConcDomain.ThreadSet.is_top joined then
     true (* top means all threads are joined, so [other] must be as well *)
   else
-    List.mem other (ConcDomain.ThreadSet.elements joined)
+    ConcDomain.ThreadSet.mem other joined
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =

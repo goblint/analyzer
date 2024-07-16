@@ -2,7 +2,7 @@
 
 // Strong updates are not possible in thread because it is not unique.
 
-#include <assert.h>
+#include <goblint.h>
 #include <stdlib.h>
 #include <pthread.h>
 

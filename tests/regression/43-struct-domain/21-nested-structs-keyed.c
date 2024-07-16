@@ -1,6 +1,6 @@
 // PARAM: --set ana.base.structs.domain "keyed" --disable ana.base.structs.key.forward --disable ana.base.structs.key.avoid-ints
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
 struct FunctionInfo {

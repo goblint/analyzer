@@ -1,5 +1,5 @@
 //PARAM: --enable annotation.int.enabled
-#include <assert.h>
+#include <goblint.h>
 #include <math.h>
 
 int main() __attribute__ ((goblint_precision("def_exc","interval")));

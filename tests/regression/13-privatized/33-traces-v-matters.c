@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0; // doesn't matter, gets always overwritten
 pthread_mutex_t C = PTHREAD_MUTEX_INITIALIZER;

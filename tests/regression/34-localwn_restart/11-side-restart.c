@@ -1,7 +1,7 @@
 // SKIP PARAM: --enable ana.int.interval
 // TODO: requires restart of global during/after normal solving
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 

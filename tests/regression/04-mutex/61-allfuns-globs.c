@@ -1,6 +1,6 @@
 // PARAM: --set allfuns true
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 int myglobal;
 int three = 3;

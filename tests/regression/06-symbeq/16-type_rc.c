@@ -1,5 +1,13 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
+
+//>(int)<  (S)     (T)     (U)
+//    \   /   \   /   \   / 
+//     >f<      s       t
+//        \   /   \   /  
+//          f       s
+//            \   /
+//              f
 
 struct s {
   int datum;

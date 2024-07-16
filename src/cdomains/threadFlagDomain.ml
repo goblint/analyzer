@@ -1,3 +1,5 @@
+(** Multi-threadedness flag domains. *)
+
 module type S =
 sig
   include Lattice.S

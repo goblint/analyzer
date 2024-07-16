@@ -2,7 +2,7 @@
 // This is extracted from zstd. In this example, we unsoundly claimed unreachability for the end of fun
 #include<stdlib.h>
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 pthread_mutex_t queueMutex;
 int threadLimit;

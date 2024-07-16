@@ -2,9 +2,12 @@
 # also remember to generate/adjust goblint.opam.locked!
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
-  [ "goblint-cil.2.0.0" "git+https://github.com/goblint/cil.git#d4724fe93b0356c611b0b0bd2172210d3f1eeb5b" ]
-  # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
-  [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
-  # TODO: add back after release, only pinned for CI stability
-  [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
+  # published goblint-cil 2.0.3 is currently up-to-date, so no pin needed
+  [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#ae3a4949d478fad77e004c6fe15a7c83427df59f" ]
+]
+depexts: [
+  ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
+]
+post-messages: [
+  "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
 ]

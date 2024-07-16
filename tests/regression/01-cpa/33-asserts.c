@@ -26,14 +26,14 @@ int main(){
   check(j==6); // assert UNKNOWN
 
   unknown(&k);
-  assume(k==4); // TODO? assert SUCCESS
+  assume(k==4);
   check(k==4);  // assert SUCCESS
 
   unknown(&k);
-  assume(k+1==n); // TODO? FAIL
+  assume(k+1==n);
 
-  assume(n==5);  // TODO? NOWARN
-  assert(0);     // NOWARN
+  assume(n==5);  // contradiction
+  assert(0);     // NOWARN (unreachable)
 
   return 0;
 }

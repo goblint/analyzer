@@ -1,3 +1,5 @@
+(** Streaming GraphML output. *)
+
 module type GraphMlWriter =
 sig
   type t
@@ -19,7 +21,7 @@ struct
   type t = unit BatIO.output
   type node = string
 
-  open Goblintutil
+  let escape = XmlUtil.escape
 
   let start out =
     let f = BatIO.output_channel out in

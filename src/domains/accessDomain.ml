@@ -1,8 +1,10 @@
+(** Domain for memory accesses. *)
+
 open GoblintCil.Pretty
 
 module Event =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = {
     var_opt: CilType.Varinfo.t option; (** Access varinfo (unknown if None). *)
     offs_opt: CilType.Offset.t option; (** Access offset (unknown if None). *)

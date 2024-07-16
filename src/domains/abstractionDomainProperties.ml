@@ -1,3 +1,5 @@
+(** QCheck properties for abstract operations. *)
+
 module type AbstractFunction =
 sig
   type c

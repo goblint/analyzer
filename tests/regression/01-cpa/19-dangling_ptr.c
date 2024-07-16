@@ -1,6 +1,6 @@
 // SKIP!
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int *dang() {
   int a = 3;

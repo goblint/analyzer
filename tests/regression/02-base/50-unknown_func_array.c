@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 #define LENGTH 10
 
@@ -8,6 +8,7 @@ typedef struct arr {
     int *ptrs[LENGTH];
 } arr_t;
 
+int mutate_array(arr_t a);
 // int mutate_array(arr_t a){
 //     int t = rand();
 //     for(int i=0; i<LENGTH; i++) {

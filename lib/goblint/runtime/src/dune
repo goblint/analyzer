@@ -1,0 +1,5 @@
+(foreign_library
+ (archive_name goblint)
+ (language c)
+ (names goblint)
+ (include_dirs ../include))

@@ -1,6 +1,6 @@
 // PARAM: --enable ana.race.free
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 #include <pthread.h>
 
 void test1_f() {

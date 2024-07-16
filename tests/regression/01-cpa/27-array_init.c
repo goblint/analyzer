@@ -2,7 +2,7 @@
 // But we assume uninitialized stuff is not used.
 
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int main () {
   int a[] = {2,2,2};

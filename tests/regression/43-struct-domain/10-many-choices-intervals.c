@@ -1,6 +1,6 @@
 // PARAM: --set ana.base.structs.domain "sets" --enable ana.int.interval
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 #include<string.h>
 #include<stdlib.h>

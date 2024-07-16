@@ -11,10 +11,10 @@
 	(type *)( (char *)__mptr - offsetof(type,member) );})
 
 extern void abort(void);
-#include <assert.h>
+#include <goblint.h>
 void reach_error() { __goblint_check(0); } // FAIL
 int __VERIFIER_nondet_int(void);
-void ldv___goblint_check(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // NOWARN
+void ldv_assert(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // NOWARN
 
 pthread_t t1,t2;
 
@@ -63,8 +63,8 @@ int my_drv_probe(struct my_data *data) {
 	//race on data->shared.a and data->shared.b
 	data->shared.a = 3; // RACE!
 	data->shared.b = 3; // RACE!
-	ldv___goblint_check(data->shared.a==3); // RACE!
-	ldv___goblint_check(data->shared.b==3); // RACE!
+	ldv_assert(data->shared.a==3); // RACE!
+	ldv_assert(data->shared.b==3); // RACE!
 	return 0;
 
 exit:
@@ -95,14 +95,14 @@ int main(void) {
 		probe_ret = my_drv_probe(&data);
 		if(probe_ret==0) {
 			my_drv_disconnect(&data);
-			ldv___goblint_check(data.shared.a==1); // RACE
-			ldv___goblint_check(data.shared.b==2); // RACE
+			ldv_assert(data.shared.a==1); // RACE
+			ldv_assert(data.shared.b==2); // RACE
 		}
 		my_drv_cleanup();
 		data.shared.a = -1; // RACE
 		data.shared.b = -1; // RACE
-		ldv___goblint_check(data.shared.a==-1); // RACE
-		ldv___goblint_check(data.shared.b==-1); // RACE
+		ldv_assert(data.shared.a==-1); // RACE
+		ldv_assert(data.shared.b==-1); // RACE
 	}
 	return 0;
 }

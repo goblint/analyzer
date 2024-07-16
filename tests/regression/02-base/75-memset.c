@@ -1,5 +1,5 @@
 #include <string.h>
-#include <assert.h>
+#include <goblint.h>
 
 struct s {
   int x;

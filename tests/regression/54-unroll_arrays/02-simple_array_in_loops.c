@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
-#include <assert.h>
+#include <goblint.h>
 int global;
 
 int main(void)

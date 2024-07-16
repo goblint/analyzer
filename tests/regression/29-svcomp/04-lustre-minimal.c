@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval --enable ana.int.def_exc
 // issue #120
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
     // should be LP64

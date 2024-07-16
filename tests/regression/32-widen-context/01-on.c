@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.context.widen
-#include <assert.h>
+#include <goblint.h>
 
 int f(int x) {
   if (x)

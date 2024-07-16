@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated[+] var_eq
 // ldv-benchmarks: u__linux-concurrency_safety__drivers---net---ethernet---ethoc.ko.cil.c
-#include <assert.h>
+#include <goblint.h>
 
 struct resource {
    char const *name ;

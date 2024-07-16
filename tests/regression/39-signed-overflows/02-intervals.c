@@ -1,5 +1,5 @@
 // PARAM: --set sem.int.signed_overflow assume_none --enable ana.int.interval --disable ana.int.def_exc
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
     int x = 0;

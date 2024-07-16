@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int *x;
 int *y;

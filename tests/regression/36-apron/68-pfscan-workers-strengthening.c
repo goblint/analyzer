@@ -1,9 +1,9 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.apron.privatization mutex-meet --set sem.int.signed_overflow assume_none --enable ana.apron.strengthening
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet --set sem.int.signed_overflow assume_none --enable ana.apron.strengthening
 // minimized pfscan with relational workers invariant
 // mutex-meet: needs strengthening even with path_sens threadflag
 // mutex-meet-tid: doesn't need strengthening
 // needs assume_none to avoid top via some lost upper bounds
-#include <assert.h>
+#include <goblint.h>
 #include <pthread.h>
 
 struct __anonstruct_PQUEUE_63 {

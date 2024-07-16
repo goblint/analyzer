@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 extern int printf();
 extern int scanf();

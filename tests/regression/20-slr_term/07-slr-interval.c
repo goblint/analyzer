@@ -1,7 +1,7 @@
 // PARAM: --set ana.int.interval true --set solver new
 // https://github.com/goblint/analyzer/pull/805#discussion_r933230577
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 
 int main () {

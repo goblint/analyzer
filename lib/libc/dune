@@ -1,0 +1,5 @@
+(install
+ (section (site (goblint lib)))
+ (files
+  (glob_files_rec *.h)
+  (glob_files_rec *.c)))

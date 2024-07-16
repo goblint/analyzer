@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --disable ana.int.def_exc
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   for(int i=2; i < 42; i++) {

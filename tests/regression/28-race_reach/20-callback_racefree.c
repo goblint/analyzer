@@ -1,3 +1,4 @@
+// PARAM:  --set lib.activated[+] sv-comp
 extern int __VERIFIER_nondet_int();
 
 #include<pthread.h>

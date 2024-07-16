@@ -1,5 +1,5 @@
-// PARAM: --set exp.unrolling-factor 5
-#include<assert.h>
+// PARAM: --set exp.unrolling-factor 5  --enable dbg.run_cil_check
+#include <goblint.h>
 
 int main(void) {
     int i = 0;

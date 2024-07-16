@@ -1,5 +1,5 @@
 //PARAM: --disable ana.int.def_exc --enable ana.int.interval --set solver slr3tp
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0;
 

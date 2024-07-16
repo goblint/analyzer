@@ -1,7 +1,7 @@
 --- tests/incremental/00-basic/02-changed_start_state1.c
 +++ tests/incremental/00-basic/02-changed_start_state1.c
 @@ -1,13 +1,13 @@
- #include <assert.h>
+ #include <goblint.h>
 
 -int g = 1;
 +int g = 2;

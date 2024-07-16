@@ -1,7 +1,7 @@
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 

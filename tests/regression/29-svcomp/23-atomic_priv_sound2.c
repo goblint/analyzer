@@ -1,6 +1,6 @@
 // PARAM: --enable ana.sv-comp.functions
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 extern void __VERIFIER_atomic_begin();
 extern void __VERIFIER_atomic_end();

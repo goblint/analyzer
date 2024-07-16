@@ -1,9 +1,9 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins --enable ana.apron.threshold_widening --set ana.apron.privatization protection --enable ana.apron.strengthening
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins --enable ana.apron.threshold_widening --set ana.relation.privatization protection --enable ana.apron.strengthening
 // Fig 5a from Miné 2014
 // Example for join strengthening
 #include <pthread.h>
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 int x;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

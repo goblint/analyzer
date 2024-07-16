@@ -1,4 +1,4 @@
-#include<assert.h>
+#include <goblint.h>
 #include<stdlib.h>
 int main(){
     int *ptr = NULL;

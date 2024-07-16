@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0; // matches unsound read
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;

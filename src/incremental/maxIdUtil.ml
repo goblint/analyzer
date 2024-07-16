@@ -1,3 +1,5 @@
+(** Tracking of maximum CIL IDs in use. *)
+
 open GoblintCil
 
 type max_ids = {

@@ -2,7 +2,6 @@ extern int __VERIFIER_nondet_int();
 
 #include<stdio.h>
 #include<pthread.h>
-#include<assert.h>
 
 int glob;
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;

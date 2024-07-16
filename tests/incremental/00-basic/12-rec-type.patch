@@ -1,0 +1,12 @@
+diff --git tests/incremental/00-basic/12-rec-type.c tests/incremental/00-basic/12-rec-type.c
+index 7c862a107..a043e249c 100644
+--- tests/incremental/00-basic/12-rec-type.c
++++ tests/incremental/00-basic/12-rec-type.c
+@@ -2,6 +2,7 @@
+ struct s_t ;
+ typedef struct s_t s_t;
+ 
++// Dummy change
+ union union_t {
+     int i;
+     s_t *s[sizeof(s_t *)]; // This caused problems

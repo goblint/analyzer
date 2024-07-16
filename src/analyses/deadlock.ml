@@ -1,6 +1,7 @@
-(** Deadlock analysis. *)
+(** Deadlock analysis ([deadlock]). *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open DeadlockDomain
 
@@ -23,13 +24,13 @@ struct
     module G = MapDomain.MapBot (Lock) (MayLockEventPairs)
 
     let side_lock_event_pair ctx ((before_node, _, _) as before) ((after_node, _, _) as after) =
-      if !GU.should_warn then
+      if !AnalysisState.should_warn then
         ctx.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
 
     let part_access ctx: MCPAccess.A.t =
       Obj.obj (ctx.ask (PartAccess Point))
 
-    let add ctx ((l, _): LockDomain.Lockset.Lock.t) =
+    let add ctx ((l, _): LockDomain.AddrRW.t) =
       let after: LockEvent.t = (l, ctx.prev_node, part_access ctx) in (* use octx for access to use locksets before event *)
       D.iter (fun before ->
           side_lock_event_pair ctx before after
@@ -108,7 +109,7 @@ struct
         end
       in
 
-      Stats.time "deadlock" (iter_lock LS.empty []) g
+      Timing.wrap ~args:[("lock", `String (Lock.show g))] "deadlock" (iter_lock LS.empty []) g
     | _ -> Queries.Result.top q
 end
 

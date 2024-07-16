@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.def_exc --disable ana.int.interval
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 // 2 ^ 30
 #define MULT 1073741824
 

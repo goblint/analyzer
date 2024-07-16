@@ -1,5 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
-#include <assert.h>
+#include <goblint.h>
 
 int f(int x) {
   return x + 1;

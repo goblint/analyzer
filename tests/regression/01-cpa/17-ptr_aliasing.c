@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 void proc(int *x, int *y) {
   *x = *y + 3;

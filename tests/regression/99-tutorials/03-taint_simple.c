@@ -31,7 +31,7 @@ int main(void) {
 
 
     // Trivial example showing how the analysis you just wrote benefits from other analyses
-    // If we wanted to write a real analysis, we would also aks other analyses questions, to e.g. handle pointers
+    // If we wanted to write a real analysis, we would also ask other analyses questions, to e.g. handle pointers
     int z;
     if(z == 0) {
         z = 5;

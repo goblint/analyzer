@@ -1,5 +1,5 @@
 //PARAM: --enable ana.int.enums --disable ana.int.def_exc
-#include <assert.h>
+#include <goblint.h>
 
 int main(){
     int top = rand();

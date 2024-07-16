@@ -1,5 +1,5 @@
 // PARAM: --enable ana.float.interval
-#include <assert.h>
+#include <goblint.h>
 
 typedef union
 {

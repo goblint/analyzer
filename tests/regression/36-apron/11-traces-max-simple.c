@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 1;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;

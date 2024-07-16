@@ -1,5 +1,5 @@
 //PARAM: --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned
-#include <assert.h>
+#include <goblint.h>
 
 void foo2(int n , int (*a)[n] )
 {

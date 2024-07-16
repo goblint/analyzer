@@ -1,5 +1,5 @@
 // PARAM: --disable sem.unknown_function.spawn
-#include <assert.h>
+#include <goblint.h>
 #include <stddef.h>
 
 void *t_fun(void *arg) {

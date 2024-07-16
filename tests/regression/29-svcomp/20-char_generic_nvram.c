@@ -2,7 +2,7 @@
 // Minimized from pthread-driver-races/char_generic_nvram_read_nvram_write_nvram.i
 #include <pthread.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 typedef long long loff_t;
 

@@ -2,7 +2,7 @@
 // Fig 5a from Miné 2014
 #include <pthread.h>
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 int x;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

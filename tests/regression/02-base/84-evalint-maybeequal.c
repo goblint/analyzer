@@ -1,5 +1,5 @@
 // PARAM: --set ana.activated[+] expRelation
-#include <assert.h>
+#include <goblint.h>
 #include <stddef.h>
 
 int main() {

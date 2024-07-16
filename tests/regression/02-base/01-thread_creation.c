@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 void *t_fun(void *arg) {
   return NULL;
@@ -21,7 +21,7 @@ int main() {
   glob1 = 7;
   __goblint_check(glob1 == 7);
 
-  // Creat the thread
+  // Create the thread
   pthread_create(&id, NULL, t_fun, NULL);
 
   // The values should remain the same

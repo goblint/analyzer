@@ -1,4 +1,6 @@
-open Prelude
+(** Domains for extraction of Pthread programs. *)
+
+open Batteries
 
 (** Thread ID *)
 module Tid = IntDomain.Flattened
@@ -21,8 +23,9 @@ module Pred = struct
 end
 
 module D = struct
-  type domain = { tid : Tid.t; pred : Pred.t; ctx : Ctx.t } [@@deriving to_yojson]
-  type t = domain
+  include Printable.StdLeaf
+
+  type t = { tid : Tid.t; pred : Pred.t; ctx : Ctx.t } [@@deriving eq, ord, hash, to_yojson]
 
   (** printing *)
   let show x =
@@ -32,28 +35,10 @@ module D = struct
       (Pred.show x.pred)
       (Ctx.show x.ctx)
 
-  include Printable.SimpleShow(struct type  t = domain let show = show end)
+  include Printable.SimpleShow(struct type nonrec t = t let show = show end) (* TODO: overrides derived to_yojson *)
 
   let name () = "pthread state"
 
-  (** let equal = Util.equals *)
-  let equal x y =
-    Tid.equal x.tid y.tid && Pred.equal x.pred y.pred && Ctx.equal x.ctx y.ctx
-
-
-  (** compare all fields with correspoding compare operators *)
-  let compare x y =
-    List.fold_left
-      (fun acc v -> if acc = 0 && v <> 0 then v else acc)
-      0
-      [ Tid.compare x.tid y.tid
-      ; Pred.compare x.pred y.pred
-      ; Ctx.compare x.ctx y.ctx
-      ]
-
-
-  (** let hash = Hashtbl.hash *)
-  let hash x = Hashtbl.hash (Tid.hash x.tid, Pred.hash x.pred, Ctx.hash x.ctx)
   let make tid pred ctx = { tid; pred; ctx }
   let bot () = { tid = Tid.bot (); pred = Pred.bot (); ctx = Ctx.bot () }
   let is_bot x = Tid.is_bot x.tid && Pred.is_bot x.pred && Ctx.is_bot x.ctx
@@ -70,10 +55,6 @@ module D = struct
   let widen = join
   let meet = op_scheme Tid.meet Pred.meet Ctx.meet
   let narrow = meet
-
-  let arbitrary () = failwith "no arbitrary"
-  let tag x = failwith "no tag"
-  let relift x = x
 
   let pretty_diff () (x,y) =
     if not (Tid.leq x.tid y.tid) then
