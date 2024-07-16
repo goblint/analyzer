@@ -180,7 +180,7 @@ struct
   let fts fl1 fl2 =
     let fl1b = ibf fl1 in
     let fl2b = ibf fl2 in
-    Interval.of_scalar (Scalar.of_float fl1b) (Scalar.of_float fl2b)
+    Interval.of_scalar (Scalar.of_int (Float.to_int fl1b)) (Scalar.of_int (Float.to_int fl2b))
 
   let rec bound_texpr_alt d exprt1 orig =
     match exprt1 with
@@ -200,9 +200,12 @@ struct
       if M.tracing then M.trace "bounds-debug" "Unary Case";
       let bounds = bound_texpr_alt d expr orig in
       (match unop with
-      | Texpr1.Neg -> Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
-      | Texpr1.Cast -> bounds (* Unsure? *)
-      | Texpr1.Sqrt -> fts (Float.sqrt (stf bounds.inf)) (Float.sqrt (stf bounds.sup))
+      | Texpr1.Neg -> Format.printf "NEG "; Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
+      | Texpr1.Cast -> (
+        Format.printf "CAST ";
+        bounds (* Unsure? *)
+      )
+      | Texpr1.Sqrt -> Format.printf "SQRT "; fts (Float.sqrt (stf bounds.inf)) (Float.sqrt (stf bounds.sup))
       )
     (* Binary *)
     | Texpr1.Binop (binop,expr1,expr2,typ,round) ->
@@ -210,12 +213,12 @@ struct
       let bounds1 = bound_texpr_alt d expr1 orig in
       let bounds2 = bound_texpr_alt d expr2 orig in
       (match binop with
-      | Texpr1.Add -> fts ((stf bounds1.inf) +. (stf bounds2.inf)) ((stf bounds1.sup) +. (stf bounds2.sup))
-      | Texpr1.Sub -> fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
-      | Texpr1.Mul -> fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
-      | Texpr1.Div -> fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
+      | Texpr1.Add -> Format.printf "ADD "; fts ((stf bounds1.inf) +. (stf bounds2.inf)) ((stf bounds1.sup) +. (stf bounds2.sup))
+      | Texpr1.Sub -> Format.printf "SUB "; Format.printf "%a %a %a %a" Scalar.print bounds1.inf Scalar.print bounds1.sup Scalar.print bounds2.inf Scalar.print bounds2.sup; fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
+      | Texpr1.Mul -> Format.printf "MUL "; fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
+      | Texpr1.Div -> Format.printf "DIV "; fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
       | Texpr1.Mod -> (
-        Format.printf "MOD";
+        Format.printf "MOD ";
         (* There seem to be SO many cases for mod, I dont quite get it *)
         let inf1 = stf bounds1.inf in  
         let sup1 = stf bounds1.sup in
@@ -233,7 +236,7 @@ struct
         would be in range [1;2] not [1;3], etc. Also I'm not even sure I understand the negative
         result thing correctly*)
       )
-      | Texpr1.Pow -> fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
+      | Texpr1.Pow -> Format.printf "POW "; fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
       )
     
   let bound_texpr d texpr1 =
@@ -256,6 +259,7 @@ struct
       )
       else (
         M.trace "bounds-debug" "Normal\n";
+        Format.printf "NOP ";
         A.bound_texpr Man.mgr d texpr1
       )
     ) in
