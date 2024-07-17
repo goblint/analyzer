@@ -100,7 +100,7 @@ module ElinaImplementation = struct
     result thing correctly*)
 
   (* Workaround for Abstract1.bound_texpr *)
-  let rec bound_texpr_alt mgr d exprt1 orig =
+  let rec bound_texpr_alt mgr d exprt1 =
     match exprt1 with
     (* Constant *)
     | Texpr1.Cst cst ->
@@ -112,7 +112,7 @@ module ElinaImplementation = struct
     | Texpr1.Var var -> Abstract1.bound_variable mgr d var
     (* Unary *)
     | Texpr1.Unop (unop,expr,typ,round) ->
-      let bounds = bound_texpr_alt mgr d expr orig in
+      let bounds = bound_texpr_alt mgr d expr in
       (match unop with
       | Texpr1.Neg -> Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
       | Texpr1.Cast -> bounds (* Unsure? *)
@@ -120,8 +120,8 @@ module ElinaImplementation = struct
       )
     (* Binary *)
     | Texpr1.Binop (binop,expr1,expr2,typ,round) ->
-      let bounds1 = bound_texpr_alt mgr d expr1 orig in
-      let bounds2 = bound_texpr_alt mgr d expr2 orig in
+      let bounds1 = bound_texpr_alt mgr d expr1 in
+      let bounds2 = bound_texpr_alt mgr d expr2 in
       (match binop with
       | Texpr1.Add -> fts ((stf bounds1.inf) +. (stf bounds2.inf)) ((stf bounds1.sup) +. (stf bounds2.sup))
       | Texpr1.Sub -> fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
@@ -133,7 +133,7 @@ module ElinaImplementation = struct
 
     let bound_texpr mgr name d texpr1 =
       if name = "Polyhedra" then
-        bound_texpr_alt mgr d (Texpr1.to_expr texpr1) texpr1
+        bound_texpr_alt mgr d (Texpr1.to_expr texpr1)
       else 
         Abstract1.bound_texpr mgr d texpr1
 end
