@@ -23,7 +23,7 @@ doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
-  "apron" {= "v0.9.14~beta.2"}
+  "apron" {= "v0.9.15"}
   "arg-complete" {= "0.1.0"}
   "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
@@ -82,10 +82,10 @@ depends: [
   "ounit2" {= "2.2.6" & with-test}
   "pp" {= "1.1.2"}
   "ppx_derivers" {= "1.2.1"}
-  "ppx_deriving" {= "5.2.1"}
+  "ppx_deriving" {= "6.0.2"}
   "ppx_deriving_hash" {= "0.1.2"}
   "ppx_deriving_yojson" {= "3.7.0"}
-  "ppxlib" {= "0.28.0"}
+  "ppxlib" {= "0.32.1"}
   "qcheck-core" {= "0.20"}
   "qcheck-ounit" {= "0.20" & with-test}
   "re" {= "1.10.4" & with-doc}
@@ -137,9 +137,18 @@ pin-depends: [
     "goblint-cil.2.0.3"
     "git+https://github.com/goblint/cil.git#ae3a4949d478fad77e004c6fe15a7c83427df59f"
   ]
-  [
-    "ppx_deriving.5.2.1"
-    "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
-  ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
+description: """\
+Goblint is a sound static analysis framework for C programs using abstract interpretation.
+It specializes in thread-modular verification of multi-threaded programs, especially regarding data races.
+Goblint includes analyses for assertions, overflows, deadlocks, etc and can be extended with new analyses."""
+tags: [
+  "program analysis"
+  "program verification"
+  "static analysis"
+  "abstract interpretation"
+  "C"
+  "data race analysis"
+  "concurrency"
+]

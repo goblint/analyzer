@@ -48,7 +48,9 @@ struct
     end
     )
 
-  let compare x y = String.compare (show x) (show y) (* HACK *)
+  let compare x y =
+    (* TODO: implement proper total Lincons1 order *)
+    String.compare (show x) (show y) (* HACK *)
 
   let num_vars x =
     (* Apron.Linexpr0.get_size returns some internal nonsense, so we count ourselves. *)
@@ -124,6 +126,10 @@ struct
       let pp = pp
     end
     )
+
+  let compare (x: t) (y: t): int =
+    (* TODO: implement total Environment order in OCaml *)
+    failwith "Apron.Environment doesn't have total order" (* https://github.com/antoinemine/apron/issues/99 *)
 
   let ivars_only env =
     let ivs, fvs = Environment.vars env in
