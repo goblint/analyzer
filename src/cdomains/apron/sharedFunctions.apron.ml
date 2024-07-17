@@ -274,8 +274,7 @@ struct
     let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
     let append_summand (c:Coeff.union_5) v =
       match V.to_cil_varinfo v with
-      | Some vinfo ->
-        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+      | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
         let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
         let coeff, flip = coeff_to_const true c in
         let prod = BinOp(Mult, coeff, var, longlong) in
@@ -284,13 +283,14 @@ struct
         else
           expr := BinOp(PlusA,!expr,prod,longlong)
       | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %s"  (Var.to_string v); raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
     !expr
 
 
   let lcm_den linexpr1 =
-    let exception UnsupportedScalar 
+    let exception UnsupportedScalar
     in
     let frac_of_scalar scalar =
       if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
