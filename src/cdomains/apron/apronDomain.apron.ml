@@ -30,6 +30,8 @@ sig
   val manager_alloc_loose : unit -> pt Apron.Manager.t
   (* Other *)
   val hash : 'a Apron.Manager.t -> 'a Apron.Abstract1.t -> int
+  val impl : unit -> string
+  val bound_texpr : 'a Manager.t -> string -> 'a Abstract1.t -> Texpr1.t -> Interval.t
 end
 
 let implementation impl =
@@ -73,6 +75,7 @@ sig
   type t = mt Apron.Manager.t
   val mgr : mt Apron.Manager.t
   val name : unit -> string
+  val impl : unit -> string
   module RelImpl : Implementation
 end
 
@@ -88,6 +91,7 @@ struct
   (* Create the manager *)
   let mgr =  RelImpl.manager_alloc ()
   let name () = "Octagon"
+  let impl () = RelImpl.impl ()
 
   (* Save the Relational Implementation Module *)
   module RelImpl = RelImpl
@@ -103,6 +107,7 @@ struct
   (* Create manager that fits to loose polyhedra *)
   let mgr = RelImpl.manager_alloc_loose ()
   let name () = "Polyhedra"
+  let impl () = RelImpl.impl ()
 
   (* Save the Relational Implementation Module *)
   module RelImpl = RelImpl
@@ -117,6 +122,7 @@ struct
   type t = mt Manager.t
   let mgr = Polka.manager_alloc_equalities ()
   let name () = "ApronAffEq"
+  let impl () = "Apron"
 
   (* Save the Relational Implementation Module *)
   module RelImpl = ApronImplementation
@@ -130,6 +136,7 @@ struct
   type t = mt Manager.t
   let mgr = Box.manager_alloc ()
   let name () = "Interval"
+  let impl () = "Apron"
 
   (* Save the Relational Implementation Module *)
   module RelImpl = ApronImplementation
@@ -158,12 +165,13 @@ module A = Abstract1
 module Bounds (Man: Manager) =
 struct
   type t = Man.mt A.t
-
+    
   let bound_texpr d texpr1 =
-    let bounds = A.bound_texpr Man.mgr d texpr1 in
+    let bounds = Man.RelImpl.bound_texpr Man.mgr (Man.name ()) d texpr1 in
     let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
     let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
     (min, max)
+    
 end
 
 (** Pure environment and transfer functions. *)
