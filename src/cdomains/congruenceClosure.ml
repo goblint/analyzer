@@ -97,6 +97,22 @@ module CongruenceClosure = struct
 
     let term_set bldis =
       TSet.of_enum (TMap.keys bldis)
+
+    let map_lhs =
+      let add_change bldis (t1,t2) =
+        match TMap.find_opt t1 bldis with
+        | None -> bldis
+        | Some tset -> TMap.add t2 tset (TMap.remove t1 bldis) in
+      List.fold add_change
+
+    let filter_map_lhs f (diseq:t) =
+      Enum.fold
+        (fun diseq t -> match f t with
+           | None -> TMap.remove t diseq
+           | Some t2 ->
+             if not (T.equal t t2)
+             then TMap.add t2 (TMap.find t diseq) (TMap.remove t diseq) else
+               diseq) diseq (TMap.keys diseq)
   end
 
   module Disequalities = struct
@@ -807,18 +823,10 @@ module CongruenceClosure = struct
 
   (** Update block disequalities with the new representatives, *)
   let update_bldis new_repr bldis =
+    let bldis = BlDis.map_lhs bldis (TMap.bindings new_repr) in
     (* update block disequalities with the new representatives *)
-    let find_new_root t1 = match TMap.find_opt t1 new_repr with
-      | None -> t1
-      | Some v -> v
-    in
-    let disequalities = BlDis.to_conj bldis
-    in (*TODO maybe optimize?, and maybe use this also for removing terms *)
-    let add_bl_dis new_diseq = function
-      | BlNequal (t1,t2) -> BlDis.add_block_diseq new_diseq (find_new_root t1,find_new_root t2)
-      | _-> new_diseq
-    in
-    List.fold add_bl_dis BlDis.empty disequalities
+    let find_new_root t1 = Option.default t1 (TMap.find_opt t1 new_repr) in
+    BlDis.filter_map (fun t1 -> Some (find_new_root t1)) bldis
 
   (**
      Parameters: cc conjunctions.
@@ -1073,17 +1081,9 @@ module CongruenceClosure = struct
     in congruence_neq cc new_diseq
 
   let remove_terms_from_bldis bldis new_reps cc =
-    let disequalities = BlDis.to_conj bldis
-    in
-    let add_bl_dis new_diseq = function
-      | BlNequal (t1,t2) ->
-        begin match find_new_root new_reps cc.uf t1,find_new_root new_reps cc.uf t2 with
-          | Some (t1',z1'), Some (t2', z2') -> BlDis.add_block_diseq new_diseq (t1', t2')
-          | _ -> new_diseq
-        end
-      | _-> new_diseq
-    in
-    List.fold add_bl_dis BlDis.empty disequalities
+    let find_new_root_term t = Option.map fst (find_new_root new_reps cc.uf t) in
+    let bldis = BlDis.filter_map_lhs find_new_root_term bldis in
+    BlDis.filter_map find_new_root_term bldis
 
   (** Remove terms from the data structure.
       It removes all terms for which "predicate" is false,
