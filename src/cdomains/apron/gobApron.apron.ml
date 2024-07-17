@@ -11,6 +11,15 @@ end
 module Var =
 struct
   include Var
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
   let equal x y = Var.compare x y = 0
 end
 

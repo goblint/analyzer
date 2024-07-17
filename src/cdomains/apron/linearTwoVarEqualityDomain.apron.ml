@@ -158,7 +158,7 @@ module EqualitiesConjunction = struct
             let (newref,offs,divi) = (get_rhs d head) in
             let (coeff,y) = BatOption.get newref in
             let (y,yrhs) = inverse head (coeff,y,offs,divi) in (* reassemble yrhs out of components *)
-            let shifted_cluster =  (List.fold (fun map i -> 
+            let shifted_cluster =  (List.fold (fun map i ->
                 let irhs = (get_rhs d i) in (* old entry is i = irhs *)
                 Rhs.subst yrhs y irhs |>    (* new entry for i is irhs [yrhs/y] *)
                 set_rhs map i
@@ -222,7 +222,7 @@ module EqualitiesConjunction = struct
        | Some (coeff,j), ((Some (coeff1,h1), o1, divi1) as oldi)->
          (match get_rhs ts j with
           (* ts[x_j]=o2/d2             ========>  ... *)
-          | (None            , o2, divi2) -> 
+          | (None            , o2, divi2) ->
             let newxi  = Rhs.subst (None,o2,divi2) j (Some (coeff,j),offs,divi) in
             let newxh1 = snd @@ inverse i (coeff1,h1,o1,divi1) in
             let newxh1 = Rhs.subst newxi i newxh1 in
@@ -251,7 +251,7 @@ module EqualitiesConjunction = struct
     else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
       (* so now, we transform with the inverse of the transformer: *)
       let inv = snd (inverse i (coeff,j,offs,divi)) in
-      IntMap.fold (fun k v acc -> 
+      IntMap.fold (fun k v acc ->
           match v with
           | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
           | _ -> acc
@@ -281,7 +281,7 @@ struct
     let multiply a b =
       (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
       match a, b with
-      | [(None,coeff, divi)], c 
+      | [(None,coeff, divi)], c
       | c, [(None,coeff, divi)] -> multiply_with_Q coeff divi c
       | _ -> raise NotLinearExpr
     in
@@ -314,7 +314,7 @@ struct
     | x -> Some(x)
 
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
-  let simplified_monomials_from_texp (t: t) texp = 
+  let simplified_monomials_from_texp (t: t) texp =
     BatOption.bind (monomials_from_texp t texp)
       (fun monomiallist ->
          let d = Option.get t.d in
@@ -323,7 +323,7 @@ struct
            | None -> let gcdee = Z.gcd adiv divi in exprcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
            | Some (coeff,idx) -> let (somevar,someoffs,somedivi)=Rhs.subst (EConj.get_rhs d idx) idx (v,offs,divi) in (* normalize! *)
              let newcache = Option.map_default (fun (coef,ter) -> IMap.add ter Q.((IMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
-             let gcdee = Z.gcd adiv divi in 
+             let gcdee = Z.gcd adiv divi in
              (newcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
          in
          let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
@@ -339,7 +339,7 @@ struct
     BatOption.bind (simplified_monomials_from_texp t texp )
       (fun (sum_of_terms, (constant,divisor)) ->
          (match sum_of_terms with
-          | [] -> Some (None, constant,divisor) 
+          | [] -> Some (None, constant,divisor)
           | [(coeff,var,divi)] -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
           |_ -> None))
 
@@ -447,7 +447,7 @@ struct
     let t1 = change_d t1 sup_env ~add:true ~del:false in
     let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
-    | Some d1', Some d2' -> 
+    | Some d1', Some d2' ->
       EConj.IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
     | _ -> {d = None; env = sup_env}
 
@@ -489,7 +489,7 @@ struct
          - lhs itself
          - criteria A and B that characterize equivalence class, depending on the reference variable and the affine expression parameters wrt. each EConj
          - rhs1
-         - rhs2 
+         - rhs2
            however, we have to account for the sparseity of EConj maps by manually patching holes with default values *)
       let joinfunction lhs rhs1 rhs2 =
         (
@@ -516,15 +516,15 @@ struct
       let varentry ci offi ch offh xh =
         let (coeff,off,d) = Q.(ci,(offi*ch)-(ci*offh),ch) in (* compute new rhs in Q *)
         let (coeff,off,d) = Z.(coeff.num*d.den*off.den,off.num*d.den*coeff.den,d. num*coeff.den*off.den) in (* convert that back into Z *)
-        Rhs.canonicalize (Some(coeff,xh),off,d) 
+        Rhs.canonicalize (Some(coeff,xh),off,d)
       in
       (* ci1 = a*ch1+b /\ ci2 = a*ch2+b *)
       (* ===> a = (ci1-ci2)/(ch1-ch2) b = ci2-a*ch2 *)
-      let constentry ci1 ci2 ch1 ch2 xh = 
+      let constentry ci1 ci2 ch1 ch2 xh =
         let a = Q.((ci1-ci2) / (ch1-ch2)) in
         let b = Q.(ci2 - a*ch2) in
         Rhs.canonicalize (Some (Z.(a.num*b.den),xh),Z.(b.num*a.den) ,Z.(a.den*b.den) ) in
-      let iterate map l = 
+      let iterate map l =
         match l with
         | (_, _, _, rhs                  , rhs'                 ) :: t when Rhs.equal rhs rhs' -> List.fold (fun acc (x,_,_,rh,_)      -> EConj.set_rhs acc x rh) map l
         | (h, _, _, ((Some (ch,_),oh,dh)), ((Some _,_,_)       )) :: t -> List.fold (fun acc (i,_,_,(monom,oi,di),_)         -> EConj.set_rhs acc i (varentry   Q.(make (fst@@Option.get monom) di)   Q.(make oi di)   Q.(make ch dh)   Q.(make oh dh)   h)) map t
@@ -630,8 +630,8 @@ struct
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s"
-        (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %a \n exp: %a\n no_ov: %b -> \n %s"
+        (show t) Var.pretty var d_exp exp (Lazy.force no_ov) (show res);
     res
 
   let assign_var (t: VarManagement.t) v v' =
@@ -640,7 +640,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
     res
 
   (** Parallel assignment of variables.
@@ -693,7 +693,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s" (show t) (Var.to_string var) d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov

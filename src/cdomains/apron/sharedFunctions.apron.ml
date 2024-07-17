@@ -136,7 +136,7 @@ struct
             let expr =
               (** simplify asks for a constant value of some subexpression e, similar to a constant fold. In particular but not exclusively
                   this query is answered by the 2 var equalities domain itself. This normalizes arbitrary expressions to a point where they
-                  might be able to be represented by means of 2 var equalities 
+                  might be able to be represented by means of 2 var equalities
 
                   This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
                   but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
@@ -279,7 +279,7 @@ struct
           expr := BinOp(MinusA,!expr,prod,longlong)
         else
           expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v; raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
     !expr

@@ -181,7 +181,7 @@ struct
             else if Z.lt coeff Z.minus_one then Z.to_string coeff
             else Format.asprintf "+%s" (Z.to_string coeff)
           in
-          coeff_str ^ Var.to_string var
+          coeff_str ^ Var.show var
       in
       let const_to_str vl =
         if Z.equal vl Z.zero then
@@ -429,8 +429,8 @@ struct
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s"
-        (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %a \n exp: %a\n no_ov: %b -> \n %s"
+        (show t) Var.pretty var d_exp exp (Lazy.force no_ov) (show res);
     res
 
   let assign_var (t: VarManagement(Vc)(Mx).t) v v' =
@@ -440,7 +440,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
     res
 
   let assign_var_parallel t vv's =
@@ -498,7 +498,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s" (show t) (Var.to_string var) d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
