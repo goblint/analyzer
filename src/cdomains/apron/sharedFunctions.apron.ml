@@ -36,7 +36,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       in
       Z_mlgmpidl.z_of_mpzf z
     | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
 
 module type ConvertArg =
@@ -263,7 +263,7 @@ struct
                else
                  Const (CInt(i,ILongLong,None)), false
            else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
          | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in

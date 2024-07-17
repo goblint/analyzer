@@ -1,6 +1,19 @@
 open Batteries
 include Apron
 
+module Scalar =
+struct
+  include Scalar
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+end
+
 module Coeff =
 struct
   include Coeff
