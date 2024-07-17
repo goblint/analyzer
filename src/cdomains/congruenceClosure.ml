@@ -52,27 +52,25 @@ module CongruenceClosure = struct
       List.fold (fun bldiseq t2 ->
           add_block_diseq bldiseq (t1, t2)) bldiseq tlist
 
+    (** Find all elements that are in the same equivalence class as t,
+        given the cmap, but only those that are now representatives in the union find uf. *)
+    let comp_t_cmap_repr cmap t uf =
+      match TMap.find_opt t cmap with
+      | None -> [Z.zero, t]
+      | Some zmap ->
+        List.flatten @@ List.map
+          (fun (z, set) ->
+             List.cartesian_product [z] (TSet.to_list (*TSet.filter (TUF.is_root uf*) set)) (ZMap.bindings zmap)
+
     (** For each block disequality bl(t1) != bl(t2) we add all disequalities
         that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
         then we add the disequaity  bl(t1') != bl(t2').
     *)
-    let element_closure bldis cmap =
+    let element_closure bldis cmap uf =
       let comp_closure = function
         | BlNequal (r1,r2) ->
-          let to_list =  (*TODO this is not the best solution*)
-            List.flatten % List.map
-              (fun (z, set) -> (TSet.to_list set)) in
-          let comp_closure_zmap bindings1 bindings2 =
-            List.cartesian_product (to_list bindings1) (to_list bindings2)
-          in
-          let singleton term = [(Z.zero, TSet.singleton term)] in
-          begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
-            | None, None -> [(r1,r2)]
-            | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
-            | Some zmap1, None -> comp_closure_zmap (ZMap.bindings zmap1) (singleton r2)
-            | Some zmap1, Some zmap2 ->
-              comp_closure_zmap (ZMap.bindings zmap1) (ZMap.bindings zmap2)
-          end
+          let eq_class1, eq_class2 = comp_t_cmap_repr cmap r1 uf, comp_t_cmap_repr cmap r2 uf in
+          List.cartesian_product (List.map snd eq_class1) (List.map snd eq_class2)
         | _ -> []
       in
       List.concat_map comp_closure bldis
@@ -169,10 +167,6 @@ module CongruenceClosure = struct
           if T.equal v' t' then (v, Z.(z'-z''))::comp else comp
         )
         [] (TMap.bindings uf)
-
-    let flatten_map =
-      ZMap.map (fun zmap -> List.fold_left
-                   (fun set (_,mapped) -> TSet.union set mapped) TSet.empty (ZMap.bindings zmap))
 
     (** arg:
 
@@ -372,30 +366,17 @@ module CongruenceClosure = struct
         that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
         then we add the disequaity  t1' != z + z2 - z1 + t2'.
     *)
-    let element_closure diseqs cmap =
+    let element_closure diseqs cmap uf =
       let comp_closure (r1,r2,z) =
-        let to_tuple_list =  (*TODO this is not the best solution*)
-          List.flatten % List.map
-            (fun (z, set) -> List.cartesian_product [z] (TSet.to_list set)) in
-        let comp_closure_zmap bindings1 bindings2 =
-          List.map (fun ((z1, nt1),(z2, nt2)) ->
-              (nt1, nt2, Z.(-z2+z+z1)))
-            (List.cartesian_product (to_tuple_list bindings1) (to_tuple_list bindings2))
-        in
-        let singleton term = [Z.zero, TSet.singleton term] in
-        begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
-          | None, None -> [(r1,r2,z)]
-          | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
-          | Some zmap1, None -> comp_closure_zmap (ZMap.bindings zmap1) (singleton r2)
-          | Some zmap1, Some zmap2 ->
-            comp_closure_zmap (ZMap.bindings zmap1) (ZMap.bindings zmap2)
-        end
+        let eq_class1, eq_class2 = BlDis.comp_t_cmap_repr cmap r1 uf, BlDis.comp_t_cmap_repr cmap r2 uf in
+        List.map (fun ((z1, nt1),(z2, nt2)) ->
+            (nt1, nt2, Z.(-z2+z+z1)))
+          (List.cartesian_product eq_class1 eq_class2)
       in
       List.concat_map comp_closure diseqs
   end
 
-  (** Set of subterms which are present in the current data structure.
-      TODO: check if it is needed? Because this information is implicitly present in the union find data structure. *)
+  (** Set of subterms which are present in the current data structure. *)
   module SSet = struct
     type t = TSet.t [@@deriving eq, ord, hash]
 
@@ -1193,9 +1174,9 @@ module CongruenceClosure = struct
     let _,diseq2,_ = split (Disequalities.get_disequalities diseq2) in
     (* keep all disequalities from diseq1 that are implied by cc2 and
        those from diseq2 that are implied by cc1 *)
-    let diseq1 = List.filter (neq_query (Some cc2)) (Disequalities.element_closure diseq1 cmap1) in
-    let diseq2 = List.filter (neq_query (Some cc1)) (Disequalities.element_closure diseq2 cmap2) in
-    let cc = Option.get (insert_set cc (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2))) in
+    let diseq1 = List.filter (neq_query (Some cc2)) (Disequalities.element_closure diseq1 cmap1 cc.uf) in
+    let diseq2 = List.filter (neq_query (Some cc1)) (Disequalities.element_closure diseq2 cmap2 cc.uf) in
+    let cc = Option.get (insert_set (Some cc) (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2))) in
     let res = congruence_neq cc (diseq1 @ diseq2)
     in (if M.tracing then match res with | Some r -> M.trace "c2po-neq" "join_neq: %s\n\n" (Disequalities.show_neq r.diseq) | None -> ()); res
 
@@ -1207,9 +1188,9 @@ module CongruenceClosure = struct
     let bldiseq2 = BlDis.to_conj bldiseq2 in
     (* keep all disequalities from diseq1 that are implied by cc2 and
        those from diseq2 that are implied by cc1 *)
-    let diseq1 = List.filter (block_neq_query (Some cc2)) (BlDis.element_closure bldiseq1 cmap1) in
-    let diseq2 = List.filter (block_neq_query (Some cc1)) (BlDis.element_closure bldiseq2 cmap2) in
-    let cc = Option.get (insert_set cc (fst @@ SSet.subterms_of_conj (List.map (fun (a,b) -> (a,b,Z.zero)) (diseq1 @ diseq2)))) in
+    let diseq1 = List.filter (block_neq_query (Some cc2)) (BlDis.element_closure bldiseq1 cmap1 cc.uf) in
+    let diseq2 = List.filter (block_neq_query (Some cc1)) (BlDis.element_closure bldiseq2 cmap2 cc.uf) in
+    let cc = Option.get (insert_set (Some cc) (fst @@ SSet.subterms_of_conj (List.map (fun (a,b) -> (a,b,Z.zero)) (diseq1 @ diseq2)))) in
     let diseqs_ref_terms = List.filter (fun (t1,t2) -> TUF.is_root cc.uf t1 && TUF.is_root cc.uf t2) (diseq1 @ diseq2) in
     let bldis = List.fold BlDis.add_block_diseq BlDis.empty diseqs_ref_terms
     in (if M.tracing then M.trace "c2po-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
