@@ -757,6 +757,10 @@ module CongruenceClosure = struct
       Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq; bldis=cc.bldis}
     with Unsat -> None
 
+  let congruence_neq_opt cc neq = match cc with
+    | None -> None
+    | Some cc -> congruence_neq cc neq
+
   (**
      parameters: (uf, map, new_repr) equalities.
 
@@ -851,6 +855,8 @@ module CongruenceClosure = struct
      - `bldis` are the block disequalities between the new representatives.
 
       Throws "Unsat" if a contradiction is found.
+      This does NOT update the disequalities.
+      They need to be updated with `congruence_neq`.
   *)
   let closure cc conjs =
     match cc with
@@ -858,7 +864,7 @@ module CongruenceClosure = struct
     | Some cc ->
       let (uf, map, new_repr) = closure (cc.uf, cc.map, TMap.empty) conjs in
       let bldis = update_bldis new_repr cc.bldis in
-      congruence_neq {uf; set = cc.set; map; min_repr=cc.min_repr; diseq=cc.diseq; bldis=bldis} []
+      Some {uf; set = cc.set; map; min_repr=cc.min_repr; diseq=cc.diseq; bldis=bldis}
 
   (** Adds the block disequalities to the cc, but first rewrites them such that
       they are disequalities between representatives. The cc should already contain
@@ -907,7 +913,8 @@ module CongruenceClosure = struct
   let insert cc t =
     match cc with
     | None -> (t, Z.zero), None
-    | Some cc -> insert cc t
+    | Some cc -> let (r, z), cc = insert cc t in
+      (r, z), congruence_neq_opt cc []
 
   (** Add all terms in a specific set to the data structure.
 
@@ -958,8 +965,9 @@ module CongruenceClosure = struct
           Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
 
   (** Adds equalities to the data structure.
-      Throws "Unsat" if a contradiction is found. *)
-  let meet_conjs cc pos_conjs =
+      Throws "Unsat" if a contradiction is found.
+      Does not update disequalities. *)
+  let meet_pos_conjs cc pos_conjs =
     let res = let cc = insert_set cc (fst (SSet.subterms_of_conj pos_conjs)) in
       closure cc pos_conjs
     in if M.tracing then M.trace "c2po-meet" "MEET_CONJS RESULT: %s\n" (Option.map_default (fun res -> show_conj (get_conjunction res)) "None" res);res
@@ -969,12 +977,13 @@ module CongruenceClosure = struct
   let meet_conjs_opt conjs cc =
     let pos_conjs, neg_conjs, bl_conjs = split conjs in
     let terms_to_add = (fst (SSet.subterms_of_conj (neg_conjs @ List.map(fun (t1,t2)->(t1,t2,Z.zero)) bl_conjs))) in
-    match add_normalized_bl_diseqs (insert_set (meet_conjs cc pos_conjs) terms_to_add) bl_conjs with
+    match add_normalized_bl_diseqs (insert_set (meet_pos_conjs cc pos_conjs) terms_to_add) bl_conjs with
     | exception Unsat -> None
     | Some cc -> congruence_neq cc neg_conjs
     | None -> None
 
-  (** Add proposition t1 = t2 + r to the data structure. *)
+  (** Add proposition t1 = t2 + r to the data structure.
+      Does not update the disequalities. *)
   let add_eq cc (t1, t2, r) =
     let (v1, r1), cc = insert cc t1 in
     let (v2, r2), cc = insert cc t2 in
@@ -1100,16 +1109,10 @@ module CongruenceClosure = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms predicate cc =
     let old_cc = cc in
-    match remove_terms_from_eq predicate cc with
+    match remove_terms_from_eq predicate {cc with min_repr=None} with
     | new_reps, Some cc ->
-      begin match remove_terms_from_diseq old_cc.diseq new_reps cc with
-        | Some cc ->
-          let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
-          if M.tracing then M.trace "c2po" "REMOVE TERMS:\n BEFORE: %s\nRESULT: %s\n"
-              (show_all old_cc) (show_all {uf=cc.uf; set = cc.set; map = cc.map; min_repr=cc.min_repr; diseq=cc.diseq; bldis});
-          Some {uf=cc.uf; set = cc.set; map = cc.map; min_repr=None; diseq=cc.diseq; bldis}
-        | None -> None
-      end
+      let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
+      remove_terms_from_diseq old_cc.diseq new_reps {cc with bldis}
     | _,None -> None
 
   (* join version 1: by using the automaton *)
