@@ -165,6 +165,11 @@ module Bounds (Man: Manager) =
 struct
   type t = Man.mt A.t
 
+  (* Avoid Mpqf x/0 error *)
+  let is_den_zero mpqf =
+    let _, den = Mpqf.to_mpzf2 mpqf in
+    (Mpzf.to_float den) = 0.0
+
   (* Int bounds for float **)
   let ibf fl =
     if fl > 2147483647.0 then 2147483647.0 else if fl < -2147483648.0 then -2147483648.0 else fl
@@ -173,7 +178,7 @@ struct
   let stf scal =
     match scal with
     | Scalar.Float fl -> ibf fl
-    | Scalar.Mpqf mpqf -> ibf (Mpqf.to_float mpqf)
+    | Scalar.Mpqf mpqf -> if is_den_zero mpqf then 2147483647.0 else ibf (Mpqf.to_float mpqf)
     | Scalar.Mpfrf mpfrf -> ibf (Mpfrf.to_float mpfrf)
 
   (* Float to scalar *)
@@ -184,11 +189,11 @@ struct
     Interval.of_scalar (Scalar.of_int (Float.to_int fl1b)) (Scalar.of_int (Float.to_int fl2b))
 
   (* Binop/Mod case *)
-  let bound_texpr_mod expr1 expr2 = 
+  let bound_texpr_mod i1 _ s1 s2 = 
     (* There seem to be SO many cases for mod, I dont quite get it *)
-    let inf1 = stf bounds1.inf in  
-    let sup1 = stf bounds1.sup in
-    let sup2 = stf bounds2.sup in
+    let inf1 = stf i1 in  
+    let sup1 = stf s1 in
+    let sup2 = stf s2 in
     (* If dividend is always positive the range is [0;S2-1] or possibly a smaller range *)
     if inf1 >= 0.0 && sup1 >= 0.0 then
       fts 0.0 (sup2 -. 1.0)
@@ -230,7 +235,7 @@ struct
       | Texpr1.Sub -> fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
       | Texpr1.Mul -> fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
       | Texpr1.Div -> fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
-      | Texpr1.Mod -> bound_texpr_mod expr1 expr2
+      | Texpr1.Mod -> bound_texpr_mod bounds1.inf bounds2.inf bounds1.sup bounds2.sup
       | Texpr1.Pow -> fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
       )
     
@@ -240,7 +245,7 @@ struct
         bound_texpr_alt d (Texpr1.to_expr texpr1) texpr1
       else
         A.bound_texpr Man.mgr d texpr1
-    ) in
+    ) in 
     let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
     let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
     (min, max)
