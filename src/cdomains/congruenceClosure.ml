@@ -592,17 +592,17 @@ module CongruenceClosure = struct
              (edge_z, t, TUF.find_no_pc uf res_t)) @@
          (LMap.zmap_bindings zmap)))
       (LMap.bindings map)
-
   let compute_min_repr_if_necessary cc =
-    match cc.min_repr with
-    | None -> let min_repr, uf =
-                MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
-      {cc with min_repr = Some min_repr; uf}, min_repr
-    | Some min_repr -> cc, min_repr
+    if GobConfig.get_bool "ana.c2po.normal_form" then
+      match cc.min_repr with
+      | None -> let min_repr, uf =
+                  MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
+        {cc with min_repr = Some min_repr; uf}
+      | Some min_repr -> cc
+    else cc
 
-  let remove_min_repr = function
-    | None -> None
-    | Some cc -> Some {cc with min_repr=None}
+  let recompute_min_repr =
+    Option.map (fun cc -> compute_min_repr_if_necessary {cc with min_repr=None})
 
   let exactly_equal cc1 cc2 =
     cc1.uf == cc2.uf && cc1.map == cc2.map && cc1.diseq == cc2.diseq && cc1.bldis == cc2.bldis
@@ -611,7 +611,7 @@ module CongruenceClosure = struct
      Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
   (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
   let get_normal_form cc =
-    let cc, min_repr = compute_min_repr_if_necessary cc in
+    let min_repr = Option.get cc.min_repr in
     let normalize_equality (t1, t2, z) =
       if T.equal t1 t2 && Z.(equal z zero) then None else
         Some (Equal (t1, t2, z)) in
@@ -1093,7 +1093,8 @@ module CongruenceClosure = struct
     match remove_terms_from_eq predicate {cc with min_repr=None} with
     | new_reps, Some cc ->
       let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
-      remove_terms_from_diseq old_cc.diseq new_reps {cc with bldis}
+      let cc = remove_terms_from_diseq old_cc.diseq new_reps {cc with bldis} in
+      Option.map compute_min_repr_if_necessary cc
     | _,None -> None
 
   (* join version 1: by using the automaton *)

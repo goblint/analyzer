@@ -89,7 +89,7 @@ module D = struct
     in
     if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
         (show_all res);
-    res
+    Option.map compute_min_repr_if_necessary res
 
   let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
       (if M.tracing then M.trace "c2po-join" "Join Automaton"; join a b join_eq) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join a b join_eq_no_automata)
@@ -112,7 +112,7 @@ module D = struct
     in
     if M.tracing then M.tracel "c2po-join" "WIDEN. WIDEN: %s\n"
         (show_all res);
-    res
+    Option.map compute_min_repr_if_necessary res
 
   let widen a b = if M.tracing then M.trace "c2po-join" "WIDEN\n";
     if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
@@ -128,8 +128,9 @@ module D = struct
         else
           match get_conjunction a with
           | [] -> b'
-          | a_conj -> remove_min_repr (meet_conjs_opt a_conj b')
-    in if M.tracing then M.trace "c2po-meet" "MEET RESULT = %s" (show res);res
+          | a_conj -> recompute_min_repr (meet_conjs_opt a_conj b')
+    in if M.tracing then M.trace "c2po-meet" "MEET RESULT = %s" (show res);
+    res
 
   let leq x y = equal (meet x y) x
 
@@ -143,9 +144,8 @@ module D = struct
         else
           let b_conj = List.filter
               (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set) (get_conjunction b) in
-          remove_min_repr (meet_conjs_opt b_conj (Some a))
+          recompute_min_repr (meet_conjs_opt b_conj (Some a))
     in if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %s" (show res);res
-
 
   let pretty_diff () (x,y) = Pretty.dprintf ""
 
