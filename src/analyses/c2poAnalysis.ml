@@ -94,7 +94,7 @@ struct
     | _ -> Result.top q
 
   let assign_lval t ask lval expr =
-    (* ignore assignments to values that are not 64 bits *) (*TODO what if there is a cast*)
+    (* ignore assignments to values that are not 64 bits *)
     let lval_t = typeOfLval lval in
     match T.get_element_size_in_bits lval_t, T.of_lval ask lval, T.of_cil ask expr with
     (* Indefinite assignment *)
@@ -107,11 +107,13 @@ struct
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
       D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo lval_t
-    | exception (T.UnsupportedCilExpression _) -> D.top () (*TODO count how many we have here*)
+    | exception (T.UnsupportedCilExpression _) -> if M.tracing then M.trace
+          "c2po-invalidate" "INVALIDATE lval: %a" d_lval lval;
+      D.top ()
     (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
        We have to forget all the information we had.
        This should almost never happen.
-       Except if the left hand side is an abstract type, then we don't know the size of the lvalue. *)
+       Except if the left hand side is a complicated expression like myStruct.field1[i]->field2[z+k], and Goblint can't infer the offset.*)
     | _ -> D.top ()
 
   let assign ctx lval expr =

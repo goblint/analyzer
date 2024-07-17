@@ -220,7 +220,8 @@ module T = struct
     match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
     | Some i -> i
     | None
-    | exception (SizeOfError _) -> raise (UnsupportedCilExpression "unknown offset")
+    | exception (SizeOfError _) -> if M.tracing then M.trace "c2po-invalidate" "REASON: unknown offset";
+      raise (UnsupportedCilExpression "unknown offset")
 
   let can_be_dereferenced = function
     | TPtr _| TArray _| TComp _ -> true
