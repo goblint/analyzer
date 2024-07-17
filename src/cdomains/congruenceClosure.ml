@@ -11,6 +11,96 @@ module CongruenceClosure = struct
   module TUF = UnionFind
   module LMap = LookupMap
 
+
+  (* block disequalities *)
+  module BlDis = struct
+    (** Block disequalities:
+        a term t1 is mapped to a set of terms that have a different block than t1.
+        It is allowed to contain terms that are not present in the data structure,
+        so we shouldn't assume that all terms in bldis are present in the union find!
+    *)
+    type t = TSet.t TMap.t [@@deriving eq, ord, hash]
+
+    let bindings = TMap.bindings
+    let empty = TMap.empty
+    let is_empty = TMap.is_empty
+
+    let to_conj bldiseq = List.fold
+        (fun list (t1, tset) ->
+           TSet.fold (fun t2 bldiseqs -> BlNequal(t1, t2)::bldiseqs) tset [] @ list
+        ) [] (bindings bldiseq)
+
+    let add bldiseq t1 t2 =
+      match TMap.find_opt t1 bldiseq with
+      | None -> TMap.add t1 (TSet.singleton t2) bldiseq
+      | Some tset -> TMap.add t1 (TSet.add t2 tset) bldiseq
+
+    (** Add disequalities bl(t1) != bl(t2) and bl(t2) != bl(t1). *)
+    let add_block_diseq bldiseq (t1, t2) =
+      add (add bldiseq t1 t2) t2 t1
+
+    (**
+       params:
+
+       t1-> a term that is NOT present in the data structure
+
+       tlist: a list of representative terms
+
+       For each term t2 in tlist, it adds the disequality t1 != t2 to diseqs.
+    *)
+    let add_block_diseqs bldiseq uf t1 tlist =
+      List.fold (fun bldiseq t2 ->
+          add_block_diseq bldiseq (t1, t2)) bldiseq tlist
+
+    (** For each block disequality bl(t1) != bl(t2) we add all disequalities
+        that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
+        then we add the disequaity  bl(t1') != bl(t2').
+    *)
+    let element_closure bldis cmap =
+      let comp_closure = function
+        | BlNequal (r1,r2) ->
+          let to_list =  (*TODO this is not the best solution*)
+            List.flatten % List.map
+              (fun (z, set) -> (TSet.to_list set)) in
+          let comp_closure_zmap bindings1 bindings2 =
+            List.cartesian_product (to_list bindings1) (to_list bindings2)
+          in
+          let singleton term = [(Z.zero, TSet.singleton term)] in
+          begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
+            | None, None -> [(r1,r2)]
+            | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
+            | Some zmap1, None -> comp_closure_zmap (ZMap.bindings zmap1) (singleton r2)
+            | Some zmap1, Some zmap2 ->
+              comp_closure_zmap (ZMap.bindings zmap1) (ZMap.bindings zmap2)
+          end
+        | _ -> []
+      in
+      List.concat_map comp_closure bldis
+
+    let map_set_mem v v' (map:t) = match TMap.find_opt v map with
+      | None -> false
+      | Some set -> TSet.mem v' set
+
+    let filter_if (map:t) p =
+      TMap.filter_map (fun _ t_set ->
+          let filtered_set = TSet.filter p t_set in
+          if TSet.is_empty filtered_set then None else Some filtered_set) map
+
+    let filter_map f (diseq:t) =
+      TMap.filter_map
+        (fun _ s -> let set = TSet.filter_map f s in
+          if TSet.is_empty set then None else Some set) diseq
+
+    let shift v r v' (map:t) =
+      match TMap.find_opt v' map with
+      | None -> map
+      | Some tset ->
+        TMap.remove v' (TMap.add v tset map)
+
+    let term_set bldis =
+      TSet.of_enum (TMap.keys bldis)
+  end
+
   module Disequalities = struct
 
     (* disequality map:
@@ -191,17 +281,17 @@ module CongruenceClosure = struct
 
         Returns: map `neq` where each representative is mapped to a set of representatives it is not equal to.
     *)
-    let rec propagate_neq (uf,(cmap: TSet.t ZMap.t TMap.t),arg,neq) = function (* v1, v2 are distinct roots with v1 != v2+r   *)
+    let rec propagate_neq (uf,(cmap: TSet.t ZMap.t TMap.t),arg,neq) bldis = function (* v1, v2 are distinct roots with v1 != v2+r   *)
       | [] -> neq (* uf need not be returned: has been flattened during constr. of cmap *)
       | (v1,v2,r) :: rest ->
         (* we don't want to explicitly store disequalities of the kind &x != &y *)
-        if T.is_addr v1 && T.is_addr v2 then
-          propagate_neq (uf,cmap,arg,neq) rest else
+        if T.is_addr v1 && T.is_addr v2 || BlDis.map_set_mem v1 v2 bldis then
+          propagate_neq (uf,cmap,arg,neq) bldis rest else
           (* v1, v2 are roots; v2 -> r,v1 not yet contained in neq *)
-        if T.equal v1 v2 then  (* should not happen *)
-          if Z.equal r Z.zero then raise Unsat else propagate_neq (uf,cmap,arg,neq) rest
+        if T.equal v1 v2 then
+          if Z.equal r Z.zero then raise Unsat else propagate_neq (uf,cmap,arg,neq) bldis rest
         else (* check whether it is already in neq *)
-        if map_set_mem (v1,Z.(-r)) v2 neq then propagate_neq (uf,cmap,arg,neq) rest
+        if map_set_mem (v1,Z.(-r)) v2 neq then propagate_neq (uf,cmap,arg,neq) bldis rest
         else let neq = map_set_add (v1,Z.(-r)) v2 neq |>
                        map_set_add (v2,r) v1 in
         (*
@@ -209,7 +299,7 @@ module CongruenceClosure = struct
           at the same level (not recorded) and then compare their predecessors
         *)
           match TMap.find_opt v1 (cmap:t), TMap.find_opt v2 cmap with
-          | None,_ | _,None -> (*should not happen*) propagate_neq (uf,cmap,arg,neq) rest
+          | None,_ | _,None -> (*should not happen*) propagate_neq (uf,cmap,arg,neq) bldis rest
           | Some imap1, Some imap2 ->
             let ilist1 = ZMap.bindings imap1 in
             let rest = List.fold_left (fun rest (r1,_) ->
@@ -228,7 +318,7 @@ module CongruenceClosure = struct
                       else
                         (v1',v2',Z.(r'2-r'1))::rest ) rest l1 l2)
                 rest ilist1 in
-            propagate_neq (uf,cmap,arg,neq) rest
+            propagate_neq (uf,cmap,arg,neq) bldis rest
         (*
           collection of disequalities:
                   * disequalities originating from different offsets of same root
@@ -302,95 +392,6 @@ module CongruenceClosure = struct
         end
       in
       List.concat_map comp_closure diseqs
-  end
-
-  (* block disequalities *)
-  module BlDis = struct
-    (** Block disequalities:
-        a term t1 is mapped to a set of terms that have a different block than t1.
-        It is allowed to contain terms that are not present in the data structure,
-        so we shouldn't assume that all terms in bldis are present in the union find!
-    *)
-    type t = TSet.t TMap.t [@@deriving eq, ord, hash]
-
-    let bindings = TMap.bindings
-    let empty = TMap.empty
-    let is_empty = TMap.is_empty
-
-    let to_conj bldiseq = List.fold
-        (fun list (t1, tset) ->
-           TSet.fold (fun t2 bldiseqs -> BlNequal(t1, t2)::bldiseqs) tset [] @ list
-        ) [] (bindings bldiseq)
-
-    let add bldiseq t1 t2 =
-      match TMap.find_opt t1 bldiseq with
-      | None -> TMap.add t1 (TSet.singleton t2) bldiseq
-      | Some tset -> TMap.add t1 (TSet.add t2 tset) bldiseq
-
-    (** Add disequalities bl(t1) != bl(t2) and bl(t2) != bl(t1). *)
-    let add_block_diseq bldiseq (t1, t2) =
-      add (add bldiseq t1 t2) t2 t1
-
-    (**
-       params:
-
-       t1-> a term that is NOT present in the data structure
-
-       tlist: a list of representative terms
-
-       For each term t2 in tlist, it adds the disequality t1 != t2 to diseqs.
-    *)
-    let add_block_diseqs bldiseq uf t1 tlist =
-      List.fold (fun bldiseq t2 ->
-          add_block_diseq bldiseq (t1, t2)) bldiseq tlist
-
-    (** For each block disequality bl(t1) != bl(t2) we add all disequalities
-        that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
-        then we add the disequaity  bl(t1') != bl(t2').
-    *)
-    let element_closure bldis cmap =
-      let comp_closure = function
-        | BlNequal (r1,r2) ->
-          let to_list =  (*TODO this is not the best solution*)
-            List.flatten % List.map
-              (fun (z, set) -> (TSet.to_list set)) in
-          let comp_closure_zmap bindings1 bindings2 =
-            List.cartesian_product (to_list bindings1) (to_list bindings2)
-          in
-          let singleton term = [(Z.zero, TSet.singleton term)] in
-          begin match TMap.find_opt r1 cmap,TMap.find_opt r2 cmap with
-            | None, None -> [(r1,r2)]
-            | None, Some zmap2 -> comp_closure_zmap (singleton r1) (ZMap.bindings zmap2)
-            | Some zmap1, None -> comp_closure_zmap (ZMap.bindings zmap1) (singleton r2)
-            | Some zmap1, Some zmap2 ->
-              comp_closure_zmap (ZMap.bindings zmap1) (ZMap.bindings zmap2)
-          end
-        | _ -> []
-      in
-      List.concat_map comp_closure bldis
-
-    let map_set_mem v v' (map:t) = match TMap.find_opt v map with
-      | None -> false
-      | Some set -> TSet.mem v' set
-
-    let filter_if (map:t) p =
-      TMap.filter_map (fun _ t_set ->
-          let filtered_set = TSet.filter p t_set in
-          if TSet.is_empty filtered_set then None else Some filtered_set) map
-
-    let filter_map f (diseq:t) =
-      TMap.filter_map
-        (fun _ s -> let set = TSet.filter_map f s in
-          if TSet.is_empty set then None else Some set) diseq
-
-    let shift v r v' (map:t) =
-      match TMap.find_opt v' map with
-      | None -> map
-      | Some tset ->
-        TMap.remove v' (TMap.add v tset map)
-
-    let term_set bldis =
-      TSet.of_enum (TMap.keys bldis)
   end
 
   (** Set of subterms which are present in the current data structure.
@@ -747,11 +748,11 @@ module CongruenceClosure = struct
       (* getting args of dereferences *)
       let uf,cmap,arg = Disequalities.get_args cc.uf in
       (* taking implicit dis-equalities into account *)
-      let neq_list = Disequalities.init_neq (uf,cmap,arg) @ Disequalities.init_neg_block_diseq (uf, cc.bldis, cmap,arg) in
-      let neq = Disequalities.propagate_neq (uf,cmap,arg,Disequalities.empty) neq_list in
+      let neq_list = Disequalities.init_neq (uf,cmap,arg) @ Disequalities.init_neg_block_diseq (uf, cc.bldis, cmap, arg) in
+      let neq = Disequalities.propagate_neq (uf,cmap,arg,Disequalities.empty) cc.bldis neq_list in
       (* taking explicit dis-equalities into account *)
       let neq_list = Disequalities.init_list_neq uf neg in
-      let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) neq_list in
+      let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) cc.bldis neq_list in
       if M.tracing then M.trace "c2po-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
       Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq; bldis=cc.bldis}
     with Unsat -> None
@@ -968,10 +969,9 @@ module CongruenceClosure = struct
   let meet_conjs_opt conjs cc =
     let pos_conjs, neg_conjs, bl_conjs = split conjs in
     let terms_to_add = (fst (SSet.subterms_of_conj (neg_conjs @ List.map(fun (t1,t2)->(t1,t2,Z.zero)) bl_conjs))) in
-    match insert_set (meet_conjs cc pos_conjs) terms_to_add with
+    match add_normalized_bl_diseqs (insert_set (meet_conjs cc pos_conjs) terms_to_add) bl_conjs with
     | exception Unsat -> None
-    | Some cc -> let cc = congruence_neq cc neg_conjs in
-      add_normalized_bl_diseqs cc bl_conjs
+    | Some cc -> congruence_neq cc neg_conjs
     | None -> None
 
   (** Add proposition t1 = t2 + r to the data structure. *)
