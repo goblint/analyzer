@@ -51,7 +51,9 @@ module D = struct
         if exactly_equal x y then
           true
         else
-          (T.props_equal (get_normal_form x) (get_normal_form y))
+          let nf1, nf2 = get_normal_form x, get_normal_form y in
+          if M.tracing then M.trace "c2po-min-repr" "Normal form of x = %s; Normal form of y = %s" (show_conj nf1) (show_conj nf2);
+          T.props_equal nf1 nf2
       | None, None -> true
       | _ -> false
     in if M.tracing then M.trace "c2po-equal" "equal min repr. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
@@ -136,30 +138,34 @@ module D = struct
     if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
 
   let meet a' b' =
-    match a',b' with
-    | None, _ -> None
-    | _, None -> None
-    | Some a, Some b ->
-      if exactly_equal a b then
-        a'
-      else
-        match get_conjunction a with
-        | [] -> b'
-        | a_conj -> remove_min_repr (meet_conjs_opt a_conj b')
+    if M.tracing then M.trace "c2po-meet" "MEET x= %s; y=%s" (show a') (show b');
+    let res = match a',b' with
+      | None, _ -> None
+      | _, None -> None
+      | Some a, Some b ->
+        if exactly_equal a b then
+          a'
+        else
+          match get_conjunction a with
+          | [] -> b'
+          | a_conj -> remove_min_repr (meet_conjs_opt a_conj b')
+    in if M.tracing then M.trace "c2po-meet" "MEET RESULT = %s" (show res);res
 
   let leq x y = equal (meet x y) x
 
   let narrow a' b' =
-    match a',b' with
-    | None, _ -> None
-    | _, None -> None
-    | Some a, Some b ->
-      if exactly_equal a b then
-        a'
-      else
-        let b_conj = List.filter
-            (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set) (get_conjunction b) in
-        remove_min_repr (meet_conjs_opt b_conj (Some a))
+    let res = match a',b' with
+      | None, _ -> None
+      | _, None -> None
+      | Some a, Some b ->
+        if exactly_equal a b then
+          a'
+        else
+          let b_conj = List.filter
+              (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set) (get_conjunction b) in
+          remove_min_repr (meet_conjs_opt b_conj (Some a))
+    in if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %s" (show res);res
+
 
   let pretty_diff () (x,y) = Pretty.dprintf ""
 
