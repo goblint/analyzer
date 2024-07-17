@@ -361,7 +361,7 @@ struct
     else
       match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
       | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
-        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string res) (IntOps.BigIntOps.to_string res);
+        (if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
          Some res, Some res)
       | _ -> None, None
 
