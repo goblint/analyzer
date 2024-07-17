@@ -196,11 +196,7 @@ struct
 
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
      expr funktionsaufruf*)
-  let combine_env ctx var_opt expr f exprs t_context_opt t (ask: Queries.ask) =
-    ctx.local
-
-  (*ctx.local is after combine_env, t callee*)
-  let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
+  let combine_env ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     let og_t = t in
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
@@ -213,7 +209,11 @@ struct
     if M.tracing then M.trace "c2po-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
     let local = D.remove_tainted_terms ask tainted state_with_assignments in
     let t = D.meet local t in
-    if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
+    if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);t
+
+  (*ctx.local is after combine_env, t callee*)
+  let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
+    let t = ctx.local in
     let t = match var_opt with
       | None -> t
       | Some var -> assign_lval t ask var (MayBeEqual.return_lval (typeOfLval var))
