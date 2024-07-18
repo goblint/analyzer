@@ -93,7 +93,10 @@ struct
   let branch ctx e pos =
     let props = T.prop_of_cil (ask_of_ctx ctx) e pos in
     let valid_props = T.filter_valid_pointers props in
-    let res = recompute_min_repr (meet_conjs_opt valid_props ctx.local) in
+    let res =
+      if List.is_empty valid_props then ctx.local else
+        recompute_min_repr (meet_conjs_opt valid_props ctx.local)
+    in
     if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n"
         d_exp e pos (show_conj valid_props) (D.is_bot res);
     if D.is_bot res then raise Deadcode;
@@ -114,35 +117,33 @@ struct
       | None -> ctx.local
     in if M.tracing then M.trace "c2po-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
 
-  let add_new_block t ask lval =
-    (* ignore assignments to values that are not 64 bits *)
-    let lval_t = typeOfLval lval in
-    match T.get_element_size_in_bits lval_t, T.of_lval ask lval with
-    (* Indefinite assignment *)
-    | s, lterm ->
-      let t = D.remove_may_equal_terms ask s lterm t in
-      add_block_diseqs t lterm
-    (* Definite assignment *)
-    | exception (T.UnsupportedCilExpression _) -> D.top ()
-
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
   let special ctx var_opt v exprs =
     let desc = LibraryFunctions.find v in
+    let ask = ask_of_ctx ctx in
+    let t = begin match var_opt with
+      | None ->
+        ctx.local
+      | Some varin ->
+        (* forget information about var,
+           but ignore assignments to values that are not 64 bits *)
+        try
+          (let s, lterm = T.get_element_size_in_bits (typeOfLval varin), T.of_lval ask varin in
+           let t = D.remove_may_equal_terms ask s lterm ctx.local in
+           begin match desc.special exprs with
+             | Malloc _ | Calloc _ | Alloca _ | Realloc _ ->
+               add_block_diseqs t lterm
+             | _ -> t
+           end)
+        with (T.UnsupportedCilExpression _) -> D.top ()
+    end
+    in
     match desc.special exprs with
     | Assert { exp; refine; _ } -> if not refine then
         ctx.local
       else
         branch ctx exp true
-    | Malloc _ | Calloc _ | Alloca _ | Realloc _ ->
-      begin match var_opt with
-        | None ->
-          ctx.local
-        | Some varin ->
-          if M.tracing then M.trace "c2po-malloc"
-              "SPECIAL MALLOC: var_opt = Some (%a); v = %a; " d_lval varin d_lval (Var v, NoOffset);
-          add_new_block ctx.local (ask_of_ctx ctx) varin
-      end
-    | _ -> ctx.local
+    | _ -> t
 
   let duplicated_variable var = { var with vid = - var.vid - 4; vname = "c2po__" ^ var.vname ^ "'" }
   let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
