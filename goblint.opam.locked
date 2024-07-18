@@ -58,7 +58,6 @@ depends: [
   "dune-private-libs" {= "3.7.1"}
   "dune-site" {= "3.7.1"}
   "dyn" {= "3.7.1"}
-  "either" {= "1.0.0"}
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
@@ -86,7 +85,6 @@ depends: [
   "ppx_deriving" {= "6.0.2"}
   "ppx_deriving_hash" {= "0.1.2"}
   "ppx_deriving_yojson" {= "3.7.0"}
-  "ppx_easy_deriving" {= "~dev"}
   "ppxlib" {= "0.32.1"}
   "qcheck-core" {= "0.20"}
   "qcheck-ounit" {= "0.20" & with-test}
@@ -138,10 +136,6 @@ pin-depends: [
   [
     "goblint-cil.2.0.3"
     "git+https://github.com/goblint/cil.git#ae3a4949d478fad77e004c6fe15a7c83427df59f"
-  ]
-  [
-    "ppx_easy_deriving.~dev"
-    "git+https://github.com/sim642/ppx_easy_deriving.git#3d599fdfb231e4a1f9bad0e914068210901533a4"
   ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
