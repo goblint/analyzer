@@ -1,12 +1,14 @@
 (** {{!RelationAnalysis} Relational integer value analysis} using {!Elina} domains ([elina]). *)
 
 open Analyses
+open RelationalImplementation
+open ElinaImplementation
 
 include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module RelImpl = (val ApronDomain.get_implementation "elina") in
+    let module RelImpl : Implementation = ElinaImplementation in
     let module Man = (val ApronDomain.get_manager (module RelImpl)) in
     let module AD = ApronDomain.D2 (Man) in
     let diff_box = GobConfig.get_bool "ana.apron.invariant.diff-box" in

@@ -102,7 +102,6 @@ module ElinaImplementation = struct
       one
     
   let bound_texpr_pow i1 i2 s1 s2 =
-    (* TO DO *)
     mts (bound_texpr_pow_rec (stm i1) (stm i2)) (bound_texpr_pow_rec (stm s1) (stm s2))
 
   (* Unop/Sqrt case *)

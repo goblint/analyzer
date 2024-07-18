@@ -15,6 +15,10 @@
       (apron -> gobApron.apron.ml)
       (-> gobApron.no-apron.ml)
     )
+    (select relationalImplementation.ml from
+      (apron -> relationalImplementation.apron.ml)
+      (-> relationalImplementation.no-apron.ml)
+    )
     (select apronImplementation.ml from
       (apron -> apronImplementation.apron.ml)
       (-> apronImplementation.no-apron.ml)
