@@ -891,7 +891,6 @@ module CongruenceClosure = struct
     else (false,cc)
 
   let block_neq_query cc (t1,t2) =
-    (* we implicitly assume that &x != &y + z *)
     let (v1,r1),cc = insert cc t1 in
     let (v2,r2),cc = insert cc t2 in
     match cc with
