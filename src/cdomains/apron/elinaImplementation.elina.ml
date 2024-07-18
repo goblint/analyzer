@@ -57,49 +57,64 @@ module ElinaImplementation = struct
   (* Bound Texpr *)
   (***************)
 
-  (* Avoid Mpqf x/0 error *)
-  let is_den_zero mpqf =
-    let _, den = Mpqf.to_mpzf2 mpqf in
-    (Mpzf.to_float den) = 0.0
-
-  (* Int bounds for float **)
-  let ibf fl =
-    if fl > 2147483647.0 then 2147483647.0 else if fl < -2147483648.0 then -2147483648.0 else fl
-
-  (* Scalar to float *)
-  let stf scal =
+  (* Scalar to Mpqf *)
+  let stm scal =
     match scal with
-    | Scalar.Float fl -> ibf fl
-    | Scalar.Mpqf mpqf -> if is_den_zero mpqf then 2147483647.0 else ibf (Mpqf.to_float mpqf)
-    | Scalar.Mpfrf mpfrf -> ibf (Mpfrf.to_float mpfrf)
+    | Scalar.Float fl -> Mpqf.of_float fl
+    | Scalar.Mpqf mpqf -> mpqf
+    | Scalar.Mpfrf mpfrf -> Mpfrf.to_mpqf mpfrf
 
-  (* Float to scalar *)
-  (* Creates an interval with ints from two passed float values *)
-  let fts fl1 fl2 =
-    let fl1b = ibf fl1 in
-    let fl2b = ibf fl2 in
-    Interval.of_scalar (Scalar.of_int (Float.to_int fl1b)) (Scalar.of_int (Float.to_int fl2b))
+  (* Mpqf to scalar *)
+  (* Creates an interval from two passed Mpqf values *)
+  let mts m1 m2 =
+    Interval.of_scalar (Scalar.of_mpqf m1) (Scalar.of_mpqf m2)
 
   (* Binop/Mod case *)
   let bound_texpr_mod i1 _ s1 s2 = 
     (* There seem to be SO many cases for mod, I dont quite get it *)
-    let inf1 = stf i1 in  
-    let sup1 = stf s1 in
-    let sup2 = stf s2 in
+    let inf1 = stm i1 in  
+    let sup1 = stm s1 in
+    let sup2 = stm s2 in
+    let zero = Mpqf.of_int 0 in
+    let one = Mpqf.of_int 1 in
+    let sup2mo = Mpqf.sub sup2 one in
     (* If dividend is always positive the range is [0;S2-1] or possibly a smaller range *)
-    if inf1 >= 0.0 && sup1 >= 0.0 then
-      fts 0.0 (sup2 -. 1.0)
+    if Mpqf.sgn inf1 = 1 && Mpqf.sgn sup1 = 1 then
+      mts zero sup2mo
     (* If dividend is always negative the range is [-S2+1;0] or possibly a smaller range *)
-    else if inf1 <= 0.0 && sup1 <= 0.0 then
-      fts (0.0 -. (sup2 -. 1.0)) 0.0
+    else if Mpqf.sgn inf1 = -1 && Mpqf.sgn sup1 = -1 then
+      mts (Mpqf.neg sup2mo) zero
     (* If dividen could be both negative or positive the range could be [-S2+1;S2-1]*)
     else
-      fts (0.0 -. (sup2 -. 1.0)) (sup2 -. 1.0)
+      mts (Mpqf.neg sup2mo) sup2mo
     (* This fails to consider many subcases such as the fact that [1;2]%[3;4]
     would be in range [1;2] not [1;3], etc. Also I'm not even sure I understand the negative
     result thing correctly*)
 
+  (* Binop/Pow case *)
+  let rec bound_texpr_pow_rec a b = 
+    let one = Mpqf.of_int 1 in
+    if Mpqf.sgn b = 1 then 
+      Mpqf.mul a (bound_texpr_pow_rec a (Mpqf.sub b one))
+    else if Mpqf.sgn b = -1 then
+      Mpqf.div one (bound_texpr_pow_rec a (Mpqf.neg b))
+    else
+      one
+    
+  let bound_texpr_pow i1 i2 s1 s2 =
+    (* TO DO *)
+    mts (bound_texpr_pow_rec (stm i1) (stm i2)) (bound_texpr_pow_rec (stm s1) (stm s2))
+
+  (* Unop/Sqrt case *)
+  let bound_texpr_sqrt inf sup =
+    (* Very poor sqrt approximation *)
+    mts (Mpqf.of_int 0) (Mpqf.add (Mpqf.div (stm sup) (Mpqf.of_int 2)) (Mpqf.of_int 1))
+
   (* Workaround for Abstract1.bound_texpr *)
+  (* This creates an approximation based on the bounds
+  of the component variables which is not as precise
+  as the actual bound_texpr could be
+  *)
   let rec bound_texpr_alt mgr d exprt1 =
     match exprt1 with
     (* Constant *)
@@ -116,19 +131,19 @@ module ElinaImplementation = struct
       (match unop with
       | Texpr1.Neg -> Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
       | Texpr1.Cast -> bounds (* Unsure? *)
-      | Texpr1.Sqrt -> fts (Float.sqrt (stf bounds.inf)) (Float.sqrt (stf bounds.sup))
+      | Texpr1.Sqrt -> bound_texpr_sqrt bounds.inf bounds.inf
       )
     (* Binary *)
     | Texpr1.Binop (binop,expr1,expr2,typ,round) ->
       let bounds1 = bound_texpr_alt mgr d expr1 in
       let bounds2 = bound_texpr_alt mgr d expr2 in
       (match binop with
-      | Texpr1.Add -> fts ((stf bounds1.inf) +. (stf bounds2.inf)) ((stf bounds1.sup) +. (stf bounds2.sup))
-      | Texpr1.Sub -> fts ((stf bounds1.inf) -. (stf bounds2.sup)) ((stf bounds1.sup) -. (stf bounds2.inf))
-      | Texpr1.Mul -> fts ((stf bounds1.inf) *. (stf bounds2.inf)) ((stf bounds1.sup) *. (stf bounds2.sup))
-      | Texpr1.Div -> fts ((stf bounds1.inf) /. (stf bounds2.sup)) ((stf bounds1.sup) /. (stf bounds2.inf))
+      | Texpr1.Add -> mts (Mpqf.add (stm bounds1.inf) (stm bounds2.inf)) (Mpqf.add (stm bounds1.sup) (stm bounds2.sup))
+      | Texpr1.Sub -> mts (Mpqf.sub (stm bounds1.inf) (stm bounds2.sup)) (Mpqf.sub (stm bounds1.sup) (stm bounds2.inf))
+      | Texpr1.Mul -> mts (Mpqf.mul (stm bounds1.inf) (stm bounds2.inf)) (Mpqf.mul (stm bounds1.sup) (stm bounds2.sup))
+      | Texpr1.Div -> mts (Mpqf.div (stm bounds1.inf) (stm bounds2.sup)) (Mpqf.div (stm bounds1.sup) (stm bounds2.inf))
       | Texpr1.Mod -> bound_texpr_mod bounds1.inf bounds2.inf bounds1.sup bounds2.sup
-      | Texpr1.Pow -> fts ((stf bounds1.inf) ** (stf bounds2.sup)) ((stf bounds1.sup) ** (stf bounds2.inf))
+      | Texpr1.Pow -> bound_texpr_pow bounds1.inf bounds2.inf bounds1.sup bounds2.sup
       )
 
     let bound_texpr mgr name d texpr1 =
