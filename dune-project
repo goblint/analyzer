@@ -1,4 +1,4 @@
-(lang dune 3.6)
+(lang dune 3.7)
 (using dune_site 0.1)
 (cram enable)
 (name goblint)
@@ -15,22 +15,35 @@
 (source (github goblint/analyzer))
 (homepage "https://goblint.in.tum.de")
 (documentation "https://goblint.readthedocs.io/en/latest/")
-(authors "Simmo Saan" "Michael Schwarz" "Julian Erhard" "Sarah Tilscher" "Ralf Vogler" "Kalmer Apinis" "Vesal Vojdani" ) ; same authors as in .zenodo.json and CITATION.cff
-(maintainers "Simmo Saan <simmo.saan@gmail.com>" "Michael Schwarz <michael.schwarz93@gmail.com>")
+(authors "Simmo Saan" "Michael Schwarz" "Julian Erhard" "Sarah Tilscher" "Karoliine Holter" "Ralf Vogler" "Kalmer Apinis" "Vesal Vojdani" ) ; same authors as in .zenodo.json and CITATION.cff
+(maintainers "Simmo Saan <simmo.saan@gmail.com>" "Michael Schwarz <michael.schwarz93@gmail.com>" "Karoliine Holter")
 (license MIT)
 
 (package
   (name goblint)
   (synopsis "Static analysis framework for C")
+  (description "\
+Goblint is a sound static analysis framework for C programs using abstract interpretation.
+It specializes in thread-modular verification of multi-threaded programs, especially regarding data races.
+Goblint includes analyses for assertions, overflows, deadlocks, etc and can be extended with new analyses.
+")
+  (tags (
+    "program analysis"
+    "program verification"
+    "static analysis"
+    "abstract interpretation"
+    "C"
+    "data race analysis"
+    "concurrency"))
   (depends
-    (ocaml (>= 4.10))
-    (goblint-cil (>= 2.0.1)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
-    (batteries (>= 3.4.0))
-    (zarith (>= 1.8))
+    (ocaml (>= 4.14))
+    (goblint-cil (>= 2.0.3)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
+    (batteries (>= 3.5.1))
+    (zarith (>= 1.10))
     (yojson (>= 2.0.0))
     (qcheck-core (>= 0.19))
-    ppx_deriving
-    ppx_deriving_hash
+    (ppx_deriving (>= 6.0.2))
+    (ppx_deriving_hash (>= 0.1.2))
     (ppx_deriving_yojson (>= 3.7.0))
     ppx_easy_deriving
     (ounit2 :with-test)
@@ -45,7 +58,7 @@
     (fileutils (>= 0.6.4))
     cpu
     arg-complete
-    yaml
+    (yaml (>= 3.0.0))
     uuidm
     catapult
     catapult-file
@@ -55,13 +68,16 @@
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
   )
   (depopts
-    apron
+    (apron (>= v0.9.15))
     z3
   )
   (conflicts
     (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind
+    (ez-conf-lib (= 1)) ; https://github.com/nberth/ez-conf-lib/issues/3
   )
   (sites
     (share lib)
     (share conf))
 )
+
+; (map_workspace_root false) ;uncomment to enable breakpoints

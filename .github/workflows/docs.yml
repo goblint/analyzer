@@ -2,8 +2,7 @@ name: docs
 
 on:
   push:
-    branches:
-      - master
+  pull_request:
 
   workflow_dispatch:
 
@@ -11,10 +10,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
 
 jobs:
   api-build:
@@ -30,20 +25,23 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Check for undocumented modules
+        run: python scripts/goblint-lib-modules.py
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v5
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-doc
@@ -52,7 +50,7 @@ jobs:
         run: opam exec -- dune build @doc
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: _build/default/_doc/_html/
 
@@ -62,7 +60,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: api-build
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    concurrency:
+      group: "pages"
+      cancel-in-progress: true
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4

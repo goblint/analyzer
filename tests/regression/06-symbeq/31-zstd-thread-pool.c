@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] symb_locks --set lib.activated[+] zstd
+// PARAM: --set ana.activated[+] symb_locks --set lib.activated[+] zstd --disable ana.race.free
+// disabled free races because unsound: https://github.com/goblint/analyzer/pull/978
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.

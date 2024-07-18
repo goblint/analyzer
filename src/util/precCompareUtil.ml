@@ -28,10 +28,10 @@ sig
   (** Module for the result hash map *)
   module RH : Hashtbl.S with type key = Key.t
 
-  (** Type to which the result hashmap is actually convered before storing it to disc *)
+  (** Type to which the result hashmap is actually converted before storing it to disc *)
   type marshal
 
-  (** Wrapper of marhshal type, together with a name for the analysis + privatization combination *)
+  (** Wrapper of marshal type, together with a name for the analysis + privatization combination *)
   type dump = marshal dump_gen
 
   (** Type of the actually usable result. To be obtained from the dump via the unmarshal function below  *)

@@ -22,12 +22,8 @@ open Formatcil
         will be removed and they will fail on the next iteration
 *)
 
-module EvalAssert = struct
-  (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
-  let surroundByAtomic = true
-
-  (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
-  let ass = makeVarinfo true "__VERIFIER_assert" (TVoid [])
+module EvalAssert =
+struct
   let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
@@ -38,6 +34,11 @@ module EvalAssert = struct
     (* TODO: handle witness.invariant.loop-head *)
     val emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
     val emit_other = GobConfig.get_bool "witness.invariant.other"
+
+    (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
+    val assert_function = makeVarinfo true (GobConfig.get_string "trans.assert.function") (TVoid [])
+    (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
+    val surroundByAtomic = GobConfig.get_bool "trans.assert.wrap-atomic"
 
     method! vstmt s =
       let is_lock exp args =
@@ -59,7 +60,7 @@ module EvalAssert = struct
         match (ask ~node loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in
-          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv ass); ("exp", Fe e)]) es in
+          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv assert_function); ("exp", Fe e)]) es in
           if surroundByAtomic then
             let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in
             let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv atomicEnd)]) in
@@ -119,7 +120,7 @@ module EvalAssert = struct
           s
         | If (e, b1, b2, l,l2) ->
           let vars = Basetype.CilExp.get_vars e in
-          let asserts ~node loc vs = if full then make_assert ~node loc None else List.map (fun x -> make_assert ~node loc (Some (Var x,NoOffset))) vs |> List.concat in
+          let asserts ~node loc vs = if full then make_assert ~node loc None else List.concat_map (fun x -> make_assert ~node loc (Some (Var x,NoOffset))) vs in
           let add_asserts block =
             if block.bstmts <> [] then
               let with_asserts =
@@ -130,8 +131,6 @@ module EvalAssert = struct
                 [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
               in
               block.bstmts <- with_asserts
-            else
-              ()
           in
           if emit_other then (add_asserts b1; add_asserts b2);
           s

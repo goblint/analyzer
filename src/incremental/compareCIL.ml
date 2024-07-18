@@ -29,8 +29,7 @@ let get_varinfo gc = match gc.decls, gc.def with
 
 module GlobalColMap = Map.Make(
   struct
-    type t = global_col
-    let compare = compare_global_col
+    type t = global_col [@@deriving ord]
   end)
 
 let name_of_global g = match g with

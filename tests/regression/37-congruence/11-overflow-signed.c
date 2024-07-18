@@ -12,8 +12,8 @@ int basic(){
 	{
 		if (b % two_pow_16 == 5)
 		{
-			__goblint_check(a % two_pow_16 == 3);
-			__goblint_check(b % two_pow_16 == 5);
+			__goblint_check(a % two_pow_16 == 3); //TODO (Refine a to be positive above, and reuse information in %)
+			__goblint_check(b % two_pow_16 == 5); //TODO (Refine a to be positive above, and reuse information in %)
 
 			unsigned int e = a * b;
 			__goblint_check(e % two_pow_16 == 15); // UNKNOWN!
@@ -35,7 +35,7 @@ int special(){
 
 	if (a % two_pow_18 == two_pow_17)
 	{
-		__goblint_check(a % two_pow_18 == two_pow_17);
+		__goblint_check(a % two_pow_18 == two_pow_17); //TODO (Refine a to be positive above, and reuse information in %)
 
 		unsigned int e = a * a;
 		__goblint_check(e == 0); //UNKNOWN!

@@ -52,14 +52,6 @@
       "tokens": true
     }
   },
-  "witness": {
-    "enabled": false,
-    "invariant": {
-      "loop-head": true,
-      "after-lock": true,
-      "other": false
-    }
-  },
   "sem": {
     "unknown_function": {
       "invalidate": {

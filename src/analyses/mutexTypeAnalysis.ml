@@ -6,23 +6,22 @@ open Analyses
 module MAttr = ValueDomain.MutexAttr
 module LF = LibraryFunctions
 
-module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
+module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Printable.Unit =
 struct
-  include Analyses.IdentitySpec
+  include UnitAnalysis.Spec
 
   let name () = "pthreadMutexType"
-  module D = Lattice.Unit
-  module C = Lattice.Unit
 
-  (* Removing indexes here avoids complicated lookups and allows to have the LVals as vars here, at the price that different types of mutexes in arrays are not dinstinguished *)
-  module O = Offset.Unit
-
-  module V = struct
-    include Printable.Prod(CilType.Varinfo)(O)
+  module V =
+  struct
+    (* Removing indexes here avoids complicated lookups and allows to have the LVals as vars here, at the price that different types of mutexes in arrays are not dinstinguished *)
+    include Mval.Unit
     let is_write_only _ = false
   end
 
   module G = MAttr
+
+  module O = Offset.Unit
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -35,6 +34,19 @@ struct
             (match Cil.constFold true rval with
              | Const (CInt (c, _, _)) -> MAttr.of_int c
              | _ -> `Top)
+          in
+          ctx.sideg (v,o) kind;
+          ctx.local
+        | Field ({fname = "__sig"; _}, NoOffset) when ValueDomain.Compound.is_mutex_type t -> (* OSX *)
+          let kind: MAttr.t = match Cil.constFold true rval with
+            | Const (CInt (c, _, _)) ->
+              begin match Z.to_int c with (* magic constants from https://opensource.apple.com/source/libpthread/libpthread-301.30.1/pthread/pthread_impl.h.auto.html *)
+                | 0x32AAABA7 -> `Lifted NonRec (* _PTHREAD_MUTEX_SIG_init *)
+                | 0x32AAABA1 -> `Lifted NonRec (* _PTHREAD_ERRORCHECK_MUTEX_SIG_init *)
+                | 0x32AAABA2 -> `Lifted Recursive (* _PTHREAD_RECURSIVE_MUTEX_SIG_init *)
+                | _ -> `Top
+              end
+            | _ -> `Top
           in
           ctx.sideg (v,o) kind;
           ctx.local
@@ -56,14 +68,13 @@ struct
       let attr = ctx.ask (Queries.EvalMutexAttr attr) in
       let mutexes = ctx.ask (Queries.MayPointTo mutex) in
       (* It is correct to iter over these sets here, as mutexes need to be intialized before being used, and an analysis that detects usage before initialization is a different analysis. *)
-      Queries.LS.iter (function (v, o) -> ctx.sideg (v,O.of_offs o) attr) mutexes;
+      Queries.AD.iter (function addr ->
+        match addr with
+        | Queries.AD.Addr.Addr (v,o) -> ctx.sideg (v,O.of_offs o) attr
+        | _ -> ()
+        ) mutexes;
       ctx.local
     | _ -> ctx.local
-
-  let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with

@@ -1,6 +1,7 @@
 // PARAM: --enable ana.float.interval --enable ana.int.interval
 #include <goblint.h>
 #include <float.h>
+#include <math.h>
 
 int main()
 {
@@ -118,6 +119,21 @@ int main()
             return 1;
         }
     }
+
+    float max = INFINITY;
+    float min = -INFINITY;
+
+    int res = max <= max;
+    __goblint_check(res);
+
+    res = max <= min;
+    __goblint_check(res == 0);
+
+    res = max < max;
+    __goblint_check(res == 0);
+
+    res = max > max;
+    __goblint_check(res == 0);
 
     return 0;
 }

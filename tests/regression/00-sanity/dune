@@ -1,2 +1,8 @@
 (cram
  (deps (glob_files *.c)))
+
+(cram
+ (applies_to 19-if-0 20-if-0-realnode 21-empty-loops)
+ (enabled_if %{bin-available:graph-easy})
+ (deps
+   %{bin:cfgDot}))

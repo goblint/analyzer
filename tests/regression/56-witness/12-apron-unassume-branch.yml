@@ -20,7 +20,7 @@
     file_name: 12-apron-unassume-branch.c
     file_hash: 71e40ed99b5217343d0831e293e7207e5bd30ce53f6ab73f0c1ef6ced1afcc60
     line: 7
-    column: 4
+    column: 3
     function: main
   location_invariant:
     string: 99LL - (long long )i >= 0LL
@@ -48,7 +48,7 @@
     file_name: 12-apron-unassume-branch.c
     file_hash: 71e40ed99b5217343d0831e293e7207e5bd30ce53f6ab73f0c1ef6ced1afcc60
     line: 7
-    column: 4
+    column: 3
     function: main
   location_invariant:
     string: (long long )i >= 0LL

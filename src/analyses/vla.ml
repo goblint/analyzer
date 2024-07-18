@@ -5,13 +5,10 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "vla"
   module D = BoolDomain.MayBool
-  module C = Lattice.Unit
-
-  let context _ _ = ()
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, false]
@@ -33,7 +30,7 @@ struct
     ctx.local || Cilfacade.isVLAType v.vtype
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
+  let threadenter ctx ~multiple lval f args = [D.top ()]
   let exitstate  v = D.top ()
 end
 

@@ -1,4 +1,4 @@
-//PARAM: --disable ana.base.limit-string-addresses
+//PARAM: --set ana.base.strings.domain disjoint
 #include <stdlib.h>
 #include <goblint.h>
 

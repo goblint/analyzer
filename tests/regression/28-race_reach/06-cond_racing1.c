@@ -1,3 +1,4 @@
+//PARAM: --set lib.activated[+] sv-comp
 #include<stdio.h>
 #include<pthread.h>
 
@@ -31,7 +32,3 @@ int main() {
   join_threads(t);
   return 0;
 }
-
-
-
-

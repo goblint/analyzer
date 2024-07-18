@@ -9,7 +9,7 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 void *t_fun(void *arg) {
   int *p = (int *) arg;
   pthread_mutex_lock(&mutex1);
-  (*p)++; // TODO RACE!
+  (*p)++; // RACE!
   pthread_mutex_unlock(&mutex1);
   return NULL;
 }
@@ -20,7 +20,7 @@ int main(void) {
   // TODO: q escapes as region owner
   pthread_create(&id, NULL, t_fun, (void *) q);
   pthread_mutex_lock(&mutex2);
-  (*q)++; // TODO RACE!
+  (*q)++; // RACE!
   pthread_mutex_unlock(&mutex2);
   pthread_join (id, NULL);
   return 0;

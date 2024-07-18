@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] thread --set ana.path_sens[+] threadflag
+// PARAM: --set ana.activated[+] thread --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>

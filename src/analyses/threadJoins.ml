@@ -19,7 +19,7 @@ struct
   (* The first component is the set of must-joined TIDs, the second component tracks whether all TIDs recorded in MustTIDs have been exited cleanly, *)
   (* i.e., all created subthreads have also been joined. This is helpful as there is no set of all transitively created threads available. *)
   module D = Lattice.Prod(MustTIDs)(CleanExit)
-  module C = D
+  include Analyses.ValueContexts(D)
   module G = D
   module V =
   struct
@@ -52,7 +52,7 @@ struct
       if TIDs.is_top threads then
         ctx.local
       else (
-        (* elements throws if the thread set is top *)
+        (* all elements are known *)
         let threads = TIDs.elements threads in
         match threads with
         | [tid] when TID.is_unique tid->
@@ -70,7 +70,7 @@ struct
         (MustTIDs.bot(), true) (* consider everything joined, MustTIDs is reversed so bot is All threads *)
       )
       else (
-        (* elements throws if the thread set is top *)
+        (* all elements are known *)
         let threads = TIDs.elements threads in
         if List.compare_length_with threads 1 > 0 then
           M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
@@ -81,7 +81,7 @@ struct
       )
     | _, _ -> ctx.local
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     if D.is_bot ctx.local then ( (* bot is All threads *)
       M.info ~category:Imprecise "Thread created while ALL threads must-joined, continuing with no threads joined.";
       D.top () (* top is no threads *)
@@ -104,6 +104,7 @@ struct
     let (caller_joined, local_clean) = ctx.local in
     let (callee_joined, callee_clean) = au in
     (MustTIDs.union caller_joined callee_joined, local_clean && callee_clean)
+
 
   let startstate v = (MustTIDs.empty (), true)
   let exitstate  v = (MustTIDs.empty (), true)

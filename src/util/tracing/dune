@@ -1,0 +1,10 @@
+(include_subdirs no)
+
+(library
+ (name goblint_tracing)
+ (public_name goblint.tracing)
+ (libraries
+   goblint_std
+   goblint_logs
+   goblint-cil
+   goblint_build_info))

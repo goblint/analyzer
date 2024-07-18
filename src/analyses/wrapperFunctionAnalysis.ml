@@ -33,11 +33,20 @@ struct
      Introduce a function for this to keep things consistent. *)
   let node_for_ctx ctx = ctx.prev_node
 
+  module NodeFlatLattice =
+  struct
+    include NodeFlatLattice
+    let name () = "wrapper call"
+  end
+
   module UniqueCount = UniqueCount
 
   (* Map for counting function call node visits up to n (of the current thread). *)
   module UniqueCallCounter =
-    MapDomain.MapBot_LiftTop(NodeFlatLattice)(UniqueCount)
+  struct
+    include MapDomain.MapBot_LiftTop(NodeFlatLattice)(UniqueCount)
+    let name () = "unique calls"
+  end
 
   (* Increase counter for given node. If it does not exist yet, create it. *)
   let add_unique_call counter node =
@@ -48,7 +57,7 @@ struct
     else remove unique_call counter |> add unique_call (count + 1)
 
   module D = Lattice.Prod (NodeFlatLattice) (UniqueCallCounter)
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let wrappers = Hashtbl.create 13
 
@@ -87,7 +96,7 @@ struct
 
   let startstate v = D.bot ()
 
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     (* The new thread receives a fresh counter *)
     [D.bot ()]
 
@@ -122,8 +131,19 @@ module MallocWrapper : MCPSpec = struct
       CilType.Location.show loc
 
     let name_varinfo (t, node, c) =
-      Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (UniqueCount.show c)
-
+      let uniq_count =
+        if not (GobConfig.get_bool "dbg.full-output") && UniqueCount.is_top c then
+          Format.dprintf ""
+        else
+          Format.dprintf "(#%s)" (UniqueCount.show c)
+      in
+      let tid =
+        if not (GobConfig.get_bool "dbg.full-output") && ThreadLifted.is_top t then
+          Format.dprintf ""
+        else
+          Format.dprintf "@tid:%s" (ThreadLifted.show t)
+      in
+      Format.asprintf "(alloc@sid:%s%t%t)" (Node.show_id node) tid uniq_count
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
@@ -133,7 +153,7 @@ module MallocWrapper : MCPSpec = struct
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     let wrapper_node, counter = ctx.local in
     match q with
-    | Q.HeapVar ->
+    | Q.AllocVar {on_stack = on_stack} ->
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_ctx ctx
@@ -141,8 +161,11 @@ module MallocWrapper : MCPSpec = struct
       let count = UniqueCallCounter.find (`Lifted node) counter in
       let var = NodeVarinfoMap.to_varinfo (ctx.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
+      if on_stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
       `Lifted var
     | Q.IsHeapVar v ->
+      NodeVarinfoMap.mem_varinfo v && not @@ hasAttribute "stack_alloca" v.vattr
+    | Q.IsAllocVar v ->
       NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
       begin match NodeVarinfoMap.from_varinfo v with

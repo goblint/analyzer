@@ -35,12 +35,12 @@ int main(void) {
   __goblint_check(g >= 40);
   __goblint_check(g <= 41);
   pthread_mutex_unlock(&C);
-  pthread_mutex_unlock(&C);
-  
+  pthread_mutex_unlock(&B);
+
   pthread_mutex_lock(&C);
-  __goblint_check(g >= 40);
+  __goblint_check(g >= 40); // TODO why?
   __goblint_check(g <= 42);
   pthread_mutex_unlock(&C);
-  
+
   return 0;
 }

@@ -47,7 +47,7 @@ let apply_mark_printers m =
       match f m with
       | Some s -> Some s
       | None
-      | exception _ -> None
+      | exception _ -> None (* TODO: do not catch all? Stdlib.Printexc also catches all *)
     ) !mark_printers
 
 let mark_to_string_default m =
@@ -70,7 +70,7 @@ let print_marktrace oc e =
 let () =
   Printexc.set_uncaught_exception_handler (fun e bt ->
       (* Copied & modified from Printexc.default_uncaught_exception_handler. *)
-      Printf.eprintf "Fatal error: exception %s\n" (Printexc.to_string e);
+      Printf.eprintf "Fatal error: exception %s\n" (Printexc.to_string e); (* nosemgrep: print-not-logging *)
       if Printexc.backtrace_status () then
         print_marktrace stderr e;
       Printexc.print_raw_backtrace stderr bt;

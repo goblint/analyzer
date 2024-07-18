@@ -20,4 +20,4 @@ build:
       - pip install json-schema-for-humans
     post_build:
       - mkdir _readthedocs/html/jsfh/
-      - generate-schema-doc --config-file jsfh.yml src/util/options.schema.json _readthedocs/html/jsfh/
+      - generate-schema-doc --config-file jsfh.yml src/config/options.schema.json _readthedocs/html/jsfh/

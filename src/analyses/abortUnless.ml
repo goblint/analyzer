@@ -11,9 +11,10 @@ struct
 
   let name () = "abortUnless"
   module D = BoolDomain.MustBool
-  module C = Lattice.Unit
+  module C = Printable.Unit
 
-  let context _ _ = ()
+  let context ctx _ _ = ()
+  let startcontext () = ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -65,8 +66,8 @@ struct
     false
 
   let startstate v = false
-  let threadenter ctx lval f args = [false]
-  let threadspawn ctx lval f args fctx = false
+  let threadenter ctx ~multiple lval f args = [false]
+  let threadspawn ctx ~multiple lval f args fctx = false
   let exitstate v = false
 end
 

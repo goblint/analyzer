@@ -1,4 +1,4 @@
-(** {!RelationPriv} precison comparison. *)
+(** {!RelationPriv} precision comparison. *)
 
 open PrecCompareUtil
 

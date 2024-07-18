@@ -6,24 +6,18 @@
 open GoblintCil
 open Analyses
 
+module AD = ValueDomain.AD
+
 module Spec =
 struct
-  include Analyses.IdentitySpec
+  include Analyses.IdentityUnitContextsSpec
 
   let name () = "taintPartialContexts"
-  module D = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
-  module C = Lattice.Unit
+  module D = AD
 
   (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =
-    let d = ctx.local in
-    (match lval with
-     | (Var v, offs) -> D.add (v, Offset.Exp.of_cil offs) d
-     | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
-    )
-
-  (* this analysis is context insensitive*)
-  let context _ _ = ()
+    D.union (ctx.ask (Queries.MayPointTo (AddrOf lval))) ctx.local
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -35,16 +29,14 @@ struct
     let d_return =
       if D.is_top d then
         d
-      else (
+      else
         let locals = f.sformals @ f.slocals in
-        D.filter (fun (v, _) ->
-            not (List.exists (fun local ->
-                CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))
-              ) locals)
+        D.filter (function
+            | AD.Addr.Addr (v,_) -> not (List.exists (fun local -> CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))) locals)
+            | _ -> false
           ) d
-      )
     in
-    if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a\n" f.svar.vname D.pretty d D.pretty d_return;
+    if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a" f.svar.vname D.pretty d D.pretty d_return;
     d_return
 
 
@@ -53,7 +45,7 @@ struct
     [ctx.local, (D.bot ())]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a\n" f.svar.vname D.pretty au D.pretty ctx.local;
+    if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a" f.svar.vname D.pretty au D.pretty ctx.local;
     D.union ctx.local au
 
   let combine_assign ctx (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
@@ -84,6 +76,7 @@ struct
       else
         deep_addrs
     in
+    (* TODO: should one handle ad with unknown pointers separately like in (all) other analyses? *)
     let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.MayPointTo addr))) d shallow_addrs
     in
     let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.ReachableFrom addr))) d deep_addrs
@@ -91,9 +84,9 @@ struct
     d
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args =
+  let threadenter ctx ~multiple lval f args =
     [D.bot ()]
-  let threadspawn ctx lval f args fctx =
+  let threadspawn ctx ~multiple lval f args fctx =
     match lval with
     | Some lv -> taint_lval ctx lv
     | None -> ctx.local
@@ -101,7 +94,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t) : a Queries.result =
     match q with
-    | MayBeTainted -> (ctx.local : Queries.LS.t)
+    | MayBeTainted -> (ctx.local : Queries.AD.t)
     | _ -> Queries.Result.top q
 
 end
@@ -112,5 +105,8 @@ let _ =
 module VS = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All" end)
 
 (* Convert Lval set to (less precise) Varinfo set. *)
-let conv_varset (lval_set : Spec.D.t) : VS.t =
-  if Spec.D.is_top lval_set then VS.top () else VS.of_list (List.map (fun (v, _) -> v) (Spec.D.elements lval_set))
+let conv_varset (addr_set : Spec.D.t) : VS.t =
+  if Spec.D.is_top addr_set then
+    VS.top ()
+  else
+    VS.of_list (Spec.D.to_var_may addr_set)

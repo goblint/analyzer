@@ -1,0 +1,11 @@
+(executable
+ (name yamlWitnessStrip)
+ (libraries
+   batteries.unthreaded
+   goblint_std
+   goblint_lib
+   yaml
+   goblint.sites.dune
+   goblint.build-info.dune)
+ (flags :standard -open Goblint_std)
+ (preprocess (pps ppx_deriving.std)))

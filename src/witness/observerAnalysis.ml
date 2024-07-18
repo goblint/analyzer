@@ -29,8 +29,8 @@ struct
     let n () = -1
     let names x = "state " ^ string_of_int x
   end
-  module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
-  module C = D
+  module D = Lattice.Flat (Printable.Chain (ChainParams))
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D) (* fully path-sensitive *)
 
   let step d prev_node node =
@@ -76,8 +76,8 @@ struct
     step_ctx ctx
 
   let startstate v = `Lifted Automaton.initial
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx ~multiple lval f args = [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 end
 

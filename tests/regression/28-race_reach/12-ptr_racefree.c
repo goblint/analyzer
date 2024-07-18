@@ -1,3 +1,4 @@
+// PARAM:  --set lib.activated[+] sv-comp
 #include <pthread.h>
 #include "racemacros.h"
 
@@ -16,7 +17,7 @@ void *t_fun(void *arg) {
 int main(void) {
   create_threads(t);
   pthread_mutex_lock(&mutex1);
-  assert_racefree(global); 
+  assert_racefree(global);
   pthread_mutex_unlock(&mutex1);
   join_threads(t);
   return 0;

@@ -38,7 +38,7 @@ module D = struct
   include Printable.SimpleShow (struct
       type nonrec t = t
       let show = show
-    end)
+    end) (* TODO: overrides derived to_yojson *)
 
   let name () = "pthread state"
 

@@ -2,7 +2,7 @@
 #include <goblint.h>
 int main() {
   int x = 40;
-  while (x != 0) {
+  while (x != 0) { // TODO: location invariant before loop doesn't work anymore
     __goblint_check(x <= 40);
     x--;
     __goblint_check(x >= 0);

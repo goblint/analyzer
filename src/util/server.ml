@@ -121,6 +121,12 @@ let serve serv =
   |> Seq.map Packet.t_of_yojson
   |> Seq.iter (handle_packet serv)
 
+(** Is node valid for lookup by location?
+    Used for abstract debugging breakpoints. *)
+let is_server_node cfgnode =
+  let loc = UpdateCil.getLoc cfgnode in
+  not loc.synthetic
+
 let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
       let module Arg = (val (Option.get_exn !ArgTools.current_arg Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or arg disabled" ())))) in
@@ -133,7 +139,7 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
       Arg.iter_nodes (fun n ->
           let cfgnode = Arg.Node.cfgnode n in
           let loc = UpdateCil.getLoc cfgnode in
-          if not loc.synthetic then
+          if is_server_node cfgnode then
             Locator.add locator loc n;
           StringH.replace ids (Arg.Node.to_string n) n;
           StringH.add cfg_nodes (Node.show_id cfgnode) n (* add for find_all *)
@@ -172,8 +178,11 @@ let make ?(input=stdin) ?(output=stdout) file : t =
   }
 
 let bind () =
-  let mode = GobConfig.get_string "server.mode" in
-  if mode = "stdio" then None, None else (
+  match GobConfig.get_string "server.mode" with
+  | "stdio" ->
+    Logs.Result.use_stdout := false;
+    (None, None)
+  | "unix" ->
     let path = GobConfig.get_string "server.unix-socket" in
     if Sys.file_exists path then
       Sys.remove path;
@@ -183,7 +192,8 @@ let bind () =
     let conn, _ = Unix.accept socket in
     Unix.close socket;
     Sys.remove path;
-    Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
+    (Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
+  | _ -> assert false
 
 let start file =
   let input, output = bind () in
@@ -244,7 +254,7 @@ let node_locator: Locator.t ResettableLazy.t =
         if not (NH.mem reachable node) then begin
           NH.replace reachable node ();
           let loc = UpdateCil.getLoc node in
-          if not loc.synthetic then
+          if is_server_node node then
             Locator.add locator loc node;
           List.iter (fun (_, prev_node) ->
               iter_node prev_node
@@ -264,6 +274,7 @@ let node_locator: Locator.t ResettableLazy.t =
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
+  Messages.(Table.MH.clear final_table);
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
@@ -279,6 +290,8 @@ let analyze ?(reset=false) (s: t) =
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
+  FloatDomain.reset_lazy ();
+  StringDomain.reset_lazy ();
   PrecisionUtil.reset_lazy ();
   ApronDomain.reset_lazy ();
   AutoTune.reset_lazy ();
@@ -325,7 +338,7 @@ let () =
       try
         GobConfig.set_auto conf (Yojson.Safe.to_string json);
         Maingoblint.handle_options ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -337,7 +350,7 @@ let () =
       try
         GobConfig.set_conf Options.defaults;
         Maingoblint.parse_arguments ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -349,7 +362,7 @@ let () =
       try
         GobConfig.merge json;
         Maingoblint.handle_options ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -361,7 +374,7 @@ let () =
       try
         GobConfig.merge_file (Fpath.v fname);
         Maingoblint.handle_options ();
-      with exn -> (* TODO: Be more specific in what we catch. *)
+      with exn when GobExn.catch_all_filter exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
 
@@ -479,7 +492,7 @@ let () =
     let process { fname } serv =
       let fundec = Cilfacade.find_name_fundec fname in
       let live _ = true in (* TODO: fix this *)
-      let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
+      let cfg = CfgTools.sprint_fundec_html_dot (module (val !MyCFG.current_cfg: MyCFG.CfgBidirSkip): MyCFG.CfgBidir) live fundec in
       { cfg }
   end);
 
@@ -541,7 +554,13 @@ let () =
     } [@@deriving to_yojson]
     let process () serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
-      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) in
+      let module NoExtraNodeStyle =
+      struct
+        type node = ArgWrapper.Arg.Node.t
+        let extra_node_styles node = []
+      end
+      in
+      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) (NoExtraNodeStyle) in
       let arg = Format.asprintf "%t" ArgDot.dot in
       {arg}
   end);

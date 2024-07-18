@@ -29,7 +29,9 @@
       "escape",
       "expRelation",
       "mhp",
-      "assert"
+      "assert",
+      "var_eq",
+      "symb_locks"
     ],
     "malloc": {
       "wrappers": [
@@ -52,9 +54,25 @@
       ]
     }
   },
+  "lib": {
+    "activated": [
+      "c",
+      "posix",
+      "pthread",
+      "gcc",
+      "glibc",
+      "linux-userspace",
+      "goblint",
+      "ncurses",
+      "klever"
+    ]
+  },
   "witness": {
-    "id": "enumerate",
-    "unknown": false
+    "graphml": {
+      "enabled": true,
+      "id": "enumerate",
+      "unknown": false
+    }
   },
   "solver": "td3",
   "sem": {

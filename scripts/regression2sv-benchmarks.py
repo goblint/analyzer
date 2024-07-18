@@ -31,7 +31,6 @@ EXCLUDE_TASKS = [
     "09-regions_34-escape_rc", # duplicate of 04/45
     "09-regions_35-list2_rc-offsets-thread", # duplicate of 09/03
     "10-synch_17-glob_fld_nr", # duplicate of 05/08
-    "19-spec_02-mutex_rc", # duplicate of 04/01
 
     "29-svcomp_01-race-2_3b-container_of", # duplicate sv-benchmarks
     "29-svcomp_01-race-2_4b-container_of", # duplicate sv-benchmarks

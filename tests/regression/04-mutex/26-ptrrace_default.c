@@ -1,6 +1,3 @@
-// SKIP: Don't see the point in such elaborate invalidations for unknown
-// functions since we warn unsound on this anyway.
-
 #include <pthread.h>
 
 /**
@@ -29,7 +26,7 @@ int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   /* reset_glob(); */
-  foo(reset_glob);
+  foo(reset_glob); // TODO: make invalidate call instead of spawning
   pthread_join (id, NULL);
   return 0;
 }

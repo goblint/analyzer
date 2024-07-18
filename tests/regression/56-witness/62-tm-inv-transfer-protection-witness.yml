@@ -21,7 +21,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 11
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: 0 <= g
@@ -50,7 +50,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 11
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: 40 <= g
@@ -79,7 +79,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 11
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g <= 41
@@ -108,7 +108,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 11
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g <= 127
@@ -137,7 +137,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 11
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: (unsigned long )arg == 0UL
@@ -166,7 +166,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 11
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g != 0
@@ -195,7 +195,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 12
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: 0 <= g
@@ -224,7 +224,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 12
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: 40 <= g
@@ -253,7 +253,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 12
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g <= 41
@@ -282,7 +282,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 12
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g <= 127
@@ -311,7 +311,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 12
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: (unsigned long )arg == 0UL
@@ -340,7 +340,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 12
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g != 0
@@ -369,7 +369,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 15
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: 0 <= g
@@ -398,7 +398,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 15
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: 41 <= g
@@ -427,7 +427,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 15
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g <= 42
@@ -456,7 +456,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 15
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g <= 127
@@ -485,7 +485,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 15
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: (unsigned long )arg == 0UL
@@ -514,7 +514,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 15
-    column: 2
+    column: 3
     function: t_fun
   location_invariant:
     string: g != 0
@@ -543,7 +543,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 23
-    column: 2
+    column: 3
     function: t_fun2
   location_invariant:
     string: 0 <= g
@@ -572,7 +572,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 23
-    column: 2
+    column: 3
     function: t_fun2
   location_invariant:
     string: g <= 42
@@ -601,7 +601,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 23
-    column: 2
+    column: 3
     function: t_fun2
   location_invariant:
     string: g <= 127
@@ -630,7 +630,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 23
-    column: 2
+    column: 3
     function: t_fun2
   location_invariant:
     string: (unsigned long )arg == 0UL
@@ -659,7 +659,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 23
-    column: 2
+    column: 3
     function: t_fun2
   location_invariant:
     string: g != 0
@@ -688,7 +688,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 34
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 0 <= g
@@ -717,7 +717,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 34
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 40 <= g
@@ -746,7 +746,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 34
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g <= 41
@@ -775,7 +775,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 34
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g <= 127
@@ -804,7 +804,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 34
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g != 0
@@ -833,7 +833,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 35
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 0 <= g
@@ -862,7 +862,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 35
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 40 <= g
@@ -891,7 +891,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 35
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g <= 41
@@ -920,7 +920,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 35
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g <= 127
@@ -949,7 +949,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 35
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g != 0
@@ -978,7 +978,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 41
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 0 <= g
@@ -1007,7 +1007,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 41
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: 40 <= g
@@ -1036,7 +1036,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 41
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g <= 41
@@ -1065,7 +1065,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 41
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g <= 127
@@ -1094,7 +1094,7 @@
     file_name: 62-tm-inv-transfer-protection-witness.c
     file_hash: f3fd475486e1259fbd3c64c1b66b2ded22ee682bc9120914578ac370a630548b
     line: 41
-    column: 2
+    column: 3
     function: main
   location_invariant:
     string: g != 0

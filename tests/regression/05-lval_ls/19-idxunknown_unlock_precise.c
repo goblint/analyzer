@@ -1,5 +1,4 @@
-// PARAM: --enable ana.int.interval
-// TODO because queries don't pass lvalue index intervals
+// PARAM: --enable ana.int.interval --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 extern void abort(void);
 void assume_abort_if_not(int cond) {
@@ -15,7 +14,7 @@ pthread_mutex_t m[10];
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&m[4]);
-  data++; // TODO NORACE
+  data++; // NORACE
   pthread_mutex_unlock(&m[4]);
   return NULL;
 }
@@ -33,7 +32,7 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&m[4]);
   pthread_mutex_unlock(&m[i]); // no UB because ERRORCHECK
-  data++; // TODO NORACE
+  data++; // NORACE
   pthread_mutex_unlock(&m[4]);
   return 0;
 }
