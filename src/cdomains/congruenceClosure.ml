@@ -64,7 +64,8 @@ module CongruenceClosure = struct
 
     (** For each block disequality bl(t1) != bl(t2) we add all disequalities
         that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
-        then we add the disequaity  bl(t1') != bl(t2').
+        then we add the disequaity  bl(t1') != bl(t2'),
+        but only for t1' and t2' which are roots in uf.
     *)
     let element_closure bldis cmap uf =
       let comp_closure = function
@@ -607,11 +608,7 @@ module CongruenceClosure = struct
   let exactly_equal cc1 cc2 =
     cc1.uf == cc2.uf && cc1.map == cc2.map && cc1.diseq == cc2.diseq && cc1.bldis == cc2.bldis
 
-  (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
-     Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
-  (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
-  let get_normal_form cc =
-    let min_repr = Option.get cc.min_repr in
+  let get_normal_conjunction cc get_normal_repr =
     let normalize_equality (t1, t2, z) =
       if T.equal t1 t2 && Z.(equal z zero) then None else
         Some (Equal (t1, t2, z)) in
@@ -619,42 +616,34 @@ module CongruenceClosure = struct
       let atoms = SSet.get_atoms cc.set in
       List.filter_map (fun atom ->
           let (rep_state, rep_z) = TUF.find_no_pc cc.uf atom in
-          let (min_state, min_z) = MRMap.find rep_state min_repr in
+          let (min_state, min_z) = get_normal_repr rep_state in
           normalize_equality (atom, min_state, Z.(rep_z - min_z))
         ) atoms
     in
     let conjunctions_of_transitions =
       let transitions = get_transitions (cc.uf, cc.map) in
       List.filter_map (fun (z,s,(s',z')) ->
-          let (min_state, min_z) = MRMap.find s min_repr in
-          let (min_state', min_z') = MRMap.find s' min_repr in
+          let (min_state, min_z) = get_normal_repr s in
+          let (min_state', min_z') = get_normal_repr s' in
           normalize_equality (SSet.deref_term_even_if_its_not_possible min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
         ) transitions in
     (*disequalities*)
     let disequalities = Disequalities.get_disequalities cc.diseq in
     (* find disequalities between min_repr *)
     let normalize_disequality (t1, t2, z) =
-      let (min_state1, min_z1) = MRMap.find t1 min_repr in
-      let (min_state2, min_z2) = MRMap.find t2 min_repr in
+      let (min_state1, min_z1) = get_normal_repr t1 in
+      let (min_state2, min_z2) = get_normal_repr t2 in
       let new_offset = Z.(-min_z2 + min_z1 + z) in
       if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
       else Nequal (min_state2, min_state1, Z.(-new_offset))
     in
-    if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMin repr: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (MRMap.show_min_rep min_repr) (LMap.show_map cc.map);
+    if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (LMap.show_map cc.map);
     let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
     (* block disequalities *)
     let normalize_bldis t = match t with
       | BlNequal (t1,t2) ->
-        let min_state1 =
-          begin match MRMap.find_opt t1 min_repr with
-            | None -> t1
-            | Some (a,_) -> a
-          end in
-        let min_state2 =
-          begin match MRMap.find_opt t2 min_repr with
-            | None -> t2
-            | Some (a,_) -> a
-          end in
+        let min_state1, _ = get_normal_repr t1 in
+        let min_state2, _ = get_normal_repr t2 in
         if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
         else BlNequal (min_state2, min_state1)
       | _ -> t
@@ -664,43 +653,17 @@ module CongruenceClosure = struct
     BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs)
 
   (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
+     Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
+  (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
+  let get_normal_form cc =
+    let min_repr = Option.get cc.min_repr in
+    get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
+
+  (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
        Basically runtime = O(size of result if we hadn't removed the trivial conjunctions). *)
   (** Returns a list of conjunctions that follow from the data structure in form of a sorted list of conjunctions.  *)
   let get_conjunction cc =
-    let normalize_equality (t1, t2, z) =
-      if T.equal t1 t2 && Z.(equal z zero) then None else
-        Some (Equal (t1, t2, z)) in
-    let conjunctions_of_atoms =
-      let atoms = SSet.get_atoms cc.set in
-      List.filter_map (fun atom ->
-          let (rep_state, rep_z) = TUF.find_no_pc cc.uf atom in
-          normalize_equality (atom, rep_state, rep_z)
-        ) atoms
-    in
-    let conjunctions_of_transitions =
-      let transitions = get_transitions (cc.uf, cc.map) in
-      List.filter_map (fun (z,s,(s',z')) ->
-          normalize_equality (SSet.deref_term_even_if_its_not_possible s z cc.set, s', z')
-        ) transitions in
-    (*disequalities*)
-    let disequalities = Disequalities.get_disequalities cc.diseq in
-    (* find disequalities between min_repr *)
-    let normalize_disequality (t1, t2, z) =
-      if T.compare t1 t2 < 0 then Nequal (t1, t2, z)
-      else Nequal (t2, t1, Z.(-z))
-    in
-    if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (LMap.show_map cc.map);
-    let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
-    (* block disequalities *)
-    let normalize_bldis t = match t with
-      | BlNequal (t1,t2) ->
-        if T.compare t1 t2 < 0 then BlNequal (t1, t2)
-        else BlNequal (t2, t1)
-      | _ -> t
-    in
-    let conjunctions_of_bl_diseqs = List.map normalize_bldis @@ BlDis.to_conj cc.bldis in
-    (* all propositions *)
-    BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs)
+    get_normal_conjunction cc (fun t -> t,Z.zero)
 
   let show_all x = "Normal form:\n" ^
                    show_conj((get_conjunction x)) ^
