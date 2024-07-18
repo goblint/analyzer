@@ -50,4 +50,105 @@ module ElinaImplementation = struct
   so this is used as a workaround
   *)
   let hash _ x = Environment.hash (Abstract1.env x)
+  let impl () = "Elina"
+
+
+  (***************)
+  (* Bound Texpr *)
+  (***************)
+
+  (* Scalar to Mpqf *)
+  let stm scal =
+    match scal with
+    | Scalar.Float fl -> Mpqf.of_float fl
+    | Scalar.Mpqf mpqf -> mpqf
+    | Scalar.Mpfrf mpfrf -> Mpfrf.to_mpqf mpfrf
+
+  (* Mpqf to scalar *)
+  (* Creates an interval from two passed Mpqf values *)
+  let mts m1 m2 =
+    Interval.of_scalar (Scalar.of_mpqf m1) (Scalar.of_mpqf m2)
+
+  (* Binop/Mod case *)
+  let bound_texpr_mod i1 _ s1 s2 = 
+    (* There seem to be SO many cases for mod, I dont quite get it *)
+    let inf1 = stm i1 in  
+    let sup1 = stm s1 in
+    let sup2 = stm s2 in
+    let zero = Mpqf.of_int 0 in
+    let one = Mpqf.of_int 1 in
+    let sup2mo = Mpqf.sub sup2 one in
+    (* If dividend is always positive the range is [0;S2-1] or possibly a smaller range *)
+    if Mpqf.sgn inf1 = 1 && Mpqf.sgn sup1 = 1 then
+      mts zero sup2mo
+    (* If dividend is always negative the range is [-S2+1;0] or possibly a smaller range *)
+    else if Mpqf.sgn inf1 = -1 && Mpqf.sgn sup1 = -1 then
+      mts (Mpqf.neg sup2mo) zero
+    (* If dividen could be both negative or positive the range could be [-S2+1;S2-1]*)
+    else
+      mts (Mpqf.neg sup2mo) sup2mo
+    (* This fails to consider many subcases such as the fact that [1;2]%[3;4]
+    would be in range [1;2] not [1;3], etc. Also I'm not even sure I understand the negative
+    result thing correctly*)
+
+  (* Binop/Pow case *)
+  let rec bound_texpr_pow_rec a b = 
+    let one = Mpqf.of_int 1 in
+    if Mpqf.sgn b = 1 then 
+      Mpqf.mul a (bound_texpr_pow_rec a (Mpqf.sub b one))
+    else if Mpqf.sgn b = -1 then
+      Mpqf.div one (bound_texpr_pow_rec a (Mpqf.neg b))
+    else
+      one
+    
+  let bound_texpr_pow i1 i2 s1 s2 =
+    (* TO DO *)
+    mts (bound_texpr_pow_rec (stm i1) (stm i2)) (bound_texpr_pow_rec (stm s1) (stm s2))
+
+  (* Unop/Sqrt case *)
+  let bound_texpr_sqrt inf sup =
+    (* Very poor sqrt approximation *)
+    mts (Mpqf.of_int 0) (Mpqf.add (Mpqf.div (stm sup) (Mpqf.of_int 2)) (Mpqf.of_int 1))
+
+  (* Workaround for Abstract1.bound_texpr *)
+  (* This creates an approximation based on the bounds
+  of the component variables which is not as precise
+  as the actual bound_texpr could be
+  *)
+  let rec bound_texpr_alt mgr d exprt1 =
+    match exprt1 with
+    (* Constant *)
+    | Texpr1.Cst cst ->
+      (match cst with
+      | Coeff.Scalar coeff -> Interval.of_scalar coeff coeff
+      | Coeff.Interval intv -> intv
+      )
+    (* Variable *)
+    | Texpr1.Var var -> Abstract1.bound_variable mgr d var
+    (* Unary *)
+    | Texpr1.Unop (unop,expr,typ,round) ->
+      let bounds = bound_texpr_alt mgr d expr in
+      (match unop with
+      | Texpr1.Neg -> Interval.of_scalar (Scalar.neg bounds.inf) (Scalar.neg bounds.sup)
+      | Texpr1.Cast -> bounds (* Unsure? *)
+      | Texpr1.Sqrt -> bound_texpr_sqrt bounds.inf bounds.inf
+      )
+    (* Binary *)
+    | Texpr1.Binop (binop,expr1,expr2,typ,round) ->
+      let bounds1 = bound_texpr_alt mgr d expr1 in
+      let bounds2 = bound_texpr_alt mgr d expr2 in
+      (match binop with
+      | Texpr1.Add -> mts (Mpqf.add (stm bounds1.inf) (stm bounds2.inf)) (Mpqf.add (stm bounds1.sup) (stm bounds2.sup))
+      | Texpr1.Sub -> mts (Mpqf.sub (stm bounds1.inf) (stm bounds2.sup)) (Mpqf.sub (stm bounds1.sup) (stm bounds2.inf))
+      | Texpr1.Mul -> mts (Mpqf.mul (stm bounds1.inf) (stm bounds2.inf)) (Mpqf.mul (stm bounds1.sup) (stm bounds2.sup))
+      | Texpr1.Div -> mts (Mpqf.div (stm bounds1.inf) (stm bounds2.sup)) (Mpqf.div (stm bounds1.sup) (stm bounds2.inf))
+      | Texpr1.Mod -> bound_texpr_mod bounds1.inf bounds2.inf bounds1.sup bounds2.sup
+      | Texpr1.Pow -> bound_texpr_pow bounds1.inf bounds2.inf bounds1.sup bounds2.sup
+      )
+
+    let bound_texpr mgr name d texpr1 =
+      if name = "Polyhedra" then
+        bound_texpr_alt mgr d (Texpr1.to_expr texpr1)
+      else 
+        Abstract1.bound_texpr mgr d texpr1
 end

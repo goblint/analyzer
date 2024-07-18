@@ -18,4 +18,6 @@ module ApronImplementation = struct
 
   (* Other *)
   let hash mgr x = Abstract1.hash mgr x
+  let impl () = "Apron"
+  let bound_texpr mgr _ d texpr1 = Abstract1.bound_texpr mgr d texpr1
 end
