@@ -845,7 +845,7 @@ module CongruenceClosure = struct
       match t with
       | Addr _ | Aux _ -> let uf = TUF.ValMap.add t ((t, Z.zero),1) cc.uf in
         let set = SSet.add t cc.set in
-        (t, Z.zero), Some {cc with uf; set;}
+        (t, Z.zero), Some {cc with uf; set}
       | Deref (t', z, exp) ->
         match insert cc t' with
         | (v, r), None -> (v, r), None
@@ -854,10 +854,10 @@ module CongruenceClosure = struct
           match LMap.map_find_opt (v, Z.(r + z)) cc.map with
           | Some v' -> let v2,z2,uf = TUF.find cc.uf v' in
             let uf = LMap.add t ((t, Z.zero),1) uf in
-            (v2,z2), closure (Some {uf; set; map = LMap.map_add (v, Z.(r + z)) t cc.map;min_repr=cc.min_repr; diseq = cc.diseq; bldis=cc.bldis}) [(t, v', Z.zero)]
+            (v2,z2), closure (Some {cc with uf; set}) [(t, v', Z.zero)]
           | None -> let map = LMap.map_add (v, Z.(r + z)) t cc.map in
             let uf = LMap.add t ((t, Z.zero),1) cc.uf in
-            (t, Z.zero), Some {uf; set; map; min_repr=cc.min_repr; diseq = cc.diseq; bldis=cc.bldis}
+            (t, Z.zero), Some {cc with uf; set; map}
 
   (** Add a term to the data structure.
 
