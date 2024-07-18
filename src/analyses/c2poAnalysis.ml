@@ -163,13 +163,13 @@ struct
         ctx.local
       else
         branch ctx exp true
-    | Malloc exp -> (*exp is the size of the malloc'ed block*)
+    | Malloc _ | Calloc _ | Alloca _ | Realloc _ ->
       begin match var_opt with
         | None ->
           ctx.local
         | Some varin ->
           if M.tracing then M.trace "c2po-malloc"
-              "SPECIAL MALLOC: exp = %a; var_opt = Some (%a); v = %a; " d_exp exp d_lval varin d_lval (Var v, NoOffset);
+              "SPECIAL MALLOC: var_opt = Some (%a); v = %a; " d_lval varin d_lval (Var v, NoOffset);
           add_new_block ctx.local (ask_of_ctx ctx) varin
       end
     | _ -> ctx.local
