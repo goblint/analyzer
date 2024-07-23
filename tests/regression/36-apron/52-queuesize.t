@@ -252,29 +252,30 @@ With diff-box:
 
 Compare witnesses:
 
-  $ diff witness-disable-diff-box.yml witness-enable-diff-box.yml
-  9,19d8
-  <     string: 2147483647LL - (long long )capacity >= 0LL
-  <     type: assertion
-  <     format: C
-  < - entry_type: location_invariant
-  <   location:
-  <     file_name: 52-queuesize.c
-  <     file_hash: $FILE_HASH
-  <     line: 36
-  <     column: 3
-  <     function: push
-  <   location_invariant:
-  44,54d32
-  <     type: assertion
-  <     format: C
-  < - entry_type: location_invariant
-  <   location:
-  <     file_name: 52-queuesize.c
-  <     file_hash: $FILE_HASH
-  <     line: 15
-  <     column: 3
-  <     function: pop
-  <   location_invariant:
-  <     string: 2147483647LL - (long long )capacity >= 0LL
-  [1]
+  $ yamlWitnessStripDiff witness-disable-diff-box.yml witness-enable-diff-box.yml
+  # Left-only entries:
+  - entry_type: location_invariant
+    location:
+      file_name: 52-queuesize.c
+      file_hash: $FILE_HASH
+      line: 36
+      column: 3
+      function: push
+    location_invariant:
+      string: 2147483647LL - (long long )capacity >= 0LL
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 52-queuesize.c
+      file_hash: $FILE_HASH
+      line: 15
+      column: 3
+      function: pop
+    location_invariant:
+      string: 2147483647LL - (long long )capacity >= 0LL
+      type: assertion
+      format: C
+  ---
+  # Right-only entries:
+  []
