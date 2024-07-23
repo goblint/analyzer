@@ -1,4 +1,4 @@
-  $ goblint --set ana.path_sens[+] mutex --set result pretty --set outfile pretty.txt 33-hoare-over-paths.c
+  $ goblint --set ana.path_sens[+] mutex --set result pretty-deterministic --set outfile pretty.txt 33-hoare-over-paths.c
   [Success][Assert] Assertion "1" will succeed (33-hoare-over-paths.c:11:5-11:24)
   [Success][Assert] Assertion "1" will succeed (33-hoare-over-paths.c:16:5-16:24)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -169,6 +169,25 @@
                                                                    Global {
                                                                      m ->   mutex
                                                                    }
+                                                                 }, {}, {}, {}),
+                                                           threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
+                                                           threadflag:Singlethreaded,
+                                                           threadreturn:True,
+                                                           escape:{},
+                                                           mutexEvents:(),
+                                                           access:(),
+                                                           mutex:(lockset:{}, multiplicity:{}),
+                                                           race:(),
+                                                           mhp:(),
+                                                           assert:(),
+                                                           pthreadMutexType:()], map:{})}
+    33-hoare-over-paths.c:7:1-34:1(main) ->
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
+                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+                                                           base:({
+                                                                   Global {
+                                                                     m ->   mutex
+                                                                   }
                                                                    Temp {
                                                                      RETURN ->   0
                                                                    }
@@ -192,25 +211,6 @@
                                                                    }
                                                                    Temp {
                                                                      RETURN ->   0
-                                                                   }
-                                                                 }, {}, {}, {}),
-                                                           threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
-                                                           threadflag:Singlethreaded,
-                                                           threadreturn:True,
-                                                           escape:{},
-                                                           mutexEvents:(),
-                                                           access:(),
-                                                           mutex:(lockset:{}, multiplicity:{}),
-                                                           race:(),
-                                                           mhp:(),
-                                                           assert:(),
-                                                           pthreadMutexType:()], map:{})}
-    33-hoare-over-paths.c:7:1-34:1(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
-                                                           base:({
-                                                                   Global {
-                                                                     m ->   mutex
                                                                    }
                                                                  }, {}, {}, {}),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
