@@ -12,6 +12,7 @@ authors: [
   "Michael Schwarz"
   "Julian Erhard"
   "Sarah Tilscher"
+  "Karoliine Holter"
   "Ralf Vogler"
   "Kalmer Apinis"
   "Vesal Vojdani"
@@ -22,7 +23,7 @@ doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.16.0"}
-  "apron" {= "v0.9.14"}
+  "apron" {= "v0.9.15"}
   "arg-complete" {= "0.1.0"}
   "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
@@ -143,3 +144,16 @@ pin-depends: [
   ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
+description: """\
+Goblint is a sound static analysis framework for C programs using abstract interpretation.
+It specializes in thread-modular verification of multi-threaded programs, especially regarding data races.
+Goblint includes analyses for assertions, overflows, deadlocks, etc and can be extended with new analyses."""
+tags: [
+  "program analysis"
+  "program verification"
+  "static analysis"
+  "abstract interpretation"
+  "C"
+  "data race analysis"
+  "concurrency"
+]

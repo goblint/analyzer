@@ -1246,7 +1246,7 @@ let libraries =
       descs_tbl
     ) libraries
 
-let all_library_descs: (string, LibraryDesc.t) Hashtbl.t =
+let _all_library_descs: (string, LibraryDesc.t) Hashtbl.t =
   Hashtbl.fold (fun _ descs_tbl acc ->
       Hashtbl.merge (fun name desc1 desc2 ->
           match desc1, desc2 with
