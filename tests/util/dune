@@ -4,8 +4,6 @@
    batteries.unthreaded
    goblint_std
    goblint_lib
-   yaml
-   goblint.sites
-   goblint.build-info)
+   yaml)
  (flags :standard -open Goblint_std)
  (preprocess (pps ppx_deriving.std)))
