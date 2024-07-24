@@ -44,15 +44,9 @@ The following libraries provide [goblint] package metadata for executables.
 
 {2 Library goblint.build-info}
 {!modules:Goblint_build_info}
-This library is virtual and has the following implementations
-- goblint.build-info.dune for native executables,
-- goblint.build-info.js for js_of_ocaml executables.
 
 {2 Library goblint.sites}
 {!modules:Goblint_sites}
-This library is virtual and has the following implementations
-- goblint.sites.dune for native executables,
-- goblint.sites.js for js_of_ocaml executables.
 
 
 {1 Independent utilities}
