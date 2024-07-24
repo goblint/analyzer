@@ -603,6 +603,10 @@ struct
           | Some (Local v) ->
             if VH.mem v_ins_inv v then
               keep_global
+            else if ThreadEscape.has_escaped ask v then
+              (* Escaped local variables should be read in via their v#in# variables, this apron var may refer to stale values only *)
+              (* and is not a sound description of the C variable. *)
+              false
             else
               keep_local
           | _ -> false
