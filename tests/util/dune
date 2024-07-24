@@ -5,7 +5,7 @@
    goblint_std
    goblint_lib
    yaml
-   goblint.sites.dune
-   goblint.build-info.dune)
+   goblint.sites
+   goblint.build-info)
  (flags :standard -open Goblint_std)
  (preprocess (pps ppx_deriving.std)))
