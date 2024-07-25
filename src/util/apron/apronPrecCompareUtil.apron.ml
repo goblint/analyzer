@@ -2,6 +2,8 @@
 
 open PrecCompareUtil
 open ApronDomain
+open RelationalImplementation
+open ApronImplementation
 
 (* Currently serialization of Apron results only works for octagons. *)
 module OctagonD = ApronDomain.OctagonD
@@ -14,7 +16,7 @@ module Util =
     type result = Dom.t RH.t result_gen
 
     let init () =
-      let module ApronImpl = (val ApronDomain.get_implementation "apron") in
+      let module ApronImpl : Implementation = ApronImplementation in
       let module OctagonManagerInstance = OctagonManager (ApronImpl) in 
       Apron.Manager.set_deserialize OctagonManagerInstance.mgr
 
