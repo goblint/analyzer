@@ -866,7 +866,7 @@ module CongruenceClosure = struct
     match cc with
     | None -> (t, Z.zero), None
     | Some cc -> let (r, z), cc = insert cc t in
-      (r, z), congruence_neq_opt cc []
+      (r, z), cc
 
   (** Add all terms in a specific set to the data structure.
 
