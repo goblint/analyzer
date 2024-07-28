@@ -35,6 +35,10 @@
       (apron -> apronPrecCompareUtil.apron.ml)
       (-> apronPrecCompareUtil.no-apron.ml)
     )
+    (select relationalAnalysis.ml from
+      (apron -> relationalAnalysis.apron.ml)
+      (-> relationalAnalysis.no-apron.ml)
+    )
     (select apronAnalysis.ml from
       (apron -> apronAnalysis.apron.ml)
       (-> apronAnalysis.no-apron.ml)
