@@ -2,7 +2,7 @@ open Apron
 
 module ElinaImplementation = struct
   (*  This is supposed to implement the same functionality as Abstract1.substitute_texpr_with
-      which for some reason doesn't seem to work correctly in elina.
+      which doesn't work correctly in elina - it leads to segmentation faults
       The relevant github issue can be found here:
       https://github.com/eth-sri/ELINA/issues/97
   
