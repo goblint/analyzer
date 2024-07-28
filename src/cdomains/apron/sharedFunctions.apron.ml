@@ -40,7 +40,7 @@ let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
       in
       Z_mlgmpidl.z_of_mpzf z
     | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
 
 module type ConvertArg =
@@ -200,7 +200,7 @@ struct
     in
     let exp = Cil.constFold false exp in
     let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
+    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
     res
 
   let texpr1_of_cil_exp ask d env e no_ov =
@@ -267,7 +267,7 @@ struct
                else
                  Const (CInt(i,ILongLong,None)), false
            else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
          | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in
@@ -282,8 +282,8 @@ struct
           expr := BinOp(MinusA,!expr,prod,longlong)
         else
           expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
-      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v; raise Unsupported_Linexpr1
+      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v; raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
     !expr
