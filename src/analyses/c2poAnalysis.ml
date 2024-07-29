@@ -87,7 +87,7 @@ struct
     | _ -> D.top ()
 
   let assign ctx lval expr =
-    let res = assign_lval ctx.local (ask_of_ctx ctx) lval expr in
+    let res = reset_normal_form @@ assign_lval ctx.local (ask_of_ctx ctx) lval expr in
     if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval lval d_plainexp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.uf) "None" res); res
 
   let branch ctx e pos =
@@ -132,7 +132,7 @@ struct
            let t = D.remove_may_equal_terms ask s lterm ctx.local in
            begin match desc.special exprs with
              | Malloc _ | Calloc _ | Alloca _ ->
-               add_block_diseqs t lterm
+               reset_normal_form @@ add_block_diseqs t lterm
              | _ -> t
            end)
         with (T.UnsupportedCilExpression _) -> D.top ()
@@ -163,7 +163,7 @@ struct
     in
     let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_duplicated_vars in
     if M.tracing then M.trace "c2po-function" "ENTER2: result: %s\n" (D.show new_state);
-    [ctx.local, new_state]
+    [ctx.local, reset_normal_form new_state]
 
   let remove_out_of_scope_vars t f =
     let local_vars = f.sformals @ f.slocals in
@@ -185,7 +185,7 @@ struct
     if M.tracing then M.trace "c2po-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
     let local = D.remove_tainted_terms ask tainted state_with_assignments in
     let t = D.meet local t in
-    let t = remove_out_of_scope_vars t f in
+    let t = reset_normal_form @@ remove_out_of_scope_vars t f in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);t
 
   (*ctx.local is after combine_env, t callee*)
@@ -199,7 +199,7 @@ struct
       | Some var -> assign_lval t ask var (MayBeEqual.return_lval (typeOfLval var))
     in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (D.show_all t);
-    let t = remove_out_of_scope_vars t f
+    let t = reset_normal_form @@ remove_out_of_scope_vars t f
     in if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN3: result: %s\n" (D.show t); t
 
   let startstate v = D.top ()

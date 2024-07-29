@@ -89,7 +89,7 @@ module D = struct
     in
     if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
         (show_all res);
-    Option.map compute_normal_form_if_necessary res
+    reset_normal_form res
 
   let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
       (if M.tracing then M.trace "c2po-join" "Join Automaton"; join a b join_eq) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join a b join_eq_no_automata)
@@ -112,7 +112,7 @@ module D = struct
     in
     if M.tracing then M.tracel "c2po-join" "WIDEN. WIDEN: %s\n"
         (show_all res);
-    Option.map compute_normal_form_if_necessary res
+    reset_normal_form res
 
   let widen a b = if M.tracing then M.trace "c2po-join" "WIDEN\n";
     if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
@@ -156,7 +156,7 @@ module D = struct
         (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
         (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
         (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
-        (XmlUtil.escape (Format.asprintf "%s" (show_conj (Lazy.force x.normal_form)))) (*TODO*)
+        (XmlUtil.escape (Format.asprintf "%s" (show_normal_form x.normal_form)))
         (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.diseq)))
     | None ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 

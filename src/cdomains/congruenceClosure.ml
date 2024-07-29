@@ -478,7 +478,7 @@ module C2PO = struct
         s ^ "\tState: " ^ T.show state ^
         "\n\tMin: (" ^ T.show rep ^ ", " ^ Z.to_string z ^ ")--\n\n"
       in
-      List.fold_left show_one_rep "" (bindings (Lazy.force min_representatives))
+      List.fold_left show_one_rep "" (bindings min_representatives)
 
     let rec update_min_repr (uf, set, map) min_representatives = function
       | [] -> min_representatives, uf
@@ -594,10 +594,6 @@ module C2PO = struct
          (LMap.zmap_bindings zmap)))
       (LMap.bindings map)
 
-  let compute_normal_form_if_necessary cc = cc
-
-  let reset_normal_form cc = cc
-
   let exactly_equal cc1 cc2 =
     cc1.uf == cc2.uf && cc1.map == cc2.map && cc1.diseq == cc2.diseq && cc1.bldis == cc2.bldis
 
@@ -651,11 +647,26 @@ module C2PO = struct
   let get_normal_form cc =
     Lazy.force cc.normal_form
 
+  (** COnverts normal form to string, but only if it was already computed. *)
+  let show_normal_form normal_form =
+    if Lazy.is_val normal_form then show_conj (Lazy.force normal_form)
+    else "not computed"
+
   (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
        Basically runtime = O(size of result if we hadn't removed the trivial conjunctions). *)
   (** Returns a list of conjunctions that follow from the data structure in form of a sorted list of conjunctions.  *)
   let get_conjunction cc =
     get_normal_conjunction cc (fun t -> t,Z.zero)
+
+  let reset_normal_form cc =
+    match cc with
+    | None -> None
+    | Some cc ->
+    let min_repr = fst(MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map)) in
+    Some {cc with normal_form = lazy(
+         get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
+       )}
+
 
   let show_all x = "Normal form:\n" ^
                    show_conj((get_conjunction x)) ^
@@ -670,7 +681,7 @@ module C2PO = struct
                    ^ "\nBlock diseqs:\n"
                    ^ show_conj(BlDis.to_conj x.bldis)
                    ^ "\nMin repr:\n"
-                   ^ show_conj (Lazy.force x.normal_form) (*TODO only print if it's already been lazy.forced*)
+                   ^ show_normal_form x.normal_form
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
       and the second one contains all inequality propositions.  *)
@@ -1044,11 +1055,11 @@ module C2PO = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms predicate cc =
     let old_cc = cc in
-    match remove_terms_from_eq predicate (reset_normal_form cc) with
+    match remove_terms_from_eq predicate cc with
     | new_reps, Some cc ->
       let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
       let cc = remove_terms_from_diseq old_cc.diseq new_reps {cc with bldis} in
-      Option.map compute_normal_form_if_necessary cc
+      cc
     | _,None -> None
 
   (* join version 1: by using the automaton *)
