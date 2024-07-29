@@ -96,6 +96,8 @@ module D = struct
   let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
       (if M.tracing then M.trace "c2po-join" "Join Automaton"; join a b join_eq) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join a b join_eq_no_automata)
 
+  let join a b = Timing.wrap "join" (join a) b
+
   let widen_eq_classes a' b' =
     let res =
       match a',b' with
@@ -116,7 +118,7 @@ module D = struct
         (show_all res);
     reset_normal_form res
 
-  let widen a b = if M.tracing then M.trace "c2po-join" "WIDEN\n";
+  let widen a b = if M.tracing then M.trace "c2po-widen" "WIDEN\n";
     if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
 
   let meet a' b' =

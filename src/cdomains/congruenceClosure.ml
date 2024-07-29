@@ -1071,6 +1071,8 @@ module C2PO = struct
       cc
     | _,None -> None
 
+  let remove_terms p cc = Timing.wrap "removing terms" (remove_terms p) cc
+
   (* join version 1: by using the automaton *)
 
   let show_pmap pmap=
