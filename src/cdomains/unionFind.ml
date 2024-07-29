@@ -620,12 +620,7 @@ module UnionFind = struct
     if T.equal v' v then
       if Z.equal r' Z.zero then (v',r')
       else raise (InvalidUnionFind "non-zero self-distance!")
-    else if is_root uf v' then
-      (* the parent of v is a root *)
-      v',r'
-    else
-      (if M.tracing then M.trace "c2po-find" "find_no_pc DEEP TREE";
-       let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r'')))
+    else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
 
   let compare_repr = Tuple2.compare ~cmp1:T.compare ~cmp2:Z.compare
 
