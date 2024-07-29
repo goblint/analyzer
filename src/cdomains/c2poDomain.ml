@@ -58,7 +58,9 @@ module D = struct
       | _ -> false
     in if M.tracing then M.trace "c2po-equal" "equal min repr. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
 
-  let equal a b = if GobConfig.get_bool "ana.c2po.normal_form" then equal_normal_form a b else equal_standard a b
+  let equal a b =
+    if M.tracing then M.trace "c2po-normal-form" "COMPUTING EQUAL";
+    if GobConfig.get_bool "ana.c2po.normal_form" then equal_normal_form a b else equal_standard a b
 
   let empty () = Some init_cc
 

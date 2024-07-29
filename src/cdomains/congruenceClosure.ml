@@ -645,6 +645,7 @@ module C2PO = struct
      Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
   (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
   let get_normal_form cc =
+    if M.tracing && not (Lazy.is_val cc.normal_form) then M.trace "c2po-normal-form" "Computing normal form";
     Lazy.force cc.normal_form
 
   (** COnverts normal form to string, but only if it was already computed. *)
