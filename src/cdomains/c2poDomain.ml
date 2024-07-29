@@ -3,7 +3,7 @@
 open Batteries
 open GoblintCil
 open CongruenceClosure
-open CongruenceClosure
+open C2PO
 module M = Messages
 module Var = CilType.Varinfo
 

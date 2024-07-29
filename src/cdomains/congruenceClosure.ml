@@ -6,7 +6,7 @@ module Var = CilType.Varinfo
 module M = Messages
 
 (** Quantitative congruence closure on terms *)
-module CongruenceClosure = struct
+module C2PO = struct
 
   module TUF = UnionFind
   module LMap = LookupMap
@@ -1221,7 +1221,7 @@ end
 
 (**Find out if two addresses are not equal by using the MayPointTo query*)
 module MayBeEqual = struct
-  open CongruenceClosure
+  open C2PO
 
   module AD = Queries.AD
   let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="c2po__@dummy"}
