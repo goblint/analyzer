@@ -593,6 +593,7 @@ module CongruenceClosure = struct
              (edge_z, t, TUF.find_no_pc uf res_t)) @@
          (LMap.zmap_bindings zmap)))
       (LMap.bindings map)
+
   let compute_min_repr_if_necessary cc =
     if GobConfig.get_bool "ana.c2po.normal_form" then
       match cc.min_repr with
