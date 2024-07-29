@@ -58,7 +58,7 @@ module C2PO = struct
       match TMap.find_opt t cmap with
       | None -> [Z.zero, t]
       | Some zmap ->
-        List.flatten @@ List.map
+        List.concat_map
           (fun (z, set) ->
              List.cartesian_product [z] (TSet.to_list (*TSet.filter (TUF.is_root uf*) set)) (ZMap.bindings zmap)
 
