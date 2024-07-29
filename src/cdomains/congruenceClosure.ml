@@ -662,10 +662,10 @@ module C2PO = struct
     match cc with
     | None -> None
     | Some cc ->
-    let min_repr = fst(MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map)) in
-    Some {cc with normal_form = lazy(
-         get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
-       )}
+      let min_repr = fst(MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map)) in
+      Some {cc with normal_form = lazy(
+          get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
+        )}
 
 
   let show_all x = "Normal form:\n" ^
