@@ -1139,6 +1139,18 @@
               "description": "If true, the C-2PO Analysis uses the MayPointTo query to infer additional disequalities.",
               "type": "boolean",
               "default": true
+            },
+            "precise_join": {
+              "title": "ana.c2po.precise_join",
+              "description": "If true, the C-2PO Analysis uses a more precise version of the join algorithm, by using the automaton to compute the join.",
+              "type": "boolean",
+              "default": false
+            },
+            "normal_form": {
+              "title": "ana.c2po.normal_form",
+              "description": "If true, the C-2PO Analysis computes a normal form of the domain, using minimal representatives of the equivalence classes, in order to check for equailty between two domain elements. If false, it compares the equivalence classes of the two domain elements.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

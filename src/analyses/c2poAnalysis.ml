@@ -1,10 +1,10 @@
-(** A 2-pointer analysis for C. I made this in a few days so please don't judge the code quality. ([2cpo])*)
+(** A Weakly-Relational Pointer Analysis. The analysis can infer equalities and disequalities between terms which are built from pointer variables, with the addition of constants and dereferencing. ([c2po])*)
 
 open Analyses
 open GoblintCil
 open C2poDomain
-module CC = CongruenceClosure
-open CC
+open CongruenceClosure
+open CongruenceClosure
 open Batteries
 open SingleThreadedLifter
 
@@ -37,35 +37,6 @@ struct
     in if M.tracing then M.trace "c2po" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
         d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
-  (* let query_may_point_to ctx t e =
-     if M.tracing then M.trace "c2po-query" "may-point-to %a!"
-        d_exp e;
-     match T.of_cil (ask_of_ctx ctx) e with
-     | Some term, Some offset ->
-      begin match insert t term with
-        | _,None -> MayBeEqual.AD.top()
-        | _,Some cc ->
-          let res = let comp = Disequalities.comp_t cc.uf term in
-            let valid_term (t,z) =
-              T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
-            let equal_terms = List.filter valid_term comp in
-            if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %s"
-                d_exp e (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
-            let intersect_query_result res (term,z) =
-              let next_query =
-                let ctx = {ctx with local=Some (init_cc [])} in
-                match MayBeEqual.ask_may_point_to (ask_of_ctx ctx) (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
-                | exception (T.UnsupportedCilExpression _) -> MayBeEqual.AD.top()
-                | res ->  if MayBeEqual.AD.is_bot res then MayBeEqual.AD.top() else res
-              in
-              MayBeEqual.AD.meet res next_query in
-            List.fold intersect_query_result (MayBeEqual.AD.top()) equal_terms
-          in if M.tracing then M.trace "c2po-query" "may-point-to %a : %a. Is bot: %b\n"
-              d_exp e MayBeEqual.AD.pretty res (MayBeEqual.AD.is_bot res); res
-      end
-     | _ ->
-      MayBeEqual.AD.top() *)
-
   let conj_to_invariant ask conjs t =
     List.fold (fun a prop -> let exp = T.prop_to_cil prop in
                 if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
@@ -88,13 +59,12 @@ struct
       begin match D.remove_vars_not_in_scope scope ctx.local with
         | None -> Invariant.top()
         | Some t ->
-          (conj_to_invariant (ask_of_ctx ctx) (get_normal_form t) (Some t))
+          (conj_to_invariant (ask_of_ctx ctx) (get_conjunction t) (Some t))
       end
-    (* | MayPointTo e -> query_may_point_to ctx ctx.local e *)
     | _ -> Result.top q
 
   let assign_lval t ask lval expr =
-    (* ignore assignments to values that are not 64 bits *) (*TODO what if there is a cast*)
+    (* ignore assignments to values that are not 64 bits *)
     let lval_t = typeOfLval lval in
     match T.get_element_size_in_bits lval_t, T.of_lval ask lval, T.of_cil ask expr with
     (* Indefinite assignment *)
@@ -107,11 +77,13 @@ struct
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
       D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo lval_t
-    | exception (T.UnsupportedCilExpression _) -> D.top ()
+    | exception (T.UnsupportedCilExpression _) -> if M.tracing then M.trace
+          "c2po-invalidate" "INVALIDATE lval: %a" d_lval lval;
+      D.top ()
     (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
        We have to forget all the information we had.
        This should almost never happen.
-       Except if the left hand side is an abstract type, then we don't know the size of the lvalue. *)
+       Except if the left hand side is a complicated expression like myStruct.field1[i]->field2[z+k], and Goblint can't infer the offset.*)
     | _ -> D.top ()
 
   let assign ctx lval expr =
@@ -121,18 +93,21 @@ struct
   let branch ctx e pos =
     let props = T.prop_of_cil (ask_of_ctx ctx) e pos in
     let valid_props = T.filter_valid_pointers props in
-    let res = meet_conjs_opt valid_props ctx.local in
+    let res =
+      if List.is_empty valid_props then ctx.local else
+        recompute_min_repr (meet_conjs_opt valid_props ctx.local)
+    in
     if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n"
         d_exp e pos (show_conj valid_props) (D.is_bot res);
     if D.is_bot res then raise Deadcode;
     res
 
-  let body ctx f = ctx.local (*DONE*)
+  let body ctx f = ctx.local
 
   let assign_return ask t return_var expr =
     (* the return value is not stored on the heap, therefore we don't need to remove any terms *)
     match T.of_cil ask expr with
-    | (Some term, Some offset) -> meet_conjs_opt [Equal (return_var, term, offset)] t
+    | (Some term, Some offset) -> recompute_min_repr (meet_conjs_opt [Equal (return_var, term, offset)] t)
     | _ -> t
 
   let return ctx exp_opt f =
@@ -142,36 +117,33 @@ struct
       | None -> ctx.local
     in if M.tracing then M.trace "c2po-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
 
-
-  let add_new_block t ask lval =
-    (* ignore assignments to values that are not 64 bits *)
-    let lval_t = typeOfLval lval in
-    match T.get_element_size_in_bits lval_t, T.of_lval ask lval with
-    (* Indefinite assignment *)
-    | s, lterm ->
-      let t = D.remove_may_equal_terms ask s lterm t in
-      add_block_diseqs t lterm
-    (* Definite assignment *)
-    | exception (T.UnsupportedCilExpression _) -> D.top ()
-
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
   let special ctx var_opt v exprs =
     let desc = LibraryFunctions.find v in
+    let ask = ask_of_ctx ctx in
+    let t = begin match var_opt with
+      | None ->
+        ctx.local
+      | Some varin ->
+        (* forget information about var,
+           but ignore assignments to values that are not 64 bits *)
+        try
+          (let s, lterm = T.get_element_size_in_bits (typeOfLval varin), T.of_lval ask varin in
+           let t = D.remove_may_equal_terms ask s lterm ctx.local in
+           begin match desc.special exprs with
+             | Malloc _ | Calloc _ | Alloca _ ->
+               add_block_diseqs t lterm
+             | _ -> t
+           end)
+        with (T.UnsupportedCilExpression _) -> D.top ()
+    end
+    in
     match desc.special exprs with
     | Assert { exp; refine; _ } -> if not refine then
         ctx.local
       else
         branch ctx exp true
-    | Malloc exp -> (*exp is the size of the malloc'ed block*)
-      begin match var_opt with
-        | None ->
-          ctx.local
-        | Some varin ->
-          if M.tracing then M.trace "c2po-malloc"
-              "SPECIAL MALLOC: exp = %a; var_opt = Some (%a); v = %a; " d_exp exp d_lval varin d_lval (Var v, NoOffset);
-          add_new_block ctx.local (ask_of_ctx ctx) varin
-      end
-    | _ -> ctx.local
+    | _ -> t
 
   let duplicated_variable var = { var with vid = - var.vid - 4; vname = "c2po__" ^ var.vname ^ "'" }
   let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
@@ -193,13 +165,14 @@ struct
     if M.tracing then M.trace "c2po-function" "ENTER2: result: %s\n" (D.show new_state);
     [ctx.local, new_state]
 
+  let remove_out_of_scope_vars t f =
+    let local_vars = f.sformals @ f.slocals in
+    let duplicated_vars = List.map duplicated_variable f.sformals in
+    D.remove_terms_containing_variables (MayBeEqual.return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
+
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
      expr funktionsaufruf*)
-  let combine_env ctx var_opt expr f exprs t_context_opt t (ask: Queries.ask) =
-    ctx.local
-
-  (*ctx.local is after combine_env, t callee*)
-  let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
+  let combine_env ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     let og_t = t in
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
@@ -212,16 +185,21 @@ struct
     if M.tracing then M.trace "c2po-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
     let local = D.remove_tainted_terms ask tainted state_with_assignments in
     let t = D.meet local t in
-    if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);
+    let t = remove_out_of_scope_vars t f in
+    if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);t
+
+  (*ctx.local is after combine_env, t callee*)
+  let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
+    (* assign function parameters to duplicated values *)
+    let arg_assigns = GobList.combine_short f.sformals args in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
+    let t = D.meet state_with_assignments t in
     let t = match var_opt with
       | None -> t
       | Some var -> assign_lval t ask var (MayBeEqual.return_lval (typeOfLval var))
     in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (D.show_all t);
-    let local_vars = f.sformals @ f.slocals in
-    let duplicated_vars = List.map duplicated_variable f.sformals in
-    let t =
-      D.remove_terms_containing_variables (MayBeEqual.return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
+    let t = remove_out_of_scope_vars t f
     in if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN3: result: %s\n" (D.show t); t
 
   let startstate v = D.top ()
