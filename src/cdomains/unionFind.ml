@@ -28,7 +28,7 @@ module T = struct
 
   (* we store the varinfo and the Cil expression corresponding to the term in the data type *)
   type t = (Var.t, exp[@compare.ignore][@eq.ignore][@hash.ignore]) term [@@deriving eq, ord, hash]
-  type v_prop = (Var.t, exp[@compare.ignore][@eq.ignore][@hash.ignore]) prop [@@deriving hash]
+  type v_prop = (Var.t, exp[@hash.ignore]) prop [@@deriving hash]
 
   let compare t1 t2 =
     match t1,t2 with
@@ -586,19 +586,20 @@ module UnionFind = struct
       (* the parent of v is a root *)
       v',r', uf
     else
-      let rec search v list =
-        let (v',r') = parent uf v in
-        if is_root uf v' then
-          (* perform path compresion *)
-          let (r',uf) = List.fold_left (fun (r0, uf) v ->
-              let (parent_v, r''), size_v = ValMap.find v uf in
-              let uf = modify_parent uf v (v',Z.(r0+r'')) in
-              let uf = modify_size parent_v uf (fun s -> s - size_v) in
-              let uf = modify_size v' uf ((+) size_v)
-              in Z.(r0+r''),uf) (Z.zero, uf) (v::list)
-          in v',r',uf
-        else search v' (v :: list)
-      in search v' [v]
+      (if M.tracing then M.trace "c2po-find" "find DEEP TREE";
+       let rec search v list =
+         let (v',r') = parent uf v in
+         if is_root uf v' then
+           (* perform path compresion *)
+           let (r',uf) = List.fold_left (fun (r0, uf) v ->
+               let (parent_v, r''), size_v = ValMap.find v uf in
+               let uf = modify_parent uf v (v',Z.(r0+r'')) in
+               let uf = modify_size parent_v uf (fun s -> s - size_v) in
+               let uf = modify_size v' uf ((+) size_v)
+               in Z.(r0+r''),uf) (Z.zero, uf) (v::list)
+           in v',r',uf
+         else search v' (v :: list)
+       in search v' [v])
 
   (** Returns None if the value v is not present in the datat structure or if the data structure is in an invalid state.*)
   let find_opt uf v = match find uf v with
@@ -619,16 +620,12 @@ module UnionFind = struct
     if T.equal v' v then
       if Z.equal r' Z.zero then (v',r')
       else raise (InvalidUnionFind "non-zero self-distance!")
-    else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
-
-  (** Returns find of v if v is in the union find data structure.
-      Otherwise it just returns v. *)
-  let find_no_pc_if_possible uf v =
-    match find_no_pc uf v with
-    | exception (UnknownValue _)
-    | exception Not_found
-    | exception (InvalidUnionFind _) -> v, Z.zero
-    | res -> res
+    else if is_root uf v' then
+      (* the parent of v is a root *)
+      v',r'
+    else
+      (if M.tracing then M.trace "c2po-find" "find_no_pc DEEP TREE";
+       let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r'')))
 
   let compare_repr = Tuple2.compare ~cmp1:T.compare ~cmp2:Z.compare
 

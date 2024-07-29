@@ -85,7 +85,7 @@ module D = struct
           (if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
                (show_all (Some a)) (show_all (Some b));
            let cc = fst(join_cc_function a b) in
-           let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+           let cmap1, cmap2 = fst(Disequalities.comp_map a.uf), fst(Disequalities.comp_map b.uf)
            in let cc = Option.map (fun cc -> join_bldis a.bldis b.bldis a b cc cmap1 cmap2) cc in
            Option.bind cc (fun cc -> join_neq a.diseq b.diseq a b cc cmap1 cmap2))
     in
@@ -108,7 +108,7 @@ module D = struct
           (if M.tracing then M.tracel "c2po-join" "WIDEN. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
                (show_all (Some a)) (show_all (Some b));
            let cc = fst(widen_eq_no_automata a b) in
-           let cmap1, cmap2 = Disequalities.comp_map a.uf, Disequalities.comp_map b.uf
+           let cmap1, cmap2 = fst(Disequalities.comp_map a.uf), fst(Disequalities.comp_map b.uf)
            in let cc = Option.bind cc (fun cc -> join_neq a.diseq b.diseq a b cc cmap1 cmap2) in
            Option.map (fun cc -> join_bldis a.bldis b.bldis a b cc cmap1 cmap2) cc)
     in

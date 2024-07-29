@@ -172,18 +172,20 @@ module C2PO = struct
     (** Map of partition, transform union find to a map
         of type V -> Z -> V set
         with reference variable |-> offset |-> all terms that are in the union find with this ref var and offset. *)
-    let comp_map uf = List.fold_left (fun comp (v,_) ->
-        map_set_add (TUF.find_no_pc uf v) v comp)
-        TMap.empty (TMap.bindings uf)
+    let comp_map uf =
+      List.fold_left (fun (comp,uf) (v,_) ->
+          let t,z,uf = TUF.find uf v in
+          map_set_add (t,z) v comp,uf)
+        (TMap.empty, uf) (TMap.bindings uf)
 
     (** Find all elements that are in the same equivalence class as t. *)
     let comp_t uf t =
-      let (t',z') = TUF.find_no_pc uf t in
-      List.fold_left (fun comp (v,((p,z),_)) ->
-          let (v', z'') = TUF.find_no_pc uf v in
-          if T.equal v' t' then (v, Z.(z'-z''))::comp else comp
+      let (t',z',uf) = TUF.find uf t in
+      fst(List.fold_left (fun (comp,uf) (v,((p,z),_)) ->
+          let v', z'',uf = TUF.find uf v in
+          if T.equal v' t' then (v, Z.(z'-z''))::comp,uf else comp,uf
         )
-        [] (TMap.bindings uf)
+          ([],uf) (TMap.bindings uf))
 
     (** arg:
 
@@ -193,16 +195,17 @@ module C2PO = struct
 
         It basically maps each state in the automata to its predecessors. *)
     let get_args uf =
-      let cmap  = comp_map uf in
+      let cmap,uf = comp_map uf in
       let clist = TMap.bindings cmap in
       let arg =  List.fold_left (fun arg (v, imap) ->
           let ilist = ZMap.bindings imap in
           let iarg = List.fold_left (fun iarg (r,set) ->
-              let list = List.filter_map (function
+              let uf,list = List.fold_left (fun (uf,list) el ->
+                  match el with
                   | Deref (v', r', _) ->
-                    let (v0,r0) = TUF.find_no_pc uf v' in
-                    Some (v0,Z.(r0+r'))
-                  | _ -> None) (TSet.elements set) in
+                    let v0,r0,uf = TUF.find uf v' in
+                    uf,(v0,Z.(r0+r'))::list
+                  | _ -> uf,list) (uf,[]) (TSet.elements set) in
               ZMap.add r list iarg) ZMap.empty ilist in
           TMap.add v iarg arg) TMap.empty clist in
       (uf,cmap,arg)
@@ -281,12 +284,12 @@ module C2PO = struct
 
         Returns: list of normalized provided dis-equalities *)
     let init_list_neq uf neg =
-      List.filter_map (fun (v1,v2,r) ->
-          let (v1,r1) = TUF.find_no_pc uf v1 in
-          let (v2,r2) = TUF.find_no_pc uf v2 in
+      List.fold_left (fun (uf, list) (v1,v2,r) ->
+          let v1,r1,uf = TUF.find uf v1 in
+          let v2,r2,uf = TUF.find uf v2 in
           if T.equal v1 v2 then if Z.(equal r1 (r2+r)) then raise Unsat
-            else None
-          else Some (v1,v2,Z.(r2-r1+r))) neg
+            else uf,list
+          else uf,(v1,v2,Z.(r2-r1+r))::list) (uf,[]) neg
 
     (** Parameter: list of disequalities (t1, t2, z), where t1 and t2 are roots.
 
@@ -481,12 +484,12 @@ module C2PO = struct
       List.fold_left show_one_rep "" (bindings min_representatives)
 
     let rec update_min_repr (uf, set, map) min_representatives = function
-      | [] -> min_representatives, uf
+      | [] -> min_representatives
       | state::queue -> (* process all outgoing edges in order of ascending edge labels *)
         match LMap.successors state map with
         | edges ->
           let process_edge (min_representatives, queue, uf) (edge_z, next_term) =
-            let next_state, next_z, uf = TUF.find uf next_term in
+            let next_state, next_z = TUF.find_no_pc uf next_term in
             let (min_term, min_z) = find state min_representatives in
             let next_min =
               (SSet.deref_term_even_if_its_not_possible min_term Z.(edge_z - min_z) set, next_z) in
@@ -536,18 +539,15 @@ module C2PO = struct
       if M.tracing then M.trace "c2po" "compute_minimal_representatives\n";
       let atoms = SSet.get_atoms set in
       (* process all atoms in increasing order *)
-      let uf_ref = ref uf in
       let atoms =
         List.sort (fun el1 el2 ->
-            let v1, z1, new_uf = TUF.find !uf_ref el1 in
-            uf_ref := new_uf;
-            let v2, z2, new_uf = TUF.find !uf_ref el2 in
-            uf_ref := new_uf;
+            let v1, z1 = TUF.find_no_pc uf el1 in
+            let v2, z2 = TUF.find_no_pc uf el2 in
             let repr_compare = TUF.compare_repr (v1, z1) (v2, z2)
             in
             if repr_compare = 0 then T.compare el1 el2 else repr_compare) atoms in
       let add_atom_to_map (min_representatives, queue, uf) a =
-        let (rep, offs, uf) = TUF.find uf a in
+        let rep, offs = TUF.find_no_pc uf a in
         if not (mem rep min_representatives) then
           (add rep (a, offs) min_representatives, queue @ [rep], uf)
         else (min_representatives, queue, uf)
@@ -663,7 +663,7 @@ module C2PO = struct
     match cc with
     | None -> None
     | Some cc ->
-      let min_repr = fst(MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map)) in
+      let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
       Some {cc with normal_form = lazy(
           get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
         )}
@@ -715,7 +715,7 @@ module C2PO = struct
       let neq_list = Disequalities.init_neq (uf,cmap,arg) @ Disequalities.init_neg_block_diseq (uf, cc.bldis, cmap, arg) in
       let neq = Disequalities.propagate_neq (uf,cmap,arg,Disequalities.empty) cc.bldis neq_list in
       (* taking explicit dis-equalities into account *)
-      let neq_list = Disequalities.init_list_neq uf neg in
+      let uf,neq_list = Disequalities.init_list_neq uf neg in
       let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) cc.bldis neq_list in
       if M.tracing then M.trace "c2po-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
       Some {uf; set=cc.set; map=cc.map; normal_form=cc.normal_form;diseq=neq; bldis=cc.bldis}
@@ -832,11 +832,11 @@ module C2PO = struct
       match cc with
       | None -> None
       | Some cc ->
-        let t1' = fst (TUF.find_no_pc cc.uf t1) in
-        let t2' = fst (TUF.find_no_pc cc.uf t2) in
+        let t1',_,uf = TUF.find cc.uf t1 in
+        let t2',_,uf = TUF.find uf t2 in
         if T.equal t1' t2' then None (*unsatisfiable*)
         else let bldis = BlDis.add_block_diseq cc.bldis (t1',t2') in
-          add_normalized_bl_diseqs (Some {cc with bldis}) bl_conjs
+          add_normalized_bl_diseqs (Some {cc with bldis;uf}) bl_conjs
 
   (** Add a term to the data structure.
 
@@ -967,19 +967,19 @@ module C2PO = struct
           old_rep, old_z, TMap.add old_rep (old_rep, Z.zero) new_reps else (*we keep the same representative as before*)
           (* the representative need to be removed from the data structure: state is the new repr.*)
           state, Z.zero, TMap.add old_rep (state, old_z) new_reps in
-    let add_atom (new_reps, new_cc, reachable_old_reps) state =
-      let old_rep, old_z = TUF.find_no_pc cc.uf state in
+    let add_atom (uf, new_reps, new_cc, reachable_old_reps) state =
+      let old_rep, old_z, uf = TUF.find uf state in
       let new_rep, new_z, new_reps = find_new_repr state old_rep old_z new_reps in
       let new_cc = insert_terms new_cc [state; new_rep] in
       let new_cc = closure new_cc [(state, new_rep, new_z)] in
-      (new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
+      (uf, new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
     in
-    let new_reps, new_cc, reachable_old_reps =
-      SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (TMap.empty, (Some init_cc),[]) cc.set in
-    let cmap = Disequalities.comp_map cc.uf in
+    let uf, new_reps, new_cc, reachable_old_reps =
+      SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (cc.uf, TMap.empty, (Some init_cc),[]) cc.set in
+    let cmap,uf = Disequalities.comp_map uf in
     (* breadth-first search of reachable states *)
-    let add_transition (old_rep, new_rep, z1) (new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
-      let old_rep_s, old_z_s = TUF.find_no_pc cc.uf s_t in
+    let add_transition (old_rep, new_rep, z1) (uf, new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
+      let old_rep_s, old_z_s, uf = TUF.find uf s_t in
       let find_successor_in_set (z, term_set) =
         let exception Found in
         let res = ref None in
@@ -1000,56 +1000,64 @@ module C2PO = struct
           let new_cc = insert_terms new_cc [successor_term] in
           match LMap.find_opt old_rep_s new_reps with
           | Some (new_rep_s,z2) -> (* the successor already has a new representative, therefore we can just add it to the lookup map*)
-            new_reps, closure new_cc [(successor_term, new_rep_s, Z.(old_z_s-z2))], reachable_old_reps
+            uf, new_reps, closure new_cc [(successor_term, new_rep_s, Z.(old_z_s-z2))], reachable_old_reps
           | None -> (* the successor state was not visited yet, therefore we need to find the new representative of the state.
                        -> we choose a successor term *(t+z) for any
                        -> we need add the successor state to the list of states that still need to be visited
                     *)
-            TMap.add old_rep_s (successor_term, old_z_s) new_reps, new_cc, (old_rep_s, successor_term, old_z_s)::reachable_old_reps
+            uf, TMap.add old_rep_s (successor_term, old_z_s) new_reps, new_cc, (old_rep_s, successor_term, old_z_s)::reachable_old_reps
         else
-          (new_reps, new_cc, reachable_old_reps)
+          (uf, new_reps, new_cc, reachable_old_reps)
       | None ->
         (* the term cannot be dereferenced, so we won't add this transition. *)
-        (new_reps, new_cc, reachable_old_reps)
+        (uf, new_reps, new_cc, reachable_old_reps)
     in
     (* find all successors that are still reachable *)
-    let rec add_transitions new_reps new_cc = function
+    let rec add_transitions uf new_reps new_cc = function
       | [] -> new_reps, new_cc
       | (old_rep, new_rep, z)::rest ->
         let successors = LMap.successors old_rep cc.map in
-        let new_reps, new_cc, reachable_old_reps =
-          List.fold (add_transition (old_rep, new_rep,z)) (new_reps, new_cc, []) successors in
-        add_transitions new_reps new_cc (rest@reachable_old_reps)
-    in add_transitions new_reps new_cc
+        let uf, new_reps, new_cc, reachable_old_reps =
+          List.fold (add_transition (old_rep, new_rep,z)) (uf, new_reps, new_cc, []) successors in
+        add_transitions uf new_reps new_cc (rest@reachable_old_reps)
+    in add_transitions uf new_reps new_cc
       (List.unique_cmp ~cmp:(Tuple3.compare ~cmp1:(T.compare) ~cmp2:(T.compare) ~cmp3:(Z.compare)) reachable_old_reps)
 
   (** Find the representative term of the equivalence classes of an element that has already been deleted from the data structure.
       Returns None if there are no elements in the same equivalence class as t before it was deleted.*)
   let find_new_root new_reps uf v =
     match TMap.find_opt v new_reps with
-    | None -> None
+    | None -> uf, None
     | Some (new_t, z1) ->
-      let t_rep, z2 = TUF.find_no_pc uf new_t in
-      Some (t_rep, Z.(z2-z1))
+      let t_rep, z2, uf = TUF.find uf new_t in
+      uf, Some (t_rep, Z.(z2-z1))
 
   let remove_terms_from_diseq diseq new_reps cc =
     let disequalities = Disequalities.get_disequalities diseq
     in
-    let add_disequality new_diseq = function
+    let add_disequality (uf,new_diseq) = function
       | Nequal(t1,t2,z) ->
-        begin match find_new_root new_reps cc.uf t1,find_new_root new_reps cc.uf t2 with
-          | Some (t1',z1'), Some (t2', z2') -> (t1', t2', Z.(z2'+z-z1'))::new_diseq
-          | _ -> new_diseq
+        begin match find_new_root new_reps uf t1 with
+          | uf, Some (t1',z1') ->
+            begin match find_new_root new_reps uf t2 with
+              | uf, Some (t2', z2') -> uf, (t1', t2', Z.(z2'+z-z1'))::new_diseq
+              | _ -> uf, new_diseq
+            end
+          | _ -> uf, new_diseq
         end
-      | _-> new_diseq
+      | _-> uf, new_diseq
     in
-    let new_diseq = List.fold add_disequality [] disequalities
-    in congruence_neq cc new_diseq
+    let uf,new_diseq = List.fold add_disequality (cc.uf,[]) disequalities
+    in congruence_neq {cc with uf} new_diseq
 
   let remove_terms_from_bldis bldis new_reps cc =
-    let find_new_root_term t = Option.map fst (find_new_root new_reps cc.uf t) in
+    let uf_ref = ref cc.uf in
+    let find_new_root_term t =
+      let uf, new_root = find_new_root new_reps !uf_ref t in
+      uf_ref := uf;
+      Option.map fst new_root in
     let bldis = BlDis.filter_map_lhs find_new_root_term bldis in
-    BlDis.filter_map find_new_root_term bldis
+    !uf_ref, BlDis.filter_map find_new_root_term bldis
 
   (** Remove terms from the data structure.
       It removes all terms for which "predicate" is false,
@@ -1058,8 +1066,8 @@ module C2PO = struct
     let old_cc = cc in
     match remove_terms_from_eq predicate cc with
     | new_reps, Some cc ->
-      let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
-      let cc = remove_terms_from_diseq old_cc.diseq new_reps {cc with bldis} in
+      let uf,bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
+      let cc = remove_terms_from_diseq old_cc.diseq new_reps {cc with uf;bldis} in
       cc
     | _,None -> None
 
@@ -1168,7 +1176,7 @@ module C2PO = struct
 
   (** Compares the equivalence classes of cc1 and those of cc2. *)
   let equal_eq_classes cc1 cc2 =
-    let comp1, comp2 = Disequalities.comp_map cc1.uf, Disequalities.comp_map cc2.uf in
+    let comp1, comp2 = fst(Disequalities.comp_map cc1.uf), fst(Disequalities.comp_map cc2.uf) in
     (* they should have the same number of equivalence classes *)
     if TMap.cardinal comp1 <> TMap.cardinal comp2 then false else
       (* compare each equivalence class of cc1 with the corresponding eq. class of cc2 *)
