@@ -95,7 +95,7 @@ struct
     let valid_props = T.filter_valid_pointers props in
     let res =
       if List.is_empty valid_props then ctx.local else
-        recompute_min_repr (meet_conjs_opt valid_props ctx.local)
+        reset_normal_form (meet_conjs_opt valid_props ctx.local)
     in
     if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n"
         d_exp e pos (show_conj valid_props) (D.is_bot res);
@@ -107,7 +107,7 @@ struct
   let assign_return ask t return_var expr =
     (* the return value is not stored on the heap, therefore we don't need to remove any terms *)
     match T.of_cil ask expr with
-    | (Some term, Some offset) -> recompute_min_repr (meet_conjs_opt [Equal (return_var, term, offset)] t)
+    | (Some term, Some offset) -> reset_normal_form (meet_conjs_opt [Equal (return_var, term, offset)] t)
     | _ -> t
 
   let return ctx exp_opt f =

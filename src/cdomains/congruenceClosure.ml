@@ -478,12 +478,7 @@ module C2PO = struct
         s ^ "\tState: " ^ T.show state ^
         "\n\tMin: (" ^ T.show rep ^ ", " ^ Z.to_string z ^ ")--\n\n"
       in
-      List.fold_left show_one_rep "" (bindings min_representatives)
-
-    let show_min_rep_opt min_repr_opt =
-      match min_repr_opt with
-      | None -> "None"
-      | Some min_repr -> show_min_rep min_repr
+      List.fold_left show_one_rep "" (bindings (Lazy.force min_representatives))
 
     let rec update_min_repr (uf, set, map) min_representatives = function
       | [] -> min_representatives, uf
@@ -533,7 +528,6 @@ module C2PO = struct
 
     (**
        Computes a map that maps each representative of an equivalence class to the minimal representative of the equivalence class.
-       It's used for now when removing elements, then the min_repr map gets recomputed.
 
        Returns:
        - The map with the minimal representatives
@@ -568,10 +562,16 @@ module C2PO = struct
       List.fold_left (fun map element -> add element (element, Z.zero) map) empty (SSet.elements set)
   end
 
+  module Lazy =
+  struct
+    include Lazy
+    let hash x y = 0
+  end
+
   type t = {uf: TUF.t;
             set: SSet.t;
             map: LMap.t;
-            min_repr: MRMap.t option;
+            normal_form: T.v_prop list Lazy.t[@compare.ignore][@eq.ignore][@hash.ignore];
             diseq: Disequalities.t;
             bldis: BlDis.t}
   [@@deriving eq, ord, hash]
@@ -594,17 +594,9 @@ module C2PO = struct
          (LMap.zmap_bindings zmap)))
       (LMap.bindings map)
 
-  let compute_min_repr_if_necessary cc =
-    if GobConfig.get_bool "ana.c2po.normal_form" then
-      match cc.min_repr with
-      | None -> let min_repr, uf =
-                  MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
-        {cc with min_repr = Some min_repr; uf}
-      | Some min_repr -> cc
-    else cc
+  let compute_normal_form_if_necessary cc = cc
 
-  let recompute_min_repr =
-    Option.map (fun cc -> compute_min_repr_if_necessary {cc with min_repr=None})
+  let reset_normal_form cc = cc
 
   let exactly_equal cc1 cc2 =
     cc1.uf == cc2.uf && cc1.map == cc2.map && cc1.diseq == cc2.diseq && cc1.bldis == cc2.bldis
@@ -657,8 +649,7 @@ module C2PO = struct
      Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
   (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
   let get_normal_form cc =
-    let min_repr = Option.get cc.min_repr in
-    get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
+    Lazy.force cc.normal_form
 
   (* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
        Basically runtime = O(size of result if we hadn't removed the trivial conjunctions). *)
@@ -679,7 +670,7 @@ module C2PO = struct
                    ^ "\nBlock diseqs:\n"
                    ^ show_conj(BlDis.to_conj x.bldis)
                    ^ "\nMin repr:\n"
-                   ^ MRMap.show_min_rep_opt x.min_repr
+                   ^ show_conj (Lazy.force x.normal_form) (*TODO only print if it's already been lazy.forced*)
 
   (** Splits the conjunction into two groups: the first one contains all equality propositions,
       and the second one contains all inequality propositions.  *)
@@ -700,7 +691,7 @@ module C2PO = struct
      - `min_repr` = maps each representative of an equivalence class to the minimal representative of the equivalence class.
   *)
   let init_cc =
-    {uf = TUF.empty; set = SSet.empty; map = LMap.empty; min_repr = None; diseq = Disequalities.empty; bldis = BlDis.empty}
+    {uf = TUF.empty; set = SSet.empty; map = LMap.empty; normal_form = lazy([]); diseq = Disequalities.empty; bldis = BlDis.empty}
 
   (** closure of disequalities *)
   let congruence_neq cc neg =
@@ -715,7 +706,7 @@ module C2PO = struct
       let neq_list = Disequalities.init_list_neq uf neg in
       let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) cc.bldis neq_list in
       if M.tracing then M.trace "c2po-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
-      Some {uf; set=cc.set; map=cc.map; min_repr=cc.min_repr;diseq=neq; bldis=cc.bldis}
+      Some {uf; set=cc.set; map=cc.map; normal_form=cc.normal_form;diseq=neq; bldis=cc.bldis}
     with Unsat -> None
 
   let congruence_neq_opt cc neq = match cc with
@@ -817,7 +808,7 @@ module C2PO = struct
     | Some cc ->
       let (uf, map, new_repr) = closure (cc.uf, cc.map, TMap.empty) conjs in
       let bldis = update_bldis new_repr cc.bldis in
-      Some {uf; set = cc.set; map; min_repr=cc.min_repr; diseq=cc.diseq; bldis=bldis}
+      Some {uf; set = cc.set; map; normal_form=cc.normal_form; diseq=cc.diseq; bldis=bldis}
 
   (** Adds the block disequalities to the cc, but first rewrites them such that
       they are disequalities between representatives. The cc should already contain
@@ -1053,11 +1044,11 @@ module C2PO = struct
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms predicate cc =
     let old_cc = cc in
-    match remove_terms_from_eq predicate {cc with min_repr=None} with
+    match remove_terms_from_eq predicate (reset_normal_form cc) with
     | new_reps, Some cc ->
       let bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
       let cc = remove_terms_from_diseq old_cc.diseq new_reps {cc with bldis} in
-      Option.map compute_min_repr_if_necessary cc
+      Option.map compute_normal_form_if_necessary cc
     | _,None -> None
 
   (* join version 1: by using the automaton *)

@@ -45,7 +45,7 @@ module D = struct
       | _ -> false
     in if M.tracing then M.trace "c2po-equal" "equal eq classes. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
 
-  let equal_min_repr x y =
+  let equal_normal_form x y =
     let res = match x, y with
       | Some x, Some y ->
         if exactly_equal x y then
@@ -58,7 +58,7 @@ module D = struct
       | _ -> false
     in if M.tracing then M.trace "c2po-equal" "equal min repr. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);res
 
-  let equal a b = if GobConfig.get_bool "ana.c2po.normal_form" then equal_min_repr a b else equal_standard a b
+  let equal a b = if GobConfig.get_bool "ana.c2po.normal_form" then equal_normal_form a b else equal_standard a b
 
   let empty () = Some init_cc
 
@@ -89,7 +89,7 @@ module D = struct
     in
     if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
         (show_all res);
-    Option.map compute_min_repr_if_necessary res
+    Option.map compute_normal_form_if_necessary res
 
   let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
       (if M.tracing then M.trace "c2po-join" "Join Automaton"; join a b join_eq) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join a b join_eq_no_automata)
@@ -112,7 +112,7 @@ module D = struct
     in
     if M.tracing then M.tracel "c2po-join" "WIDEN. WIDEN: %s\n"
         (show_all res);
-    Option.map compute_min_repr_if_necessary res
+    Option.map compute_normal_form_if_necessary res
 
   let widen a b = if M.tracing then M.trace "c2po-join" "WIDEN\n";
     if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
@@ -128,7 +128,7 @@ module D = struct
         else
           match get_conjunction a with
           | [] -> b'
-          | a_conj -> recompute_min_repr (meet_conjs_opt a_conj b')
+          | a_conj -> reset_normal_form (meet_conjs_opt a_conj b')
     in if M.tracing then M.trace "c2po-meet" "MEET RESULT = %s" (show res);
     res
 
@@ -144,7 +144,7 @@ module D = struct
         else
           let b_conj = List.filter
               (function | Equal (t1,t2,_)| Nequal (t1,t2,_)| BlNequal (t1,t2) -> SSet.mem t1 a.set && SSet.mem t2 a.set) (get_conjunction b) in
-          recompute_min_repr (meet_conjs_opt b_conj (Some a))
+          reset_normal_form (meet_conjs_opt b_conj (Some a))
     in if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %s" (show res);res
 
   let pretty_diff () (x,y) = Pretty.dprintf ""
@@ -156,7 +156,7 @@ module D = struct
         (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
         (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
         (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
-        (XmlUtil.escape (Format.asprintf "%s" (MRMap.show_min_rep_opt x.min_repr)))
+        (XmlUtil.escape (Format.asprintf "%s" (show_conj (Lazy.force x.normal_form)))) (*TODO*)
         (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.diseq)))
     | None ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 

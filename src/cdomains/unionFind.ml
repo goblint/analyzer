@@ -26,10 +26,9 @@ module T = struct
   let equal_exp _ _ = true
   let hash_exp _ = 1
 
-
   (* we store the varinfo and the Cil expression corresponding to the term in the data type *)
-  type t = (Var.t, exp) term [@@deriving eq, ord, hash]
-  type v_prop = (Var.t, exp) prop [@@deriving hash]
+  type t = (Var.t, exp[@compare.ignore][@eq.ignore][@hash.ignore]) term [@@deriving eq, ord, hash]
+  type v_prop = (Var.t, exp[@compare.ignore][@eq.ignore][@hash.ignore]) prop [@@deriving hash]
 
   let compare t1 t2 =
     match t1,t2 with
