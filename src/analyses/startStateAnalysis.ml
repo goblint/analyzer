@@ -50,14 +50,11 @@ struct
 
   (* TODO: there should be a better way to do this, this should be removed here. *)
   let return ctx exp_opt f =
+    (* ctx.local *)
     (* remember all values of local vars *)
     let st = List.fold_left (fun st var -> let value = get_value (ask_of_ctx ctx) (Lval (Var var, NoOffset)) in
                               if M.tracing then M.trace "startState" "return: added value: var: %a; value: %a" d_lval (Var var, NoOffset) Value.pretty value;
-                              D.add (var) value st) (D.empty()) (f.sformals @ f.slocals) in
-    (* remember value of tainted vars in the return variable *)
-    let tainted = ctx.ask (MayBeTainted) in
-    let st = D.add return_varinfo tainted st
-    in if M.tracing then M.tracel "wrpointer-tainted" "startState: %a; state: %a\n" AD.pretty tainted D.pretty st;st
+                              D.add (var) value st) (D.empty()) (f.sformals @ f.slocals) in st
 
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

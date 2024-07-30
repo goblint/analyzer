@@ -179,8 +179,7 @@ struct
     let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN0: state_with_assignments: %s\n" (D.show state_with_assignments);
     (*remove all variables that were tainted by the function*)
-    let tainted = (* find out the tainted variables from startState *)
-      ask.f (MayPointTo (MayBeEqual.return_lval (dummyFunDec.svar.vtype)))
+    let tainted = ask.f (MayBeTainted)
     in
     if M.tracing then M.trace "c2po-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
     let local = D.remove_tainted_terms ask tainted state_with_assignments in
