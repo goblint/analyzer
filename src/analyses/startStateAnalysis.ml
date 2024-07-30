@@ -48,10 +48,6 @@ struct
   let startstate v = D.bot ()
   let exitstate = startstate
 
-  (* TODO: there should be a better way to do this, this should be removed here. *)
-  let return ctx exp_opt f =
-    ctx.local
-
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
@@ -59,22 +55,11 @@ struct
     | EvalValue e -> Address (eval (ask_of_ctx ctx) ctx.local e)
     | _ -> Result.top q
 
-  let enter ctx var_opt f args =
-    [ctx.local, ctx.local]
-
   let body ctx (f:fundec) =
     (* assign function parameters *)
     List.fold_left (fun st var -> let value = get_value (ask_of_ctx ctx) (Lval (Var var, NoOffset)) in
                      if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var (duplicated_variable var), NoOffset) Value.pretty value;
                      D.add (duplicated_variable var) value st) (D.empty()) f.sformals
-
-  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
-    ctx.local
-
-  let combine_assign ctx var_opt expr f exprs t_context_opt t ask =
-    (* remove duplicated vars and local vars *)
-    ctx.local
-
 end
 
 let _ =
