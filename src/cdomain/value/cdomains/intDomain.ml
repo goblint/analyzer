@@ -2794,7 +2794,7 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
     | _ -> a
 
-  let refine_with_interval ik a b = a
+  let refine_with_interval ik a b = a (* TODO: refine inclusion (exclusion?) set *)
 
   let refine_with_excl_list ik a b =
     match b with
@@ -3577,7 +3577,7 @@ module IntDomTupleImpl = struct
     in
     [(fun (a, b, c, d, e) -> refine_with_excl_list ik (a, b, c, d, e) (to_excl_list (a, b, c, d, e)));
      (fun (a, b, c, d, e) -> refine_with_incl_list ik (a, b, c, d, e) (to_incl_list (a, b, c, d, e)));
-     (fun (a, b, c, d, e) -> maybe refine_with_interval ik (a, b, c, d, e) b);
+     (fun (a, b, c, d, e) -> maybe refine_with_interval ik (a, b, c, d, e) b); (* TODO: get interval across all domains with minimal and maximal *)
      (fun (a, b, c, d, e) -> maybe refine_with_congruence ik (a, b, c, d, e) d)]
 
   let refine ik ((a, b, c, d, e) : t ) : t =
@@ -3791,6 +3791,7 @@ module IntDomTupleImpl = struct
     | _ -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant_ikind e ik ((_, _, _, x_cong, x_intset) as x) =
+    (* TODO: do refinement before to ensure incl_list being more precise than intervals, etc (https://github.com/goblint/analyzer/pull/1517#discussion_r1693998515), requires refine functions to actually refine that *)
     let simplify_int fallback =
       match to_int x with
       | Some v ->
