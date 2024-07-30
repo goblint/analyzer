@@ -40,7 +40,7 @@ let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
       in
       Z_mlgmpidl.z_of_mpzf z
     | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
 
 module type ConvertArg =
@@ -200,7 +200,7 @@ struct
     in
     let exp = Cil.constFold false exp in
     let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
+    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
     res
 
   let texpr1_of_cil_exp ask d env e no_ov =
@@ -267,15 +267,14 @@ struct
                else
                  Const (CInt(i,ILongLong,None)), false
            else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
          | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in
     let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
     let append_summand (c:Coeff.union_5) v =
       match V.to_cil_varinfo v with
-      | Some vinfo ->
-        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+      | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
         let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
         let coeff, flip = coeff_to_const true c in
         let prod = BinOp(Mult, coeff, var, longlong) in
@@ -283,14 +282,15 @@ struct
           expr := BinOp(MinusA,!expr,prod,longlong)
         else
           expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v; raise Unsupported_Linexpr1
+      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v; raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
     !expr
 
 
   let lcm_den linexpr1 =
-    let exception UnsupportedScalar 
+    let exception UnsupportedScalar
     in
     let frac_of_scalar scalar =
       if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)

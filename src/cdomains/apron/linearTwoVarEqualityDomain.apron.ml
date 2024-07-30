@@ -11,7 +11,7 @@ open Batteries
 open GoblintCil
 open Pretty
 module M = Messages
-open Apron
+open GobApron
 open VectorMatrix
 
 module Mpqf = SharedFunctions.Mpqf
@@ -331,7 +331,7 @@ struct
 
   let simplified_monomials_from_texp (t: t) texp =
     let res = simplified_monomials_from_texp t texp in
-    if M.tracing then M.tracel "from_texp" "%s %s -> %s" (EConj.show @@ snd @@ BatOption.get t.d) (Format.asprintf "%a" Texpr1.print_expr texp)
+    if M.tracing then M.tracel "from_texp" "%s %a -> %s" (EConj.show @@ snd @@ BatOption.get t.d) Texpr1.Expr.pretty texp
         (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
     res
 
@@ -361,7 +361,7 @@ struct
     else
       match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
       | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
-        (if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string res) (IntOps.BigIntOps.to_string res);
+        (if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
          Some res, Some res)
       | _ -> None, None
 
@@ -424,7 +424,7 @@ struct
         EConj.show_formatted (show_var varM.env) (snd arr) ^ (to_subscript @@ fst arr)
 
   let pretty () (x:t) = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
   let meet_with_one_conj t i (var, o, divi) =
@@ -459,7 +459,7 @@ struct
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
-    let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
+    let env_comp = Environment.cmp t1.env t2.env in (* Apron's Environment.cmp has defined return values. *)
     let implies ts i (var, offs, divi) =
       let tuple_cmp = Tuple3.eq (Option.eq ~eq:(Tuple2.eq (Z.equal) (Int.equal))) (Z.equal) (Z.equal) in
       match var with
@@ -543,7 +543,7 @@ struct
     | Some x, Some y when is_top a || is_top b ->
       let new_env = Environment.lce a.env b.env in
       top_of new_env
-    | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
+    | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
       let sup_env = Environment.lce a.env b.env in
       let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
       let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
@@ -630,8 +630,8 @@ struct
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s"
-        (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %a \n exp: %a\n no_ov: %b -> \n %s"
+        (show t) Var.pretty var d_exp exp (Lazy.force no_ov) (show res);
     res
 
   let assign_var (t: VarManagement.t) v v' =
@@ -640,7 +640,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
     res
 
   (** Parallel assignment of variables.
@@ -693,7 +693,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s" (show t) (Var.to_string var) d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov

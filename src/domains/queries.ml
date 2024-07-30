@@ -49,8 +49,8 @@ end
 
 (* Helper definitions for deriving complex parts of Any.compare below. *)
 type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
-type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: LockDomain.MustLock.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type mustprotectedvars = {mutex: LockDomain.MustLock.t; write: bool} [@@deriving ord, hash]
 type access =
   | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
