@@ -38,11 +38,11 @@ struct
         d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
   let conj_to_invariant ask conjs t =
-    List.fold (fun a prop -> let exp = T.prop_to_cil prop in
-                if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
-                match eval_guard ask t exp with
-                | Some true -> Invariant.(a && of_exp exp)
-                | _ -> a)
+    List.fold (fun a prop -> match T.prop_to_cil prop with
+        | exception (T.UnsupportedCilExpression _) ->  a
+        | exp ->
+          if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
+          Invariant.(a && of_exp exp))
       (Invariant.top()) conjs
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
