@@ -6,6 +6,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from threading import Thread
 import subprocess
 
@@ -17,6 +18,11 @@ url = 'http://' + IP + ':' + str(PORT) + '/'
 # cleanup
 def cleanup(browser, thread):
   print("cleanup")
+
+  # print messages
+  for entry in browser.get_log('browser'):
+    print(entry)
+
   browser.close()
   p.kill()
   thread.join()
@@ -35,6 +41,8 @@ thread.start()
 print("starting installation of browser\n")
 options = Options()
 options.add_argument('headless')
+# options.set_capability("loggingPrefs", { 'browser':'ALL' })
+options.set_capability("goog:loggingPrefs", { 'browser':'ALL' })
 browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)
 print("finished webdriver installation \n")
 browser.maximize_window()

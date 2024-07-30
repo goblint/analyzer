@@ -357,6 +357,7 @@ struct
     (* real beginning of the [analyze] function *)
     if get_bool "ana.sv-comp.enabled" then
       Witness.init (module FileCfg); (* TODO: move this out of analyze_loop *)
+    YamlWitness.init ();
 
     AnalysisState.global_initialization := true;
     GobConfig.earlyglobs := get_bool "exp.earlyglobs";
@@ -789,15 +790,19 @@ struct
     );
 
     (* Before SV-COMP, so result can depend on YAML witness validation. *)
-    if get_string "witness.yaml.validate" <> "" then (
-      let module YWitness = YamlWitness.Validator (R) in
-      YWitness.validate ()
-    );
+    let yaml_validate_result =
+      if get_string "witness.yaml.validate" <> "" then (
+        let module YWitness = YamlWitness.Validator (R) in
+        Some (YWitness.validate ())
+      )
+      else
+        None
+    in
 
     if get_bool "ana.sv-comp.enabled" then (
       (* SV-COMP and witness generation *)
       let module WResult = Witness.Result (R) in
-      WResult.write entrystates
+      WResult.write yaml_validate_result entrystates
     );
 
     if get_bool "witness.yaml.enabled" then (

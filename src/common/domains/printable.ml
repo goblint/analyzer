@@ -88,6 +88,20 @@ struct
   let to_yojson x = `String (show x)
 end
 
+module type Formatable =
+sig
+  type t
+  val pp: Format.formatter -> t -> unit
+end
+
+module SimpleFormat (P: Formatable) =
+struct
+  let show x = GobFormat.asprint P.pp x
+  let pretty () x = text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
@@ -588,7 +602,7 @@ module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) = struct
   let arbitrary () = QCheck.quad (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
 end
 
-module PQueue (Base: S) = 
+module PQueue (Base: S) =
 struct
   type t = Base.t BatDeque.dq
   include Std
@@ -604,22 +618,22 @@ struct
     let rec loop n q =
       match BatDeque.front q with
       | None -> ()
-      | Some (x, xs) -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x; 
+      | Some (x, xs) -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x;
                          loop (n+1) (xs))
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
-    loop 0 xs; 
+    loop 0 xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
 
   let to_yojson q = `List (BatDeque.to_list @@ BatDeque.map (Base.to_yojson) q)
   let hash q = BatDeque.fold_left (fun acc x -> (acc + 71) * (Base.hash x)) 11 q
   let equal q1 q2 = BatDeque.eq ~eq:Base.equal q1 q2
-  let compare q1 q2 = 
+  let compare q1 q2 =
     match BatDeque.front q1, BatDeque.front q2 with
     | None, None -> 0
     | None, Some(_, _) -> -1
     | Some(_, _), None -> 1
-    | Some(a1, q1'), Some(a2, q2') -> 
+    | Some(a1, q1'), Some(a2, q2') ->
       let c = Base.compare a1 a2 in
       if c <> 0 then c
       else compare q1' q2'
