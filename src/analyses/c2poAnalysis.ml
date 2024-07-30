@@ -182,7 +182,7 @@ struct
     let tainted = ask.f (MayBeTainted)
     in
     if M.tracing then M.trace "c2po-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
-    let local = D.remove_tainted_terms ask tainted state_with_assignments in
+    let local = D.remove_tainted_terms (ask_of_ctx ctx) tainted state_with_assignments in
     let t = D.meet local t in
     let t = reset_normal_form @@ remove_out_of_scope_vars t f in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);t
