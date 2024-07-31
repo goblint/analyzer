@@ -91,6 +91,11 @@
           "termination",
           "tmpSpecialAnalysis"
         ]
+      },
+      "c2po": {
+        "askbase": true,
+        "precise_join": true,
+        "normal_form": true
       }
     },
     "exp": {
