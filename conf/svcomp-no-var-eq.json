@@ -96,7 +96,8 @@
     "solver": "td3",
     "sem": {
       "unknown_function": {
-        "spawn": false
+        "spawn": false,
+        "call": false
       },
       "int": {
         "signed_overflow": "assume_none"
